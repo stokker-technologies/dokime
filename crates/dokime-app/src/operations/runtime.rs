@@ -1,0 +1,142 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+use std::sync::Arc;
+
+// Third Party Imports
+use harmos::operations::{Context, Operation};
+
+// Local Imports
+use crate::{RuntimeHandle, app::Lanes};
+use dokime::operations::runtime::{GetHealth, GetIdentity, Health, Identity, Readiness};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+struct ReadHealth {
+    resources: Arc<Resources>,
+}
+
+struct ReadIdentity {
+    resources: Arc<Resources>,
+}
+
+struct Resources {
+    identity: Identity,
+    shutdown: tokio::sync::watch::Receiver<bool>,
+    state: tokio::sync::watch::Receiver<crate::queries::RuntimeStateSnapshot>,
+}
+
+/* === Enums === */
+#[harmos::catalog]
+enum Operations {
+    Health(ReadHealth),
+    Identity(ReadIdentity),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+impl Operation for ReadHealth {
+    type Declaration = GetHealth;
+    type Resources = Resources;
+    type Error = std::convert::Infallible;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    fn new(resources: Arc<Resources>) -> Result<Self, Self::Error> {
+        Ok(Self { resources })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        _: &mut dokime::operations::runtime::Request,
+        _: &mut (),
+    ) -> Result<Health, Self::Error> {
+        let stopping = *self.resources.shutdown.borrow()
+            || self.resources.state.borrow().state().shutting_down;
+        let observed_at = time::OffsetDateTime::now_utc();
+        Ok(Health {
+            backend_id: self.resources.identity.backend_id.clone(),
+            epoch: self.resources.identity.epoch.clone(),
+            readiness: if stopping {
+                Readiness::Stopping
+            } else {
+                Readiness::Ready
+            },
+            observed_at_seconds: observed_at.unix_timestamp(),
+            observed_at_nanoseconds: observed_at.nanosecond(),
+            message: if stopping {
+                "Runtime is stopping"
+            } else {
+                "Runtime is running"
+            }
+            .into(),
+        })
+    }
+}
+
+impl Operation for ReadIdentity {
+    type Declaration = GetIdentity;
+    type Resources = Resources;
+    type Error = std::convert::Infallible;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    fn new(resources: Arc<Resources>) -> Result<Self, Self::Error> {
+        Ok(Self { resources })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        _: &mut dokime::operations::runtime::Request,
+        _: &mut (),
+    ) -> Result<Identity, Self::Error> {
+        Ok(self.resources.identity.clone())
+    }
+}
+
+/* === Public Functions === */
+pub(crate) fn register(runtime: &RuntimeHandle) -> crate::Result<()> {
+    let resources = Resources {
+        identity: Identity {
+            backend_id: runtime.identity().node.node_id.to_string(),
+            epoch: runtime.process_epoch().to_string(),
+            display_name: runtime.hub_metadata().label,
+            product_version: env!("CARGO_PKG_VERSION").into(),
+        },
+        shutdown: runtime.shutdown_requested.subscribe(),
+        state: runtime.state_watch.subscribe(),
+    };
+    runtime
+        .operations
+        .register_wire_operations::<Operations, Resources>(
+            "dokime",
+            Lanes::Open,
+            Arc::new(resources),
+        )?;
+    Ok(())
+}
+
+/* === Private Functions === */
+
+/* === Tests === */

@@ -1,0 +1,115 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+name = "dokime"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+[features]
+default = ["native", "derive"]
+native = ["harmos/sidecar", "dep:tokio", "dep:tokio-stream", "dep:tracing-subscriber"]
+# The authoring attributes, the way serde ships its derives. Traits are the API
+# and the attributes are the derive path, so a plugin that writes `impl
+# dokime::Observer` by hand compiles without them.
+derive = ["dep:dokime-macros"]
+
+client = [
+  "harmos/grpc",
+  "dep:base64",
+  "dep:dokime-filesystem",
+  "dep:sha2",
+  "dep:tokio-stream",
+  "dep:dokime-protocol",
+  "dep:rustls",
+  "dep:tokio",
+  "dep:tokio-util",
+  "dep:tonic",
+  "dep:url",
+  "dep:zeroize",
+]
+
+storage = [
+  "dep:base64",
+  "dep:dokime-filesystem",
+  "dep:futures-util",
+  "dep:rusqlite",
+  "dep:sha2",
+  "dep:tempfile",
+  "dep:tokio",
+  "dep:uuid",
+]
+
+[dependencies]
+# Local
+dokime-contract = { path = "../dokime-contract" }
+dokime-filesystem = { path = "../dokime-filesystem", optional = true }
+dokime-macros = { path = "../dokime-macros", optional = true }
+dokime-protocol = { path = "../dokime-protocol", optional = true }
+
+# Git
+harmos = { workspace = true, features = ["runtime", "derive", "artifact"] }
+
+# Error Handling
+thiserror = { workspace = true, default-features = true }
+
+# Logging
+tracing = { workspace = true, default-features = true }
+tracing-error = { workspace = true, default-features = true }
+tracing-subscriber = { workspace = true, default-features = true, optional = true }
+
+# Utilities
+sha2 = { workspace = true, default-features = true, optional = true }
+time = { workspace = true, default-features = true }
+uuid = { workspace = true, default-features = true, optional = true }
+zeroize = { workspace = true, default-features = true, optional = true }
+
+# Serialization
+base64 = { workspace = true, default-features = true, optional = true }
+prost = { workspace = true, default-features = true }
+serde = { workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true, features = ["float_roundtrip"] }
+
+# Filesystem
+tempfile = { workspace = true, default-features = true, optional = true }
+
+# Async
+futures-util = { workspace = true, default-features = true, optional = true }
+tokio = { workspace = true, default-features = true, optional = true }
+tokio-stream = { workspace = true, default-features = true, features = ["sync"], optional = true }
+tokio-util = { workspace = true, default-features = true, features = ["rt"], optional = true }
+
+# Networking
+rustls = { workspace = true, features = ["ring", "std"], optional = true }
+tonic = { workspace = true, features = [
+  "channel",
+  "tls-ring",
+  "tls-native-roots",
+], optional = true }
+url = { workspace = true, default-features = true, optional = true }
+
+# Storage
+rusqlite = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Git
+harmos = { workspace = true, features = ["sidecar-host"] }
+
+# Serialization
+arrow-schema = { workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true }
+
+# Filesystem
+tempfile = { workspace = true, default-features = true }
+
+# Async
+tokio = { workspace = true, default-features = true, features = ["test-util"] }

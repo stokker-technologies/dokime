@@ -1,0 +1,86 @@
+// Dokime — SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/common.proto";
+import "dokime/v1/value.proto";
+import "dokime/v1/schema.proto";
+import "google/protobuf/timestamp.proto";
+
+// Append-only captured facts in the current process, NOT current visibility.
+// Discarded attempts remain facts: select the exact execution ID for the
+// current attempt. There is no checkpoint replay or cross-epoch continuation.
+service Evidence {
+  rpc ListRecords(ListRecordsRequest) returns (RecordPage);
+  rpc WatchRecords(WatchRecordsRequest) returns (stream RecordPage);
+  rpc GetCapturedRecordSchema(GetCapturedRecordSchemaRequest) returns (RecordSchema);
+}
+
+message CapturedRecordSelection {
+  // Conjunction of exact supplied fields. Missing record fields do not match.
+  EvidenceScope scope = 1;
+  repeated string record_types = 2;
+  repeated string sources = 3;
+  repeated Severity severities = 4;
+}
+
+message ListRecordsRequest {
+  CapturedRecordSelection selection = 1;
+  // Both absent starts replay at zero through the current applied frontier.
+  // Continuations require BOTH cursors returned in the previous page.
+  Cursor after = 2;
+  Cursor through = 3;
+}
+message WatchRecordsRequest {
+  CapturedRecordSelection selection = 1;
+  // Absent replays from zero, then follows; present resumes captured facts.
+  Cursor after = 2;
+}
+message RecordPage {
+  repeated CapturedRecord records = 1;
+  // Scanned journal position, including excluded records and empty ranges.
+  Cursor scanned = 2;
+  Cursor through = 3;
+  bool replay_complete = 4;
+  // This process retains all captured facts. Zero is currently the only value.
+  uint64 retained_after = 5;
+}
+message CapturedRecord {
+  string record_id = 1;
+  uint64 sequence = 2;
+  // Authored UTC occurrence time, not capture or commit time.
+  google.protobuf.Timestamp timestamp = 3;
+  string record_type = 4;
+  uint32 schema_version = 5;
+  string source = 6;
+  Severity severity = 7;
+  optional string message = 8;
+  CapturedRecordError error = 9;
+  ValueObject details = 10;
+  EvidenceScope scope = 11;
+  optional string related_sample_id = 12;
+  optional string related_stream_id = 13;
+  optional string related_artifact_id = 14;
+  google.protobuf.Timestamp received_at = 15;
+}
+message CapturedRecordError {
+  string message = 1;
+  optional string code = 2;
+  optional string source = 3;
+  repeated CapturedErrorCause cause_chain = 4;
+  optional string stacktrace_attachment = 5;
+  optional string trace_id = 6;
+  optional string correlation_id = 7;
+}
+message CapturedErrorCause {
+  string message = 1;
+  optional string code = 2;
+  optional string source = 3;
+}
+message GetCapturedRecordSchemaRequest {
+  string record_type = 1;
+  uint32 schema_version = 2;
+  // Required process identity: a type/version from another process must not
+  // silently resolve to this process's potentially different admitted schema.
+  string epoch = 3;
+}

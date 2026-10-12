@@ -1,0 +1,115 @@
+// Dokime — SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package dokime.v1;
+import "dokime/v1/common.proto";
+import "dokime/v1/value.proto";
+import "dokime/v1/schema.proto";
+service Catalog {
+  rpc ListSuites(ListSuitesRequest) returns (ListSuitesReply);
+  rpc GetSuite(GetSuiteRequest) returns (SuiteDefinition);
+  rpc ListRecordSchemas(ListRecordSchemasRequest) returns (ListRecordSchemasReply);
+  rpc GetRecordSchema(GetRecordSchemaRequest) returns (RecordSchema);
+  rpc ListTelemetrySchemas(ListTelemetrySchemasRequest) returns (ListTelemetrySchemasReply);
+  rpc GetTelemetrySchema(GetTelemetrySchemaRequest) returns (TelemetrySchema);
+}
+// Pages are ordered by registered suite ID. A changed cursor requires restarting
+// pagination; pages are not pinned across runtime changes.
+message ListSuitesRequest { uint32 limit = 1; string after_suite_id = 2; Cursor cursor = 3; }
+message ListSuitesReply { repeated SuiteIdentity suites = 1; optional string next_after_suite_id = 2; Cursor cursor = 3; }
+message GetSuiteRequest { string suite_id = 1; }
+message SuiteIdentity {
+  string suite_id = 1;
+  string source = 2;
+  Metadata metadata = 3;
+  // Optional product label declared by the suite's owning artifact.
+  optional string product = 4;
+}
+message SuiteDefinition {
+  SuiteIdentity identity = 1;
+  reserved 2;
+  reserved "global_parameters";
+  repeated TemplateDefinition templates = 3;
+  repeated string tags = 4;
+  repeated ParameterGroupDefinition parameter_groups = 5;
+}
+message TemplateDefinition {
+  string template_id = 1;
+  Metadata metadata = 2;
+  reserved 3;
+  reserved "global_parameters";
+  repeated ParameterSchema parameters = 4;
+  repeated string tags = 5;
+  repeated FileParameterDefinition files = 6;
+  repeated StepDefinition steps = 7;
+  repeated ParameterGroupDefinition parameter_groups = 8;
+  bool continue_on_failure = 9;
+}
+message FileParameterDefinition { Metadata metadata = 1; optional string default_value = 2; bool required = 3; repeated string media_types = 4; ValueObject attributes = 5; }
+message StepDefinition { string step_id = 1; Metadata metadata = 2; bool repeatable = 3; }
+message ParameterGroupDefinition { string group_id = 1; Metadata metadata = 2; }
+message ParameterSchema {
+  string parameter_id = 1;
+  Metadata metadata = 2;
+  optional string group_id = 3;
+  ValueType value_type = 4;
+  MeasurementUnit unit = 5;
+  bool required = 6;
+  bool runtime_writable = 7;
+  ParameterExpression expression = 8;
+  ParameterSelection selection = 9;
+  // Plugin-defined typed metadata retained from the registered parameter.
+  map<string, Value> extensions = 10;
+  // Present when the parameter is a list: one array value of typed elements
+  // belonging to one case, never a parameter space. `value_type` stays
+  // VALUE_TYPE_ARRAY; this carries the element type and the length bounds a
+  // list editor needs.
+  ParameterList list = 11;
+  // Inclusive numeric bounds; for lists, applied to each element.
+  optional double min = 12;
+  optional double max = 13;
+  ParameterExpansion expansion = 14;
+}
+message ParameterList { ValueType element_type = 1; optional uint32 min_items = 2; optional uint32 max_items = 3; }
+message ParameterSelection { repeated Value choices = 1; reserved 2; reserved "multiple"; }
+message ParameterExpansion {
+  oneof kind {
+    bool single = 1;
+    bool cartesian = 2;
+    string zip = 3;
+  }
+}
+message ParameterExpression {
+  oneof kind {
+    Value literal = 1;
+    ParameterExpressions array = 2;
+    IntegerRange range = 3;
+    NumberRange arange = 4;
+    LinearSpace linspace = 5;
+    string reference = 6;
+    DynamicDefault dynamic_default = 7;
+    UnaryExpression unary = 8;
+    BinaryExpression binary = 9;
+  }
+}
+message ParameterExpressions { repeated ParameterExpression values = 1; }
+message IntegerRange { sint64 start = 1; sint64 stop = 2; sint64 step = 3; }
+message NumberRange { double start = 1; double stop = 2; double step = 3; }
+message LinearSpace { double start = 1; double stop = 2; uint64 count = 3; }
+message DynamicDefault { DynamicDefaultKey key = 1; ParameterExpression fallback = 2; }
+enum DynamicDefaultKey { DYNAMIC_DEFAULT_KEY_UNSPECIFIED = 0; DYNAMIC_DEFAULT_KEY_OPERATOR_NAME = 1; DYNAMIC_DEFAULT_KEY_OPERATOR_EMAIL = 2; }
+message UnaryExpression { UnaryOperator op = 1; ParameterExpression value = 2; }
+enum UnaryOperator { UNARY_OPERATOR_UNSPECIFIED = 0; UNARY_OPERATOR_NEGATE = 1; }
+message BinaryExpression { BinaryOperator op = 1; ParameterExpression left = 2; ParameterExpression right = 3; }
+enum BinaryOperator { BINARY_OPERATOR_UNSPECIFIED = 0; BINARY_OPERATOR_ADD = 1; BINARY_OPERATOR_SUBTRACT = 2; BINARY_OPERATOR_MULTIPLY = 3; BINARY_OPERATOR_DIVIDE = 4; }
+
+// Current admitted schemas, ordered by type/stream ID. These catalogs exclude
+// retired definitions retained only for immutable historical evidence. A cursor
+// belongs to one runtime epoch/revision; restart pagination when it expires.
+message ListRecordSchemasRequest { uint32 limit = 1; string after_record_type = 2; Cursor cursor = 3; }
+message ListRecordSchemasReply { repeated RecordSchemaIdentity schemas = 1; optional string next_after_record_type = 2; Cursor cursor = 3; }
+message RecordSchemaIdentity { string record_type = 1; uint32 schema_version = 2; Metadata metadata = 3; }
+message GetRecordSchemaRequest { string record_type = 1; }
+message ListTelemetrySchemasRequest { uint32 limit = 1; string after_stream = 2; Cursor cursor = 3; }
+message ListTelemetrySchemasReply { repeated TelemetrySchemaIdentity schemas = 1; optional string next_after_stream = 2; Cursor cursor = 3; }
+message TelemetrySchemaIdentity { string stream = 1; uint32 schema_version = 2; Metadata metadata = 3; }
+message GetTelemetrySchemaRequest { string stream = 1; }

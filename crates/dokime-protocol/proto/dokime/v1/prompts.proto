@@ -1,0 +1,80 @@
+// Dokime — SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package dokime.v1;
+import "dokime/v1/common.proto";
+import "dokime/v1/value.proto";
+import "dokime/v1/schema.proto";
+import "dokime/v1/execution.proto";
+import "google/protobuf/timestamp.proto";
+
+service Prompts {
+  rpc ListDefinitions(ListPromptDefinitionsRequest) returns (ListPromptDefinitionsReply);
+  rpc GetDefinition(GetPromptDefinitionRequest) returns (PromptDefinition);
+  rpc ListPending(ListPendingPromptsRequest) returns (ListPendingPromptsReply);
+  rpc GetPrompt(GetPromptRequest) returns (PromptView);
+  rpc Respond(RespondToPromptRequest) returns (PromptResponseReceipt);
+}
+// Current definitions are ordered by prompt type; pending requests by prompt ID.
+// Subsequent pages require the same runtime epoch/revision and selection.
+message ListPromptDefinitionsRequest { uint32 limit = 1; string after_prompt_type = 2; Cursor cursor = 3; }
+message ListPromptDefinitionsReply { repeated PromptDefinitionIdentity definitions = 1; optional string next_after_prompt_type = 2; Cursor cursor = 3; }
+message PromptDefinitionIdentity { string prompt_type = 1; uint32 schema_version = 2; string title = 3; }
+message GetPromptDefinitionRequest { string prompt_type = 1; }
+message ListPendingPromptsRequest {
+  uint32 limit = 1; string after_prompt_id = 2; Cursor cursor = 3;
+  optional string cycle_id = 4; optional string execution_id = 5;
+}
+message ListPendingPromptsReply { repeated PendingPromptIdentity prompts = 1; optional string next_after_prompt_id = 2; Cursor cursor = 3; }
+message PendingPromptIdentity { string prompt_id = 1; PromptDefinitionIdentity definition = 2; EvidenceScope scope = 3; google.protobuf.Timestamp created_at = 4; }
+message GetPromptRequest { string prompt_id = 1; }
+// The admitted definition belongs to this request even if the current catalog
+// changes. A missing response means unanswered; it does not waive condition,
+// action or field checks performed authoritatively on Respond.
+message PromptView { PromptInstance prompt = 1; PromptResponse response = 2; Cursor observed_cursor = 3; }
+message PromptInstance {
+  string prompt_id = 1; PromptDefinition definition = 2; PromptKind kind = 3;
+  ValueObject values = 4; EvidenceScope scope = 5; google.protobuf.Timestamp created_at = 6;
+}
+message PromptDefinition {
+  string prompt_type = 1; uint32 schema_version = 2; PromptArchetype archetype = 3;
+  string title = 4; optional string message = 5;
+  repeated PromptField fields = 6; repeated PromptAction actions = 7;
+  repeated AnswerRule rules = 8; EvidenceCondition condition = 9;
+  optional string owner_suite_id = 10; optional string template_identifier = 11;
+  repeated ValueObject examples = 12;
+}
+message PromptField {
+  Metadata metadata = 1; ValueType value_type = 2; PromptFieldKind kind = 3;
+  bool multiple = 4; bool required = 5; Value default_value = 6;
+  repeated string choices = 7; PromptFieldValidation validation = 8;
+}
+message PromptFieldValidation {
+  optional uint64 min_length = 1; optional uint64 max_length = 2; optional string pattern = 3;
+  Value minimum = 4; Value maximum = 5; optional uint64 min_items = 6; optional uint64 max_items = 7;
+}
+message PromptAction { string id = 1; string label = 2; PromptActionEmphasis emphasis = 3; bool requires_condition = 4; }
+message AnswerRule { AnswerPredicate predicate = 1; string message = 2; }
+// Predicates over answer fields. Calls and structured literals are not admitted
+// in answer rules. Validation remains authoritative on the backend.
+message AnswerPredicate {
+  oneof kind { Value literal = 1; string field = 2; AnswerPredicate not = 3; AnswerBinaryPredicate binary = 4; }
+}
+message AnswerBinaryPredicate { AnswerOperator op = 1; AnswerPredicate left = 2; AnswerPredicate right = 3; }
+message EvidenceCondition {
+  oneof kind { RecordMatchCondition record = 1; TelemetryMatchCondition telemetry = 2; EvidenceConditions all = 3; EvidenceConditions any = 4; }
+}
+message EvidenceConditions { repeated EvidenceCondition conditions = 1; }
+message RecordMatchCondition { string record_type = 1; ValueObject match_fields = 2; }
+message TelemetryMatchCondition { string stream = 1; string field = 2; TelemetryMatchOperator op = 3; Value target = 4; optional double tolerance = 5; }
+// Responder identity comes from the authenticated principal, never a request
+// label. This mutation follows MutationContext's no-automatic-retry contract.
+// After an ambiguous failure, GetPrompt resolves whether an answer was recorded.
+message RespondToPromptRequest { string prompt_id = 1; string action = 2; ValueObject values = 3; bool accepted = 4; MutationContext context = 5; }
+message PromptResponseReceipt { string command_id = 1; string prompt_id = 2; uint64 committed_revision = 3; google.protobuf.Timestamp accepted_at = 4; Cursor observed_cursor = 5; }
+message PromptResponse { string prompt_id = 1; string action = 2; string responder = 3; google.protobuf.Timestamp submitted_at = 4; ValueObject values = 5; bool accepted = 6; }
+enum PromptArchetype { PROMPT_ARCHETYPE_UNSPECIFIED = 0; PROMPT_ARCHETYPE_CONFIRMATION = 1; PROMPT_ARCHETYPE_FORM = 2; PROMPT_ARCHETYPE_CHOICE = 3; PROMPT_ARCHETYPE_STATUS = 4; }
+enum PromptKind { PROMPT_KIND_UNSPECIFIED = 0; PROMPT_KIND_CONFIRMATION = 1; PROMPT_KIND_FORM = 2; PROMPT_KIND_CHOICE = 3; PROMPT_KIND_STATUS = 4; PROMPT_KIND_VERIFICATION = 5; }
+enum PromptFieldKind { PROMPT_FIELD_KIND_UNSPECIFIED = 0; PROMPT_FIELD_KIND_TEXT = 1; PROMPT_FIELD_KIND_FLOAT = 2; PROMPT_FIELD_KIND_INT = 3; PROMPT_FIELD_KIND_CHOICE = 4; PROMPT_FIELD_KIND_BOOLEAN = 5; }
+enum PromptActionEmphasis { PROMPT_ACTION_EMPHASIS_UNSPECIFIED = 0; PROMPT_ACTION_EMPHASIS_PRIMARY = 1; PROMPT_ACTION_EMPHASIS_SECONDARY = 2; PROMPT_ACTION_EMPHASIS_DANGER = 3; }
+enum AnswerOperator { ANSWER_OPERATOR_UNSPECIFIED = 0; ANSWER_OPERATOR_AND = 1; ANSWER_OPERATOR_OR = 2; ANSWER_OPERATOR_EQ = 3; ANSWER_OPERATOR_NE = 4; ANSWER_OPERATOR_GT = 5; ANSWER_OPERATOR_GTE = 6; ANSWER_OPERATOR_LT = 7; ANSWER_OPERATOR_LTE = 8; ANSWER_OPERATOR_CONTAINS = 9; ANSWER_OPERATOR_STARTS_WITH = 10; ANSWER_OPERATOR_ENDS_WITH = 11; }
+enum TelemetryMatchOperator { TELEMETRY_MATCH_OPERATOR_UNSPECIFIED = 0; TELEMETRY_MATCH_OPERATOR_EXISTS = 1; TELEMETRY_MATCH_OPERATOR_EQ = 2; TELEMETRY_MATCH_OPERATOR_GT = 3; TELEMETRY_MATCH_OPERATOR_GTE = 4; TELEMETRY_MATCH_OPERATOR_LT = 5; TELEMETRY_MATCH_OPERATOR_LTE = 6; TELEMETRY_MATCH_OPERATOR_WITHIN = 7; }

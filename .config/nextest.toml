@@ -1,0 +1,5 @@
+# The evidence runner writes its own `stkr` profile under target/validation/;
+# this file only supplies the defaults for ad hoc `cargo nextest` runs.
+[profile.default]
+retries = 0
+fail-fast = false

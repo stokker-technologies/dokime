@@ -1,0 +1,252 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Local Imports === */
+
+import { numericValue } from "@/lib/utils";
+
+import { formatNumber } from "./format";
+import { formatRecordValue, isDatetimeValue } from "./record-display";
+import { durationLabel, parseTimestampMs } from "./time-format";
+import type {
+  ExecutionResultSummary,
+  HubRecord,
+  JsonObject,
+  Severity,
+  TelemetryStream,
+} from "./types";
+
+/* === Types === */
+
+/* === Constants === */
+
+const ARTIFACT_LABEL_WORDS: Record<string, string> = {
+  api: "API",
+  csv: "CSV",
+  html: "HTML",
+  id: "ID",
+  jpeg: "JPEG",
+  jpg: "JPG",
+  json: "JSON",
+  pdf: "PDF",
+  png: "PNG",
+  svg: "SVG",
+  txt: "TXT",
+  ui: "UI",
+  url: "URL",
+  wifi: "WiFi",
+  xml: "XML",
+  yaml: "YAML",
+  yml: "YAML",
+  zip: "ZIP",
+};
+
+/* === Public Functions === */
+
+export function latestSample(stream: TelemetryStream | undefined): JsonObject {
+  const latest = stream?.summary.latest_sample;
+  return isObject(latest) ? latest : {};
+}
+
+export function formatValue(value: unknown, unit?: string | null, key = ""): string {
+  // A datetime value serializes as `{"$datetime": "<rfc3339>"}`; without this it
+  // falls through to the object branch below and prints as "-".
+  if (isDatetimeValue(value)) {
+    return formatRecordValue(value, null);
+  }
+  // A list parameter's value is one array; the parameters table reads it as a
+  // list of its elements, with the unit stated once at the end.
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return "(empty)";
+    }
+    const items = value.map((item) => formatValue(item, null, key)).join(", ");
+    return unit ? `${items} ${unit}` : items;
+  }
+  const parsed = numeric(value);
+  if (parsed === null) {
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+    if (typeof value === "boolean") {
+      return value ? "True" : "False";
+    }
+    return "-";
+  }
+  const normalizedKey = key.toLowerCase();
+  if (unit) {
+    return `${dashboardNumber(parsed)} ${unit}`;
+  }
+  if (unit === "m" || normalizedKey.includes("distance")) {
+    return `${dashboardNumber(parsed)} m`;
+  }
+  if (unit === "ms" || normalizedKey.includes("latency")) {
+    return `${dashboardNumber(parsed)} ms`;
+  }
+  if (normalizedKey.includes("uptime")) {
+    return `${durationLabel(Math.round(parsed))} (${dashboardNumber(parsed)} s)`;
+  }
+  if (unit === "s" || normalizedKey.endsWith("_s") || normalizedKey.includes("duration")) {
+    return durationLabel(Math.round(parsed));
+  }
+  return Number.isInteger(parsed) ? `${parsed}` : dashboardNumber(parsed);
+}
+
+export function recordMessage(record: HubRecord): string {
+  return record.message || record.details.message?.toString() || record.record_type;
+}
+
+export function recordTitle(record: HubRecord): string {
+  const message = recordMessage(record);
+  if (record.record_type.startsWith("test.execution.")) {
+    return compactLifecycleMessage(message, record, "Execution");
+  }
+  if (record.record_type.startsWith("test.cycle.")) {
+    return compactLifecycleMessage(message, record, "Test Cycle");
+  }
+  return message;
+}
+
+export function recordTime(record: HubRecord): string {
+  const parsed = parseTimestampMs(record.timestamp);
+  return parsed === null ? "-" : new Date(parsed).toLocaleTimeString();
+}
+
+export function artifactLabel(label: string): string {
+  const words = label
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
+    .split(/[\s_.-]+/)
+    .filter(Boolean);
+  if (!words.length) {
+    return label.trim();
+  }
+  return words.map(titleCaseArtifactWord).join(" ");
+}
+
+export function fallbackResultSummary(status: string | undefined): ExecutionResultSummary {
+  const label = status ? runStatusLabel(status) : "No Result Yet";
+  return {
+    outcome:
+      status === "completed" ||
+      status === "failed" ||
+      status === "interrupted" ||
+      status === "stopped"
+        ? status
+        : "unknown",
+    headline: label,
+    warnings: [],
+    evidence: [],
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function plottableKeys(stream: TelemetryStream | undefined): string[] {
+  if (!stream) {
+    return [];
+  }
+  const sample = latestSample(stream);
+  return Object.entries(sample)
+    .filter(([key, value]) => key !== "timestamp" && numeric(value) !== null)
+    .map(([key]) => key)
+    .slice(0, 3);
+}
+
+export function countBySeverity(records: HubRecord[], level: Severity): number {
+  return records.filter((record) => record.level === level).length;
+}
+
+/* === Private Functions === */
+
+function isObject(value: unknown): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function numeric(value: unknown): number | null {
+  value = numericValue(value) ?? value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function titleCaseArtifactWord(word: string): string {
+  const mapped = ARTIFACT_LABEL_WORDS[word.toLowerCase()];
+  if (mapped) {
+    return mapped;
+  }
+  if (word.toUpperCase() === word && word.length <= 5) {
+    return word;
+  }
+  return `${word.slice(0, 1).toUpperCase()}${word.slice(1).toLowerCase()}`;
+}
+
+/* Dashboard facts read as fixed columns: two decimals until the integer part
+ * takes three digits, then none. */
+function dashboardNumber(value: number): string {
+  return formatNumber(value, { kind: "fixed", decimals: Math.abs(value) >= 100 ? 0 : 2 });
+}
+
+function runStatusLabel(status: string): string {
+  const normalized = status.toLowerCase();
+  const labels: Record<string, string> = {
+    blocked: "Run Blocked",
+    completed: "Run Completed",
+    disconnected: "Run Disconnected",
+    failed: "Session Failed",
+    finalizing: "Run Finalizing",
+    idle: "No Result Yet",
+    interrupted: "Run Interrupted",
+    paused: "Run Paused",
+    planned: "No Result Yet",
+    running: "Run In Progress",
+    stopped: "Run Stopped",
+    stopping: "Stop Requested",
+    unknown: "No Result Yet",
+    waiting_for_prompt: "Operator Prompt Pending",
+  };
+  return labels[normalized] ?? titleFromIdentifier(status);
+}
+
+function compactLifecycleMessage(
+  message: string,
+  record: HubRecord,
+  fallbackSubject: string,
+): string {
+  const match = /^(?<prefix>[^:]+:\s*)(?<label>.+)$/u.exec(message);
+  const prefix = match?.groups?.prefix ?? `${fallbackSubject}: `;
+  const label = match?.groups?.label ?? message;
+  return `${prefix}${compactCaseLabel(label, record)}`;
+}
+
+function compactCaseLabel(label: string, record: HubRecord): string {
+  const parenIndex = label.indexOf(" (");
+  if (parenIndex > 0) {
+    return label.slice(0, parenIndex);
+  }
+  const scopedTemplate = record.scope?.template_id ?? record.template_id;
+  if (scopedTemplate && label.includes(scopedTemplate)) {
+    return titleFromIdentifier(scopedTemplate);
+  }
+  return label;
+}
+
+function titleFromIdentifier(value: string): string {
+  const tail = value.split(".").at(-1) ?? value;
+  return tail
+    .split(/[_-]+/u)
+    .filter(Boolean)
+    .map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
+}

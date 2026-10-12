@@ -1,0 +1,55 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/* === Structs === */
+
+/* === Enums === */
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("invalid gRPC configuration: {0}")]
+    Configuration(&'static str),
+    #[error("cannot configure generated operation service: {0}")]
+    OperationService(#[source] tonic::Status),
+    #[error("runtime operation failed: {0}")]
+    Operation(#[from] harmos::Error),
+    #[error("cannot bind gRPC listener: {0}")]
+    Bind(#[from] std::io::Error),
+    #[error("gRPC listener failed: {0}")]
+    Transport(#[from] tonic::transport::Error),
+    #[error("gRPC listener task failed: {0}")]
+    Task(#[from] tokio::task::JoinError),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

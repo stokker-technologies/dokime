@@ -1,0 +1,68 @@
+[package]
+name = "cargo-dokime"
+edition.workspace = true
+rust-version.workspace = true
+description = "Build, develop, inspect, and install Dokime plugins"
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+[dependencies]
+# Local
+dokime-packaging = { path = "../dokime-packaging" }
+dokime-protocol = { path = "../dokime-protocol" }
+dokime-terminal = { path = "../dokime-terminal" }
+
+# Git
+harmos = { workspace = true, features = ["runtime", "derive", "plugin", "artifact"] }
+
+# Error Handling
+thiserror = { workspace = true, default-features = true }
+
+# Logging
+tracing = { workspace = true, default-features = true }
+
+# Utilities
+semver = { workspace = true, default-features = true }
+sha2 = { workspace = true, default-features = true }
+
+# Serialization
+serde = { workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true }
+toml_edit = { workspace = true, default-features = true }
+
+# Configuration
+clap = { workspace = true, default-features = true }
+dotenv = { workspace = true, default-features = true }
+
+# Filesystem
+glob = { workspace = true, default-features = true }
+tempfile = { workspace = true, default-features = true }
+
+# Async
+futures-util = { workspace = true, default-features = true }
+tokio = { workspace = true, default-features = true, features = ["process"] }
+
+# Networking
+tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
+url = { workspace = true, default-features = true }
+
+[dev-dependencies]
+# Local
+dokime-protocol = { path = "../dokime-protocol", features = ["server"] }
+
+# Git
+harmos = { workspace = true, features = ["artifact"] }
+
+# Parsing
+cargo_metadata = { workspace = true, default-features = true }
+
+# Async
+tokio = { workspace = true, default-features = true, features = ["test-util"] }
+tokio-stream = { workspace = true, default-features = true, features = ["net"] }
+
+# Networking
+tonic = { workspace = true, features = ["server", "router"] }
+
+# UI
+portable-pty = { workspace = true, default-features = true }

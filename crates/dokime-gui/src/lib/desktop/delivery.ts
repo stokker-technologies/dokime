@@ -1,0 +1,62 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* Native delivery payloads for verified documents, mirroring the types beside
+   the delivery commands in `src-tauri/src/app/desktop.rs`. */
+
+/* === Types === */
+
+/**
+ * The bounded document kinds supported by native delivery.
+ *
+ * Each kind owns a byte limit and optional extension policy in the native shell.
+ * Keeping the kind in the typed contract prevents a caller from selecting a
+ * larger limit by changing a filename suffix.
+ *
+ * `cycle_bundle` and `artifact` no longer cross IPC as base64 JSON: they are
+ * delivered through `desktopArtifactDeliver`'s verified server pull. The
+ * support archive does: it is assembled in the webview from
+ * `Backend.CollectDiagnostics` frames and so has no artifact, execution-file or
+ * cycle id to pull it by, so `diagnostics_bundle` crosses inline under the
+ * same 32 MiB bound as `html_report`. Its extension is required rather than
+ * appended: a `diagnostics_bundle` filename must already name a `.zip`.
+ */
+export type DesktopSaveKind = "html_report" | "diagnostics_bundle" | "cycle_bundle" | "artifact";
+
+/** A verified document handed to the desktop shell for bounded native delivery. */
+export type DesktopSaveDocument = {
+  kind: DesktopSaveKind;
+  filename: string;
+  /** Standard base64 preserves the exact verified bytes across JSON IPC. */
+  bytesBase64: string;
+};
+
+/**
+ * Identifies one server-verified content item by its typed reference, never
+ * by a client-authored filesystem path.
+ */
+export type ArtifactSource =
+  | { kind: "artifact"; artifactId: string }
+  | { kind: "execution_file"; executionId: string; relativePath: string }
+  | { kind: "cycle_bundle"; cycleId: string };
+
+/** Whether a verified pull is handed to the save dialog or the OS opener. */
+export type DeliveryAction = "save" | "open";
+
+/**
+ * A request to stream one verified artifact, execution output, or cycle
+ * bundle to a native destination without routing its bytes through the
+ * webview.
+ */
+export type ArtifactDeliveryRequest = {
+  source: ArtifactSource;
+  kind: DesktopSaveKind;
+  filename: string;
+  action: DeliveryAction;
+};

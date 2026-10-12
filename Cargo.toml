@@ -1,0 +1,203 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[workspace]
+members = [
+  "crates/dokime",
+  "crates/dokime-contract",
+  "crates/cargo-dokime",
+  "crates/dokime-starter-check",
+  "crates/dokime-packaging",
+  "crates/dokime-cli",
+  "crates/dokime-terminal",
+  "crates/dokime-theme",
+  "crates/dokime-gui/src-tauri",
+  "crates/dokime-host",
+  "crates/dokime-macros",
+  "crates/dokime-python",
+  "crates/dokime-protocol",
+  "crates/dokime-app",
+  "crates/dokime-server",
+  "crates/dokime-filesystem",
+  "plugins/mini",
+  "crates/dokime-app/tests/fixtures/route_plugin",
+  "plugins/mini/runtime",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "Dokime application and runtime packages."
+license = "Apache-2.0"
+publish = true
+repository = "https://github.com/stokker-technologies/dokime"
+
+[workspace.dependencies]
+# Git
+harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "11ae9d99e21f59175aa0614ff77a356ae2569732", default-features = false }
+harmos-signal = { git = "https://github.com/stokker-technologies/harmos.git", rev = "11ae9d99e21f59175aa0614ff77a356ae2569732", default-features = false }
+
+# Error Handling
+anyhow = { version = "1", default-features = false }
+thiserror = { version = "1.0", default-features = false }
+
+# Logging
+tracing = { version = "0.1", default-features = false }
+tracing-appender = { version = "0.2", default-features = false }
+tracing-chrome = { version = "0.7.2", default-features = false }
+tracing-error = { version = "0.2", default-features = false }
+tracing-flame = { version = "0.2.0", default-features = false }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "env-filter",
+  "fmt",
+  "json",
+  "registry",
+] }
+
+# Utilities
+blake2 = { version = "0.10.6", default-features = false }
+keyring = { version = "3.6.3", default-features = false, features = [
+  "apple-native",
+  "crypto-rust",
+  "linux-native-sync-persistent",
+  "windows-native",
+] }
+process-wrap = { version = "10.0.0", default-features = false }
+pyo3 = { version = "0.28.3", default-features = false, features = [
+  "abi3-py313",
+  "extension-module",
+  "generate-import-lib",
+] }
+rand = { version = "0.9", default-features = false }
+regex = { version = "1.13.1", default-features = false }
+semver = { version = "1.0", default-features = false }
+sha2 = { version = "0.11.0", default-features = false }
+starship-battery = { version = "0.11.0", default-features = false }
+subtle = { version = "=2.6.1", default-features = false }
+sysinfo = { version = "0.39.3", default-features = false, features = [
+  "component",
+  "disk",
+  "network",
+  "system",
+] }
+time = { version = "0.3", default-features = false, features = ["formatting", "parsing"] }
+uuid = { version = "1.26.1", default-features = false, features = ["v5", "v7", "serde"] }
+windows = { version = "0.62.2", default-features = false }
+windows-sys = { version = "0.61.2", default-features = false }
+zeroize = { version = "=1.9.0", default-features = false }
+
+# Serialization
+arrow-array = { version = "59", default-features = false }
+arrow-ipc = { version = "59", default-features = false }
+arrow-schema = { version = "59", default-features = false }
+arrow-select = { version = "59", default-features = false }
+base64 = { version = "0.22.1", default-features = false }
+prost = { version = "0.14.4", default-features = false }
+prost-build = { version = "=0.14.4", default-features = false }
+prost-types = { version = "=0.14.4", default-features = false }
+protoc-bin-vendored = { version = "=3.2.0", default-features = false }
+schemars = { version = "1.2", default-features = false, features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_arrow = { version = "0.15", default-features = false, features = ["arrow-59"] }
+serde_json = { version = "1.0", default-features = false }
+toml = { version = "1.1.6", default-features = false }
+toml_edit = { version = "0.25.15", default-features = false }
+
+# Configuration
+clap = { version = "4.6.7", default-features = false, features = ["derive"] }
+dotenv = { package = "dotenvy", version = "0.15.7", default-features = false }
+
+# Filesystem
+glob = { version = "0.3.3", default-features = false }
+tar = { version = "=0.4.46", default-features = false }
+tempfile = { version = "3.27.0", default-features = false }
+walkdir = { version = "2.5.0", default-features = false }
+zip = { version = "6.0.0", default-features = false }
+
+# Parsing
+cargo_metadata = { version = "0.19.2", default-features = false }
+cssparser = { version = "0.36.0", default-features = false }
+proc-macro-crate = { version = "3.5", default-features = false }
+proc-macro2 = { version = "1.0.104", default-features = false }
+quote = { version = "1.0.42", default-features = false }
+syn = { version = "2.0.117", default-features = false, features = ["extra-traits", "full"] }
+
+# Async
+async-trait = { version = "0.1", default-features = false }
+futures-util = { version = "0.3.32", default-features = false }
+pyo3-async-runtimes = { version = "0.28", default-features = false, features = ["tokio-runtime"] }
+tokio = { version = "1.53.1", default-features = false, features = [
+  "fs",
+  "io-util",
+  "macros",
+  "net",
+  "rt-multi-thread",
+  "signal",
+  "sync",
+  "time",
+] }
+tokio-stream = { version = "=0.1.19", default-features = false }
+tokio-util = { version = "=0.7.19", default-features = false }
+
+# Networking
+getifs = { version = "0.6.1", default-features = false }
+rcgen = { version = "0.14", default-features = false }
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
+rustls = { version = "0.23", default-features = false }
+tonic = { version = "=0.14.6", default-features = false }
+tonic-prost = { version = "=0.14.6", default-features = false }
+tonic-prost-build = { version = "=0.14.6", default-features = false }
+tonic-types = { version = "=0.14.6", default-features = false }
+tower = { version = "0.5.3", default-features = false, features = ["util"] }
+url = { version = "2.5", default-features = false }
+
+# Storage
+rusqlite = { version = "0.40.2", default-features = false, features = ["bundled", "functions"] }
+
+# UI
+anstream = { version = "1.0", default-features = false }
+anstyle = { version = "1.0", default-features = false }
+indicatif = { version = "0.18", default-features = false }
+portable-pty = { version = "0.9.0", default-features = false }
+tauri = { version = "2", default-features = false }
+tauri-build = { version = "2", default-features = false }
+tauri-plugin-deep-link = { version = "2", default-features = false }
+tauri-plugin-dialog = { version = "2", default-features = false }
+tauri-plugin-opener = { version = "2", default-features = false }
+tauri-plugin-updater = { version = "2", default-features = false }
+
+# Testing
+criterion = { version = "0.8.2", default-features = false }
+
+[profile.dev]
+debug = 1
+
+# The release profile is for distribution builds. Validation uses development
+# builds, including the native admission fixtures and Python test wheel.
+[profile.release]
+debug = 0
+incremental = false
+codegen-units = 1
+lto = "thin"
+strip = "symbols"
+
+# Development hosts inspect complete plugin executables during packaging and
+# admission. Keep their byte scanners optimized without optimizing authored
+# plugin code or disabling debug information across the workspace.
+[profile.dev.package.harmos-contract]
+opt-level = 2
+
+[profile.dev.package.harmos-sidecar]
+opt-level = 2
+
+# Plugin packaging and admission hash complete executable images repeatedly.
+# Match installed-tool hash throughput without optimizing authored plugin code.
+[profile.dev.package.sha2]
+opt-level = 3

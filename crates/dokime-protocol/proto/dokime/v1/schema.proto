@@ -1,0 +1,210 @@
+// Dokime — SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package dokime.v1;
+
+import "dokime/v1/common.proto";
+import "dokime/v1/value.proto";
+
+enum ValueType {
+  VALUE_TYPE_UNSPECIFIED = 0;
+  VALUE_TYPE_BOOLEAN = 1;
+  VALUE_TYPE_INTEGER = 2;
+  VALUE_TYPE_NUMBER = 3;
+  VALUE_TYPE_TEXT = 4;
+  VALUE_TYPE_FILE = 5;
+  VALUE_TYPE_OBJECT = 6;
+  VALUE_TYPE_ARRAY = 7;
+  VALUE_TYPE_DATETIME = 8;
+}
+
+enum ValidationMode {
+  VALIDATION_MODE_UNSPECIFIED = 0;
+  VALIDATION_MODE_STRICT = 1;
+  VALIDATION_MODE_PROTOTYPE = 2;
+}
+
+message MeasurementUnit {
+  Metadata metadata = 1;
+  UnitFamily family = 2;
+  string symbol = 3;
+}
+
+enum UnitFamily {
+  UNIT_FAMILY_UNSPECIFIED = 0;
+  UNIT_FAMILY_COUNT = 1;
+  UNIT_FAMILY_DISTANCE = 2;
+  UNIT_FAMILY_DURATION = 3;
+  UNIT_FAMILY_FREQUENCY = 4;
+  UNIT_FAMILY_POWER = 5;
+  UNIT_FAMILY_TEMPERATURE = 6;
+  UNIT_FAMILY_VOLTAGE = 7;
+  UNIT_FAMILY_RATIO = 8;
+  UNIT_FAMILY_CUSTOM = 9;
+}
+
+// Native catalogs currently describe object/array fields only at the top
+// level. Do not infer a nested schema when none was declared.
+message RecordField {
+  Metadata metadata = 1;
+  ValueType value_type = 2;
+  bool required = 3;
+  bool nullable = 4;
+  MeasurementUnit unit = 5;
+  repeated Value choices = 6;
+  // Absent means no default; a present Value may explicitly be null.
+  Value default_value = 7;
+  ValueFormat format = 8;
+}
+
+message RecordSchema {
+  string record_type = 1;
+  uint32 schema_version = 2;
+  Metadata metadata = 3;
+  optional string template_identifier = 4;
+  optional string owner_suite_id = 5;
+  Severity default_severity = 6;
+  repeated RecordField fields = 7;
+  optional ValidationMode validation_mode = 8;
+  bool allow_extra_fields = 9;
+  RecordDisplay display = 10;
+}
+
+message RecordDisplay {
+  RecordIcon icon = 1;
+  RecordTone tone = 2;
+}
+
+enum RecordIcon {
+  RECORD_ICON_UNSPECIFIED = 0;
+  RECORD_ICON_ACTIVITY = 1;
+  RECORD_ICON_ALERT_TRIANGLE = 2;
+  RECORD_ICON_ARCHIVE = 3;
+  RECORD_ICON_BELL = 4;
+  RECORD_ICON_CHECK_CIRCLE = 5;
+  RECORD_ICON_CIRCLE_DASHED = 6;
+  RECORD_ICON_CLIPBOARD_CHECK = 7;
+  RECORD_ICON_CPU = 8;
+  RECORD_ICON_FILE_TEXT = 9;
+  RECORD_ICON_FLAG = 10;
+  RECORD_ICON_GAUGE = 11;
+  RECORD_ICON_HEART_PULSE = 12;
+  RECORD_ICON_HELP_CIRCLE = 13;
+  RECORD_ICON_MESSAGE_SQUARE_TEXT = 14;
+  RECORD_ICON_PACKAGE = 15;
+  RECORD_ICON_PLUG = 16;
+  RECORD_ICON_RADIO_TOWER = 17;
+  RECORD_ICON_ROTATE_CCW = 18;
+  RECORD_ICON_SHIELD_ALERT = 19;
+  RECORD_ICON_TARGET = 20;
+  RECORD_ICON_TIMER_RESET = 21;
+  RECORD_ICON_WRENCH = 22;
+  RECORD_ICON_ZAP = 23;
+  RECORD_ICON_CLOCK = 24;
+}
+
+enum RecordTone {
+  RECORD_TONE_UNSPECIFIED = 0;
+  RECORD_TONE_INFO = 1;
+  RECORD_TONE_SUCCESS = 2;
+  RECORD_TONE_WARNING = 3;
+  RECORD_TONE_DANGER = 4;
+  RECORD_TONE_ACCENT = 5;
+  RECORD_TONE_MUTED = 6;
+  RECORD_TONE_NEUTRAL = 7;
+}
+
+message TelemetryColumn {
+  Metadata metadata = 1;
+  ValueType value_type = 2;
+  TelemetryRole role = 3;
+  MeasurementUnit unit = 4;
+  optional string display_unit = 5;
+  bool required = 6;
+  bool nullable = 7;
+  Value default_value = 8;
+  ValueFormat format = 9;
+}
+
+enum TelemetryRole {
+  TELEMETRY_ROLE_UNSPECIFIED = 0;
+  reserved 1;
+  reserved "TELEMETRY_ROLE_TIME";
+  TELEMETRY_ROLE_VALUE = 2;
+  TELEMETRY_ROLE_COUNTER = 3;
+  TELEMETRY_ROLE_STATE = 4;
+  TELEMETRY_ROLE_DISTANCE = 5;
+  TELEMETRY_ROLE_LATENCY = 6;
+  TELEMETRY_ROLE_THROUGHPUT = 7;
+}
+
+message TelemetrySchema {
+  string stream = 1;
+  uint32 schema_version = 2;
+  Metadata metadata = 3;
+  optional string template_identifier = 4;
+  optional string owner_suite_id = 5;
+  repeated TelemetryColumn columns = 6;
+  optional string default_x = 7;
+  reserved 8;
+  reserved "default_y";
+  optional uint64 plot_window_ms = 9;
+  bool allow_extra_fields = 10;
+  bool scalar = 11;
+  optional ValidationMode validation_mode = 12;
+  // A declaration that reads a stream another plugin owns. The host checks
+  // the declared columns are a subset of the owner's contract at admission.
+  bool foreign = 13;
+}
+
+// How a declared value's number or datetime is rendered. The first five
+// `kind`s format a number; the last three format a datetime. A number
+// pattern is deliberately not offered: `normal`/`fixed`/`scientific`/
+// `engineering`/`si_prefix` already cover every number a plot, a table cell
+// or the report draws.
+message ValueFormat {
+  oneof kind {
+    NormalFormat normal = 1;
+    FixedFormat fixed = 2;
+    ScientificFormat scientific = 3;
+    EngineeringFormat engineering = 4;
+    SiPrefixFormat si_prefix = 5;
+    AbsoluteTimeFormat absolute_time = 6;
+    ElapsedFormat elapsed_since_run = 7;
+    ElapsedFormat elapsed_since_cycle = 8;
+  }
+}
+
+message NormalFormat {
+  optional uint32 max_fraction_digits = 1;
+}
+
+message FixedFormat {
+  uint32 decimals = 1;
+}
+
+message ScientificFormat {
+  uint32 significant_digits = 1;
+}
+
+message EngineeringFormat {
+  uint32 significant_digits = 1;
+}
+
+message SiPrefixFormat {
+  uint32 significant_digits = 1;
+}
+
+message AbsoluteTimeFormat {
+  string pattern = 1;
+}
+
+message ElapsedFormat {
+  ElapsedUnit unit = 1;
+}
+
+enum ElapsedUnit {
+  ELAPSED_UNIT_UNSPECIFIED = 0;
+  ELAPSED_UNIT_SECONDS = 1;
+  ELAPSED_UNIT_MILLISECONDS = 2;
+  ELAPSED_UNIT_MINUTES = 3;
+}

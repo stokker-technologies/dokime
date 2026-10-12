@@ -1,0 +1,106 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+name = "dokime-gui"
+edition.workspace = true
+rust-version.workspace = true
+description = "Dokime desktop application shell."
+license.workspace = true
+repository.workspace = true
+build = "build.rs"
+default-run = "dokime-gui"
+version = { workspace = true }
+
+[features]
+default = ["updater"]
+updater = ["dep:tauri-plugin-updater"]
+# Keep a Windows console attached for `tauri dev`; installer builds of any
+# profile leave it off so the desktop never opens a terminal window.
+console = []
+
+[build-dependencies]
+# UI
+tauri-build = { workspace = true, default-features = true, features = [] }
+
+[dependencies]
+# Local
+dokime = { path = "../../dokime", default-features = false, features = ["native", "client"] }
+dokime-filesystem = { path = "../../dokime-filesystem" }
+dokime-protocol = { path = "../../dokime-protocol" }
+
+# Error Handling
+anyhow = { workspace = true, default-features = true }
+thiserror = { workspace = true, default-features = true }
+
+# Logging
+tracing = { workspace = true, default-features = true }
+tracing-appender = { workspace = true, default-features = true }
+tracing-subscriber = { workspace = true, default-features = true }
+
+# Utilities
+keyring = { workspace = true }
+rand = { workspace = true, default-features = true }
+sha2 = { workspace = true, default-features = true }
+time = { workspace = true, default-features = true }
+zeroize = { workspace = true, default-features = true }
+
+# Serialization
+base64 = { workspace = true, default-features = true }
+prost = { workspace = true, default-features = true }
+serde = { workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true }
+
+# Configuration
+dotenv = { workspace = true, default-features = true }
+
+# Async
+tokio = { workspace = true, default-features = true, features = ["process"] }
+tokio-stream = { workspace = true, default-features = true }
+tokio-util = { workspace = true, default-features = true, features = ["rt"] }
+
+# Networking
+reqwest = { workspace = true }
+tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
+tonic-prost = { workspace = true, default-features = true }
+url = { workspace = true, default-features = true }
+
+# UI
+tauri = { workspace = true, default-features = true, features = [] }
+tauri-plugin-deep-link = { workspace = true, default-features = true }
+tauri-plugin-dialog = { workspace = true, default-features = true }
+tauri-plugin-opener = { workspace = true, default-features = true }
+tauri-plugin-updater = { workspace = true, default-features = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+# Utilities
+windows = { workspace = true, default-features = true, features = ["Win32_System_Com"] }
+
+[dev-dependencies]
+# Local
+dokime = { path = "../../dokime" }
+dokime-app = { path = "../../dokime-app", features = ["fft"] }
+dokime-server = { path = "../../dokime-server" }
+
+# Git
+harmos = { workspace = true, features = ["plugin", "sidecar"] }
+
+# Filesystem
+tempfile = { workspace = true, default-features = true }
+
+# Async
+async-trait = { workspace = true, default-features = true }
+tokio = { workspace = true, default-features = true, features = ["test-util"] }
+tokio-stream = { workspace = true, default-features = true, features = ["net"] }
+
+# Networking
+rcgen = { workspace = true, default-features = true }
+rustls = { workspace = true, features = ["ring", "std"] }
+
+# UI
+tauri = { workspace = true, default-features = true, features = ["test"] }

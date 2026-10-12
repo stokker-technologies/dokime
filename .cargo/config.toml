@@ -1,0 +1,11 @@
+# ***
+#
+# Stokker Technologies
+#
+# ***
+
+[build]
+target-dir = "target"
+
+[env]
+PYO3_NO_PYTHON = "1"

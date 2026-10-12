@@ -1,0 +1,337 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === External Imports === */
+
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { PanelLeftClose, PanelLeftOpen, SquareTerminal } from "lucide-react";
+import type { ReactNode } from "react";
+
+/* === Local Imports === */
+
+import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  type CycleLifecycle,
+  cycleStatusLabel,
+  cycleStatusVariant,
+  STATUS_PILL_CLASS,
+} from "@/features/cycle/cycle-workspace-model";
+import { useRecordsQuery } from "@/features/cycle/server-state";
+import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { fetchStorageSources } from "@/lib/api/native-storage-settings";
+import { CycleStatus } from "@/lib/rpc/generated/dokime/v1/execution_pb";
+import { cn } from "@/lib/utils";
+import { useBackendStatus } from "@/shell/backend-status";
+import { consoleAttentionCount } from "@/shell/ConsoleDrawer";
+import { useRouteCycleId } from "@/shell/route-scope";
+import { useSidebarState } from "@/shell/use-sidebar-state";
+import { useUiStore } from "@/stores/ui-store";
+
+/* === Types === */
+
+export type StatusBarProps =
+  | { live?: true }
+  | {
+      frozen: { generatedAt: string | null; status: CycleLifecycle };
+      live: false;
+    };
+
+type AttentionEntry = {
+  id: string;
+  label: string;
+  detail: string;
+  open: () => void;
+};
+
+/* === Constants === */
+
+const ACTIVE_CYCLE_STATUSES = [CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING];
+
+const statusItemClassName =
+  "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+const CONNECTION_LABEL = {
+  connected: "Connected",
+  disconnected: "Disconnected",
+  reconnecting: "Reconnecting",
+  unknown: "Unknown",
+} as const;
+
+/* === Components === */
+
+/**
+ * The bar across the whole window, on the shell's two columns.
+ *
+ * Its first cell is the sidebar's column and carries the one collapse toggle,
+ * at the bar's own height — so the sidebar simply ends where this bar begins
+ * and nothing stands taller than the band beside it. The remaining column
+ * holds the four facts in two groups on one baseline: what the backend is and
+ * what it stores from the left inset; what needs the operator and what is
+ * running from the right.
+ */
+export function StatusBar(props: StatusBarProps) {
+  const sidebar = useSidebarState();
+  const frozen = props.live === false ? props.frozen : null;
+
+  return (
+    <footer
+      className="grid shrink-0 border-t bg-card text-xs text-muted-foreground"
+      style={{
+        gridTemplateColumns: `${sidebar.width} minmax(0,1fr)`,
+        height: "var(--status-bar-height)",
+      }}
+    >
+      <div className="grid place-items-center border-r">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              aria-label={sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              className="size-[var(--status-bar-height)] rounded-none"
+              onClick={sidebar.toggle}
+              size="icon-sm"
+              variant="ghost"
+            >
+              {sidebar.collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      {frozen ? (
+        /* A file has no connection and nothing needing attention. The page bar
+           above states what it is and when it was written, so the bar states
+           only how the cycle ended rather than repeating the provenance. */
+        <div className="flex min-w-0 items-center justify-end gap-6 px-[var(--shell-inset)]">
+          <Badge className={STATUS_PILL_CLASS} variant={cycleStatusVariant(frozen.status)}>
+            {cycleStatusLabel(frozen.status)}
+          </Badge>
+        </div>
+      ) : (
+        <div className="flex min-w-0 items-stretch justify-between gap-6 px-[var(--shell-inset)]">
+          <div className="flex min-w-0 items-stretch gap-6">
+            <BackendItem />
+            <StorageItem />
+          </div>
+          <div className="flex min-w-0 items-stretch gap-6">
+            <AttentionItem />
+            <ActivityItem />
+            <ConsoleItem />
+          </div>
+        </div>
+      )}
+    </footer>
+  );
+}
+
+/**
+ * The console toggle, at the bar's right end.
+ *
+ * Its badge counts the warnings and errors that arrived since the drawer was
+ * last opened, so it reports what the operator has not seen rather than what
+ * the run has produced.
+ */
+function ConsoleItem() {
+  const drawer = useUiStore((state) => state.console);
+  const setConsoleState = useUiStore((state) => state.setConsoleState);
+  /* The badge promises rows the drawer can show. Away from a cycle every
+     scope is Instance, which this backend does not serve, so there is nothing
+     to promise and nothing to read. */
+  const cycleId = useRouteCycleId();
+  const records = useRecordsQuery(cycleId !== null, cycleId ? { test_cycle_id: cycleId } : null);
+  const unseen = cycleId ? consoleAttentionCount(records.data ?? [], drawer.lastOpenedAt) : 0;
+
+  return (
+    <button
+      aria-label={drawer.open ? "Close Console" : "Open Console"}
+      className={cn(statusItemClassName, "gap-1.5", unseen > 0 ? "text-warning" : null)}
+      onClick={() =>
+        setConsoleState(drawer.open ? { open: false } : { lastOpenedAt: Date.now(), open: true })
+      }
+      type="button"
+    >
+      <SquareTerminal className="size-3.5" />
+      Console
+      {unseen > 0 ? (
+        <Badge className="h-4 px-1 text-[0.65rem]" variant="warning">
+          {unseen}
+        </Badge>
+      ) : null}
+    </button>
+  );
+}
+
+function BackendItem() {
+  const status = useBackendStatus();
+  const label = status.label ?? "Backend";
+  const tone =
+    status.connection === "connected"
+      ? "good"
+      : status.connection === "reconnecting"
+        ? "warn"
+        : status.connection === "disconnected"
+          ? "bad"
+          : "neutral";
+
+  return (
+    <StatusReadout
+      title={status.detail ? `${label} — ${status.detail}` : label}
+      tone={tone}
+      value={`${label} · ${CONNECTION_LABEL[status.connection]}`}
+    />
+  );
+}
+
+function StorageItem() {
+  const session = useNativeSession();
+  const sources = useQuery({
+    queryFn: () => fetchStorageSources(session.identity),
+    queryKey: ["shell", "storage-sources", session.identity.generation],
+    staleTime: 30_000,
+  });
+  if (sources.isError) {
+    return <StatusReadout tone="warn" value="Storage Unknown" />;
+  }
+  const enabled = sources.data?.filter((source) => source.enabled).length;
+  return (
+    <StatusReadout
+      tone="neutral"
+      value={
+        enabled === undefined
+          ? "Storage Unknown"
+          : `${enabled} ${enabled === 1 ? "Source" : "Sources"} Enabled`
+      }
+    />
+  );
+}
+
+function AttentionItem() {
+  const navigate = useNavigate();
+  const prompts = usePendingPromptsQuery();
+  const artifacts = useInstalledPluginsQuery();
+  const entries: AttentionEntry[] = [
+    ...(prompts.data ?? []).map((prompt) => ({
+      detail: prompt.message?.trim() || "Waiting for an operator response.",
+      id: `prompt:${prompt.correlation_id}`,
+      label: prompt.title,
+      open: () => {
+        const cycleId = prompt.scope?.test_cycle_id;
+        void (cycleId
+          ? navigate({ params: { cycleId }, to: "/cycles/$cycleId" })
+          : navigate({ to: "/cycles" }));
+      },
+    })),
+    ...(artifacts.data ?? [])
+      .filter((artifact) => artifact.status === "failed" || artifact.error)
+      .map((artifact) => ({
+        detail: artifact.error ?? "The installed plugin failed to start.",
+        id: `plugin:${artifact.plugin_id}`,
+        label: artifact.label,
+        open: () => {
+          void navigate({ params: { section: "plugins" }, to: "/settings/$section" });
+        },
+      })),
+  ];
+
+  if (!entries.length) {
+    return <StatusReadout tone="neutral" value="No Attention Needed" />;
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={cn(statusItemClassName, "text-warning")} type="button">
+        {entries.length} Needing Attention
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-96" side="top">
+        <DropdownMenuLabel>Needs Attention</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {entries.map((entry) => (
+          <DropdownMenuItem key={entry.id} onSelect={entry.open}>
+            <span className="grid min-w-0 gap-0.5">
+              <span className="truncate font-medium">{entry.label}</span>
+              <span className="truncate text-xs text-muted-foreground">{entry.detail}</span>
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ActivityItem() {
+  const navigate = useNavigate();
+  const cycles = useCyclesQuery();
+  const active = (cycles.data ?? []).filter((cycle) =>
+    ACTIVE_CYCLE_STATUSES.includes(cycle.status),
+  );
+
+  if (!active.length) {
+    return <StatusReadout tone="neutral" value="No Active Cycles" />;
+  }
+
+  return (
+    <button
+      className={cn(statusItemClassName, "text-success")}
+      onClick={() => {
+        const only = active.length === 1 ? active[0] : undefined;
+        void (only
+          ? navigate({ params: { cycleId: only.cycleId }, to: "/cycles/$cycleId" })
+          : navigate({ to: "/cycles" }));
+      }}
+      type="button"
+    >
+      {active.length} Active
+    </button>
+  );
+}
+
+function StatusReadout({
+  title,
+  tone,
+  value,
+}: {
+  title?: string;
+  tone: "neutral" | "good" | "warn" | "bad";
+  value: ReactNode;
+}) {
+  return (
+    <span className={cn(statusItemClassName, "cursor-default", toneClassName(tone))} title={title}>
+      {value}
+    </span>
+  );
+}
+
+/* === Private Functions === */
+
+function toneClassName(tone: "neutral" | "good" | "warn" | "bad"): string | null {
+  switch (tone) {
+    case "good":
+      return "text-success";
+    case "warn":
+      return "text-warning";
+    case "bad":
+      return "text-destructive";
+    default:
+      return null;
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "productName": "Dokime",
+  "identifier": "com.stokker.dokime",
+  "app": {
+    "windows": [
+      {
+        "create": false,
+        "dragDropEnabled": false,
+        "height": 960,
+        "minHeight": 720,
+        "minWidth": 1080,
+        "resizable": true,
+        "title": "Dokime",
+        "width": 1440
+      }
+    ]
+  }
+}
