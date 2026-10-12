@@ -17,7 +17,7 @@ permissions:
 jobs:
   check:
     name: Check (${{ inputs.os }})
-    runs-on: ${{ inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
+    runs-on: ${{ inputs.os == 'linux' && github.event_name == 'push' && github.repository == 'stokker-technologies/dokime' && github.ref == 'refs/heads/dev' && 'stokker-local-linux-x64' || inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
     timeout-minutes: 120
     env: &native_env
       MISE_YES: '1'
@@ -167,7 +167,7 @@ jobs:
   test:
     name: Test (${{ inputs.os }})
     needs: build_release
-    runs-on: ${{ inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
+    runs-on: ${{ inputs.os == 'linux' && github.event_name == 'push' && github.repository == 'stokker-technologies/dokime' && github.ref == 'refs/heads/dev' && 'stokker-local-linux-x64' || inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
     timeout-minutes: 360
     env: *native_env
     steps:

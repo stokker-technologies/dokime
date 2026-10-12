@@ -1,0 +1,40 @@
+name: Development Windows Validation
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: dev-windows-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'push' && github.sha || 'current' }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: Validation Policy
+    runs-on: ubuntu-24.04
+    outputs:
+      fast: ${{ steps.policy.outputs.fast }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: policy
+        env:
+          PYTHONPATH: tools/python/src
+        run: python -m dokime_tools.ci.policy
+
+  native_windows:
+    name: Native (windows)
+    needs: policy
+    if: needs.policy.outputs.fast == 'true'
+    uses: ./.github/workflows/platform.yml
+    with:
+      os: windows

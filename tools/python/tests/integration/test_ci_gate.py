@@ -11,10 +11,11 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Callable
-from pathlib import Path
-from copy import deepcopy
 import subprocess
+import re
+from collections.abc import Callable
+from copy import deepcopy
+from pathlib import Path
 
 # Third Party Imports
 import pytest
@@ -92,7 +93,7 @@ def case_target_advancement(tmp_path: Path, monkeypatch, changed) -> None:
             gate.verify_tree(EVENT)
     else:
         gate.verify_tree(EVENT)
-    assert len(calls) == 6
+    assert len(calls) == 3 * len(gate.required_platforms(EVENT))
     assert all(kwargs == {"completed": True} for _, _, kwargs in calls)
 
 
@@ -107,6 +108,76 @@ def case_merge_conflict(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(gate.subprocess, "check_output", conflict)
     with pytest.raises(subprocess.CalledProcessError):
         gate.verify_tree(EVENT)
+
+
+def case_native_roles(tmp_path: Path, monkeypatch, target: str) -> None:
+    event = {
+        "ref": f"refs/heads/{target}",
+        "repository": {"full_name": gate.REPOSITORY},
+    }
+    calls = []
+    monkeypatch.setattr(
+        gate,
+        "job_id",
+        lambda role, platform, **kwargs: calls.append((role, platform, kwargs)),
+    )
+    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+    monkeypatch.setattr(
+        gate.subprocess, "check_output", lambda *args, **kwargs: "a" * 40 + "\n"
+    )
+    gate.verify_tree(event)
+    platforms = ("linux",) if target == "dev" else ("linux", "windows")
+    assert calls == [
+        (role, platform, {"completed": True})
+        for platform in platforms
+        for role in ("check", "build:release", "test")
+    ]
+
+
+def case_platform_failure(
+    tmp_path: Path, monkeypatch, platform: str, failed: str
+) -> None:
+    event = {
+        "ref": "refs/heads/dev" if platform == "linux" else "refs/heads/main",
+        "repository": {"full_name": gate.REPOSITORY},
+    }
+
+    def job(role, selected, **kwargs):
+        if platform == "linux":
+            assert selected == "linux"
+        if selected == platform and role == failed:
+            raise ValueError(f"{platform} validation failed")
+        return "1"
+
+    monkeypatch.setattr(gate, "job_id", job)
+    with pytest.raises(ValueError, match=f"{platform} validation failed"):
+        gate.verify_tree(event)
+
+
+def case_workflow_policy(tmp_path: Path, monkeypatch) -> None:
+    root = Path(__file__).resolve().parents[4]
+    advisory = (root / ".github/workflows/dev-windows.yml").read_text()
+    required = (root / ".github/workflows/ci.yml").read_text()
+    platform = (root / ".github/workflows/platform.yml").read_text()
+    assert "uses: ./.github/workflows/platform.yml" in advisory
+    assert "os: windows" in advisory
+    assert "needs: policy" in advisory
+    assert "native_windows" not in required
+    assert "continue-on-error" not in advisory + platform
+    assert "if: always()\n        uses: actions/upload-artifact@" in platform
+    for job in ("check", "test"):
+        block = re.split(
+            r"\n  [a-z_]+:\n", platform.split(f"\n  {job}:\n", 1)[1], maxsplit=1
+        )[0]
+        route = next(line for line in block.splitlines() if "runs-on:" in line)
+        assert "github.event_name == 'push'" in route
+        assert "github.repository == 'stokker-technologies/dokime'" in route
+        assert "github.ref == 'refs/heads/dev'" in route
+        assert "&& 'stokker-local-linux-x64'" in route
+        assert "self-hosted" not in route and "fromJSON" not in route
+        assert "'ubuntu-24.04'" in route and "'windows-2022'" in route
+    build = platform.split("\n  build_release:\n", 1)[1].split("\n  test:\n", 1)[0]
+    assert "stokker-local-linux-x64" not in build
 
 
 # === Private Functions === #
@@ -145,6 +216,15 @@ def case_merge_conflict(tmp_path: Path, monkeypatch) -> None:
         pytest.param(case_target_advancement, (False,), id="target_advancement-11"),
         pytest.param(case_target_advancement, (True,), id="target_advancement-12"),
         pytest.param(case_merge_conflict, (), id="merge_conflict-13"),
+        pytest.param(case_native_roles, ("dev",), id="native_roles-dev"),
+        pytest.param(case_native_roles, ("main",), id="native_roles-main"),
+        pytest.param(case_platform_failure, ("linux", "check"), id="linux-check"),
+        pytest.param(
+            case_platform_failure, ("linux", "build:release"), id="linux-build"
+        ),
+        pytest.param(case_platform_failure, ("linux", "test"), id="linux-test"),
+        pytest.param(case_platform_failure, ("windows", "check"), id="windows-check"),
+        pytest.param(case_workflow_policy, (), id="workflow-policy"),
     ],
 )
 def test_gate_contract(

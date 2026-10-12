@@ -19,3 +19,10 @@
 - Project-local guidance and skills are canonical under `.agents/`; regenerate provider copies with `stkr project update`. Do not author competing provider copies.
 - Complete cohesive implementation before broad validation. Every project Python environment is the repository-root `.venv/`. Private task inputs follow the Hub task lifecycle.
 - Use repository mise tasks discovered from `mise.toml`; apply `dokime-desktop-validation` for changed native desktop workflows.
+
+
+## Development Validation Policy
+
+- Dev integration requires complete Linux check, release build, correctness tests and exact-revision artifact validation. Windows validation runs independently as advisory and retains failures and artifacts.
+- The Linux-required policy applies only to Dokime Dev; Main, release stabilization, tags and publication require both native platforms. Incomplete Linux-only catalogs cannot satisfy release reuse. Making Windows mandatory for Dev again is an explicit policy change.
+- Trusted Dev-push Linux check and artifact-consuming test jobs may use the restricted `stokker-local-linux-x64` runner. Pull requests and other refs use hosted runners. Docker-dependent release builds remain hosted. Preserve exact source identity and retained checks; runner routing is not validation evidence.

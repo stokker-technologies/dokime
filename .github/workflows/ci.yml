@@ -12,7 +12,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: native-pr-${{ github.event.pull_request.number }}
+  group: native-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'push' && github.sha || 'current' }}
   cancel-in-progress: true
 
 env:
@@ -26,12 +26,27 @@ env:
   GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
+  policy:
+    name: Validation Policy
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.policy.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: policy
+        env:
+          PYTHONPATH: tools/python/src
+        run: python -m dokime_tools.ci.policy
+
   native:
     name: Native (${{ matrix.os }})
+    needs: policy
     strategy:
       fail-fast: false
-      matrix:
-        os: [linux, windows]
+      matrix: ${{ fromJSON(needs.policy.outputs.matrix) }}
     uses: ./.github/workflows/platform.yml
     with:
       os: ${{ matrix.os }}
@@ -74,7 +89,7 @@ jobs:
   ci_gate:
     name: Ci Gate / Full Validation Gate
     if: always()
-    needs: [native, ci_artifacts_catalog]
+    needs: [policy, native, ci_artifacts_catalog]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:

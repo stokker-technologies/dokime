@@ -16,20 +16,20 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
 import tempfile
+from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from zipfile import ZipFile
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.check.release import PLATFORMS, digest, inputs, verify_platform
+from dokime_tools.ci.policy import current_event, required_platforms
 
 # Type Checking Imports
 
@@ -107,8 +107,9 @@ def catalog(root: Path) -> None:
         raise ValueError("validation catalogs require clean committed source")
     run = _job(os.environ["GITHUB_RUN_ID"])
     available = _inventory(run)
+    selected = required_platforms(current_event())
     platforms = {}
-    for platform in PLATFORMS:
+    for platform in selected:
         restore(root, platform)
         package = root / "dist/build" / platform
         manifest = verify_platform(
@@ -148,6 +149,9 @@ def catalog(root: Path) -> None:
         "head_revision": native["head_sha"],
         "inputs": identity,
         "platforms": platforms,
+        "validation_policy": {
+            "required_platforms": list(selected),
+        },
     }
     path = root / CATALOG
     path.parent.mkdir(parents=True, exist_ok=True)

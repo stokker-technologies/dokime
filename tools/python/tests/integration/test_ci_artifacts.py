@@ -258,6 +258,58 @@ def case_expired_artifact(tmp_path: Path, monkeypatch) -> None:
         )
 
 
+def case_selected_catalog(
+    tmp_path: Path, monkeypatch, selected: tuple[str, ...]
+) -> None:
+    identity = {"revision": "a" * 40, "source_tree": "b" * 40}
+    event = {
+        "ref": "refs/heads/dev" if selected == ("linux",) else "refs/heads/main",
+        "repository": {"full_name": artifacts.REPOSITORY},
+    }
+    monkeypatch.setattr(artifacts, "inputs", lambda root: identity)
+    monkeypatch.setattr(artifacts, "current_event", lambda: event)
+    monkeypatch.setenv("GITHUB_RUN_ID", "17")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    monkeypatch.setattr(artifacts, "job_id", lambda *args: "90")
+    monkeypatch.setattr(artifacts, "_request", lambda *args: {"head_sha": "a" * 40})
+    monkeypatch.setattr(artifacts, "_valid_artifact", lambda *args: None)
+    monkeypatch.setattr(artifacts, "_checksum", lambda item: "c" * 64)
+    available = {}
+    for index, platform in enumerate(selected):
+        test = str(20 + index)
+        available[f"validation-{platform}-{test}"] = {"id": test}
+        package = tmp_path / "dist/build" / platform
+        package.mkdir(parents=True)
+        (package / "manifest.json").write_text("{}")
+        archive = tmp_path / "dist/downloads" / f"dokime-{platform}.zip"
+        archive.parent.mkdir(exist_ok=True)
+        archive.write_bytes(platform.encode())
+    monkeypatch.setattr(artifacts, "_inventory", lambda run: available)
+    restored = []
+    monkeypatch.setattr(
+        artifacts, "restore", lambda root, platform: restored.append(platform)
+    )
+
+    def verify(package, platform, root, **kwargs):
+        index = selected.index(platform)
+        assert kwargs["require_validation"] is True
+        return {
+            "pipeline_id": "17",
+            "build_job_id": str(10 + index),
+            "validation": {"pipeline_id": "17", "test_job_id": str(20 + index)},
+        }
+
+    monkeypatch.setattr(artifacts, "verify_platform", verify)
+    artifacts.catalog(tmp_path)
+    catalog = json.loads((tmp_path / artifacts.CATALOG).read_text())
+    assert restored == list(selected)
+    assert set(catalog["platforms"]) == set(selected)
+    assert catalog["inputs"] == identity
+    assert catalog["validation_policy"] == {
+        "required_platforms": list(selected),
+    }
+
+
 # === Private Functions === #
 
 
@@ -361,6 +413,8 @@ def case_expired_artifact(tmp_path: Path, monkeypatch) -> None:
         pytest.param(case_storage_integrity, (False,), id="storage_integrity-27"),
         pytest.param(case_storage_integrity, (True,), id="storage_integrity-28"),
         pytest.param(case_expired_artifact, (), id="expired_artifact-29"),
+        pytest.param(case_selected_catalog, (("linux",),), id="catalog-linux"),
+        pytest.param(case_selected_catalog, (("linux", "windows"),), id="catalog-full"),
     ],
 )
 def test_artifact_contract(

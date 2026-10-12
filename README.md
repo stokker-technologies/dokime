@@ -322,6 +322,12 @@ mise run check
 mise run test
 ```
 
+Dev integration requires the full Linux check, release build, correctness tests,
+and exact-revision artifact catalog. Windows validation runs independently as
+advisory, with its results and artifacts retained. Main and releases require both
+native platforms. Trusted Dev-push Linux check and test jobs use the
+restricted local runner; Docker-dependent release builds remain hosted.
+
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
 ## Contributing

@@ -13,14 +13,13 @@
 # Standard Library Imports
 import json
 import os
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.ci.artifacts import _request, job_id
+from dokime_tools.ci.policy import current_event, required_platforms
 from dokime_tools.ci.route import verify as verify_route
 
 # Type Checking Imports
@@ -48,7 +47,7 @@ def verify(event: dict, needs: dict) -> None:
 
 def verify_tree(event: dict) -> None:
     roles = ("check", "build:release", "test")
-    for platform in ("linux", "windows"):
+    for platform in required_platforms(event):
         for role in roles:
             job_id(role, platform, completed=True)
     if "pull_request" not in event:
@@ -81,8 +80,6 @@ def verify_tree(event: dict) -> None:
 # === Entry Point === #
 
 if __name__ == "__main__":
-    event = json.loads(
-        Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8")
-    )
+    event = current_event()
     verify(event, json.loads(os.environ["NEEDS_RESULTS"]))
     verify_tree(event)
