@@ -1,0 +1,46 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "tools/node/**/*.mjs",
+      "crates/dokime-gui/**/*.mjs",
+      "crates/dokime-gui/**/*.css",
+      "crates/dokime-gui/**/*.json",
+      "crates/dokime-gui/**/*.ts",
+      "crates/dokime-gui/**/*.tsx",
+      "!crates/dokime-gui/src/routeTree.gen.ts",
+      "!crates/dokime-gui/src/lib/rpc/generated",
+      "!crates/dokime-gui/src-tauri"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

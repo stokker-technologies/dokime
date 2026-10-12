@@ -1,0 +1,51 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Local Imports === */
+
+import type { RecordScope } from "@/lib/types";
+
+/* === Types === */
+
+/** Artifact ownership is determined solely by its declared scope. */
+export type ScopedArtifact = {
+  scope?: RecordScope | null;
+};
+
+/* === Public Functions === */
+
+export function artifactVisibleInScope(artifact: ScopedArtifact, filter: RecordScope): boolean {
+  return scopeVisibleIn(artifact.scope, filter);
+}
+
+/** Every selected owner must be present and equal in the record. */
+export function scopeVisibleIn(
+  scope: RecordScope | null | undefined,
+  filter: RecordScope,
+): boolean {
+  return (
+    fieldVisibleIn(scope?.session_id, filter.session_id) &&
+    fieldVisibleIn(scope?.test_cycle_id, filter.test_cycle_id) &&
+    fieldVisibleIn(scope?.test_case_id, filter.test_case_id) &&
+    fieldVisibleIn(scope?.test_execution_id, filter.test_execution_id) &&
+    fieldVisibleIn(scope?.step_id, filter.step_id) &&
+    fieldVisibleIn(scope?.criterion_id, filter.criterion_id) &&
+    fieldVisibleIn(scope?.template_id, filter.template_id) &&
+    fieldVisibleIn(scope?.suite_id, filter.suite_id)
+  );
+}
+
+/* === Private Functions === */
+
+function fieldVisibleIn(
+  record: string | null | undefined,
+  selected: string | null | undefined,
+): boolean {
+  return selected == null || record === selected;
+}

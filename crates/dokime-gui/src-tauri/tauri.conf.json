@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "create": false,
+        "dragDropEnabled": false,
+        "height": 960,
+        "minHeight": 720,
+        "minWidth": 1080,
+        "resizable": true,
+        "title": "Dokime",
+        "width": 1440
+      }
+    ]
+  },
+  "build": {
+    "beforeBuildCommand": "pnpm run build && mise run tauri:resources:release",
+    "beforeDevCommand": "pnpm run dev",
+    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "../dist"
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "externalBin": [
+      "binaries/dokime"
+    ],
+    "resources": [],
+    "targets": [
+      "nsis"
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/installer-hooks.nsh"
+      }
+    }
+  },
+  "identifier": "com.stokker.dokime",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "dokime-test-hub"
+        ]
+      }
+    },
+    "gitlab": {
+      "host": "https://gitlab.com",
+      "oauthClientId": "",
+      "projectId": "83808544",
+      "redirectUri": "dokime-test-hub://auth/gitlab/callback"
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/stokker-technologies/dokime/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE3RkYyMTk2NzNGMTY4RDIKUldUU2FQRnpsaUgvcCtvQ1hIcStQbDhXMElydk5Ld0FHSHh1eTZ3ZTNWbURoTUNXSDZHYVNBeUwK"
+    }
+  },
+  "productName": "Dokime",
+  "version": "0.1.0"
+}

@@ -1,0 +1,355 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+use std::{
+    collections::BTreeMap,
+    num::{NonZeroU128, NonZeroUsize},
+    sync::Arc,
+};
+// Third Party Imports
+use harmos::{
+    schema::Field,
+    storage::{SchemaKey, frame::*, reduce::*},
+};
+// Local Imports
+use crate::storage::sqlite::{Error, memory, query};
+use crate::{
+    core::{EvidenceOrigin, RecordScope, Value},
+    storage::{records, telemetry},
+};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+pub(super) struct Row {
+    value: Data,
+    _memory: memory::Reservation,
+}
+
+/* === Enums === */
+#[derive(Clone, Copy)]
+pub(super) enum Kind {
+    Record,
+    Telemetry,
+}
+enum Data {
+    Record(crate::records::RecordEntry),
+    Telemetry(telemetry::TelemetryEntry),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+impl Kind {
+    pub(super) fn for_schema(key: &SchemaKey) -> Option<Self> {
+        if *key == records::schema() {
+            Some(Self::Record)
+        } else if *key == telemetry::schema() {
+            Some(Self::Telemetry)
+        } else {
+            None
+        }
+    }
+    pub(super) fn fields(self) -> &'static [Field] {
+        match self {
+            Self::Record => records::fields(),
+            Self::Telemetry => telemetry::fields(),
+        }
+    }
+    pub(super) fn check_schema(self, fields: &[Field]) -> Result<(), Error> {
+        if fields != self.fields() {
+            return Err(Error::Corrupt("native scan schema differs from its codec"));
+        }
+        Ok(())
+    }
+    pub(super) fn check_field(self, field: &ScalarField, fields: &[Field]) -> Result<(), Error> {
+        field.check()?;
+        let ScalarPath::Payload(path) = &field.path else {
+            return Ok(());
+        };
+        let first = path[0].as_str();
+        let dynamic = match self {
+            Self::Record => first == "details",
+            Self::Telemetry => matches!(first, "values" | "summary" | "metadata"),
+        };
+        if dynamic && path.len() >= 2 {
+            return Ok(());
+        }
+        if path.len() == 1
+            && matches!(first, "timestamp" | "received_at")
+            && field.kind == ScalarKind::Datetime
+        {
+            return Ok(());
+        }
+        if first == "error" {
+            return Err(Error::Data(
+                "native error details are not scalar projection fields",
+            ));
+        }
+        field.check_schema(fields)?;
+        Ok(())
+    }
+    pub(super) fn decode(
+        self,
+        payload: &[u8],
+        memory: &Arc<memory::Budget>,
+        maximum: NonZeroUsize,
+    ) -> Result<Row, Error> {
+        query::checkpoint()?;
+        match self {
+            Self::Record => {
+                let bytes = records::RecordRow::decoding_memory(payload).map_err(codec)?;
+                let _decoded = memory.reserve_owned(bytes, usize::MAX)?;
+                let row = records::RecordRow::from_bytes(payload, maximum.get()).map_err(codec)?;
+                let bytes = row.projection_memory().map_err(codec)?;
+                let admission = memory.reserve_owned(bytes, usize::MAX)?;
+                let record = row.into_entry(bound(bytes)?).map_err(codec)?;
+                Ok(Row {
+                    value: Data::Record(record),
+                    _memory: admission,
+                })
+            }
+            Self::Telemetry => {
+                let bytes = telemetry::TelemetryRow::decoding_memory(payload).map_err(codec)?;
+                let _decoded = memory.reserve_owned(bytes, usize::MAX)?;
+                let row =
+                    telemetry::TelemetryRow::from_bytes(payload, maximum.get()).map_err(codec)?;
+                let bytes = row.projection_memory().map_err(codec)?;
+                let admission = memory.reserve_owned(bytes, usize::MAX)?;
+                let entry = row.into_entry(bound(bytes)?).map_err(codec)?;
+                Ok(Row {
+                    value: Data::Telemetry(entry),
+                    _memory: admission,
+                })
+            }
+        }
+    }
+}
+impl Row {
+    pub(super) fn scalar(
+        &self,
+        path: &[harmos::Identifier],
+        kind: ScalarKind,
+        allowance: NonZeroUsize,
+    ) -> Result<ScalarValue, Error> {
+        query::checkpoint()?;
+        match &self.value {
+            Data::Record(entry) => {
+                let record = &entry.record;
+                if path[0].as_str() == "details" {
+                    return cell(&record.details, &path[1..], kind, allowance);
+                }
+                if path[0].as_str() == "scope" {
+                    return scope(record.scope.as_ref(), &path[1..], allowance);
+                }
+                match path[0].as_str() {
+                    "sequence" => Ok(ScalarValue::Unsigned(entry.sequence)),
+                    "schema_version" => Ok(ScalarValue::Unsigned(u64::from(record.schema_version))),
+                    "timestamp" => timestamp(&record.timestamp, kind, allowance),
+                    "received_at" => timestamp(&record.received_at, kind, allowance),
+                    "record_id" => text(record.record_id.as_str(), allowance),
+                    "record_type" => text(record.record_type.as_str(), allowance),
+                    "source" => text(&record.source, allowance),
+                    "severity" => text(
+                        match record.severity {
+                            crate::records::RecordSeverity::Debug => "debug",
+                            crate::records::RecordSeverity::Info => "info",
+                            crate::records::RecordSeverity::Warning => "warning",
+                            crate::records::RecordSeverity::Error => "error",
+                        },
+                        allowance,
+                    ),
+                    "message" => optional_text(record.message.as_deref(), allowance),
+                    "related_sample_id" => optional_text(
+                        record.related_sample_id.as_ref().map(|id| id.as_str()),
+                        allowance,
+                    ),
+                    "related_stream_id" => optional_text(
+                        record.related_stream_id.as_ref().map(|id| id.as_str()),
+                        allowance,
+                    ),
+                    "related_artifact_id" => optional_text(
+                        record.related_artifact_id.as_ref().map(|id| id.as_str()),
+                        allowance,
+                    ),
+                    _ => Err(Error::Data("unsupported native record field")),
+                }
+            }
+            Data::Telemetry(entry) => {
+                let sample = &entry.sample;
+                match path[0].as_str() {
+                    "values" => cell(&sample.values, &path[1..], kind, allowance),
+                    "summary" => cell(&sample.summary, &path[1..], kind, allowance),
+                    "metadata" => cell(&sample.metadata, &path[1..], kind, allowance),
+                    "scope" => scope(sample.scope.as_ref(), &path[1..], allowance),
+                    "epoch" => text(entry.epoch.as_str(), allowance),
+                    "ordinal" => Ok(ScalarValue::Unsigned(entry.ordinal)),
+                    "sequence" => Ok(ScalarValue::Unsigned(sample.sequence)),
+                    "schema_version" => Ok(ScalarValue::Unsigned(u64::from(sample.schema_version))),
+                    "timestamp" => timestamp(&sample.timestamp, kind, allowance),
+                    "received_at" => timestamp(&sample.received_at, kind, allowance),
+                    "sample_id" => text(sample.sample_id.as_str(), allowance),
+                    "stream" => text(sample.stream.as_str(), allowance),
+                    "source" => text(&sample.source, allowance),
+                    _ => Err(Error::Data("unsupported native telemetry field")),
+                }
+            }
+        }
+    }
+}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+fn cell(
+    map: &BTreeMap<String, Value>,
+    path: &[harmos::Identifier],
+    kind: ScalarKind,
+    allowance: NonZeroUsize,
+) -> Result<ScalarValue, Error> {
+    let Some(mut value) = map.get(path[0].as_str()) else {
+        return Ok(ScalarValue::Missing);
+    };
+    for name in &path[1..] {
+        query::checkpoint()?;
+        match value {
+            Value::Null => return Ok(ScalarValue::Null),
+            Value::Object(map) => match map.get(name.as_str()) {
+                Some(next) => value = next,
+                None => return Ok(ScalarValue::Missing),
+            },
+            _ => return Err(Error::Data("native scalar path crosses a non-object value")),
+        }
+    }
+    Ok(match value {
+        Value::Null => ScalarValue::Null,
+        Value::Bool(value) => ScalarValue::Bool(*value),
+        Value::Integer(value) if kind == ScalarKind::Exact => ScalarValue::Exact(ExactNumber::new(
+            *value < 0,
+            u128::from(value.unsigned_abs()),
+            NonZeroU128::new(1).unwrap(),
+        )),
+        Value::Unsigned(value) if kind == ScalarKind::Exact => ScalarValue::Exact(
+            ExactNumber::new(false, u128::from(*value), NonZeroU128::new(1).unwrap()),
+        ),
+        Value::Integer(value) => ScalarValue::Signed(*value),
+        Value::Unsigned(value) => ScalarValue::Unsigned(*value),
+        Value::Number(value) => ScalarValue::Float(*value),
+        Value::Text(value) => text(value, allowance)?,
+        Value::Datetime(value) => ScalarValue::Datetime(value.unix_timestamp_nanos()),
+        Value::Object(_) | Value::Array(_) => {
+            return Err(Error::Data("native projected value is not scalar"));
+        }
+    })
+}
+fn scope(
+    scope: Option<&RecordScope>,
+    path: &[harmos::Identifier],
+    allowance: NonZeroUsize,
+) -> Result<ScalarValue, Error> {
+    let Some(scope) = scope else {
+        return Ok(ScalarValue::Null);
+    };
+    let value = match path[0].as_str() {
+        "session_id" => scope.session_id.as_ref().map(|id| id.as_str()),
+        "test_cycle_id" => scope.test_cycle_id.as_ref().map(|id| id.as_str()),
+        "test_case_id" => scope.test_case_id.as_ref().map(|id| id.as_str()),
+        "test_execution_id" => scope.test_execution_id.as_ref().map(|id| id.as_str()),
+        "step_id" => scope.step_id.as_ref().map(|id| id.as_str()),
+        "criterion_id" => scope.criterion_id.as_ref().map(|id| id.as_str()),
+        "template_id" => scope.template_id.as_ref().map(|id| id.as_str()),
+        "suite_id" => scope.suite_id.as_ref().map(|id| id.as_str()),
+        "origin" => {
+            return match path[1].as_str() {
+                "phase" => Ok(ScalarValue::Unsigned(match scope.origin {
+                    EvidenceOrigin::Default => 0,
+                    EvidenceOrigin::Initialization => 1,
+                    EvidenceOrigin::Step { .. } => 2,
+                    EvidenceOrigin::Cleanup => 3,
+                })),
+                "attempt_id" => optional_text(
+                    match &scope.origin {
+                        EvidenceOrigin::Step { attempt_id } => Some(attempt_id.as_str()),
+                        _ => None,
+                    },
+                    allowance,
+                ),
+                _ => Err(Error::Data("unsupported native origin field")),
+            };
+        }
+        _ => return Err(Error::Data("unsupported native scope field")),
+    };
+    optional_text(value, allowance)
+}
+fn timestamp(
+    value: &crate::core::Timestamp,
+    kind: ScalarKind,
+    allowance: NonZeroUsize,
+) -> Result<ScalarValue, Error> {
+    if kind != ScalarKind::Datetime {
+        return text(value.as_str(), allowance);
+    }
+    let parsed = value
+        .to_datetime()
+        .map_err(|_| Error::Corrupt("native scan timestamp is invalid"))?;
+    Ok(ScalarValue::Datetime(parsed.unix_timestamp_nanos()))
+}
+fn optional_text(value: Option<&str>, allowance: NonZeroUsize) -> Result<ScalarValue, Error> {
+    match value {
+        Some(value) => text(value, allowance),
+        None => Ok(ScalarValue::Null),
+    }
+}
+fn text(value: &str, allowance: NonZeroUsize) -> Result<ScalarValue, Error> {
+    if value.len() > allowance.get() {
+        return Err(exhausted());
+    }
+    let mut text = String::new();
+    text.try_reserve_exact(value.len())
+        .map_err(|_| exhausted())?;
+    if text.capacity() > value.len() {
+        return Err(exhausted());
+    }
+    text.push_str(value);
+    Ok(ScalarValue::Text(text))
+}
+fn bound(bytes: usize) -> Result<NonZeroUsize, Error> {
+    NonZeroUsize::new(bytes)
+        .filter(|bytes| bytes.get() != usize::MAX)
+        .ok_or_else(exhausted)
+}
+fn exhausted() -> Error {
+    harmos::Error::ResourceExhausted {
+        resource: "SQLite native scan projection",
+    }
+    .into()
+}
+fn codec(error: crate::storage::Error) -> Error {
+    match error {
+        crate::storage::Error::Runtime(error) => error.into(),
+        other => harmos::Error::backend(
+            "decode native scan source",
+            harmos::BackendFailure::Corrupt,
+            other,
+        )
+        .into(),
+    }
+}
+
+/* === Tests === */

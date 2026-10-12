@@ -1,0 +1,53 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+name = "dokime-python"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+license-file = "../../LICENSE-APACHE"
+repository.workspace = true
+version = { workspace = true }
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Local
+dokime = { path = "../dokime", features = ["client"] }
+dokime-app = { path = "../dokime-app", features = ["fft"] }
+dokime-contract = { path = "../dokime-contract" }
+dokime-server = { path = "../dokime-server" }
+
+# Git
+harmos = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true, default-features = true }
+
+# Logging
+tracing = { workspace = true, default-features = true }
+
+# Utilities
+pyo3 = { workspace = true, default-features = true }
+sha2 = { workspace = true, default-features = true }
+time = { workspace = true, default-features = true }
+
+# Serialization
+prost = { workspace = true, default-features = true }
+serde = { workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true }
+
+# Async
+async-trait = { workspace = true, default-features = true }
+pyo3-async-runtimes = { workspace = true, default-features = true }
+tokio = { workspace = true, default-features = true }
+tokio-stream = { workspace = true, default-features = true }

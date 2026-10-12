@@ -1,0 +1,202 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+#[allow(dead_code)]
+mod one_prelude {
+    use dokime::prelude::*;
+
+    fn stream_adapters<S: Stream + StreamExt>() {}
+
+    fn elapsed(_: Elapsed) {}
+
+    fn stage_contexts(
+        _initialization: &InitializationContext<'_>,
+        _traceability: &TraceabilityContext<'_>,
+        _step: &StepContext<'_>,
+        _observer: &ObserverContext<'_>,
+        _cleanup: &CleanupContext<'_>,
+        _criterion: &CriterionContext<'_>,
+    ) {
+    }
+
+    fn document_types(_: Document, _: Section, _: Plot, _: Line, _: Band) {}
+
+    fn traceability_types(_: TraceabilityRow, _: TraceabilitySection) {}
+
+    fn plugin_trait<P: Plugin>() {}
+
+    fn supervisor(_: &Supervisor) {}
+
+    fn refusal() -> Refusal {
+        Refusal::of("refused")
+    }
+
+    fn configuration(config: Configuration) -> Result<NoSettings, Refusal> {
+        config
+            .settings::<NoSettings>()
+            .map_err(|error| Refusal::of(error.to_string()))
+    }
+
+    fn scope(_: &ExecutionScope) {}
+
+    fn ticks(execution: &Tick) -> u64 {
+        execution.index()
+    }
+
+    fn card_payloads(_: StatusResponse, _: OptionsResponse, _: Discovered, _: NoSettings) {}
+
+    fn secret(_: Secret) {}
+
+    fn publisher(_: &Publisher) {}
+
+    fn slot<T>(_: &Slot<T>) {}
+
+    fn host_module(_: &host::System) {}
+}
+
+#[allow(dead_code)]
+mod bare_attributes {
+    use dokime::prelude::*;
+
+    const POLICY: dokime::harmos::operations::OperationPolicy =
+        dokime::harmos::operations::OperationPolicy {
+            timeout: std::time::Duration::from_secs(5),
+            attempt_timeout: std::time::Duration::from_secs(5),
+            retries: dokime::harmos::operations::RetryPolicy::Never,
+        };
+
+    #[message]
+    #[derive(Clone, PartialEq)]
+    pub(crate) struct GetReadingResponse {
+        pub(crate) reads: u64,
+    }
+
+    struct GetStatus;
+
+    struct GetReading;
+
+    #[settings]
+    #[derive(Debug, Default, PartialEq)]
+    struct BenchSettings {
+        workspace: Workspace,
+    }
+
+    #[section(label = "Bench")]
+    #[derive(Debug, Default, PartialEq)]
+    struct Workspace {
+        #[setting(label = "Port")]
+        port: Option<String>,
+    }
+
+    struct Bench;
+
+    #[catalog]
+    enum Operations {
+        GetReading(GetReading),
+        GetStatus(GetStatus),
+    }
+
+    #[operation(id = "prelude-bench.get_reading", version = 1, description = "Reads.", policy = POLICY)]
+    impl GetReading {
+        fn new(_: std::sync::Arc<()>) -> Self {
+            Self
+        }
+
+        async fn run(&mut self, _: &Supervisor, _: &()) -> Result<GetReadingResponse, Refusal> {
+            Ok(GetReadingResponse { reads: 1 })
+        }
+    }
+
+    #[operation(id = "prelude-bench.get_status", version = 1, description = "Reports.", policy = POLICY)]
+    impl GetStatus {
+        fn new(_: std::sync::Arc<()>) -> Self {
+            Self
+        }
+
+        async fn run(&mut self, _: &Supervisor, _: &()) -> Result<StatusResponse, Refusal> {
+            Ok(StatusResponse::ready())
+        }
+    }
+
+    impl dokime::harmos::operations::lifecycle::Policy for Bench {
+        const INITIALIZATION_POLICY: dokime::harmos::operations::OperationPolicy = POLICY;
+        const SHUTDOWN_POLICY: dokime::harmos::operations::OperationPolicy = POLICY;
+    }
+
+    #[plugin(
+        id = "prelude-bench",
+        provides = Operations,
+        requires(),
+        contributions(dokime::Settings<BenchSettings>),
+        restart = "never", description = "Bare attributes.")]
+    impl Plugin for Bench {
+        type Config = Configuration;
+        type Error = Refusal;
+        type Context = Supervisor;
+        type Resources = ();
+
+        fn prepare(config: Configuration) -> Result<Self, Refusal> {
+            dokime::plugin::refusal(config.settings::<BenchSettings>())?;
+            Ok(Self)
+        }
+
+        async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+            Ok(())
+        }
+
+        fn resources(&self) -> std::sync::Arc<()> {
+            std::sync::Arc::new(())
+        }
+
+        fn bind_operations(
+            &self,
+            table: &mut dokime::harmos::operations::WireTable<Supervisor>,
+        ) -> Result<(), dokime::harmos::operations::ServingError> {
+            table.bind_operations::<Operations, _>(self.resources())
+        }
+
+        async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+            Ok(())
+        }
+
+        async fn cleanup(&mut self) -> Result<(), Refusal> {
+            Ok(())
+        }
+    }
+}
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+/* === Tests === */

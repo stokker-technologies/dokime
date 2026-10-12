@@ -1,0 +1,508 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+pub(crate) mod core;
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+use std::collections::{BTreeMap, BTreeSet};
+// Third Party Imports
+use harmos::Message;
+// Local Imports
+use super::BackgroundTask;
+use crate::RuntimeHandle;
+use crate::records::{RecordPublication, RecordPublishRequest};
+use dokime::core::{Identifier, Timestamp};
+use dokime::transport::{DeliverRecordRequest, ExecutionSignal};
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+#[derive(Clone)]
+pub(crate) struct PublicationIngest {
+    streams: crate::app::Streams,
+    progress: tokio::sync::watch::Receiver<harmos::Cursor>,
+}
+
+#[derive(Default)]
+pub(crate) struct RecordDemands {
+    sources: BTreeMap<String, RecordDemandSource>,
+    listeners: BTreeMap<(String, String, String), harmos::sidecar::DemandLease>,
+}
+
+struct RecordDemandSource {
+    demands: harmos::sidecar::DemandSource,
+    ready: tokio::sync::watch::Receiver<bool>,
+    _watch: BackgroundTask,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+impl RuntimeHandle {
+    pub(crate) fn register_record_demand_source(
+        &self,
+        source: String,
+        demands: harmos::sidecar::DemandSource,
+        ready: tokio::sync::watch::Receiver<bool>,
+    ) {
+        let owned = std::sync::Arc::downgrade(&self.record_demands);
+        let state = std::sync::Arc::clone(&self.state);
+        let unavailable = std::sync::Arc::clone(&self.unavailable_plugins);
+        let routing = std::sync::Arc::clone(&self.routing);
+        let mut changed = ready.clone();
+        let task = BackgroundTask(tokio::spawn(async move {
+            while changed.changed().await.is_ok() {
+                let Some(owned) = owned.upgrade() else {
+                    break;
+                };
+                let state = state.read().expect("runtime state lock poisoned");
+                let unavailable = unavailable
+                    .read()
+                    .expect("plugin availability lock poisoned");
+                let mut demands = owned.lock().expect("record demand lock poisoned");
+                if let Err(error) =
+                    demands.reconcile(&state.installed_plugins, &unavailable, routing.get())
+                {
+                    tracing::warn!(%error, "could not reconcile listener demand after readiness changed");
+                }
+            }
+        }));
+        self.record_demands
+            .lock()
+            .expect("record demand lock poisoned")
+            .sources
+            .insert(
+                source,
+                RecordDemandSource {
+                    demands,
+                    ready,
+                    _watch: task,
+                },
+            );
+    }
+
+    pub(crate) fn remove_record_demand_source(&self, source: &str) {
+        let mut demands = self
+            .record_demands
+            .lock()
+            .expect("record demand lock poisoned");
+        demands.sources.remove(source);
+        demands
+            .listeners
+            .retain(|(listener, producer, _), _| listener != source && producer != source);
+    }
+
+    pub(crate) fn hold_record_demand(
+        &self,
+        records: &[Identifier],
+    ) -> crate::Result<Vec<harmos::sidecar::DemandLease>> {
+        let artifacts = self.installed_plugins();
+        let unavailable = self
+            .unavailable_plugins
+            .read()
+            .expect("plugin availability lock poisoned");
+        let demands = self
+            .record_demands
+            .lock()
+            .expect("record demand lock poisoned");
+        let mut held = Vec::new();
+        for artifact in artifacts
+            .values()
+            .filter(|artifact| artifact.enabled && !unavailable.contains(&artifact.source))
+        {
+            let Some(source) = demands.sources.get(&artifact.source) else {
+                continue;
+            };
+            for record in records.iter().collect::<BTreeSet<_>>() {
+                if artifact
+                    .record_contracts
+                    .iter()
+                    .any(|contract| &contract.record_type == record)
+                {
+                    held.push(
+                        source
+                            .demands
+                            .hold(&record_demand_key(record.as_str()))
+                            .map_err(|error| crate::Error::Operation(error.to_string()))?,
+                    );
+                }
+            }
+        }
+        Ok(held)
+    }
+
+    pub(crate) fn reconcile_listener_record_demand(&self) -> crate::Result<()> {
+        let artifacts = self.installed_plugins();
+        let unavailable = self
+            .unavailable_plugins
+            .read()
+            .expect("plugin availability lock poisoned");
+        let mut demands = self
+            .record_demands
+            .lock()
+            .expect("record demand lock poisoned");
+        demands.reconcile(&artifacts, &unavailable, self.routing.get())
+    }
+
+    pub(crate) async fn flush_plugin_publications(&self) -> crate::Result<()> {
+        let ingest = self.publication_ingest.get().ok_or_else(|| {
+            crate::Error::Operation("publication ingest is not initialized".into())
+        })?;
+        flush_publications(ingest).await
+    }
+}
+
+impl RecordDemands {
+    fn reconcile(
+        &mut self,
+        artifacts: &super::handle::InstalledPlugins,
+        unavailable: &BTreeSet<String>,
+        router: Option<&harmos::load::Router>,
+    ) -> crate::Result<()> {
+        let wanted = listener_demands(artifacts, unavailable, router, |owner| {
+            self.sources.get(owner).map(|source| *source.ready.borrow())
+        });
+
+        self.listeners.retain(|key, _| wanted.contains(key));
+        for key in wanted {
+            if !self.listeners.contains_key(&key) {
+                let held = self.sources[&key.1]
+                    .demands
+                    .hold(&key.2)
+                    .map_err(|error| crate::Error::Operation(error.to_string()))?;
+                self.listeners.insert(key, held);
+            }
+        }
+        Ok(())
+    }
+}
+
+/* === Public Functions === */
+pub(crate) fn spawn_lease_gap_watch(
+    handle: RuntimeHandle,
+    mut services: tokio::sync::watch::Receiver<
+        std::collections::BTreeMap<harmos::services::ServiceKey, harmos::services::ServiceSnapshot>,
+    >,
+) -> BackgroundTask {
+    let root_scope = handle.services.root_scope().id();
+    BackgroundTask(tokio::spawn(async move {
+        let mut down = std::collections::BTreeSet::<String>::new();
+        while services.changed().await.is_ok() {
+            let inactive = services
+                .borrow()
+                .iter()
+                .filter(|(key, instance)| {
+                    key.scope == root_scope
+                        && matches!(instance.status, harmos::ServiceStatus::Inactive { .. })
+                })
+                .map(|(key, _)| key.definition.clone())
+                .collect::<std::collections::BTreeSet<_>>();
+            for source in inactive.difference(&down) {
+                for stream in handle.streams_owned_by(source) {
+                    handle.stream_leases().mark_gap(&stream);
+                    // Told to the runs as well as written down: a step
+                    // listening on the stream and a criterion counting its
+                    // rows both need to know the silence was not a
+                    // measurement, and neither reads the host's ledger.
+                    handle
+                        .forward_lease_gap(
+                            &stream,
+                            "the stream owner stopped while this run held it",
+                        )
+                        .await;
+                    tracing::warn!(
+                        source,
+                        stream = stream.as_str(),
+                        "a leased stream's owner stopped; every run holding it records a gap"
+                    );
+                }
+            }
+            down = inactive;
+        }
+    }))
+}
+
+pub(crate) fn spawn_publication_ingest(
+    handle: RuntimeHandle,
+) -> (PublicationIngest, BackgroundTask) {
+    let streams = handle.streams.clone();
+    let mut feed = streams.follow(harmos::Cursor::ORIGIN);
+    let (admitted, progress) = tokio::sync::watch::channel(harmos::Cursor::ORIGIN);
+    let task = tokio::spawn(async move {
+        let mut native = super::native_telemetry::Decoder::default();
+        while let Some(batch) = feed.next().await {
+            for definition in batch.incomplete() {
+                let Some(owner) = definition.owner() else {
+                    continue;
+                };
+                tracing::warn!(
+                    owner,
+                    stream = definition.id(),
+                    "plugin capture is incomplete"
+                );
+                if let Ok(stream) = Identifier::new(definition.id()) {
+                    super::native_telemetry::incomplete(
+                        &handle,
+                        owner,
+                        &stream,
+                        "the native stream or capture window lost rows",
+                    )
+                    .await;
+                }
+            }
+
+            let mut publications = batch.publications().peekable();
+            while let Some((definition, cursor, payload)) = publications.next() {
+                let mut through = cursor;
+                // Preserve global order; only consecutive rows with the same
+                // declaration and execution context share an admission.
+                let mut rows = vec![(cursor, payload.value)];
+                while rows.len() < 128
+                    && publications.peek().is_some_and(|(next, _, row)| {
+                        next.id() == definition.id()
+                            && next.version() == definition.version()
+                            && next.owner() == definition.owner()
+                            && row.value.context == payload.value.context
+                    })
+                {
+                    let (_, cursor, row) = publications.next().unwrap();
+                    through = cursor;
+                    rows.push((cursor, row.value));
+                }
+                native.ingest_batch(&handle, definition, &rows).await;
+                // A fixed flush frontier must not wait for later rows in this
+                // capture batch, particularly an unrelated continuous observer.
+                admitted.send_replace(through);
+            }
+            admitted.send_replace(batch.reaches());
+        }
+    });
+    (
+        PublicationIngest { streams, progress },
+        BackgroundTask(task),
+    )
+}
+
+pub(super) async fn flush_publications(ingest: &PublicationIngest) -> crate::Result<()> {
+    let target = ingest.streams.frontier();
+    let mut progress = ingest.progress.clone();
+    progress
+        .wait_for(|cursor| *cursor >= target)
+        .await
+        .map(|_| ())
+        .map_err(|_| crate::Error::Operation("publication ingest stopped before draining".into()))
+}
+
+pub(crate) fn spawn_record_forwarding(handle: RuntimeHandle) -> BackgroundTask {
+    BackgroundTask(tokio::spawn(async move {
+        let mut records = handle.subscribe_records();
+        while let Some(entry) = records.next().await {
+            // A read that failed is the required capture having failed, which
+            // is terminal for the whole process and does not advance the
+            // reader's position. Ending here rather than carrying on is the
+            // difference between a pump that stops and one that spins: there is
+            // nothing left to forward, and the same error would answer forever.
+            let Ok(entry) = entry else {
+                tracing::warn!("record capture failed; nothing further is forwarded to sidecars");
+                return;
+            };
+            forward(&handle, &entry.record).await;
+        }
+    }))
+}
+
+/* === Private Functions === */
+pub(crate) fn record_demand_key(record: &str) -> String {
+    format!("dokime.record:{record}")
+}
+
+fn listener_demands(
+    artifacts: &super::handle::InstalledPlugins,
+    unavailable: &BTreeSet<String>,
+    router: Option<&harmos::load::Router>,
+    source: impl Fn(&str) -> Option<bool>,
+) -> BTreeSet<(String, String, String)> {
+    let ready = |artifact: &&dokime::domains::InstalledPlugin| {
+        artifact.enabled && !unavailable.contains(&artifact.source)
+    };
+    let mut wanted = BTreeSet::new();
+    for listener in artifacts.values().filter(ready) {
+        if source(&listener.source) != Some(true) {
+            continue;
+        }
+        // A ready plugin must also have admitted every listener operation.
+        if !router.is_some_and(|router| {
+            router.graph().ordered().iter().any(|definition| {
+                definition.id == listener.source
+                    && listener.listeners.iter().all(|declared| {
+                        definition
+                            .contributions
+                            .operations
+                            .iter()
+                            .any(|entry| entry.id.as_str() == declared.operation)
+                    })
+            })
+        }) {
+            continue;
+        }
+        for producer in artifacts.values().filter(ready) {
+            if source(&producer.source).is_none() {
+                continue;
+            }
+            for record in listener.listened_records() {
+                if producer
+                    .record_contracts
+                    .iter()
+                    .any(|contract| contract.record_type.as_str() == record)
+                {
+                    wanted.insert((
+                        listener.source.clone(),
+                        producer.source.clone(),
+                        record_demand_key(record),
+                    ));
+                }
+            }
+        }
+    }
+    wanted
+}
+
+pub(super) fn record_publication(
+    artifact_id: &str,
+    publication: RecordPublication,
+) -> Option<(RecordPublishRequest, Timestamp)> {
+    let mut request: RecordPublishRequest = match serde_json::from_str(&publication.request_json) {
+        Ok(request) => request,
+        Err(error) => {
+            tracing::warn!(
+                artifact_id,
+                %error,
+                "dropping a record publication whose payload is not a publish request"
+            );
+            return None;
+        }
+    };
+    request.scope = None;
+
+    // An absent production time means the sidecar did not stamp one; anything
+    // else is passed through and validated with the rest of the record.
+    let produced_at = if publication.produced_at.is_empty() {
+        Timestamp::now_utc()
+    } else {
+        Timestamp::new(publication.produced_at)
+    };
+    Some((request, produced_at))
+}
+
+async fn forward(handle: &RuntimeHandle, record: &crate::records::Record) {
+    let Ok(record_json) = serde_json::to_string(record) else {
+        tracing::warn!(
+            record_type = %record.record_type,
+            "an admitted record could not be encoded for delivery"
+        );
+        return;
+    };
+    let delivery = dokime::plugin::Delivery {
+        record_json: record_json.clone(),
+    };
+    for operation in listeners(handle, record) {
+        if let Err(error) = handle
+            .operations
+            .call_encoded(&operation, delivery.encode_to_vec())
+            .await
+        {
+            tracing::debug!(
+                %operation,
+                %error,
+                record_type = %record.record_type,
+                "a listener did not take a delivered record"
+            );
+        }
+    }
+    let id = record.record_id.clone();
+    let captured = match handle
+        .state_manager
+        .state()
+        .read(move |state| {
+            state
+                .executions
+                .values()
+                .filter_map(|execution| {
+                    let scope = execution.records.subscribed_records().get(&id)?;
+                    Some((
+                        execution.snapshot.case().metadata.identifier.to_string(),
+                        execution.test_execution_id.to_string(),
+                        serde_json::to_string(scope).expect("captured scope serializes"),
+                    ))
+                })
+                .collect::<Vec<_>>()
+        })
+        .await
+    {
+        Ok(read) => read.value,
+        Err(error) => {
+            tracing::warn!(%error, "could not read record subscription recipients");
+            return;
+        }
+    };
+    for (template, execution, scope) in captured {
+        let target =
+            crate::capabilities::execution::run::Target::of(handle.operations.clone(), &template);
+        let signal = ExecutionSignal {
+            execution_token: execution,
+            record: Some(DeliverRecordRequest {
+                record_json: record_json.clone(),
+                captured_scopes: vec![scope],
+            }),
+            ..ExecutionSignal::default()
+        };
+        if let Err(error) = target.signal(signal).await {
+            tracing::debug!(
+                %template,
+                detail = %error.message,
+                record_type = %record.record_type,
+                "a running case did not take a delivered record"
+            );
+        }
+    }
+}
+
+fn listeners(handle: &RuntimeHandle, record: &crate::records::Record) -> Vec<String> {
+    // Forwarding starts before plugin admission; boot records have no targets yet.
+    let Some(router) = handle.routing.get() else {
+        return Vec::new();
+    };
+    let graph = router.graph();
+    handle
+        .installed_plugins()
+        .values()
+        .filter(|artifact| artifact.enabled && handle.plugin_available(&artifact.source))
+        .filter(|artifact| {
+            graph
+                .ordered()
+                .iter()
+                .any(|definition| definition.id == artifact.source)
+        })
+        .flat_map(|artifact| artifact.listeners.iter())
+        .filter(|listener| listener.record == record.record_type.as_str())
+        .map(|listener| listener.operation.clone())
+        .collect()
+}
+
+/* === Tests === */

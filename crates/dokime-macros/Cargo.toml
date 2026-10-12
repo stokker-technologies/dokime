@@ -1,0 +1,37 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# Plumbing, not a layer: Rust forces proc macros into their own compile target,
+# and `dokime` re-exports them so authors only ever write `#[dokime::…]`.
+
+[package]
+name = "dokime-macros"
+edition.workspace = true
+rust-version.workspace = true
+description = "Authoring attributes re-exported by the dokime crate."
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+[lib]
+proc-macro = true
+
+[dependencies]
+# Parsing
+proc-macro-crate = { workspace = true, default-features = true }
+proc-macro2 = { workspace = true, default-features = true }
+quote = { workspace = true, default-features = true }
+syn = { workspace = true, default-features = true }
+
+[dev-dependencies]
+# Local
+sdk = { package = "dokime", path = "../dokime" }
+
+# Serialization
+serde = { workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true }

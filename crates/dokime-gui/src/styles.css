@@ -1,0 +1,784 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Imports === */
+
+/* Standard Library Imports */
+
+/* Third Party Imports */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+/* Local Imports */
+@import "../../../branding/generated/theme.css";
+
+/* === Variables === */
+
+/* Variants */
+
+@theme inline {
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"]),
+  &:where([data-unchecked]:not([data-unchecked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-selected {
+  &:where([data-selected="true"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
+/* Theme */
+
+@theme inline {
+  --font-heading: var(--brand-font-heading);
+  --font-sans: var(--brand-font-sans);
+  --font-mono: var(--brand-font-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius: var(--brand-radius);
+  --radius-sm: var(--brand-radius-sm);
+  --radius-md: var(--brand-radius-md);
+  --radius-lg: var(--brand-radius-lg);
+  --radius-xl: var(--brand-radius-xl);
+  --radius-2xl: var(--brand-radius-2xl);
+  --radius-3xl: var(--brand-radius-3xl);
+  --radius-4xl: var(--brand-radius-4xl);
+  --text-xl: var(--brand-text-xl);
+  --text-2xl: var(--brand-text-2xl);
+  --text-3xl: var(--brand-text-3xl);
+  --text-4xl: var(--brand-text-4xl);
+  --text-5xl: var(--brand-text-5xl);
+  --text-6xl: var(--brand-text-6xl);
+  --text-7xl: var(--brand-text-7xl);
+}
+
+/* Theme Values */
+
+:root {
+  --app-bar-height: 3rem;
+  --workflow-nav-height: 3.5rem;
+  --status-bar-height: 1.75rem;
+  --settings-row-py: 0.75rem;
+  /* The settings content column: one label width and one value measure so
+     every row's control starts and ends on the same two lines. */
+  --settings-row-height: 2.5rem;
+  --settings-label-width: 16.25rem;
+  --settings-value-max: 40rem;
+
+  /* Live shell rhythm. Every shell region shares the same inset and gap so the
+     sidebar, page bar and status bar read as one grid. */
+  --nav-rail-width: 12.5rem;
+  /* The one contextual sidebar: 280px open, 56px collapsed to icons. */
+  --sidebar-width: 22rem;
+  --sidebar-width-collapsed: 3.5rem;
+  --sidebar-indent: 0.75rem;
+  /* The tree's own rhythm: 36px at every desktop density, 48px at touch. */
+  --sidebar-row-height: 2.25rem;
+  /* A bar is its control plus air above and below, and a bar's controls sit
+     12px apart. Every bar that hosts a button — the page bar, the Cycles and
+     Library filter rows, the evidence toolbar — reads these three, so none of
+     them can drift: 32px control + 2 x 8px = 48px. */
+  --bar-control-height: 2rem;
+  --bar-pad-y: 0.5rem;
+  --bar-gap: 0.75rem;
+  /* The air above and below the sidebar's mark. */
+  --sidebar-brand-pad: 1.5rem;
+  --page-bar-height: 3rem;
+  --shell-inset: 1rem;
+  --shell-gap: 0.5rem;
+  --shell-text-base: 0.875rem;
+  --control-height: 2rem;
+  --control-height-primary: 2.25rem;
+  --list-row-height: 2.25rem;
+  /* One pill: 22px tall, 10px of horizontal air, 12px text on a 20px line
+     inside the 1px border, and one column wide enough for the longest status
+     word this app can print — "Disconnected", measured at 75px in IBM Plex
+     Sans 500 at 12px — so no status ever clips or crowds its own edges. */
+  --pill-height: 1.375rem;
+  --pill-pad-x: 0.625rem;
+  --pill-text: 0.75rem;
+  --pill-leading: 1.25rem;
+  --pill-width: 6.125rem;
+}
+
+:root[data-density="compact"] {
+  --app-bar-height: 2.5rem;
+  --workflow-nav-height: 3rem;
+  --status-bar-height: 1.5rem;
+  --settings-row-py: 0.5rem;
+  --settings-row-height: 2.25rem;
+  --bar-control-height: 1.75rem;
+  --bar-pad-y: 0.375rem;
+  --bar-gap: 0.625rem;
+  --sidebar-brand-pad: 1.25rem;
+  --page-bar-height: 2.5rem;
+  --shell-inset: 0.75rem;
+  --shell-gap: 0.375rem;
+  --control-height: 1.75rem;
+  --control-height-primary: 2rem;
+  --list-row-height: 2rem;
+  --sidebar-indent: 0.625rem;
+  --sidebar-row-height: 2.25rem;
+  --pill-height: 1.25rem;
+  --pill-leading: 1.125rem;
+}
+
+/* Touch: 56px primary run controls, 48px for every other control, list row,
+   and the status bar; 12px gaps; a 16px base; a 56px page bar. */
+:root[data-density="touch"] {
+  --app-bar-height: 3.5rem;
+  --workflow-nav-height: 4rem;
+  --status-bar-height: 3rem;
+  --settings-row-py: 1rem;
+  --settings-row-height: 3rem;
+  --nav-rail-width: 6rem;
+  --sidebar-width: 24rem;
+  --sidebar-indent: 0.875rem;
+  --sidebar-row-height: 3rem;
+  /* 48px control with 8px above and below. */
+  --bar-control-height: 3rem;
+  --bar-pad-y: 0.5rem;
+  --bar-gap: 0.75rem;
+  --sidebar-brand-pad: 2rem;
+  --page-bar-height: 4rem;
+  --shell-inset: 1rem;
+  --shell-gap: 0.75rem;
+  --shell-text-base: 1rem;
+  --control-height: 3rem;
+  --control-height-primary: 3.5rem;
+  --list-row-height: 3rem;
+  --pill-height: 1.75rem;
+  --pill-pad-x: 0.75rem;
+  --pill-text: 0.875rem;
+  --pill-leading: 1.625rem;
+  --pill-width: 7.125rem;
+}
+
+/* === Base Styles === */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+}
+
+/* === Layout === */
+
+/* Touch control sizing. Unlayered so it wins over the utility-layer heights the
+   primitives ship with, while an explicit `h-[...]`/`size-[...]` on a control —
+   the 56px primary run controls — still opts out. Feature code does not need a
+   local `[data-density=touch]` override. */
+:root[data-density="touch"] [data-slot="button"]:not([class*="h-["]) {
+  height: var(--control-height);
+}
+
+:root[data-density="touch"] [data-slot="button"][data-size^="icon"]:not([class*="size-["]) {
+  height: var(--control-height);
+  width: var(--control-height);
+}
+
+:root[data-density="touch"]
+  :is([data-slot="input"], [data-slot="select-trigger"], [data-slot="toggle-group-item"]):not(
+    [class*="h-["]
+  ) {
+  height: var(--control-height);
+}
+
+:root[data-density="touch"] [data-slot="textarea"] {
+  min-height: calc(var(--control-height) * 2);
+}
+
+/* Touch typography. The v2 pass grew the containers but not the text: at
+   1920x1200 a 12px caption beside a 48px control still reads as desktop. The
+   utility classes are retargeted rather than the theme scale so a size an
+   author asked for explicitly (an `h-[...]`, a `text-[11px]`) still wins. */
+:root[data-density="touch"] .text-xs,
+:root[data-density="touch"] .text-\[11px\],
+:root[data-density="touch"] .text-\[0\.68rem\] {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+:root[data-density="touch"] .text-sm,
+:root[data-density="touch"] .text-\[0\.8rem\] {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+:root[data-density="touch"] .text-base {
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+:root[data-density="touch"] .text-lg {
+  font-size: 1.3125rem;
+  line-height: 1.35;
+}
+
+:root[data-density="touch"] :is(h1, h2, h3, h4, h5) {
+  font-size: 1.3125rem;
+  line-height: 1.35;
+}
+
+/* 20-24px icons wherever a control ships the 16px default. */
+:root[data-density="touch"] [data-slot="button"] svg:not([class*="size-["]),
+:root[data-density="touch"] [data-slot="select-trigger"] svg:not([class*="size-["]) {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+/* The slider's hit area, not just its 4px track: a live plot window that
+   cannot be grabbed with a thumb is not a touch control. */
+:root[data-density="touch"] [data-slot="slider"] {
+  height: var(--control-height);
+  touch-action: none;
+}
+
+:root[data-density="touch"] [data-slot="slider"] [data-slot="slider-thumb"] {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* The plot Follow / Reset Zoom control is a bare button inside the canvas
+   card, so the `[data-slot="button"]` rule above never reaches it. */
+:root[data-density="touch"] .plot-follow {
+  min-height: var(--control-height);
+  padding-inline: 0.75rem;
+  font-size: 1rem;
+}
+
+/* The rail stacks its icon over its label below the desktop breakpoint. The
+   frozen-report shell still uses it; the live sidebar has its own width. */
+@media (max-width: 1279px) {
+  :root {
+    --nav-rail-width: 6rem;
+  }
+}
+
+/* Focus view: the evidence is the whole screen, so a plot card that was sized
+   to share a row with a cases pane grows to something readable at arm's
+   length. The utility class is retargeted rather than the card component,
+   which the document renderer owns. */
+:root[data-focus="on"] .min-h-\[18rem\] {
+  min-height: 20rem;
+}
+
+:root[data-density="touch"][data-focus="on"] .min-h-\[18rem\] {
+  min-height: 25rem;
+}
+
+/* === Components === */
+
+@layer components {
+  .uplot {
+    color: var(--foreground);
+    font-family: var(--brand-font-sans);
+    line-height: 1.5;
+    width: min-content;
+  }
+
+  .u-title {
+    font-family: var(--brand-font-heading);
+    font-size: var(--brand-text-xl);
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .u-wrap {
+    position: relative;
+    user-select: none;
+  }
+
+  .u-over,
+  .u-under {
+    position: absolute;
+  }
+
+  .u-under {
+    overflow: hidden;
+  }
+
+  .uplot canvas {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .u-axis {
+    position: absolute;
+  }
+
+  .u-legend {
+    margin: auto;
+    font-size: var(--brand-text-xs);
+    text-align: center;
+  }
+
+  .u-inline {
+    display: block;
+  }
+
+  .u-inline * {
+    display: inline-block;
+  }
+
+  .u-inline tr {
+    margin-right: 1rem;
+  }
+
+  .u-legend th {
+    font-weight: 600;
+  }
+
+  .u-series > * {
+    padding: 0.25rem;
+  }
+
+  .u-legend th > * {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .u-legend .u-marker {
+    width: 1em;
+    height: 1em;
+    margin-right: 0.25rem;
+    /* biome-ignore lint/complexity/noImportantStyles: uPlot sets an inline background shorthand. */
+    background-clip: padding-box !important;
+  }
+
+  .u-inline.u-live th::after {
+    content: ":";
+    vertical-align: middle;
+  }
+
+  .u-inline:not(.u-live) .u-value {
+    display: none;
+  }
+
+  .u-series th {
+    cursor: pointer;
+  }
+
+  .u-legend .u-off > * {
+    opacity: 0.3;
+  }
+
+  .u-select {
+    position: absolute;
+    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+    pointer-events: none;
+  }
+
+  .u-cursor-x,
+  .u-cursor-y {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .u-hz .u-cursor-x,
+  .u-vt .u-cursor-y {
+    height: 100%;
+    border-right: 1px dashed var(--ring);
+  }
+
+  .u-hz .u-cursor-y,
+  .u-vt .u-cursor-x {
+    width: 100%;
+    border-bottom: 1px dashed var(--ring);
+  }
+
+  .u-cursor-pt {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border: 0 solid;
+    border-radius: 50%;
+    /* biome-ignore lint/complexity/noImportantStyles: uPlot sets an inline background shorthand. */
+    background-clip: padding-box !important;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .u-axis.u-off,
+  .u-select.u-off,
+  .u-cursor-x.u-off,
+  .u-cursor-y.u-off,
+  .u-cursor-pt.u-off {
+    display: none;
+  }
+
+  .document-grid {
+    grid-auto-flow: row dense;
+    grid-auto-rows: auto;
+  }
+
+  .document-grid > .document-card {
+    grid-column: span 12 / span 12;
+    grid-row: span var(--document-card-row-span, 1) / span var(--document-card-row-span, 1);
+  }
+
+  .document-grid > .document-card[data-col-span-base="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-base="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-base="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-base="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-base="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-base="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-base="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-base="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-base="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-base="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-base="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-base="12"] {
+    grid-column: span 12 / span 12;
+  }
+
+  .document-card[data-density="compact"] {
+    @apply text-sm;
+  }
+
+  .document-card[data-density="compact"] [data-slot="card-header"] {
+    @apply min-h-12 px-3 py-2;
+  }
+
+  .document-card[data-density="compact"] [data-slot="card-content"] {
+    @apply p-3;
+  }
+
+  .document-card[data-density="spacious"] [data-slot="card-content"] {
+    @apply p-5;
+  }
+
+  .plot-empty {
+    @apply min-h-[18rem];
+  }
+}
+
+@media (min-width: 640px) {
+  .document-grid > .document-card[data-col-span-sm="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-sm="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-sm="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-sm="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-sm="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-sm="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-sm="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-sm="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-sm="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-sm="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-sm="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-sm="12"] {
+    grid-column: span 12 / span 12;
+  }
+}
+
+@media (min-width: 768px) {
+  .document-grid > .document-card[data-col-span-md="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-md="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-md="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-md="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-md="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-md="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-md="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-md="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-md="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-md="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-md="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-md="12"] {
+    grid-column: span 12 / span 12;
+  }
+}
+
+@media (min-width: 1024px) {
+  .document-grid > .document-card[data-col-span-lg="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-lg="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-lg="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-lg="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-lg="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-lg="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-lg="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-lg="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-lg="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-lg="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-lg="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-lg="12"] {
+    grid-column: span 12 / span 12;
+  }
+}
+
+@media (min-width: 1280px) {
+  .document-grid > .document-card[data-col-span-xl="1"] {
+    grid-column: span 1 / span 1;
+  }
+  .document-grid > .document-card[data-col-span-xl="2"] {
+    grid-column: span 2 / span 2;
+  }
+  .document-grid > .document-card[data-col-span-xl="3"] {
+    grid-column: span 3 / span 3;
+  }
+  .document-grid > .document-card[data-col-span-xl="4"] {
+    grid-column: span 4 / span 4;
+  }
+  .document-grid > .document-card[data-col-span-xl="5"] {
+    grid-column: span 5 / span 5;
+  }
+  .document-grid > .document-card[data-col-span-xl="6"] {
+    grid-column: span 6 / span 6;
+  }
+  .document-grid > .document-card[data-col-span-xl="7"] {
+    grid-column: span 7 / span 7;
+  }
+  .document-grid > .document-card[data-col-span-xl="8"] {
+    grid-column: span 8 / span 8;
+  }
+  .document-grid > .document-card[data-col-span-xl="9"] {
+    grid-column: span 9 / span 9;
+  }
+  .document-grid > .document-card[data-col-span-xl="10"] {
+    grid-column: span 10 / span 10;
+  }
+  .document-grid > .document-card[data-col-span-xl="11"] {
+    grid-column: span 11 / span 11;
+  }
+  .document-grid > .document-card[data-col-span-xl="12"] {
+    grid-column: span 12 / span 12;
+  }
+}
+
+/* Sonner's dark-theme description rule is unlayered even for unstyled toasts. */
+[data-sonner-toaster] [data-sonner-toast][data-styled="false"] [data-description] {
+  color: var(--muted-foreground);
+}
+
+/* === Utilities === */
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* === Animations === */

@@ -1,0 +1,1207 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+use std::sync::{Arc, Mutex};
+// Third Party Imports
+use sha2::{Digest, Sha256};
+use tokio::sync::Notify;
+// Local Imports
+use super::*;
+use dokime_app::artifacts::{ArtifactRecord, ArtifactUploadInput};
+use dokime_app::core::RecordScope;
+use dokime_app::domains::ExecutionProviderTarget;
+use dokime_app::execution::CycleView;
+use dokime_app::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
+use dokime_protocol::v1::{content_client::ContentClient, execution_client::ExecutionClient};
+
+/* === Constants === */
+const LARGE_ARTIFACT_BYTES: u64 = 300 * 1024 * 1024;
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+#[derive(Default)]
+struct Artifacts {
+    records: Mutex<Vec<(ArtifactRecord, Vec<u8>)>>,
+    ready: Notify,
+    release: Notify,
+}
+
+#[derive(Default)]
+struct UploadGate {
+    started: Notify,
+    release: Notify,
+}
+
+struct LargeArtifact;
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+impl ExecutionFixture for Artifacts {
+    fn run_cycle<'a>(
+        &'a self,
+        context: ExecutionFixtureContext,
+        cycle: &'a CycleView,
+        _target: &'a ExecutionProviderTarget,
+    ) -> ExecutionFixtureFuture<'a> {
+        Box::pin(async move {
+            let execution = &cycle.test_executions[0];
+            for (name, size, cancelled) in [
+                ("full.bin", 150_000, false),
+                ("empty.bin", 0, false),
+                ("partial.bin", 8_000, true),
+                ("large.bin", 2 * 1024 * 1024, false),
+            ] {
+                let bytes = (0..size)
+                    .map(|index| (index % 251) as u8)
+                    .collect::<Vec<_>>();
+                let upload = context
+                    .begin_artifact_upload(ArtifactUploadInput {
+                        scope: RecordScope::default()
+                            .with_cycle(cycle.test_cycle_id.clone())
+                            .with_test_case(execution.test_case_id.clone())
+                            .with_test_execution(execution.test_execution_id.clone()),
+                        filename: name.into(),
+                        content_type: Some("application/octet-stream".into()),
+                        size_bytes: size as u64,
+                        sha256: None,
+                    })
+                    .await
+                    .unwrap();
+                for chunk in bytes.chunks(64 * 1024) {
+                    upload.send(chunk).await.unwrap();
+                }
+                let record = if cancelled {
+                    upload.abandon().await
+                } else {
+                    upload.finish().await
+                }
+                .unwrap();
+                self.records.lock().unwrap().push((record, bytes));
+            }
+            self.ready.notify_one();
+            self.release.notified().await;
+            Ok(common::fixture_provider_outcome(cycle, false))
+        })
+    }
+}
+
+impl ExecutionFixture for UploadGate {
+    fn run_cycle<'a>(
+        &'a self,
+        _context: ExecutionFixtureContext,
+        cycle: &'a CycleView,
+        _target: &'a ExecutionProviderTarget,
+    ) -> ExecutionFixtureFuture<'a> {
+        Box::pin(async move {
+            self.started.notify_one();
+            self.release.notified().await;
+            Ok(common::fixture_provider_outcome(cycle, false))
+        })
+    }
+}
+
+impl ExecutionFixture for LargeArtifact {
+    fn run_cycle<'a>(
+        &'a self,
+        context: ExecutionFixtureContext,
+        cycle: &'a CycleView,
+        _target: &'a ExecutionProviderTarget,
+    ) -> ExecutionFixtureFuture<'a> {
+        Box::pin(async move {
+            let execution = &cycle.test_executions[0];
+            let upload = context
+                .begin_artifact_upload(ArtifactUploadInput {
+                    scope: RecordScope::default()
+                        .with_cycle(cycle.test_cycle_id.clone())
+                        .with_test_case(execution.test_case_id.clone())
+                        .with_test_execution(execution.test_execution_id.clone()),
+                    filename: "large.bin".into(),
+                    content_type: Some("application/octet-stream".into()),
+                    size_bytes: LARGE_ARTIFACT_BYTES,
+                    sha256: None,
+                })
+                .await
+                .unwrap();
+            let started = std::time::Instant::now();
+            let chunk = vec![0_u8; 1024 * 1024];
+            let mut sent = 0_u64;
+            while sent < LARGE_ARTIFACT_BYTES {
+                let remaining = (LARGE_ARTIFACT_BYTES - sent).min(chunk.len() as u64) as usize;
+                upload.send(&chunk[..remaining]).await.unwrap();
+                sent += remaining as u64;
+                if sent.is_multiple_of(50 * 1024 * 1024) {
+                    eprintln!(
+                        "large artifact uploaded {sent} bytes in {:?}",
+                        started.elapsed()
+                    );
+                }
+            }
+            upload.finish().await.unwrap();
+            eprintln!("large artifact finished in {:?}", started.elapsed());
+            Ok(common::fixture_provider_outcome(cycle, false))
+        })
+    }
+}
+
+/* === Public Functions === */
+
+/* === Private Functions === */
+
+pub(crate) async fn artifact_transfer_listener() {
+    // Ordinary debug runs enforce responsiveness; coverage has its own cost.
+    let multiplier = if std::env::var("COVERAGE").as_deref() == Ok("1") {
+        5
+    } else {
+        1
+    };
+    let transfer_budget = Duration::from_secs(5 * multiplier);
+    let shutdown_budget = Duration::from_secs(10 * multiplier);
+    let root = tempfile::tempdir().unwrap();
+    let artifacts = Arc::new(Artifacts::default());
+    let mut owner = Runtime::with_execution_fixture(
+        RuntimeConfig::new(root.path(), common::metadata("grpc.content", "Content")),
+        "fixture",
+        artifacts.clone(),
+    )
+    .await
+    .unwrap();
+    common::register_fixture_execution(&owner.handle(), common::fixture_suite(&["passed"])).await;
+    let server = Server::start(
+        owner.handle(),
+        Config::local()
+            .with_bearer_auth(vec![grant(Role::Control)])
+            .unwrap()
+            .with_max_message_bytes(4096),
+    )
+    .await
+    .unwrap();
+    let stream = Endpoint::from_shared(server.local_endpoint())
+        .unwrap()
+        .initial_stream_window_size(4096)
+        .connect()
+        .await
+        .unwrap();
+    let mut execution = ExecutionClient::new(stream.clone());
+    let cycle_id = execution
+        .create_cycle(authenticated(v1::CreateCycleRequest {
+            plan: Some(super::workflow::selection_plan(&owner)),
+            metadata: Some(v1::Metadata {
+                identifier: "content.cycle".into(),
+                label: "Content".into(),
+                description: None,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .cycle_id;
+    let reply = execution
+        .run_cycle(authenticated(v1::RunCycleRequest {
+            cycle_id: cycle_id.clone(),
+            context: None,
+            idempotency_key: None,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(matches!(
+        reply.outcome,
+        Some(v1::run_reply::Outcome::Accepted(_))
+    ));
+    tokio::time::timeout(transfer_budget, artifacts.ready.notified())
+        .await
+        .unwrap();
+    let records = artifacts.records.lock().unwrap().clone();
+    assert_eq!(records.len(), 4);
+    let mut content = ContentClient::new(stream).max_decoding_message_size(4096);
+    let first_page = content
+        .list_artifacts(authenticated(v1::ListArtifactsRequest {
+            limit: 2,
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(first_page.artifacts.len(), 2);
+    let next_after = first_page.next_after_artifact_id.clone().unwrap();
+    let cursor = first_page.cursor.clone().unwrap();
+    let second_page = content
+        .list_artifacts(authenticated(v1::ListArtifactsRequest {
+            limit: 2,
+            after_artifact_id: next_after,
+            cursor: Some(cursor.clone()),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(second_page.artifacts.len(), 2);
+    assert!(second_page.next_after_artifact_id.is_none());
+    let mut invalid_cursor = cursor;
+    invalid_cursor.metadata_sha256[0] ^= 1;
+    assert_eq!(
+        content
+            .list_artifacts(authenticated(v1::ListArtifactsRequest {
+                limit: 2,
+                after_artifact_id: first_page.next_after_artifact_id.clone().unwrap(),
+                cursor: Some(invalid_cursor),
+            }))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Aborted
+    );
+    let first_id = records[0].0.artifact_id.to_string();
+    assert_eq!(
+        content
+            .download_artifact(v1::DownloadArtifactRequest {
+                artifact_id: first_id.clone()
+            })
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthenticated
+    );
+    assert_eq!(
+        content
+            .download_artifact(authenticated(v1::DownloadArtifactRequest {
+                artifact_id: "../file".into()
+            }))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
+    assert_eq!(
+        content
+            .download_artifact(authenticated(v1::DownloadArtifactRequest {
+                artifact_id: dokime_app::core::ArtifactId::new().to_string(),
+            }))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+
+    // Shared Native Verification And Publication
+    let native = dokime::client::Client::connect(
+        dokime::client::Target::local(server.local_endpoint()).unwrap(),
+        Some(TOKEN),
+        None,
+    )
+    .await
+    .unwrap();
+    let destination = root.path().join("verified.bin");
+    let request = v1::DownloadArtifactRequest {
+        artifact_id: first_id.clone(),
+    };
+    let verified = native
+        .download_artifact(request.clone(), destination.clone())
+        .await
+        .unwrap();
+    assert_eq!(verified.metadata.artifact_id, first_id);
+    assert_eq!(std::fs::read(&destination).unwrap(), records[0].1);
+    assert_eq!(verified.size_bytes, records[0].1.len() as u64);
+    assert!(!root.path().join("verified.bin.part").exists());
+    artifacts.release.notify_one();
+    common::wait_for_cycle_lifecycle(
+        &owner.handle(),
+        records[0].0.scope.test_cycle_id.as_ref().unwrap(),
+        dokime_app::execution::CycleStatus::Completed,
+    )
+    .await;
+    // A sealed execution cannot acquire another mutable artifact producer.
+    assert!(
+        native
+            .upload_artifact_file(
+                &destination,
+                v1::UploadArtifactHeader {
+                    scope: verified.metadata.scope.clone(),
+                    filename: "native-upload.bin".into(),
+                    content_type: verified.metadata.content_type.clone(),
+                    size_bytes: 0,
+                    sha256: None,
+                },
+            )
+            .await
+            .is_err()
+    );
+
+    let directory = root.path().join("publication-directory");
+    std::fs::create_dir(&directory).unwrap();
+    assert!(matches!(
+        native.download_artifact(request.clone(), directory).await,
+        Err(dokime::client::DownloadError::Publication(_))
+    ));
+    assert!(root.path().join("publication-directory.part").exists());
+
+    let partial = root.path().join("verified.bin.part");
+    std::fs::write(&partial, b"another owner").unwrap();
+    assert!(matches!(
+        native.download_artifact(request, destination).await,
+        Err(dokime::client::DownloadError::Io(_))
+    ));
+    assert_eq!(std::fs::read(&partial).unwrap(), b"another owner");
+    native.close_and_wait().await;
+
+    let transfer_started = std::time::Instant::now();
+    tokio::time::timeout(transfer_budget, async {
+        for (record, expected) in records.iter().take(3) {
+            let id = record.artifact_id.to_string();
+            let mut stream = content
+                .download_artifact(authenticated(v1::DownloadArtifactRequest {
+                    artifact_id: id,
+                }))
+                .await
+                .unwrap()
+                .into_inner();
+            let Some(v1::artifact_frame::Payload::Metadata(metadata)) =
+                stream.message().await.unwrap().unwrap().payload
+            else {
+                panic!("an artifact download opens with its metadata");
+            };
+            assert_eq!(metadata.size_bytes, expected.len() as u64);
+            assert_eq!(
+                metadata.sha256,
+                Sha256::digest(expected)
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+            );
+            assert_eq!(
+                metadata.state(),
+                if record.filename == "partial.bin" {
+                    v1::ArtifactState::Cancelled
+                } else {
+                    v1::ArtifactState::Complete
+                }
+            );
+            let mut actual = Vec::new();
+            let mut complete = false;
+            while let Some(frame) = stream.message().await.unwrap() {
+                assert!(!complete, "completion must be the last frame");
+                match frame.payload.unwrap() {
+                    v1::artifact_frame::Payload::Chunk(chunk) => {
+                        assert_eq!(chunk.offset, actual.len() as u64);
+                        assert!(!chunk.data.is_empty());
+                        assert!(chunk.data.len() <= 4096 - 32);
+                        actual.extend(chunk.data);
+                    }
+                    v1::artifact_frame::Payload::Complete(done) => {
+                        assert_eq!(done.size_bytes, expected.len() as u64);
+                        assert_eq!(
+                            done.sha256,
+                            Sha256::digest(&actual)
+                                .iter()
+                                .map(|byte| format!("{byte:02x}"))
+                                .collect::<String>()
+                        );
+                        complete = true;
+                    }
+                    _ => panic!("duplicate metadata"),
+                }
+            }
+            assert!(complete);
+            assert_eq!(&actual, expected);
+        }
+        assert_eq!(
+            content
+                .download_cycle_bundle(authenticated(v1::DownloadCycleBundleRequest {
+                    cycle_id: cycle_id.clone(),
+                }))
+                .await
+                .unwrap_err()
+                .code(),
+            Code::Unimplemented
+        );
+    })
+    .await
+    .expect("artifact downloads exceed the transfer budget");
+    eprintln!("artifact transfer: {:?}", transfer_started.elapsed());
+    assert_eq!(
+        content
+            .get_cycle_folder_path(authenticated(v1::GetCycleFolderPathRequest {
+                cycle_id: cycle_id.clone(),
+            }))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unimplemented
+    );
+    let mut stalled = content
+        .download_artifact(authenticated(v1::DownloadArtifactRequest {
+            artifact_id: records[3].0.artifact_id.to_string(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(matches!(
+        stalled.message().await.unwrap().unwrap().payload,
+        Some(v1::artifact_frame::Payload::Metadata(_))
+    ));
+    // The server grants existing connections a five-second graceful drain;
+    // a stalled peer must still be disconnected within ten seconds.
+    let shutdown_started = std::time::Instant::now();
+    tokio::time::timeout(shutdown_budget, server.shutdown())
+        .await
+        .unwrap()
+        .unwrap();
+    let interrupted = tokio::time::timeout(transfer_budget, async {
+        loop {
+            match stalled.message().await {
+                Err(_) => return true,
+                Ok(None) => return false,
+                Ok(Some(frame)) => assert!(!matches!(
+                    frame.payload,
+                    Some(v1::artifact_frame::Payload::Complete(_))
+                )),
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert!(
+        interrupted,
+        "shutdown must not report a truncated transfer as successful"
+    );
+    assert!(
+        shutdown_started.elapsed() < shutdown_budget,
+        "stalled transfer cancellation exceeded the shutdown budget"
+    );
+    eprintln!(
+        "stalled transfer shutdown: {:?}",
+        shutdown_started.elapsed()
+    );
+    drop(stalled);
+    drop(content);
+    drop(execution);
+    let mut reader = owner
+        .handle()
+        .open_artifact_stream(&records[0].0.artifact_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(reader.record().sha256, records[0].0.sha256);
+    assert!(reader.read(&mut [0; 16]).await.unwrap() > 0);
+    drop(reader);
+    owner.shutdown().await.unwrap();
+}
+
+pub(crate) async fn artifact_upload_owned() {
+    let root = tempfile::tempdir().unwrap();
+    let gate = Arc::new(UploadGate::default());
+    let mut owner = Runtime::with_execution_fixture(
+        RuntimeConfig::new(
+            root.path(),
+            common::metadata("grpc.content.upload", "Content"),
+        ),
+        "fixture",
+        gate.clone(),
+    )
+    .await
+    .unwrap();
+    common::register_fixture_execution(&owner.handle(), common::fixture_suite(&["passed"])).await;
+    let server = Server::start(
+        owner.handle(),
+        Config::local()
+            .with_bearer_auth(vec![grant(Role::Control)])
+            .unwrap()
+            .with_max_message_bytes(4096),
+    )
+    .await
+    .unwrap();
+    let stream = Endpoint::from_shared(server.local_endpoint())
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let mut execution = ExecutionClient::new(stream.clone());
+    let cycle_id = execution
+        .create_cycle(authenticated(v1::CreateCycleRequest {
+            plan: Some(super::workflow::selection_plan(&owner)),
+            metadata: Some(v1::Metadata {
+                identifier: "content.upload".into(),
+                label: "Upload".into(),
+                description: None,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .cycle_id;
+    execution
+        .run_cycle(authenticated(v1::RunCycleRequest {
+            cycle_id: cycle_id.clone(),
+            context: None,
+            idempotency_key: None,
+        }))
+        .await
+        .unwrap();
+    gate.started.notified().await;
+    let execution_id = execution
+        .list_executions(authenticated(v1::ListExecutionsRequest {
+            cycle_id: cycle_id.clone(),
+            limit: 100,
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .executions
+        .remove(0)
+        .execution_id;
+    let scope = || v1::ArtifactScope {
+        cycle_id: Some(cycle_id.clone()),
+        case_id: None,
+        execution_id: Some(execution_id.clone()),
+    };
+    let bytes = b"native artifact upload".to_vec();
+    let digest = Sha256::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let mut content = ContentClient::new(stream)
+        .max_decoding_message_size(4096)
+        .max_encoding_message_size(4096);
+    let uploaded = content
+        .upload_artifact(authenticated(tokio_stream::iter(vec![
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Header(
+                    v1::UploadArtifactHeader {
+                        scope: Some(scope()),
+                        filename: "native.bin".into(),
+                        content_type: Some("application/octet-stream".into()),
+                        size_bytes: bytes.len() as u64,
+                        sha256: Some(digest.clone()),
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
+                    v1::ArtifactChunk {
+                        offset: 0,
+                        data: bytes.clone(),
+                    },
+                )),
+            },
+        ])))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(uploaded.filename, "native.bin");
+    assert_eq!(uploaded.state(), v1::ArtifactState::Complete);
+    assert_eq!(uploaded.sha256, digest);
+
+    let native = dokime::client::Client::connect(
+        dokime::client::Target::local(server.local_endpoint()).unwrap(),
+        Some(TOKEN),
+        None,
+    )
+    .await
+    .unwrap();
+    let source = root.path().join("native-upload.bin");
+    std::fs::write(&source, &bytes).unwrap();
+    let uploaded = native
+        .upload_artifact_file(
+            &source,
+            v1::UploadArtifactHeader {
+                scope: Some(scope()),
+                filename: "native-upload.bin".into(),
+                content_type: None,
+                size_bytes: 0,
+                sha256: Some("caller digest is ignored".into()),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(uploaded.size_bytes, bytes.len() as u64);
+    assert_eq!(uploaded.sha256, digest);
+    assert_eq!(uploaded.state(), v1::ArtifactState::Complete);
+    native.close_and_wait().await;
+
+    let error = content
+        .upload_artifact(authenticated(tokio_stream::iter(vec![
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Header(
+                    v1::UploadArtifactHeader {
+                        scope: Some(scope()),
+                        filename: "bad-offset.bin".into(),
+                        content_type: None,
+                        size_bytes: 3,
+                        sha256: None,
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
+                    v1::ArtifactChunk {
+                        offset: 1,
+                        data: b"bad".to_vec(),
+                    },
+                )),
+            },
+        ])))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), Code::InvalidArgument);
+    assert_eq!(
+        owner
+            .handle()
+            .artifacts()
+            .await
+            .expect("artifact query succeeds")
+            .iter()
+            .find(|record| record.filename == "bad-offset.bin")
+            .unwrap()
+            .status,
+        dokime_app::artifacts::ArtifactStatus::Cancelled
+    );
+
+    let error = content
+        .upload_artifact(authenticated(tokio_stream::iter(vec![
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Header(
+                    v1::UploadArtifactHeader {
+                        scope: Some(scope()),
+                        filename: "bad-size.bin".into(),
+                        content_type: None,
+                        size_bytes: 4,
+                        sha256: None,
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
+                    v1::ArtifactChunk {
+                        offset: 0,
+                        data: b"bad".to_vec(),
+                    },
+                )),
+            },
+        ])))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), Code::InvalidArgument);
+    assert_eq!(
+        owner
+            .handle()
+            .artifacts()
+            .await
+            .expect("artifact query succeeds")
+            .iter()
+            .find(|record| record.filename == "bad-size.bin")
+            .unwrap()
+            .status,
+        dokime_app::artifacts::ArtifactStatus::Rejected
+    );
+
+    let error = content
+        .upload_artifact(authenticated(tokio_stream::iter(vec![
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Header(
+                    v1::UploadArtifactHeader {
+                        scope: Some(scope()),
+                        filename: "bad-digest.bin".into(),
+                        content_type: None,
+                        size_bytes: 3,
+                        sha256: Some("0".repeat(64)),
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
+                    v1::ArtifactChunk {
+                        offset: 0,
+                        data: b"bad".to_vec(),
+                    },
+                )),
+            },
+        ])))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), Code::InvalidArgument);
+    assert_eq!(
+        owner
+            .handle()
+            .artifacts()
+            .await
+            .expect("artifact query succeeds")
+            .iter()
+            .find(|record| record.filename == "bad-digest.bin")
+            .unwrap()
+            .status,
+        dokime_app::artifacts::ArtifactStatus::Rejected
+    );
+
+    let listed = content
+        .list_artifacts(authenticated(v1::ListArtifactsRequest::default()))
+        .await
+        .unwrap()
+        .into_inner()
+        .artifacts;
+    for (filename, state) in [
+        ("native.bin", v1::ArtifactState::Complete),
+        ("bad-offset.bin", v1::ArtifactState::Cancelled),
+        ("bad-size.bin", v1::ArtifactState::Rejected),
+        ("bad-digest.bin", v1::ArtifactState::Rejected),
+    ] {
+        assert_eq!(
+            listed
+                .iter()
+                .find(|artifact| artifact.filename == filename)
+                .map(|artifact| artifact.state()),
+            Some(state),
+            "list must preserve {filename} state",
+        );
+    }
+
+    gate.release.notify_one();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let cycle = execution
+                .get_cycle(authenticated(v1::GetCycleRequest {
+                    cycle_id: cycle_id.clone(),
+                }))
+                .await
+                .unwrap()
+                .into_inner();
+            if cycle.status() == v1::CycleStatus::Completed {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+async fn completion_harness() -> (
+    tempfile::TempDir,
+    Runtime,
+    Server,
+    ExecutionClient<Channel>,
+    ContentClient<Channel>,
+    Arc<UploadGate>,
+    String,
+    v1::ArtifactScope,
+) {
+    let root = tempfile::tempdir().unwrap();
+    let gate = Arc::new(UploadGate::default());
+    let owner = Runtime::with_execution_fixture(
+        RuntimeConfig::new(
+            root.path(),
+            common::metadata("grpc.content.completion", "Content"),
+        ),
+        "fixture",
+        gate.clone(),
+    )
+    .await
+    .unwrap();
+    common::register_fixture_execution(&owner.handle(), common::fixture_suite(&["passed"])).await;
+    let server = Server::start(
+        owner.handle(),
+        Config::local()
+            .with_bearer_auth(vec![grant(Role::Control)])
+            .unwrap()
+            .with_max_message_bytes(4096),
+    )
+    .await
+    .unwrap();
+    let stream = Endpoint::from_shared(server.local_endpoint())
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let mut execution = ExecutionClient::new(stream.clone());
+    let cycle_id = execution
+        .create_cycle(authenticated(v1::CreateCycleRequest {
+            plan: Some(super::workflow::selection_plan(&owner)),
+            metadata: Some(v1::Metadata {
+                identifier: "content.completion".into(),
+                label: "Completion".into(),
+                description: None,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .cycle_id;
+    execution
+        .run_cycle(authenticated(v1::RunCycleRequest {
+            cycle_id: cycle_id.clone(),
+            context: None,
+            idempotency_key: None,
+        }))
+        .await
+        .unwrap();
+    gate.started.notified().await;
+    let execution_id = execution
+        .list_executions(authenticated(v1::ListExecutionsRequest {
+            cycle_id: cycle_id.clone(),
+            limit: 100,
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .executions
+        .remove(0)
+        .execution_id;
+    let scope = v1::ArtifactScope {
+        cycle_id: Some(cycle_id.clone()),
+        case_id: None,
+        execution_id: Some(execution_id),
+    };
+    let content = ContentClient::new(stream)
+        .max_decoding_message_size(4096)
+        .max_encoding_message_size(4096);
+    (
+        root, owner, server, execution, content, gate, cycle_id, scope,
+    )
+}
+
+async fn finish_completion_harness(
+    mut execution: ExecutionClient<Channel>,
+    cycle_id: String,
+    gate: Arc<UploadGate>,
+    mut owner: Runtime,
+    server: Server,
+) {
+    gate.release.notify_one();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let cycle = execution
+                .get_cycle(authenticated(v1::GetCycleRequest {
+                    cycle_id: cycle_id.clone(),
+                }))
+                .await
+                .unwrap()
+                .into_inner();
+            if cycle.status() == v1::CycleStatus::Completed {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+pub(crate) async fn artifact_upload_digest() {
+    let (_root, owner, server, execution, mut content, gate, cycle_id, scope) =
+        completion_harness().await;
+    let bytes = b"trailing completion digest upload".to_vec();
+    let digest = Sha256::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let uploaded = content
+        .upload_artifact(authenticated(tokio_stream::iter(vec![
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Header(
+                    v1::UploadArtifactHeader {
+                        scope: Some(scope.clone()),
+                        filename: "trailing.bin".into(),
+                        content_type: Some("application/octet-stream".into()),
+                        size_bytes: bytes.len() as u64,
+                        sha256: None,
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
+                    v1::ArtifactChunk {
+                        offset: 0,
+                        data: bytes.clone(),
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Complete(
+                    v1::ArtifactCompletion {
+                        size_bytes: bytes.len() as u64,
+                        sha256: digest.clone(),
+                    },
+                )),
+            },
+        ])))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(uploaded.filename, "trailing.bin");
+    assert_eq!(uploaded.state(), v1::ArtifactState::Complete);
+    assert_eq!(uploaded.sha256, digest);
+    finish_completion_harness(execution, cycle_id, gate, owner, server).await;
+}
+
+pub(crate) async fn artifact_upload_match() {
+    let (_root, owner, server, execution, mut content, gate, cycle_id, scope) =
+        completion_harness().await;
+    let bytes = b"mismatched trailing digest upload".to_vec();
+    let wrong_digest = Sha256::digest(b"not the uploaded bytes")
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let error = content
+        .upload_artifact(authenticated(tokio_stream::iter(vec![
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Header(
+                    v1::UploadArtifactHeader {
+                        scope: Some(scope.clone()),
+                        filename: "mismatched.bin".into(),
+                        content_type: None,
+                        size_bytes: bytes.len() as u64,
+                        sha256: None,
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
+                    v1::ArtifactChunk {
+                        offset: 0,
+                        data: bytes.clone(),
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Complete(
+                    v1::ArtifactCompletion {
+                        size_bytes: bytes.len() as u64,
+                        sha256: wrong_digest,
+                    },
+                )),
+            },
+        ])))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), Code::InvalidArgument);
+    assert_eq!(
+        owner
+            .handle()
+            .artifacts()
+            .await
+            .expect("artifact query succeeds")
+            .iter()
+            .find(|record| record.filename == "mismatched.bin")
+            .unwrap()
+            .status,
+        dokime_app::artifacts::ArtifactStatus::Rejected
+    );
+    finish_completion_harness(execution, cycle_id, gate, owner, server).await;
+}
+
+pub(crate) async fn artifact_upload_completion() {
+    let (_root, owner, server, execution, mut content, gate, cycle_id, scope) =
+        completion_harness().await;
+    let bytes = b"frame after completion".to_vec();
+    let digest = Sha256::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let error = content
+        .upload_artifact(authenticated(tokio_stream::iter(vec![
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Header(
+                    v1::UploadArtifactHeader {
+                        scope: Some(scope.clone()),
+                        filename: "trailing-extra.bin".into(),
+                        content_type: None,
+                        size_bytes: bytes.len() as u64,
+                        sha256: None,
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
+                    v1::ArtifactChunk {
+                        offset: 0,
+                        data: bytes.clone(),
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Complete(
+                    v1::ArtifactCompletion {
+                        size_bytes: bytes.len() as u64,
+                        sha256: digest,
+                    },
+                )),
+            },
+            v1::UploadArtifactFrame {
+                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
+                    v1::ArtifactChunk {
+                        offset: bytes.len() as u64,
+                        data: b"x".to_vec(),
+                    },
+                )),
+            },
+        ])))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), Code::InvalidArgument);
+    finish_completion_harness(execution, cycle_id, gate, owner, server).await;
+}
+
+pub(crate) async fn large_artifact_buffering() {
+    if std::env::var_os("RUST_LOG").is_some() {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .with_test_writer()
+            .try_init();
+    }
+    // Stream 300 MiB through the existing native file contract.
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = Runtime::with_execution_fixture(
+        RuntimeConfig::new(
+            root.path(),
+            common::metadata("grpc.content.bundle", "Content"),
+        ),
+        "fixture",
+        Arc::new(LargeArtifact),
+    )
+    .await
+    .unwrap();
+    common::register_fixture_execution(&owner.handle(), common::fixture_suite(&["passed"])).await;
+    let server = Server::start(
+        owner.handle(),
+        Config::local()
+            .with_bearer_auth(vec![grant(Role::Control)])
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    let stream = Endpoint::from_shared(server.local_endpoint())
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let mut execution = ExecutionClient::new(stream.clone());
+    let cycle_id = execution
+        .create_cycle(authenticated(v1::CreateCycleRequest {
+            plan: Some(super::workflow::selection_plan(&owner)),
+            metadata: Some(v1::Metadata {
+                identifier: "content.bundle".into(),
+                label: "Bundle".into(),
+                description: None,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }))
+        .await
+        .unwrap()
+        .into_inner()
+        .cycle_id;
+    execution
+        .run_cycle(authenticated(v1::RunCycleRequest {
+            cycle_id: cycle_id.clone(),
+            context: None,
+            idempotency_key: None,
+        }))
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            let cycle = execution
+                .get_cycle(authenticated(v1::GetCycleRequest {
+                    cycle_id: cycle_id.clone(),
+                }))
+                .await
+                .unwrap()
+                .into_inner();
+            if cycle.status() == v1::CycleStatus::Completed {
+                break;
+            }
+            assert_ne!(cycle.status(), v1::CycleStatus::Failed);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|error| {
+        panic!(
+            "cycle completion failed: {error}; requests: {:#?}",
+            owner.handle().watch_state().latest().state().run_requests
+        )
+    });
+    let mut content = ContentClient::new(stream);
+    let artifacts = owner.handle().artifacts().await.unwrap();
+    let artifact = artifacts
+        .iter()
+        .find(|artifact| artifact.filename == "large.bin")
+        .unwrap();
+    let mut download = content
+        .download_artifact(authenticated(v1::DownloadArtifactRequest {
+            artifact_id: artifact.artifact_id.to_string(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let metadata = match download.message().await.unwrap().unwrap().payload {
+        Some(v1::artifact_frame::Payload::Metadata(metadata)) => metadata,
+        payload => panic!("unexpected artifact header: {payload:?}"),
+    };
+    assert_eq!(metadata.size_bytes, LARGE_ARTIFACT_BYTES);
+    let mut downloaded = 0_u64;
+    let mut digest = Sha256::new();
+    let completion = loop {
+        let frame = download
+            .message()
+            .await
+            .unwrap()
+            .expect("artifact completion");
+        match frame.payload.unwrap() {
+            v1::artifact_frame::Payload::Chunk(chunk) => {
+                assert_eq!(chunk.offset, downloaded);
+                assert!(!chunk.data.is_empty());
+                downloaded += chunk.data.len() as u64;
+                digest.update(&chunk.data);
+            }
+            v1::artifact_frame::Payload::Complete(done) => break done,
+            v1::artifact_frame::Payload::Metadata(_) => {
+                panic!("artifact metadata must be emitted once")
+            }
+        }
+    };
+    assert_eq!(completion.size_bytes, downloaded);
+    assert_eq!(
+        completion.sha256,
+        digest
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    );
+    assert_eq!(metadata.size_bytes, downloaded);
+    assert_eq!(metadata.sha256, completion.sha256);
+    assert!(download.message().await.unwrap().is_none());
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+/* === Tests === */

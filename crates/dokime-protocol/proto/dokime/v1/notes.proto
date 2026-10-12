@@ -1,0 +1,76 @@
+// Dokime — SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package dokime.v1;
+import "dokime/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+// Current owners only. An execution owner never falls back to its cycle.
+message AnnotationOwner {
+  oneof owner {
+    string cycle_id = 1;
+    PlannedCaseNoteOwner planned_case = 2;
+    ExecutionNoteOwner execution = 3;
+  }
+}
+message PlannedCaseNoteOwner { string cycle_id = 1; string case_id = 2; }
+message ExecutionNoteOwner { string cycle_id = 1; string execution_id = 2; }
+message AnnotationSelection {
+  // Absent selects all current annotations. Present selects this owner and descendants.
+  AnnotationOwner owner = 1;
+  // Also include ancestors, including session/global annotations.
+  bool include_context = 2;
+}
+message ListAnnotationsRequest {
+  AnnotationSelection selection = 1;
+  uint32 limit = 2; // default 50, maximum 100
+  string after_id = 3;
+  // Exact runtime revision and selection, required with after_id. Restart on change.
+  Cursor cursor = 4;
+}
+message OperatorNote {
+  string note_id = 1;
+  EvidenceScope scope = 2;
+  optional string author = 3;
+  string message = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+message ListNotesResponse { repeated OperatorNote notes = 1; Cursor cursor = 2; string next_after_id = 3; }
+message CreateNoteRequest {
+  // Explicit process epoch from discovery. Retry identities expire at restart.
+  string epoch = 1;
+  string mutation_id = 2;
+  AnnotationOwner owner = 3;
+  string message = 4; // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
+}
+// A committed note may have no existing persisted execution dataset. Confirmation
+// verifies this exact note in all captured targets; it does not promise future
+// history or create historical annotations. Retrying Create retries publication.
+enum NotePublication {
+  NOTE_PUBLICATION_UNSPECIFIED = 0;
+  NOTE_PUBLICATION_NO_EXISTING_DATASETS = 1;
+  NOTE_PUBLICATION_CONFIRMED = 2;
+  NOTE_PUBLICATION_UNCONFIRMED = 3;
+}
+message NoteReceipt {
+  string epoch = 1;
+  string mutation_id = 2;
+  AnnotationOwner owner = 3;
+  OperatorNote note = 4;
+  repeated string checkpoint_targets = 5;
+  NotePublication publication = 6;
+  repeated string unconfirmed_targets = 7;
+}
+service Notes {
+  rpc ListNotes(ListAnnotationsRequest) returns (ListNotesResponse);
+  rpc CreateNote(CreateNoteRequest) returns (NoteReceipt);
+}
+message HealthItem {
+  string health_item_id = 1;
+  EvidenceScope scope = 2;
+  Severity severity = 3; // Info, Warn or Error
+  string message = 4;
+  optional string detail = 5;
+  google.protobuf.Timestamp observed_at = 6;
+}
+message ListHealthResponse { repeated HealthItem items = 1; Cursor cursor = 2; string next_after_id = 3; }
+service Health { rpc ListHealth(ListAnnotationsRequest) returns (ListHealthResponse); }

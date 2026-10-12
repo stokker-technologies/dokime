@@ -1,0 +1,59 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+mod create;
+mod request;
+mod run;
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+#[derive(Debug, clap::Subcommand)]
+pub(crate) enum Command {
+    #[command(about = "Create A Cycle From Registered Cases And Optionally Submit It.")]
+    Create(create::Args),
+    #[command(about = "Submit An Existing Cycle Once With A Caller-Retained Key.")]
+    Run(run::Args),
+    #[command(about = "Read Or Wait For A Durable Request Without Replaying Work.")]
+    Request(request::Args),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+pub(crate) async fn run(command: Command) -> crate::Result<()> {
+    match command {
+        Command::Create(args) => create::run(args).await,
+        Command::Run(args) => run::run(args).await,
+        Command::Request(args) => request::run(args).await,
+    }
+}
+
+/* === Private Functions === */
+
+/* === Tests === */

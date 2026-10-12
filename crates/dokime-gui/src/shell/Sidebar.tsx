@@ -1,0 +1,288 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* The one sidebar.
+ *
+ * A tree, not a rail beside another rail: the four destinations stay reachable
+ * and the one the operator is in opens its children underneath at the same row
+ * height and on the same three columns. Only the child region scrolls — the
+ * destinations above it and below it are pinned — so a cycle with forty cases
+ * never pushes Settings out of the window. Collapsed, it keeps the
+ * destinations as icons and each tooltip states how many children are waiting
+ * behind them, and the child region's scroll position comes back with them.
+ * The collapse toggle is not here: it sits in the status bar's first cell, on
+ * the sidebar's own column.
+ *
+ * With `live={false}` the same tree carries a frozen report. A report is one
+ * cycle and nothing else, so the destinations — which would navigate to
+ * surfaces the file does not contain — give way to that cycle's outline, and
+ * the mark above it stays exactly where it is.
+ */
+
+/* === External Imports === */
+
+import { useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  History as HistoryIcon,
+  Library,
+  ListChecks,
+  type LucideIcon,
+  Settings,
+} from "lucide-react";
+import { type ReactNode, type RefObject, useLayoutEffect, useRef } from "react";
+
+/* === Local Imports === */
+
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
+import { useCycleDetailQuery } from "@/features/cycle/cycle-queries";
+import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
+import { useBrand } from "@/lib/brand";
+import { cn } from "@/lib/utils";
+import { BrandMark } from "@/shell/BrandMark";
+import { cycleIdOfPathname } from "@/shell/route-scope";
+import { SidebarRow } from "@/shell/sidebar-row";
+import { useSidebarState } from "@/shell/use-sidebar-state";
+
+/* === Types === */
+
+export type SidebarProps =
+  | { live?: true }
+  | {
+      caseId: string | undefined;
+      cycleId: string;
+      live: false;
+      onSelectCase: (caseId: string | undefined) => void;
+    };
+
+type Destination = {
+  icon: LucideIcon;
+  label: string;
+  /** Every path under this prefix marks the destination current. */
+  prefix: string;
+  to: "/cycles" | "/history" | "/library" | "/settings";
+};
+
+/* === Constants === */
+
+const DESTINATIONS: Destination[] = [
+  { icon: ListChecks, label: "Cycles", prefix: "/cycles", to: "/cycles" },
+  { icon: Library, label: "Library", prefix: "/library", to: "/library" },
+  { icon: HistoryIcon, label: "History", prefix: "/history", to: "/history" },
+  { icon: Settings, label: "Settings", prefix: "/settings", to: "/settings" },
+];
+
+const SETTINGS_SECTION_ROUTE = /^\/settings\/([^/]+)/;
+
+/* === Components === */
+
+export function Sidebar(props: SidebarProps) {
+  const { label } = useBrand();
+  const { collapsed, width } = useSidebarState();
+  const frozen = props.live === false ? props : null;
+
+  return (
+    <nav
+      aria-label="Navigation"
+      className="grid min-h-0 shrink-0 grid-rows-[auto_minmax(0,1fr)] border-r bg-card"
+      data-collapsed={collapsed || undefined}
+      style={{ width }}
+    >
+      {/* The mark and the product name, once, as one centred block at the top
+          of the one sidebar.
+          The block is the page bar's height plus the air the mark asks for
+          (24px above and below, 32px at touch), so its rule sits below the
+          page bar's rather than on it. The two bands are deliberately not one
+          line here: a mark crowded against a 48px bar reads as a toolbar icon,
+          and the sidebar's own rule is what the destination rows align to.
+          The height is fixed, so the first destination starts on the same y
+          whether the rail is open or collapsed. */}
+      <div
+        className="grid place-items-center border-b px-[var(--shell-gap)]"
+        style={{
+          minHeight:
+            "calc(var(--page-bar-height) + 2 * var(--sidebar-brand-pad, 1.5rem) - 2 * var(--bar-pad-y))",
+        }}
+      >
+        <div className="flex min-w-0 items-center justify-center gap-2">
+          <BrandMark />
+          {collapsed ? null : (
+            <span className="truncate font-heading font-semibold tracking-wide">{label}</span>
+          )}
+        </div>
+      </div>
+
+      {frozen ? (
+        <ul className="grid min-h-0 content-start gap-0.5 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
+          <CycleSidebarCases
+            caseId={frozen.caseId}
+            cycleId={frozen.cycleId}
+            live={false}
+            onSelectCase={frozen.onSelectCase}
+          />
+        </ul>
+      ) : (
+        <DestinationTree />
+      )}
+    </nav>
+  );
+}
+
+/* === Private Components === */
+
+/** The four destinations and the active one's children. Live application only. */
+function DestinationTree() {
+  const navigate = useNavigate();
+  const { collapsed } = useSidebarState();
+  const { caseId, pathname } = useRouterState({
+    select: (state) => ({
+      caseId: (state.location.search as { caseId?: string }).caseId,
+      pathname: state.location.pathname,
+    }),
+  });
+
+  // Collapsing unmounts the children, so the browser forgets where they were
+  // scrolled to. The offset is kept here, where the sidebar itself survives.
+  const scrollOffsets = useRef<Record<string, number>>({});
+
+  const cycleId = cycleIdOfPathname(pathname);
+  const onSettings = isCurrent(pathname, "/settings");
+  const settingsSection = onSettings
+    ? (SETTINGS_SECTION_ROUTE.exec(pathname)?.[1] ?? DEFAULT_SETTINGS_SECTION)
+    : null;
+
+  // The one read is the shared query of the surface it describes, so the tree
+  // adds no traffic beyond the destination the operator is actually in.
+  const cycleDetail = useCycleDetailQuery(cycleId ?? "", cycleId !== null);
+  const caseCount = cycleDetail.data?.plan?.cases.length ?? 0;
+
+  const childCount = (destination: Destination): number => {
+    if (destination.to === "/settings") return SETTINGS_SECTIONS.length;
+    if (destination.to === "/cycles") return cycleId ? caseCount : 0;
+    return 0;
+  };
+
+  const activeIndex = DESTINATIONS.findIndex((destination) =>
+    isCurrent(pathname, destination.prefix),
+  );
+  const active = activeIndex >= 0 ? (DESTINATIONS[activeIndex] ?? null) : null;
+
+  const destinationRow = (destination: Destination) => {
+    const current = isCurrent(pathname, destination.prefix);
+    const row = (
+      <SidebarRow
+        active={current}
+        collapsed={collapsed}
+        icon={destination.icon}
+        key={destination.to}
+        label={destination.label}
+        level="destination"
+        onSelect={() => void navigate({ to: destination.to })}
+        title={destination.label}
+      />
+    );
+    if (!collapsed) return row;
+    return (
+      <Tooltip key={destination.to}>
+        <TooltipTrigger asChild>{row}</TooltipTrigger>
+        <TooltipContent side="right">
+          {childCountLabel(destination, childCount(destination))}
+        </TooltipContent>
+      </Tooltip>
+    );
+  };
+
+  let children: ReactNode = null;
+  if (!collapsed && active?.to === "/settings") {
+    children = SETTINGS_SECTIONS.map((section) => (
+      <SidebarRow
+        active={section.id === settingsSection}
+        key={section.id}
+        label={section.label}
+        level="overview"
+        onSelect={() =>
+          void navigate({ params: { section: section.id }, to: "/settings/$section" })
+        }
+        title={section.label}
+      />
+    ));
+  } else if (!collapsed && active?.to === "/cycles" && cycleId) {
+    children = <CycleSidebarCases caseId={caseId} cycleId={cycleId} />;
+  }
+
+  return (
+    <ul className="flex min-h-0 flex-col gap-0.5 px-[var(--shell-gap)] pt-2 pb-2">
+      {DESTINATIONS.slice(0, Math.max(activeIndex, 0)).map(destinationRow)}
+
+      {active ? (
+        <li className={cn("flex flex-col gap-0.5", children ? "min-h-0" : "shrink-0")}>
+          <ul className="shrink-0">{destinationRow(active)}</ul>
+          {children ? (
+            <ChildRegion
+              offsets={scrollOffsets}
+              storageKey={active.to === "/cycles" ? `cycles:${cycleId}` : active.to}
+            >
+              {children}
+            </ChildRegion>
+          ) : null}
+        </li>
+      ) : null}
+
+      {DESTINATIONS.slice(activeIndex + 1).map(destinationRow)}
+    </ul>
+  );
+}
+
+/**
+ * The active destination's children, and the only thing in the tree that
+ * scrolls. Its offset is restored when the region comes back so a collapse or
+ * a trip to another destination does not send the operator to the top of a
+ * long case list.
+ */
+function ChildRegion({
+  children,
+  offsets,
+  storageKey,
+}: {
+  children: ReactNode;
+  offsets: RefObject<Record<string, number>>;
+  storageKey: string;
+}) {
+  const ref = useRef<HTMLUListElement>(null);
+
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (node) node.scrollTop = offsets.current[storageKey] ?? 0;
+  }, [offsets, storageKey]);
+
+  return (
+    <ul
+      className="grid min-h-0 content-start gap-0.5 overflow-y-auto"
+      onScroll={(event) => {
+        offsets.current[storageKey] = event.currentTarget.scrollTop;
+      }}
+      ref={ref}
+    >
+      {children}
+    </ul>
+  );
+}
+
+/* === Private Functions === */
+
+function isCurrent(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/** The collapsed tooltip has to say what the hidden children are. */
+function childCountLabel(destination: Destination, count: number): string {
+  if (count === 0) return destination.label;
+  const noun = destination.to === "/settings" ? "section" : "case";
+  return `${destination.label} — ${count} ${noun}${count === 1 ? "" : "s"}`;
+}

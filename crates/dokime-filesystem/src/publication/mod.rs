@@ -1,0 +1,159 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+#[cfg(unix)]
+mod unix;
+
+#[cfg(windows)]
+mod windows;
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+use std::{
+    fs::{self, File, OpenOptions},
+    io::{self, Write},
+    path::{Path, PathBuf},
+};
+// Third Party Imports
+use uuid::Uuid;
+// Local Imports
+#[cfg(unix)]
+use unix as platform;
+
+#[cfg(windows)]
+use windows as platform;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+struct Staging(PathBuf);
+
+/* === Enums === */
+#[derive(Debug, thiserror::Error)]
+pub enum ConfirmError<E> {
+    #[error(transparent)]
+    Filesystem(crate::Error),
+    #[error(transparent)]
+    Checkpoint(E),
+}
+
+/* === Traits === */
+
+/* === Implementations === */
+impl Staging {
+    fn file(directory: &Path) -> io::Result<(Self, File)> {
+        let staging = Self(directory.join(format!(".{}", Uuid::now_v7())));
+        let file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&staging.0)?;
+        Ok((staging, file))
+    }
+}
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+
+/* === Public Functions === */
+pub fn create_dir_all(path: &Path) -> crate::Result<()> {
+    platform::create_dir_all(path)
+        .map_err(|error| crate::Error::publication("create directory", path, error))
+}
+
+pub fn move_directory(source: &Path, destination: &Path) -> crate::Result<()> {
+    let metadata = fs::symlink_metadata(source)
+        .map_err(|error| crate::Error::publication("inspect directory", source, error))?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(crate::Error::publication(
+            "move directory",
+            source,
+            io::Error::other("source must be a regular directory"),
+        ));
+    }
+    platform::move_directory(source, destination)
+        .map_err(|error| crate::Error::publication("move directory", destination, error))
+}
+
+pub fn install(source: &Path, destination: &Path) -> crate::Result<()> {
+    sync_file(source)
+        .map_err(|error| crate::Error::publication("flush staged file", source, error))?;
+    platform::install(source, destination)
+        .map_err(|error| crate::Error::publication("install file", destination, error))
+}
+
+pub fn replace(source: &Path, destination: &Path) -> crate::Result<()> {
+    sync_file(source)
+        .map_err(|error| crate::Error::publication("flush staged file", source, error))?;
+    platform::replace(source, destination)
+        .map_err(|error| crate::Error::publication("replace file", destination, error))
+}
+
+pub fn confirm(path: &Path) -> crate::Result<()> {
+    match confirm_with_checkpoint(path, || Ok::<(), std::convert::Infallible>(())) {
+        Ok(()) => Ok(()),
+        Err(ConfirmError::Filesystem(error)) => Err(error),
+        Err(ConfirmError::Checkpoint(error)) => match error {},
+    }
+}
+
+pub fn confirm_with_checkpoint<E>(
+    path: &Path,
+    mut checkpoint: impl FnMut() -> Result<(), E>,
+) -> Result<(), ConfirmError<E>> {
+    platform::confirm_with_checkpoint(path, &mut checkpoint)
+}
+
+#[tracing::instrument(level = "debug", skip_all)]
+pub fn write(path: &Path, bytes: &[u8]) -> crate::Result<()> {
+    write_document(path, bytes)
+        .map_err(|error| crate::Error::publication("write document", path, error))
+}
+
+/* === Private Functions === */
+fn confirm_error<E>(path: &Path, error: io::Error) -> ConfirmError<E> {
+    let error = crate::Error::publication("confirm file durability", path, error);
+    ConfirmError::Filesystem(error)
+}
+
+fn write_document(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    create_dir_all(parent(path))?;
+    let (staging, mut file) = Staging::file(parent(path))?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    drop(file);
+    replace(&staging.0, path).map_err(Into::into)
+}
+
+fn sync_file(path: &Path) -> io::Result<()> {
+    // FlushFileBuffers requires GENERIC_WRITE. Read-only File::open is not a
+    // portable way to confirm file durability, even if no bytes are changed.
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)?
+        .sync_all()
+}
+
+fn parent(path: &Path) -> &Path {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+}
+
+/* === Tests === */

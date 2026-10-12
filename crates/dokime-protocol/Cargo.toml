@@ -1,0 +1,66 @@
+[package]
+name = "dokime-protocol"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Dokime public protobuf messages and native gRPC bindings"
+# The independent protocol archive is exported from these crate-local sources.
+publish = false
+version = { workspace = true }
+
+[features]
+default = ["client"]
+client = ["dep:tonic", "dep:tonic-prost", "tonic/channel"]
+server = ["dep:tonic", "dep:tonic-prost", "tonic/server", "tonic/router"]
+
+export = [
+  "dep:thiserror",
+  "dep:tracing",
+  "dep:serde_json",
+  "dep:sha2",
+  "dep:tar",
+  "dep:protoc-bin-vendored",
+  "dep:tempfile",
+]
+
+[[bin]]
+name = "export_protocol"
+path = "src/bin/export_protocol.rs"
+required-features = ["export"]
+
+[dependencies]
+# Error Handling
+thiserror = { workspace = true, default-features = true, optional = true }
+
+# Logging
+tracing = { workspace = true, default-features = true, optional = true }
+
+# Utilities
+sha2 = { workspace = true, default-features = true, optional = true }
+
+# Serialization
+prost = { workspace = true, default-features = true }
+prost-types = { workspace = true, default-features = true }
+protoc-bin-vendored = { workspace = true, default-features = true, optional = true }
+serde_json = { workspace = true, default-features = true, optional = true }
+
+# Filesystem
+tar = { workspace = true, default-features = true, optional = true }
+tempfile = { workspace = true, default-features = true, optional = true }
+
+# Networking
+tonic = { workspace = true, features = ["codegen"], optional = true }
+tonic-prost = { workspace = true, default-features = true, optional = true }
+
+[build-dependencies]
+# Serialization
+prost-build = { workspace = true, default-features = true }
+protoc-bin-vendored = { workspace = true, default-features = true }
+
+# Networking
+tonic-prost-build = { workspace = true, default-features = true }
+
+[dev-dependencies]
+# Filesystem
+tempfile = { workspace = true, default-features = true }

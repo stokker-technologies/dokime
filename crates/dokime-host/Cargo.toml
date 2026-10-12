@@ -1,0 +1,70 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+name = "dokime-host"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+[dependencies]
+# Local
+dokime-contract = { path = "../dokime-contract" }
+
+# Error Handling
+thiserror = { workspace = true, default-features = true }
+
+# Logging
+tracing = { workspace = true, default-features = true }
+
+# Utilities
+starship-battery = { workspace = true, default-features = true }
+sysinfo = { workspace = true }
+
+# Serialization
+serde = { workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true }
+
+# Async
+tokio = { workspace = true, default-features = true, features = ["process"] }
+
+# Networking
+getifs = { workspace = true, default-features = true }
+
+[target.'cfg(windows)'.dependencies]
+# Utilities
+windows = { workspace = true, default-features = true, features = [
+  "Win32_Foundation",
+  "Win32_NetworkManagement_IpHelper",
+  "Win32_NetworkManagement_Ndis",
+  "Win32_NetworkManagement_WiFi",
+  "Win32_Networking_WinSock",
+  "Win32_System_Com",
+  "Win32_System_Ole",
+  "Win32_System_Power",
+  "Win32_System_Variant",
+  "Win32_System_Wmi",
+] }
+
+[dev-dependencies]
+# Local
+dokime = { path = "../dokime" }
+
+# Filesystem
+tempfile = { workspace = true, default-features = true }
+
+# Testing
+criterion = { workspace = true, default-features = true }
+
+[[bench]]
+name = "collectors"
+path = "benches/collectors/main.rs"
+harness = false

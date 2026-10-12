@@ -1,0 +1,472 @@
+// Dokime — SPDX-License-Identifier: Apache-2.0
+// Public descriptors generate shared Rust operations and desktop adapters.
+import { createRequire } from "node:module";
+const require = createRequire(new URL("../../../crates/dokime-gui/package.json", import.meta.url));
+const { create, fromBinary, toBinary } = require("@bufbuild/protobuf");
+const {
+  CodeGeneratorRequestSchema,
+  CodeGeneratorResponseSchema,
+  FileDescriptorSetSchema,
+} = require("@bufbuild/protobuf/wkt");
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from "node:fs";
+import { dirname, resolve, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../../crates/dokime-gui");
+const root = resolve(gui, "../..");
+const check = process.argv.includes("--check");
+// `outputs` keys, and every literal path below, are POSIX-style ('/'),
+// matching the proto-derived file names. `node:path`'s `relative` returns
+// OS-native separators, so on Windows the obsolete-file scan must normalize
+// before comparing against `outputs`, or a current generated file such as
+// `src\lib\rpc\generated\client.ts` is misclassified as obsolete. Split on
+// either separator (not `path.sep`) so the fix does not depend on which
+// platform runs it — the generated tree never legitimately contains a
+// backslash in a filename, so folding both forms is unconditionally safe.
+export const toGeneratedKey = (path) => path.split(/[\\/]/).join("/");
+// A generator (notably `rustfmt --emit stdout`, which has no source file to
+// detect a newline style from) may emit CRLF depending on the host platform,
+// even though this repository's `.gitattributes` (`* text=auto eol=lf`)
+// checks every tracked file out with LF. Normalize both the freshly
+// generated and the on-disk content to LF before comparing or writing, so a
+// platform's newline convention never registers as drift.
+export const withLf = (text) => text.replace(/\r\n/g, "\n");
+function run(command, args, input) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    input,
+    stdio: ["pipe", "pipe", command === "cargo" ? "inherit" : "pipe"],
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  if (result.status !== 0)
+    throw new Error(
+      `${command} exited ${result.status}: ${result.stderr?.toString() ?? result.error?.message ?? "see compiler output"}`,
+    );
+  return result.stdout;
+}
+const snake = (name) =>
+  name
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase();
+// Side-effecting: only runs when this file is executed directly (see the
+// `invoked` guard below), so importing it for unit tests of the pure helpers
+// above never triggers the codegen pipeline.
+function generate() {
+  mkdirSync(resolve(root, "target"), { recursive: true });
+  const temporary = mkdtempSync(resolve(root, "target/rpc-codegen-"));
+  try {
+    const archive = resolve(temporary, "protocol.tar");
+    run("cargo", [
+      "run",
+      "--locked",
+      "-p",
+      "dokime-protocol",
+      "--no-default-features",
+      "--features",
+      "export",
+      "--bin",
+      "export_protocol",
+      "--",
+      archive,
+      "codegen",
+    ]);
+    const tar = readFileSync(archive);
+    let descriptor;
+    for (let offset = 0; offset + 512 <= tar.length; ) {
+      const name = tar
+        .subarray(offset, offset + 100)
+        .toString()
+        .split("\0")[0];
+      const size =
+        Number.parseInt(
+          tar
+            .subarray(offset + 124, offset + 136)
+            .toString()
+            .replaceAll("\0", "")
+            .trim(),
+          8,
+        ) || 0;
+      if (name === "dokime-v1.bin") descriptor = tar.subarray(offset + 512, offset + 512 + size);
+      offset += 512 + Math.ceil(size / 512) * 512;
+    }
+    if (!descriptor) throw new Error("canonical descriptor absent from protocol archive");
+    const set = fromBinary(FileDescriptorSetSchema, descriptor);
+    const files = set.file.filter((file) => file.package === "dokime.v1");
+    const request = create(CodeGeneratorRequestSchema, {
+      protoFile: set.file,
+      fileToGenerate: files.map((file) => file.name),
+      parameter: "target=ts,import_extension=js",
+    });
+    const response = fromBinary(
+      CodeGeneratorResponseSchema,
+      run(
+        process.execPath,
+        [resolve(gui, "node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es")],
+        toBinary(CodeGeneratorRequestSchema, request),
+      ),
+    );
+    if (response.error) throw new Error(response.error);
+    const outputs = new Map();
+    for (const file of response.file)
+      outputs.set(`src/lib/rpc/generated/${file.name}`, file.content);
+    const hash = createHash("sha256").update(descriptor).digest("hex");
+    const rs = [
+      "// Dokime — SPDX-License-Identifier: Apache-2.0",
+      "// Generated by tools/node/gui/generate-rpc.mjs. Do not edit.",
+      "use super::*;",
+      "use dokime_protocol::v1;",
+      `pub const DESCRIPTOR_SHA256: &str = "${hash}";`,
+    ];
+    const ts = [
+      "// Generated by tools/node/gui/generate-rpc.mjs. Do not edit.",
+      'import { unary, openStream, openClientStream, type SessionIdentity } from "../transport";',
+      `export const descriptorSha256 = "${hash}";`,
+    ];
+    const native = [
+      "/* ***",
+      " *",
+      " * Dokime",
+      " *",
+      " * SPDX-License-Identifier: Apache-2.0",
+      " *",
+      " * ***",
+      " */",
+      "",
+      "// Generated by tools/node/gui/generate-rpc.mjs. Do not edit.",
+      "/* === Modules === */",
+      "/* === Re-Exports === */",
+      "/* === Imports === */",
+      "// Standard Library Imports",
+      "// Third Party Imports",
+      "// Local Imports",
+      "use super::{Client, Result, RequestStream, ResponseStream, stream::Input};",
+      "use dokime_protocol::v1;",
+      "/* === Constants === */",
+      "/* === Macros === */",
+      "/* === Type Aliases === */",
+      "/* === Structs === */",
+      "/* === Enums === */",
+      "/* === Traits === */",
+      "/* === Implementations === */",
+      "impl Client {",
+    ];
+    const python = [
+      "/* ***",
+      " *",
+      " * Dokime",
+      " *",
+      " * SPDX-License-Identifier: Apache-2.0",
+      " *",
+      " * ***",
+      " */",
+      "",
+      "// Generated by tools/node/gui/generate-rpc.mjs. Do not edit.",
+      "/* === Modules === */",
+      "/* === Re-Exports === */",
+      "/* === Imports === */",
+      "// Standard Library Imports",
+      "// Third Party Imports",
+      "// Local Imports",
+      "use dokime::client::{Client, wire as v1};",
+      "use prost::Message;",
+      "use pyo3::{PyResult, exceptions::PyValueError};",
+      "/* === Constants === */",
+      "/* === Macros === */",
+      "/* === Type Aliases === */",
+      "/* === Structs === */",
+      "/* === Enums === */",
+      "/* === Traits === */",
+      "/* === Implementations === */",
+      "/* === Public Functions === */",
+      "pub(super) async fn unary(client: &Client, method: &str, payload: &[u8]) -> PyResult<Vec<u8>> {",
+      "match method {",
+    ];
+    const pythonStreams = [];
+    const pythonUploads = [];
+    const names = [];
+    const importedTypes = new Set();
+    for (const file of files) {
+      if (!file.service.length) continue;
+      const types = new Set();
+      for (const service of file.service)
+        for (const method of service.method) {
+          for (const type of [method.inputType, method.outputType]) {
+            if (!/^\.dokime\.v1\.[A-Za-z][A-Za-z0-9]*$/.test(type))
+              throw new Error(`Unsupported message path: ${type}`);
+            types.add(`${type.split(".").at(-1)}Schema`);
+          }
+          const input = method.inputType.split(".").at(-1),
+            output = method.outputType.split(".").at(-1);
+          if (method.clientStreaming && method.serverStreaming) {
+            throw new Error(
+              `Bidirectional streaming RPC requires an explicit transport implementation: ${service.name}.${method.name}`,
+            );
+          }
+          const streaming = method.clientStreaming || method.serverStreaming;
+          const argument = method.clientStreaming
+            ? `impl tokio_stream::Stream<Item = v1::${input}> + Send + 'static`
+            : `v1::${input}`;
+          const result = method.serverStreaming ? `ResponseStream<v1::${output}>` : `v1::${output}`;
+          native.push(`
+pub async fn ${snake(service.name)}_${snake(method.name)}(
+    &self, message: ${argument}
+) -> Result<${result}> {
+    self.require("/${file.package}.${service.name}/${method.name}")?;
+    let mut client = v1::${snake(service.name)}_client::${service.name}Client::new(self.channel()?)
+        .max_decoding_message_size(self.response_limit())
+        .max_encoding_message_size(self.request_limit());
+    ${method.clientStreaming ? "let cancellation = self.inner.cancellation.child_token();\n    let _cancel = cancellation.clone().drop_guard();\n    let message = Input::new(message, cancellation);" : ""}
+    let response = self.execute(client.${snake(method.name)}(self.request(message))).await?.into_inner();
+    ${method.serverStreaming ? "ResponseStream::new(self, response)" : "Ok(response)"}
+}`);
+          if (method.clientStreaming) {
+            const call = `${snake(service.name)}_${snake(method.name)}`;
+            pythonUploads.push({
+              variant: `${service.name}${method.name}`,
+              operation: `/${file.package}.${service.name}/${method.name}`,
+              call,
+              input,
+              output,
+            });
+            native.push(`
+pub fn ${call}_open(&self) -> Result<RequestStream<v1::${input}, v1::${output}>> {
+    self.require("/${file.package}.${service.name}/${method.name}")?;
+    let client = self.clone();
+    RequestStream::new(self, move |stream| async move { client.${call}(stream).await })
+}`);
+          }
+          if (method.serverStreaming) {
+            pythonStreams.push({
+              variant: `${service.name}${method.name}`,
+              operation: `/${file.package}.${service.name}/${method.name}`,
+              call: `${snake(service.name)}_${snake(method.name)}`,
+              input,
+              output,
+            });
+          }
+          if (!streaming) {
+            python.push(`
+"/${file.package}.${service.name}/${method.name}" => {
+    let request = v1::${input}::decode(payload).map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let response = client.${snake(service.name)}_${snake(method.name)}(request).await.map_err(super::into_pyerr)?;
+    Ok(response.encode_to_vec())
+},`);
+          }
+          const name = `rpc_${snake(service.name)}_${snake(method.name)}${streaming ? "_open" : ""}`;
+          if (names.includes(name)) throw new Error(`Command collision: ${name}`);
+          names.push(name);
+          if (method.clientStreaming) {
+            rs.push(`#[tauri::command]
+pub async fn ${name}<R: tauri::Runtime>(session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>, request: tauri::ipc::Request<'_>) -> Result<tauri::ipc::Response, RpcError> {
+ let (context, message) = bridge.prepare::<v1::${input}>(&session, webview.label(), request.body())?;
+ let client = context.client();
+ bridge.open_client(context, message, move |stream: client_streams::ClientWireStream<v1::${input}>| async move {
+ client.${snake(service.name)}_${snake(method.name)}(stream).await.map_err(RpcError::from)
+ })
+}`);
+            const facade = `${service.name[0].toLowerCase()}${service.name.slice(1)}${method.name}`;
+            ts.push(
+              `export const ${facade} = (session: SessionIdentity, request: Parameters<typeof openClientStream<typeof ${input}Schema, typeof ${output}Schema>>[4]) => openClientStream(${JSON.stringify(name)}, ${input}Schema, ${output}Schema, session, request);`,
+            );
+            continue;
+          }
+          const invocation = `let client = context.client();
+ let response = context.execute(client.${snake(service.name)}_${snake(method.name)}(message)).await?;
+ ${method.serverStreaming ? "bridge.open(context, response)" : "context.reply(response)"}`;
+          rs.push(
+            `#[tauri::command]\npub async fn ${name}<R: tauri::Runtime>(session: tauri::State<'_, crate::connection::ConnectionSession>, bridge: tauri::State<'_, Bridge>, webview: tauri::WebviewWindow<R>, request: tauri::ipc::Request<'_>) -> Result<tauri::ipc::Response, RpcError> {\n let (context, message) = bridge.prepare::<v1::${input}>(&session, webview.label(), request.body())?;\n ${invocation}\n}`,
+          );
+          const facade = `${service.name[0].toLowerCase()}${service.name.slice(1)}${method.name}`;
+          ts.push(
+            `export const ${facade} = (session: SessionIdentity, request: Parameters<typeof ${method.serverStreaming ? "openStream" : "unary"}<typeof ${input}Schema, typeof ${output}Schema>>[4]) => ${method.serverStreaming ? "openStream" : "unary"}(${JSON.stringify(name)}, ${input}Schema, ${output}Schema, session, request);`,
+          );
+        }
+      // Service messages currently live with their service. Resolve imported message schemas explicitly.
+      for (const type of types) {
+        if (importedTypes.has(type)) continue;
+        importedTypes.add(type);
+        const messageName = type.slice(0, -6);
+        const owner = files.find((candidate) =>
+          candidate.messageType.some((message) => message.name === messageName),
+        );
+        if (!owner) throw new Error(`Missing message descriptor: ${messageName}`);
+        ts.push(`import { ${type} } from "./${owner.name.replace(/\.proto$/, "_pb.js")}";`);
+      }
+    }
+    rs.push(
+      `pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static { tauri::generate_handler![${names.join(", ")}, super::stream_next, super::stream_cancel, super::client_streams::client_stream_write, super::client_streams::client_stream_finish, super::client_streams::client_stream_cancel] }`,
+    );
+    native.push(
+      "}",
+      "/* === Public Functions === */",
+      "/* === Private Functions === */",
+      "/* === Tests === */",
+    );
+    outputs.set(
+      "../dokime/src/client/rpc.rs",
+      run("rustfmt", ["--edition", "2024", "--emit", "stdout"], native.join("\n")).toString(),
+    );
+    python.push(
+      '_ => Err(PyValueError::new_err("unknown unary RPC operation")),',
+      "}",
+      "}",
+      "pub(super) async fn stream(client: &Client, method: &str, payload: &[u8]) -> PyResult<Response> {",
+      "match method {",
+      ...pythonStreams.map(
+        ({ variant, operation, call, input }) => `
+        "${operation}" => {
+          let request = v1::${input}::decode(payload).map_err(|error| PyValueError::new_err(error.to_string()))?;
+          client.${call}(request).await.map(Response::${variant}).map_err(super::into_pyerr)
+        },`,
+      ),
+      '_ => Err(PyValueError::new_err("unknown streaming RPC operation")),',
+      "}",
+      "}",
+      "/* === Private Functions === */",
+      "/* === Tests === */",
+    );
+    python.splice(
+      python.indexOf("/* === Traits === */"),
+      0,
+      "#[derive(Clone)]",
+      "pub(super) enum Response {",
+      ...pythonStreams.map(
+        ({ variant, output }) => `${variant}(dokime::client::ResponseStream<v1::${output}>),`,
+      ),
+      "}",
+    );
+    python.splice(
+      python.indexOf("/* === Public Functions === */"),
+      0,
+      "impl Response {",
+      "pub(super) async fn message(&self) -> PyResult<Option<Vec<u8>>> { match self {",
+      ...pythonStreams.map(
+        ({ variant }) =>
+          `Self::${variant}(stream) => stream.message().await.map(|row| row.map(|row| row.encode_to_vec())).map_err(super::into_pyerr),`,
+      ),
+      "} }",
+      "pub(super) fn cancel(&self) { match self {",
+      ...pythonStreams.map(({ variant }) => `Self::${variant}(stream) => stream.cancel(),`),
+      "} }",
+      "pub(super) async fn close(&self) { match self {",
+      ...pythonStreams.map(({ variant }) => `Self::${variant}(stream) => stream.close().await,`),
+      "} }",
+      "}",
+    );
+    python.splice(
+      python.indexOf("/* === Traits === */"),
+      0,
+      "#[derive(Clone)]",
+      "pub(super) enum Upload {",
+      ...pythonUploads.map(
+        ({ variant, input, output }) =>
+          `${variant}(dokime::client::RequestStream<v1::${input}, v1::${output}>),`,
+      ),
+      "}",
+    );
+    python.splice(
+      python.indexOf("/* === Public Functions === */"),
+      0,
+      "impl Upload {",
+      "pub(super) async fn send(&self, payload: &[u8]) -> PyResult<()> { match self {",
+      ...pythonUploads.map(
+        ({ variant, input }) => `Self::${variant}(stream) => {
+        let frame = v1::${input}::decode(payload).map_err(|error| PyValueError::new_err(error.to_string()))?;
+        stream.send(frame).await.map_err(super::into_pyerr)
+      },`,
+      ),
+      "} }",
+      "pub(super) async fn finish(&self) -> PyResult<Vec<u8>> { match self {",
+      ...pythonUploads.map(
+        ({ variant }) =>
+          `Self::${variant}(stream) => stream.finish().await.map(|reply| reply.encode_to_vec()).map_err(super::into_pyerr),`,
+      ),
+      "} }",
+      "pub(super) async fn end_input(&self) -> PyResult<()> { match self {",
+      ...pythonUploads.map(
+        ({ variant }) =>
+          `Self::${variant}(stream) => stream.end_input().await.map_err(super::into_pyerr),`,
+      ),
+      "} }",
+      "pub(super) async fn response(&self) -> PyResult<Vec<u8>> { match self {",
+      ...pythonUploads.map(
+        ({ variant }) =>
+          `Self::${variant}(stream) => stream.response().await.map(|reply| reply.encode_to_vec()).map_err(super::into_pyerr),`,
+      ),
+      "} }",
+      "pub(super) fn cancel(&self) { match self {",
+      ...pythonUploads.map(({ variant }) => `Self::${variant}(stream) => stream.cancel(),`),
+      "} }",
+      "pub(super) async fn close(&self) { match self {",
+      ...pythonUploads.map(({ variant }) => `Self::${variant}(stream) => stream.close().await,`),
+      "} }",
+      "}",
+    );
+    python.splice(
+      python.indexOf("/* === Private Functions === */"),
+      0,
+      "pub(super) fn upload(client: &Client, method: &str) -> PyResult<Upload> { match method {",
+      ...pythonUploads.map(
+        ({ variant, operation, call }) =>
+          `"${operation}" => client.${call}_open().map(Upload::${variant}).map_err(super::into_pyerr),`,
+      ),
+      '_ => Err(PyValueError::new_err("unknown upload RPC operation")),',
+      "} }",
+    );
+    outputs.set(
+      "../dokime-python/src/client/rpc.rs",
+      run("rustfmt", ["--edition", "2024", "--emit", "stdout"], python.join("\n")).toString(),
+    );
+    // Format generated Rust with the pinned repository formatter, keeping check read-only.
+    const rust = run("rustfmt", ["--edition", "2024", "--emit", "stdout"], rs.join("\n"));
+    outputs.set("src-tauri/src/rpc/generated.rs", rust.toString());
+    outputs.set(
+      "src/lib/rpc/generated/identity.ts",
+      `export const descriptorSha256 = "${hash}";\n`,
+    );
+    outputs.set("src/lib/rpc/generated/client.ts", `${ts.join("\n")}\n`);
+    const generatedRoot = resolve(gui, "src/lib/rpc/generated");
+    function existing(path) {
+      try {
+        return readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
+          entry.isDirectory()
+            ? existing(resolve(path, entry.name))
+            : [toGeneratedKey(relative(gui, resolve(path, entry.name)))],
+        );
+      } catch {
+        return [];
+      }
+    }
+    for (const path of existing(generatedRoot))
+      if (!outputs.has(path)) {
+        if (check) throw new Error(`Obsolete generated file: ${path}`);
+        rmSync(resolve(gui, path));
+      }
+    for (const [path, content] of outputs) {
+      const destination = resolve(gui, path);
+      let previous;
+      try {
+        previous = readFileSync(destination, "utf8");
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      // Compare with line endings normalized (see `withLf` above) so a
+      // generator's platform-dependent CRLF never reads as drift against the
+      // LF checkout `.gitattributes` guarantees; write the generator's actual
+      // bytes unchanged.
+      if (previous !== undefined && withLf(previous) === withLf(content)) continue;
+      if (check) throw new Error(`Generated RPC binding drift: ${path}`);
+      mkdirSync(dirname(destination), { recursive: true });
+      writeFileSync(destination, content);
+    }
+    console.log(
+      `RPC bindings ${check ? "verified" : "generated"} (${hash}, ${names.length} explicit methods)`,
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+const invoked = process.argv[1] ? resolve(process.argv[1]) : undefined;
+if (invoked === fileURLToPath(import.meta.url)) generate();

@@ -1,0 +1,2 @@
+# Keep text files reproducible across Windows and Linux builds.
+* text=auto eol=lf

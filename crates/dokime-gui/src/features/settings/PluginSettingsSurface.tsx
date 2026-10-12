@@ -1,0 +1,185 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* One plugin's settings, on its own page.
+ *
+ * A plugin does not earn a place in the shell's navigation; it earns a page
+ * under Plugins. The page bar carries the breadcrumb and its own Back chevron,
+ * so this page publishes no action of its own, and the
+ * body is the artifact's own editable settings and credentials followed by the
+ * status cards it contributes. The Plugins list therefore stays one row per
+ * plugin, with nothing nested inside it.
+ */
+
+/* === External Imports === */
+
+import { useState } from "react";
+
+/* === Local Imports === */
+
+import { Button } from "@/components/ui/button";
+import { PluginSettingsCards } from "@/features/settings/PluginSettingsCards";
+import { InstalledPluginDetail } from "@/features/settings/installed-plugins/InstalledPluginDetail";
+import {
+  useInstalledPluginCredentialMutation,
+  useInstalledPluginDetailQuery,
+  useInstalledPluginSettingsMutation,
+} from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { SettingsCard } from "@/features/settings/SettingsCard";
+import { SettingsRow } from "@/features/settings/SettingsRow";
+import { useSettingsSections } from "@/features/settings/use-settings-sections";
+import { usePageChrome } from "@/shell/page-chrome";
+
+/* === Types === */
+
+type PluginSettingsSurfaceProps = {
+  /** The contributed section's id, which is how the frame keys its cards. */
+  pluginId: string;
+};
+
+/* === Components === */
+
+export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSurfaceProps) {
+  const settings = useSettingsSections();
+  const section = settings.frame?.sections.find((entry) => entry.section_id === sectionId) ?? null;
+  const pluginId = section?.owner.kind === "installed_plugin" ? section.owner.plugin_id : null;
+
+  usePageChrome({ title: `Settings › Plugins › ${section?.label ?? sectionId}` });
+
+  const cards = settings.frame?.cards.filter((card) => card.section_id === sectionId) ?? [];
+
+  return (
+    <div className="grid w-full max-w-[1040px] gap-[var(--shell-gap)] p-[var(--shell-inset)]">
+      {settings.loading && !settings.frame ? (
+        <SettingsCard title="Settings">
+          <SettingsRow label="Status">
+            <span className="text-sm text-muted-foreground" role="status">
+              Reading the settings frame.
+            </span>
+          </SettingsRow>
+        </SettingsCard>
+      ) : settings.error ? (
+        <SettingsCard title="Settings">
+          <SettingsRow label="Status">
+            <span className="text-sm text-destructive" role="alert">
+              {settings.error}
+            </span>
+            <Button onClick={settings.retry} size="sm" variant="outline">
+              Try Again
+            </Button>
+          </SettingsRow>
+        </SettingsCard>
+      ) : (
+        <>
+          {pluginId ? <PluginDetailCard pluginId={pluginId} /> : null}
+          {cards.length ? (
+            <PluginSettingsCards cards={cards} />
+          ) : pluginId ? null : (
+            <SettingsCard title="Settings">
+              <SettingsRow label="Status">
+                <span className="text-sm text-muted-foreground">
+                  This plugin contributes no settings.
+                </span>
+              </SettingsRow>
+            </SettingsCard>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* === Private Components === */
+
+/** The artifact's own editable settings and credential bindings. */
+function PluginDetailCard({ pluginId }: { pluginId: string }) {
+  const detailQuery = useInstalledPluginDetailQuery(pluginId, pluginId);
+  const settingsMutation = useInstalledPluginSettingsMutation();
+  const credentialMutation = useInstalledPluginCredentialMutation();
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function save(operation: () => Promise<unknown>) {
+    setFeedback(null);
+    setSaveError(null);
+    try {
+      await operation();
+      setFeedback("Saved.");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Settings could not be saved.");
+    } finally {
+      credentialMutation.reset();
+    }
+  }
+
+  if (detailQuery.isPending) {
+    return (
+      <SettingsCard title="Settings">
+        <SettingsRow label="Status">
+          <span className="text-sm text-muted-foreground" role="status">
+            Loading settings…
+          </span>
+        </SettingsRow>
+      </SettingsCard>
+    );
+  }
+  if (detailQuery.isError) {
+    return (
+      <SettingsCard title="Settings">
+        <SettingsRow label="Status">
+          <span className="text-sm text-destructive" role="alert">
+            {detailQuery.error.message}
+          </span>
+        </SettingsRow>
+      </SettingsCard>
+    );
+  }
+  /* The frame and the artifact store answer separately, so a plugin replaced
+     between the two reads would otherwise offer the previous installation's
+     fields under the new one's name. */
+  if (!detailQuery.data || detailQuery.data.plugin_id !== pluginId) {
+    return (
+      <SettingsCard title="Settings">
+        <SettingsRow label="Status">
+          <span className="text-sm text-muted-foreground">
+            This program changed. Reload Plugins to view its current settings.
+          </span>
+        </SettingsRow>
+      </SettingsCard>
+    );
+  }
+
+  return (
+    <section className="overflow-hidden rounded-lg border bg-card">
+      <InstalledPluginDetail
+        detail={detailQuery.data}
+        onSaveCredential={(id, credentialId, secret) =>
+          void save(() => credentialMutation.mutateAsync({ pluginId: id, credentialId, secret }))
+        }
+        /* Settings write themselves and each row reports where it was
+           changed, so this surface does not repeat the outcome at the bottom
+           of the page; a credential, which is an explicit write, still does. */
+        onSaveSettings={async (id, values) => {
+          await settingsMutation.mutateAsync({ pluginId: id, values });
+        }}
+        savingCredential={credentialMutation.isPending}
+      />
+      {feedback ? (
+        <p className="px-4 pb-3 text-sm" role="status">
+          {feedback}
+        </p>
+      ) : null}
+      {saveError ? (
+        <p className="px-4 pb-3 text-sm text-destructive" role="alert">
+          {saveError}
+        </p>
+      ) : null}
+    </section>
+  );
+}

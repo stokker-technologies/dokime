@@ -1,0 +1,36 @@
+{
+  "include": [
+    "crates/dokime-python/python/dokime",
+    "crates/dokime-python/tests",
+    "crates/dokime-python/examples"
+  ],
+  "typeCheckingMode": "standard",
+  "pythonVersion": "3.13",
+  "venvPath": ".",
+  "venv": ".venv",
+  "reportMissingImports": "warning",
+  "reportAttributeAccessIssue": "warning",
+  "executionEnvironments": [
+    {
+      "root": "crates/dokime-python/python",
+      "extraPaths": [
+        "crates/dokime-python/python"
+      ]
+    },
+    {
+      "root": "crates/dokime-python/tests",
+      "extraPaths": [
+        "crates/dokime-python/python"
+      ]
+    },
+    {
+      "root": "crates/dokime-python/examples",
+      "extraPaths": [
+        "crates/dokime-python/python"
+      ]
+    }
+  ],
+  "exclude": [
+    "crates/dokime-python/python/dokime/client/_generated"
+  ]
+}
