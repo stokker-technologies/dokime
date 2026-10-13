@@ -150,8 +150,6 @@ impl TelemetryReader {
             },
         )?;
         query.stream = Some(stream.clone());
-        query.scope =
-            Some(Identifier::new(execution).map_err(|source| codec_error(source.into()))?);
         let mut reader = storage.query_in(view.view(), query)?;
         reader.retain_view()?;
         let projection = reader.decoded_bytes();
@@ -615,6 +613,13 @@ fn selected_query(
     }
     let mut query = native_query(options);
     query.options.through = Some(through.sequence);
+    // Native capture admits only execution-addressed samples and files each
+    // under its execution, so the envelope scope selects this execution's
+    // rows in storage instead of decoding every execution's history.
+    query.scope = Some(
+        Identifier::new(view.execution().test_execution_id.as_str())
+            .map_err(|source| codec_error(source.into()))?,
+    );
     Ok(query)
 }
 

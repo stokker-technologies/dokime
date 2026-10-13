@@ -509,6 +509,75 @@ pub(crate) async fn sparse_pages_statistics() {
     }
 }
 
+// a scoped page resumes at its cursor inside another scope's interleaved rows.
+pub(crate) async fn interleaved_scope_pages() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = Backend::<()>::replica(root.path().to_path_buf(), Limits::default(), history())
+        .await
+        .unwrap();
+    backend.open().await.unwrap();
+    backend
+        .write(write_batch(&[StoragePart::Schemas(&[schema()])]))
+        .await
+        .unwrap();
+    let mut records = (2..90).map(record).collect::<Vec<_>>();
+    for record in &mut records {
+        if record.position.sequence % 3 != 0 {
+            record.scope = Some(id("other"));
+        }
+    }
+    backend
+        .write(write_batch(&[StoragePart::Records(&records)]))
+        .await
+        .unwrap();
+    let view = view(&backend, 89).await;
+
+    // Unbounded, and narrowed by the selection's own window, which the
+    // continuation must tighten rather than replace.
+    for (after, through) in [(0, None), (20, Some(70))] {
+        for order in [ReadOrder::Ascending, ReadOrder::Descending] {
+            let mut selection = ReadSelection::new(ReadKind::Records);
+            selection.scope = Some(id("execution"));
+            selection.order = order;
+            selection.after = after;
+            selection.through = through;
+            let mut expected = records
+                .iter()
+                .filter(|record| {
+                    let sequence = record.position.sequence;
+                    record.scope == Some(id("execution"))
+                        && sequence > after
+                        && through.is_none_or(|through| sequence <= through)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            if order == ReadOrder::Descending {
+                expected.reverse();
+            }
+            let mut read = Vec::new();
+            let mut cursor = None;
+            loop {
+                let page = backend
+                    .read_records(&view, &selection, cursor.as_ref(), limits(4))
+                    .await
+                    .unwrap();
+                assert!(page.entries.len() <= 4);
+                read.extend(page.entries);
+                cursor = page.next;
+                if cursor.is_none() {
+                    break;
+                }
+            }
+            assert_eq!(
+                read, expected,
+                "after={after} through={through:?} {order:?}"
+            );
+        }
+    }
+    backend.release_view(view.snapshot()).await.unwrap();
+    backend.close().await.unwrap();
+}
+
 pub(crate) async fn small_rows_orders() {
     let root = tempfile::tempdir().unwrap();
     let backend = Backend::<()>::replica(root.path().to_path_buf(), Limits::default(), history())

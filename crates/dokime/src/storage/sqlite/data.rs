@@ -312,15 +312,22 @@ impl State {
             history: cut.history.clone(),
             sequence: cut.sequence,
         };
+        // The continuation narrows the index range itself. As a second bound
+        // beside the selection's own, SQLite keeps walking from the selection
+        // start and filters, so every page would rescan the history before it.
+        let through_sequence = selection
+            .through
+            .unwrap_or(through.sequence)
+            .min(through.sequence);
+        let (lower, upper) = match (after, selection.order) {
+            (Some(after), ReadOrder::Ascending) => (selection.after.max(after), through_sequence),
+            (Some(after), _) => (selection.after, through_sequence.min(after.saturating_sub(1))),
+            (None, _) => (selection.after, through_sequence),
+        };
         let mut arguments = vec![
             Value::Text(kind(selection.kind).into()),
-            Value::Text(position(selection.after)),
-            Value::Text(position(
-                selection
-                    .through
-                    .unwrap_or(through.sequence)
-                    .min(through.sequence),
-            )),
+            Value::Text(position(lower)),
+            Value::Text(position(upper)),
             Value::Text(position(cut.retention_generation)),
         ];
         let mut clauses = vec![
@@ -412,8 +419,11 @@ impl State {
             limits.rows.get().min(64)
         };
         let bound = if selection.record_filter.is_none() { format!(" LIMIT {}", count + 1) } else { String::new() };
+        // A scoped selection walks only its own owner's entries in position
+        // order rather than every entry of its kind across the cut.
+        let index = if selection.scope.is_some() { "storage_data_scope" } else { "storage_data_kind_position" };
         let sql = format!("SELECT entries.position,length(entries.body) FROM storage_data_entries AS entries
-            INDEXED BY storage_data_kind_position WHERE {} ORDER BY entries.position {}{}",
+            INDEXED BY {index} WHERE {} ORDER BY entries.position {}{}",
             clauses.join(" AND "), if selection.order == ReadOrder::Ascending { "ASC" } else { "DESC" }, bound);
 
                 let head = saved(connection)?;

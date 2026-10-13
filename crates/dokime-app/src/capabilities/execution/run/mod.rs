@@ -51,12 +51,24 @@ const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 /// How long a cancelled run may take to answer before the host settles the
 /// execution as stopped without it. Stop stays cooperative inside this budget.
 const STOP_SETTLEMENT: Duration = Duration::from_secs(30);
+/// Rows and bytes one replayed page may read; each page is its own query.
+const REPLAY_PAGE_ROWS: std::num::NonZeroUsize = std::num::NonZeroUsize::new(128).unwrap();
+const REPLAY_PAGE_BYTES: std::num::NonZeroUsize =
+    std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap();
+/// Encoded sample bytes one replay signal carries before the next begins.
+const REPLAY_SIGNAL_BYTES: usize = dokime::transport::MAX_ARTIFACT_CHUNK_BYTES;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+/// A captured sample with the storage position its replay resumes after.
+struct ReplayedSample {
+    position: u64,
+    entry: dokime::storage::telemetry::TelemetryEntry,
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct TemplateRunExecutor;
 
@@ -139,6 +151,16 @@ enum DropReason {
 /* === Traits === */
 
 /* === Implementations === */
+impl harmos::MemorySize for ReplayedSample {
+    fn memory_size(&self) -> usize {
+        std::mem::size_of::<Self>().saturating_add(
+            self.entry
+                .memory_size()
+                .saturating_sub(std::mem::size_of_val(&self.entry)),
+        )
+    }
+}
+
 impl ExecutionFixture for TemplateRunExecutor {
     fn run_cycle<'a>(
         &'a self,
@@ -1672,142 +1694,208 @@ async fn replay_sample_inputs(
     target: &Target,
     execution: &TestExecution,
 ) -> Result<(), ProviderExecutionFailure> {
-    use harmos::{
-        MemorySize,
-        storage::{QueryOptions, ReadLimits},
-    };
-    use std::num::NonZeroUsize;
-    let limit = NonZeroUsize::new(4 * 1024 * 1024).unwrap();
-    context
+    // The run's own evidence is fixed once its publications are flushed. Each
+    // page is its own bounded query against that cut, resumed by storage
+    // position, so a long capture is many small reads rather than one read
+    // whose computation budget the whole history must fit.
+    let cut = context
         .runtime
         .storage()
         .flush()
         .await
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
-    let can_wait = |error: &harmos::Error| {
-        matches!(
-            error,
-            harmos::Error::ResourceExhausted {
-                resource: "storage read memory" | "storage views"
-            }
-        ) && tokio::time::Instant::now() < deadline
-    };
-    let mut reader = loop {
-        let mut query = crate::runtime::storage::telemetry::native_query(QueryOptions {
-            page: Some(ReadLimits {
-                rows: NonZeroUsize::new(128).unwrap(),
-                bytes: limit,
-            }),
-            decoded_bytes: Some(limit),
-            ..QueryOptions::default()
-        });
-        query.scope = Some(
-            harmos::Identifier::new(execution.test_execution_id.as_str())
-                .map_err(|error| failure("sidecar_samples", error.to_string()))?,
-        );
-        match context.runtime.storage().query(query).await {
-            Err(error) if can_wait(&error) => tokio::time::sleep(WATCH_INTERVAL).await,
-            result => {
-                break result.map_err(|error| failure("sidecar_samples", error.to_string()))?;
-            }
-        }
-    };
+    let scope = harmos::Identifier::new(execution.test_execution_id.as_str())
+        .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+    let mut after = 0;
     loop {
+        // Shared read capacity can be held by other captures; each page waits
+        // for it on its own, so a long replay is not failed by its length.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
         let page = loop {
-            match reader.next_page().await {
-                Err(error) if can_wait(&error) => tokio::time::sleep(WATCH_INTERVAL).await,
+            match replay_page(context, execution, &scope, cut.sequence, after).await {
+                Err(error) if replay_can_wait(&error, deadline) => {
+                    tokio::time::sleep(WATCH_INTERVAL).await;
+                }
                 result => {
                     break result.map_err(|error| failure("sidecar_samples", error.to_string()))?;
                 }
             }
         };
-        let Some(page) = page else {
-            break;
+        let Some(page) = page.filter(|page| !page.is_empty()) else {
+            return Ok(());
         };
-        for index in 0..page.len() {
-            let entry = page
-                .try_project(limit, |rows, allowance| {
-                    let row = &rows[index];
-                    let bytes = row
-                        .record
-                        .payload
-                        .projection_memory()
-                        .map_err(|source| {
-                            harmos::Error::backend(
-                                "project native sample",
-                                harmos::BackendFailure::Corrupt,
-                                source,
-                            )
-                        })?
-                        .saturating_add(row.record.payload.memory_size());
-                    if bytes > allowance.get() {
-                        return Err(harmos::Error::ResourceExhausted {
-                            resource: "sample replay projection",
-                        });
-                    }
-                    let entry =
-                        row.record
-                            .payload
-                            .clone()
-                            .into_entry(allowance)
-                            .map_err(|source| {
-                                harmos::Error::backend(
-                                    "decode native sample",
-                                    harmos::BackendFailure::Corrupt,
-                                    source,
-                                )
-                            })?;
-                    if row.sequence != entry.ordinal
-                        || row.stream != entry.sample.stream
-                        || row.record.item.as_str() != entry.sample.sample_id.as_str()
-                        || row.record.source.as_ref().map(|source| source.as_str())
-                            != Some(entry.epoch.as_str())
-                        || row.record.scope.as_ref().map(|scope| scope.as_str())
-                            != Some(execution.test_execution_id.as_str())
-                        || row.record.source_time.is_some()
-                    {
-                        return Err(harmos::Error::InvalidInput {
-                            field: "sample replay",
-                            reason: "native sample envelope differs",
-                        });
-                    }
-                    Ok(entry)
-                })
-                .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-            let scope = entry.sample.scope.as_ref().ok_or_else(|| {
+        after = page.last().map_or(after, |sample| sample.position);
+        let owner = &execution.scope;
+        let scope_json = serde_json::to_string(owner)
+            .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+        let mut samples = Vec::new();
+        let mut bytes = 0;
+        for ReplayedSample { entry, .. } in page.iter() {
+            let captured = entry.sample.scope.as_ref().ok_or_else(|| {
                 failure("sidecar_samples", "captured sample has no execution scope")
             })?;
-            let owner = &execution.scope;
-            if scope.session_id != owner.session_id
-                || scope.test_cycle_id != owner.test_cycle_id
-                || scope.test_case_id != owner.test_case_id
-                || scope.test_execution_id != owner.test_execution_id
-                || scope.template_id != owner.template_id
-                || scope.suite_id != owner.suite_id
+            if captured.session_id != owner.session_id
+                || captured.test_cycle_id != owner.test_cycle_id
+                || captured.test_case_id != owner.test_case_id
+                || captured.test_execution_id != owner.test_execution_id
+                || captured.template_id != owner.template_id
+                || captured.suite_id != owner.suite_id
             {
                 return Err(failure(
                     "sidecar_samples",
                     "captured sample differs from its execution owner",
                 ));
             }
-            target
-                .signal(ExecutionSignal {
-                    execution_token: execution.test_execution_id.to_string(),
-                    samples: Some(dokime::transport::DeliverSamplesRequest {
-                        scope_json: serde_json::to_string(scope)
-                            .map_err(|error| failure("sidecar_samples", error.to_string()))?,
-                        samples: vec![
-                            serde_json::to_string(&entry.sample)
-                                .map_err(|error| failure("sidecar_samples", error.to_string()))?,
-                        ],
-                        gaps: Vec::new(),
-                    }),
-                    ..ExecutionSignal::default()
-                })
-                .await?;
+            let encoded = serde_json::to_string(&entry.sample)
+                .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+            if !samples.is_empty() && bytes + encoded.len() > REPLAY_SIGNAL_BYTES {
+                deliver_replayed(target, execution, &scope_json, std::mem::take(&mut samples))
+                    .await?;
+                bytes = 0;
+            }
+            bytes += encoded.len();
+            samples.push(encoded);
         }
+        deliver_replayed(target, execution, &scope_json, samples).await?;
     }
+}
+
+fn replay_can_wait(error: &harmos::Error, deadline: tokio::time::Instant) -> bool {
+    matches!(
+        error,
+        harmos::Error::ResourceExhausted {
+            resource: "storage read memory" | "storage views"
+        }
+    ) && tokio::time::Instant::now() < deadline
+}
+
+// One page of the execution's captured samples after `after`, read through
+// `through`, decoded and checked against its storage envelope. The reader and
+// its view are released before the page is delivered.
+async fn replay_page(
+    context: &ExecutionFixtureContext,
+    execution: &TestExecution,
+    scope: &harmos::Identifier,
+    through: u64,
+    after: u64,
+) -> harmos::Result<Option<harmos::storage::QueryValue<Vec<ReplayedSample>>>> {
+    use harmos::{
+        MemorySize,
+        storage::{QueryOptions, ReadLimits},
+    };
+    let limit = REPLAY_PAGE_BYTES;
+    let mut query = crate::runtime::storage::telemetry::native_query(QueryOptions {
+        after,
+        through: Some(through),
+        page: Some(ReadLimits {
+            rows: REPLAY_PAGE_ROWS,
+            bytes: limit,
+        }),
+        decoded_bytes: Some(limit),
+        ..QueryOptions::default()
+    });
+    query.scope = Some(scope.clone());
+    let mut reader = context.runtime.storage().query(query).await?;
+    let Some(page) = reader.next_page().await? else {
+        return Ok(None);
+    };
+    drop(reader);
+    page.try_project(limit, |rows, allowance| {
+        let mut entries = Vec::new();
+        entries
+            .try_reserve_exact(rows.len())
+            .map_err(|_| replay_exhausted())?;
+        let mut retained = entries
+            .capacity()
+            .saturating_mul(std::mem::size_of::<ReplayedSample>());
+        for row in rows {
+            let remaining = allowance
+                .get()
+                .checked_sub(retained)
+                .and_then(std::num::NonZeroUsize::new)
+                .ok_or_else(replay_exhausted)?;
+            let bytes = row
+                .record
+                .payload
+                .projection_memory()
+                .map_err(|source| {
+                    harmos::Error::backend(
+                        "project native sample",
+                        harmos::BackendFailure::Corrupt,
+                        source,
+                    )
+                })?
+                .saturating_add(row.record.payload.memory_size());
+            if bytes > remaining.get() {
+                return Err(replay_exhausted());
+            }
+            let entry = row
+                .record
+                .payload
+                .clone()
+                .into_entry(remaining)
+                .map_err(|source| {
+                    harmos::Error::backend(
+                        "decode native sample",
+                        harmos::BackendFailure::Corrupt,
+                        source,
+                    )
+                })?;
+            if row.sequence != entry.ordinal
+                || row.stream != entry.sample.stream
+                || row.record.item.as_str() != entry.sample.sample_id.as_str()
+                || row.record.source.as_ref().map(|source| source.as_str())
+                    != Some(entry.epoch.as_str())
+                || row.record.scope.as_ref().map(|scope| scope.as_str())
+                    != Some(execution.test_execution_id.as_str())
+                || row.record.source_time.is_some()
+            {
+                return Err(harmos::Error::InvalidInput {
+                    field: "sample replay",
+                    reason: "native sample envelope differs",
+                });
+            }
+            retained = retained.saturating_add(
+                entry
+                    .memory_size()
+                    .saturating_sub(std::mem::size_of_val(&entry)),
+            );
+            entries.push(ReplayedSample {
+                position: row.record.position.sequence,
+                entry,
+            });
+        }
+        Ok(entries)
+    })
+    .map(Some)
+}
+
+fn replay_exhausted() -> harmos::Error {
+    harmos::Error::ResourceExhausted {
+        resource: "sample replay projection",
+    }
+}
+
+async fn deliver_replayed(
+    target: &Target,
+    execution: &TestExecution,
+    scope_json: &str,
+    samples: Vec<String>,
+) -> Result<(), ProviderExecutionFailure> {
+    if samples.is_empty() {
+        return Ok(());
+    }
+    target
+        .signal(ExecutionSignal {
+            execution_token: execution.test_execution_id.to_string(),
+            samples: Some(dokime::transport::DeliverSamplesRequest {
+                scope_json: scope_json.to_owned(),
+                samples,
+                gaps: Vec::new(),
+            }),
+            ..ExecutionSignal::default()
+        })
+        .await?;
     Ok(())
 }
 

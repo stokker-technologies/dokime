@@ -19,6 +19,7 @@ pub(crate) mod prompts;
 pub(crate) mod queue;
 pub(crate) mod reboot;
 pub(crate) mod run;
+pub(crate) mod sampling;
 pub(crate) mod session;
 #[cfg(feature = "sim")]
 pub(crate) mod simulation;

@@ -783,6 +783,15 @@ fn execution_contract() {
         );
     }
     {
+        eprintln!("Scenario: execution::session::live_stream_log_follow");
+        run_scenario(
+            execution::session::live_stream_log_follow,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: execution::session::stopping_cycle_execution");
         run_scenario(
             execution::session::stopping_cycle_execution,
@@ -813,6 +822,15 @@ fn execution_contract() {
     {
         eprintln!("Scenario: execution::simulation::declaration_boots_runtime");
         execution::simulation::declaration_boots_runtime();
+    }
+    {
+        eprintln!("Scenario: execution::sampling::paged_evidence_settles");
+        run_scenario(
+            execution::sampling::paged_evidence_settles,
+            false,
+            None,
+            false,
+        );
     }
     {
         eprintln!("Scenario: execution::storage::execution_save_sealing");

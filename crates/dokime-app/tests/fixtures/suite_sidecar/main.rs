@@ -72,6 +72,10 @@ struct Config {
         description = "Abandons more multi-chunk artifacts than the host admits open at once and then produces one more, for the host's \"an abandoned transfer is released, not held until the run ends\" rule."
     )]
     abandon_artifact: bool,
+    #[setting(
+        description = "Pushes this many rows onto the template's own pulse stream, so the host replays and finalizes a case whose evidence spans many storage pages."
+    )]
+    pulse_rows: u32,
 }
 
 #[dokime::settings]
@@ -84,10 +88,21 @@ struct SuiteSidecarSettings {
     id = "fixture-suites.pulse",
     window = 1024,
     label = "Fixture Pulse",
-    description = "A stream this fixture declares and never fills, so its inspected inventory carries one stream revision a reload can be refused over."
+    description = "A stream the smoke step fills only when asked to, so its inspected inventory carries one stream revision a reload can be refused over."
 )]
 pub struct Pulse {
     value: f64,
+}
+
+#[dokime::record(
+    id = "fixture.checks.pulse_produced",
+    label = "Pulse Produced",
+    description = "How many pulse rows the smoke step pushed, so its criterion can count what the host replayed against what was produced."
+)]
+#[derive(Clone, Debug)]
+struct PulseProduced {
+    #[record(description = "The number of rows pushed onto the pulse stream.")]
+    rows: u32,
 }
 
 struct SuiteSidecar {
@@ -108,6 +123,7 @@ struct Behaviour {
     abandon_artifact: bool,
     block_execution: bool,
     execution_release: String,
+    pulse_rows: u32,
 }
 
 struct GetBehaviour {
@@ -118,6 +134,11 @@ struct GetBehaviour {
 #[dokime::catalog]
 pub enum Streams {
     Pulse(Pulse),
+}
+
+#[dokime::catalog]
+enum Records {
+    PulseProduced(PulseProduced),
 }
 
 #[dokime::catalog]
@@ -154,7 +175,6 @@ impl dokime::harmos::operations::lifecycle::Policy for SuiteSidecar {
     requires(),
     contributions(
         dokime::Suites<Suites>,
-        dokime::Evidence<Streams>,
         dokime::Settings<SuiteSidecarSettings>,
     ),
     streams(Pulse),
@@ -225,6 +245,7 @@ impl GetBehaviour {
             abandon_artifact: self.config.abandon_artifact,
             block_execution: self.config.block_execution,
             execution_release: path(&self.config.execution_release),
+            pulse_rows: self.config.pulse_rows,
         })
     }
 }
@@ -232,7 +253,13 @@ impl GetBehaviour {
 #[dokime::suite(id = "fixture.checks", label = "Fixture Checks", templates = ChecksTemplates)]
 impl Checks {}
 
-#[dokime::template(id = "fixture.checks.smoke", label = "Fixture Smoke", requires = SmokeRequires)]
+#[dokime::template(
+    id = "fixture.checks.smoke",
+    label = "Fixture Smoke",
+    requires = SmokeRequires,
+    streams = Streams,
+    records = Records
+)]
 impl Smoke {
     async fn initialize(
         ctx: &mut dokime::execution::InitializationContext<'_>,
@@ -249,6 +276,20 @@ impl Smoke {
                 &self.behaviour.execution_marker,
                 std::env::current_exe()?.to_string_lossy().as_bytes(),
             )?;
+        }
+        if self.behaviour.pulse_rows > 0 {
+            let pulse = ctx.stream::<Pulse>().open();
+            for index in 0..self.behaviour.pulse_rows {
+                pulse
+                    .push(Pulse {
+                        value: f64::from(index),
+                    })
+                    .await;
+            }
+            ctx.publish(PulseProduced {
+                rows: self.behaviour.pulse_rows,
+            })
+            .await;
         }
         if self.behaviour.artifact_evidence {
             let mut evidence = ctx.artifacts().create(ARTIFACT_EVIDENCE_PATH)?;
@@ -293,6 +334,29 @@ impl Smoke {
             }
         }
         Ok(())
+    }
+
+    #[dokime::criterion(
+        id = "fixture.checks.smoke.pulse_replayed",
+        label = "Pulse Replayed",
+        description = "Passed when the host handed back every pulse row the step produced, each exactly once."
+    )]
+    fn pulse_replayed(ctx: &dokime::execution::CriterionContext<'_>) -> Result<bool, Error> {
+        let produced = ctx
+            .records::<PulseProduced>()?
+            .last()
+            .map_or(0, |produced| produced.rows);
+        let mut values = ctx
+            .samples::<Pulse>()
+            .iter()
+            .map(|row| row.value)
+            .collect::<Vec<_>>();
+        values.sort_by(f64::total_cmp);
+        Ok(values.len() == produced as usize
+            && values
+                .iter()
+                .enumerate()
+                .all(|(index, value)| *value == index as f64))
     }
 }
 
