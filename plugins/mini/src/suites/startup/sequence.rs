@@ -18,6 +18,7 @@ use std::{path::PathBuf, time::Duration};
 
 // Local Imports
 use super::super::parameters::Startup as Inputs;
+use super::super::system;
 use super::*;
 use crate::{error::Error, prompts::checkpoint};
 use dokime::core::TemplateId;
@@ -114,6 +115,8 @@ pub enum Required {
     ListConnections(crate::operations::connections::ListConnections),
 }
 
+// `SystemInputs` and the unit's connection: a catalog names one list, so this
+// one repeats the six host streams `system::SystemInputs` declares.
 #[dokime::catalog]
 pub enum Subscriptions {
     ToolConnectionAcquired(ToolConnectionAcquired),
@@ -558,6 +561,7 @@ fn startup_document() -> Document {
     for section in document::host::sections(false) {
         document.section(section);
     }
+    document.section(system::section(STARTUP_TEMPLATE));
 
     document
 }

@@ -16,6 +16,7 @@ pub mod recovery;
 pub mod startup;
 pub mod steady;
 mod support;
+pub mod system;
 
 /* === Re-Exports === */
 pub use checks::{

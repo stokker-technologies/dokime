@@ -783,11 +783,8 @@ fn insert_congestion_fields(
         "active_wifi_band",
         congestion.active_band.clone().map(Value::from),
     );
-    let is_active_channel = congestion.active_channel == row_channel;
-    values.insert(
-        "is_active_channel".to_owned(),
-        Value::from(is_active_channel),
-    );
+    let active_channel = congestion.active_channel == row_channel;
+    values.insert("active_channel".to_owned(), Value::from(active_channel));
     let overlap_weight = congestion
         .active_channel
         .zip(row_channel)
@@ -817,7 +814,7 @@ fn insert_congestion_fields(
         "congestion_model",
         congestion.model.map(Value::from),
     );
-    if is_active_channel && row_network_count == 0 {
+    if active_channel && row_network_count == 0 {
         values.insert("max_signal_percent".to_owned(), Value::Null);
     }
 }

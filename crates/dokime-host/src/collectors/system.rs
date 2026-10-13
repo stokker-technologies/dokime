@@ -16,8 +16,15 @@
 use std::{collections::BTreeMap, process::Command};
 // Third Party Imports
 use starship_battery::{
-    Manager as BatteryManager, State as BatteryState,
-    units::{ratio::percent, thermodynamic_temperature::degree_celsius},
+    Battery, Manager as BatteryManager, State as BatteryState,
+    units::{
+        electric_potential::volt,
+        energy::watt_hour,
+        power::watt,
+        ratio::{percent, ratio},
+        thermodynamic_temperature::degree_celsius,
+        time::second,
+    },
 };
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, System};
 // Local Imports
@@ -39,14 +46,6 @@ pub struct SystemCollector {
     system: System,
     components: Components,
     battery_manager: Option<BatteryManager>,
-}
-
-#[derive(Default)]
-struct BatteryContext {
-    percent: Option<f64>,
-    state: Option<String>,
-    power_plugged: Option<bool>,
-    temperature_c: Option<f64>,
 }
 
 #[derive(Default)]
@@ -101,7 +100,7 @@ impl SystemCollector {
             .filter(|temperature| temperature.is_finite())
             .map(f64::from)
             .collect::<Vec<_>>();
-        let battery = battery_context(self.battery_manager.as_ref());
+        let battery = first_battery(self.battery_manager.as_ref());
         let power = power_profile_context();
         let first_cpu = self.system.cpus().first();
 
@@ -212,22 +211,9 @@ impl SystemCollector {
             "max_temperature_c",
             temperatures.into_iter().reduce(f64::max).map(Value::from),
         );
-        maybe_insert(
-            &mut values,
-            "battery_percent",
-            battery.percent.map(Value::from),
-        );
-        maybe_insert(&mut values, "battery_state", battery.state.map(Value::from));
-        maybe_insert(
-            &mut values,
-            "battery_power_plugged",
-            battery.power_plugged.map(Value::from),
-        );
-        maybe_insert(
-            &mut values,
-            "battery_temperature_c",
-            battery.temperature_c.map(Value::from),
-        );
+        for (key, value) in battery_values(battery.as_ref()) {
+            maybe_insert(&mut values, key, value);
+        }
         maybe_insert(
             &mut values,
             "power_plan_name",
@@ -265,26 +251,90 @@ fn git_config_value(key: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_owned())
 }
 
-fn battery_context(manager: Option<&BatteryManager>) -> BatteryContext {
-    let Some(manager) = manager else {
-        return BatteryContext::default();
-    };
-    let Ok(mut batteries) = manager.batteries() else {
-        return BatteryContext::default();
-    };
-    let Some(Ok(battery)) = batteries.next() else {
-        return BatteryContext::default();
+fn first_battery(manager: Option<&BatteryManager>) -> Option<Battery> {
+    manager?.batteries().ok()?.next()?.ok()
+}
+
+/// Every reading `starship-battery` offers for one battery, in the units the
+/// column names declare. A host without a battery yields no values at all.
+fn battery_values(battery: Option<&Battery>) -> Vec<(&'static str, Option<Value>)> {
+    let Some(battery) = battery else {
+        return Vec::new();
     };
     let state = battery.state();
+    let number = |value: f32| value.is_finite().then(|| Value::from(f64::from(value)));
+    let text = |value: Option<&str>| value.map(Value::from);
 
-    BatteryContext {
-        percent: Some(f64::from(battery.state_of_charge().get::<percent>())),
-        state: Some(state.to_string()),
-        power_plugged: Some(matches!(state, BatteryState::Charging | BatteryState::Full)),
-        temperature_c: battery
-            .temperature()
-            .map(|temperature| f64::from(temperature.get::<degree_celsius>())),
-    }
+    vec![
+        (
+            "battery_percent",
+            number(battery.state_of_charge().get::<percent>()),
+        ),
+        ("battery_state", Some(Value::from(state.to_string()))),
+        (
+            "battery_power_plugged",
+            Some(Value::from(matches!(
+                state,
+                BatteryState::Charging | BatteryState::Full
+            ))),
+        ),
+        (
+            "battery_temperature_c",
+            battery
+                .temperature()
+                .and_then(|temperature| number(temperature.get::<degree_celsius>())),
+        ),
+        ("battery_vendor", text(battery.vendor())),
+        ("battery_model", text(battery.model())),
+        ("battery_serial_number", text(battery.serial_number())),
+        (
+            "battery_technology",
+            Some(Value::from(battery.technology().to_string())),
+        ),
+        (
+            "battery_state_of_charge_ratio",
+            number(battery.state_of_charge().get::<ratio>()),
+        ),
+        (
+            "battery_energy_wh",
+            number(battery.energy().get::<watt_hour>()),
+        ),
+        (
+            "battery_energy_full_wh",
+            number(battery.energy_full().get::<watt_hour>()),
+        ),
+        (
+            "battery_energy_full_design_wh",
+            number(battery.energy_full_design().get::<watt_hour>()),
+        ),
+        (
+            "battery_energy_rate_w",
+            number(battery.energy_rate().get::<watt>()),
+        ),
+        ("battery_voltage_v", number(battery.voltage().get::<volt>())),
+        (
+            "battery_state_of_health_ratio",
+            number(battery.state_of_health().get::<ratio>()),
+        ),
+        (
+            "battery_time_to_full_s",
+            battery
+                .time_to_full()
+                .and_then(|time| number(time.get::<second>())),
+        ),
+        (
+            "battery_time_to_empty_s",
+            battery
+                .time_to_empty()
+                .and_then(|time| number(time.get::<second>())),
+        ),
+        (
+            "battery_cycle_count",
+            battery
+                .cycle_count()
+                .map(|count| Value::Integer(i64::from(count))),
+        ),
+    ]
 }
 
 fn power_profile_context() -> PowerProfileContext {

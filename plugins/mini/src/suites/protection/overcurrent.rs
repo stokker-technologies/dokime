@@ -18,6 +18,7 @@
 
 // Local Imports
 use super::super::parameters::Protection;
+use super::super::system::{self, SystemInputs};
 use super::super::{measurement, support};
 use super::TEMPLATE;
 use crate::error::Error;
@@ -111,6 +112,7 @@ pub enum Streams {
 /* === Implementations === */
 #[dokime::template(id = TEMPLATE, label = "Overcurrent Protection", tags = ["device", "protection"],
     requires = Required,
+    subscribes = SystemInputs,
     records = Records,
     streams = Streams,
     parameters = Protection, description = "Walk the declared ladder of loads and verify that the RMS protection latch disconnects the Charger.")]
@@ -130,10 +132,12 @@ impl Overcurrent {
         })
     }
     fn document() -> Document {
-        measurement::document(
+        let mut document = measurement::document(
             <Samples as dokime::StreamSpec>::ID,
             "Overcurrent Protection",
-        )
+        );
+        document.section(system::section(TEMPLATE));
+        document
     }
     #[dokime::step(
         id = "initialize",

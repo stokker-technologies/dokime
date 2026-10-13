@@ -23,6 +23,7 @@ use std::time::Duration;
 // Local Imports
 use super::super::measurement::InputMeasurement;
 use super::super::parameters::Steady as Inputs;
+use super::super::system::{self, SystemInputs};
 use super::*;
 use crate::{error::Error, prompts::checkpoint};
 use dokime::core::TemplateId;
@@ -127,16 +128,6 @@ pub enum Prompts {
 }
 
 #[dokime::catalog]
-pub enum Subscriptions {
-    System(host::System),
-    Network(host::Network),
-    Wifi(host::Wifi),
-    WifiLatency(host::WifiLatency),
-    WifiChannelOccupancy(host::WifiChannelOccupancy),
-    Bluetooth(host::Bluetooth),
-}
-
-#[dokime::catalog]
 pub enum Streams {
     BenchEvent(BenchEvent),
 }
@@ -165,7 +156,7 @@ pub enum ObserverStreams {
     // wifi stream occupancy and bluetooth. Each is one running instance the
     // host shares with every other execution leasing it, ticking at the
     // cadence its own producer declared.
-    subscribes = Subscriptions,
+    subscribes = SystemInputs,
     // The stream this template pushes into. A row type states its own
     // contract but not which template owns it; naming it here is what binds
     // the two.
@@ -481,6 +472,7 @@ fn steady_document() -> Document {
         charging.plot(plot);
     }
     document.section(charging);
+    document.section(system::section(STEADY_TEMPLATE));
 
     document
 }

@@ -83,6 +83,35 @@ impl FixtureHostTelemetrySource {
                     ),
                     ("power_mode".to_owned(), Value::from("best_performance")),
                     ("power_mode_performance_bias".to_owned(), Value::Integer(0)),
+                    // One discharging lithium-ion pack whose readings agree:
+                    // 42 of 50 Wh is 84 %, 50 of 57 Wh design is 0.877
+                    // health, and 42 Wh at 8.5 W lasts 17 788 s.
+                    ("battery_percent".to_owned(), Value::from(84.0)),
+                    ("battery_state".to_owned(), Value::from("discharging")),
+                    ("battery_power_plugged".to_owned(), Value::from(false)),
+                    ("battery_temperature_c".to_owned(), Value::from(31.5)),
+                    ("battery_vendor".to_owned(), Value::from("Fixture Cells")),
+                    ("battery_model".to_owned(), Value::from("FX-5700")),
+                    ("battery_serial_number".to_owned(), Value::from("FX0001")),
+                    ("battery_technology".to_owned(), Value::from("lithium-ion")),
+                    (
+                        "battery_state_of_charge_ratio".to_owned(),
+                        Value::from(0.84),
+                    ),
+                    ("battery_energy_wh".to_owned(), Value::from(42.0)),
+                    ("battery_energy_full_wh".to_owned(), Value::from(50.0)),
+                    (
+                        "battery_energy_full_design_wh".to_owned(),
+                        Value::from(57.0),
+                    ),
+                    ("battery_energy_rate_w".to_owned(), Value::from(8.5)),
+                    ("battery_voltage_v".to_owned(), Value::from(11.4)),
+                    (
+                        "battery_state_of_health_ratio".to_owned(),
+                        Value::from(50.0 / 57.0),
+                    ),
+                    ("battery_time_to_empty_s".to_owned(), Value::from(17_788.0)),
+                    ("battery_cycle_count".to_owned(), Value::Integer(212)),
                 ]),
             )],
             HostTelemetryStream::Network => vec![HostStreamSample::new(
@@ -152,7 +181,7 @@ impl FixtureHostTelemetrySource {
                     ("wifi_band".to_owned(), Value::from("2.4GHz")),
                     ("active_wifi_channel".to_owned(), Value::Integer(6)),
                     ("active_wifi_band".to_owned(), Value::from("2.4GHz")),
-                    ("is_active_channel".to_owned(), Value::from(true)),
+                    ("active_channel".to_owned(), Value::from(true)),
                     ("network_count".to_owned(), Value::Integer(4)),
                     ("max_signal_percent".to_owned(), Value::from(86.0)),
                     ("scan_network_count".to_owned(), Value::Integer(4)),

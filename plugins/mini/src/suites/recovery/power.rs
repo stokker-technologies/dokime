@@ -18,6 +18,7 @@
 
 // Local Imports
 use super::super::parameters::Recovery;
+use super::super::system::{self, SystemInputs};
 use super::super::{measurement, support};
 use super::TEMPLATE;
 use crate::error::Error;
@@ -119,6 +120,7 @@ pub enum Streams {
 /* === Implementations === */
 #[dokime::template(id = TEMPLATE, label = "Power-Loss Recovery", tags = ["device", "recovery"],
     requires = Required,
+    subscribes = SystemInputs,
     records = Records,
     streams = Streams,
     parameters = Recovery, description = "Lose Charger power, clear the latched fault, and verify a controlled restart.")]
@@ -136,7 +138,10 @@ impl PowerLoss {
         })
     }
     fn document() -> Document {
-        measurement::document(<Samples as dokime::StreamSpec>::ID, "Power-Loss Recovery")
+        let mut document =
+            measurement::document(<Samples as dokime::StreamSpec>::ID, "Power-Loss Recovery");
+        document.section(system::section(TEMPLATE));
+        document
     }
     #[dokime::step(id = "initialize", label = "Initialize and Start Charger")]
     async fn setup(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {

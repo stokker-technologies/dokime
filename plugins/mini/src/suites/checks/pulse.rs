@@ -20,6 +20,7 @@ use std::time::Duration;
 // Local Imports
 // Third-Party Imports
 use crate::error::Error;
+use crate::suites::system::{self, SystemInputs};
 use dokime::document::{Document, Plot, PlotStyle, Section};
 use dokime::execution::{CriterionContext, ObserverContext, StepContext};
 
@@ -133,6 +134,8 @@ pub enum ObserverStreams {
     attributes(path = "Mini/Pulse"),
     // What this template's steps publish, as the types that declare them.
     records = Records,
+    // The host around the bench, drawn by the closing system section.
+    subscribes = SystemInputs,
     // The inputs this template is given, as the type that declares them.
     parameters = PulseParameters, description = "Streams a short deterministic pulse from inside the sidecar.")]
 impl Pulse {
@@ -158,6 +161,7 @@ impl Pulse {
 
         let mut document = Document::new("mini.checks.pulse.document", LABEL);
         document.section(signals);
+        document.section(system::section("mini.checks.pulse"));
 
         document
     }
