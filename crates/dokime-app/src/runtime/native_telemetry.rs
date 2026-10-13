@@ -29,8 +29,14 @@ use harmos::schema::{Event, PathElement, Scalar, Validator};
 /* === Macros === */
 
 /* === Type Aliases === */
-pub(super) type Subscriptions =
-    Vec<Pin<Box<dyn futures_util::Stream<Item = harmos::Item<harmos::PublicationRow>> + Send>>>;
+pub(super) type Subscriptions = Vec<
+    Pin<
+        Box<
+            dyn futures_util::Stream<Item = harmos::streams::Item<harmos::streams::PublicationRow>>
+                + Send,
+        >,
+    >,
+>;
 
 /* === Structs === */
 #[derive(Default)]
@@ -142,8 +148,8 @@ impl Decoder {
     pub(super) async fn ingest_batch(
         &mut self,
         handle: &RuntimeHandle,
-        definition: &harmos::Definition,
-        rows: &[(harmos::Cursor, &harmos::PublicationRow)],
+        definition: &harmos::streams::Definition,
+        rows: &[(harmos::storage::Cursor, &harmos::streams::PublicationRow)],
     ) {
         if rows.len() > 1
             && let Some(owner) = definition.owner()
@@ -203,9 +209,9 @@ impl Decoder {
     pub(super) async fn ingest(
         &mut self,
         handle: &RuntimeHandle,
-        definition: &harmos::Definition,
+        definition: &harmos::streams::Definition,
         sequence: u64,
-        row: &harmos::PublicationRow,
+        row: &harmos::streams::PublicationRow,
     ) {
         let Some(owner) = definition.owner() else {
             return;
@@ -272,15 +278,17 @@ impl Decoder {
 
     fn decode(
         &mut self,
-        definition: &harmos::Definition,
+        definition: &harmos::streams::Definition,
         bytes: &[u8],
     ) -> Result<BTreeMap<String, Value>, String> {
         let key = (definition.id().to_owned(), definition.version());
         if !self.descriptors.contains_key(&key) {
-            let fields = definition
-                .fields()
-                .ok_or("native stream has no inspected fields")?;
-            let descriptor = Validator::new(fields).map_err(|error| error.to_string())?;
+            let schema = definition
+                .schema()
+                .ok_or("native stream has no inspected schema")?;
+            let descriptor =
+                Validator::from_schema(schema, &harmos::config::SchemaSettings::default())
+                    .map_err(|error| error.to_string())?;
             self.descriptors.insert(key.clone(), descriptor);
         }
         values(&self.descriptors[&key], bytes)
@@ -290,7 +298,7 @@ impl Decoder {
 /* === Public Functions === */
 pub(super) fn validate(
     artifact: &crate::InstalledPlugin,
-    streams: &[harmos::sidecar::StreamDeclaration],
+    streams: &[harmos::plugin::sidecar::StreamDeclaration],
 ) -> Result<(), String> {
     let contracts = artifact.telemetry_contracts.iter().chain(
         artifact
@@ -315,8 +323,17 @@ pub(super) fn validate(
                 contract.stream
             ));
         }
+        stream
+            .row
+            .prepare(&harmos::config::SchemaSettings::default())
+            .map_err(|error| error.to_string())?;
+        let fields = stream
+            .row
+            .root()
+            .map_err(|error| error.to_string())?
+            .fields();
         if !contract.allow_extra_fields
-            && stream.fields.iter().any(|field| {
+            && fields.iter().any(|field| {
                 !contract
                     .columns
                     .iter()
@@ -333,8 +350,7 @@ pub(super) fn validate(
             if name == "timestamp" {
                 continue;
             }
-            let field = stream
-                .fields
+            let field = fields
                 .iter()
                 .find(|field| field.name == name)
                 .ok_or_else(|| {
@@ -344,7 +360,7 @@ pub(super) fn validate(
                     )
                 })?;
             use dokime::core::ValueType;
-            use dokime::schema::{Cardinality, Kind};
+            use dokime::schema::{Cardinality, graph::Kind};
             let expected = if field.cardinality == Cardinality::Repeated {
                 ValueType::Array
             } else {
@@ -392,8 +408,9 @@ pub(super) fn observe(handle: &RuntimeHandle, owner: &str) -> Subscriptions {
             Some(Box::pin(stream.watch())
                 as Pin<
                     Box<
-                        dyn futures_util::Stream<Item = harmos::Item<harmos::PublicationRow>>
-                            + Send,
+                        dyn futures_util::Stream<
+                                Item = harmos::streams::Item<harmos::streams::PublicationRow>,
+                            > + Send,
                     >,
                 >)
         })

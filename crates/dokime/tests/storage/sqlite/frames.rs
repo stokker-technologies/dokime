@@ -23,8 +23,8 @@ use std::{
 
 // Third Party Imports
 use harmos::{
-    Application, Message, Never, Runtime,
-    schema::Described,
+    Application, Message, Runtime,
+    state::Never,
     storage::{
         frame::*,
         reduce::{Agg, ExactNumber, ScalarKind, ScalarValue},
@@ -107,7 +107,10 @@ impl Fixture {
             .await
             .unwrap();
         storage
-            .write_schema(&records::schema(), records::fields())
+            .write_schema(
+                &records::schema(),
+                &super::storage::declared::<records::RecordRow>(),
+            )
             .await
             .unwrap();
         Self {
@@ -240,7 +243,7 @@ fn request() -> FrameQuery {
     let group_by = [Agg::Mean, Agg::Median, Agg::Last, Agg::Len]
         .into_iter()
         .fold(
-            GroupBy::new(scan).filter(Predicate {
+            GroupBy::new(scan).filter(Predicate::Compare {
                 expr: Expr::Col(1),
                 compare: Compare::Eq,
                 value: ScalarValue::Text(TestExecutionId::from_seed("execution-a").as_str().into()),
@@ -485,7 +488,10 @@ pub(crate) async fn native_correlations_order() {
     let fixture = Fixture::new(root.path()).await;
     fixture
         .storage
-        .write_schema(&telemetry::schema(), telemetry::fields())
+        .write_schema(
+            &telemetry::schema(),
+            &super::storage::declared::<telemetry::TelemetryRow>(),
+        )
         .await
         .unwrap();
     fixture
@@ -644,6 +650,82 @@ pub(crate) async fn dropped_queued_view() {
     fixture.runtime.stop().await.unwrap();
 }
 
+pub(crate) async fn filtered_record_pages_cut() {
+    let root = tempfile::tempdir().unwrap();
+    let fixture = Fixture::new(root.path()).await;
+    for (index, owner, value, epoch) in [
+        (0, "other", Some(Value::Unsigned(1)), "process-a"),
+        (1, "selected", Some(Value::Unsigned(2)), "process-a"),
+        (2, "selected", None, "process-a"),
+        (3, "other", Some(Value::Unsigned(3)), "process-a"),
+        (4, "selected", Some(Value::Unsigned(4)), "process-a"),
+        (5, "selected", Some(Value::Unsigned(5)), "process-b"),
+    ] {
+        fixture.append(index, owner, value, epoch).await;
+    }
+    let view = fixture.view().await;
+    fixture
+        .append(6, "selected", Some(Value::Unsigned(6)), "process-a")
+        .await;
+    fixture.storage.flush().await.unwrap();
+
+    // Nested Ownership And Process Epoch Are Independent Selectors.
+    let owner = TestExecutionId::from_seed("selected");
+    let filter = RecordFilter {
+        columns: vec![
+            field(&["scope", "test_execution_id"], ScalarKind::Text),
+            field(&["details", "value"], ScalarKind::Unsigned),
+            ScalarField {
+                path: ScalarPath::Item,
+                kind: ScalarKind::Text,
+            },
+        ],
+        clauses: vec![
+            RecordClause {
+                predicates: vec![
+                    Predicate::In {
+                        expr: Expr::Col(0),
+                        values: vec![ScalarValue::Text(owner.as_str().to_owned())],
+                    },
+                    Predicate::Exists {
+                        expr: Expr::Col(1),
+                        present: true,
+                    },
+                ],
+            },
+            RecordClause {
+                predicates: vec![Predicate::In {
+                    expr: Expr::Col(2),
+                    values: vec![
+                        ScalarValue::Text("record-0".into()),
+                        ScalarValue::Text("record-1".into()),
+                    ],
+                }],
+            },
+        ],
+    };
+    let mut query = RecordQuery::new(records::schema(), |bytes, _| Ok(bytes.to_vec()));
+    query.scope = Some(id("process-a"));
+    query.filter = Some(filter);
+    query.options.page = Some(ReadLimits {
+        rows: NonZeroUsize::MIN,
+        bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
+    });
+    let mut reader = fixture.storage.query_in(&view, query).unwrap();
+    let mut positions = Vec::new();
+    for expected in [0, 1, 4] {
+        let page = reader.next_page().await.unwrap().unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0].item, id(&format!("record-{expected}")));
+        positions.push(page[0].position.sequence);
+    }
+    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+    assert!(reader.next_page().await.unwrap().is_none());
+    drop(reader);
+    drop(view);
+    fixture.runtime.stop().await.unwrap();
+}
+
 pub(crate) async fn postcard_frames_cut() {
     let root = tempfile::tempdir().unwrap();
     let fixture = Fixture::new(root.path()).await;
@@ -654,7 +736,7 @@ pub(crate) async fn postcard_frames_cut() {
     };
     let start = fixture
         .storage
-        .write_schema(&schema, Measurement::FIELDS)
+        .write_schema(&schema, &super::storage::declared::<Measurement>())
         .await
         .unwrap();
     let mut through = start.sequence;
@@ -740,7 +822,10 @@ pub(crate) async fn keyed_scans_writes() {
     let fixture = Fixture::with_limits(root.path(), limits).await;
     fixture
         .storage
-        .write_schema(&telemetry::schema(), telemetry::fields())
+        .write_schema(
+            &telemetry::schema(),
+            &super::storage::declared::<telemetry::TelemetryRow>(),
+        )
         .await
         .unwrap();
     for index in 1..=64 {
@@ -786,7 +871,10 @@ pub(crate) async fn frame_in_budget() {
         let fixture = Fixture::new(root.path()).await;
         fixture
             .storage
-            .write_schema(&telemetry::schema(), telemetry::fields())
+            .write_schema(
+                &telemetry::schema(),
+                &super::storage::declared::<telemetry::TelemetryRow>(),
+            )
             .await
             .unwrap();
         let rows = 4096;

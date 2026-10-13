@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::sidecar::{Refusal, Supervisor};
+use harmos::plugin::sidecar::{Refusal, Supervisor};
 
 // Local Imports
 use super::{Analysis, Error, Operation, Request, Response};
@@ -67,8 +67,8 @@ impl<A: Analysis> harmos::operations::Operation for Handler<A> {
         _: Self::Context<'ctx>,
         request: &mut Request,
         _: &mut (),
-    ) -> Result<Response, Refusal> {
-        self.state.evaluate::<A>(request).await
+    ) -> Result<harmos::operations::Response<Response>, Refusal> {
+        self.state.evaluate::<A>(request).await.map(Into::into)
     }
     async fn stop(&mut self) -> Result<(), Refusal> {
         self.state.settle().await
@@ -95,8 +95,8 @@ impl<A: Analysis, R: Send + Sync + 'static> harmos::operations::Operation for Se
         _: Self::Context<'ctx>,
         request: &mut Request,
         _: &mut (),
-    ) -> Result<Response, Refusal> {
-        self.0.state.evaluate::<A>(request).await
+    ) -> Result<harmos::operations::Response<Response>, Refusal> {
+        self.0.state.evaluate::<A>(request).await.map(Into::into)
     }
     async fn stop(&mut self) -> Result<(), Refusal> {
         self.0.state.settle().await

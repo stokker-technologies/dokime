@@ -27,7 +27,7 @@ use super::{BackendLimits, BackendSnapshot, ConnectionError, ConnectionTarget};
 pub(super) struct Target {
     pub endpoint: String,
     pub remote: bool,
-    pub inner: dokime::client::Target,
+    pub inner: dokime_client::Target,
 }
 
 /* === Enums === */
@@ -38,11 +38,11 @@ pub(super) struct Target {
 impl Target {
     pub fn parse(target: ConnectionTarget) -> Result<Self, ConnectionError> {
         let inner = match target {
-            ConnectionTarget::Local { endpoint } => dokime::client::Target::local(endpoint),
+            ConnectionTarget::Local { endpoint } => dokime_client::Target::local(endpoint),
             ConnectionTarget::Remote {
                 endpoint,
                 ca_certificate_pem,
-            } => dokime::client::Target::remote(endpoint, ca_certificate_pem),
+            } => dokime_client::Target::remote(endpoint, ca_certificate_pem),
         }
         .map_err(ConnectionError::from)?;
         Ok(Self {
@@ -54,7 +54,7 @@ impl Target {
 }
 
 /* === Public Functions === */
-pub(super) fn backend(value: &dokime::client::Backend) -> BackendSnapshot {
+pub(super) fn backend(value: &dokime_client::Backend) -> BackendSnapshot {
     BackendSnapshot {
         backend_id: value.backend_id.clone(),
         epoch: value.epoch.clone(),

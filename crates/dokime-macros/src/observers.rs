@@ -56,12 +56,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     let sdk = crate::facade::root();
     let mut declared: syn::DeriveInput = syn::parse2(item.clone())?;
 
-    if crate::row::derives_row(&declared) {
-        return Err(Error::new(
-            declared.ident.span(),
-            "stream already describes this row: remove `TelemetryRow` from its derives",
-        ));
-    }
+    crate::message::check(&declared)?;
 
     let mut forwarded = Punctuated::<Meta, Token![,]>::new();
     let mut foreign = false;

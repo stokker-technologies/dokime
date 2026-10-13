@@ -64,7 +64,7 @@ struct RunProviderCycle;
 struct ProviderInvocation {
     job: ProviderCycleRequest,
     runtime: RuntimeHandle,
-    after: harmos::Position,
+    after: harmos::state::Position,
     started: Arc<std::sync::atomic::AtomicU8>,
     finalization: crate::execution_runtime::run::Finalization,
 }
@@ -175,7 +175,10 @@ impl Operation for ProviderState {
         _context: Self::Context<'ctx>,
         request: &mut ProviderInvocation,
         _: &mut Self::Endpoints,
-    ) -> Result<<RunProviderCycle as OperationDeclaration>::Response, Self::Error> {
+    ) -> Result<
+        harmos::operations::Response<<RunProviderCycle as OperationDeclaration>::Response>,
+        Self::Error,
+    > {
         let invocation = self.invocation.get_or_insert_with(|| request.clone());
         if invocation
             .started
@@ -187,10 +190,11 @@ impl Operation for ProviderState {
             )
             .is_err()
         {
-            return Ok(Err(ProviderExecutionFailure::new(
+            return Ok((Err(ProviderExecutionFailure::new(
                 "cancel",
                 "plugin shutdown before execution started",
-            )));
+            )))
+            .into());
         }
 
         let runtime = invocation.runtime.clone();
@@ -199,18 +203,21 @@ impl Operation for ProviderState {
         let after = invocation.after;
         let cancelled = self.work.cancelled.clone();
         let finalization = invocation.finalization.clone();
-        Ok(self
+        Ok((self
             .work
             .run(Box::pin(async move {
                 run_provider_cycle(runtime, &providers, job, after, cancelled, finalization).await
             }))
             .await)
+            .into())
     }
 
     async fn finalize(&mut self) -> Result<(), Self::Error> {
         let Some(invocation) = &self.invocation else {
             return Ok(());
         };
+        let settlement = std::time::Instant::now();
+        tracing::debug!(request_id = %invocation.job.request_id, phase = "provider_settlement", "provider work settlement started");
         if let Some(error) = self.work.finalize().await {
             tracing::warn!(
                 request_id = %invocation.job.request_id,
@@ -219,6 +226,7 @@ impl Operation for ProviderState {
                 "cancelled provider work settled with an execution failure"
             );
         }
+        tracing::debug!(request_id = %invocation.job.request_id, phase = "provider_settlement", elapsed_ms = %settlement.elapsed().as_millis(), "provider work settlement finished");
         invocation
             .finalization
             .finish(&ExecutionFixtureContext::new(invocation.runtime.clone()))
@@ -247,7 +255,7 @@ impl ProviderTask {
 }
 
 impl ProviderCycleRequest {
-    pub(crate) fn submit(self, runtime: RuntimeHandle, after: harmos::Position) {
+    pub(crate) fn submit(self, runtime: RuntimeHandle, after: harmos::state::Position) {
         let registry = runtime.provider_tasks.clone();
         let mut tasks = registry.lock().unwrap();
         // Admission already committed this request and retains its capacity
@@ -282,6 +290,8 @@ impl ProviderCycleRequest {
 
             let mut changes = runtime.state_watch.subscribe();
             let mut shutdown = runtime.shutdown_requested.subscribe();
+            let monitoring = std::time::Instant::now();
+            tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", "provider monitor awaiting original invocation settlement");
             let outcome = tokio::select! {
                 outcome = &mut handle => outcome,
                 _ = async { let _ = cancelled.wait_for(|cancelled| *cancelled).await; } => {
@@ -301,6 +311,7 @@ impl ProviderCycleRequest {
                     handle.await
                 }
             };
+            tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", elapsed_ms = %monitoring.elapsed().as_millis(), transport_ok = outcome.is_ok(), "provider monitor observed settled invocation");
             match outcome {
                 Ok(outcome) => {
                     let cycle = TestCycleId::from_uuid(&self.test_cycle_id)
@@ -309,7 +320,9 @@ impl ProviderCycleRequest {
                     submit_finish_provider_cycle(
                         &runtime,
                         &self,
-                        Arc::unwrap_or_clone(outcome),
+                        outcome
+                            .try_unwrap()
+                            .unwrap_or_else(|outcome| (*outcome).clone()),
                         started,
                     )
                     .await;
@@ -392,7 +405,7 @@ async fn run_provider_cycle(
     runtime: RuntimeHandle,
     providers: &ProviderExecutorRegistry,
     job: ProviderCycleRequest,
-    after: harmos::Position,
+    after: harmos::state::Position,
     cancelled: tokio::sync::watch::Receiver<bool>,
     finalization: crate::execution_runtime::run::Finalization,
 ) -> std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure> {
@@ -467,13 +480,17 @@ async fn run_provider_cycle(
         .ok_or_else(|| ProviderExecutionFailure::new("bind", "provider executor is unavailable"))?;
     // Terminal publication belongs to the monitor after this cancellable job
     // and its children settle, so shutdown cannot start a competing finish.
-    executor.run_cycle(context, &cycle, &target).await
+    let running = std::time::Instant::now();
+    tracing::debug!(request_id = %request_id, cycle_id = %test_cycle_id, phase = "provider_work", "provider work started");
+    let outcome = executor.run_cycle(context, &cycle, &target).await;
+    tracing::debug!(request_id = %request_id, cycle_id = %test_cycle_id, phase = "provider_work", elapsed_ms = %running.elapsed().as_millis(), succeeded = outcome.is_ok(), "provider work returned");
+    outcome
 }
 
 async fn prepare_attempts(
     context: &ExecutionFixtureContext,
     request_id: &dokime::core::CommandId,
-    _after: harmos::Position,
+    _after: harmos::state::Position,
 ) -> Result<(), ProviderExecutionFailure> {
     let runtime = &context.runtime;
     let mut changes = runtime.state_watch.subscribe();
@@ -632,7 +649,11 @@ async fn submit_finish_provider_cycle(
         .expect("journaled provider-cycle target deserializes");
     let mut output_error = None;
     for execution_id in &started_execution_ids {
-        if let Err(error) = runtime.finish_execution_outputs(execution_id).await {
+        let sealing = std::time::Instant::now();
+        tracing::debug!(request_id = %job.request_id, cycle_id = %test_cycle_id, %execution_id, phase = "output_sealing", "original execution outputs sealing started");
+        let sealed = runtime.finish_execution_outputs(execution_id).await;
+        tracing::debug!(request_id = %job.request_id, cycle_id = %test_cycle_id, %execution_id, phase = "output_sealing", elapsed_ms = %sealing.elapsed().as_millis(), succeeded = sealed.is_ok(), "original execution outputs sealing finished");
+        if let Err(error) = sealed {
             output_error.get_or_insert_with(|| {
                 ProviderExecutionFailure::new("artifact", error.to_string())
             });
@@ -664,7 +685,11 @@ async fn submit_finish_provider_cycle(
         outcome,
         finished_at: Timestamp::now_utc(),
     };
-    if let Err(error) = runtime.finish_provider_cycle(finish).await {
+    let publishing = std::time::Instant::now();
+    tracing::debug!(request_id = %job.request_id, cycle_id = %job.test_cycle_id, phase = "terminal_publication", "provider monitor publishing terminal state");
+    let published = runtime.finish_provider_cycle(finish).await;
+    tracing::debug!(request_id = %job.request_id, cycle_id = %job.test_cycle_id, phase = "terminal_publication", elapsed_ms = %publishing.elapsed().as_millis(), succeeded = published.is_ok(), "provider monitor terminal publication finished");
+    if let Err(error) = published {
         tracing::error!(
             ?error,
             storage_read_bytes = runtime.storage().status().read_bytes,

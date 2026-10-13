@@ -32,7 +32,7 @@ use crate::storage::sqlite::{Error, memory};
 /* === Structs === */
 
 /* === Enums === */
-pub(super) enum Projection<'a> {
+pub(in crate::storage::sqlite::data) enum Projection<'a> {
     Native {
         fields: &'a [ScalarField],
         kind: native::Kind,
@@ -47,31 +47,38 @@ pub(super) enum Projection<'a> {
 
 /* === Implementations === */
 impl<'a> Projection<'a> {
-    pub(super) fn new(
+    pub(in crate::storage::sqlite::data) fn new(
         schema: &StorageSchema,
         fields: &'a [ScalarField],
         bytes: usize,
     ) -> Result<Self, Error> {
-        harmos::schema::validate(&schema.fields).map_err(|error| {
-            harmos::Error::backend(
-                "validate scan schema",
-                harmos::BackendFailure::Corrupt,
-                error,
-            )
-        })?;
+        schema
+            .schema
+            .prepare(&harmos::config::SchemaSettings::default())
+            .map_err(|error| {
+                harmos::Error::backend(
+                    "validate scan schema",
+                    harmos::BackendFailure::Corrupt,
+                    error,
+                )
+            })?;
+        let root = schema
+            .schema
+            .root()
+            .map_err(|_| Error::Corrupt("invalid scan schema root"))?;
         if let Some(kind) = native::Kind::for_schema(&schema.key) {
-            kind.check_schema(&schema.fields)?;
+            kind.check_schema(&schema.schema)?;
             for field in fields {
-                kind.check_field(field, &schema.fields)?;
+                kind.check_field(field, root)?;
             }
             return Ok(Self::Native { fields, kind });
         }
         Ok(Self::Postcard {
-            projection: ScalarProjection::new(&schema.fields, fields.to_vec(), bound(bytes)?)?,
+            projection: ScalarProjection::new(root, fields.to_vec(), bound(bytes)?)?,
             fields: fields.len(),
         })
     }
-    pub(super) fn output_memory(
+    pub(in crate::storage::sqlite::data) fn output_memory(
         &self,
         record: &StoredRecord,
         stream: Option<&harmos::Identifier>,
@@ -101,7 +108,7 @@ impl<'a> Projection<'a> {
             })
             .ok_or_else(|| exhausted("SQLite scalar projection output"))
     }
-    pub(super) fn project(
+    pub(in crate::storage::sqlite::data) fn project(
         &self,
         record: &StoredRecord,
         stream: Option<&harmos::Identifier>,
@@ -155,7 +162,10 @@ impl<'a> Projection<'a> {
 }
 
 /* === Public Functions === */
-pub(super) fn admission(selection: &ReadSelection, fields: &[ScalarField]) -> harmos::Result<()> {
+pub(in crate::storage::sqlite::data) fn admission(
+    selection: &ReadSelection,
+    fields: &[ScalarField],
+) -> harmos::Result<()> {
     let key = selection
         .schema
         .as_ref()
@@ -164,8 +174,16 @@ pub(super) fn admission(selection: &ReadSelection, fields: &[ScalarField]) -> ha
             reason: "schema is required",
         })?;
     if let Some(kind) = native::Kind::for_schema(key) {
+        let schema = kind.schema().map_err(runtime)?;
+        let root = schema.root().map_err(|error| {
+            harmos::Error::backend(
+                "prepare native scan schema",
+                harmos::BackendFailure::Permanent,
+                error,
+            )
+        })?;
         for field in fields {
-            kind.check_field(field, kind.fields()).map_err(runtime)?;
+            kind.check_field(field, root).map_err(runtime)?;
         }
         return Ok(());
     }
@@ -178,23 +196,48 @@ pub(super) fn admission(selection: &ReadSelection, fields: &[ScalarField]) -> ha
     Ok(())
 }
 
-pub(super) fn construction_memory(
+pub(in crate::storage::sqlite::data) fn construction_memory(
     schema: &StorageSchema,
     fields: &[ScalarField],
 ) -> Result<usize, Error> {
-    let validation = harmos::schema::validation_memory_bytes(&schema.fields).map_err(|error| {
-        harmos::Error::backend("budget scan schema", harmos::BackendFailure::Corrupt, error)
-    })?;
-    let decoder = if native::Kind::for_schema(&schema.key).is_some() {
-        0
-    } else {
-        harmos::schema::Validator::construction_memory_bytes(&schema.fields).map_err(|error| {
+    let settings = harmos::config::SchemaSettings::default();
+    let validation = schema
+        .schema
+        .validation_memory_bytes(&settings)
+        .map_err(|error| {
+            harmos::Error::backend("budget scan schema", harmos::BackendFailure::Corrupt, error)
+        })?;
+    let decoder = if let Some(kind) = native::Kind::for_schema(&schema.key) {
+        let expected = kind.schema()?;
+        let retained = expected.clone_memory_bytes().map_err(|error| {
             harmos::Error::backend(
-                "budget scan projection",
-                harmos::BackendFailure::Corrupt,
+                "budget native scan schema",
+                harmos::BackendFailure::Permanent,
                 error,
             )
-        })?
+        })?;
+        let scratch = expected
+            .validation_memory_bytes(&settings)
+            .map_err(|error| {
+                harmos::Error::backend(
+                    "budget native scan validation",
+                    harmos::BackendFailure::Permanent,
+                    error,
+                )
+            })?;
+        retained
+            .checked_add(scratch)
+            .ok_or_else(|| exhausted("SQLite native projection construction"))?
+    } else {
+        harmos::schema::Validator::construction_memory_bytes(&schema.schema, &settings).map_err(
+            |error| {
+                harmos::Error::backend(
+                    "budget scan projection",
+                    harmos::BackendFailure::Corrupt,
+                    error,
+                )
+            },
+        )?
     };
     validation
         .checked_add(decoder)

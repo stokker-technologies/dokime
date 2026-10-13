@@ -24,7 +24,7 @@ use dokime_app::{
     runtime::command::CommandContext,
     transactions::CycleDefinition,
 };
-use dokime_protocol::v1::{document_frame::Frame, documents_client::DocumentsClient};
+use dokime_client::contracts::documents::DocumentFrameFrame as Frame;
 
 /* === Constants === */
 
@@ -89,42 +89,46 @@ pub(crate) async fn current_document_rows() {
     )
     .await
     .unwrap();
-    let mut client = DocumentsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
-    let selected = v1::DocumentScope {
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let selected = contracts::documents::DocumentScope {
         cycle_id: cycle.to_string(),
         execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0]
             .to_string(),
     };
     assert_eq!(
         client
-            .capture_current_document(v1::CaptureCurrentDocumentRequest {
-                scope: Some(selected.clone()),
-                document_id: "default".into(),
-            })
+            .download::<contracts::documents::CaptureCurrentDocument>(
+                contracts::documents::CaptureCurrentDocumentRequest {
+                    scope: Some(selected.clone()),
+                    document_id: "default".into(),
+                }
+            )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
     let missing_execution = client
-        .capture_current_document(authenticated(v1::CaptureCurrentDocumentRequest {
-            scope: Some(v1::DocumentScope {
-                cycle_id: cycle.to_string(),
-                execution_id: String::new(),
-            }),
-            document_id: "default".into(),
-        }))
+        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
+            contracts::documents::CaptureCurrentDocumentRequest {
+                scope: Some(contracts::documents::DocumentScope {
+                    cycle_id: cycle.to_string(),
+                    execution_id: String::new(),
+                }),
+                document_id: "default".into(),
+            },
+        ))
         .await
         .unwrap_err();
     assert_eq!(missing_execution.code(), Code::InvalidArgument);
     let epoch = handle.process_epoch().to_string();
     let mut stream = client
-        .capture_current_document(authenticated(v1::CaptureCurrentDocumentRequest {
-            scope: Some(selected.clone()),
-            document_id: "default".into(),
-        }))
+        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
+            contracts::documents::CaptureCurrentDocumentRequest {
+                scope: Some(selected.clone()),
+                document_id: "default".into(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -153,12 +157,11 @@ pub(crate) async fn current_document_rows() {
             }
             Frame::TableRow(row) => {
                 assert_eq!(row.card_id, "table");
-                let fields = row.values.unwrap().fields;
-                assert_eq!(
-                    fields["ordinal"].kind,
-                    Some(v1::value::Kind::IntegerValue(row.ordinal as i64))
-                );
-                assert_eq!(fields["absent"].kind, Some(v1::value::Kind::NullValue(0)));
+                let Value::Object(fields) = row.values.unwrap().to_core().unwrap() else {
+                    panic!("table row values must be an object");
+                };
+                assert_eq!(fields["ordinal"], Value::Integer(row.ordinal as i64));
+                assert_eq!(fields["absent"], Value::Null);
                 rows.push(row.ordinal);
             }
             Frame::Completion(completion) => complete = Some(completion),
@@ -168,10 +171,12 @@ pub(crate) async fn current_document_rows() {
     assert_eq!(rows, (0..300).collect::<Vec<_>>());
     assert_eq!(complete.unwrap().frame_count, frames);
     let unknown = client
-        .capture_current_document(authenticated(v1::CaptureCurrentDocumentRequest {
-            scope: Some(selected),
-            document_id: "missing".into(),
-        }))
+        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
+            contracts::documents::CaptureCurrentDocumentRequest {
+                scope: Some(selected),
+                document_id: "missing".into(),
+            },
+        ))
         .await
         .unwrap_err();
     assert_eq!(unknown.code(), Code::NotFound);
@@ -280,18 +285,19 @@ pub(crate) async fn summary_complete_telemetry() {
     let server = Server::start(handle.clone(), Config::local())
         .await
         .unwrap();
-    let mut client = DocumentsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
-        .capture_current_document(v1::CaptureCurrentDocumentRequest {
-            scope: Some(v1::DocumentScope {
-                cycle_id: cycle.to_string(),
-                execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0]
-                    .to_string(),
-            }),
-            document_id: "default".into(),
-        })
+        .download::<contracts::documents::CaptureCurrentDocument>(
+            contracts::documents::CaptureCurrentDocumentRequest {
+                scope: Some(contracts::documents::DocumentScope {
+                    cycle_id: cycle.to_string(),
+                    execution_id: handle.watch_state().latest().state().cycles[&cycle]
+                        .execution_ids[0]
+                        .to_string(),
+                }),
+                document_id: "default".into(),
+            },
+        )
         .await
         .unwrap()
         .into_inner();
@@ -303,7 +309,7 @@ pub(crate) async fn summary_complete_telemetry() {
                 let cut = presentation.frontiers.unwrap().telemetry.unwrap();
                 assert!(matches!(
                     cut.source,
-                    Some(v1::document_telemetry_cut::Source::RetainedWindow(true))
+                    Some(contracts::documents::DocumentTelemetryCutSource::RetainedWindow(true))
                 ));
                 assert_eq!(cut.series_ordinal, None);
             }
@@ -313,10 +319,7 @@ pub(crate) async fn summary_complete_telemetry() {
         }
     }
     assert!(complete);
-    assert_eq!(
-        tile.unwrap().kind,
-        Some(v1::value::Kind::NumberValue(299.0))
-    );
+    assert_eq!(tile.unwrap().to_core().unwrap(), Value::Number(299.0));
     gate.release.notify_one();
     server.shutdown().await.unwrap();
     drop(handle);
@@ -392,25 +395,26 @@ pub(crate) async fn duration_x_axis() {
     let server = Server::start(handle.clone(), Config::local())
         .await
         .unwrap();
-    let mut client = DocumentsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut stream = client
-        .capture_current_document(v1::CaptureCurrentDocumentRequest {
-            scope: Some(v1::DocumentScope {
-                cycle_id: cycle.to_string(),
-                execution_id: handle.watch_state().latest().state().cycles[&cycle].execution_ids[0]
-                    .to_string(),
-            }),
-            document_id: "default".into(),
-        })
+        .download::<contracts::documents::CaptureCurrentDocument>(
+            contracts::documents::CaptureCurrentDocumentRequest {
+                scope: Some(contracts::documents::DocumentScope {
+                    cycle_id: cycle.to_string(),
+                    execution_id: handle.watch_state().latest().state().cycles[&cycle]
+                        .execution_ids[0]
+                        .to_string(),
+                }),
+                document_id: "default".into(),
+            },
+        )
         .await
         .unwrap()
         .into_inner();
     let mut presentations = Vec::new();
     while let Some(frame) = stream.message().await.unwrap() {
         if let Frame::Binding(binding) = frame.frame.unwrap()
-            && let Some(v1::document_binding::Result::Plot(plot)) = binding.result
+            && let Some(contracts::documents::DocumentBindingResult::Plot(plot)) = binding.result
         {
             presentations.push(plot.presentation.unwrap());
         }
@@ -419,7 +423,7 @@ pub(crate) async fn duration_x_axis() {
     assert_eq!(presentations.len(), 1, "one plot card crosses the wire");
     assert_eq!(
         presentations[0].x_axis,
-        v1::PlotAxisKind::Elapsed as i32,
+        contracts::documents::PlotAxisKind::Elapsed,
         "the declared duration unit reached the wire"
     );
     assert_eq!(presentations[0].x_axis_unit.as_deref(), Some("s"));

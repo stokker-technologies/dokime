@@ -19,9 +19,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 // Third Party Imports
-use dokime::harmos::artifact::plugin::{Attachment, Declared};
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
-use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
+use dokime::harmos::plugin::contract::{Attachment, Declared};
+use dokime::harmos::plugin::sidecar::{ObserverAttachment, Publisher};
 // Local Imports
 use dokime::{Refusal, Supervisor};
 use error::Error;
@@ -55,8 +55,8 @@ struct TelemetrySidecarSettings {
     config: Config,
 }
 
-#[dokime::message]
-#[derive(Clone, PartialEq, dokime::TelemetryRow)]
+#[dokime::row]
+#[derive(Clone, PartialEq)]
 pub struct Reading {
     count: u64,
     value: f64,

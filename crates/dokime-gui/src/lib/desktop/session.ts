@@ -18,6 +18,7 @@ import type { ConnectionSnapshot, ConnectionTarget, ConnectRequest } from "./con
 
 export type BackendSelection =
   | { kind: "owned_local" }
+  | { kind: "profile"; name: string }
   | { kind: "attach"; request: ConnectRequest };
 
 export type BackendOwnership = "none" | "owned_local" | "attached";

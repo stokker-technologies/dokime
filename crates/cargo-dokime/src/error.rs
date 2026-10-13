@@ -38,15 +38,13 @@ pub enum Error {
     #[error(transparent)]
     Packaging(dokime_packaging::Error),
     #[error(transparent)]
-    Grpc(#[from] tonic::Status),
-    #[error(transparent)]
-    Transport(#[from] tonic::transport::Error),
+    Client(#[from] dokime_client::Error),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
-    Bundle(#[from] harmos::plugin::Error),
+    Bundle(#[from] harmos::plugin::bundle::Error),
 }
 
 /* === Traits === */

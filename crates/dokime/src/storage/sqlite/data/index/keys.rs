@@ -18,7 +18,10 @@ use std::mem::size_of;
 
 // Third Party Imports
 use harmos::{
-    schema::{Cardinality, Event, Field, Kind, PathElement, Scalar, Validator},
+    schema::{
+        Cardinality, Event, PathElement, Scalar, Validator,
+        graph::{Field, Kind, Schema},
+    },
     storage::{ObjectColumn, ObjectScalar, ObjectScalarKind},
 };
 use prost::encoding::{DecodeContext, WireType, decode_key, decode_varint, skip_field};
@@ -72,37 +75,41 @@ enum Value<'a> {
 /* === Implementations === */
 impl Decoder {
     pub(in crate::storage::sqlite::data) fn construction_bytes(
-        fields: &[Field],
+        schema: &Schema,
         encoding: harmos::storage::PayloadEncoding,
     ) -> Result<usize, Error> {
         match encoding {
             harmos::storage::PayloadEncoding::ProtobufV1 => Ok(0),
-            harmos::storage::PayloadEncoding::PostcardV1 => {
-                Validator::construction_memory_bytes(fields).map_err(|error| {
-                    Error::Runtime(harmos::Error::backend(
-                        "budget Postcard scalar schema",
-                        harmos::BackendFailure::Permanent,
-                        error,
-                    ))
-                })
-            }
+            harmos::storage::PayloadEncoding::PostcardV1 => Validator::construction_memory_bytes(
+                schema,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .map_err(|error| {
+                Error::Runtime(harmos::Error::backend(
+                    "budget Postcard scalar schema",
+                    harmos::BackendFailure::Permanent,
+                    error,
+                ))
+            }),
         }
     }
 
     pub(in crate::storage::sqlite::data) fn new(
-        fields: &[Field],
+        schema: &Schema,
         encoding: harmos::storage::PayloadEncoding,
     ) -> Result<Self, Error> {
         match encoding {
             harmos::storage::PayloadEncoding::ProtobufV1 => Ok(Self::Protobuf),
             harmos::storage::PayloadEncoding::PostcardV1 => {
-                let validator = Validator::new(fields).map_err(|error| {
-                    Error::Runtime(harmos::Error::backend(
-                        "compile Postcard scalar schema",
-                        harmos::BackendFailure::Permanent,
-                        error,
-                    ))
-                })?;
+                let validator =
+                    Validator::from_schema(schema, &harmos::config::SchemaSettings::default())
+                        .map_err(|error| {
+                            Error::Runtime(harmos::Error::backend(
+                                "compile Postcard scalar schema",
+                                harmos::BackendFailure::Permanent,
+                                error,
+                            ))
+                        })?;
                 Ok(Self::Postcard(validator))
             }
         }

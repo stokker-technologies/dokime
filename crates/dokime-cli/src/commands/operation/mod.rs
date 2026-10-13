@@ -10,6 +10,7 @@
 /* === Modules === */
 mod call;
 mod list;
+mod show;
 
 /* === Re-Exports === */
 
@@ -34,7 +35,9 @@ mod list;
 pub(crate) enum Command {
     #[command(about = "List Available Operations And Their Request Contracts.")]
     List(list::Args),
-    #[command(about = "Validate Local JSON And Invoke An Operation Once.")]
+    #[command(about = "Show Live Provider Contracts For An Operation.")]
+    Show(show::Args),
+    #[command(about = "Call A Discovered Provider And Read Its Items And Completion.")]
     Call(call::Args),
 }
 
@@ -46,6 +49,7 @@ pub(crate) enum Command {
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::List(args) => list::run(args).await,
+        Command::Show(args) => show::run(args).await,
         Command::Call(args) => call::run(args).await,
     }
 }

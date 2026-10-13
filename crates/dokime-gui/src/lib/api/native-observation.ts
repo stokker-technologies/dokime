@@ -13,32 +13,12 @@
 
 import { defaultBrand } from "@/lib/brand";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type DiagnosticCheckStatus,
-  DiagnosticCheckStatusSchema,
-  type DiagnosticFileFormat,
-  DiagnosticFileFormatSchema,
-  type DiagnosticPathKey,
-  DiagnosticPathKeySchema,
-  type DiagnosticPathScope,
-  DiagnosticPathScopeSchema,
-  type InstalledPluginPhase,
-  InstalledPluginPhaseSchema,
-  type DiagnosticsResponse as NativeDiagnosticsResponse,
-  type StartupDoctorCheckKey,
-  StartupDoctorCheckKeySchema,
-} from "@/lib/rpc/generated/dokime/v1/backend_pb";
-import type {
-  Cursor,
-  EvidenceScope,
-  TraceabilitySnapshot as NativeTraceabilitySnapshot,
-} from "@/lib/rpc/generated/dokime/v1/common_pb";
-import { CycleStatus, ResultStatus } from "@/lib/rpc/generated/dokime/v1/execution_pb";
-import type {
-  ExecutionProgressFrame,
-  RuntimeShellSnapshot,
-  RuntimeStateFrame,
-} from "@/lib/rpc/generated/dokime/v1/observation_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+export type RuntimeStateFrame = Wire<
+  Awaited<ReturnType<typeof rpc.observationWatchRuntime>> extends NativeStream<infer Frame>
+    ? Frame
+    : never
+>;
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import { traceabilitySnapshotFromItems } from "@/lib/traceability";
 import type {
@@ -62,6 +42,35 @@ import {
   safeNumber,
   timestampIso,
 } from "./native-values";
+
+/* === Types === */
+
+type RuntimeShellSnapshot = Wire<Awaited<ReturnType<typeof rpc.observationGetRuntimeShell>>>;
+type ExecutionProgressFrame = Wire<
+  Awaited<ReturnType<typeof rpc.observationWatchExecutionProgress>> extends NativeStream<
+    infer Frame
+  >
+    ? Frame
+    : never
+>;
+type NativeTraceabilitySnapshot = Wire<
+  Awaited<ReturnType<typeof rpc.observationGetTraceability>>["snapshots"][number]
+>;
+type Cursor = NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["cursor"]>;
+type EvidenceScope = Wire<
+  NonNullable<Parameters<typeof rpc.observationGetTraceability>[1]["scope"]>
+>;
+type NativeDiagnosticsResponse = Wire<Awaited<ReturnType<typeof rpc.backendGetDiagnostics>>>;
+type DiagnosticRuntime = NonNullable<NativeDiagnosticsResponse["runtime"]>;
+type DiagnosticCheckStatus = NonNullable<DiagnosticRuntime["startupDoctor"]>["status"];
+type StartupDoctorCheckKey = NonNullable<
+  DiagnosticRuntime["startupDoctor"]
+>["checks"][number]["key"];
+type DiagnosticPathKey = DiagnosticRuntime["pathConventions"][number]["key"];
+type DiagnosticPathScope = DiagnosticRuntime["pathConventions"][number]["scope"];
+type DiagnosticFileFormat = DiagnosticRuntime["pathConventions"][number]["format"];
+type InstalledPluginPhase = DiagnosticRuntime["installedPluginErrors"][number]["phase"];
+type CycleStatus = RuntimeShellSnapshot["cycleSummaries"][number]["status"];
 
 /* === Runtime shell === */
 
@@ -577,18 +586,18 @@ function mapDiagnostics(response: NativeDiagnosticsResponse): DiagnosticsRespons
 /* === Private mapping === */
 
 function mapRunStatus(status?: CycleStatus): RunStatus {
-  switch (status) {
-    case CycleStatus.RUNNING:
+  switch (status?.HarmosVariant.case) {
+    case "Running":
       return "running";
-    case CycleStatus.PAUSED:
+    case "Paused":
       return "paused";
-    case CycleStatus.STOPPING:
+    case "Stopping":
       return "stopping";
-    case CycleStatus.COMPLETED:
+    case "Completed":
       return "completed";
-    case CycleStatus.FAILED:
+    case "Failed":
       return "failed";
-    case CycleStatus.STOPPED:
+    case "Stopped":
       return "stopped";
     default:
       return "idle";
@@ -596,13 +605,9 @@ function mapRunStatus(status?: CycleStatus): RunStatus {
 }
 
 function isTerminalCycle(status: CycleStatus): boolean {
-  return [
-    CycleStatus.COMPLETED,
-    CycleStatus.FAILED,
-    CycleStatus.BLOCKED,
-    CycleStatus.STOPPED,
-    CycleStatus.CLEARED,
-  ].includes(status);
+  return ["Completed", "Failed", "Blocked", "Stopped", "Cleared"].includes(
+    status?.HarmosVariant.case ?? "",
+  );
 }
 
 function mapResult(
@@ -611,14 +616,14 @@ function mapResult(
 ): ExecutionResultSummary {
   return {
     outcome:
-      result.status === ResultStatus.PASSED
+      result.status?.HarmosVariant.case === "Passed"
         ? "completed"
-        : result.status === ResultStatus.FAILED
+        : result.status?.HarmosVariant.case === "Failed"
           ? "failed"
-          : result.status === ResultStatus.BLOCKED
+          : result.status?.HarmosVariant.case === "Blocked"
             ? "unknown"
             : "unknown",
-    headline: result.status === ResultStatus.PASSED ? "passed" : "failed",
+    headline: result.status?.HarmosVariant.case === "Passed" ? "passed" : "failed",
     warnings: [],
     evidence: [
       {
@@ -652,11 +657,11 @@ function revisions(revision: number): HubLiveState["revisions"] {
 }
 
 function mapDiagnosticStatus(value?: DiagnosticCheckStatus): "ok" | "warning" | "failed" {
-  return enumTail(DiagnosticCheckStatusSchema, value, "ok");
+  return enumTail(undefined, value, "ok");
 }
 
 function mapStartupKey(value: StartupDoctorCheckKey): "storage_root" | "shutdown_state" {
-  return enumTail(StartupDoctorCheckKeySchema, value, "storage_root");
+  return enumTail(undefined, value, "storage_root");
 }
 
 function mapPathKey(
@@ -668,15 +673,15 @@ function mapPathKey(
   | "collect_bundle"
   | "cycle_log_pattern"
   | "execution_log_pattern" {
-  return enumTail(DiagnosticPathKeySchema, value, "hub_log");
+  return enumTail(undefined, value, "hub_log");
 }
 
 function mapPathScope(value: DiagnosticPathScope): "root" | "cycle_pattern" | "execution_pattern" {
-  return enumTail(DiagnosticPathScopeSchema, value, "root");
+  return enumTail(undefined, value, "root");
 }
 
 function mapPathFormat(value: DiagnosticFileFormat): "json" | "jsonl" | "zip" {
-  return enumTail(DiagnosticFileFormatSchema, value, "json");
+  return enumTail(undefined, value, "json");
 }
 
 function mapArtifactPhase(
@@ -690,5 +695,5 @@ function mapArtifactPhase(
   | "run"
   | "finalize"
   | "interrupt" {
-  return enumTail(InstalledPluginPhaseSchema, value, "entrypoint");
+  return enumTail(undefined, value, "entrypoint");
 }

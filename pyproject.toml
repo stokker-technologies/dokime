@@ -9,25 +9,20 @@
 [project]
 name = "dokime-rust-workspace"
 version = "0.1.0"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.13,<3.16"
 dependencies = []
 
 [dependency-groups]
 test = ["grpcio>=1.84.0,<2", "pytest==9.1.1", "pytest-cov==7.1.0", "pytest-timeout==2.4.0"]
-bindings = ["grpcio-tools==1.84.0"]
 dev = [
-  "dokime[examples]",
+  "dokime",
   "dokime-tools",
-  "git-cliff",
-  "maturin==1.15.0",
-  "mypy==2.3.1",
-  "pyright==1.1.410",
-  "pytest",
-  "pytest-cov",
-  # 0.16 enables new default lints (import sorting, ASYNC251, ...) that
-  # produce a repo-wide diff on crates/dokime-python; pinned until that
-  # migration happens on its own.
-  "ruff==0.15.15",
+  "git-cliff==2.14.2",
+  "mypy==2.4.0",
+  "pyright==1.1.414",
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "ruff==0.17.0",
 ]
 
 [tool.uv]
@@ -35,7 +30,7 @@ package = false
 system-certs = true
 
 [tool.uv.workspace]
-members = ["crates/dokime-python", "tools/python"]
+members = ["packages/dokime", "tools/python"]
 
 [[tool.uv.index]]
 name = "pypi"

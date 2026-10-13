@@ -17,8 +17,10 @@ use std::{num::NonZeroUsize, ops::Deref, sync::Arc};
 // Third Party Imports
 use harmos::MemorySize;
 use harmos::storage::{
-    QueryOptions, QueryReplay, QueryValue, ReadLimits, RecordQuery, RecordQueryResult,
-    SharedQueryValue, StorageView, StoredRecord,
+    QueryOptions, QueryReplay, QueryValue, ReadLimits, RecordClause, RecordFilter, RecordQuery,
+    RecordQueryResult, SharedQueryValue, StorageView, StoredRecord,
+    frame::{Compare, Expr, Predicate, ScalarField, ScalarPath},
+    reduce::{ScalarKind, ScalarValue},
 };
 // Local Imports
 use super::{FRAME_BYTES, Source, error};
@@ -109,6 +111,113 @@ impl Source {
             ..QueryOptions::default()
         };
         query
+    }
+
+    pub(crate) async fn saved_filtered_records<T: MemorySize>(
+        &self,
+        state_manager: &crate::app::StateManager,
+        through: u64,
+        mut filter: RecordFilter,
+        project: impl FnOnce(&[QueryValue<Vec<RecordEntry>>], NonZeroUsize) -> harmos::Result<T>,
+    ) -> Result<T> {
+        self.wait_through(state_manager, through).await?;
+        filter.check()?;
+        let predicates = filter
+            .clauses
+            .iter()
+            .map(|clause| clause.predicates.len())
+            .sum::<usize>();
+        if predicates
+            .saturating_mul(2)
+            .saturating_add(filter.clauses.len().saturating_mul(3))
+            > 64
+            || filter.columns.len() > 62
+        {
+            return Err(harmos::Error::ResourceExhausted {
+                resource: "record view frontier predicates",
+            }
+            .into());
+        }
+        let epoch_column = filter.columns.len();
+        filter.columns.push(ScalarField {
+            path: ScalarPath::Scope,
+            kind: ScalarKind::Text,
+        });
+        let sequence_column = filter.columns.len();
+        filter.columns.push(ScalarField {
+            path: ScalarPath::Payload(vec![
+                harmos::Identifier::new("sequence").expect("constant record sequence"),
+            ]),
+            kind: ScalarKind::Unsigned,
+        });
+        let original = std::mem::take(&mut filter.clauses);
+        for clause in original {
+            let mut prior = clause.predicates.clone();
+            prior.push(Predicate::Compare {
+                expr: Expr::Col(epoch_column),
+                compare: Compare::Ne,
+                value: ScalarValue::Text(self.epoch.as_str().to_owned()),
+            });
+            filter.clauses.push(RecordClause { predicates: prior });
+            let mut current = clause.predicates;
+            current.push(Predicate::Compare {
+                expr: Expr::Col(epoch_column),
+                compare: Compare::Eq,
+                value: ScalarValue::Text(self.epoch.as_str().to_owned()),
+            });
+            current.push(Predicate::Compare {
+                expr: Expr::Col(sequence_column),
+                compare: Compare::Le,
+                value: ScalarValue::Unsigned(through),
+            });
+            filter.clauses.push(RecordClause {
+                predicates: current,
+            });
+        }
+        filter.check()?;
+
+        // Save One Explicit Accepted Cut; Never Follow A Filtered Live Tail.
+        let boundary_view = self.storage.view_with_limits(self.reads.execution).await?;
+        let cut = boundary_view.accepted()?;
+        drop(boundary_view);
+        self.storage.flush_until(&cut).await?;
+        self.healthy(state_manager)?;
+        let view = self.storage.view_with_limits(self.reads.execution).await?;
+        if !view.saved()?.covers(&cut)? {
+            return Err(error(
+                "filtered record cut is not saved in its original history",
+            ));
+        }
+        let computation = view.begin_computation()?;
+        let mut query = self.record_query(None, 0);
+        query.options.through = Some(cut.sequence);
+        query.filter = Some(filter);
+        let mut reader = self.storage.query_in(&view, query)?;
+        reader.retain_view()?;
+        let mut pages = Vec::new();
+        while let Some(page) = reader
+            .next_page_projected(self.reads.decoded_bytes, project_saved_records)
+            .await?
+        {
+            computation.check()?;
+            pages.try_reserve(1).map_err(|_| exhausted())?;
+            if pages
+                .capacity()
+                .saturating_mul(std::mem::size_of::<QueryValue<Vec<RecordEntry>>>())
+                > self.reads.decoded_bytes.get()
+            {
+                return Err(exhausted().into());
+            }
+            // Retained Page Claims Stay Charged Until The View Frame Is Built.
+            pages.push(page);
+        }
+        computation.check()?;
+        let output = project(&pages, self.reads.decoded_bytes)?;
+        if output.memory_size() > self.reads.decoded_bytes.get() {
+            return Err(exhausted().into());
+        }
+        computation.check()?;
+        Ok(output)
     }
 
     pub(crate) async fn history(
@@ -415,6 +524,41 @@ fn seek_saved(
         selected.position = row.position.sequence;
     }
     Ok(selected)
+}
+
+fn project_saved_records(
+    rows: &[StoredRecord<records::RecordRow>],
+    allowance: NonZeroUsize,
+) -> harmos::Result<Vec<RecordEntry>> {
+    let slots = rows
+        .len()
+        .checked_mul(std::mem::size_of::<RecordEntry>())
+        .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Vec<RecordEntry>>()))
+        .ok_or_else(exhausted)?;
+    let memory = rows.iter().try_fold(slots, |bytes, row| {
+        bytes
+            .checked_add(construction_memory(&row.payload)?)
+            .ok_or_else(exhausted)
+    })?;
+    if memory > allowance.get() {
+        return Err(exhausted());
+    }
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(rows.len())
+        .map_err(|_| exhausted())?;
+    if output.capacity() != rows.len() {
+        return Err(exhausted());
+    }
+    for row in rows {
+        output.push(
+            row.payload
+                .clone()
+                .into_entry(allowance)
+                .map_err(decoding_error)?,
+        );
+    }
+    Ok(output)
 }
 
 fn project_records(

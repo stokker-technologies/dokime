@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeSet;
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleStatus, ExecutionStatus, StepRecord, StepStatus};
@@ -133,7 +133,7 @@ impl Transaction<RuntimeState> for UpdateExecutionPhase {
         update_execution_phase(&mut state.clone(), self.clone()).map_err(|error| error.to_string())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         self.start_records(state).collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {

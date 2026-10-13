@@ -15,11 +15,12 @@
 import pathlib
 import re
 import subprocess
-import tomllib
 
 # Third Party Imports
 
 # Local Imports
+# isort: split
+from ..ci.bootstrap import harmos_pin
 
 # Type Checking Imports
 
@@ -38,13 +39,7 @@ MANIFEST = pathlib.Path(__file__).resolve().parents[5] / "Cargo.toml"
 
 
 def main() -> None:
-    dependency = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))["workspace"][
-        "dependencies"
-    ]["harmos"]
-    if dependency.get("git") != REPOSITORY or not re.fullmatch(
-        r"[0-9a-f]{40}", dependency.get("rev", "")
-    ):
-        raise SystemExit("Cargo.toml must pin a full Harmos Git revision")
+    dependency = harmos_pin(MANIFEST.parent)
 
     tip = subprocess.run(
         ["git", "ls-remote", REPOSITORY, "refs/heads/dev"],
@@ -58,10 +53,10 @@ def main() -> None:
 
     source = MANIFEST.read_text(encoding="utf-8")
     previous = dependency["rev"]
-    pattern = rf'(harmos(?:-signal)? = \{{[^\n]*rev = ")({previous})(")'
+    pattern = rf'(harmos(?:-contract|-signal)? = \{{[^\n]*rev = ")({previous})(")'
     updated, count = re.subn(pattern, rf"\g<1>{tip}\g<3>", source)
-    if count != 2:
-        raise SystemExit("Could not locate the pinned Harmos dependency")
+    if count != 3:
+        raise SystemExit("Could not locate all three pinned Harmos dependencies")
 
     MANIFEST.write_text(updated, encoding="utf-8")
     subprocess.run(["cargo", "update", "-p", "harmos", "--precise", tip], check=True)

@@ -6,7 +6,7 @@
 //
 // ***
 
-// Real Linux WebView ownership gate for the redesigned shell. No HTTP facade,
+// Real Native WebView Gate For The Installed Windows And Linux Shell. No HTTP facade,
 // no mocked domain IPC, no browser fixtures.
 //
 // The gate starts a throwaway backend with the Mini charger testbench plugin,
@@ -27,6 +27,13 @@
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
 //   g. report       Write Report, then the written file loaded in this WebView
 //   h. touch        the same surfaces at touch density: collapsed rail, Cases sheet
+//
+// Windows Requires An Interactive Disposable Account, WebView2 And A Version-
+// Matched Microsoft Edge Driver. DOKIME_E2E_INSTALLER Selects The Native NSIS
+// Artifact; DOKIME_E2E_{INSTALLER,SHELL,BACKEND,CLI}_SHA256 Bind Its Installed
+// Executables To The Candidate. DOKIME_E2E_PLUGIN And DOKIME_E2E_PLUGIN_SHA256
+// Select And Verify Its Prepared Mini Fixture.
+// The Optional --junit Path Is Supplied By The Repository Evidence Runner.
 //
 // Two deliberate substitutions, both of the operating system rather than of the
 // product:
@@ -52,21 +59,23 @@ import { execFile, spawn } from "node:child_process";
 
 import { once } from "node:events";
 
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 
-import { mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream, existsSync } from "node:fs";
+
+import { copyFile, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
 
 import http from "node:http";
 
 import net from "node:net";
 
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { setTimeout as delay } from "node:timers/promises";
 
 import { fileURLToPath } from "node:url";
 
-import { promisify } from "node:util";
+import { parseArgs, promisify } from "node:util";
 
 // Third Party Imports
 
@@ -81,9 +90,9 @@ const workspace = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
 
 /** The dev-built binaries and the bundle the gate drives, all overridable. */
-const backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(targetRoot, "debug/dokime");
+let backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(targetRoot, "debug/dokime-server");
 
-const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
+let shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
 
 const pluginBundle =
   process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/mini-sidecar.dokime");
@@ -145,6 +154,9 @@ const selectedJourneys = new Set(
  */
 const DOCUMENT_SLICE_CHARS = 512 * 1024;
 
+const { values: options } = parseArgs({ options: { junit: { type: "string" } } });
+const windows = process.platform === "win32";
+const results = [];
 const failures = [];
 const passedJourneys = [];
 
@@ -155,11 +167,17 @@ let webviewGone = null;
 
 let session;
 
+let driverProcess;
+
 let backend;
 
 let work;
 
 let evidence;
+
+let installation;
+
+let installerAttempted = false;
 
 /* === Types === */
 
@@ -228,13 +246,14 @@ function hasText(body, expected) {
   return normalize(body).toLowerCase().includes(normalize(expected).toLowerCase());
 }
 
-async function startBackend(work, evidence) {
-  const port = await unusedPort();
-  const log = await open(join(evidence, "backend.log"), "w");
+async function startBackend(work, evidence, endpoint, label = "backend") {
+  const port = endpoint ? Number(new URL(endpoint).port) : await unusedPort();
+  const log = await open(join(evidence, `${label}.log`), "w");
   const child = spawn(
     backendBinary,
     [
-      "serve",
+      "--shutdown-stdin",
+      ...(windows ? ["--allowed-origin", "http://tauri.localhost"] : []),
       "--plugin",
       pluginBundle,
       "--port",
@@ -247,16 +266,33 @@ async function startBackend(work, evidence) {
     {
       cwd: work,
       detached: true,
-      env: { ...process.env, DOKIME_TEST_HUB_OPERATOR: "Gate Operator", HOME: work },
-      stdio: ["ignore", log.fd, log.fd],
+      env: {
+        ...process.env,
+        DOKIME_TEST_HUB_OPERATOR: "Gate Operator",
+        ...(!windows ? { HOME: work } : {}),
+      },
+      stdio: ["pipe", log.fd, log.fd],
     },
   );
-  await until("backend listening", () => listening(`http://127.0.0.1:${port}`), 180000);
-  return { child, endpoint: `http://127.0.0.1:${port}`, log };
+  child.on("error", (error) => {
+    child.startupError = error;
+  });
+  backend = { child, endpoint: `http://127.0.0.1:${port}`, log };
+  await until(
+    "backend listening",
+    () => {
+      if (child.startupError) throw child.startupError;
+      if (child.exitCode !== null)
+        throw new Error(`Native backend exited during startup: ${child.exitCode}`);
+      return listening(backend.endpoint);
+    },
+    180000,
+  );
+  return backend;
 }
 
 /**
- * One WebKitWebDriver session over one attached shell.
+ * One Native WebDriver Session Over One Attached Shell.
  *
  * Every helper here is user-like: navigate, read text, click a named control,
  * type into a named field. The session keeps one request in flight because
@@ -270,32 +306,44 @@ async function startSession(work, endpoint, evidence) {
     await mkdir(join(home, directory), { recursive: true });
   }
   await mkdir(downloads, { recursive: true });
-  await writeFile(join(home, "bin", "xdg-open"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-  /* `desktop_save_diagnostics_bundle` resolves the Downloads folder through
-     Tauri's path API, which reads xdg-user-dirs rather than the
-     `XDG_DOWNLOAD_DIR` environment variable. Without this file the throwaway
-     home has no Downloads folder and the command fails before it writes. */
-  await writeFile(
-    join(home, "config", "user-dirs.dirs"),
-    `XDG_DOWNLOAD_DIR="${downloads}"\nXDG_DOCUMENTS_DIR="${downloads}"\n`,
-  );
+  if (!windows) {
+    await writeFile(join(home, "bin", "xdg-open"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    /* `desktop_save_diagnostics_bundle` resolves the Downloads folder through
+       Tauri's path API, which reads xdg-user-dirs rather than the
+       `XDG_DOWNLOAD_DIR` environment variable. Without this file the throwaway
+       home has no Downloads folder and the command fails before it writes. */
+    await writeFile(
+      join(home, "config", "user-dirs.dirs"),
+      `XDG_DOWNLOAD_DIR="${downloads}"\nXDG_DOCUMENTS_DIR="${downloads}"\n`,
+    );
+  }
 
   const port = await unusedPort();
-  const webdriver = spawn("WebKitWebDriver", ["--host=127.0.0.1", `--port=${port}`], {
+  const driver =
+    process.env.DOKIME_E2E_DRIVER ?? (windows ? "msedgedriver.exe" : "WebKitWebDriver");
+  driverProcess = spawn(driver, ["--host=127.0.0.1", `--port=${port}`], {
     detached: true,
     env: {
       ...process.env,
-      HOME: home,
-      PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
       TAURI_WEBVIEW_AUTOMATION: "true",
-      XDG_CACHE_HOME: join(home, "cache"),
-      XDG_CONFIG_HOME: join(home, "config"),
-      XDG_DATA_HOME: join(home, "data"),
-      XDG_DOWNLOAD_DIR: downloads,
-      XDG_STATE_HOME: join(home, "state"),
+      DOKIME_APPLICATION_ROOT: join(home, "application"),
+      ...(windows
+        ? {
+            WEBVIEW2_USER_DATA_FOLDER: join(home, "webview"),
+          }
+        : {
+            HOME: home,
+            PATH: `${join(home, "bin")}:${process.env.PATH ?? ""}`,
+            XDG_CACHE_HOME: join(home, "cache"),
+            XDG_CONFIG_HOME: join(home, "config"),
+            XDG_DATA_HOME: join(home, "data"),
+            XDG_DOWNLOAD_DIR: downloads,
+            XDG_STATE_HOME: join(home, "state"),
+          }),
     },
     stdio: ["ignore", "ignore", "inherit"],
   });
+  const webdriver = driverProcess;
   const base = `http://127.0.0.1:${port}`;
 
   async function request(method, path, body) {
@@ -316,21 +364,34 @@ async function startSession(work, endpoint, evidence) {
     return result;
   }
 
-  await until("WebKitWebDriver startup", async () => {
-    if (webdriver.exitCode !== null) throw new Error("WebKitWebDriver exited before startup");
+  webdriver.on("error", (error) => {
+    webdriver.startupError = error;
+  });
+  await until("native WebDriver startup", async () => {
+    if (webdriver.startupError) throw webdriver.startupError;
+    if (webdriver.exitCode !== null) throw new Error("Native WebDriver exited before startup");
     await request("GET", "/status");
     return true;
   });
 
   const created = await request("POST", "/session", {
     capabilities: {
-      alwaysMatch: {
-        browserName: "wry",
-        "webkitgtk:browserOptions": {
-          args: ["--endpoint", endpoint],
-          binary: resolve(shellBinary),
-        },
-      },
+      alwaysMatch: windows
+        ? {
+            browserName: "webview2",
+            "ms:edgeChromium": true,
+            "ms:edgeOptions": {
+              binary: resolve(shellBinary),
+              args: endpoint ? ["--endpoint", endpoint] : [],
+            },
+          }
+        : {
+            browserName: "wry",
+            "webkitgtk:browserOptions": {
+              args: endpoint ? ["--endpoint", endpoint] : [],
+              binary: resolve(shellBinary),
+            },
+          },
     },
   });
 
@@ -603,6 +664,8 @@ async function installSaveTap(session) {
   const state = await session.execute(`
     globalThis.__dokimeSavedDocuments = globalThis.__dokimeSavedDocuments ?? [];
     globalThis.__dokimeInvokes = globalThis.__dokimeInvokes ?? [];
+    globalThis.__dokimeStreams = globalThis.__dokimeStreams ?? [];
+    globalThis.__dokimeStreamReads = globalThis.__dokimeStreamReads ?? 0;
     if (!globalThis.fetch.__dokimeTap) {
       const original = globalThis.fetch.bind(globalThis);
       const saved = globalThis.__dokimeSavedDocuments;
@@ -614,7 +677,32 @@ async function installSaveTap(session) {
       const shim = function (input, init) {
         const url = String(typeof input === 'string' ? input : (input && input.url) || '');
         const command = decodeURIComponent(url.split('/').pop() || '');
-        if (!url.includes('ipc')) return original(input, init);
+        if (!url.includes('ipc')) return original(input, init).then((response) => {
+          if (!response.body || !response.headers.get('content-type')?.startsWith('application/grpc-web')) return response;
+          const streams = globalThis.__dokimeStreams;
+          if (streams.length >= 128) streams.shift();
+          const entry = { path: new URL(url, location.href).pathname, reads: 0, bytes: 0, done: false };
+          streams.push(entry);
+          const getReader = response.body.getReader.bind(response.body);
+          response.body.getReader = (...args) => {
+            const reader = getReader(...args);
+            const read = reader.read.bind(reader);
+            reader.read = async (...args) => {
+              const result = await read(...args);
+              entry.done = result.done;
+              if (result.value) {
+                entry.reads += 1;
+                entry.bytes += result.value.byteLength;
+                globalThis.__dokimeStreamReads += 1;
+              }
+              return result;
+            };
+            const cancel = reader.cancel.bind(reader);
+            reader.cancel = (...args) => { entry.done = true; return cancel(...args); };
+            return reader;
+          };
+          return response;
+        });
         if (ledger.length >= 2000) ledger.shift();
         const entry = { command: command, at: Date.now(), state: 'pending' };
         ledger.push(entry);
@@ -645,6 +733,12 @@ async function installSaveTap(session) {
           function (value) {
             entry.state = 'settled';
             entry.ms = Date.now() - entry.at;
+            if (command === 'desktop_save_diagnostics_bundle' && value.headers.get('Tauri-Response') === 'ok') {
+              return value.clone().json().then((path) => {
+                globalThis.__dokimeDiagnosticsPath = path;
+                return value;
+              });
+            }
             return value;
           },
           function (error) {
@@ -734,6 +828,7 @@ async function drainInvokeLedger(session) {
       }
       return {
         recorded: entries.length,
+        streams: globalThis.__dokimeStreams ?? [],
         commands: [...rows.values()].sort((left, right) => right.calls - left.calls),
       };
     `)
@@ -1189,6 +1284,8 @@ async function libraryJourney(session) {
  */
 async function cycleJourney(session, cycleId) {
   await session.goto(`/cycles/${cycleId}`);
+  const beforeReads = await session.execute("return globalThis.__dokimeStreamReads ?? 0");
+  let listened = false;
   const sidebar = await until(
     "the cycle's case rows in the sidebar",
     async () => {
@@ -1217,6 +1314,16 @@ async function cycleJourney(session, cycleId) {
     );
   }
 
+  // Mount The Selected Execution Listener After Installing The Reader Observation.
+  await session.execute(
+    `
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => candidate.innerText.includes(arguments[0]));
+    if (!row) throw new Error('The measuring case is absent');
+    row.querySelector('button').click();
+  `,
+    [PROTECTION_TEMPLATE],
+  );
   const header = await session.text();
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
   assert.ok(hasText(header, "Ready"), "A materialized cycle must render its Ready status");
@@ -1288,10 +1395,28 @@ async function cycleJourney(session, cycleId) {
     "cycle completion",
     async () => {
       const rows = await sidebarText(session);
-      if (/\b(Running|Waiting|Finalizing)\b/.test(rows)) return false;
+      if (/\b(Running|Waiting|Finalizing)\b/.test(rows)) {
+        listened ||= await session.execute(
+          `
+          return globalThis.__dokimeStreamReads > arguments[0]
+            && globalThis.__dokimeStreams.some((stream) => !stream.done && stream.reads >= 2);
+        `,
+          [beforeReads],
+        );
+        return false;
+      }
       return /\b(Passed|Failed|Blocked)\b/.test(rows);
     },
     300000,
+  );
+
+  assert.ok(
+    listened,
+    "the native application consumes live gRPC-web updates while the execution is active",
+  );
+  await session.dump(
+    `listening-${cycleId}`,
+    await session.execute("return globalThis.__dokimeStreams"),
   );
 
   /* Selecting a case puts the case and its latest attempt in the URL. */
@@ -1810,8 +1935,8 @@ async function settingsJourney(session, notes, work) {
     "diagnostics bundle saved",
     async () => {
       announcement = (await toastText(session)) || announcement;
-      const listed = await readdir(session.downloads);
-      return listed.find((name) => /^dokime-diagnostics-.*\.zip$/.test(name)) ?? null;
+      const path = await session.execute("return globalThis.__dokimeDiagnosticsPath ?? null");
+      return path && existsSync(path) ? path : null;
     },
     120000,
   ).catch((failure) => {
@@ -1819,7 +1944,9 @@ async function settingsJourney(session, notes, work) {
       `${failure.message}. The application said: ${announcement || "nothing at all"}`,
     );
   });
-  assert.match(bundle, /^dokime-diagnostics-.*\.zip$/);
+  assert.match(basename(bundle), /^dokime-diagnostics-.*\.zip$/);
+  const retained = join(session.downloads, basename(bundle));
+  if (resolve(bundle) !== resolve(retained)) await copyFile(bundle, retained);
 }
 
 /**
@@ -1874,7 +2001,7 @@ async function reportJourney(session, cycleId) {
   const served = `http://127.0.0.1:${server.address().port}/report.html`;
   let dom = "";
   try {
-    const chrome = process.env.DOKIME_E2E_CHROME ?? "google-chrome";
+    const chrome = process.env.DOKIME_E2E_CHROME ?? (windows ? "msedge.exe" : "google-chrome");
     /* Headless Chrome's virtual time budget is wall-clock blind: under build
        load the bundle may still be hydrating when the budget runs out, so the
        render is retried with a growing budget until the page bar has drawn. */
@@ -1984,20 +2111,24 @@ async function touchJourney(session, cycleId) {
  * filter because everything after them addresses what they establish.
  */
 async function journey(name, run) {
+  const started = Date.now();
   if (selectedJourneys.size && !selectedJourneys.has(name) && !REQUIRED_JOURNEYS.has(name)) {
     process.stdout.write(`\n== ${name}\n   skipped by DOKIME_E2E_JOURNEYS\n`);
+    results.push({ name, seconds: 0, skipped: "Excluded by the journey filter" });
     return { ok: true, skipped: true };
   }
   process.stdout.write(`\n== ${name}\n`);
   if (webviewGone) {
     const reason = `skipped: the WebView process exited during the ${webviewGone} journey`;
     failures.push({ kind: "failure", name, reason });
+    results.push({ name, seconds: 0, failure: reason });
     process.stdout.write(`   ${reason}\n`);
     return { ok: false };
   }
   try {
     const value = await run();
     passedJourneys.push(name);
+    results.push({ name, seconds: (Date.now() - started) / 1000 });
     process.stdout.write("   passed\n");
     return { ok: true, value };
   } catch (failure) {
@@ -2008,6 +2139,7 @@ async function journey(name, run) {
       webviewGone = name;
     }
     failures.push({ kind: "failure", name, reason: failure.message });
+    results.push({ name, seconds: (Date.now() - started) / 1000, failure: failure.message });
     process.stdout.write(`   FAILED: ${failure.message}\n`);
     if (session && !session.closed) {
       try {
@@ -2032,21 +2164,254 @@ async function journey(name, run) {
   }
 }
 
-function terminate(pid, signal = "SIGTERM") {
-  if (!pid) return;
+async function terminate(child, signal = "SIGTERM") {
+  if (!child?.pid || child.exitCode !== null || child.signalCode !== null) return;
+  if (windows) {
+    await promisify(execFile)("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"]);
+    return;
+  }
   try {
-    process.kill(-pid, signal);
-  } catch {
-    // The process group already exited.
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
   }
 }
 
-async function main() {
-  if (process.platform !== "linux") {
-    throw new Error("This gate requires Linux WebKitWebDriver.");
+async function sha256(path) {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return hash.digest("hex");
+}
+
+async function installWindowsCandidate() {
+  if (process.env.DOKIME_E2E_DISPOSABLE_WINDOWS !== "1") {
+    throw new Error(
+      "Installer acceptance requires a disposable interactive Windows account: set DOKIME_E2E_DISPOSABLE_WINDOWS=1 there.",
+    );
   }
-  if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+  if (configuredOrigin || process.env.DOKIME_E2E_SHELL || process.env.DOKIME_E2E_BACKEND) {
+    throw new Error(
+      "Windows acceptance drives the installed shell and backend with bundled frontend assets; development overrides are invalid.",
+    );
+  }
+  const installer = process.env.DOKIME_E2E_INSTALLER;
+  if (!installer || !existsSync(installer))
+    throw new Error("DOKIME_E2E_INSTALLER must name the candidate NSIS installer.");
+  const checks = [
+    ["installer", installer, process.env.DOKIME_E2E_INSTALLER_SHA256],
+    ["shell", join(work, "installation", "dokime-gui.exe"), process.env.DOKIME_E2E_SHELL_SHA256],
+    [
+      "backend",
+      join(work, "installation", "dokime-server.exe"),
+      process.env.DOKIME_E2E_BACKEND_SHA256,
+    ],
+    ["cli", join(work, "installation", "dokime.exe"), process.env.DOKIME_E2E_CLI_SHA256],
+  ];
+  for (const [label, , expected] of checks) {
+    if (!/^[a-f0-9]{64}$/.test(expected ?? ""))
+      throw new Error(`Missing candidate SHA-256 for ${label}.`);
+  }
+  if (
+    !process.env.DOKIME_E2E_PLUGIN ||
+    !/^[a-f0-9]{64}$/.test(process.env.DOKIME_E2E_PLUGIN_SHA256 ?? "")
+  ) {
+    throw new Error(
+      "Windows acceptance requires the candidate Mini fixture path and DOKIME_E2E_PLUGIN_SHA256.",
+    );
+  }
+  assert.equal(
+    await sha256(pluginBundle),
+    process.env.DOKIME_E2E_PLUGIN_SHA256,
+    "the fixture matches the selected candidate",
+  );
+  assert.equal(await sha256(installer), checks[0][2], "installer matches the selected candidate");
+  installation = join(work, "installation");
+  installerAttempted = true;
+  await promisify(execFile)(resolve(installer), ["/S", `/D=${installation}`], {
+    windowsVerbatimArguments: true,
+    timeout: 120000,
+  });
+  const hashes = {};
+  for (const [label, path, expected] of checks.slice(1)) {
+    hashes[label] = await sha256(path);
+    assert.equal(hashes[label], expected, `installed ${label} matches the selected candidate`);
+  }
+  shellBinary = checks[1][1];
+  backendBinary = checks[2][1];
+  await writeFile(
+    join(evidence, "installation.json"),
+    JSON.stringify(
+      {
+        installer: resolve(installer),
+        sha256: checks[0][2],
+        hashes,
+        plugin: { path: resolve(pluginBundle), sha256: process.env.DOKIME_E2E_PLUGIN_SHA256 },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function closeSession() {
+  if (!session) {
+    await terminate(driverProcess);
+    driverProcess = undefined;
+    return;
+  }
+  const owned = session;
+  await owned.close();
+  await owned.request("DELETE", "").catch((error) => {
+    if (!/invalid session id/.test(error.message)) throw error;
+  });
+  await terminate(owned.process);
+  driverProcess = undefined;
+  session = undefined;
+}
+
+async function stopBackend() {
+  if (!backend) return;
+  const owned = backend;
+  if (owned.child.startupError) throw owned.child.startupError;
+  owned.child.stdin.end();
+  const exited =
+    owned.child.exitCode === null
+      ? once(owned.child, "exit")
+      : Promise.resolve([owned.child.exitCode, owned.child.signalCode]);
+  const timer = new AbortController();
+  try {
+    const [code, signal] = await Promise.race([
+      exited,
+      delay(30000, undefined, { signal: timer.signal }).then(() => {
+        throw new Error("Native backend did not drain within its existing 30 second deadline");
+      }),
+    ]);
+    assert.equal(signal, null, "native backend drains without a forced signal");
+    assert.equal(code, 0, "native backend drains successfully");
+  } finally {
+    timer.abort();
+  }
+  await owned.log.close();
+  backend = undefined;
+}
+
+async function ownedStartupJourney() {
+  session = await startSession(work, undefined, evidence);
+  await session.clickNamed("button", "Start Local Backend");
+  await session.connected();
+  const status = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.equal(status.ownership, "owned_local", "the installed shell owns its companion backend");
+  assert.ok(status.connection?.endpoint, "the owned companion reports its negotiated endpoint");
+  assert.ok(await listening(status.connection.endpoint), "the installed companion is listening");
+  await session.screenshot("installed-owned-startup");
+  await closeSession();
+  await until(
+    "installed owned backend drains on window close",
+    async () => !(await listening(status.connection.endpoint)),
+    30000,
+  );
+  await writeFile(join(evidence, "owned-startup.json"), JSON.stringify(status, null, 2));
+}
+
+async function restartJourney() {
+  const previous = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.ok(
+    previous.connection?.backend?.epoch,
+    "the first native connection reports its backend epoch",
+  );
+  const endpoint = backend.endpoint;
+  await closeSession();
+  assert.ok(
+    await listening(endpoint),
+    "closing the attached installed shell leaves its backend alive",
+  );
+  await stopBackend();
+  backend = await startBackend(work, evidence, endpoint, "backend-restart");
+  session = await startSession(work, endpoint, evidence);
+  await session.connected();
+  const current = await session.executeAsync(`
+    const done = arguments[arguments.length - 1];
+    globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
+  `);
+  assert.ok(
+    current.connection?.backend?.epoch,
+    "the restarted native connection reports its backend epoch",
+  );
+  assert.notEqual(
+    current.connection.backend.epoch,
+    previous.connection.backend.epoch,
+    "the relaunched installed shell establishes the restarted backend epoch",
+  );
+  assert.equal(current.ownership, "attached");
+  await session.goto("/history");
+  await until(
+    "saved evidence survives native restart",
+    async () => (await session.findAll("css selector", "tbody tr")).length > 0,
+    60000,
+  );
+  await setDensity(session, densities.desktop);
+  const cycle = await libraryJourney(session);
+  await cycleJourney(session, cycle);
+  await session.screenshot("native-restart");
+}
+
+async function writeJunit() {
+  if (!options.junit) return;
+  const escapeXml = (value) =>
+    [...String(value)]
+      .filter((character) => {
+        const code = character.charCodeAt(0);
+        return code >= 32 || code === 9 || code === 10 || code === 13;
+      })
+      .join("")
+      .replace(
+        /[&<>"']/g,
+        (character) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character],
+      );
+  const cases = [...results];
+  for (const failure of failures) {
+    const existing = cases.find((result) => result.name === failure.name);
+    if (existing) existing.failure = failure.reason;
+    else cases.push({ name: failure.name, seconds: 0, failure: failure.reason });
+  }
+  const count = cases.filter((result) => result.failure).length;
+  const skipped = cases.filter((result) => result.skipped).length;
+  const seconds = cases.reduce((total, result) => total + result.seconds, 0);
+  const entries = cases
+    .map(
+      (result) =>
+        `<testcase classname="dokime.native.${process.platform}" name="${escapeXml(result.name)}" time="${result.seconds}">${result.failure ? `<failure message="${escapeXml(result.failure)}">${escapeXml(result.failure)}</failure>` : result.skipped ? `<skipped message="${escapeXml(result.skipped)}"/>` : ""}</testcase>`,
+    )
+    .join("\n");
+  await mkdir(dirname(resolve(options.junit)), { recursive: true });
+  await writeFile(
+    options.junit,
+    `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites><testsuite name="Native Desktop" tests="${cases.length}" failures="${count}" errors="0" skipped="${skipped}" time="${seconds}">${entries}</testsuite></testsuites>\n`,
+  );
+}
+
+async function main() {
+  if (!windows && process.platform !== "linux")
+    throw new Error("Native acceptance requires Windows WebView2 or Linux WebKitGTK.");
+  if (windows && selectedJourneys.size)
+    throw new Error("Installed Windows acceptance requires every maintained journey.");
+  if (!windows && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new Error("Driving the native WebView needs a running display session.");
+  }
+  await mkdir(targetRoot, { recursive: true });
+  evidence = await mkdtemp(join(targetRoot, "native-desktop-e2e-"));
+  work = await mkdtemp(join(targetRoot, "native-desktop-work-"));
+  process.stdout.write(`Evidence: ${evidence}\n`);
+  if (windows) {
+    const installed = await journey("installation", installWindowsCandidate);
+    if (!installed.ok) throw new Error("Windows installer acceptance failed");
   }
   for (const [label, path] of [
     ["the backend", backendBinary],
@@ -2054,14 +2419,13 @@ async function main() {
     ["the Mini charger plugin bundle", pluginBundle],
   ]) {
     if (!existsSync(path))
-      throw new Error(`Missing ${label} at ${path}. Run "mise run build:dev".`);
+      throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
   }
 
-  await mkdir(targetRoot, { recursive: true });
-  evidence = await mkdtemp(join(targetRoot, "native-desktop-e2e-"));
-  work = await mkdtemp(join(targetRoot, "native-desktop-work-"));
-  process.stdout.write(`Evidence: ${evidence}\n`);
-
+  if (windows) {
+    const owned = await journey("owned-startup", ownedStartupJourney);
+    if (!owned.ok) throw new Error("Installed Windows ownership acceptance failed");
+  }
   backend = await startBackend(work, evidence);
   session = await startSession(work, backend.endpoint, evidence);
   await sizeViewport(session, densities.desktop);
@@ -2121,6 +2485,7 @@ async function main() {
       "the session must name the endpoint it was attached to",
     );
   });
+  if (windows) await journey("restart", restartJourney);
 }
 
 /* === Entry Point === */
@@ -2131,16 +2496,49 @@ try {
   failures.push({ kind: "failure", name: "harness", reason: failure.message });
   process.stdout.write(`\nHarness failure: ${failure.message}\n`);
 } finally {
-  if (session) {
-    await session.close().catch(() => undefined);
-    await session.request("DELETE", "").catch(() => undefined);
-    terminate(session.process.pid);
+  for (const [name, cleanup] of [
+    ["shell shutdown", closeSession],
+    ["backend shutdown", stopBackend],
+  ]) {
+    try {
+      await cleanup();
+    } catch (error) {
+      failures.push({ kind: "failure", name, reason: error.message });
+    }
   }
-  if (backend) terminate(backend.child.pid);
-  await delay(1500);
-  if (session) terminate(session.process.pid, "SIGKILL");
-  if (backend) terminate(backend.child.pid, "SIGKILL");
-  if (work) await rm(work, { force: true, recursive: true }).catch(() => undefined);
+  if (driverProcess)
+    await terminate(driverProcess).catch((error) =>
+      failures.push({ kind: "failure", name: "shell cleanup", reason: error.message }),
+    );
+  if (backend) {
+    await terminate(backend.child).catch((error) =>
+      failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }),
+    );
+    await backend.log
+      .close()
+      .catch((error) =>
+        failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }),
+      );
+  }
+  if (installerAttempted) {
+    try {
+      const uninstallers = (await readdir(installation)).filter((name) =>
+        /^uninstall.*\.exe$/i.test(name),
+      );
+      assert.equal(uninstallers.length, 1, "the candidate installs its native uninstaller");
+      await promisify(execFile)(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
+        windowsVerbatimArguments: true,
+        timeout: 120000,
+      });
+    } catch (error) {
+      failures.push({ kind: "failure", name: "installer cleanup", reason: error.message });
+    }
+  }
+  if (work && !failures.length)
+    await rm(work, { force: true, recursive: true }).catch((error) =>
+      failures.push({ kind: "failure", name: "workspace cleanup", reason: error.message }),
+    );
+  await writeJunit();
 }
 
 for (const note of notes) process.stdout.write(`\nnote: ${note}\n`);
@@ -2162,5 +2560,6 @@ if (failures.length) {
 } else {
   process.stdout.write(`\nNative WebView: ${passedJourneys.join(", ")} passed.\n`);
   process.stdout.write(`Evidence: ${evidence}\n`);
-  if (!process.env.DOKIME_E2E_KEEP) await rm(evidence, { force: true, recursive: true });
+  if (!process.env.DOKIME_E2E_KEEP && !options.junit)
+    await rm(evidence, { force: true, recursive: true });
 }

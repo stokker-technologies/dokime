@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::*;
-use dokime_protocol::v1::{document_frame::Frame, documents_client::DocumentsClient};
+use dokime_client::contracts::documents::DocumentFrameFrame as Frame;
 
 /* === Constants === */
 
@@ -44,35 +44,37 @@ pub(crate) async fn running_execution_owners() {
         gate,
         mut owner,
         server,
-        mut execution,
+        execution,
         cycle,
     } = Gated::open().await;
     execution
-        .run_cycle(authenticated(run(&cycle)))
+        .unary::<contracts::execution::RunCycle>(authenticated(run(&cycle)))
         .await
         .unwrap();
     gate.started.notified().await;
     let attempts = execution
-        .list_executions(authenticated(v1::ListExecutionsRequest {
-            cycle_id: cycle.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutions>(authenticated(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id: cycle.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     let id = attempts.executions[0].execution_id.clone();
-    let mut documents = DocumentsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
-    let selected = v1::DocumentScope {
+    let documents = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let selected = contracts::documents::DocumentScope {
         cycle_id: cycle,
         execution_id: id.clone(),
     };
     let mut stream = documents
-        .capture_current_document(authenticated(v1::CaptureCurrentDocumentRequest {
-            scope: Some(selected),
-            document_id: "default".into(),
-        }))
+        .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
+            contracts::documents::CaptureCurrentDocumentRequest {
+                scope: Some(selected),
+                document_id: "default".into(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -84,8 +86,8 @@ pub(crate) async fn running_execution_owners() {
                 value.scope.unwrap().execution_id.as_deref(),
                 Some(id.as_str())
             ),
-            Frame::Card(v1::DocumentCard {
-                body: Some(v1::document_card::Body::Owner(reference)),
+            Frame::Card(contracts::documents::DocumentCard {
+                body: Some(contracts::documents::DocumentCardBody::Owner(reference)),
                 ..
             }) => {
                 kinds.push(reference.kind);
@@ -100,13 +102,13 @@ pub(crate) async fn running_execution_owners() {
     assert_eq!(
         kinds,
         [
-            v1::DocumentCardKind::Steps as i32,
-            v1::DocumentCardKind::Criteria as i32,
-            v1::DocumentCardKind::Records as i32,
-            v1::DocumentCardKind::Artifacts as i32,
-            v1::DocumentCardKind::Media as i32,
-            v1::DocumentCardKind::Traceability as i32,
-            v1::DocumentCardKind::Notes as i32,
+            contracts::documents::DocumentCardKind::Steps,
+            contracts::documents::DocumentCardKind::Criteria,
+            contracts::documents::DocumentCardKind::Records,
+            contracts::documents::DocumentCardKind::Artifacts,
+            contracts::documents::DocumentCardKind::Media,
+            contracts::documents::DocumentCardKind::Traceability,
+            contracts::documents::DocumentCardKind::Notes,
         ]
     );
     gate.release.notify_one();

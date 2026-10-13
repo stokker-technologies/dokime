@@ -81,3 +81,27 @@ export type ConnectionError =
   | { kind: "superseded" }
   | { kind: "not_connected" }
   | { kind: "generation_exhausted" };
+
+/** Secret-Free Shared Profile Document. */
+export type BackendProfiles = {
+  version: 1;
+  default: string | null;
+  profiles: {
+    name: string;
+    endpoint: string;
+    expected_backend_id: string | null;
+    ca_certificate_pem: string | null;
+    credential: "none" | "keyring";
+  }[];
+};
+
+/** Ephemeral Access; Never Persist Or Add To A Session Snapshot. */
+export type BrowserAccess = {
+  generation: string;
+  endpoint: string;
+  authorization: string | null;
+  backendId: string;
+  epoch: string;
+  limits: BackendLimits;
+  methods: string[];
+};

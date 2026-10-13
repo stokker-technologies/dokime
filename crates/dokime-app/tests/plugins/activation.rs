@@ -107,26 +107,28 @@ pub(crate) async fn multi_executable_partial() {
     let root = tempdir().unwrap();
     let suite = fixture_bundle(root.path(), "fixture-suites");
     let telemetry = fixture_bundle(root.path(), "fixture-telemetry");
-    let first =
-        harmos::plugin::Bundle::inspect(&std::fs::read(suite.path).unwrap(), Default::default())
-            .unwrap();
-    let second = harmos::plugin::Bundle::inspect(
+    let first = harmos::plugin::bundle::Bundle::inspect(
+        &std::fs::read(suite.path).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let second = harmos::plugin::bundle::Bundle::inspect(
         &std::fs::read(telemetry.path).unwrap(),
         Default::default(),
     )
     .unwrap();
-    let bundle = harmos::plugin::Bundle::build(
-        harmos::plugin::Identity {
+    let bundle = harmos::plugin::bundle::Bundle::build(
+        harmos::plugin::bundle::Identity {
             name: "runtime-multi".into(),
             ..first.manifest().identity.clone()
         },
         &[
-            harmos::plugin::Source {
+            harmos::plugin::bundle::Source {
                 path: "bin/suite",
                 bytes: first.file(&first.manifest().files[0].path).unwrap(),
                 executable: first.manifest().files[0].executable.clone(),
             },
-            harmos::plugin::Source {
+            harmos::plugin::bundle::Source {
                 path: "bin/telemetry",
                 bytes: second.file(&second.manifest().files[0].path).unwrap(),
                 executable: second.manifest().files[0].executable.clone(),
@@ -179,20 +181,22 @@ pub(crate) async fn multi_executable_partial() {
 pub(crate) async fn mismatched_unknown_initialize() {
     let root = tempdir().unwrap();
     let fixture = fixture_bundle(root.path(), "fixture-suites");
-    let inspected =
-        harmos::plugin::Bundle::inspect(&std::fs::read(&fixture.path).unwrap(), Default::default())
-            .unwrap();
+    let inspected = harmos::plugin::bundle::Bundle::inspect(
+        &std::fs::read(&fixture.path).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
     let mut executable = inspected.manifest().files[0].executable.clone().unwrap();
     executable
         .registrations
-        .push(harmos::sidecar::Registration {
+        .push(harmos::plugin::sidecar::Registration {
             namespace: "fixture.unknown".into(),
             schema: 1,
             payload: br#"{"value":"frozen"}"#.to_vec(),
         });
-    let changed = harmos::plugin::Bundle::build(
+    let changed = harmos::plugin::bundle::Bundle::build(
         inspected.manifest().identity.clone(),
-        &[harmos::plugin::Source {
+        &[harmos::plugin::bundle::Source {
             path: "bin/fixture",
             bytes: inspected.file(&inspected.manifest().files[0].path).unwrap(),
             executable: Some(executable),
@@ -402,11 +406,12 @@ pub(crate) fn fixture_catalog_repeatable() {
                 std::env::consts::EXE_SUFFIX,
             ));
         let output = std::process::Command::new(executable)
-            .arg(harmos::sidecar::CATALOG_EXPORT_FLAG)
+            .arg(harmos::plugin::sidecar::CATALOG_EXPORT_FLAG)
             .output()
             .expect("mise run fixtures:prepare prepares the native fixture");
         assert!(output.status.success());
-        serde_json::from_slice::<Vec<harmos::sidecar::Registration>>(&output.stdout).unwrap()
+        serde_json::from_slice::<Vec<harmos::plugin::sidecar::Registration>>(&output.stdout)
+            .unwrap()
     };
     let first = export();
     let second = export();

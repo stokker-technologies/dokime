@@ -15,13 +15,17 @@ mod payload;
 
 /* === Imports === */
 // Standard Library Imports
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 // Third Party Imports
-use tonic::{Request, Response, Status};
+use harmos::operations::{Context, Operation};
+use tonic::Status;
 // Local Imports
 use super::{
-    execution, observation,
-    value::{self, Budget},
+    execution,
+    value::{self, Budget, canonical},
 };
 use dokime_app::core::{CaseId, CommandId};
 use dokime_app::definition::{
@@ -29,7 +33,7 @@ use dokime_app::definition::{
     materialize_template_cases,
 };
 use dokime_app::{Error, RuntimeHandle};
-use dokime_protocol::v1::{self, planning_server::Planning};
+use dokime_contract::operations::planning as wire;
 
 /* === Constants === */
 
@@ -38,38 +42,49 @@ use dokime_protocol::v1::{self, planning_server::Planning};
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct Service {
-    pub(super) runtime: RuntimeHandle,
+struct Register {
+    runtime: Arc<RuntimeHandle>,
+}
+
+struct Preview {
+    runtime: Arc<RuntimeHandle>,
 }
 
 pub(super) struct ResolvedPlan {
     pub(super) suite: TestSuite,
     pub(super) cases: Vec<TestCase>,
-    pub(super) preview: Vec<v1::PlannedCase>,
+    pub(super) preview: Vec<wire::PlannedCase>,
 }
 
 /* === Enums === */
+#[harmos::catalog]
+enum Operations {
+    Register(Register),
+    Preview(Preview),
+}
 
 /* === Traits === */
 
 /* === Implementations === */
-#[tonic::async_trait]
-impl Planning for Service {
-    async fn register_selection(
-        &self,
-        request: Request<v1::RegisterSelectionRequest>,
-    ) -> Result<Response<v1::PreviewSelectionReply>, Status> {
-        let request = request.into_inner();
-        let key = &request.idempotency_key;
-        if key.is_empty()
-            || key.len() > 256
-            || key.trim().is_empty()
-            || key.chars().any(char::is_control)
-        {
-            return Err(Status::invalid_argument(
-                "registration requires a nonblank 1–256 byte idempotency key without control characters",
-            ));
-        }
+impl Operation for Register {
+    type Declaration = wire::RegisterSelection;
+    type Resources = RuntimeHandle;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+        Ok(Self { runtime })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut wire::RegisterSelectionRequest,
+        _: &mut (),
+    ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
+        dokime_contract::core::command::validate_idempotency_key(&request.idempotency_key)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
         if request
             .plan
             .as_ref()
@@ -81,42 +96,73 @@ impl Planning for Service {
         }
         let snapshot = self.runtime.watch_state().latest();
         let registration_id = CommandId::from_seed(format!(
-            "suite-registration:{}:{key}",
-            snapshot.state().identity.node.node_id
+            "suite-registration:{}:{}",
+            snapshot.state().identity.node.node_id,
+            request.idempotency_key,
         ));
-        let resolved = resolve(&snapshot.state().suites, request.plan, &registration_id)?;
+        let resolved = resolve(
+            &snapshot.state().suites,
+            request.plan.take(),
+            &registration_id,
+        )?;
         self.runtime
             .register_cases(registration_id, resolved.cases)
             .await
             .map_err(execution::status)?;
-
-        Ok(Response::new(v1::PreviewSelectionReply {
+        Ok((wire::PreviewSelectionReply {
             cases: resolved.preview,
-            observed_cursor: Some(observation::cursor(&self.runtime.watch_state().latest())),
-        }))
+            observed_cursor: Some(canonical::cursor(&self.runtime.watch_state().latest())),
+        })
+        .into())
+    }
+}
+
+impl Operation for Preview {
+    type Declaration = wire::PreviewSelection;
+    type Resources = RuntimeHandle;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+        Ok(Self { runtime })
     }
 
-    async fn preview_selection(
-        &self,
-        request: Request<v1::PreviewSelectionRequest>,
-    ) -> Result<Response<v1::PreviewSelectionReply>, Status> {
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut wire::PreviewSelectionRequest,
+        _: &mut (),
+    ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
         let snapshot = self.runtime.watch_state().latest();
         let resolved = resolve(
             &snapshot.state().suites,
-            request.into_inner().plan,
+            request.plan.take(),
             &CommandId::new(),
         )?;
-        Ok(Response::new(v1::PreviewSelectionReply {
+        Ok((wire::PreviewSelectionReply {
             cases: resolved.preview,
-            observed_cursor: Some(observation::cursor(&snapshot)),
-        }))
+            observed_cursor: Some(canonical::cursor(&snapshot)),
+        })
+        .into())
     }
 }
 
 /* === Public Functions === */
+pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), super::Error> {
+    runtime
+        .operations()
+        .register_wire_operations::<Operations, RuntimeHandle>(
+            "dokime",
+            dokime_app::app::Lanes::Open,
+            Arc::new(runtime.clone()),
+        )?;
+    Ok(())
+}
+
 pub(super) fn resolve(
     registry: &SuiteRegistry,
-    plan: Option<v1::SelectionPlan>,
+    plan: Option<wire::SelectionPlan>,
     registration_id: &CommandId,
 ) -> Result<ResolvedPlan, Status> {
     let plan = plan.ok_or_else(|| Status::invalid_argument("selection plan is required"))?;
@@ -149,6 +195,20 @@ pub(super) fn resolve(
     for (selection_index, selection) in plan.selections.into_iter().enumerate() {
         value::text(&selection.suite_id)?;
         value::text(&selection.template_id)?;
+        value::collection(selection.parameters.len())?;
+        value::collection(selection.files.len())?;
+        let parameters = entries(
+            selection
+                .parameters
+                .into_iter()
+                .map(|entry| (entry.key, entry.value)),
+        )?;
+        let files = entries(
+            selection
+                .files
+                .into_iter()
+                .map(|entry| (entry.key, entry.value)),
+        )?;
         let entry = registry
             .get(&selection.suite_id)
             .ok_or_else(|| rejection("suite_not_found", "registered suite not found"))?;
@@ -194,10 +254,7 @@ pub(super) fn resolve(
         target = Some(selected_target);
         value::collection(template.parameters.len())?;
         for parameter in &template.parameters {
-            if !selection
-                .parameters
-                .contains_key(parameter.metadata.identifier.as_str())
-            {
+            if !parameters.contains_key(parameter.metadata.identifier.as_str()) {
                 bounds::expression(&parameter.expression, &mut expression_budget, 0)?;
             }
         }
@@ -208,9 +265,7 @@ pub(super) fn resolve(
         if templates.insert(template.test_case_template_id.clone()) {
             combined.test_case_templates.push(template.clone());
         }
-        value::collection(selection.parameters.len())?;
-        let parameters = selection
-            .parameters
+        let parameters = parameters
             .into_iter()
             .map(|(name, values)| {
                 value::text(&name)?;
@@ -220,23 +275,21 @@ pub(super) fn resolve(
                     values
                         .values
                         .into_iter()
-                        .map(|v| value::decode(v, &mut budget, 0))
+                        .map(|v| canonical::decode(v, &mut budget, 0))
                         .collect::<Result<Vec<_>, Status>>()?,
                 ))
             })
             .collect::<Result<BTreeMap<_, _>, Status>>()?;
-        value::collection(selection.files.len())?;
-        let files = selection
-            .files
+        let files = files
             .into_iter()
             .map(|(name, file)| {
                 value::text(&name)?;
                 let file = match file.kind {
-                    Some(v1::selected_file::Kind::Value(value)) => {
+                    Some(wire::SelectedFileKind::Value(value)) => {
                         value::text(&value)?;
                         Some(value)
                     }
-                    Some(v1::selected_file::Kind::Clear(0)) => None,
+                    Some(wire::SelectedFileKind::Clear) => None,
                     _ => {
                         return Err(Status::invalid_argument(
                             "file selection kind must be value or clear",
@@ -292,17 +345,13 @@ pub(super) fn resolve(
         for mut case in generated.test_cases {
             case.suite = Some(entry.suite.metadata.clone());
             case.generation_index = cases.len() as u64;
-            let fields = case
-                .parameters
-                .iter()
-                .map(|(name, v)| Ok((name.clone(), value::encode(v, &mut output_budget, 0)?)))
-                .collect::<Result<_, Status>>()?;
-            preview.push(v1::PlannedCase {
+            let parameters = canonical::object(&case.parameters, &mut output_budget)?;
+            preview.push(wire::PlannedCase {
                 case_id: case.test_case_id.to_string(),
                 suite_id: selection.suite_id.clone(),
                 template_id: selection.template_id.clone(),
-                metadata: Some(value::metadata(&case.metadata)?),
-                parameters: Some(v1::ValueObject { fields }),
+                metadata: Some(canonical::metadata(&case.metadata)?),
+                parameters: Some(parameters),
                 ordinal: cases.len() as u64,
                 selection_index: selection_index as u64,
             });
@@ -321,9 +370,24 @@ pub(super) fn resolve(
 }
 
 /* === Private Functions === */
+fn entries<T>(
+    entries: impl Iterator<Item = (String, Option<T>)>,
+) -> Result<BTreeMap<String, T>, Status> {
+    let mut values = BTreeMap::new();
+    for (key, value) in entries {
+        value::text(&key)?;
+        let value =
+            value.ok_or_else(|| Status::invalid_argument("selection entry has no value"))?;
+        if values.insert(key, value).is_some() {
+            return Err(Status::invalid_argument("duplicate selection key"));
+        }
+    }
+    Ok(values)
+}
+
 fn resolve_registered(
     registry: &SuiteRegistry,
-    plan: v1::SelectionPlan,
+    plan: wire::SelectionPlan,
 ) -> Result<ResolvedPlan, Status> {
     if !plan.selections.is_empty() {
         return Err(Status::invalid_argument(
@@ -383,14 +447,7 @@ fn resolve_registered(
         }
         target = Some(selected_target);
         payload::registered_case(case, &mut payload_budget)?;
-        let fields = case
-            .parameters
-            .iter()
-            .map(|(name, value)| {
-                value::text(name)?;
-                Ok((name.clone(), value::encode(value, &mut budget, 0)?))
-            })
-            .collect::<Result<_, Status>>()?;
+        let parameters = canonical::object(&case.parameters, &mut budget)?;
         let combined = suite.get_or_insert_with(|| TestSuite {
             test_case_templates: vec![],
             ..entry.suite.clone()
@@ -398,12 +455,12 @@ fn resolve_registered(
         if templates.insert(template.test_case_template_id.clone()) {
             combined.test_case_templates.push(template.clone());
         }
-        preview.push(v1::PlannedCase {
+        preview.push(wire::PlannedCase {
             case_id: id.to_string(),
             suite_id: entry.suite_id.clone(),
             template_id: template.test_case_template_id.to_string(),
-            metadata: Some(value::checked_metadata(&case.metadata)?),
-            parameters: Some(v1::ValueObject { fields }),
+            metadata: Some(canonical::metadata(&case.metadata)?),
+            parameters: Some(parameters),
             ordinal: cases.len() as u64,
             selection_index: cases.len() as u64,
         });

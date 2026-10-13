@@ -32,21 +32,24 @@ live operator shell and the self-contained report renderer.
 - Run `mise run check` before committing. Use `mise run test:system:javascript` when a
   running-stack workflow or browser interaction changes.
 
-## Native RPC Generation
+## Canonical Bindings And Transport
 
-- Public gRPC messages and explicit native RPC commands are generated from the
-  canonical protocol descriptor by `mise run bindings:generate`; verify with
-  `mise run bindings:check`. Do not maintain parallel domain DTOs or write
-  invocation names in feature code. `src/lib/rpc/generated/client.ts` is the
-  typed domain invocation surface. Keep this generation independent of
-  compiling the GUI/runtime.
-- The desktop control plane and its transport errors do not cross gRPC and are
-  not generated. `src/lib/desktop/` holds the hand-written TypeScript for the
-  commands declared in `src-tauri/src/bindings/mod.rs`; each module mirrors the
-  Rust module that owns those types. Change both sides in one commit.
-- `src/lib/types/` holds GUI-owned projection contracts, not wire types. The
-  `src/lib/api/native-*.ts` adapters map generated protobuf messages into them;
-  that mapping is the boundary, so do not replace a projection with a `_pb`
-  type or let a protobuf shape leak into a component.
-- Streams use one acknowledged pull at a time, with native frame, concurrency
-  and idle limits. Never forward an unbounded gRPC reader into Tauri streams.
+- `mise run bindings:generate` projects standard ES bindings and the typed facade
+  from one explicitly selected canonical Cargo export. `bindings:check` compares
+  that same export. Rust `dokime-contract::operations` declarations own the wire
+  shape; do not maintain parallel domain DTOs or a second codec. Generation does
+  not compile the GUI or runtime.
+- Ordinary calls and subscriptions in `src/lib/rpc/generated/client.ts` use direct,
+  authenticated gRPC-web. Native session controls provide a private, ephemeral
+  main-window transport handoff tied to the active generation. Credentials never
+  belong in status, logs, profiles, persisted browser storage or report output.
+- `src-tauri/src/uploads` is the narrow native adapter for bounded artifact and
+  recording bytes and plugin staging through the shared Rust client. Do not add
+  ordinary unary calls or server-stream dispatch to that adapter.
+- Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
+  matching their native owner modules. Change both sides together.
+- `src/lib/types/` holds GUI projection contracts. API adapters map generated
+  message shapes into them; preserve that boundary in components.
+- Streams read one bounded frame at a time, require final OK status, and cancel
+  with their session or subscription owner. Canceling a subscription does not stop
+  the backend producer. WebView TLS requires platform-trusted certificates.

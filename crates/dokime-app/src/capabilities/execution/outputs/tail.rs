@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::{future::poll_fn, path::PathBuf, pin::Pin, sync::Arc};
 // Third Party Imports
-use harmos::{Fault, Resident, Service, ServicePolicy};
+use harmos::{services::Fault, services::Resident, services::Service, services::ServicePolicy};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeek, AsyncSeekExt};
 // Local Imports

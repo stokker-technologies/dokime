@@ -16,7 +16,7 @@
 use std::path::Path;
 use std::process::{Command, Output};
 // Third Party Imports
-use harmos::plugin::{Bundle, Limits};
+use harmos::plugin::bundle::{Bundle, Limits};
 // Local Imports
 
 /* === Constants === */
@@ -282,7 +282,7 @@ categories = ["development-tools"]
     let declaration = updated.declaration(&executable.path).unwrap();
     assert!(matches!(
         declaration.carrier,
-        harmos::artifact::inventory::CarrierSection::Sidecar { .. }
+        harmos::plugin::inventory::CarrierSection::Sidecar { .. }
     ));
     assert_eq!(declaration.version.to_string(), "1.2.4");
     // Bundle identity comes from Cargo; declaration presentation comes from
@@ -318,7 +318,7 @@ categories = ["development-tools"]
         let declaration = multiple_bundle.declaration(&file.path).unwrap();
         assert!(matches!(
             declaration.carrier,
-            harmos::artifact::inventory::CarrierSection::Sidecar { .. }
+            harmos::plugin::inventory::CarrierSection::Sidecar { .. }
         ));
         owners.push(declaration.id.clone());
         assert_eq!(declaration.version.to_string(), "1.2.4");

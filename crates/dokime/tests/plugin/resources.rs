@@ -20,8 +20,8 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime::harmos::artifact::plugin::Declared;
 use dokime::harmos::operations::{ServingError, WireTable};
+use dokime::harmos::plugin::contract::Declared;
 // Local Imports
 use dokime::execution::{
     Caller, CleanupContext, InitializationContext, Run, StepContext, Workflow,
@@ -302,6 +302,9 @@ impl Probe {
         ctx: &mut InitializationContext<'_>,
     ) -> Result<Self, Error> {
         let device = ctx.call::<GetDevice>(()).await?;
+        if ctx.call::<GetDevice>(()).await?.identity != device.identity {
+            return Err(Error::ResourceChanged);
+        }
         let observations = double(&device.token);
         if parameters.initialize_fail {
             let _partial = PartialInitialization(observations);
@@ -466,7 +469,7 @@ fn harnessed(device: &Arc<Device>) -> Harness {
 
 async fn opened(
     observations: &Arc<Observations>,
-) -> super::native::Native<dokime::harmos::sidecar::PluginNative<Owner>> {
+) -> super::native::Native<dokime::harmos::plugin::sidecar::PluginNative<Owner>> {
     let configuration = Configuration {
         settings: BTreeMap::from([(
             "token".to_owned(),
@@ -566,7 +569,17 @@ pub(crate) async fn execution_scope_calls() {
     let keys = observations.keys.lock().unwrap().clone();
     let (last, run) = keys.split_last().unwrap();
     assert_eq!(*last, None, "a call outside any run carries no key");
-    assert_eq!(run.len(), 3, "initialization, the step and cleanup called");
+    assert_eq!(
+        run.len(),
+        4,
+        "initialization replay, the step and cleanup called"
+    );
+    assert_eq!(run[0], run[1], "same-stage calls retain their stable key");
+    assert_ne!(run[1], run[2], "the step has its own scope");
+    assert_ne!(run[2], run[3], "cleanup has its own scope");
+    assert!(run[0].as_deref().unwrap().starts_with("keyed/initialize/"));
+    assert!(run[2].as_deref().unwrap().starts_with("keyed/step/"));
+    assert!(run[3].as_deref().unwrap().starts_with("keyed/cleanup/"));
     for key in run {
         let key = key.as_deref().expect("a call inside a run carries a key");
         assert!(key.starts_with("keyed/"), "{key}");
@@ -760,7 +773,7 @@ pub(crate) async fn harness_caller_settles() {
 pub(crate) fn catalog_is_inert() {
     // A plugin whose preparation panics still exports its registration: the
     // declaration pass reads what was declared and opens nothing.
-    let mut registrar = dokime::harmos::sidecar::Registrar::new();
+    let mut registrar = dokime::harmos::plugin::sidecar::Registrar::new();
     <CatalogOnly as dokime::Plugin>::register(&mut registrar)
         .expect("a catalog is exported without opening the plugin");
     let registrations = registrar.finish();

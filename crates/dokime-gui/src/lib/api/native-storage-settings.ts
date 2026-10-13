@@ -20,10 +20,9 @@
 // Local Imports
 import type { StorageSource } from "@/features/settings/settings-contracts";
 import * as rpc from "@/lib/rpc/generated/client";
-import type {
-  StoragePolicyView as WirePolicyView,
-  StorageSources,
-} from "@/lib/rpc/generated/dokime/v1/settings_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+type WirePolicyView = Wire<Awaited<ReturnType<typeof rpc.settingsReadStoragePolicy>>>;
+type StorageSources = Wire<Awaited<ReturnType<typeof rpc.settingsListStorageSources>>>;
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { safeNumber } from "./native-values";
 

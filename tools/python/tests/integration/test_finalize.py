@@ -12,11 +12,11 @@
 # === Imports === #
 
 # Standard Library Imports
+import json
 from collections.abc import Callable
 from copy import deepcopy
 from http.client import HTTPMessage
 from io import BytesIO
-import json
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 

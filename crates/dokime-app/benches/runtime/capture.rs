@@ -26,7 +26,8 @@ use std::{
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 use harmos::{
-    Identifier, Transaction,
+    Identifier,
+    state::Transaction,
     storage::{
         ReadKind, ReadLimits, ReadSelection, ReadView, StorageBackend, StorageBatch, StorageCursor,
         StoragePart, StorageSchema, StoreHistory, StoredRecord,
@@ -178,7 +179,7 @@ fn transaction_fold(count: u64) -> Duration {
         transaction.check(&state).unwrap();
         checked += at.elapsed();
 
-        let mut records = harmos::Records::default();
+        let mut records = harmos::state::Records::default();
         let at = Instant::now();
         transaction.records(&state, &mut records);
         prepared += at.elapsed();
@@ -340,8 +341,11 @@ async fn direct_sqlite(count: u64, batch_size: usize) -> Duration {
                 &[StoragePart::Schemas(&[StorageSchema::new(
                     position(1),
                     schema.clone(),
-                    dokime::storage::records::fields().to_vec(),
-                    harmos::storage::SchemaEncoding::Inline,
+                    harmos::schema::graph::Schema::from_declaration(
+                        <dokime::storage::records::RecordRow as harmos::schema::Described>::DEFINITION,
+                        &harmos::config::SchemaSettings::default(),
+                    )
+                    .unwrap(),
                 )])],
                 (16 * 1024 * 1024).try_into().unwrap(),
             )

@@ -23,14 +23,12 @@ import {
 } from "@/lib/api/native-checkpoints";
 import { saveNativeDocument } from "@/lib/api/native-delivery";
 import { nativeValueObjectToJson, timestampIso } from "@/lib/api/native-values";
-import type { Severity } from "@/lib/rpc/generated/dokime/v1/common_pb";
-import { ArtifactState } from "@/lib/rpc/generated/dokime/v1/content_pb";
-import type {
-  CheckpointContext,
-  CheckpointTelemetryPage,
-  HistoryIssue,
-  CheckpointEvidence as NativeCheckpointEvidence,
-} from "@/lib/rpc/generated/dokime/v1/history_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { Row23 as GeneratedSeverity } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
+import type { Row2 as GeneratedCheckpointContext } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
+import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
+import type { Row6 as GeneratedHistoryIssue } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type { Row2 as GeneratedNativeCheckpointEvidence } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
 import type { ExecutionCheckpoint } from "@/lib/types/view-contracts";
 import {
   fetchCheckpointContext,
@@ -39,6 +37,12 @@ import {
   fetchCheckpointTelemetry,
   readCheckpointOutput,
 } from "./explore-data-source";
+
+type Severity = Wire<GeneratedSeverity>;
+type CheckpointContext = Wire<GeneratedCheckpointContext>;
+type CheckpointTelemetryPage = Wire<GeneratedCheckpointTelemetryPage>;
+type HistoryIssue = Wire<GeneratedHistoryIssue>;
+type NativeCheckpointEvidence = Wire<GeneratedNativeCheckpointEvidence>;
 
 type Props = { checkpoint: ExecutionCheckpoint };
 type SessionProps = Props & { session: NativeCheckpointSession };
@@ -327,7 +331,7 @@ function Files({ checkpoint, session }: SessionProps) {
       <h3 className="font-medium">Attachments</h3>
       {!query.data.artifacts.length && <p>No attachments.</p>}
       {query.data.artifacts.map((artifact) =>
-        artifact.state === ArtifactState.COMPLETE ? (
+        artifact.state?.HarmosVariant.case === "Complete" ? (
           <Download
             key={artifact.artifactId}
             checkpoint={checkpoint}
@@ -472,8 +476,8 @@ function ValueObjectView({ value }: { value?: Parameters<typeof nativeValueObjec
   );
 }
 
-function severityLabel(value: Severity): string {
-  return ["unspecified", "trace", "debug", "info", "warn", "error"][value] ?? "unspecified";
+function severityLabel(value: Severity | undefined): string {
+  return value?.HarmosVariant.case?.toLowerCase() ?? "unspecified";
 }
 
 function formatStructured(value: unknown): string {

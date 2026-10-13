@@ -15,17 +15,18 @@ import argparse
 import hashlib
 import json
 import os
-import subprocess
 import re
 import shutil
+import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any
 from xml.etree import ElementTree
 
 # Third Party Imports
-
 # Local Imports
-from dokime_tools import release
+from dokime_tools import contracts, release
+from dokime_tools.check.wheel import verify_wheel
+from dokime_tools.fixtures import FIXTURES
 
 # Type Checking Imports
 
@@ -35,6 +36,46 @@ from dokime_tools import release
 
 PLATFORMS = ("linux", "windows")
 TARGETS = {"linux": "x86_64-unknown-linux-gnu", "windows": "x86_64-pc-windows-msvc"}
+BINARIES = "bin"
+PROTO = "proto"
+VALIDATION = "validation"
+REPORT_TEMPLATE = f"{VALIDATION}/report-template.html"
+AUDITS = f"{VALIDATION}/audits"
+FIXTURE_BUNDLES = f"{VALIDATION}/fixtures"
+TEST_ARCHIVES = f"{VALIDATION}/test-archives"
+TEST_EVIDENCE = f"{VALIDATION}/tests"
+COVERAGE_EVIDENCE = f"{VALIDATION}/coverage"
+EXAMPLES = "examples"
+EXAMPLE_REPORT = "charger-report.html"
+# Every role lives in exactly one package directory; the prefix of a `kind:name`
+# role selects its family.
+DIRECTORIES = {
+    "license": "licenses",
+    "host": BINARIES,
+    "client": BINARIES,
+    "tool": BINARIES,
+    "desktop": BINARIES,
+    "plugin": "plugins",
+    "wheel": "python",
+    "sdist": "python",
+    "deb": "installers",
+    "rpm": "installers",
+    "installer": "installers",
+    "signature": "installers",
+    "updater": "installers",
+    "wheel-audit": AUDITS,
+    "timing": VALIDATION,
+    "proto": PROTO,
+    "fixture": FIXTURE_BUNDLES,
+    "archive": TEST_ARCHIVES,
+    "test": TEST_EVIDENCE,
+    "coverage": COVERAGE_EVIDENCE,
+    "example": EXAMPLES,
+}
+# Only Python distributions and the Nextest archives validation replays may
+# nest an archive inside the download.
+ARCHIVE_SUFFIXES = (".tar", ".tar.gz", ".tgz", ".tar.zst", ".zip")
+ARCHIVE_DIRECTORIES = ("python", TEST_ARCHIVES)
 
 # === Types === #
 
@@ -76,6 +117,19 @@ def verify_release(directory: Path, commit: str, tag: str, source: Path) -> list
     return manifests
 
 
+def required_suites(platform: str) -> tuple[str, ...]:
+    if platform not in PLATFORMS:
+        raise ValueError("unknown native validation platform")
+    suites = (
+        "integration-rust",
+        "integration-python",
+        "integration-javascript",
+        "acceptance-rust",
+        "acceptance-python",
+    )
+    return suites + (("system-javascript",) if platform == "windows" else ())
+
+
 def verify_platform(
     root: Path,
     platform: str,
@@ -95,8 +149,8 @@ def verify_platform(
         or manifest.get("profile") != "release"
         or manifest.get("target") != TARGETS[platform]
         or manifest.get("architecture") != "x86_64"
-        or manifest.get("python") != "cp313"
-        or manifest.get("abi") != "abi3"
+        or manifest.get("python") != "py3"
+        or manifest.get("abi") != "none"
     ):
         raise ValueError(
             "release source, resolved inputs or platform identity mismatch"
@@ -252,28 +306,39 @@ def _artifacts(
     required = {
         "license",
         "host",
+        "client",
         "tool",
         "desktop",
         "report-template",
         "plugin",
-        "protocol",
-        "protocol-checksum",
         "wheel",
         "sdist",
-        "abi3-audit",
+        "wheel-audit",
     }
-    required |= (
-        {"deb", "rpm", "linux-audit", "wheel-build"}
-        if platform == "linux"
-        else {"installer"}
-    )
+    required |= {"deb", "rpm"} if platform == "linux" else {"installer"}
+    required |= {f"fixture:{name}" for name, _, _ in FIXTURES}
+    required |= {f"proto:{name}" for name in contracts.CORE_MEMBERS}
     if not required <= by_role.keys():
         raise ValueError(f"incomplete {platform} release artifact roles")
+    _layout(by_role)
+    archives = {
+        role.removeprefix("archive:") for role in by_role if role.startswith("archive:")
+    }
+    bundles = {
+        name.removesuffix(".tar.zst") for name in archives if name.endswith(".tar.zst")
+    }
+    if not bundles or archives != {
+        name + suffix for name in bundles for suffix in (".tar.zst", ".tar.json")
+    }:
+        raise ValueError(
+            "release preparation requires complete Nextest archives and receipts"
+        )
     if by_role["license"]["path"] != "licenses/LICENSE-APACHE":
         raise ValueError("canonical Apache license is missing")
-    if by_role["report-template"]["path"] != "reports/report.html":
+    if by_role["report-template"]["path"] != REPORT_TEMPLATE:
         raise ValueError("canonical report template is missing")
     _file(root, by_role["report-template"]["path"]).read_text(encoding="utf-8")
+    _proto(root, manifest, by_role)
     version = manifest["package_version"]
     installer_names = (
         {"deb": f"dokime_{version}_amd64.deb", "rpm": f"dokime-{version}-1.x86_64.rpm"}
@@ -292,69 +357,172 @@ def _artifacts(
     wheel = by_role["wheel"]
     filename = PurePosixPath(wheel["path"]).name
     version = manifest["package_version"].replace("-dev.0", ".dev0")
-    suffix = (
-        "win_amd64"
-        if platform == "windows"
-        else r"manylinux_2_(?:[5-9]|1\d|2[0-8])_x86_64"
-    )
-    if not re.fullmatch(
-        rf"dokime-{re.escape(version)}-cp313-abi3-{suffix}\.whl", filename
-    ):
-        raise ValueError("release wheel name disagrees with version, ABI, or platform")
+    if filename != f"dokime-{version}-py3-none-any.whl":
+        raise ValueError("release wheel name disagrees with version or purity")
     if PurePosixPath(by_role["sdist"]["path"]).name != f"dokime-{version}.tar.gz":
-        raise ValueError(
-            "release source archive must be the unified dokime distribution"
-        )
-    _abi3_report(_file(root, by_role["abi3-audit"]["path"]), filename)
-    if platform == "linux":
-        from dokime_tools.package.linux import verify
-
-        build = json.loads(
-            _file(root, by_role["wheel-build"]["path"]).read_text(encoding="utf-8")
-        )
-        # Match The Actual Container Toolchain And Both Packaged Inputs.
-        verify(
-            build,
-            wheel["sha256"],
-            by_role["sdist"]["sha256"],
-            manifest["tools"]["rustc"],
-            root=source,
-        )
-        report = json.loads(
-            _file(root, by_role["linux-audit"]["path"]).read_text(encoding="utf-8")
-        )
-        floor = re.fullmatch(
-            r"manylinux_2_(\d+)_x86_64", str(report.get("overall_tag"))
-        )
-        claimed = int(filename.split("manylinux_2_", 1)[1].split("_", 1)[0])
-        if (
-            report.get("version") != 1
-            or report.get("wheel") != filename
-            or report.get("pure") is not False
-            or report.get("unsupported_isa") is not False
-            or floor is None
-            or int(floor[1]) > claimed
-        ):
-            raise ValueError("Linux audit does not prove the wheel portability claim")
+        raise ValueError("release source archive must be the dokime distribution")
+    actual_audit = verify_wheel(_file(root, wheel["path"]))["wheel-audit"]
+    stored_audit = _file(root, by_role["wheel-audit"]["path"]).read_text(
+        encoding="utf-8"
+    )
+    if json.loads(stored_audit) != json.loads(actual_audit):
+        raise ValueError("wheel audit differs from the actual packaged artifact")
     validation = manifest.get("validation")
     if require_validation:
-        suites = {
-            "integration-rust",
-            "integration-python",
-            "integration-javascript",
-            "acceptance-rust",
-            "acceptance-python",
-        }
+        suites = set(required_suites(platform))
         if (
             not isinstance(validation, dict)
             or set(validation.get("suites", [])) != suites
         ):
             raise ValueError("release requires complete native test evidence")
+        _coverage(root, manifest, by_role)
+        _example(root, by_role)
         for suite in suites:
             name = f"test:tests-{suite}.xml"
             if name not in by_role:
                 raise ValueError(f"missing native test report: {suite}")
             _passed_tests(_file(root, by_role[name]["path"]))
+
+
+def _layout(roles: dict[str, dict]) -> None:
+    for role, artifact in roles.items():
+        family = role.split(":", 1)[0] if ":" in role else role
+        path = PurePosixPath(artifact["path"])
+        if role == "report-template":
+            directory = VALIDATION
+        elif family in DIRECTORIES:
+            directory = DIRECTORIES[family]
+        else:
+            raise ValueError(
+                f"release artifact role is outside the package layout: {role}"
+            )
+        nested = family in {"fixture", "proto"}
+        if (
+            str(path.parent) != directory
+            if not nested
+            else directory not in {str(parent) for parent in path.parents}
+        ):
+            raise ValueError(
+                f"release artifact is outside its package directory: {role}"
+            )
+        if (
+            path.name.endswith(ARCHIVE_SUFFIXES)
+            and directory not in ARCHIVE_DIRECTORIES
+        ):
+            raise ValueError(f"release download must not nest an archive: {role}")
+
+
+def _proto(root: Path, manifest: dict, roles: dict) -> None:
+    exported = {
+        role.removeprefix("proto:"): artifact
+        for role, artifact in roles.items()
+        if role.startswith("proto:")
+    }
+    names = (
+        _file(root, exported["manifest.txt"]["path"])
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    if (
+        len(names) != len(set(names))
+        or set(exported) != set(names) | {"manifest.txt", "revision.txt"}
+        or any(
+            name not in contracts.CORE_MEMBERS and not name.endswith(".proto")
+            for name in names
+        )
+        or any(
+            artifact["path"] != f"{PROTO}/{name}" for name, artifact in exported.items()
+        )
+    ):
+        raise ValueError("release protocol files differ from their contract manifest")
+    revision = _file(root, exported["revision.txt"]["path"]).read_text(encoding="ascii")
+    if revision != manifest["build_revision"] + "\n":
+        raise ValueError("release protocol files belong to another source commit")
+    archive = manifest.get("contracts", {}).get("archive_sha256")
+    if not isinstance(archive, str) or not re.fullmatch(r"[a-f0-9]{64}", archive):
+        raise ValueError("release protocol archive identity is missing")
+
+
+def _example(root: Path, roles: dict) -> None:
+    entry = roles.get(f"example:{EXAMPLE_REPORT}")
+    if entry is None or entry["path"] != f"{EXAMPLES}/{EXAMPLE_REPORT}":
+        raise ValueError("release requires the acceptance run's example report")
+    if not _file(root, entry["path"]).read_text(encoding="utf-8").strip():
+        raise ValueError("release example report is empty")
+
+
+def _coverage(root: Path, manifest: dict, roles: dict) -> None:
+    from dokime_tools import evidence
+
+    entry = roles.get("coverage:coverage.json")
+    if entry is None:
+        raise ValueError("release requires the distinct required coverage lane")
+    proof = json.loads(_file(root, entry["path"]).read_text(encoding="utf-8"))
+    validation = manifest["validation"]
+    suites = {
+        "integration-rust",
+        "acceptance-rust",
+        "integration-python",
+        "acceptance-python",
+    }
+    if (
+        proof.get("version") != 1
+        or proof.get("platform") != manifest["platform"]
+        or proof.get("inputs") != manifest["inputs"]
+        or proof.get("pipeline_id") != manifest["pipeline_id"]
+        or proof.get("run_attempt") != manifest["run_attempt"]
+        or proof.get("build_manifest_sha256") != validation.get("build_manifest_sha256")
+        or proof.get("coverage_job_id") != validation.get("coverage_job_id")
+        or set(proof.get("suites", [])) != suites
+    ):
+        raise ValueError("release coverage proof belongs to different native inputs")
+    reports = proof.get("files")
+    if not isinstance(reports, list):
+        raise TypeError("release coverage report inventory is missing")
+    names = set()
+    for report in reports:
+        name = report.get("path")
+        role = roles.get(f"coverage:{name}")
+        if (
+            not isinstance(name, str)
+            or name in names
+            or role is None
+            or role["sha256"] != report.get("sha256")
+            or role["bytes"] != report.get("bytes")
+        ):
+            raise ValueError("release coverage report inventory differs")
+        names.add(name)
+    if (
+        not {"latest.json", "coverage-rust.xml", "coverage-python.xml"}
+        | {f"tests-{suite}.xml" for suite in suites}
+        <= names
+    ):
+        raise ValueError("release coverage omits required native reports")
+    result = json.loads(
+        _file(root, roles["coverage:latest.json"]["path"]).read_text(encoding="utf-8")
+    )
+    tests = result.get("tests")
+    if (
+        not isinstance(tests, dict)
+        or set(tests) != suites
+        or any(
+            entry.get("outcome") != "passed"
+            or entry.get("coverage") is not True
+            or entry.get("revision") != manifest["build_revision"]
+            or entry.get("platform") != manifest["platform"]
+            or entry.get("requested_configuration") is not None
+            for entry in tests.values()
+        )
+    ):
+        raise ValueError("release requires complete distinct native coverage evidence")
+    for suite in suites:
+        _passed_tests(_file(root, roles[f"coverage:tests-{suite}.xml"]["path"]))
+    for language in ("rust", "python"):
+        evidence.validate_coverage(
+            _file(root, roles[f"coverage:coverage-{language}.xml"]["path"]).read_text(
+                encoding="utf-8"
+            )
+        )
 
 
 def _updater(root: Path, artifacts: dict, tag: str) -> None:
@@ -398,31 +566,6 @@ def _passed_tests(path: Path) -> None:
     for suite in root.iter("testsuite"):
         if int(suite.get("failures", "0")) or int(suite.get("errors", "0")):
             raise ValueError("release validation reports failures or errors")
-
-
-def _abi3_report(path: Path, filename: str) -> None:
-    specs = json.loads(path.read_text(encoding="utf-8"))["specs"]
-    if len(specs) != 1:
-        raise ValueError("ABI3 audit must identify exactly one wheel")
-    name, spec = next(iter(specs.items()))
-    if (
-        PurePosixPath(name.replace("\\", "/")).name != filename
-        or spec.get("kind") != "wheel"
-    ):
-        raise ValueError("ABI3 audit identifies a different artifact")
-    modules = spec.get("wheel", [])
-    expected_module = "_native.pyd" if "win_amd64" in filename else "_native.abi3.so"
-    if len(modules) != 1 or modules[0].get("name") != expected_module:
-        raise ValueError("ABI3 audit must cover the native extension")
-    result = modules[0].get("result", {})
-    if (
-        result.get("is_abi3") is not True
-        or result.get("is_abi3_baseline_compatible") is not True
-        or result.get("baseline") != "3.13"
-        or result.get("non_abi3_symbols")
-        or result.get("future_abi3_objects")
-    ):
-        raise ValueError("ABI3 audit failed the CPython 3.13 contract")
 
 
 # === Entry Point === #

@@ -16,7 +16,7 @@
 use std::collections::BTreeSet;
 // Third Party Imports
 use harmos::operations::{NativeError, OperationManager};
-use harmos::sidecar::operations::Definition;
+use harmos::plugin::sidecar::operations::Definition;
 // Local Imports
 use crate::InstalledPlugin;
 use dokime::domains::{
@@ -217,12 +217,19 @@ pub(crate) fn validate_analyses(
             .iter()
             .find(|contract| contract.operation().id.as_str() == analysis.id)
             .ok_or_else(|| format!("analysis {} has no served wire contract", analysis.id))?;
+        let schema = harmos::schema::graph::Schema::from_declarations(
+            &[
+                ("request", dokime::analysis::Request::DEFINITION),
+                ("response", dokime::analysis::Response::DEFINITION),
+            ],
+            &harmos::config::SchemaSettings::default(),
+        )
+        .map_err(|error| error.to_string())?;
         let expected = harmos::operations::Contract::new(
             contract.operation().clone(),
             analysis.version,
             harmos::operations::Codec::Postcard,
-            dokime::analysis::Request::FIELDS.to_vec(),
-            dokime::analysis::Response::FIELDS.to_vec(),
+            schema,
         )
         .map_err(|error| error.to_string())?;
         if contract != &expected {
@@ -255,8 +262,10 @@ fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
             ) {
                 return ActionDispatcherError::Unavailable;
             }
-            let refusal = source.downcast_ref::<harmos::sidecar::Refusal>().cloned();
-            let refusal = refusal.unwrap_or_else(|| harmos::sidecar::Refusal::of(error));
+            let refusal = source
+                .downcast_ref::<harmos::plugin::sidecar::Refusal>()
+                .cloned();
+            let refusal = refusal.unwrap_or_else(|| harmos::plugin::sidecar::Refusal::of(error));
             ActionDispatcherError::Refused {
                 code: refusal.code(),
                 message: refusal.message().to_owned(),
@@ -266,14 +275,14 @@ fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
             ActionDispatcherError::Malformed(source.to_string())
         }
         harmos::Error::OperationUnauthorized { .. } | harmos::Error::OperationLaneCycle { .. } => {
-            let refusal = harmos::sidecar::Refusal::new(-32_604, error);
+            let refusal = harmos::plugin::sidecar::Refusal::new(-32_604, error);
             ActionDispatcherError::Refused {
                 code: refusal.code(),
                 message: refusal.message().to_owned(),
             }
         }
         error => {
-            let refusal = harmos::sidecar::Refusal::of(error);
+            let refusal = harmos::plugin::sidecar::Refusal::of(error);
             ActionDispatcherError::Refused {
                 code: refusal.code(),
                 message: refusal.message().to_owned(),
@@ -282,10 +291,10 @@ fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
     }
 }
 
-fn caller_error(error: harmos::load::DispatchError) -> ActionDispatcherError {
+fn caller_error(error: harmos::plugin::DispatchError) -> ActionDispatcherError {
     match error {
-        harmos::load::DispatchError::Unavailable => ActionDispatcherError::Unavailable,
-        harmos::load::DispatchError::Deadline => ActionDispatcherError::Deadline,
+        harmos::plugin::DispatchError::Unavailable => ActionDispatcherError::Unavailable,
+        harmos::plugin::DispatchError::Deadline => ActionDispatcherError::Deadline,
         error => {
             let refusal = error.into_refusal();
             ActionDispatcherError::Refused {

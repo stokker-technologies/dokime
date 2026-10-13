@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub(crate) mod follow;
 mod logs;
 pub(crate) mod reader;
 
@@ -19,6 +20,7 @@ use std::{
     io::{Read, Seek},
     num::NonZeroUsize,
     sync::Arc,
+    time::Instant,
 };
 // Third Party Imports
 use futures_util::future::BoxFuture;
@@ -59,6 +61,7 @@ pub(super) struct NativeOutput {
     pending: Option<FrozenFile>,
     descriptor: Option<QueryValue<ExecutionOutput>>,
     log: Option<LogPrefix>,
+    production: Option<follow::Production>,
     // Original Registry Node And Relative Key Charge Lives With Its Producer
     _registry: StorageProductionPreparation,
 }
@@ -164,6 +167,7 @@ impl NativeOutput {
             pending: None,
             descriptor: None,
             log: None,
+            production: None,
             _registry: registry,
         })
     }
@@ -735,41 +739,52 @@ impl FrozenFile {
 
     pub(super) async fn finish(&mut self, storage: &Manager) -> Result<FileReference> {
         if !self.written {
-            if let Some(producer) = self.producer.as_mut() {
-                // Ambiguous Write Prefixes Are Aborted; Never Submit Them Twice
-                producer.abort().await?;
-                self.producer = None;
-            }
-            if self.creating.get_mut().is_none() {
-                let metadata_bytes = self.metadata.memory_size();
-                if metadata_bytes == usize::MAX {
-                    return Err(error("native file creation metadata memory overflows"));
+            // The Frozen Source And Original Producer Survive A Failed Attempt.
+            // Never Recreate A File With The Same Identity Or Replay Its Prefix.
+            if self.producer.is_none() {
+                if self.creating.get_mut().is_none() {
+                    let metadata_bytes = self.metadata.memory_size();
+                    if metadata_bytes == usize::MAX {
+                        return Err(error("native file creation metadata memory overflows"));
+                    }
+                    let metadata_memory = storage.prepare_production(
+                        NonZeroUsize::new(metadata_bytes)
+                            .ok_or_else(|| error("empty native file metadata allowance"))?,
+                    )?;
+                    let manager = storage.clone();
+                    let metadata = (*self.metadata).clone();
+                    let future = async move { manager.produce_file(metadata).await };
+                    let future_memory = storage.prepare_production(
+                        NonZeroUsize::new(std::mem::size_of_val(&future))
+                            .ok_or_else(|| error("empty native file creation future allowance"))?,
+                    )?;
+                    self.creation_memory = Some((metadata_memory, future_memory));
+                    *self.creating.get_mut() = Some(Box::pin(future));
                 }
-                let metadata_memory = storage.prepare_production(
-                    NonZeroUsize::new(metadata_bytes)
-                        .ok_or_else(|| error("empty native file metadata allowance"))?,
-                )?;
-                let manager = storage.clone();
-                let metadata = (*self.metadata).clone();
-                let future = async move { manager.create_file(metadata).await };
-                let future_memory = storage.prepare_production(
-                    NonZeroUsize::new(std::mem::size_of_val(&future))
-                        .ok_or_else(|| error("empty native file creation future allowance"))?,
-                )?;
-                self.creation_memory = Some((metadata_memory, future_memory));
-                *self.creating.get_mut() = Some(Box::pin(future));
+                let outcome = self
+                    .creating
+                    .get_mut()
+                    .as_mut()
+                    .expect("original file creation retained")
+                    .await;
+                *self.creating.get_mut() = None;
+                self.creation_memory = None;
+                self.producer = Some(outcome?);
             }
-            let outcome = self
-                .creating
-                .get_mut()
-                .as_mut()
-                .expect("original file creation retained")
-                .await;
-            *self.creating.get_mut() = None;
-            self.creation_memory = None;
-            self.producer = Some(outcome?);
+            let retained = self
+                .producer
+                .as_ref()
+                .expect("original file producer retained")
+                .length();
+            let frozen_length = self.file.metadata().await.map_err(error)?.len();
+            if retained > frozen_length {
+                return Err(error("original production exceeds frozen source"));
+            }
+            let started = Instant::now();
+            tracing::debug!(file_id = %self.metadata.id, retained_bytes = retained,
+                source_bytes = frozen_length, "native snapshot copy started");
             self.file
-                .seek(std::io::SeekFrom::Start(0))
+                .seek(std::io::SeekFrom::Start(retained))
                 .await
                 .map_err(error)?;
             let buffer_bytes = std::mem::size_of::<Vec<u8>>() + COPY_BYTES;
@@ -787,14 +802,21 @@ impl FrozenFile {
                     .await?;
             }
             self.written = true;
+            tracing::debug!(file_id = %self.metadata.id, retained_bytes = frozen_length,
+                elapsed_ms = started.elapsed().as_millis() as u64, "native snapshot copy settled");
         }
         // Finish Failure Retries This Same Handle And Admission Position
-        Ok(self
+        let started = Instant::now();
+        tracing::debug!(file_id = %self.metadata.id, "native snapshot seal started");
+        let reference = self
             .producer
             .as_mut()
             .expect("written file producer retained")
             .finish()
-            .await?)
+            .await?;
+        tracing::debug!(file_id = %self.metadata.id, retained_bytes = reference.length,
+            elapsed_ms = started.elapsed().as_millis() as u64, "native snapshot seal settled");
+        Ok(reference)
     }
 }
 
@@ -820,6 +842,15 @@ pub(super) async fn snapshot(acquisition: &mut Acquisition, finalizing: bool) ->
             .as_ref()
             .and_then(|log| log.closed)
             .or(finalizing.then_some(SavedStreamState::Finalized));
+        if finalizing && source.production.is_some() {
+            if let Err(failure) =
+                follow::capture(&acquisition.storage, path, source, stream_state).await
+            {
+                follow::interrupt(&acquisition.storage, path, source).await?;
+                capture_error.get_or_insert(failure);
+            }
+            continue;
+        }
         // Complete Original Frozen Production Before Inspecting Mutable Bytes Again
         if source.pending.is_some() {
             finish_snapshot(&acquisition.storage, path, source).await?;
@@ -852,8 +883,8 @@ pub(super) async fn snapshot(acquisition: &mut Acquisition, finalizing: bool) ->
                 &acquisition.storage,
                 &acquisition.execution_id,
                 path,
-                length,
-                digest,
+                Some(length),
+                Some(digest),
             )?;
             source.pending = Some(FrozenFile {
                 file: frozen,
@@ -975,8 +1006,8 @@ fn file_metadata(
     storage: &Manager,
     execution: &TestExecutionId,
     path: &str,
-    length: u64,
-    digest: [u8; 32],
+    length: Option<u64>,
+    digest: Option<[u8; 32]>,
 ) -> Result<QueryValue<FileMetadata>> {
     let media_type = media_type_for_path(path).unwrap_or("application/octet-stream");
     let prefix = "output.native.";
@@ -1017,8 +1048,8 @@ fn file_metadata(
                 )
             })?),
             media_type: media_type.to_owned(),
-            expected_length: Some(length),
-            expected_sha256: Some(digest),
+            expected_length: length,
+            expected_sha256: digest,
         })
     })?;
     Ok(metadata.try_into_value()?)
@@ -1059,6 +1090,7 @@ fn copy_buffer() -> Result<Vec<u8>> {
 }
 
 async fn freeze(storage: &Manager, source: &NativeOutput) -> Result<(tokio::fs::File, [u8; 32])> {
+    let started = Instant::now();
     let mut file = open_file(source).await?;
     let before = file.metadata().await.map_err(error)?;
     let modified = before.modified().map_err(error)?;
@@ -1066,6 +1098,8 @@ async fn freeze(storage: &Manager, source: &NativeOutput) -> Result<(tokio::fs::
     if remaining > MAX_EXECUTION_FILE_SNAPSHOT_BYTES as u64 {
         return Err(crate::Error::ExecutionFileTooLarge);
     }
+    let source_bytes = remaining;
+    tracing::debug!(source_bytes, "native snapshot freeze started");
     let mut frozen = tokio::fs::File::from_std(tempfile::tempfile().map_err(error)?);
     let mut digest = Sha256::new();
     let buffer_bytes = std::mem::size_of::<Vec<u8>>() + COPY_BYTES;
@@ -1089,6 +1123,11 @@ async fn freeze(storage: &Manager, source: &NativeOutput) -> Result<(tokio::fs::
         .seek(std::io::SeekFrom::Start(0))
         .await
         .map_err(error)?;
+    tracing::debug!(
+        source_bytes,
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "native snapshot freeze settled"
+    );
     Ok((frozen, digest.finalize().into()))
 }
 
@@ -1151,6 +1190,9 @@ async fn interrupt_source(
     path: &str,
     source: &mut NativeOutput,
 ) -> Result<()> {
+    if source.production.is_some() {
+        return follow::interrupt(storage, path, source).await;
+    }
     if source.pending.is_some() {
         finish_snapshot(storage, path, source).await?;
     }
@@ -1158,7 +1200,7 @@ async fn interrupt_source(
         let digest: [u8; 32] = Sha256::digest([]).into();
         source.pending = Some(FrozenFile {
             file: tokio::fs::File::from_std(tempfile::tempfile().map_err(error)?),
-            metadata: file_metadata(storage, execution, path, 0, digest)?,
+            metadata: file_metadata(storage, execution, path, Some(0), Some(digest))?,
             stream_state: Some(SavedStreamState::Interrupted),
             creating: tokio::sync::Mutex::new(None),
             creation_memory: None,

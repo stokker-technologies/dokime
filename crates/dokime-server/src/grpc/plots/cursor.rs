@@ -15,17 +15,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use prost::Message;
+use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
-use super::super::enums;
-use super::super::value::{self, Budget};
+use super::super::enums::canonical as enums;
+use super::super::value::{self, Budget, canonical};
 use dokime_app::{
-    core::{
-        ArtifactId, CaseId, CriterionId, Identifier, RecordScope, SessionId, StepId, SuiteId,
-        TemplateId, TestCycleId, TestExecutionId,
-    },
+    core::{Identifier, RecordScope},
     document::{
         AxisScale, DocumentFilter, FftDetrend, FftOptions, FftWindow, FrequencyLevelUnit,
         HistogramOptions, SigmaIntervalOptions,
@@ -33,7 +30,6 @@ use dokime_app::{
     expressions::{DataExpression, DataSource, DataTransform},
     runtime::query::{DownsampleTechnique, PlotPayloadCursor, PlotPayloadRequest},
 };
-use dokime_protocol::v1;
 
 /* === Constants === */
 const MAX_PLOT_REQUESTS: usize = 32;
@@ -41,26 +37,6 @@ const MAX_PLOT_POINTS: u64 = 100_000;
 const MAX_PLOT_TRANSFORMS: usize = 32;
 
 /* === Macros === */
-macro_rules! impl_from_uuid {
-    ($($ty:ty),+ $(,)?) => {
-        $(impl FromUuid for $ty {
-            fn from_uuid(value: String) -> Result<Self, dokime_app::ApiError> {
-                <$ty>::from_uuid(value)
-            }
-        })+
-    };
-}
-
-impl_from_uuid!(
-    ArtifactId,
-    CriterionId,
-    SessionId,
-    StepId,
-    SuiteId,
-    TemplateId,
-    TestCycleId,
-    TestExecutionId,
-);
 
 /* === Type Aliases === */
 
@@ -69,9 +45,6 @@ impl_from_uuid!(
 /* === Enums === */
 
 /* === Traits === */
-trait FromUuid: Sized {
-    fn from_uuid(value: String) -> Result<Self, dokime_app::ApiError>;
-}
 
 /* === Implementations === */
 
@@ -82,7 +55,7 @@ pub(super) fn bounded_text(value: String) -> Result<String, Status> {
 }
 
 pub(super) fn decode_plot_requests(
-    requests: Vec<v1::PlotRequest>,
+    requests: Vec<dokime_contract::operations::plots::PlotRequest>,
     epoch: &str,
 ) -> Result<(Vec<PlotPayloadRequest>, Vec<String>), Status> {
     if requests.len() > MAX_PLOT_REQUESTS {
@@ -117,68 +90,26 @@ pub(super) fn expression_stream(value: String) -> Result<String, Status> {
     Ok(value)
 }
 
-pub(crate) fn record_scope(scope: v1::EvidenceScope) -> Result<RecordScope, Status> {
-    macro_rules! parse {
-        ($field:ident, $ty:ty, $label:literal) => {
-            scope
-                .$field
-                .map(|value| parse_id::<$ty>(value, $label))
-                .transpose()?
-        };
-    }
-    let origin = match scope.origin.and_then(|origin| origin.kind) {
-        None | Some(v1::evidence_origin::Kind::Default(true)) => {
-            dokime_app::core::EvidenceOrigin::Default
-        }
-        Some(v1::evidence_origin::Kind::Initialization(true)) => {
-            dokime_app::core::EvidenceOrigin::Initialization
-        }
-        Some(v1::evidence_origin::Kind::Cleanup(true)) => dokime_app::core::EvidenceOrigin::Cleanup,
-        Some(v1::evidence_origin::Kind::StepAttemptId(id)) => {
-            dokime_app::core::EvidenceOrigin::Step {
-                attempt_id: dokime_app::core::StepAttemptId::from_uuid(id)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
-            }
-        }
-        _ => return Err(Status::invalid_argument("invalid evidence origin")),
-    };
-    if origin != dokime_app::core::EvidenceOrigin::Default && scope.execution_id.is_none() {
-        return Err(Status::invalid_argument(
-            "evidence origin requires an execution owner",
-        ));
-    }
-    Ok(RecordScope {
-        origin,
-        session_id: parse!(session_id, SessionId, "session_id"),
-        test_cycle_id: scope
-            .cycle_id
-            .map(|value| parse_id::<TestCycleId>(value, "cycle_id"))
-            .transpose()?,
-        test_case_id: scope
-            .case_id
-            .map(|value| {
-                CaseId::from_wire(value)
-                    .map_err(|error| Status::invalid_argument(format!("invalid case_id: {error}")))
-            })
-            .transpose()?,
-        test_execution_id: parse!(execution_id, TestExecutionId, "execution_id"),
-        step_id: parse!(step_id, StepId, "step_id"),
-        criterion_id: parse!(criterion_id, CriterionId, "criterion_id"),
-        template_id: parse!(template_id, TemplateId, "template_id"),
-        suite_id: parse!(suite_id, SuiteId, "suite_id"),
-    })
+pub(crate) fn record_scope(
+    scope: dokime_contract::operations::common::EvidenceScope,
+) -> Result<RecordScope, Status> {
+    canonical::decoded_scope(&scope)
 }
 
 /* === Private Functions === */
-fn plot_cursor(cursor: v1::PlotCursor) -> PlotPayloadCursor {
+fn plot_cursor(cursor: dokime_contract::operations::plots::PlotCursor) -> PlotPayloadCursor {
     PlotPayloadCursor {
-        telemetry_streams: cursor.telemetry_streams.into_iter().collect(),
+        telemetry_streams: cursor
+            .telemetry_streams
+            .into_iter()
+            .map(|entry| (entry.key, entry.value))
+            .collect(),
         record_sequence: cursor.record_sequence,
     }
 }
 
 fn plot_request(
-    request: v1::PlotRequest,
+    request: dokime_contract::operations::plots::PlotRequest,
     epoch: &str,
     selection: &str,
 ) -> Result<PlotPayloadRequest, Status> {
@@ -306,32 +237,35 @@ fn nonnegative(value: f64, label: &str) -> Result<f64, Status> {
     Ok(value)
 }
 
-fn fft_options(value: v1::PlotFftOptions) -> Result<FftOptions, Status> {
+fn fft_options(
+    value: dokime_contract::operations::plots::PlotFftOptions,
+) -> Result<FftOptions, Status> {
     let defaults = FftOptions::default();
     Ok(FftOptions {
         sample_rate_hz: value
             .sample_rate_hz
             .map(|v| nonnegative(v, "FFT sample rate"))
             .transpose()?,
-        window: match v1::FftWindow::try_from(value.window) {
-            Ok(v1::FftWindow::Unspecified) => defaults.window,
-            Ok(v1::FftWindow::Hann) => FftWindow::Hann,
-            Ok(v1::FftWindow::Rectangular) => FftWindow::Rectangular,
-            Err(_) => return Err(Status::invalid_argument("invalid FFT window")),
+        window: match value.window {
+            dokime_contract::operations::plots::FftWindow::Unspecified => defaults.window,
+            dokime_contract::operations::plots::FftWindow::Hann => FftWindow::Hann,
+            dokime_contract::operations::plots::FftWindow::Rectangular => FftWindow::Rectangular,
         },
-        detrend: match v1::FftDetrend::try_from(value.detrend) {
-            Ok(v1::FftDetrend::Unspecified) => defaults.detrend,
-            Ok(v1::FftDetrend::None) => FftDetrend::None,
-            Ok(v1::FftDetrend::Mean) => FftDetrend::Mean,
-            Err(_) => return Err(Status::invalid_argument("invalid FFT detrend")),
+        detrend: match value.detrend {
+            dokime_contract::operations::plots::FftDetrend::Unspecified => defaults.detrend,
+            dokime_contract::operations::plots::FftDetrend::None => FftDetrend::None,
+            dokime_contract::operations::plots::FftDetrend::Mean => FftDetrend::Mean,
         },
-        level_unit: match v1::FrequencyLevelUnit::try_from(value.level_unit) {
-            Ok(v1::FrequencyLevelUnit::Unspecified) => defaults.level_unit,
-            Ok(v1::FrequencyLevelUnit::Linear) => FrequencyLevelUnit::Linear,
-            Ok(v1::FrequencyLevelUnit::Db) => FrequencyLevelUnit::Db,
-            Ok(v1::FrequencyLevelUnit::Dbu) => FrequencyLevelUnit::Dbu,
-            Ok(v1::FrequencyLevelUnit::Dbm) => FrequencyLevelUnit::Dbm,
-            Err(_) => return Err(Status::invalid_argument("invalid FFT level unit")),
+        level_unit: match value.level_unit {
+            dokime_contract::operations::plots::FrequencyLevelUnit::Unspecified => {
+                defaults.level_unit
+            }
+            dokime_contract::operations::plots::FrequencyLevelUnit::Linear => {
+                FrequencyLevelUnit::Linear
+            }
+            dokime_contract::operations::plots::FrequencyLevelUnit::Db => FrequencyLevelUnit::Db,
+            dokime_contract::operations::plots::FrequencyLevelUnit::Dbu => FrequencyLevelUnit::Dbu,
+            dokime_contract::operations::plots::FrequencyLevelUnit::Dbm => FrequencyLevelUnit::Dbm,
         },
         include_dc: value.include_dc,
         min_frequency_hz: value
@@ -345,7 +279,9 @@ fn fft_options(value: v1::PlotFftOptions) -> Result<FftOptions, Status> {
     })
 }
 
-fn interval_options(value: v1::PlotIntervalOptions) -> Result<SigmaIntervalOptions, Status> {
+fn interval_options(
+    value: dokime_contract::operations::plots::PlotIntervalOptions,
+) -> Result<SigmaIntervalOptions, Status> {
     Ok(SigmaIntervalOptions {
         bin_width: nonnegative(value.bin_width, "interval bin width")?,
         sigma: nonnegative(value.sigma, "interval sigma")?,
@@ -353,7 +289,9 @@ fn interval_options(value: v1::PlotIntervalOptions) -> Result<SigmaIntervalOptio
     })
 }
 
-fn histogram_options(value: v1::PlotHistogramOptions) -> Result<HistogramOptions, Status> {
+fn histogram_options(
+    value: dokime_contract::operations::plots::PlotHistogramOptions,
+) -> Result<HistogramOptions, Status> {
     if value.bins > MAX_PLOT_POINTS {
         return Err(Status::resource_exhausted("histogram bins exceeds 100000"));
     }
@@ -365,7 +303,7 @@ fn histogram_options(value: v1::PlotHistogramOptions) -> Result<HistogramOptions
     })
 }
 
-fn selection_key_wire(request: &v1::PlotRequest) -> String {
+fn selection_key_wire(request: &dokime_contract::operations::plots::PlotRequest) -> String {
     let mut request = request.clone();
     request.cursor = None;
     Sha256::digest(request.encode_to_vec())
@@ -374,7 +312,9 @@ fn selection_key_wire(request: &v1::PlotRequest) -> String {
         .collect::<String>()
 }
 
-fn plot_filter(filter: v1::PlotFilter) -> Result<DocumentFilter, Status> {
+fn plot_filter(
+    filter: dokime_contract::operations::plots::PlotFilter,
+) -> Result<DocumentFilter, Status> {
     let expression = filter
         .expression
         .ok_or_else(|| Status::invalid_argument("plot filter expression is required"))
@@ -383,7 +323,7 @@ fn plot_filter(filter: v1::PlotFilter) -> Result<DocumentFilter, Status> {
         .ok_or_else(|| Status::invalid_argument("plot filter operator is required"))?;
     let value = filter
         .value
-        .map(|value| value::decode(value, &mut Budget::new(), 0))
+        .map(|value| canonical::decode(value, &mut Budget::new(), 0))
         .transpose()?;
     Ok(DocumentFilter {
         expression,
@@ -392,7 +332,9 @@ fn plot_filter(filter: v1::PlotFilter) -> Result<DocumentFilter, Status> {
     })
 }
 
-fn data_expression(expression: v1::DataExpression) -> Result<DataExpression, Status> {
+fn data_expression(
+    expression: dokime_contract::operations::plots::DataExpression,
+) -> Result<DataExpression, Status> {
     if expression.transforms.len() > MAX_PLOT_TRANSFORMS {
         return Err(Status::resource_exhausted(
             "plot expression exceeds 32 transforms",
@@ -402,22 +344,32 @@ fn data_expression(expression: v1::DataExpression) -> Result<DataExpression, Sta
         .source
         .ok_or_else(|| Status::invalid_argument("data expression source is required"))?
     {
-        v1::data_expression::Source::Telemetry(source) => DataSource::Telemetry {
-            stream: expression_stream(source.stream)?,
-            field: bounded_text(source.field)?,
-        },
-        v1::data_expression::Source::Parameter(source) => DataSource::Parameter {
-            name: bounded_text(source.name)?,
-        },
-        v1::data_expression::Source::Dimension(source) => DataSource::Dimension {
-            name: bounded_text(source.name)?,
-        },
-        v1::data_expression::Source::Record(source) => DataSource::Record {
-            record_type: bounded_text(source.record_type)?,
-        },
-        v1::data_expression::Source::Artifact(source) => DataSource::Artifact {
-            artifact: bounded_text(source.artifact)?,
-        },
+        dokime_contract::operations::plots::DataExpressionSource::Telemetry(source) => {
+            DataSource::Telemetry {
+                stream: expression_stream(source.stream)?,
+                field: bounded_text(source.field)?,
+            }
+        }
+        dokime_contract::operations::plots::DataExpressionSource::Parameter(source) => {
+            DataSource::Parameter {
+                name: bounded_text(source.name)?,
+            }
+        }
+        dokime_contract::operations::plots::DataExpressionSource::Dimension(source) => {
+            DataSource::Dimension {
+                name: bounded_text(source.name)?,
+            }
+        }
+        dokime_contract::operations::plots::DataExpressionSource::Record(source) => {
+            DataSource::Record {
+                record_type: bounded_text(source.record_type)?,
+            }
+        }
+        dokime_contract::operations::plots::DataExpressionSource::Artifact(source) => {
+            DataSource::Artifact {
+                artifact: bounded_text(source.artifact)?,
+            }
+        }
     };
     let transforms = expression
         .transforms
@@ -431,44 +383,36 @@ fn data_expression(expression: v1::DataExpression) -> Result<DataExpression, Sta
     })
 }
 
-fn data_transform(transform: v1::DataTransform) -> Result<DataTransform, Status> {
+fn data_transform(
+    transform: dokime_contract::operations::plots::DataTransform,
+) -> Result<DataTransform, Status> {
     let kind = transform
         .kind
         .ok_or_else(|| Status::invalid_argument("data transform kind is required"))?;
     Ok(match kind {
-        v1::data_transform::Kind::Count(_) => DataTransform::Count,
-        v1::data_transform::Kind::Mean(_) => DataTransform::Mean,
-        v1::data_transform::Kind::Median(_) => DataTransform::Median,
-        v1::data_transform::Kind::Min(_) => DataTransform::Min,
-        v1::data_transform::Kind::Max(_) => DataTransform::Max,
-        v1::data_transform::Kind::TimeBetween(value) => DataTransform::TimeBetween {
-            previous_record_type: bounded_text(value.previous_record_type)?,
-        },
-        v1::data_transform::Kind::TelemetryAtOrBefore(value) => {
+        dokime_contract::operations::plots::DataTransformKind::Count(_) => DataTransform::Count,
+        dokime_contract::operations::plots::DataTransformKind::Mean(_) => DataTransform::Mean,
+        dokime_contract::operations::plots::DataTransformKind::Median(_) => DataTransform::Median,
+        dokime_contract::operations::plots::DataTransformKind::Min(_) => DataTransform::Min,
+        dokime_contract::operations::plots::DataTransformKind::Max(_) => DataTransform::Max,
+        dokime_contract::operations::plots::DataTransformKind::TimeBetween(value) => {
+            DataTransform::TimeBetween {
+                previous_record_type: bounded_text(value.previous_record_type)?,
+            }
+        }
+        dokime_contract::operations::plots::DataTransformKind::TelemetryAtOrBefore(value) => {
             DataTransform::TelemetryAtOrBefore {
                 stream: expression_stream(value.stream)?,
                 field: bounded_text(value.field)?,
             }
         }
-        v1::data_transform::Kind::Detail(value) => DataTransform::Detail {
-            name: bounded_text(value.name)?,
-        },
-        v1::data_transform::Kind::PerCase(_) => DataTransform::PerCase,
+        dokime_contract::operations::plots::DataTransformKind::Detail(value) => {
+            DataTransform::Detail {
+                name: bounded_text(value.name)?,
+            }
+        }
+        dokime_contract::operations::plots::DataTransformKind::PerCase(_) => DataTransform::PerCase,
     })
-}
-
-fn parse_id<T>(value: String, label: &str) -> Result<T, Status>
-where
-    T: FromUuid,
-{
-    if uuid::Uuid::parse_str(&value)
-        .map(|value| value.is_nil())
-        .unwrap_or(true)
-    {
-        return Err(Status::invalid_argument(format!("invalid {label}")));
-    }
-    T::from_uuid(value)
-        .map_err(|error| Status::invalid_argument(format!("invalid {label}: {error}")))
 }
 
 /* === Tests === */

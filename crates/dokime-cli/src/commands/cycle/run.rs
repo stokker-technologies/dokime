@@ -67,7 +67,7 @@ struct Input {
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let input = match args.input_file {
         Some(path) => {
-            let bytes = crate::input::read(&path, 16 * 1024)?;
+            let bytes = dokime_filesystem::input::read(&path, 16 * 1024)?;
             serde_json::from_slice::<Input>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
         }
@@ -80,9 +80,9 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                 .ok_or_else(|| crate::Error::Input("request key is required".into()))?,
         },
     };
-    let id = dokime::core::TestCycleId::from_uuid(&input.cycle_id)
+    let id = dokime_contract::core::TestCycleId::from_uuid(&input.cycle_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
-    dokime::core::command::validate_idempotency_key(&input.request_key)
+    dokime_contract::core::command::validate_idempotency_key(&input.request_key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
     let result = client.cycle(id).run(&input.request_key).await;

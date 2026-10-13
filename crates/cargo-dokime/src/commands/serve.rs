@@ -34,12 +34,12 @@ use crate::{commands::backend, error::Error};
 pub struct Args {
     #[arg(
         long,
-        help = "Backend override, written ahead of the forwarded arguments. The default is the installed Dokime executable."
+        help = "Backend override, written ahead of the forwarded arguments. The default is the installed Dokime server executable."
     )]
     pub(crate) dokime: Option<PathBuf>,
     #[arg(
         allow_hyphen_values = true,
-        help = "Arguments for the backend's own `serve`, forwarded verbatim."
+        help = "Arguments for the server process, forwarded verbatim."
     )]
     pub(crate) backend: Vec<OsString>,
 }
@@ -57,7 +57,6 @@ pub(crate) async fn run(args: Args) -> Result<(), Error> {
     command
         .arg("--color")
         .arg(color())
-        .arg("serve")
         .args(&args.backend)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())

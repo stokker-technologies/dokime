@@ -9,7 +9,7 @@
 
 /* === Modules === */
 mod native;
-mod projection;
+pub(super) mod projection;
 
 /* === Re-Exports === */
 
@@ -534,7 +534,7 @@ fn encode_key(value: &ScalarValue, key: &mut Vec<u8>) -> Result<(), Error> {
     Ok(())
 }
 
-fn schema(
+pub(super) fn schema(
     connection: &Connection,
     memory: &Arc<memory::Budget>,
     cut: &SavedData,
@@ -573,7 +573,7 @@ fn schema(
         match &original {
             None => original = Some(schema),
             // Identical Re-Admissions Do Not Change The Codec Of Earlier Rows.
-            Some(original) if original.fields != schema.fields => {
+            Some(original) if original.schema != schema.schema => {
                 return Err(Error::Data(
                     "scan source contains incompatible schema declarations",
                 ));
@@ -584,7 +584,7 @@ fn schema(
     original.ok_or(Error::Data("scan schema is absent from saved view"))
 }
 
-fn check_record(
+pub(super) fn check_record(
     record: &StoredRecord,
     stream: Option<&harmos::Identifier>,
     indexed: u64,

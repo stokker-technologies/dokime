@@ -36,9 +36,13 @@ use super::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn labelled(owner: &Runtime, identifier: &str, label: &str) -> v1::CreateCycleRequest {
-    v1::CreateCycleRequest {
-        metadata: Some(v1::Metadata {
+fn labelled(
+    owner: &Runtime,
+    identifier: &str,
+    label: &str,
+) -> contracts::execution::CreateCycleRequest {
+    contracts::execution::CreateCycleRequest {
+        metadata: Some(contracts::common::Metadata {
             identifier: identifier.into(),
             label: label.into(),
             description: None,
@@ -49,12 +53,12 @@ fn labelled(owner: &Runtime, identifier: &str, label: &str) -> v1::CreateCycleRe
 }
 
 async fn walk(
-    client: &mut ExecutionClient<tonic::transport::Channel>,
-    filter: v1::CycleFilter,
-    order: v1::CycleOrder,
+    client: &mut WireClient,
+    filter: contracts::execution::CycleFilter,
+    order: contracts::execution::CycleOrder,
     limit: u32,
 ) -> Vec<String> {
-    let mut request = v1::ListCyclesRequest {
+    let mut request = contracts::execution::ListCyclesRequest {
         limit,
         filter: Some(filter),
         order: Some(order),
@@ -63,7 +67,7 @@ async fn walk(
     let mut walked = Vec::new();
     loop {
         let page = client
-            .list_cycles(request.clone())
+            .unary::<contracts::execution::ListCycles>(request.clone())
             .await
             .unwrap()
             .into_inner();
@@ -91,9 +95,7 @@ pub(crate) async fn cycle_search_once() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     for (identifier, label) in [
         ("grpc.burn-c", "Burn In Gamma"),
         ("grpc.calibration", "Calibration Sweep"),
@@ -101,12 +103,12 @@ pub(crate) async fn cycle_search_once() {
         ("grpc.burn-b", "Burn In Beta"),
     ] {
         client
-            .create_cycle(labelled(&owner, identifier, label))
+            .unary::<contracts::execution::CreateCycle>(labelled(&owner, identifier, label))
             .await
             .unwrap();
     }
-    let by_label = v1::CycleOrder {
-        key: v1::CycleOrderKey::Label as i32,
+    let by_label = contracts::execution::CycleOrder {
+        key: contracts::execution::CycleOrderKey::Label,
         descending: false,
     };
 
@@ -114,11 +116,11 @@ pub(crate) async fn cycle_search_once() {
     // whole match set once, in the declared order.
     let walked = walk(
         &mut client,
-        v1::CycleFilter {
+        contracts::execution::CycleFilter {
             text: "BURN in".into(),
             ..Default::default()
         },
-        by_label,
+        by_label.clone(),
         1,
     )
     .await;
@@ -127,11 +129,11 @@ pub(crate) async fn cycle_search_once() {
     // The same matches, in one page, are the same sequence.
     let single = walk(
         &mut client,
-        v1::CycleFilter {
+        contracts::execution::CycleFilter {
             text: "burn in".into(),
             ..Default::default()
         },
-        by_label,
+        by_label.clone(),
         50,
     )
     .await;
@@ -140,11 +142,11 @@ pub(crate) async fn cycle_search_once() {
     // Text also matches the suite label every fixture cycle admits.
     let by_suite = walk(
         &mut client,
-        v1::CycleFilter {
+        contracts::execution::CycleFilter {
             text: "fixture".into(),
             ..Default::default()
         },
-        by_label,
+        by_label.clone(),
         2,
     )
     .await;
@@ -155,11 +157,11 @@ pub(crate) async fn cycle_search_once() {
     assert!(
         walk(
             &mut client,
-            v1::CycleFilter {
-                statuses: vec![v1::CycleStatus::Completed as i32],
+            contracts::execution::CycleFilter {
+                statuses: vec![contracts::execution::CycleStatus::Completed],
                 ..Default::default()
             },
-            by_label,
+            by_label.clone(),
             10,
         )
         .await
@@ -168,11 +170,11 @@ pub(crate) async fn cycle_search_once() {
     assert_eq!(
         walk(
             &mut client,
-            v1::CycleFilter {
-                statuses: vec![v1::CycleStatus::Ready as i32],
+            contracts::execution::CycleFilter {
+                statuses: vec![contracts::execution::CycleStatus::Ready],
                 ..Default::default()
             },
-            by_label,
+            by_label.clone(),
             10,
         )
         .await
@@ -182,7 +184,9 @@ pub(crate) async fn cycle_search_once() {
 
     // A continuation the filter excludes is rejected, not silently restarted.
     let excluded = client
-        .list_cycles(v1::ListCyclesRequest::default())
+        .unary::<contracts::execution::ListCycles>(
+            contracts::execution::ListCyclesRequest::default(),
+        )
         .await
         .unwrap()
         .into_inner();
@@ -195,10 +199,10 @@ pub(crate) async fn cycle_search_once() {
         .clone();
     assert_eq!(
         client
-            .list_cycles(v1::ListCyclesRequest {
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCyclesRequest {
                 after_cycle_id: outsider,
                 cursor: excluded.cursor.clone(),
-                filter: Some(v1::CycleFilter {
+                filter: Some(contracts::execution::CycleFilter {
                     text: "burn in".into(),
                     ..Default::default()
                 }),
@@ -214,9 +218,9 @@ pub(crate) async fn cycle_search_once() {
     // An undeclared status number is refused rather than widened away.
     assert_eq!(
         client
-            .list_cycles(v1::ListCyclesRequest {
-                filter: Some(v1::CycleFilter {
-                    statuses: vec![v1::CycleStatus::Unspecified as i32],
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCyclesRequest {
+                filter: Some(contracts::execution::CycleFilter {
+                    statuses: vec![contracts::execution::CycleStatus::Unspecified],
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -238,17 +242,15 @@ pub(crate) async fn listed_cases_page() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = client
-        .create_cycle(create(&owner))
+        .unary::<contracts::execution::CreateCycle>(create(&owner))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let page = client
-        .list_cases(v1::ListCasesRequest {
+        .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
             cycle_id,
             ..Default::default()
         })
@@ -259,10 +261,13 @@ pub(crate) async fn listed_cases_page() {
     for case in &page.cases {
         // Creation materializes one undispatched attempt per case, which is
         // queued work rather than a skip and is the attempt a run dispatches.
-        assert_eq!(case.status(), v1::CaseStatus::Queued);
+        assert_eq!(case.status, contracts::execution::CaseStatus::Queued);
         assert_eq!(case.attempt_count, 1);
         assert!(!case.rerun_scheduled);
-        assert_eq!(case.latest_execution_status(), v1::ExecutionStatus::Skipped);
+        assert_eq!(
+            case.latest_execution_status,
+            Some(contracts::execution::ExecutionStatus::Skipped)
+        );
         assert!(case.latest_execution_id.is_some());
         let actions = case.actions.as_ref().unwrap();
         assert!(actions.run);

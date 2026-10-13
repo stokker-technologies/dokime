@@ -15,10 +15,9 @@
 // Standard Library Imports
 
 // Third Party Imports
-use tonic::{Code, transport::Channel};
+use tonic::Code;
 // Local Imports
 use super::*;
-use dokime_protocol::v1::{self, backend_client::BackendClient, execution_client::ExecutionClient};
 
 /* === Constants === */
 const CONTROL_TOKEN: &str = "append-control-token-012345678901234567890";
@@ -38,8 +37,11 @@ const CONTROL_TOKEN: &str = "append-control-token-012345678901234567890";
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn selection(suite: &dokime_app::definition::TestSuite, index: usize) -> v1::RegisteredSelection {
-    v1::RegisteredSelection {
+fn selection(
+    suite: &dokime_app::definition::TestSuite,
+    index: usize,
+) -> contracts::planning::RegisteredSelection {
+    contracts::planning::RegisteredSelection {
         suite_id: suite.metadata.identifier.to_string(),
         template_id: suite.test_case_templates[index]
             .test_case_template_id
@@ -48,17 +50,15 @@ fn selection(suite: &dokime_app::definition::TestSuite, index: usize) -> v1::Reg
     }
 }
 
-fn plan(selection: v1::RegisteredSelection) -> v1::SelectionPlan {
-    v1::SelectionPlan {
+fn plan(selection: contracts::planning::RegisteredSelection) -> contracts::planning::SelectionPlan {
+    contracts::planning::SelectionPlan {
         selections: vec![selection],
         ..Default::default()
     }
 }
 
-async fn client(server: &Server) -> ExecutionClient<Channel> {
-    ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap()
+async fn client(server: &Server) -> WireClient {
+    WireClient::connect(server.local_endpoint()).await.unwrap()
 }
 
 pub(crate) async fn append_cases_control() {
@@ -77,13 +77,13 @@ pub(crate) async fn append_cases_control() {
     )
     .await
     .unwrap();
-    let mut execution = client(&server).await;
+    let execution = client(&server).await;
 
     let cycle_id = execution
-        .create_cycle(auth(
-            v1::CreateCycleRequest {
+        .unary::<contracts::execution::CreateCycle>(auth(
+            contracts::execution::CreateCycleRequest {
                 plan: Some(plan(selection(&suite, 0))),
-                metadata: Some(v1::Metadata {
+                metadata: Some(contracts::common::Metadata {
                     identifier: "append.cycle".into(),
                     label: "Append cycle".into(),
                     description: None,
@@ -98,8 +98,8 @@ pub(crate) async fn append_cases_control() {
         .into_inner()
         .cycle_id;
     let before = execution
-        .list_cases(auth(
-            v1::ListCasesRequest {
+        .unary::<contracts::execution::ListCases>(auth(
+            contracts::execution::ListCasesRequest {
                 cycle_id: cycle_id.clone(),
                 ..Default::default()
             },
@@ -111,29 +111,29 @@ pub(crate) async fn append_cases_control() {
         .cases;
     assert_eq!(before.len(), 1);
 
-    let request = v1::AppendPlannedCasesRequest {
+    let request = contracts::execution::AppendPlannedCasesRequest {
         cycle_id: cycle_id.clone(),
         plan: Some(plan(selection(&suite, 1))),
         context: None,
     };
     assert_eq!(
         execution
-            .append_planned_cases(auth(request.clone(), super::TOKEN))
+            .unary::<contracts::execution::AppendPlannedCases>(auth(request.clone(), super::TOKEN))
             .await
             .unwrap_err()
             .code(),
         Code::PermissionDenied
     );
     let reply = execution
-        .append_planned_cases(auth(request, CONTROL_TOKEN))
+        .unary::<contracts::execution::AppendPlannedCases>(auth(request, CONTROL_TOKEN))
         .await
         .unwrap()
         .into_inner();
     assert!(reply.observed_cursor.is_some());
 
     let after = execution
-        .list_cases(auth(
-            v1::ListCasesRequest {
+        .unary::<contracts::execution::ListCases>(auth(
+            contracts::execution::ListCasesRequest {
                 cycle_id: cycle_id.clone(),
                 ..Default::default()
             },
@@ -148,18 +148,22 @@ pub(crate) async fn append_cases_control() {
     assert_eq!(after[0].template_id, before[0].template_id);
     assert_ne!(after[1].template_id, before[0].template_id);
 
-    let mut backend = BackendClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let backend = WireClient::connect(server.local_endpoint()).await.unwrap();
     let read_methods = backend
-        .get_capabilities(auth(v1::GetCapabilitiesRequest::default(), super::TOKEN))
+        .unary::<contracts::backend::GetCapabilities>(auth(
+            contracts::backend::GetCapabilitiesRequest::default(),
+            super::TOKEN,
+        ))
         .await
         .unwrap()
         .into_inner()
         .methods;
     assert!(!read_methods.contains(&"/dokime.v1.Execution/AppendPlannedCases".into()));
     let control_methods = backend
-        .get_capabilities(auth(v1::GetCapabilitiesRequest::default(), CONTROL_TOKEN))
+        .unary::<contracts::backend::GetCapabilities>(auth(
+            contracts::backend::GetCapabilitiesRequest::default(),
+            CONTROL_TOKEN,
+        ))
         .await
         .unwrap()
         .into_inner()

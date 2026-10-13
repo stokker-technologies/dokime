@@ -16,14 +16,13 @@ import argparse
 import base64
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.check.release import (
     release_tag,
@@ -177,7 +176,7 @@ def confirm(
         )
     assets = remote.get("assets")
     if not isinstance(assets, list):
-        raise ValueError("existing release assets are invalid")
+        raise TypeError("existing release assets are invalid")
     actual = {}
     for item in assets:
         name = item.get("name")

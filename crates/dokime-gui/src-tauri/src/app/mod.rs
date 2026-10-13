@@ -86,16 +86,15 @@ fn start_tauri_app() -> tauri::Result<()> {
     let retained = Arc::new(Mutex::new(None::<crate::native_session::DesktopSession>));
     let setup_owner = Arc::clone(&retained);
     let controls = bindings::invoke_handler();
-    let rpc = crate::rpc::handler();
-    let artifact_uploads = crate::rpc::artifact_upload_handler();
+    let artifact_uploads = crate::uploads::artifact_upload_handler();
     let builder = tauri::Builder::default()
-        .manage(crate::rpc::Bridge::default())
+        .manage(crate::uploads::Bridge::default())
         .manage(crate::connection::ConnectionSession::default())
         .manage(launch)
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 window
-                    .state::<crate::rpc::Bridge>()
+                    .state::<crate::uploads::Bridge>()
                     .cancel_owner(window.label());
                 // No single generation is authoritative at window teardown;
                 // drop the whole media preview cache rather than one slice
@@ -150,19 +149,12 @@ fn start_tauri_app() -> tauri::Result<()> {
                     | "recording_open"
                     | "recording_write"
                     | "recording_cancel"
+                    | "plugin_stage_open"
+                    | "client_stream_write"
+                    | "client_stream_finish"
+                    | "client_stream_cancel"
             ) {
                 artifact_uploads(invoke)
-            } else if invoke.message.command().starts_with("rpc_")
-                || matches!(
-                    invoke.message.command(),
-                    "stream_next"
-                        | "stream_cancel"
-                        | "client_stream_write"
-                        | "client_stream_finish"
-                        | "client_stream_cancel"
-                )
-            {
-                rpc(invoke)
             } else {
                 controls(invoke)
             }
@@ -214,7 +206,11 @@ fn create_main_windows(app: &mut tauri::App) -> tauri::Result<()> {
         .iter()
         .filter(|window| !window.create)
     {
-        let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?;
+        let navigation_config = app.config().clone();
+        let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), window)?
+            .on_navigation(move |url| {
+                crate::native_session::trusted_application_url(url, &navigation_config)
+            });
         // The window-level OLE handler would otherwise swallow file drops
         // before WebView2 raises the HTML5 events the plugin drop zone uses.
         #[cfg(windows)]

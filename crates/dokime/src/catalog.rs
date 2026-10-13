@@ -36,17 +36,17 @@ use crate::telemetry::{TelemetryContract, TelemetryStream};
 /* === Type Aliases === */
 #[cfg(feature = "native")]
 pub type Publish = for<'a> fn(
-    &'a harmos::sidecar::Supervisor,
+    &'a harmos::plugin::sidecar::Supervisor,
     &'a str,
     &'a std::collections::BTreeMap<String, crate::core::Value>,
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
 #[cfg(feature = "native")]
 pub type Bind = fn(
-    &mut harmos::sidecar::operations::WireTable<harmos::sidecar::Supervisor>,
+    &mut harmos::plugin::sidecar::operations::WireTable<harmos::plugin::sidecar::Supervisor>,
     &str,
     &[RecordContract],
-) -> Result<(), harmos::sidecar::operations::ServingError>;
+) -> Result<(), harmos::plugin::sidecar::operations::ServingError>;
 
 /* === Structs === */
 #[cfg(feature = "native")]
@@ -87,7 +87,6 @@ pub struct TemplateRunners;
 #[cfg(feature = "native")]
 pub struct SuiteRunners;
 
-#[cfg(feature = "native")]
 pub struct Listeners;
 
 #[cfg(feature = "native")]
@@ -103,7 +102,6 @@ pub struct PublicationEntry {
     pub publish: Publish,
 }
 
-#[cfg(feature = "native")]
 #[derive(Clone, Copy)]
 pub struct ListenerEntry {
     pub operation: &'static str,
@@ -117,12 +115,12 @@ pub struct ListenerEntry {
 /* === Implementations === */
 #[cfg(feature = "native")]
 impl Visitor for Streams {
-    type Entry = harmos::sidecar::inventory::publications::Entry;
+    type Entry = harmos::plugin::sidecar::inventory::publications::Entry;
 }
 
 #[cfg(feature = "native")]
 impl<T: harmos::StreamSpec<Row: harmos::schema::Described>> Member<T> for Streams {
-    const ENTRY: Self::Entry = harmos::sidecar::inventory::publications::Entry::of::<T>();
+    const ENTRY: Self::Entry = harmos::plugin::sidecar::inventory::publications::Entry::of::<T>();
 }
 
 impl Visitor for StreamContracts {
@@ -189,7 +187,7 @@ impl<P> Visitor for TemplateBindings<P> {
 #[cfg(feature = "native")]
 impl<P, T> Member<T> for TemplateBindings<P>
 where
-    P: harmos::artifact::plugin::Declared,
+    P: harmos::plugin::contract::Declared,
     T: SidecarTemplate,
 {
     const ENTRY: Self::Entry = {
@@ -249,7 +247,7 @@ impl<P> Visitor for SuiteBindings<P> {
 #[cfg(feature = "native")]
 impl<P, T> Member<T> for SuiteBindings<P>
 where
-    P: harmos::artifact::plugin::Declared,
+    P: harmos::plugin::contract::Declared,
     T: crate::definition::DeclaredSuite,
 {
     const ENTRY: Self::Entry = T::bind::<P>;
@@ -263,7 +261,7 @@ impl<P> Visitor for Publications<P> {
 #[cfg(feature = "native")]
 impl<P, T> Member<T> for Publications<P>
 where
-    P: harmos::artifact::plugin::Declared,
+    P: harmos::plugin::contract::Declared,
     T: TelemetryStream<Row: harmos::Message>,
 {
     const ENTRY: Self::Entry = PublicationEntry {
@@ -272,7 +270,6 @@ where
     };
 }
 
-#[cfg(feature = "native")]
 impl Visitor for Listeners {
     type Entry = ListenerEntry;
 }
@@ -333,7 +330,7 @@ pub const fn joined<const N: usize>(id: &str, suffix: &str) -> [u8; N] {
 
 pub const fn required_by(
     required: &[Node<harmos::operations::WireDeclaration>],
-    granted: &[Node<harmos::artifact::plugin::Requirement>],
+    granted: &[Node<harmos::plugin::contract::Requirement>],
     provided: &[Node<harmos::operations::WireDeclaration>],
 ) -> bool {
     let mut index = 0;
@@ -354,7 +351,7 @@ pub const fn required_by(
 }
 
 /* === Private Functions === */
-const fn granted_id(granted: &[Node<harmos::artifact::plugin::Requirement>], id: &str) -> bool {
+const fn granted_id(granted: &[Node<harmos::plugin::contract::Requirement>], id: &str) -> bool {
     let mut index = 0;
     while index < granted.len() {
         let found = match &granted[index] {
@@ -426,13 +423,13 @@ const fn write<E: Copy, const N: usize>(nodes: &[Node<E>], flat: &mut [E; N], at
 
 #[cfg(feature = "native")]
 fn publish<'a, T, P>(
-    host: &'a harmos::sidecar::Supervisor,
+    host: &'a harmos::plugin::sidecar::Supervisor,
     token: &'a str,
     values: &'a std::collections::BTreeMap<String, crate::core::Value>,
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>
 where
     T: TelemetryStream<Row: harmos::Message>,
-    P: harmos::artifact::plugin::Declared,
+    P: harmos::plugin::contract::Declared,
 {
     Box::pin(async move {
         let row = <T::Row as TelemetryRow>::from_row(values).map_err(|error| error.to_string())?;

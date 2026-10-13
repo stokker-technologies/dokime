@@ -298,7 +298,7 @@ impl RuntimeHandle {
             .filter(|key| !key.is_empty())
         {
             Some(key) => {
-                self.commit_keyed(harmos::RequestKey::new(key), transaction)
+                self.commit_keyed(harmos::state::RequestKey::new(key), transaction)
                     .await
             }
             None => self.commit(transaction).await,

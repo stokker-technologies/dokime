@@ -27,12 +27,13 @@ use dokime_app::{
     Runtime, RuntimeConfig,
     core::{Identifier, Metadata},
 };
+use dokime_contract::operations::{backend, execution, plugins, value};
 use dokime_gui::{
     connection::ConnectionSession,
-    rpc::{Bridge, MAX_FRAME_BYTES, handler},
+    uploads::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, artifact_upload_handler as handler},
 };
 use dokime_server::grpc::{Config, Server};
-use prost::Message;
+use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
@@ -62,7 +63,7 @@ struct StageInput {
 
 /* === Implementations === */
 impl tokio_stream::Stream for StageInput {
-    type Item = dokime_protocol::v1::StagePluginFrame;
+    type Item = plugins::StagePluginFrame;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -73,9 +74,9 @@ impl tokio_stream::Stream for StageInput {
         };
         entered.send(()).unwrap();
 
-        std::task::Poll::Ready(Some(dokime_protocol::v1::StagePluginFrame {
-            frame: Some(dokime_protocol::v1::stage_plugin_frame::Frame::Header(
-                dokime_protocol::v1::StagePluginHeader {
+        std::task::Poll::Ready(Some(plugins::StagePluginFrame {
+            frame: Some(plugins::StagePluginFrameFrame::Header(
+                plugins::StagePluginHeader {
                     size_bytes: 1,
                     sha256: "00".repeat(32),
                 },
@@ -187,7 +188,19 @@ pub(crate) async fn typescript_facade_grpc() {
     let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
         .build()
         .unwrap();
+    let snapshot = fixture.session.status();
+    let backend = snapshot.backend.as_ref().unwrap();
+    let access = serde_json::json!({
+        "generation": snapshot.generation,
+        "endpoint": fixture.server.local_endpoint(),
+        "authorization": "Bearer rpc-test-token-012345678901234567890123456789",
+        "backendId": backend.backend_id,
+        "epoch": backend.epoch,
+        "limits": backend.limits,
+        "methods": backend.methods,
+    });
     let mut child = Command::new("node")
+        .env("DOKIME_TEST_BROWSER_ACCESS", access.to_string())
         .env("DOKIME_TEST_ARTIFACT_ID", artifact_id)
         .arg(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -210,26 +223,35 @@ pub(crate) async fn typescript_facade_grpc() {
                 app.state::<Bridge>().cancel_owner("main");
                 serde_json::json!({"value": null})
             }
-            // These fixtures exercise TS-generated message semantics against concrete Prost types.
+            // These fixtures exercise TS-generated message semantics against canonical Harmos types.
             "fixture_value" => {
-                let value = dokime_protocol::v1::ValueObject::decode(bytes.as_slice()).unwrap();
+                let value = value::Value::decode(bytes.as_slice()).unwrap();
+                assert_eq!(value.nodes.len(), 5);
+                let Some(value::ValueKind::Object(fields)) = &value.nodes[0].kind else {
+                    panic!("the fixture value has an object root");
+                };
                 assert_eq!(
-                    value.fields["minimum"].kind,
-                    Some(dokime_protocol::v1::value::Kind::IntegerValue(i64::MIN))
+                    fields
+                        .fields
+                        .iter()
+                        .map(|field| (field.key.as_str(), field.value))
+                        .collect::<Vec<_>>(),
+                    vec![("minimum", 1), ("maximum", 2), ("null", 3), ("unset", 4)]
                 );
-                assert_eq!(
-                    value.fields["maximum"].kind,
-                    Some(dokime_protocol::v1::value::Kind::IntegerValue(i64::MAX))
-                );
-                assert_eq!(
-                    value.fields["null"].kind,
-                    Some(dokime_protocol::v1::value::Kind::NullValue(0))
-                );
-                assert_eq!(value.fields["unset"].kind, None);
+                assert!(matches!(
+                    value.nodes[1].kind,
+                    Some(value::ValueKind::Integer(i64::MIN))
+                ));
+                assert!(matches!(
+                    value.nodes[2].kind,
+                    Some(value::ValueKind::Integer(i64::MAX))
+                ));
+                assert!(matches!(value.nodes[3].kind, Some(value::ValueKind::Null)));
+                assert!(value.nodes[4].kind.is_none());
                 serde_json::json!({ "bytes": value.encode_to_vec() })
             }
             "fixture_admission" => {
-                let value = dokime_protocol::v1::Admission::decode(bytes.as_slice()).unwrap();
+                let value = execution::Admission::decode(bytes.as_slice()).unwrap();
                 assert_eq!(value.cursor.as_ref().unwrap().position, u64::MAX);
                 assert_eq!(value.accepted_at.as_ref().unwrap().seconds, -1);
                 assert_eq!(value.accepted_at.as_ref().unwrap().nanos, 999_999_999);
@@ -262,10 +284,10 @@ fn large_bundle(resource_bytes: usize) -> Vec<u8> {
 fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
     let owner = "fixture";
     let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"A fixture.","config":"()"});
-    let policy = harmos::OperationPolicy {
+    let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
-        retries: harmos::RetryPolicy::Never,
+        retries: harmos::operations::RetryPolicy::Never,
     };
     let lifecycle = [
         harmos::operations::lifecycle::Descriptor::new(
@@ -287,33 +309,33 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
         serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos::artifact::PREFIX).unwrap()
+        prefix = std::str::from_utf8(harmos_contract::PREFIX).unwrap()
     );
     let resource = vec![0xCDu8; resource_bytes];
-    harmos::plugin::Bundle::build(
-        harmos::plugin::Identity {
+    harmos::plugin::bundle::Bundle::build(
+        harmos::plugin::bundle::Identity {
             name: "fixture".into(),
             version: "1.0.0".parse().unwrap(),
             description: "A fixture.".into(),
             package: Default::default(),
         },
         &[
-            harmos::plugin::Source {
+            harmos::plugin::bundle::Source {
                 path: "bin/fixture",
                 bytes: executable.as_bytes(),
-                executable: Some(harmos::plugin::Executable {
-                    facility: harmos::plugin::Facility::Sidecar,
+                executable: Some(harmos::plugin::bundle::Executable {
+                    facility: harmos::plugin::bundle::Facility::Sidecar,
                     target: target.into(),
                     registrations: vec![],
                 }),
             },
-            harmos::plugin::Source {
+            harmos::plugin::bundle::Source {
                 path: "resources/payload.bin",
                 bytes: &resource,
                 executable: None,
             },
         ],
-        harmos::plugin::Limits::default(),
+        harmos::plugin::bundle::Limits::default(),
     )
     .unwrap()
     .bytes()
@@ -362,15 +384,15 @@ pub(crate) async fn refuses_invalid_dispatch() {
         (vec![0; MAX_FRAME_BYTES + 40 + 1], "limit_exceeded"),
     ] {
         assert_eq!(
-            invoke(&window, "rpc_backend_get_health", bytes).unwrap_err()["kind"],
+            invoke(&window, "plugin_stage_open", bytes).unwrap_err()["kind"],
             kind
         );
     }
     let mut bytes = 1_u64.to_le_bytes().to_vec();
-    bytes.extend(Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET));
+    bytes.extend(Sha256::digest(FILE_DESCRIPTOR_SET));
     bytes.push(0xff);
     assert_eq!(
-        invoke(&window, "rpc_backend_get_health", bytes).unwrap_err()["kind"],
+        invoke(&window, "plugin_stage_open", bytes).unwrap_err()["kind"],
         "invalid_request"
     );
     fixture.close().await;
@@ -395,20 +417,20 @@ pub(crate) fn client_stream_runtime() {
         .unwrap();
 
     let generation: u64 = fixture.session.status().generation.parse().unwrap();
-    let header = dokime_protocol::v1::StagePluginFrame {
-        frame: Some(dokime_protocol::v1::stage_plugin_frame::Frame::Header(
-            dokime_protocol::v1::StagePluginHeader {
+    let header = plugins::StagePluginFrame {
+        frame: Some(plugins::StagePluginFrameFrame::Header(
+            plugins::StagePluginHeader {
                 size_bytes: 1,
                 sha256: "0".repeat(64),
             },
         )),
     };
     let mut bytes = generation.to_le_bytes().to_vec();
-    bytes.extend(Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET));
+    bytes.extend(Sha256::digest(FILE_DESCRIPTOR_SET));
     bytes.extend(header.encode_to_vec());
 
-    let response = invoke(&window, "rpc_plugins_stage_open", bytes)
-        .expect("the stage opener admits the stream");
+    let response =
+        invoke(&window, "plugin_stage_open", bytes).expect("the stage opener admits the stream");
     let tauri::ipc::InvokeResponseBody::Raw(handle) = response else {
         panic!("the stage opener replies with a raw stream handle");
     };
@@ -435,7 +457,7 @@ pub(crate) fn stages_seventy_bridge() {
         .build()
         .unwrap();
     let generation: u64 = fixture.session.status().generation.parse().unwrap();
-    let descriptor_sha256 = Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET);
+    let descriptor_sha256 = Sha256::digest(FILE_DESCRIPTOR_SET);
 
     const CHUNK_BYTES: usize = 256 * 1024;
     let bytes = large_bundle(70 * 1024 * 1024);
@@ -449,9 +471,9 @@ pub(crate) fn stages_seventy_bridge() {
         bytes.len()
     );
 
-    let header = dokime_protocol::v1::StagePluginFrame {
-        frame: Some(dokime_protocol::v1::stage_plugin_frame::Frame::Header(
-            dokime_protocol::v1::StagePluginHeader {
+    let header = plugins::StagePluginFrame {
+        frame: Some(plugins::StagePluginFrameFrame::Header(
+            plugins::StagePluginHeader {
                 size_bytes: bytes.len() as u64,
                 sha256: sha256.clone(),
             },
@@ -462,7 +484,7 @@ pub(crate) fn stages_seventy_bridge() {
     open_bytes.extend(header.encode_to_vec());
 
     let open_started = std::time::Instant::now();
-    let response = invoke(&window, "rpc_plugins_stage_open", open_bytes)
+    let response = invoke(&window, "plugin_stage_open", open_bytes)
         .expect("the stage opener admits the stream");
     let open_elapsed = open_started.elapsed();
     let tauri::ipc::InvokeResponseBody::Raw(handle) = response else {
@@ -475,9 +497,9 @@ pub(crate) fn stages_seventy_bridge() {
     for (index, offset) in (0..bytes.len()).step_by(CHUNK_BYTES).enumerate() {
         let sequence = (index + 1) as u64;
         let end = (offset + CHUNK_BYTES).min(bytes.len());
-        let chunk = dokime_protocol::v1::StagePluginFrame {
-            frame: Some(dokime_protocol::v1::stage_plugin_frame::Frame::Chunk(
-                dokime_protocol::v1::StagePluginChunk {
+        let chunk = plugins::StagePluginFrame {
+            frame: Some(plugins::StagePluginFrameFrame::Chunk(
+                plugins::StagePluginChunk {
                     offset: offset as u64,
                     data: bytes[offset..end].to_vec(),
                 },
@@ -505,8 +527,8 @@ pub(crate) fn stages_seventy_bridge() {
         panic!("finish replies with the encoded PluginInstallation");
     };
     // `reply_bytes` prefixes the payload with the 8-byte generation, exactly
-    // like the stream handle `rpc_plugins_stage_open` returned above.
-    let installation = dokime_protocol::v1::PluginInstallation::decode(&reply[8..])
+    // like the stream handle `plugin_stage_open` returned above.
+    let installation = plugins::PluginInstallation::decode(&reply[8..])
         .expect("finish replies with a valid PluginInstallation");
     assert_eq!(installation.sha256, sha256);
 
@@ -546,7 +568,7 @@ pub(crate) fn stages_foreign_finish() {
         .build()
         .unwrap();
     let generation: u64 = fixture.session.status().generation.parse().unwrap();
-    let descriptor_sha256 = Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET);
+    let descriptor_sha256 = Sha256::digest(FILE_DESCRIPTOR_SET);
 
     const CHUNK_BYTES: usize = 256 * 1024;
     let sha256 = Sha256::digest(&bytes)
@@ -559,9 +581,9 @@ pub(crate) fn stages_foreign_finish() {
         bytes.len()
     );
 
-    let header = dokime_protocol::v1::StagePluginFrame {
-        frame: Some(dokime_protocol::v1::stage_plugin_frame::Frame::Header(
-            dokime_protocol::v1::StagePluginHeader {
+    let header = plugins::StagePluginFrame {
+        frame: Some(plugins::StagePluginFrameFrame::Header(
+            plugins::StagePluginHeader {
                 size_bytes: bytes.len() as u64,
                 sha256: sha256.clone(),
             },
@@ -572,7 +594,7 @@ pub(crate) fn stages_foreign_finish() {
     open_bytes.extend(header.encode_to_vec());
 
     let open_started = std::time::Instant::now();
-    let response = invoke(&window, "rpc_plugins_stage_open", open_bytes)
+    let response = invoke(&window, "plugin_stage_open", open_bytes)
         .expect("the stage opener admits the stream");
     let open_elapsed = open_started.elapsed();
     let tauri::ipc::InvokeResponseBody::Raw(handle) = response else {
@@ -585,9 +607,9 @@ pub(crate) fn stages_foreign_finish() {
     for (index, offset) in (0..bytes.len()).step_by(CHUNK_BYTES).enumerate() {
         let sequence = (index + 1) as u64;
         let end = (offset + CHUNK_BYTES).min(bytes.len());
-        let chunk = dokime_protocol::v1::StagePluginFrame {
-            frame: Some(dokime_protocol::v1::stage_plugin_frame::Frame::Chunk(
-                dokime_protocol::v1::StagePluginChunk {
+        let chunk = plugins::StagePluginFrame {
+            frame: Some(plugins::StagePluginFrameFrame::Chunk(
+                plugins::StagePluginChunk {
                     offset: offset as u64,
                     data: bytes[offset..end].to_vec(),
                 },
@@ -657,33 +679,66 @@ pub(crate) async fn owner_cancellation_health() {
     let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
         .build()
         .unwrap();
-    let mut request = 1_u64.to_le_bytes().to_vec();
-    request.extend(Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET));
-    request.extend(dokime_protocol::v1::WatchLogsRequest::default().encode_to_vec());
+    let snapshot = fixture.session.status();
+    let generation: u64 = snapshot.generation.parse().unwrap();
+    let descriptor = Sha256::digest(FILE_DESCRIPTOR_SET);
+    let mut request = generation.to_le_bytes().to_vec();
+    request.extend(descriptor);
+    request.extend(
+        plugins::StagePluginFrame {
+            frame: Some(plugins::StagePluginFrameFrame::Header(
+                plugins::StagePluginHeader {
+                    size_bytes: 1,
+                    sha256: "0".repeat(64),
+                },
+            )),
+        }
+        .encode_to_vec(),
+    );
     let tauri::ipc::InvokeResponseBody::Raw(opened) =
-        invoke(&window, "rpc_backend_watch_logs_open", request).unwrap()
+        invoke(&window, "plugin_stage_open", request).unwrap()
     else {
-        panic!("the log stream returns its owner handle");
+        panic!("the native upload returns its owner handle");
     };
     assert_eq!(opened.len(), 16);
     app.state::<Bridge>().cancel_owner("main");
-    let mut next = 1_u64.to_le_bytes().to_vec();
-    next.extend(Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET));
-    next.extend_from_slice(&opened[8..16]);
-    next.extend(0_u64.to_le_bytes());
+    let mut write = generation.to_le_bytes().to_vec();
+    write.extend(descriptor);
+    write.extend_from_slice(&opened[8..16]);
+    write.extend(1_u64.to_le_bytes());
+    write.extend(
+        plugins::StagePluginFrame {
+            frame: Some(plugins::StagePluginFrameFrame::Chunk(
+                plugins::StagePluginChunk {
+                    offset: 0,
+                    data: vec![0],
+                },
+            )),
+        }
+        .encode_to_vec(),
+    );
     assert_eq!(
-        invoke(&window, "stream_next", next).unwrap_err()["kind"],
+        invoke(&window, "client_stream_write", write).unwrap_err()["kind"],
         "unknown_stream"
     );
-    let mut health = 1_u64.to_le_bytes().to_vec();
-    health.extend(Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET));
-    health.extend(dokime_protocol::v1::GetHealthRequest {}.encode_to_vec());
-    assert!(invoke(&window, "rpc_backend_get_health", health).is_ok());
+    let client = dokime_client::Client::connect(
+        dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(),
+        Some("rpc-test-token-012345678901234567890123456789"),
+        None,
+    )
+    .await
+    .unwrap();
+    assert!(
+        client
+            .backend_get_health(backend::GetHealthRequest {})
+            .await
+            .is_ok()
+    );
     fixture.close().await;
 }
 
 pub(crate) async fn shared_client_producer() {
-    use dokime::client::{Client, Error, Target};
+    use dokime_client::{Client, Error, Target};
 
     let fixture = Fixture::with_role(dokime_server::grpc::access::Role::Admin).await;
     let client = Client::connect(

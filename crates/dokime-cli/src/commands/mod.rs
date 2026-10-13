@@ -8,9 +8,13 @@
  */
 
 /* === Modules === */
+mod auth;
+mod backend;
+mod catalog;
 mod cycle;
 mod operation;
-pub mod serve;
+mod plan;
+mod status;
 pub mod version;
 
 /* === Re-Exports === */
@@ -33,16 +37,26 @@ pub mod version;
 /* === Enums === */
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
+    #[command(subcommand, about = "Validate And Manage Local Backend Credentials.")]
+    Auth(auth::Command),
+    #[command(about = "Check Backend Identity, Authentication And Readiness With A Deadline.")]
+    Status(status::Args),
+    #[command(
+        subcommand,
+        about = "Manage Saved Backend Profiles Without Connecting."
+    )]
+    Backend(backend::Command),
     #[command(
         subcommand,
         about = "Submit Cycles And Recover Durable Request Progress."
     )]
     Cycle(cycle::Command),
+    #[command(subcommand, about = "Browse Registered Suites And Their Templates.")]
+    Catalog(catalog::Command),
     #[command(subcommand, about = "Discover And Invoke Remote Operations.")]
     Operation(operation::Command),
-    // Boxed: the serve arguments dwarf the other variants, and clippy's
-    // large-enum-variant lint trips on the Windows layout.
-    Serve(Box<serve::Args>),
+    #[command(subcommand, about = "Preview And Register Canonical Selection Plans.")]
+    Plan(plan::Command),
     Version(version::Args),
 }
 
@@ -51,14 +65,15 @@ pub(crate) enum Command {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) async fn run(
-    command: Command,
-    terminal: dokime_terminal::Terminal,
-) -> crate::Result<()> {
+pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
+        Command::Auth(command) => auth::run(command).await,
+        Command::Status(args) => status::run(args).await,
+        Command::Backend(command) => backend::run(command),
         Command::Cycle(command) => cycle::run(command).await,
+        Command::Catalog(command) => catalog::run(command).await,
         Command::Operation(command) => operation::run(command).await,
-        Command::Serve(args) => serve::run(*args, terminal).await,
+        Command::Plan(command) => plan::run(command).await,
         Command::Version(args) => {
             version::run(args);
             Ok(())

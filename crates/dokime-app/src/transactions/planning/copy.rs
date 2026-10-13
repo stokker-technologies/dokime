@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::io::{self, Write};
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleStatus, CycleView, ExecutionStatus};
@@ -79,7 +79,7 @@ impl Transaction<RuntimeState> for CopyCycle {
         Ok(())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         self.drafts(state).collect(out);
     }
 

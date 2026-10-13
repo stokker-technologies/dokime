@@ -29,7 +29,7 @@ use crate::records::{PublishRecord, RecordPublication};
 /* === Structs === */
 #[derive(Clone)]
 pub struct Publisher {
-    host: harmos::sidecar::Supervisor,
+    host: harmos::plugin::sidecar::Supervisor,
 }
 
 /* === Enums === */
@@ -38,7 +38,7 @@ pub struct Publisher {
 
 /* === Implementations === */
 impl Publisher {
-    pub fn new(host: &harmos::sidecar::Supervisor) -> Self {
+    pub fn new(host: &harmos::plugin::sidecar::Supervisor) -> Self {
         Self { host: host.clone() }
     }
 

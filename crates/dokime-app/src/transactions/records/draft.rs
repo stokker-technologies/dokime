@@ -97,13 +97,13 @@ impl Drafts {
         self.records.retain(|(record, _)| keep(record));
     }
 
-    pub(crate) fn collect(&self, out: &mut harmos::Records) {
+    pub(crate) fn collect(&self, out: &mut harmos::state::Records) {
         for (record, native_owner) in &self.records {
             if let Some(owner) = native_owner {
                 let payload = crate::persistence::to_vec(record)
                     .expect("Record contains only JSON-compatible fields");
-                let _ = out.push_system(harmos::SystemFact {
-                    source: harmos::FactSource::Sidecar(owner.clone()),
+                let _ = out.push_system(harmos::state::SystemFact {
+                    source: harmos::state::FactSource::Sidecar(owner.clone()),
                     name: record.record_type.to_string(),
                     version: record.schema_version,
                     payload,

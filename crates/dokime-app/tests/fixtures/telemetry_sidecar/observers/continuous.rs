@@ -18,7 +18,7 @@
 
 // Local Imports
 use crate::{Error, Resources, TelemetrySidecar};
-use dokime::harmos::sidecar::{ObserverContext, Publisher};
+use dokime::harmos::plugin::sidecar::{ObserverContext, Publisher};
 
 /* === Constants === */
 

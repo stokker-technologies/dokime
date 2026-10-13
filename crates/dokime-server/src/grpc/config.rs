@@ -13,7 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::net::SocketAddr;
+use std::{net::SocketAddr, num::NonZeroUsize, time::Duration};
 // Third Party Imports
 use zeroize::Zeroizing;
 // Local Imports
@@ -41,6 +41,7 @@ pub struct Config {
     pub(crate) tls: Option<TlsIdentity>,
     pub(crate) max_message_bytes: usize,
     remote: bool,
+    allowed_origins: Vec<harmos::grpc::Origin>,
 }
 
 /* === Enums === */
@@ -81,6 +82,7 @@ impl Config {
             tls: None,
             max_message_bytes: 1024 * 1024,
             remote: false,
+            allowed_origins: Vec::new(),
         }
     }
 
@@ -95,6 +97,7 @@ impl Config {
             tls: Some(tls),
             max_message_bytes: 1024 * 1024,
             remote: true,
+            allowed_origins: Vec::new(),
         })
     }
 
@@ -111,6 +114,68 @@ impl Config {
     pub fn with_max_message_bytes(mut self, bytes: usize) -> Self {
         self.max_message_bytes = bytes;
         self
+    }
+
+    pub fn with_allowed_origins(
+        mut self,
+        origins: Vec<harmos::grpc::Origin>,
+    ) -> Result<Self, Error> {
+        if origins.len() > 32
+            || origins
+                .iter()
+                .enumerate()
+                .any(|(index, origin)| origins[..index].contains(origin))
+        {
+            return Err(Error::Configuration(
+                "allowed origins require at most 32 distinct exact origins",
+            ));
+        }
+        self.allowed_origins = origins;
+        Ok(self)
+    }
+
+    pub(crate) fn into_listener_settings(mut self) -> Result<harmos::grpc::Settings, Error> {
+        self.validate()?;
+        let bytes = NonZeroUsize::new(self.max_message_bytes)
+            .ok_or(Error::Configuration("message limit must be positive"))?;
+        let stream = harmos::operations::StreamSettings {
+            items: NonZeroUsize::new(1).unwrap(),
+            bytes,
+        };
+        let tls = self.tls.take().map(|identity| {
+            // Preserve The Host's Chosen TLS Provider When One Is Already Installed.
+            let _ = rustls::crypto::ring::default_provider().install_default();
+            tonic::transport::ServerTlsConfig::new()
+                .identity(identity.into_tonic())
+                .timeout(Duration::from_secs(10))
+        });
+        Ok(harmos::grpc::Settings {
+            address: self.bind_addr,
+            operations: harmos::grpc::server::Settings {
+                calls: NonZeroUsize::new(32).unwrap(),
+                decode: harmos::grpc::DecodeSettings {
+                    message_bytes: bytes,
+                    retained_bytes: bytes,
+                },
+                encode: harmos::grpc::EncodeSettings {
+                    message_bytes: bytes,
+                    buffer_bytes: NonZeroUsize::new(self.max_message_bytes.min(8192)).unwrap(),
+                },
+                input: stream,
+                output: stream,
+                opening_timeout: Duration::from_secs(5),
+            },
+            reflection: false,
+            web: true,
+            allowed_origins: self.allowed_origins,
+            tls,
+            connections: NonZeroUsize::new(64).unwrap(),
+            calls_per_connection: NonZeroUsize::new(32).unwrap(),
+            // Individual Operations Enforce Their Own Shorter Policies.
+            // Do Not Cut Off A Valid Follow Stream At The Library's Ordinary Default.
+            request_timeout: Duration::from_secs(86_400),
+            shutdown_timeout: Duration::from_secs(5),
+        })
     }
 
     pub(crate) fn local_only(&self) -> bool {

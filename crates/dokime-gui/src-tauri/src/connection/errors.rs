@@ -32,18 +32,18 @@ use super::{AdmissionIssue, ConnectionError};
 /* === Traits === */
 
 /* === Implementations === */
-impl From<dokime::client::Error> for ConnectionError {
-    fn from(error: dokime::client::Error) -> Self {
+impl From<dokime_client::Error> for ConnectionError {
+    fn from(error: dokime_client::Error) -> Self {
         match error {
-            dokime::client::Error::InvalidTarget { message } => invalid_target(message),
-            dokime::client::Error::AuthenticationRequired => Self::AuthenticationRequired,
-            dokime::client::Error::Transport(_) => Self::Transport,
-            dokime::client::Error::Rpc(status) => rpc_error(status),
-            dokime::client::Error::IncompatibleApi => Self::IncompatibleApi,
-            dokime::client::Error::IdentityChanged => Self::IdentityChanged,
-            dokime::client::Error::BackendUnavailable => Self::BackendUnavailable,
-            dokime::client::Error::Task(_) => Self::Transport,
-            dokime::client::Error::ExecutionRejected { rejection } => Self::ExecutionRejected {
+            dokime_client::Error::InvalidTarget { message } => invalid_target(message),
+            dokime_client::Error::AuthenticationRequired => Self::AuthenticationRequired,
+            dokime_client::Error::Transport(_) => Self::Transport,
+            dokime_client::Error::Rpc(status) => rpc_error(status),
+            dokime_client::Error::IncompatibleApi => Self::IncompatibleApi,
+            dokime_client::Error::IdentityChanged => Self::IdentityChanged,
+            dokime_client::Error::BackendUnavailable => Self::BackendUnavailable,
+            dokime_client::Error::Task(_) => Self::Transport,
+            dokime_client::Error::ExecutionRejected { rejection } => Self::ExecutionRejected {
                 code: rejection.code,
                 message: rejection.message,
                 issues: rejection
@@ -56,8 +56,8 @@ impl From<dokime::client::Error> for ConnectionError {
                     })
                     .collect(),
             },
-            dokime::client::Error::WaitTimedOut { .. } => Self::WaitTimedOut,
-            dokime::client::Error::Closed => Self::Superseded,
+            dokime_client::Error::WaitTimedOut { .. } => Self::WaitTimedOut,
+            dokime_client::Error::Closed => Self::Superseded,
         }
     }
 }

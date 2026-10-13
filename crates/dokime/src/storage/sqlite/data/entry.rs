@@ -150,12 +150,14 @@ impl Entry {
 
     pub(super) fn decoding_bytes(kind: &str, encoded: usize) -> Result<usize, Error> {
         if kind == "schema" {
-            let graph = encoded
-                .checked_mul(4)
-                .and_then(|bytes| bytes.checked_add(SchemaEncoding::GraphV1.decoding_overhead()))
+            return StorageSchema::decoding_memory_bytes(encoded)
+                .and_then(|bytes| {
+                    encoded
+                        .checked_mul(3)
+                        .and_then(|metadata| bytes.checked_add(metadata))
+                })
                 .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()))
-                .ok_or(Error::Data("decoded schema allocation size overflow"))?;
-            return Ok(graph.max(Self::fields_decoding_bytes(encoded)?));
+                .ok_or(Error::Data("decoded schema allocation size overflow"));
         }
         encoded
             .checked_mul(3)
@@ -164,7 +166,7 @@ impl Entry {
     }
 
     pub(super) fn fields_decoding_bytes(encoded: usize) -> Result<usize, Error> {
-        let factor = 3 + (4 * std::mem::size_of::<harmos::schema::Field>()).div_ceil(32);
+        let factor = 3 + (4 * std::mem::size_of::<harmos::schema::graph::Field>()).div_ceil(32);
         encoded
             .checked_mul(factor)
             .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()))
@@ -438,7 +440,7 @@ fn encode_counted<T: Serialize>(value: &T, length: usize) -> Result<Vec<u8>, Err
     Ok(buffer.bytes)
 }
 
-pub(super) fn timestamp_key(value: harmos::Timestamp) -> [u8; 16] {
+pub(super) fn timestamp_key(value: std::time::SystemTime) -> [u8; 16] {
     let nanos = match value.duration_since(UNIX_EPOCH) {
         Ok(duration) => duration.as_nanos() as i128,
         Err(error) => -(error.duration().as_nanos() as i128),

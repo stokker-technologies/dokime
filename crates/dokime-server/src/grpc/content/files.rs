@@ -10,16 +10,21 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+pub(in crate::grpc) use super::super::enums::canonical::{
+    execution_file_kind as kind, execution_file_state as state,
+};
 
 /* === Imports === */
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
+use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::super::value;
 use dokime_app::{RuntimeHandle, core::TestExecutionId};
-use dokime_protocol::v1;
+use dokime_contract::operations::content as wire;
 
 /* === Constants === */
 
@@ -28,14 +33,85 @@ use dokime_protocol::v1;
 /* === Type Aliases === */
 
 /* === Structs === */
+struct Resources {
+    runtime: RuntimeHandle,
+    maximum: usize,
+}
+struct Read {
+    resources: Arc<Resources>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl Operation for Read {
+    type Declaration = wire::ReadExecutionFile;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut wire::ReadExecutionFileRequest,
+        _: &mut (),
+    ) -> Result<Response<wire::ExecutionFileWindow>, Status> {
+        let runtime = &self.resources.runtime;
+        let message_limit = self.resources.maximum;
+        let (id, _) = execution(runtime, &request.execution_id)?;
+        value::text(&request.relative_path)?;
+        if request.relative_path.is_empty() {
+            return Err(Status::invalid_argument("output name is required"));
+        }
+        if request.max_bytes > 64 * 1024 {
+            return Err(Status::invalid_argument("read limit exceeds 64 KiB"));
+        }
+        let limit = if request.max_bytes == 0 {
+            64 * 1024
+        } else {
+            request.max_bytes as usize
+        };
+        // Reserve room for the selected name, media type and scalar metadata.
+        let limit = limit.min(message_limit.saturating_sub(request.relative_path.len() + 512));
+        if limit == 0 {
+            return Err(Status::resource_exhausted(
+                "configured message limit cannot contain file window",
+            ));
+        }
+        let page = runtime
+            .execution_file_content_projected(
+                &id,
+                std::mem::take(&mut request.relative_path),
+                request.offset,
+                limit,
+                super::window::projection,
+                |content, allowance| super::window::project(content, allowance, message_limit),
+            )
+            .await
+            .map_err(read_failure)?
+            .ok_or_else(|| Status::not_found("registered execution output not found"))?;
+        page.try_into_response()
+            .map_err(|source| read_failure(source.into()))
+    }
+}
 
 /* === Public Functions === */
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    runtime.operations().register_wire_operation::<Read>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            maximum,
+        }),
+    )?;
+    Ok(())
+}
 pub(super) fn execution(
     runtime: &RuntimeHandle,
     id: &str,
@@ -49,75 +125,8 @@ pub(super) fn execution(
     Ok((id, snapshot.state().process_epoch().to_string()))
 }
 
-pub(super) async fn list(
-    runtime: &RuntimeHandle,
-    request: v1::ListExecutionFilesRequest,
-    message_limit: usize,
-) -> Result<super::super::charged::Bytes, Status> {
-    let (id, epoch) = execution(runtime, &request.execution_id)?;
-    value::text(&request.after_path)?;
-    if request.limit > 100 {
-        return Err(Status::invalid_argument("page limit exceeds 100"));
-    }
-    if !request.after_path.is_empty() && request.cursor.is_none() {
-        return Err(Status::invalid_argument("subsequent page requires cursor"));
-    }
-    if let Some(cursor) = &request.cursor
-        && (cursor.epoch != epoch || cursor.execution_id != id.as_str())
-    {
-        return Err(Status::failed_precondition(
-            "file cursor epoch or execution mismatch",
-        ));
-    }
-    runtime
-        .execution_files_projected(&id, |entries, allowance| {
-            super::inventory::encode(entries, &id, &epoch, &request, allowance, message_limit)
-        })
-        .await
-        .map_err(read_failure)
-}
-
-pub(super) async fn read(
-    runtime: &RuntimeHandle,
-    request: v1::ReadExecutionFileRequest,
-    message_limit: usize,
-) -> Result<super::super::charged::Bytes, Status> {
-    let (id, _) = execution(runtime, &request.execution_id)?;
-    value::text(&request.relative_path)?;
-    if request.relative_path.is_empty() {
-        return Err(Status::invalid_argument("output name is required"));
-    }
-    if request.max_bytes > 64 * 1024 {
-        return Err(Status::invalid_argument("read limit exceeds 64 KiB"));
-    }
-    let limit = if request.max_bytes == 0 {
-        64 * 1024
-    } else {
-        request.max_bytes as usize
-    };
-    // Reserve room for the selected name, media type and scalar metadata.
-    let limit = limit.min(message_limit.saturating_sub(request.relative_path.len() + 512));
-    if limit == 0 {
-        return Err(Status::resource_exhausted(
-            "configured message limit cannot contain file window",
-        ));
-    }
-    runtime
-        .execution_file_content_projected(
-            &id,
-            request.relative_path,
-            request.offset,
-            limit,
-            |content| super::codec::projection(content, message_limit),
-            |content, allowance| super::codec::encode(content, allowance, message_limit),
-        )
-        .await
-        .map_err(read_failure)?
-        .ok_or_else(|| Status::not_found("registered execution output not found"))
-}
-
 /* === Private Functions === */
-fn read_failure(error: dokime_app::Error) -> Status {
+pub(super) fn read_failure(error: dokime_app::Error) -> Status {
     let status = match &error {
         dokime_app::Error::Harmos(harmos::Error::InvalidInput {
             field: "execution files cursor",

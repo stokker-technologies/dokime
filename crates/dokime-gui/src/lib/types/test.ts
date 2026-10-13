@@ -7,10 +7,18 @@
  * ***
  */
 
-import type { ExecutionControls } from "@/lib/rpc/generated/dokime/v1/execution_pb";
-
 import type { JsonObject } from "../types";
 import type { CycleSummaryDefinition } from "./cycle-summary";
+
+type ExecutionControls = {
+  requestId: string;
+  paused: boolean;
+  stopRequested: boolean;
+  canPause: boolean;
+  canResume: boolean;
+  canStop: boolean;
+  mode: "automatic" | "interactive" | null;
+};
 
 /* === Test-domain types ===
    Authoring (Parameter/Step/Measurement/.../FileDefinition + TestCase/TestSuiteEntry),

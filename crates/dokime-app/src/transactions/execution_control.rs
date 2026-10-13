@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
@@ -137,7 +137,7 @@ impl Transaction<RuntimeState> for ControlExecution {
         self.request(state).map(|_| ())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         self.drafts(state).collect(out);
     }
 

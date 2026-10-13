@@ -20,11 +20,12 @@ use std::{
     time::{Duration, Instant},
 };
 // Third Party Imports
-use harmos::plugin::Bundle;
+use harmos::operations::{Context, Operation, OperationDeclaration, Response, StreamInput};
+use harmos::plugin::bundle::Bundle;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use sha2::{Digest, Sha256};
 // Local Imports
-use dokime_protocol::v1;
+use dokime_client::contracts::{self, Endpoint, backend, plugins as v1, runtime};
 
 /* === Constants === */
 const ID: &str = "01900000-0000-7000-8000-000000000001";
@@ -32,6 +33,33 @@ const CHILD_TIMEOUT: Duration = Duration::from_secs(15);
 const SECRET_VALUE: &str = "fixture-secret-must-not-be-disclosed";
 
 /* === Macros === */
+macro_rules! operation {
+    ($name:ident, $declaration:ty, $request:ty, $endpoints:ty, $host:ident, $message:ident, $input:ident, $body:block) => {
+        struct $name {
+            host: Arc<Host>,
+        }
+        impl Operation for $name {
+            type Declaration = $declaration;
+            type Resources = Host;
+            type Error = tonic::Status;
+            type Context<'a> = Context<'a>;
+            type Endpoints = $endpoints;
+            fn new(host: Arc<Host>) -> Result<Self, Self::Error> {
+                Ok(Self { host })
+            }
+            async fn run<'ctx>(
+                &mut self,
+                _: Self::Context<'ctx>,
+                $message: &mut $request,
+                $input: &mut Self::Endpoints,
+            ) -> Result<Response<<$declaration as OperationDeclaration>::Response>, Self::Error>
+            {
+                let $host = &self.host;
+                $body
+            }
+        }
+    };
+}
 
 /* === Type Aliases === */
 
@@ -42,7 +70,10 @@ struct Host {
     bytes: Vec<u8>,
     calls: Arc<Mutex<Vec<&'static str>>>,
     consent_code: tonic::Code,
+    descriptor_sha256: Vec<u8>,
 }
+
+struct Fixture;
 
 struct ChildGuard {
     child: Box<dyn portable_pty::Child + Send + Sync>,
@@ -55,6 +86,11 @@ struct Outcome {
 }
 
 /* === Enums === */
+#[harmos::lanes]
+enum Lanes {
+    #[default]
+    Open,
+}
 
 /* === Traits === */
 
@@ -68,103 +104,223 @@ impl Drop for ChildGuard {
     }
 }
 
-#[tonic::async_trait]
-impl v1::plugins_server::Plugins for Host {
-    async fn stage(
-        &self,
-        request: tonic::Request<tonic::Streaming<v1::StagePluginFrame>>,
-    ) -> Result<tonic::Response<v1::PluginInstallation>, tonic::Status> {
-        self.calls.lock().unwrap().push("stage");
-        let mut stream = request.into_inner();
-        let header = stream.message().await?.unwrap();
-        let Some(v1::stage_plugin_frame::Frame::Header(header)) = header.frame else {
+impl harmos::Application for Fixture {
+    type State = ();
+    type Transaction = harmos::state::Never;
+    type Record = ();
+    type Streams = ();
+    type Resources = ();
+}
+
+operation!(
+    Stage,
+    v1::Stage,
+    (),
+    StreamInput<v1::StagePluginFrame>,
+    host,
+    _request,
+    input,
+    {
+        host.calls.lock().unwrap().push("stage");
+        let header = input.recv().await.unwrap();
+        let Some(v1::StagePluginFrameFrame::Header(header)) = &header.frame else {
             panic!("header first")
         };
-        assert_eq!(header.size_bytes, self.bytes.len() as u64);
+        assert_eq!(header.size_bytes, host.bytes.len() as u64);
         assert_eq!(
             header.sha256,
-            Sha256::digest(&self.bytes)
+            Sha256::digest(&host.bytes)
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>()
         );
         let mut bytes = Vec::new();
-        while let Some(frame) = stream.message().await? {
-            let Some(v1::stage_plugin_frame::Frame::Chunk(chunk)) = frame.frame else {
+        while let Some(frame) = input.recv().await {
+            let Some(v1::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else {
                 panic!("chunk required")
             };
             assert_eq!(chunk.offset, bytes.len() as u64);
             assert!(chunk.data.len() <= 256 * 1024);
-            bytes.extend(chunk.data);
+            bytes.extend_from_slice(&chunk.data);
         }
-        assert_eq!(bytes, self.bytes);
-        Ok(tonic::Response::new(self.entry.clone()))
+        assert_eq!(bytes, host.bytes);
+        Ok(host.entry.clone().into())
     }
-    async fn consent(
-        &self,
-        request: tonic::Request<v1::ConsentPluginRequest>,
-    ) -> Result<tonic::Response<v1::PluginInstallation>, tonic::Status> {
-        self.calls.lock().unwrap().push("consent");
-        assert_eq!(request.get_ref().install_id, ID);
+);
+
+operation!(
+    Consent,
+    v1::Consent,
+    v1::ConsentPluginRequest,
+    (),
+    host,
+    request,
+    _input,
+    {
+        host.calls.lock().unwrap().push("consent");
+        assert_eq!(request.install_id, ID);
         assert_eq!(
-            request.get_ref().expected_sha256,
-            Sha256::digest(&self.bytes)
+            request.expected_sha256,
+            Sha256::digest(&host.bytes)
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>()
         );
         Err(tonic::Status::new(
-            self.consent_code,
+            host.consent_code,
             "fixture refusal or lost acknowledgement",
         ))
     }
-    async fn remove(
-        &self,
-        request: tonic::Request<v1::RemovePluginRequest>,
-    ) -> Result<tonic::Response<v1::RemovePluginReply>, tonic::Status> {
-        self.calls.lock().unwrap().push("remove");
-        assert_eq!(request.get_ref().install_id, ID);
-        Ok(tonic::Response::new(v1::RemovePluginReply {
-            installation: None,
-        }))
+);
+
+operation!(
+    Remove,
+    v1::Remove,
+    v1::RemovePluginRequest,
+    (),
+    host,
+    request,
+    _input,
+    {
+        host.calls.lock().unwrap().push("remove");
+        assert_eq!(request.install_id, ID);
+        Ok(v1::RemovePluginReply { installation: None }.into())
     }
-    async fn list_installations(
-        &self,
-        _: tonic::Request<v1::ListInstallationsRequest>,
-    ) -> Result<tonic::Response<v1::InstallationPage>, tonic::Status> {
-        Err(tonic::Status::unimplemented("fixture"))
+);
+
+operation!(
+    Identity,
+    backend::GetIdentity,
+    backend::GetIdentityRequest,
+    (),
+    host,
+    _request,
+    _input,
+    {
+        Ok(backend::BackendIdentity {
+            backend_id: ID.into(),
+            epoch: ID.into(),
+            api: Some(backend::ApiIdentity {
+                package: backend::API_PACKAGE.into(),
+                version: backend::API_VERSION.into(),
+                descriptor_sha256: host.descriptor_sha256.clone(),
+            }),
+            product_version: env!("CARGO_PKG_VERSION").into(),
+            display_name: "Installation Fixture".into(),
+            ..Default::default()
+        }
+        .into())
     }
-    async fn get_installation(
-        &self,
-        _: tonic::Request<v1::GetInstallationRequest>,
-    ) -> Result<tonic::Response<v1::PluginInstallation>, tonic::Status> {
-        Err(tonic::Status::unimplemented("fixture"))
+);
+
+operation!(
+    Health,
+    backend::GetHealth,
+    backend::GetHealthRequest,
+    (),
+    _host,
+    _request,
+    _input,
+    {
+        Ok(backend::BackendHealth {
+            backend_id: ID.into(),
+            epoch: ID.into(),
+            readiness: backend::Readiness::Ready,
+            observed_at: None,
+            message: String::new(),
+        }
+        .into())
     }
-    async fn set_enabled(
-        &self,
-        _: tonic::Request<v1::SetPluginEnabledRequest>,
-    ) -> Result<tonic::Response<v1::PluginInstallation>, tonic::Status> {
-        Err(tonic::Status::unimplemented("fixture"))
+);
+
+operation!(
+    Capabilities,
+    backend::GetCapabilities,
+    backend::GetCapabilitiesRequest,
+    (),
+    _host,
+    _request,
+    _input,
+    {
+        Ok(backend::BackendCapabilities {
+            backend_id: ID.into(),
+            epoch: ID.into(),
+            methods: [
+                backend::GetIdentity::PATH,
+                backend::GetHealth::PATH,
+                backend::GetCapabilities::PATH,
+                runtime::GetIdentity::PATH,
+                runtime::GetHealth::PATH,
+                v1::Stage::PATH,
+                v1::Consent::PATH,
+                v1::Remove::PATH,
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            limits: Some(backend::BackendLimits {
+                max_request_bytes: 16 * 1024 * 1024,
+                max_response_bytes: 16 * 1024 * 1024,
+                max_content_bytes: Some(272 * 1024 * 1024),
+                max_chunk_bytes: Some(256 * 1024),
+                ..Default::default()
+            }),
+        }
+        .into())
     }
-    async fn list_admitted_plugins(
-        &self,
-        _: tonic::Request<v1::ListAdmittedPluginsRequest>,
-    ) -> Result<tonic::Response<v1::AdmittedPluginPage>, tonic::Status> {
-        Err(tonic::Status::unimplemented("fixture"))
+);
+
+operation!(
+    RuntimeIdentity,
+    runtime::GetIdentity,
+    runtime::Request,
+    (),
+    _host,
+    _request,
+    _input,
+    {
+        Ok(runtime::Identity {
+            backend_id: ID.into(),
+            epoch: ID.into(),
+            display_name: "Installation Fixture".into(),
+            product_version: env!("CARGO_PKG_VERSION").into(),
+        }
+        .into())
     }
-}
+);
+
+operation!(
+    RuntimeHealth,
+    runtime::GetHealth,
+    runtime::Request,
+    (),
+    _host,
+    _request,
+    _input,
+    {
+        Ok(runtime::Health {
+            backend_id: ID.into(),
+            epoch: ID.into(),
+            readiness: runtime::Readiness::Ready,
+            observed_at_seconds: 0,
+            observed_at_nanoseconds: 0,
+            message: String::new(),
+        }
+        .into())
+    }
+);
 
 /* === Public Functions === */
 
 /* === Private Functions === */
 fn review_bundle(schema: u32) -> Bundle {
-    use harmos::plugin::{Executable, Facility, Identity, Limits, Source};
+    use harmos::plugin::bundle::{Executable, Facility, Identity, Limits, Source};
     let owner = "fixture.worker";
     let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Review fixture","config":"()"});
-    let policy = harmos::OperationPolicy {
+    let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
-        retries: harmos::RetryPolicy::Never,
+        retries: harmos::operations::RetryPolicy::Never,
     };
     let lifecycle = [
         harmos::operations::lifecycle::Descriptor::new(
@@ -186,9 +342,9 @@ fn review_bundle(schema: u32) -> Bundle {
         serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos::artifact::PREFIX).unwrap()
+        prefix = std::str::from_utf8(harmos_contract::PREFIX).unwrap()
     );
-    let mut registrations = harmos::sidecar::Registrar::new();
+    let mut registrations = harmos::plugin::sidecar::Registrar::new();
     registrations
         .register(
             "dokime.settings",
@@ -331,7 +487,10 @@ async fn scenario(
         entry: v1::PluginInstallation {
             install_id: ID.into(),
             sha256: digest,
-            state: v1::PluginInstallationState::Staged as i32,
+            staged_at: None,
+            consented_at: None,
+            state: v1::PluginInstallationState::Staged,
+            last_boot: None,
             metadata: Some(v1::PluginMetadata {
                 identity: Some(v1::PluginIdentity {
                     name: bundle.manifest().identity.name.clone(),
@@ -350,37 +509,74 @@ async fn scenario(
                 },
                 size_bytes: bundle.bytes().len() as u64,
             }),
-            ..Default::default()
+            error: None,
+            active: false,
+            restart_required: false,
+            boot_error: None,
         },
         bytes: bundle.bytes().to_vec(),
         calls: calls.clone(),
         consent_code,
+        descriptor_sha256: {
+            let catalog = harmos::operations::Contracts::of::<contracts::Operations>().unwrap();
+            let artifacts = harmos::grpc::Artifacts::new(&catalog).unwrap();
+            Sha256::digest(artifacts.descriptors()).to_vec()
+        },
     };
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    let (stop, stopped) = tokio::sync::oneshot::channel();
-    let mut server = tokio::spawn(async move {
-        tonic::transport::Server::builder()
-            .add_service(v1::plugins_server::PluginsServer::new(host))
-            .serve_with_incoming_shutdown(
-                tokio_stream::wrappers::TcpListenerStream::new(listener),
-                async {
-                    let _ = stopped.await;
-                },
-            )
-            .await
-            .unwrap();
-    });
+    let runtime = harmos::Runtime::<Fixture>::builder((), ())
+        .register(Lanes::catalog())
+        .runtime()
+        .await
+        .unwrap();
+    let host = Arc::new(host);
+    runtime
+        .operations
+        .register_wire_operation::<Stage>("dokime", Lanes::Open, host.clone())
+        .unwrap();
+    runtime
+        .operations
+        .register_wire_operation::<Consent>("dokime", Lanes::Open, host.clone())
+        .unwrap();
+    runtime
+        .operations
+        .register_wire_operation::<Remove>("dokime", Lanes::Open, host.clone())
+        .unwrap();
+    runtime
+        .operations
+        .register_wire_operation::<Identity>("dokime", Lanes::Open, host.clone())
+        .unwrap();
+    runtime
+        .operations
+        .register_wire_operation::<Health>("dokime", Lanes::Open, host.clone())
+        .unwrap();
+    runtime
+        .operations
+        .register_wire_operation::<Capabilities>("dokime", Lanes::Open, host.clone())
+        .unwrap();
+    runtime
+        .operations
+        .register_wire_operation::<RuntimeIdentity>("dokime", Lanes::Open, host.clone())
+        .unwrap();
+    runtime
+        .operations
+        .register_wire_operation::<RuntimeHealth>("dokime", Lanes::Open, host)
+        .unwrap();
+    let attachment = runtime
+        .grpc()
+        .attach(harmos::grpc::Settings {
+            address: "127.0.0.1:0".parse().unwrap(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let endpoint = format!("http://{}", attachment.local_addr());
     let output =
         tokio::task::spawn_blocking(move || run_cli(file.path(), &endpoint, consent)).await;
-    let _ = stop.send(());
-    if let Ok(result) = tokio::time::timeout(CHILD_TIMEOUT, &mut server).await {
-        result.unwrap();
-    } else {
-        server.abort();
-        let _ = server.await;
-        panic!("install fixture host exceeded shutdown deadline");
-    }
+    tokio::time::timeout(CHILD_TIMEOUT, attachment.detach())
+        .await
+        .expect("install fixture host exceeded shutdown deadline")
+        .unwrap();
+    runtime.stop_with_timeout(CHILD_TIMEOUT).await.unwrap();
     let calls = calls.lock().unwrap().clone();
     (output.unwrap().unwrap(), calls)
 }

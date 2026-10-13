@@ -15,16 +15,14 @@
 // Standard Library Imports
 use std::{sync::Arc, time::Duration};
 // Third Party Imports
-use tonic::transport::Channel;
 // Local Imports
 use super::*;
 use dokime_app::{
     core::TestCycleId, execution::CycleStatus, runtime::command::CommandContext,
     transactions::CycleDefinition,
 };
-use dokime_protocol::v1::{
-    BrowseExecutionsRequest, DeleteExecutionRequest, history_client::HistoryClient,
-};
+use dokime_client::contracts::history::BrowseExecutionsRequest;
+use dokime_client::contracts::history::DeleteExecutionRequest;
 
 /* === Constants === */
 const CONTROL_TOKEN: &str = "history-control-token-012345678901234567890";
@@ -61,13 +59,13 @@ async fn wait_completed(runtime: &dokime_app::RuntimeHandle, id: &TestCycleId) {
 }
 
 async fn checkpoint_for(
-    history: &mut HistoryClient<Channel>,
+    history: &mut WireClient,
     execution_id: &str,
-) -> v1::ExecutionCheckpoint {
+) -> contracts::checkpoint::ExecutionCheckpoint {
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let checkpoint = history
-                .browse_executions(auth(
+                .unary::<contracts::history::BrowseExecutions>(auth(
                     BrowseExecutionsRequest {
                         limit: 100,
                         ..Default::default()
@@ -141,11 +139,9 @@ pub(crate) async fn deletion_validates_unsupported() {
     )
     .await
     .unwrap();
-    let mut history = HistoryClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let mut history = WireClient::connect(server.local_endpoint()).await.unwrap();
     let live = history
-        .browse_executions(auth(
+        .unary::<contracts::history::BrowseExecutions>(auth(
             BrowseExecutionsRequest {
                 limit: 100,
                 ..Default::default()
@@ -177,7 +173,7 @@ pub(crate) async fn deletion_validates_unsupported() {
 
     assert_eq!(
         history
-            .delete_execution(request.clone())
+            .unary::<contracts::history::DeleteExecution>(request.clone())
             .await
             .unwrap_err()
             .code(),
@@ -185,7 +181,7 @@ pub(crate) async fn deletion_validates_unsupported() {
     );
     assert_eq!(
         history
-            .delete_execution(auth(request.clone(), CONTROL_TOKEN))
+            .unary::<contracts::history::DeleteExecution>(auth(request.clone(), CONTROL_TOKEN))
             .await
             .unwrap_err()
             .code(),
@@ -194,7 +190,7 @@ pub(crate) async fn deletion_validates_unsupported() {
     for request_identifier in [String::new(), "x".repeat(257)] {
         assert_eq!(
             history
-                .delete_execution(auth(
+                .unary::<contracts::history::DeleteExecution>(auth(
                     DeleteExecutionRequest {
                         checkpoint: Some(checkpoint.clone()),
                         request_identifier,
@@ -209,7 +205,7 @@ pub(crate) async fn deletion_validates_unsupported() {
     }
     assert_eq!(
         history
-            .delete_execution(auth(request.clone(), ADMIN_TOKEN))
+            .unary::<contracts::history::DeleteExecution>(auth(request.clone(), ADMIN_TOKEN))
             .await
             .unwrap_err()
             .code(),
@@ -224,7 +220,7 @@ pub(crate) async fn deletion_validates_unsupported() {
 
     assert_eq!(
         history
-            .delete_execution(auth(request, ADMIN_TOKEN))
+            .unary::<contracts::history::DeleteExecution>(auth(request, ADMIN_TOKEN))
             .await
             .unwrap_err()
             .code(),
@@ -239,7 +235,7 @@ pub(crate) async fn deletion_validates_unsupported() {
     };
     for request_identifier in ["delete-request-1", "delete-request-2"] {
         let refusal = history
-            .delete_execution(auth(
+            .unary::<contracts::history::DeleteExecution>(auth(
                 DeleteExecutionRequest {
                     request_identifier: request_identifier.into(),
                     ..deletion.clone()

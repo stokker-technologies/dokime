@@ -10,14 +10,13 @@
 /* === Modules === */
 pub mod access;
 mod appearance;
+mod authorization;
 mod backend;
 mod bundle;
 mod catalog;
-mod charged;
 mod chunked;
 mod config;
 mod content;
-mod deadline;
 mod documents;
 mod enums;
 mod error;
@@ -25,10 +24,8 @@ mod evidence;
 mod execution;
 mod history;
 mod logs;
-mod method;
 mod notes;
 mod observation;
-mod operations;
 mod planning;
 mod plots;
 mod plugins;
@@ -39,7 +36,6 @@ mod reports;
 mod server;
 mod settings;
 mod telemetry;
-mod transport;
 mod value;
 
 /* === Re-Exports === */
@@ -51,12 +47,14 @@ pub use server::Server;
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::catalog::{Catalog, Projection};
 
 // Local Imports
+use dokime_contract::operations::{Endpoints, Operations};
 
 /* === Constants === */
 pub const FILE_DESCRIPTOR_SET: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/served-descriptor.bin"));
+    include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
 
 /* === Macros === */
 
@@ -72,9 +70,15 @@ pub const FILE_DESCRIPTOR_SET: &[u8] =
 
 /* === Public Functions === */
 pub fn methods() -> impl Iterator<Item = (&'static str, access::Role)> {
-    method::METHODS
-        .iter()
-        .map(|method| (method.path, method.role))
+    let mut methods = Vec::new();
+    let result = <Operations as Catalog<Endpoints>>::ENTRIES.try_for_each(|entry| {
+        methods.push((entry.path, entry.access));
+        Ok::<_, std::convert::Infallible>(())
+    });
+    match result {
+        Ok(()) => methods.into_iter(),
+        Err(impossible) => match impossible {},
+    }
 }
 
 /* === Private Functions === */

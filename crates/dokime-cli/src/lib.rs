@@ -12,14 +12,12 @@ mod cli;
 mod commands;
 mod connection;
 mod error;
-mod input;
 
 /* === Re-Exports === */
 pub use cli::Cli;
 pub use error::{Error, Result};
 
-// Shared entrypoints for the standalone executable and Cargo extension.
-pub use commands::{serve, version};
+pub use commands::version;
 
 /* === Imports === */
 // Standard Library Imports

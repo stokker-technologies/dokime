@@ -347,8 +347,8 @@ impl RuntimeHandle {
         _requests: &[crate::queries::PlotPayloadRequest],
     ) -> crate::Result<Vec<TelemetryWatch>> {
         let watching = self.streams.watch::<TelemetryRow>().map(|item| match item {
-            harmos::Item::Row(row) => row.value.ordinal,
-            harmos::Item::Gap { missed } => missed,
+            harmos::streams::Item::Row(row) => row.value.ordinal,
+            harmos::streams::Item::Gap { missed } => missed,
         });
         Ok(vec![Box::pin(watching)])
     }

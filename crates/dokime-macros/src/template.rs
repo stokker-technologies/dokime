@@ -176,7 +176,7 @@ fn observed(signature: &syn::Signature) -> Result<(), Error> {
     if signature.receiver().is_some()
         || signature.inputs.len() != 1
         || !signature.generics.params.is_empty()
-        || signature.unsafety.is_some()
+        || matches!(signature.safety, syn::Safety::Unsafe(_))
     {
         return Err(Error::new(signature.inputs.span(), SHAPE));
     }
@@ -253,7 +253,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a template", ARGUMENTS)?;
     let mut block: ItemImpl = syn::parse2(item.clone())?;
-    if let Some((_, path, _)) = &block.trait_ {
+    if let Some((path, _)) = &block.trait_ {
         return Err(Error::new(
             path.span(),
             "`#[dokime::template]` declares the template's own inherent impl, not a trait implementation",
@@ -1087,8 +1087,8 @@ fn engine(
                 })
             }
 
-            fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::artifact::plugin::Declared>(
-                host: &'a #sdk::__harmos::sidecar::Supervisor,
+            fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::plugin::contract::Declared>(
+                host: &'a #sdk::__harmos::plugin::sidecar::Supervisor,
                 token: &'a str,
                 stream: &'a #sdk::core::Identifier,
                 values: &'a ::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,

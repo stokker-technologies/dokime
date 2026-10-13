@@ -17,13 +17,11 @@ import {
   type NativeExecutionSelection,
   readNativeCheckpointOutput,
 } from "@/lib/api/native-checkpoints";
-import type { ExecutionFileWindow } from "@/lib/rpc/generated/dokime/v1/content_pb";
-import type {
-  CheckpointContext,
-  CheckpointEvidence,
-  CheckpointRecordPage,
-  CheckpointTelemetryPage,
-} from "@/lib/rpc/generated/dokime/v1/history_pb";
+type CheckpointEvidence = Awaited<ReturnType<typeof fetchNativeCheckpointEvidence>>;
+type CheckpointRecordPage = Awaited<ReturnType<typeof fetchNativeCheckpointRecords>>;
+type CheckpointTelemetryPage = Awaited<ReturnType<typeof fetchNativeCheckpointTelemetry>>;
+type CheckpointContext = Awaited<ReturnType<typeof fetchNativeCheckpointContext>>;
+type ExecutionFileWindow = Awaited<ReturnType<typeof readNativeCheckpointOutput>>;
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   ExecutionBrowseEntry,

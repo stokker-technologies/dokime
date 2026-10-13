@@ -49,11 +49,11 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let id = dokime::core::CommandId::from_uuid(&args.request_id)
+    let id = dokime_contract::core::CommandId::from_uuid(&args.request_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let cycle = args
         .cycle_id
-        .map(dokime::core::TestCycleId::from_uuid)
+        .map(dokime_contract::core::TestCycleId::from_uuid)
         .transpose()
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
@@ -71,18 +71,20 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 pub(super) fn print(
-    receipt: &dokime::client::wire::RunRequestReceipt,
+    receipt: &dokime_contract::operations::execution::RunRequestReceipt,
     json: bool,
 ) -> crate::Result<()> {
-    let phase = dokime::client::wire::RunRequestPhase::try_from(receipt.phase)
-        .map_err(|_| crate::Error::Setup("invalid native request phase".into()))?;
+    let phase = receipt.phase;
+    if phase == dokime_contract::operations::execution::RunRequestPhase::Unspecified {
+        return Err(crate::Error::Setup("invalid native request phase".into()));
+    }
     if json {
         println!(
             "{}",
             serde_json::json!({
                 "request_id": receipt.request_id,
                 "cycle_id": receipt.cycle_id,
-                "phase": phase.as_str_name(),
+                "phase": phase,
                 "paused": receipt.paused,
                 "stop_requested": receipt.stop_requested,
                 "planned_count": receipt.planned_count,

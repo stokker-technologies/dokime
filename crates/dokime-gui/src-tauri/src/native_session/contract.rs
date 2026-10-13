@@ -39,14 +39,16 @@ pub struct DesktopSessionSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum BackendSelection {
     OwnedLocal,
+    Profile { name: String },
     Attach { request: ConnectRequest },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BackendOwnership {
     None,
     OwnedLocal,
+    Profile { name: String },
     Attached,
 }
 

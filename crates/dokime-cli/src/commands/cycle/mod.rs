@@ -11,6 +11,7 @@
 mod create;
 mod request;
 mod run;
+mod stop;
 
 /* === Re-Exports === */
 
@@ -39,6 +40,8 @@ pub(crate) enum Command {
     Run(run::Args),
     #[command(about = "Read Or Wait For A Durable Request Without Replaying Work.")]
     Request(request::Args),
+    #[command(about = "Request Backend Cycle Stop Without Waiting For Sealing.")]
+    Stop(stop::Args),
 }
 
 /* === Traits === */
@@ -51,6 +54,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::Create(args) => create::run(args).await,
         Command::Run(args) => run::run(args).await,
         Command::Request(args) => request::run(args).await,
+        Command::Stop(args) => stop::run(args).await,
     }
 }
 

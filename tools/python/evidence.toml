@@ -3,9 +3,7 @@
 [testing]
 system_timeout_seconds = 600
 
-# dokime-python is a PyO3 crate exercised through the Python configurations below.
 [testing.rust]
-exclude = ["dokime-python"]
 categories = ["integration", "acceptance", "system"]
 
 [testing.python]
@@ -13,13 +11,13 @@ project = "tools/python"
 sources = ["src/dokime_tools"]
 categories = ["integration"]
 
-# The SDK suites run against the wheel `prepare:python` installs; uv must never
+# The client suites run against the wheel `prepare:python` installs; uv must never
 # rebuild or re-sync it between that step and the tests.
 [[testing.python.configurations]]
-name = "sdk"
-project = "crates/dokime-python"
+name = "client"
+project = "packages/dokime"
 install = "preinstalled"
-sources = ["python/dokime"]
+sources = ["src/dokime"]
 categories = ["integration", "acceptance"]
 
 [testing.javascript.integration]
@@ -32,4 +30,19 @@ command = [
   "--test-reporter-destination={junit}",
   "--test-timeout={timeout_ms}",
   "crates/dokime-gui/src-tauri/tests/rpc/fixtures/generator.test.mjs",
+]
+
+[testing.javascript.system]
+command = [
+  "uv",
+  "run",
+  "--no-sync",
+  "--project",
+  "tools/python",
+  "python",
+  "-m",
+  "dokime_tools.installer",
+  "acceptance",
+  "--junit",
+  "{junit}",
 ]

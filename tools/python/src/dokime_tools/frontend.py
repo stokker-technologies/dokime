@@ -15,17 +15,13 @@
 
 import argparse
 import hashlib
-from pathlib import Path
 import subprocess
 import tempfile
-
+from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
-
 from dokime_tools.staging import sync_output
-
 
 # Type Checking Imports
 
@@ -40,6 +36,7 @@ REPORT = ROOT / "crates/dokime-app/dist-report/report.html"
 STAMP = ROOT / "target/report-template/inputs.sha256"
 INPUT_ROOTS = [
     WEB_ROOT / "src",
+    WEB_ROOT / ".generated",
     WEB_ROOT / "report.html",
     WEB_ROOT / "vite.report.config.ts",
     WEB_ROOT / "tsconfig.json",
@@ -74,14 +71,27 @@ def ensure_report() -> None:
     previous = STAMP.read_text(encoding="utf-8").strip() if STAMP.exists() else None
     if is_stale(previous, current, REPORT.exists()):
         vite = WEB_ROOT / "node_modules/vite/bin/vite.js"
-        subprocess.run(
-            ["node", str(vite), "build", "--config", "vite.report.config.ts"],
-            cwd=WEB_ROOT,
-            check=True,
-        )
-        if not REPORT.is_file():
-            raise ValueError(f"report build did not produce {REPORT}")
         STAMP.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(
+            prefix="report-", dir=STAMP.parent
+        ) as directory:
+            output = Path(directory)
+            subprocess.run(
+                [
+                    "node",
+                    str(vite),
+                    "build",
+                    "--config",
+                    "vite.report.config.ts",
+                    "--outDir",
+                    str(output),
+                ],
+                cwd=WEB_ROOT,
+                check=True,
+            )
+            if not (output / REPORT.name).is_file():
+                raise ValueError(f"report build did not produce {REPORT.name}")
+            sync_output(output, REPORT.parent)
         STAMP.write_text(current + "\n", encoding="utf-8")
 
 

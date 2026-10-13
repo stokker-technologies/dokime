@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use cssparser::{Parser, ParserInput, Token};
+use cssparser::{Parser, Token};
 // Local Imports
 use super::error;
 use crate::{Result, installed_plugins::RuntimeAppearanceFrame};
@@ -71,33 +71,33 @@ pub(super) fn validate(appearance: &RuntimeAppearanceFrame) -> Result<()> {
 
 /* === Private Functions === */
 fn validate_css(css: &str) -> std::result::Result<(), &'static str> {
-    let mut input = ParserInput::new(css);
-    scan(&mut Parser::new(&mut input), 0).map_err(|_| "CSS must use embedded data URLs or document fragments; imports, dynamic resource functions and malformed tokens are unsupported")
+    let mut input = Parser::new(css);
+    scan(&mut input, 0).map_err(|_| "CSS must use embedded data URLs or document fragments; imports, dynamic resource functions and malformed tokens are unsupported")
 }
 
 fn scan<'i>(
-    input: &mut Parser<'i, '_>,
+    input: &mut Parser<'i>,
     depth: usize,
-) -> std::result::Result<(), cssparser::ParseError<'i, ()>> {
+) -> std::result::Result<(), cssparser::ParseError<()>> {
     if depth > 64 {
-        return Err(input.new_custom_error(()));
+        return Err(cssparser::ParseError::custom(()));
     }
     while !input.is_exhausted() {
         let token = input.next()?.clone();
         match token {
             Token::AtKeyword(name) if name.eq_ignore_ascii_case("import") => {
-                return Err(input.new_custom_error(()));
+                return Err(cssparser::ParseError::custom(()));
             }
             Token::UnquotedUrl(url) => {
                 if !portable_url(&url) {
-                    return Err(input.new_custom_error(()));
+                    return Err(cssparser::ParseError::custom(()));
                 }
             }
             Token::Function(name) if name.eq_ignore_ascii_case("url") => {
                 input.parse_nested_block(|input| {
                     let url = input.expect_string()?;
                     if !portable_url(url) {
-                        return Err(input.new_custom_error(()));
+                        return Err(cssparser::ParseError::custom(()));
                     }
                     input.expect_exhausted()?;
                     Ok(())
@@ -117,7 +117,7 @@ fn scan<'i>(
                 .iter()
                 .any(|candidate| name.eq_ignore_ascii_case(candidate)) =>
             {
-                return Err(input.new_custom_error(()));
+                return Err(cssparser::ParseError::custom(()));
             }
             Token::Function(_)
             | Token::ParenthesisBlock
@@ -129,7 +129,7 @@ fn scan<'i>(
             | Token::BadString(_)
             | Token::CloseParenthesis
             | Token::CloseSquareBracket
-            | Token::CloseCurlyBracket => return Err(input.new_custom_error(())),
+            | Token::CloseCurlyBracket => return Err(cssparser::ParseError::custom(())),
             _ => {}
         }
     }

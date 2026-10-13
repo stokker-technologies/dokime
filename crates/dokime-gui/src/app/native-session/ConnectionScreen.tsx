@@ -35,7 +35,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
-import type { ConnectionCredentials, ConnectionTarget } from "@/lib/desktop/connection";
+import type {
+  BackendProfiles,
+  ConnectionCredentials,
+  ConnectionTarget,
+} from "@/lib/desktop/connection";
 import type { DesktopLaunch } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
 import { connectionError } from "./errors";
@@ -62,6 +66,7 @@ export function ConnectionScreen({
   launch: DesktopLaunch | null;
   launchError?: unknown;
 }) {
+  const profileId = useId();
   const caId = useId();
   const credentialId = useId();
   const endpointId = useId();
@@ -69,6 +74,9 @@ export function ConnectionScreen({
   const tokenId = useId();
   const owner = useNativeSessionController();
   const state = useSyncExternalStore(owner.subscribe, owner.snapshot);
+  const [profiles, setProfiles] = useState<BackendProfiles | null>(null);
+  const [profile, setProfile] = useState("");
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [endpoint, setEndpoint] = useState("");
   const [identity, setIdentity] = useState("");
   const [credential, setCredential] = useState<"none" | "saved" | "bearer">("saved");
@@ -78,6 +86,23 @@ export function ConnectionScreen({
   const [phase, setPhase] = useState<string | null>(null);
   const busy = state.phase === "connecting";
   const error = state.phase === "failed" ? state.error : (launchError ?? launch?.error);
+
+  useEffect(() => {
+    let active = true;
+    commands
+      .desktopProfilesList()
+      .then((document) => {
+        if (!active) return;
+        setProfiles(document);
+        setProfile(document.default ?? "");
+      })
+      .catch((error) => {
+        if (active) setProfileError(error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!busy) {
@@ -122,6 +147,34 @@ export function ConnectionScreen({
     <main className="grid min-h-screen place-items-center px-6 py-12">
       <div className="grid w-full max-w-md justify-items-center gap-6 text-center">
         <BrandMark className="h-10" />
+        {profiles && profiles.profiles.length > 0 && (
+          <div className="grid w-full gap-2 text-left">
+            <label htmlFor={profileId}>Saved Backend</label>
+            <select
+              id={profileId}
+              value={profile}
+              disabled={busy}
+              onChange={(event) => setProfile(event.target.value)}
+              className="rounded-md border bg-background p-2"
+            >
+              <option value="">Select A Backend</option>
+              {profiles.profiles.map((entry) => (
+                <option key={entry.name} value={entry.name}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              disabled={busy || !profile}
+              onClick={() => {
+                void owner.select({ kind: "profile", name: profile });
+              }}
+            >
+              Connect To Saved Backend
+            </Button>
+          </div>
+        )}
+        {profileError && <p role="alert">{profileError}</p>}
         <h1 className="font-heading text-3xl leading-none font-semibold">{defaultBrand.label}</h1>
 
         <p className="text-sm text-muted-foreground" {...(busy ? { role: "status" } : {})}>

@@ -107,7 +107,7 @@ impl Transaction<RuntimeState> for PrepareAttempt {
         }
         Ok(())
     }
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         self.drafts(state).collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {
@@ -183,7 +183,7 @@ impl Transaction<RuntimeState> for DispatchProvider {
         }
         Ok(())
     }
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         self.drafts(state).collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {

@@ -19,7 +19,7 @@ use std::{
     time::{Duration, Instant},
 };
 // Third Party Imports
-use harmos::{Fault, Resident, Service, ServicePolicy};
+use harmos::{services::Fault, services::Resident, services::Service, services::ServicePolicy};
 use tokio::sync::{Mutex, RwLock};
 // Local Imports
 use crate::app::Dokime;

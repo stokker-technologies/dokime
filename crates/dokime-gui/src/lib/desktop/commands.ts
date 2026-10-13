@@ -20,6 +20,7 @@ import { invoke as invokeCommand } from "@tauri-apps/api/core";
 
 import { isReportBuild } from "@/lib/ui-mode";
 
+import type { BackendProfiles, BrowserAccess } from "./connection";
 import type { ArtifactDeliveryRequest, ArtifactSource, DesktopSaveDocument } from "./delivery";
 import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
@@ -54,6 +55,9 @@ export const commands = {
     invoke<DesktopSessionSnapshot>("desktop_session_select", { selection }),
   desktopSessionDisconnect: () => invoke<DesktopSessionSnapshot>("desktop_session_disconnect"),
   desktopSessionStatus: () => invoke<DesktopSessionSnapshot>("desktop_session_status"),
+  desktopSessionTransport: (generation: string) =>
+    invoke<BrowserAccess>("desktop_session_transport", { generation }),
+  desktopProfilesList: () => invoke<BackendProfiles>("desktop_profiles_list"),
   desktopOpenPath: (path: string) => invoke<null>("desktop_open_path", { path }),
   desktopOpenTarget: (target: string) => invoke<null>("desktop_open_target", { target }),
   /** Save a verified document through the native file picker. */

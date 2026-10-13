@@ -80,12 +80,12 @@ pub(super) async fn inspect(executable: &Path) -> Result<Identity, Error> {
             executable.display()
         ))
     })?;
-    if identity.dev_protocol != dokime_protocol::DEV_PROTOCOL {
+    if identity.dev_protocol != dokime_contract::DEV_PROTOCOL {
         return Err(Error::Invalid(format!(
             "host {} uses development protocol {}; this cargo-dokime requires {}. Update the host and Cargo extension together",
             executable.display(),
             identity.dev_protocol,
-            dokime_protocol::DEV_PROTOCOL
+            dokime_contract::DEV_PROTOCOL
         )));
     }
     compatible(

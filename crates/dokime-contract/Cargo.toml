@@ -15,14 +15,19 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+[features]
+# Projects the public operations into protobuf descriptors and readable sources.
+descriptors = ["harmos/grpc"]
+
 [dependencies]
 # Git
-harmos = { workspace = true, features = ["derive"] }
+harmos = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true, default-features = true }
 
 # Logging
+tracing-error = { workspace = true, default-features = true }
 tracing = { workspace = true, default-features = true }
 
 # Utilities
@@ -31,5 +36,14 @@ sha2 = { workspace = true, default-features = true }
 time = { workspace = true, default-features = true }
 
 # Serialization
+base64 = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
+
+[[bin]]
+name = "dokime-contract-export"
+path = "src/bin/export.rs"
+required-features = ["descriptors"]
+test = false
+bench = false
+doc = false

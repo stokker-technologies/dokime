@@ -60,21 +60,23 @@ fn config() -> Config {
         .unwrap()
 }
 
-fn accepted(reply: v1::RunReply) -> v1::Admission {
+fn accepted(reply: contracts::execution::RunReply) -> contracts::execution::Admission {
     match reply.outcome.unwrap() {
-        v1::run_reply::Outcome::Accepted(admission) => admission,
-        v1::run_reply::Outcome::Rejected(rejection) => panic!("run rejected: {rejection:?}"),
+        contracts::execution::RunReplyOutcome::Accepted(admission) => admission,
+        contracts::execution::RunReplyOutcome::Rejected(rejection) => {
+            panic!("run rejected: {rejection:?}")
+        }
     }
 }
 
 async fn lookup(
-    client: &mut ExecutionClient<Channel>,
+    client: &mut WireClient,
     id: &str,
     token: &str,
-) -> Result<v1::RunRequestReceipt, tonic::Status> {
+) -> Result<contracts::execution::RunRequestReceipt, tonic::Status> {
     client
-        .get_run_request(auth(
-            v1::GetRunRequestRequest {
+        .unary::<contracts::execution::GetRunRequest>(auth(
+            contracts::execution::GetRunRequestRequest {
                 request_id: id.into(),
             },
             token,
@@ -94,20 +96,20 @@ pub(crate) async fn commands_owner_receipts() {
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
     let server = Server::start(owner.handle(), config()).await.unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = client
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let execution_id = client
-        .list_executions(authenticated(v1::ListExecutionsRequest {
-            cycle_id,
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutions>(authenticated(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
@@ -116,38 +118,45 @@ pub(crate) async fn commands_owner_receipts() {
         .clone();
     let admission = accepted(
         client
-            .run_execution(authenticated(v1::RunExecutionRequest {
-                execution_id: execution_id.clone(),
-                mode: v1::ExecutionMode::Interactive as i32,
-                context: None,
-                idempotency_key: Some("interactive-command-owner".into()),
-            }))
+            .unary::<contracts::execution::RunExecution>(authenticated(
+                contracts::execution::RunExecutionRequest {
+                    execution_id: execution_id.clone(),
+                    mode: contracts::execution::ExecutionMode::Interactive,
+                    context: None,
+                    idempotency_key: Some("interactive-command-owner".into()),
+                },
+            ))
             .await
             .unwrap()
             .into_inner(),
     );
     started(&gate).await;
     let detail = client
-        .get_execution(authenticated(v1::GetExecutionRequest {
-            execution_id: execution_id.clone(),
-        }))
+        .unary::<contracts::execution::GetExecution>(authenticated(
+            contracts::execution::GetExecutionRequest {
+                execution_id: execution_id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(
         detail.controls.unwrap().mode,
-        v1::ExecutionMode::Interactive as i32
+        contracts::execution::ExecutionMode::Interactive
     );
-    let command = v1::SubmitExecutionCommandRequest {
+    let command = contracts::execution::SubmitExecutionCommandRequest {
         request_id: admission.command_id.clone(),
         command_id: uuid::Uuid::now_v7().to_string(),
         execution_id,
-        action: v1::ExecutionCommandAction::Next as i32,
+        action: contracts::execution::ExecutionCommandAction::Next,
         step_id: None,
     };
     assert_eq!(
         client
-            .submit_execution_command(auth(command.clone(), OTHER_CONTROL))
+            .unary::<contracts::execution::SubmitExecutionCommand>(auth(
+                command.clone(),
+                OTHER_CONTROL
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -157,33 +166,36 @@ pub(crate) async fn commands_owner_receipts() {
     unknown.request_id = uuid::Uuid::now_v7().to_string();
     assert_eq!(
         client
-            .submit_execution_command(auth(unknown, OTHER_CONTROL))
+            .unary::<contracts::execution::SubmitExecutionCommand>(auth(unknown, OTHER_CONTROL))
             .await
             .unwrap_err()
             .code(),
         Code::NotFound
     );
     let receipt = client
-        .submit_execution_command(authenticated(command.clone()))
+        .unary::<contracts::execution::SubmitExecutionCommand>(authenticated(command.clone()))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(receipt.phase, v1::ExecutionCommandPhase::Accepted as i32);
+    assert_eq!(
+        receipt.phase,
+        contracts::execution::ExecutionCommandPhase::Accepted
+    );
     assert_eq!(
         client
-            .submit_execution_command(authenticated(command.clone()))
+            .unary::<contracts::execution::SubmitExecutionCommand>(authenticated(command.clone()))
             .await
             .unwrap()
             .into_inner(),
         receipt
     );
-    let lookup = v1::GetExecutionCommandRequest {
+    let lookup = contracts::execution::GetExecutionCommandRequest {
         request_id: command.request_id.clone(),
         command_id: command.command_id.clone(),
     };
     assert_eq!(
         client
-            .get_execution_command(auth(lookup.clone(), READER))
+            .unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), READER))
             .await
             .unwrap()
             .into_inner(),
@@ -191,7 +203,7 @@ pub(crate) async fn commands_owner_receipts() {
     );
     assert_eq!(
         client
-            .get_execution_command(auth(lookup.clone(), ADMIN))
+            .unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), ADMIN))
             .await
             .unwrap()
             .into_inner(),
@@ -199,17 +211,17 @@ pub(crate) async fn commands_owner_receipts() {
     );
     assert_eq!(
         client
-            .get_execution_command(auth(lookup.clone(), OTHER))
+            .unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), OTHER))
             .await
             .unwrap_err()
             .code(),
         Code::NotFound
     );
     let mut conflicting = command.clone();
-    conflicting.action = v1::ExecutionCommandAction::Finish as i32;
+    conflicting.action = contracts::execution::ExecutionCommandAction::Finish;
     assert_eq!(
         client
-            .submit_execution_command(authenticated(conflicting))
+            .unary::<contracts::execution::SubmitExecutionCommand>(authenticated(conflicting))
             .await
             .unwrap_err()
             .code(),
@@ -219,7 +231,7 @@ pub(crate) async fn commands_owner_receipts() {
     let terminal = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let response = client
-                .get_execution_command(auth(lookup.clone(), READER))
+                .unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), READER))
                 .await;
             if let Err(error) = &response {
                 let request_id =
@@ -228,7 +240,7 @@ pub(crate) async fn commands_owner_receipts() {
                 panic!("command lookup failed: {error}; original receipt: {original:?}");
             }
             let receipt = response.unwrap().into_inner();
-            if receipt.phase == v1::ExecutionCommandPhase::Interrupted as i32 {
+            if receipt.phase == contracts::execution::ExecutionCommandPhase::Interrupted {
                 break receipt;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -243,12 +255,10 @@ pub(crate) async fn commands_owner_receipts() {
 
     let mut rebooted = runtime(root.path()).await;
     let server = Server::start(rebooted.handle(), config()).await.unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client
-            .get_execution_command(auth(lookup, READER))
+            .unary::<contracts::execution::GetExecutionCommand>(auth(lookup, READER))
             .await
             .unwrap()
             .into_inner(),
@@ -256,7 +266,7 @@ pub(crate) async fn commands_owner_receipts() {
     );
     assert_eq!(
         client
-            .submit_execution_command(authenticated(command))
+            .unary::<contracts::execution::SubmitExecutionCommand>(authenticated(command))
             .await
             .unwrap()
             .into_inner(),
@@ -271,22 +281,20 @@ pub(crate) async fn keyed_runs_restart() {
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
     let server = Server::start(owner.handle(), config()).await.unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = client
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
-    let request = v1::RunCycleRequest {
+    let request = contracts::execution::RunCycleRequest {
         idempotency_key: Some("operator-operation-1".into()),
         ..run(&cycle_id)
     };
     let admission = accepted(
         client
-            .run_cycle(authenticated(request.clone()))
+            .unary::<contracts::execution::RunCycle>(authenticated(request.clone()))
             .await
             .unwrap()
             .into_inner(),
@@ -294,12 +302,12 @@ pub(crate) async fn keyed_runs_restart() {
     started(&gate).await;
     // A different correlation label is not a different operation or identity.
     let mut retry = request.clone();
-    retry.context = Some(v1::MutationContext {
+    retry.context = Some(contracts::execution::MutationContext {
         correlation_id: Some(uuid::Uuid::now_v7().to_string()),
     });
     let duplicate = accepted(
         client
-            .run_cycle(authenticated(retry))
+            .unary::<contracts::execution::RunCycle>(authenticated(retry))
             .await
             .unwrap()
             .into_inner(),
@@ -309,7 +317,10 @@ pub(crate) async fn keyed_runs_restart() {
     let running = lookup(&mut client, &admission.command_id, READER)
         .await
         .unwrap();
-    assert_eq!(running.phase, v1::RunRequestPhase::Running as i32);
+    assert_eq!(
+        running.phase,
+        contracts::execution::RunRequestPhase::Running
+    );
     assert_eq!(running.submitted_by.as_deref(), Some("fixture"));
     assert_eq!(running.planned_count, 1);
     assert_eq!(running.prepared_count, 1);
@@ -339,34 +350,38 @@ pub(crate) async fn keyed_runs_restart() {
     );
     let claim = running.last_claim.as_ref().unwrap();
     let conflict = client
-        .run_execution(authenticated(v1::RunExecutionRequest {
-            mode: Default::default(),
-            execution_id: claim.execution_id.clone(),
-            context: None,
-            idempotency_key: request.idempotency_key.clone(),
-        }))
+        .unary::<contracts::execution::RunExecution>(authenticated(
+            contracts::execution::RunExecutionRequest {
+                mode: Default::default(),
+                execution_id: claim.execution_id.clone(),
+                context: None,
+                idempotency_key: request.idempotency_key.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert!(
-        matches!(conflict.outcome, Some(v1::run_reply::Outcome::Rejected(ref error)) if error.code == "request_identity_conflict")
+        matches!(conflict.outcome, Some(contracts::execution::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")
     );
     let other_cycle = client
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let conflict = client
-        .run_cycle(authenticated(v1::RunCycleRequest {
-            cycle_id: other_cycle.clone(),
-            ..request.clone()
-        }))
+        .unary::<contracts::execution::RunCycle>(authenticated(
+            contracts::execution::RunCycleRequest {
+                cycle_id: other_cycle.clone(),
+                ..request.clone()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert!(
-        matches!(conflict.outcome, Some(v1::run_reply::Outcome::Rejected(ref error)) if error.code == "request_identity_conflict")
+        matches!(conflict.outcome, Some(contracts::execution::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")
     );
     assert_eq!(
         owner
@@ -386,7 +401,7 @@ pub(crate) async fn keyed_runs_restart() {
             let receipt = lookup(&mut client, &admission.command_id, READER)
                 .await
                 .unwrap();
-            if receipt.phase == v1::RunRequestPhase::Completed as i32 {
+            if receipt.phase == contracts::execution::RunRequestPhase::Completed {
                 break receipt;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -414,9 +429,7 @@ pub(crate) async fn keyed_runs_restart() {
     assert!(plan.test_executions[0].started_at.is_none());
     assert!(plan.test_executions[0].finished_at.is_some());
     let next = Server::start(rebooted.handle(), config()).await.unwrap();
-    let mut client = ExecutionClient::connect(next.local_endpoint())
-        .await
-        .unwrap();
+    let mut client = WireClient::connect(next.local_endpoint()).await.unwrap();
     assert_eq!(
         lookup(&mut client, &admission.command_id, READER)
             .await
@@ -432,7 +445,7 @@ pub(crate) async fn keyed_runs_restart() {
     );
     let retried = accepted(
         client
-            .run_cycle(authenticated(request))
+            .unary::<contracts::execution::RunCycle>(authenticated(request))
             .await
             .unwrap()
             .into_inner(),
@@ -459,21 +472,21 @@ pub(crate) async fn invalid_run_admission() {
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate).await;
     let server = Server::start(owner.handle(), config()).await.unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = client
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     for key in ["".into(), " ".into(), "bad\nkey".into(), "x".repeat(257)] {
         let error = client
-            .run_cycle(authenticated(v1::RunCycleRequest {
-                idempotency_key: Some(key),
-                ..run(&id)
-            }))
+            .unary::<contracts::execution::RunCycle>(authenticated(
+                contracts::execution::RunCycleRequest {
+                    idempotency_key: Some(key),
+                    ..run(&id)
+                },
+            ))
             .await
             .unwrap_err();
         assert_eq!(error.code(), Code::InvalidArgument);
@@ -486,8 +499,8 @@ pub(crate) async fn invalid_run_admission() {
         Code::InvalidArgument
     );
     let denied = client
-        .run_cycle(auth(
-            v1::RunCycleRequest {
+        .unary::<contracts::execution::RunCycle>(auth(
+            contracts::execution::RunCycleRequest {
                 idempotency_key: Some("valid".into()),
                 ..run(&id)
             },
@@ -515,32 +528,34 @@ pub(crate) async fn crashed_run_replay() {
         let gate = Arc::new(Gate::default());
         let owner = fixture(&root, gate.clone()).await;
         let server = Server::start(owner.handle(), config()).await.unwrap();
-        let mut client = ExecutionClient::connect(server.local_endpoint())
-            .await
-            .unwrap();
+        let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
         let cycle = client
-            .create_cycle(authenticated(create(&owner)))
+            .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
             .await
             .unwrap()
             .into_inner()
             .cycle_id;
         let cases = client
-            .list_cases(authenticated(v1::ListCasesRequest {
-                cycle_id: cycle.clone(),
-                ..Default::default()
-            }))
+            .unary::<contracts::execution::ListCases>(authenticated(
+                contracts::execution::ListCasesRequest {
+                    cycle_id: cycle.clone(),
+                    ..Default::default()
+                },
+            ))
             .await
             .unwrap()
             .into_inner();
         let case = cases.cases[0].case_id.clone();
         let admission = accepted(
             client
-                .run_case(authenticated(v1::RunCaseRequest {
-                    cycle_id: cycle.clone(),
-                    case_id: case.clone(),
-                    context: None,
-                    idempotency_key: Some("crash-operation".into()),
-                }))
+                .unary::<contracts::execution::RunCase>(authenticated(
+                    contracts::execution::RunCaseRequest {
+                        cycle_id: cycle.clone(),
+                        case_id: case.clone(),
+                        context: None,
+                        idempotency_key: Some("crash-operation".into()),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner(),
@@ -549,7 +564,10 @@ pub(crate) async fn crashed_run_replay() {
         let receipt = lookup(&mut client, &admission.command_id, READER)
             .await
             .unwrap();
-        assert_eq!(receipt.phase, v1::RunRequestPhase::Running as i32);
+        assert_eq!(
+            receipt.phase,
+            contracts::execution::RunRequestPhase::Running
+        );
         // Crash recovery applies to saved work; ordinary admission may still be buffered.
         owner.handle().storage().flush().await.unwrap();
         owner.handle().storage().flush_recovery().await.unwrap();
@@ -591,11 +609,12 @@ pub(crate) async fn crashed_run_replay() {
     child.0.wait().unwrap();
     let mut owner = runtime(root.path()).await;
     let server = Server::start(owner.handle(), config()).await.unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let receipt = lookup(&mut client, &request_id, READER).await.unwrap();
-    assert_eq!(receipt.phase, v1::RunRequestPhase::Interrupted as i32);
+    assert_eq!(
+        receipt.phase,
+        contracts::execution::RunRequestPhase::Interrupted
+    );
     assert_eq!(receipt.prepared_count, 1);
     assert_eq!(receipt.finished_count, 0);
     assert!(receipt.finished_at.is_some());
@@ -607,12 +626,14 @@ pub(crate) async fn crashed_run_replay() {
     );
     let replay = accepted(
         client
-            .run_case(authenticated(v1::RunCaseRequest {
-                cycle_id,
-                case_id,
-                context: None,
-                idempotency_key: Some("crash-operation".into()),
-            }))
+            .unary::<contracts::execution::RunCase>(authenticated(
+                contracts::execution::RunCaseRequest {
+                    cycle_id,
+                    case_id,
+                    context: None,
+                    idempotency_key: Some("crash-operation".into()),
+                },
+            ))
             .await
             .unwrap()
             .into_inner(),

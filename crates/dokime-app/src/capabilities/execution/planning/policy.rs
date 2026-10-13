@@ -16,7 +16,7 @@ pub(crate) use crate::transactions::UpdateCyclePolicy as UpdatePolicy;
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 // Local Imports
 use crate::{CommandContext, Error, RuntimeHandle, unavailable_rejection};
 use dokime::core::{TestCycleId, Timestamp};
@@ -55,7 +55,7 @@ impl RuntimeHandle {
             .filter(|key| !key.is_empty())
         {
             Some(key) => {
-                self.commit_keyed(harmos::RequestKey::new(key), transaction)
+                self.commit_keyed(harmos::state::RequestKey::new(key), transaction)
                     .await
             }
             None => self.commit(transaction).await,

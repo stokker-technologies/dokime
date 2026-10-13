@@ -11,6 +11,7 @@
 mod acquire;
 mod construction;
 mod current;
+mod follow;
 mod handle;
 mod phase;
 pub(crate) mod saved;
@@ -20,6 +21,7 @@ mod stream;
 pub(crate) use crate::transactions::documents::AddExecutionDocumentParts;
 pub(crate) use construction::{construction_memory, cycle_memory};
 pub use current::{CurrentDocumentCapture, CurrentDocumentTelemetryCut, PreparedCurrentDocument};
+pub use follow::ExecutionFileFollower;
 pub use stream::ExecutionFileStream;
 
 /* === Imports === */

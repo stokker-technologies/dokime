@@ -18,8 +18,9 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 // Third Party Imports
 use harmos::{
-    Application, DefinitionId, Identified, Never, Runtime,
+    Application, DefinitionId, Identified, Runtime,
     schema::Described,
+    state::Never,
     storage::{
         frame::{Expr, GroupBy, ScalarField, ScalarPath},
         reduce::{Agg, ScalarKind, ScalarValue},
@@ -127,7 +128,10 @@ pub(crate) async fn scalar_failure_cursor() {
         let schema = Objects::encode(&sample, NonZeroUsize::new(4096).unwrap())
             .unwrap()
             .schema;
-        let schema_position = storage.write_schema(&schema, Sample::FIELDS).await.unwrap();
+        let schema_position = storage
+            .write_schema(&schema, &super::storage::declared::<Sample>())
+            .await
+            .unwrap();
         let prior = storage.flush_until(&schema_position).await.unwrap();
         let admitted = storage.write_object(&sample).await.unwrap();
         assert!(storage.flush_until(&admitted.position).await.is_err());
@@ -180,8 +184,10 @@ pub(crate) async fn scalar_failure_cursor() {
                     [],
                     |row| row.get(0),
                 )?;
-                let restored: Vec<harmos::schema::Field> = serde_json::from_slice(&fields).unwrap();
-                assert_eq!(restored, Sample::FIELDS);
+                let restored: Vec<harmos::schema::graph::Field> =
+                    serde_json::from_slice(&fields).unwrap();
+                let declared = super::storage::declared::<Sample>();
+                assert_eq!(restored, declared.definitions[declared.root]);
                 let count: i64 = connection.query_row(
                     "SELECT COUNT(*) FROM storage_object_scalars",
                     [],
@@ -287,7 +293,10 @@ pub(crate) async fn query_page_drop() {
         let schema = Objects::encode(&sample, NonZeroUsize::new(4096).unwrap())
             .unwrap()
             .schema;
-        storage.write_schema(&schema, Sample::FIELDS).await.unwrap();
+        storage
+            .write_schema(&schema, &super::storage::declared::<Sample>())
+            .await
+            .unwrap();
         let admitted = storage.write_object(&sample).await.unwrap();
         storage.flush_until(&admitted.position).await.unwrap();
         let mut reader = storage.query(ObjectQuery::<Sample>::new()).await.unwrap();
@@ -381,7 +390,10 @@ pub(crate) async fn stream_frames_charge() {
         )
         .unwrap()
         .schema;
-        storage.write_schema(&schema, Sample::FIELDS).await.unwrap();
+        storage
+            .write_schema(&schema, &super::storage::declared::<Sample>())
+            .await
+            .unwrap();
         let stream = harmos::Identifier::new("fixture.samples").unwrap();
         for (index, value) in [u64::MAX - 2, u64::MAX, 1, 3].into_iter().enumerate() {
             let item = harmos::Identifier::new(format!("sample.{index}")).unwrap();
@@ -622,7 +634,10 @@ pub(crate) async fn pinned_page_waiting() {
         let schema = Objects::encode(&sample, NonZeroUsize::new(4096).unwrap())
             .unwrap()
             .schema;
-        storage.write_schema(&schema, Sample::FIELDS).await.unwrap();
+        storage
+            .write_schema(&schema, &super::storage::declared::<Sample>())
+            .await
+            .unwrap();
         let admitted = storage.write_object(&sample).await.unwrap();
         storage.flush_until(&admitted.position).await.unwrap();
         let view = storage.view_with_limits(execution).await.unwrap();
@@ -803,8 +818,10 @@ pub(crate) async fn private_object_version() {
                 assert!(actual.value.payload.is_empty());
                 actual.value.payload.extend_from_slice(&body[end..]);
                 assert_eq!(actual, expected);
-                let fields: Vec<harmos::schema::Field> = serde_json::from_slice(&fields).unwrap();
-                assert_eq!(fields, Sample::FIELDS);
+                let fields: Vec<harmos::schema::graph::Field> =
+                    serde_json::from_slice(&fields).unwrap();
+                let declared = super::storage::declared::<Sample>();
+                assert_eq!(fields, declared.definitions[declared.root]);
                 let scalars: i64 = connection.query_row(
                     "SELECT COUNT(*) FROM storage_object_scalars",
                     [],

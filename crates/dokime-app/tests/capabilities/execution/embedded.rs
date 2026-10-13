@@ -22,7 +22,7 @@ use dokime::Message;
 use dokime::core::Identifier;
 use dokime::execution::Runnable;
 use dokime::transport::{ExecutionSignal, SignalReply, TransportFuture};
-use harmos::sidecar::StreamDeclaration;
+use harmos::plugin::sidecar::StreamDeclaration;
 
 // Local Imports
 use dokime_app::InstalledPlugin;
@@ -119,7 +119,11 @@ impl EmbeddedProvider for Probe {
             id: "fixture.embedded.staged".into(),
             schema: <StagedReading as harmos::StreamSpec>::VERSION,
             window: <StagedReading as harmos::StreamSpec>::WINDOW,
-            fields: <StagedReading as dokime::schema::Described>::FIELDS.to_vec(),
+            row: harmos::schema::graph::Schema::from_declaration(
+                <StagedReading as dokime::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .unwrap(),
         }]
     }
     async fn start(&self) -> dokime_app::Result<Vec<Arc<dyn Runnable>>> {

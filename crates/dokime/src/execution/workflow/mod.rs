@@ -19,7 +19,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, PoisonError};
 // Third Party Imports
 // Third-Party Imports
-use harmos::sidecar::Refusal;
+use harmos::plugin::sidecar::Refusal;
 use tokio::sync::watch;
 // Local Imports
 use super::template::SidecarTemplate;
@@ -58,7 +58,7 @@ pub struct Workflow<T: SidecarTemplate> {
 
 #[derive(Clone)]
 pub enum SampleOutput {
-    Host(harmos::sidecar::Supervisor),
+    Host(harmos::plugin::sidecar::Supervisor),
     Embedded(Arc<dyn EmbeddedPublisher>),
 }
 

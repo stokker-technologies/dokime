@@ -12,22 +12,16 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Callable
-
 import os
-from pathlib import Path
 import stat
-
+from collections.abc import Callable
+from pathlib import Path
 
 # Third Party Imports
-
 import pytest
 
-
 # Local Imports
-
 from dokime_tools.staging import stage_file, sync_output
-
 
 # Type Checking Imports
 

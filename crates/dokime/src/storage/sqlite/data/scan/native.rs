@@ -20,7 +20,10 @@ use std::{
 };
 // Third Party Imports
 use harmos::{
-    schema::Field,
+    schema::{
+        Described,
+        graph::{Schema, View},
+    },
     storage::{SchemaKey, frame::*, reduce::*},
 };
 // Local Imports
@@ -44,7 +47,7 @@ pub(super) struct Row {
 
 /* === Enums === */
 #[derive(Clone, Copy)]
-pub(super) enum Kind {
+pub(in crate::storage::sqlite::data) enum Kind {
     Record,
     Telemetry,
 }
@@ -66,19 +69,44 @@ impl Kind {
             None
         }
     }
-    pub(super) fn fields(self) -> &'static [Field] {
-        match self {
-            Self::Record => records::fields(),
-            Self::Telemetry => telemetry::fields(),
-        }
+    pub(super) fn schema(self) -> Result<Schema, Error> {
+        let declaration = match self {
+            Self::Record => records::RecordRow::DEFINITION,
+            Self::Telemetry => telemetry::TelemetryRow::DEFINITION,
+        };
+        Schema::from_declaration(declaration, &harmos::config::SchemaSettings::default()).map_err(
+            |error| {
+                harmos::Error::backend(
+                    "resolve native scan schema",
+                    harmos::BackendFailure::Permanent,
+                    error,
+                )
+                .into()
+            },
+        )
     }
-    pub(super) fn check_schema(self, fields: &[Field]) -> Result<(), Error> {
-        if fields != self.fields() {
+    pub(super) fn check_schema(self, schema: &Schema) -> Result<(), Error> {
+        let expected = self.schema()?;
+        if !schema
+            .equivalent(
+                schema.root,
+                &expected,
+                expected.root,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .map_err(|error| {
+                harmos::Error::backend(
+                    "compare native scan schema",
+                    harmos::BackendFailure::Corrupt,
+                    error,
+                )
+            })?
+        {
             return Err(Error::Corrupt("native scan schema differs from its codec"));
         }
         Ok(())
     }
-    pub(super) fn check_field(self, field: &ScalarField, fields: &[Field]) -> Result<(), Error> {
+    pub(super) fn check_field(self, field: &ScalarField, schema: View<'_>) -> Result<(), Error> {
         field.check()?;
         let ScalarPath::Payload(path) = &field.path else {
             return Ok(());
@@ -102,7 +130,7 @@ impl Kind {
                 "native error details are not scalar projection fields",
             ));
         }
-        field.check_schema(fields)?;
+        field.check_schema(schema)?;
         Ok(())
     }
     pub(super) fn decode(

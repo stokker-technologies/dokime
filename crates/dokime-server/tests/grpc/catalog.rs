@@ -23,7 +23,6 @@ use dokime_app::{
     records::{RecordContract, RecordField, RecordIconKey, RecordSeverity, RecordTone},
     telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole},
 };
-use dokime_protocol::v1::catalog_client::CatalogClient;
 
 /* === Constants === */
 
@@ -95,22 +94,24 @@ pub(crate) async fn schemas_exact_pages() {
         .with_bearer_auth(vec![grant(Role::Read)])
         .unwrap();
     let server = Server::start(handle.clone(), config).await.unwrap();
-    let mut client = CatalogClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client
-            .list_record_schemas(v1::ListRecordSchemasRequest::default())
+            .unary::<contracts::catalog::ListRecordSchemas>(
+                contracts::catalog::ListRecordSchemasRequest::default()
+            )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
     let first = client
-        .list_record_schemas(authenticated(v1::ListRecordSchemasRequest {
-            limit: 1,
-            ..Default::default()
-        }))
+        .unary::<contracts::catalog::ListRecordSchemas>(authenticated(
+            contracts::catalog::ListRecordSchemasRequest {
+                limit: 1,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -123,11 +124,13 @@ pub(crate) async fn schemas_exact_pages() {
     let mut after = first.next_after_record_type.clone();
     while let Some(marker) = after {
         let page = client
-            .list_record_schemas(authenticated(v1::ListRecordSchemasRequest {
-                limit: 1,
-                after_record_type: marker,
-                cursor: first.cursor.clone(),
-            }))
+            .unary::<contracts::catalog::ListRecordSchemas>(authenticated(
+                contracts::catalog::ListRecordSchemasRequest {
+                    limit: 1,
+                    after_record_type: marker,
+                    cursor: first.cursor.clone(),
+                },
+            ))
             .await
             .unwrap()
             .into_inner();
@@ -143,37 +146,51 @@ pub(crate) async fn schemas_exact_pages() {
     expected.sort();
     assert_eq!(ids, expected);
     let record = client
-        .get_record_schema(authenticated(v1::GetRecordSchemaRequest {
-            record_type: "fixture.reading".into(),
-        }))
+        .unary::<contracts::catalog::GetRecordSchema>(authenticated(
+            contracts::catalog::GetRecordSchemaRequest {
+                record_type: "fixture.reading".into(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(record.default_severity, v1::Severity::Warn as i32);
+    assert_eq!(record.default_severity, contracts::common::Severity::Warn);
     assert_eq!(
         record.validation_mode,
-        Some(v1::ValidationMode::Strict as i32)
+        Some(contracts::schema::ValidationMode::Strict)
     );
     assert!(!record.allow_extra_fields);
     let display = record.display.unwrap();
-    assert_eq!(display.icon, v1::RecordIcon::Gauge as i32);
-    assert_eq!(display.tone, v1::RecordTone::Warning as i32);
+    assert_eq!(display.icon, contracts::schema::RecordIcon::Gauge);
+    assert_eq!(display.tone, contracts::schema::RecordTone::Warning);
     assert_eq!(
-        record.fields[0].default_value.as_ref().unwrap().kind,
-        Some(v1::value::Kind::IntegerValue(i64::MAX))
+        record.fields[0]
+            .default_value
+            .as_ref()
+            .unwrap()
+            .to_core()
+            .unwrap(),
+        Value::Integer(i64::MAX)
     );
     assert_eq!(
-        record.fields[0].choices[0].kind,
-        Some(v1::value::Kind::IntegerValue(i64::MIN))
+        record.fields[0].choices[0].to_core().unwrap(),
+        Value::Integer(i64::MIN)
     );
     assert_eq!(
-        record.fields[1].default_value.as_ref().unwrap().kind,
-        Some(v1::value::Kind::NullValue(0))
+        record.fields[1]
+            .default_value
+            .as_ref()
+            .unwrap()
+            .to_core()
+            .unwrap(),
+        Value::Null
     );
     assert!(record.fields[1].nullable);
     assert!(record.fields[2].default_value.is_none());
     let streams = client
-        .list_telemetry_schemas(authenticated(v1::ListTelemetrySchemasRequest::default()))
+        .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(
+            contracts::catalog::ListTelemetrySchemasRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -184,29 +201,41 @@ pub(crate) async fn schemas_exact_pages() {
             .any(|s| s.stream == "fixture.samples")
     );
     let telemetry = client
-        .get_telemetry_schema(authenticated(v1::GetTelemetrySchemaRequest {
-            stream: "fixture.samples".into(),
-        }))
+        .unary::<contracts::catalog::GetTelemetrySchema>(authenticated(
+            contracts::catalog::GetTelemetrySchemaRequest {
+                stream: "fixture.samples".into(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(telemetry.plot_window_ms, Some(u64::MAX));
     let unit = telemetry.columns[1].unit.as_ref().unwrap();
-    assert_eq!(unit.family, v1::UnitFamily::Count as i32);
+    assert_eq!(unit.family, contracts::schema::UnitFamily::Count);
     assert_eq!(unit.symbol, "tick");
     assert_eq!(unit.metadata.as_ref().unwrap().identifier, "unit.tick");
     assert_eq!(telemetry.columns[1].display_unit.as_deref(), Some("ticks"));
     assert_eq!(
-        telemetry.columns[1].default_value.as_ref().unwrap().kind,
-        Some(v1::value::Kind::IntegerValue(i64::MAX))
+        telemetry.columns[1]
+            .default_value
+            .as_ref()
+            .unwrap()
+            .to_core()
+            .unwrap(),
+        Value::Integer(i64::MAX)
     );
-    assert_eq!(telemetry.columns[1].role, v1::TelemetryRole::Counter as i32);
+    assert_eq!(
+        telemetry.columns[1].role,
+        contracts::schema::TelemetryRole::Counter
+    );
     assert_eq!(telemetry.default_x.as_deref(), Some("timestamp"));
     assert_eq!(
         client
-            .get_record_schema(authenticated(v1::GetRecordSchemaRequest {
-                record_type: "missing".into()
-            }))
+            .unary::<contracts::catalog::GetRecordSchema>(authenticated(
+                contracts::catalog::GetRecordSchemaRequest {
+                    record_type: "missing".into()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -214,9 +243,11 @@ pub(crate) async fn schemas_exact_pages() {
     );
     assert_eq!(
         client
-            .get_telemetry_schema(authenticated(v1::GetTelemetrySchemaRequest {
-                stream: "missing".into()
-            }))
+            .unary::<contracts::catalog::GetTelemetrySchema>(authenticated(
+                contracts::catalog::GetTelemetrySchemaRequest {
+                    stream: "missing".into()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -224,10 +255,12 @@ pub(crate) async fn schemas_exact_pages() {
     );
     assert_eq!(
         client
-            .list_telemetry_schemas(authenticated(v1::ListTelemetrySchemasRequest {
-                limit: 101,
-                ..Default::default()
-            }))
+            .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(
+                contracts::catalog::ListTelemetrySchemasRequest {
+                    limit: 101,
+                    ..Default::default()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -235,11 +268,13 @@ pub(crate) async fn schemas_exact_pages() {
     );
     assert_eq!(
         client
-            .list_record_schemas(authenticated(v1::ListRecordSchemasRequest {
-                after_record_type: "missing".into(),
-                cursor: first.cursor.clone(),
-                ..Default::default()
-            }))
+            .unary::<contracts::catalog::ListRecordSchemas>(authenticated(
+                contracts::catalog::ListRecordSchemasRequest {
+                    after_record_type: "missing".into(),
+                    cursor: first.cursor.clone(),
+                    ..Default::default()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -255,10 +290,12 @@ pub(crate) async fn schemas_exact_pages() {
         .unwrap();
     assert_eq!(
         client
-            .list_record_schemas(authenticated(v1::ListRecordSchemasRequest {
-                cursor: first.cursor,
-                ..Default::default()
-            }))
+            .unary::<contracts::catalog::ListRecordSchemas>(authenticated(
+                contracts::catalog::ListRecordSchemasRequest {
+                    cursor: first.cursor,
+                    ..Default::default()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -266,10 +303,12 @@ pub(crate) async fn schemas_exact_pages() {
     );
     assert_eq!(
         client
-            .list_telemetry_schemas(authenticated(v1::ListTelemetrySchemasRequest {
-                cursor: streams.cursor,
-                ..Default::default()
-            }))
+            .unary::<contracts::catalog::ListTelemetrySchemas>(authenticated(
+                contracts::catalog::ListTelemetrySchemasRequest {
+                    cursor: streams.cursor,
+                    ..Default::default()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -316,12 +355,12 @@ pub(crate) async fn catalog_suite_extensions() {
         .with_bearer_auth(vec![grant(Role::Read)])
         .unwrap();
     let server = Server::start(handle, config).await.unwrap();
-    let mut client = CatalogClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let listed = client
-        .list_suites(authenticated(v1::ListSuitesRequest::default()))
+        .unary::<contracts::catalog::ListSuites>(authenticated(
+            contracts::catalog::ListSuitesRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -329,7 +368,7 @@ pub(crate) async fn catalog_suite_extensions() {
     assert_eq!(listed.suites[0].product.as_deref(), Some("fixture.product"));
 
     let fetched = client
-        .get_suite(authenticated(v1::GetSuiteRequest {
+        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuiteRequest {
             suite_id: "fixture.suite".to_owned(),
         }))
         .await
@@ -341,22 +380,23 @@ pub(crate) async fn catalog_suite_extensions() {
     );
     assert_eq!(fetched.templates[0].parameters[0].min, Some(1.0));
     assert_eq!(fetched.templates[0].parameters[0].max, Some(100.0));
-    let extensions = &fetched.templates[0].parameters[0].extensions;
+    let extensions: BTreeMap<_, _> = fetched.templates[0].parameters[0]
+        .extensions
+        .iter()
+        .map(|entry| {
+            (
+                entry.key.as_str(),
+                entry.value.as_ref().unwrap().to_core().unwrap(),
+            )
+        })
+        .collect();
     assert_eq!(
-        extensions["ui.description"].kind,
-        Some(v1::value::Kind::TextValue(
-            "Choose an operator-facing value".to_owned()
-        ))
+        extensions["ui.description"],
+        Value::Text("Choose an operator-facing value".to_owned())
     );
-    assert_eq!(
-        extensions["ui.limit"].kind,
-        Some(v1::value::Kind::IntegerValue(i64::MAX))
-    );
-    match extensions["ui.flags"].kind.as_ref() {
-        Some(v1::value::Kind::ObjectValue(value)) => assert_eq!(
-            value.fields["visible"].kind,
-            Some(v1::value::Kind::BoolValue(true))
-        ),
+    assert_eq!(extensions["ui.limit"], Value::Integer(i64::MAX));
+    match &extensions["ui.flags"] {
+        Value::Object(value) => assert_eq!(value["visible"], Value::Bool(true)),
         other => panic!("expected object extension, got {other:?}"),
     }
 

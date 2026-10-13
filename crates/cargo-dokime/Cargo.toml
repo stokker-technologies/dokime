@@ -9,12 +9,13 @@ version = { workspace = true }
 
 [dependencies]
 # Local
+dokime-client = { path = "../dokime-client" }
+dokime-contract = { path = "../dokime-contract" }
 dokime-packaging = { path = "../dokime-packaging" }
-dokime-protocol = { path = "../dokime-protocol" }
 dokime-terminal = { path = "../dokime-terminal" }
 
 # Git
-harmos = { workspace = true, features = ["runtime", "derive", "plugin", "artifact"] }
+harmos = { workspace = true, features = ["plugin"] }
 
 # Error Handling
 thiserror = { workspace = true, default-features = true }
@@ -44,15 +45,14 @@ futures-util = { workspace = true, default-features = true }
 tokio = { workspace = true, default-features = true, features = ["process"] }
 
 # Networking
-tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
 url = { workspace = true, default-features = true }
 
 [dev-dependencies]
 # Local
-dokime-protocol = { path = "../dokime-protocol", features = ["server"] }
 
 # Git
-harmos = { workspace = true, features = ["artifact"] }
+harmos = { workspace = true, features = ["plugin", "grpc"] }
+harmos-contract = { workspace = true }
 
 # Parsing
 cargo_metadata = { workspace = true, default-features = true }

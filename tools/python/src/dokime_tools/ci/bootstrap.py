@@ -12,12 +12,17 @@
 
 # Standard Library Imports
 from __future__ import annotations
+
 import argparse
+import hashlib
+import json
 import os
 import platform
 import shutil
 import subprocess
 import sys
+import tempfile
+import tomllib
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -61,6 +66,15 @@ VSWHERE_RELATIVE_PATH = Path("Microsoft Visual Studio/Installer/vswhere.exe")
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_arguments(argv)
+    if arguments.harmos_key:
+        print(harmos_pin(Path.cwd())["rev"])
+        return 0
+    if arguments.harmos_tools:
+        prepare_harmos(
+            Path.cwd(),
+            allow_install=os.environ.get("DOKIME_CI_ROLE") in {None, "contracts"},
+        )
+        return 0
     system = platform.system()
     _step(f"host system is {system}")
     _create_temporary_directory()
@@ -68,6 +82,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         step()
     for task in arguments.tasks:
         _run_mise_task(task)
+    if arguments.role:
+        prepare_tools(arguments.role)
     _step("bootstrap complete")
     return 0
 
@@ -81,6 +97,21 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--gui-packages",
         action="store_true",
         help="install the Debian GUI development packages (Linux jobs only).",
+    )
+    parser.add_argument("--harmos-key", action="store_true")
+    parser.add_argument("--harmos-tools", action="store_true")
+    parser.add_argument(
+        "--role",
+        choices=(
+            "check",
+            "contracts",
+            "build",
+            "test",
+            "coverage",
+            "catalog",
+            "javascript",
+            "publish",
+        ),
     )
     parser.add_argument(
         "tasks",
@@ -99,6 +130,176 @@ def platform_steps(system: str, *, gui_packages: bool) -> list[Callable[[], None
         # and every Rust job needs it.
         return [verify_visual_cpp_toolset]
     raise SystemExit(f"bootstrap.py supports Linux and Windows CI hosts, not {system}.")
+
+
+def selected_tools(role: str, system: str) -> list[str]:
+    pnpm = "npm:pnpm" if system == "Windows" else "pnpm"
+    common = ["python", "uv", "rust", "node", pnpm]
+    if role in {"check", "build"}:
+        return []  # Complete Maintained-Source Checks Use The Pinned Tool Set.
+    if role in {"catalog", "javascript"}:
+        return [*common, "sccache"]
+    if role == "publish":
+        return [
+            *common,
+            "sccache",
+            "gh",
+            *(["aqua:jedisct1/minisign"] if system == "Linux" else []),
+        ]
+    if role == "contracts":
+        return [*common, "sccache"]
+    if role in {"test", "coverage"}:
+        tools = [*common, "sccache", "aqua:nextest-rs/nextest/cargo-nextest"]
+        if role == "coverage":
+            tools.append("aqua:taiki-e/cargo-llvm-cov")
+        return tools
+    raise ValueError(f"unknown CI tool role: {role}")
+
+
+def prepare_tools(role: str) -> None:
+    _run(["mise", "install", "--locked", *selected_tools(role, platform.system())])
+    _run(["git", "diff", "--exit-code", "--", "mise.lock"])
+    if role == "build":
+        _run(["mise", "run", "--skip-tools", "sync"])
+    else:
+        _run(["mise", "run", "--skip-tools", "prepare:tools"])
+        if role == "check":
+            _run(["mise", "exec", "--", "pnpm", "install", "--frozen-lockfile"])
+        elif role in {"test", "coverage"}:
+            # Generated-Plugin And Incremental Scenarios Retain Their Own Compilation.
+            _run(["mise", "exec", "--", "cargo", "fetch", "--locked"])
+    if role in {"build", "contracts"}:
+        prepare_harmos(Path.cwd(), allow_install=role == "contracts")
+    if role == "javascript":
+        _run(["mise", "exec", "--", "pnpm", "install", "--frozen-lockfile"])
+    for tool in ("mise", "rustc", "cargo", "python", "uv", "node", "pnpm"):
+        _run(["mise", "exec", "--", tool, "--version"])
+
+
+def harmos_pin(root: Path) -> dict[str, str]:
+    manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
+    dependency = manifest["workspace"]["dependencies"]["harmos"]
+    url, revision = dependency.get("git"), dependency.get("rev")
+    if (
+        url != "https://github.com/stokker-technologies/harmos.git"
+        or not isinstance(revision, str)
+        or len(revision) != 40
+        or any(character not in "0123456789abcdef" for character in revision)
+    ):
+        raise ValueError("Harmos tools require the exact declared public Git revision")
+    for name in ("harmos-contract", "harmos-signal"):
+        companion = manifest["workspace"]["dependencies"].get(name, {})
+        if companion.get("git") != url or companion.get("rev") != revision:
+            raise ValueError(
+                "all Harmos dependencies must share the exact public Git revision"
+            )
+    return {"git": url, "rev": revision, "package": "cargo-harmos"}
+
+
+def prepare_harmos(root: Path, *, allow_install: bool) -> None:
+    identity = {
+        **harmos_pin(root),
+        "platform": platform.system(),
+        "architecture": platform.machine(),
+        "rustc": subprocess.check_output(
+            ["mise", "exec", "--", "rustc", "-vV"], text=True, encoding="utf-8"
+        ).strip(),
+        "environment": {
+            name: os.environ.get(name)
+            for name in sorted(
+                {
+                    "RUSTC",
+                    "RUSTC_WRAPPER",
+                    "RUSTC_WORKSPACE_WRAPPER",
+                    "RUSTFLAGS",
+                    "CARGO_ENCODED_RUSTFLAGS",
+                    "CARGO_BUILD_TARGET",
+                    "CARGO_BUILD_RUSTFLAGS",
+                }
+                | {name for name in os.environ if name.startswith("CARGO_PROFILE_")}
+            )
+        },
+    }
+    destination = root / ".cache/harmos-tool"
+    binary = (
+        destination
+        / "bin"
+        / ("cargo-harmos.exe" if os.name == "nt" else "cargo-harmos")
+    )
+    receipt = destination / "receipt.json"
+    available = False
+    if (
+        binary.is_file()
+        and not binary.is_symlink()
+        and receipt.is_file()
+        and not receipt.is_symlink()
+    ):
+        try:
+            value = json.loads(receipt.read_text(encoding="utf-8"))
+            available = (
+                value.get("identity") == identity
+                and value.get("sha256")
+                == hashlib.sha256(binary.read_bytes()).hexdigest()
+            )
+        except (OSError, ValueError):
+            available = False
+    if not available:
+        if not allow_install:
+            raise ValueError(
+                "exact prepared Harmos tool artifact is missing or incompatible; consumers never rebuild it"
+            )
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(
+            prefix="harmos-tool-", dir=destination.parent
+        ) as temporary:
+            staged = Path(temporary)
+            _run(
+                [
+                    "mise",
+                    "exec",
+                    "--",
+                    "cargo",
+                    "install",
+                    "--git",
+                    identity["git"],
+                    "--rev",
+                    identity["rev"],
+                    "--locked",
+                    "--root",
+                    str(staged),
+                    "--target-dir",
+                    str(root / "target/tooling/harmos"),
+                    identity["package"],
+                ]
+            )
+            executable = staged / "bin" / binary.name
+            if executable.is_symlink() or not executable.is_file():
+                raise ValueError("published Harmos package omitted its required CLI")
+            version = subprocess.check_output(
+                [str(executable), "--version"], text=True, encoding="utf-8"
+            ).strip()
+            value = {
+                "identity": identity,
+                "sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+                "version": version,
+            }
+            (staged / "receipt.json").write_text(
+                json.dumps(value, indent=2) + "\n", encoding="utf-8"
+            )
+            for path in staged.iterdir():
+                if path.name not in {"bin", "receipt.json"}:
+                    path.unlink()
+            if destination.exists():
+                shutil.rmtree(destination)
+            shutil.copytree(staged, destination)
+    if os.name != "nt":
+        binary.chmod(0o755)
+    os.environ["PATH"] = str(binary.parent) + os.pathsep + os.environ["PATH"]
+    github_path = os.environ.get("GITHUB_PATH")
+    if github_path:
+        with Path(github_path).open("a", encoding="utf-8") as output:
+            output.write(str(binary.parent) + "\n")
+    _step(f"Harmos CLI uses {identity['rev']} with verified installed bytes")
 
 
 def install_gui_packages() -> None:
@@ -189,7 +390,11 @@ def _create_temporary_directory() -> None:
 def _package_installed(name: str) -> bool:
     return (
         subprocess.run(
-            ["dpkg", "-s", name], capture_output=True, text=True, encoding="utf-8"
+            ["dpkg", "-s", name],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
         ).returncode
         == 0
     )

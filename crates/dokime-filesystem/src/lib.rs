@@ -9,6 +9,7 @@
 
 /* === Modules === */
 mod error;
+pub mod input;
 pub mod publication;
 
 /* === Re-Exports === */

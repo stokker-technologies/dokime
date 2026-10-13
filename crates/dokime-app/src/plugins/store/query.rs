@@ -76,7 +76,7 @@ impl PluginStore {
                 if !fs::symlink_metadata(&path)?.file_type().is_file() {
                     return Err(PluginError::Invalid("bundle must be a regular file".into()));
                 }
-                let native_limit = harmos::plugin::Limits::default().archive_bytes;
+                let native_limit = harmos::plugin::bundle::Limits::default().archive_bytes;
                 let allowed = remaining.min(native_limit);
                 let file = File::open(path)?;
                 let mut bytes = Vec::new();

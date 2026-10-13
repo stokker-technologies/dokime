@@ -64,14 +64,16 @@ pub use crate::diagnostics::{captured, install_panic_hook, panicked};
 #[cfg(feature = "native")]
 pub fn run<P>() -> std::io::Result<()>
 where
-    P: crate::Plugin<Context = crate::Supervisor> + harmos::artifact::plugin::Declared,
+    P: crate::Plugin<Context = crate::Supervisor> + harmos::plugin::contract::Declared,
 {
     install_panic_hook();
     install_subscriber();
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
-        .block_on(harmos::sidecar::run_plugin::<P>(invocation_capacity()))
+        .block_on(harmos::plugin::sidecar::run_plugin::<P>(
+            invocation_capacity(),
+        ))
 }
 
 #[cfg(feature = "native")]

@@ -14,23 +14,19 @@
 # Standard Library Imports
 
 import argparse
-from datetime import datetime, UTC
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tomllib
-
+from datetime import UTC, datetime
+from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
-
 from dokime_tools.staging import stage_file
 from dokime_tools.version import ROOT
-
 
 # Type Checking Imports
 
@@ -67,9 +63,9 @@ def check(root: Path = ROOT) -> None:
     bundle = config["bundle"]
     if "nsis" not in bundle["targets"]:
         raise ValueError("Tauri bundle targets must include nsis")
-    if bundle.get("externalBin") != ["binaries/dokime"]:
+    if bundle.get("externalBin") != ["binaries/dokime", "binaries/dokime-server"]:
         raise ValueError(
-            "Tauri bundle.externalBin must contain only the Dokime CLI host"
+            "Tauri bundle.externalBin must contain the Dokime CLI and server"
         )
     if bundle.get("resources") != []:
         raise ValueError("Tauri bundle.resources must be empty; branding is compiled")
@@ -177,8 +173,9 @@ def stage_resources(
         "--locked",
         "-p",
         "dokime-cli",
-        "--bin",
-        "dokime",
+        "-p",
+        "dokime-server",
+        "--bins",
         "--profile",
         profile,
         "--message-format=json-render-diagnostics",
@@ -189,26 +186,28 @@ def stage_resources(
     artifacts = [
         json.loads(line) for line in output.splitlines() if line.startswith("{")
     ]
-    executable = next(
-        (
-            item.get("executable")
+    for name in ("dokime", "dokime-server"):
+        executables = {
+            item["executable"]
             for item in artifacts
             if item.get("reason") == "compiler-artifact"
-            and item.get("target", {}).get("name") == "dokime"
+            and item.get("target", {}).get("name") == name
+            and "bin" in item.get("target", {}).get("kind", [])
             and item.get("executable")
-        ),
-        None,
-    )
-    if executable is None:
-        raise ValueError("Cargo did not report the companion CLI executable")
-    destination = (
-        root
-        / TAURI
-        / "binaries"
-        / (f"dokime-{triple}" + (".exe" if "windows" in triple else ""))
-    )
-    stage_file(Path(executable), destination)
-    print(f"Staged Tauri companion CLI: {destination}")
+        }
+        if len(executables) != 1:
+            raise ValueError(
+                f"Cargo must report exactly one companion {name} executable"
+            )
+        executable = Path(next(iter(executables)))
+        destination = (
+            root
+            / TAURI
+            / "binaries"
+            / (f"{name}-{triple}" + (".exe" if "windows" in triple else ""))
+        )
+        stage_file(executable, destination)
+        print(f"Staged Tauri companion {name}: {destination}")
 
 
 def collect(root: Path = ROOT, *, profile: str, signed: bool, bundles: Path) -> None:
@@ -331,9 +330,51 @@ def check_package(
     print(f"Tauri installer artifacts are valid for {expected}.")
 
 
+def acceptance(junit: Path, root: Path = ROOT) -> None:
+    environment = os.environ.copy()
+    if sys.platform == "win32":
+        from dokime_tools.check.release import verify_platform
+
+        package = root / "dist/build/windows"
+        manifest = verify_platform(
+            package, "windows", root, require_validation=False, check_tools=False
+        )
+        products = {entry["role"]: entry for entry in manifest["files"]}
+        for role, label in (
+            ("installer", "INSTALLER"),
+            ("desktop", "SHELL"),
+            ("host", "BACKEND"),
+            ("client", "CLI"),
+            ("plugin", "PLUGIN"),
+        ):
+            entry = products[role]
+            environment[f"DOKIME_E2E_{label}_SHA256"] = entry["sha256"]
+            if role in {"installer", "plugin"}:
+                environment[f"DOKIME_E2E_{label}"] = str(
+                    (package / entry["path"]).resolve()
+                )
+        if not environment.get("DOKIME_E2E_DRIVER"):
+            driver = shutil.which("msedgedriver")
+            if driver is None:
+                supplied = Path("C:/SeleniumWebDrivers/EdgeDriver/msedgedriver.exe")
+                if supplied.is_file():
+                    driver = str(supplied)
+            if driver is not None:
+                environment["DOKIME_E2E_DRIVER"] = driver
+    subprocess.run(
+        ["node", "crates/dokime-gui/e2e/native-desktop.mjs", "--junit", str(junit)],
+        cwd=root,
+        env=environment,
+        check=True,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["check", "build", "resources", "package"])
+    parser.add_argument(
+        "command", choices=["check", "build", "resources", "package", "acceptance"]
+    )
+    parser.add_argument("--junit", type=Path)
     parser.add_argument("--profile", choices=["dev", "release"], default="release")
     parser.add_argument("--target")
     parser.add_argument("--dist-dir", type=Path, default=DIST)
@@ -347,6 +388,12 @@ def main() -> int:
             build(profile=args.profile)
         elif args.command == "resources":
             stage_resources(profile=args.profile, target=args.target)
+        elif args.command == "acceptance":
+            if args.junit is None:
+                raise ValueError(
+                    "native acceptance requires the evidence runner JUnit path"
+                )
+            acceptance(args.junit)
         else:
             check_package(
                 dist=args.dist_dir,

@@ -310,10 +310,10 @@ impl PluginStore {
         &self,
         id: Uuid,
         plugin: &PluginSettings,
-    ) -> Result<(harmos::plugin::Bundle, PluginMetadata), PluginError> {
+    ) -> Result<(harmos::plugin::bundle::Bundle, PluginMetadata), PluginError> {
         let bytes = read_bounded(
             &self.path(id),
-            harmos::plugin::Limits::default().archive_bytes,
+            harmos::plugin::bundle::Limits::default().archive_bytes,
         )?;
         if digest(&bytes) != plugin.digest {
             return Err(PluginError::Changed(id));
@@ -328,7 +328,7 @@ impl PluginStore {
     fn entry_from_verification(
         id: Uuid,
         plugin: &PluginSettings,
-        verified: Result<(harmos::plugin::Bundle, PluginMetadata), PluginError>,
+        verified: Result<(harmos::plugin::bundle::Bundle, PluginMetadata), PluginError>,
     ) -> PluginEntry {
         match verified {
             Ok((_, metadata)) => entry(plugin.installation(id), Some(metadata), None),

@@ -13,16 +13,18 @@
 
 /* === Local Imports === */
 
-import {
-  CycleStatus,
-  type CycleSummary,
-  ExecutionStatus,
-  ResultStatus,
-} from "@/lib/rpc/generated/dokime/v1/execution_pb";
+import type * as rpc from "@/lib/rpc/generated/client";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CycleHistorySummary } from "@/lib/types";
 import { listNativeCycles, listNativeExecutions } from "./native-planning";
 import { durationSeconds, mapBounded, safeNumber, timestampIso } from "./native-values";
+
+/* === Types === */
+
+type CycleSummary = Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>;
+type CycleStatus = CycleSummary["status"];
+type ResultStatus = NonNullable<CycleSummary["result"]>["status"];
 
 /* === Public API === */
 
@@ -40,7 +42,7 @@ export async function fetchNativeCycleHistory(
 ): Promise<CycleHistorySummary[]> {
   const cycles = await listNativeCycles(session);
   const activeCycles = cycles.filter((cycle) =>
-    [CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING].includes(cycle.status),
+    ["Running", "Paused", "Stopping"].includes(cycle.status?.HarmosVariant.case ?? ""),
   );
   const activeExecutions = await mapBounded(activeCycles, (cycle) =>
     listNativeExecutions(session, cycle.cycleId),
@@ -63,18 +65,14 @@ function mapCycleHistorySummary(
   const caseCount = safeNumber(cycle.caseCount, "Execution.ListCycles case count");
   const executionCount = safeNumber(cycle.executionCount, "Execution.ListCycles execution count");
   const result = cycle.result;
-  const terminal = [
-    CycleStatus.COMPLETED,
-    CycleStatus.FAILED,
-    CycleStatus.BLOCKED,
-    CycleStatus.STOPPED,
-    CycleStatus.CLEARED,
-  ].includes(cycle.status);
+  const terminal = ["Completed", "Failed", "Blocked", "Stopped", "Cleared"].includes(
+    cycle.status?.HarmosVariant.case ?? "",
+  );
   const startedAt = timestampIso(cycle.startedAt);
   const updatedAt = timestampIso(cycle.updatedAt) ?? timestampIso(cycle.createdAt) ?? "";
   const finishedAt = terminal ? updatedAt || null : null;
   const activeRunning = executions?.filter(
-    (item) => item.status === ExecutionStatus.RUNNING,
+    (item) => item.status?.HarmosVariant.case === "Running",
   ).length;
 
   return {
@@ -104,26 +102,26 @@ function mapCycleHistorySummary(
 }
 
 function cycleLifecycle(status: CycleStatus): string {
-  switch (status) {
-    case CycleStatus.PREVIEWED:
+  switch (status?.HarmosVariant.case) {
+    case "Previewed":
       return "previewed";
-    case CycleStatus.READY:
+    case "Ready":
       return "ready";
-    case CycleStatus.RUNNING:
+    case "Running":
       return "running";
-    case CycleStatus.PAUSED:
+    case "Paused":
       return "paused";
-    case CycleStatus.STOPPING:
+    case "Stopping":
       return "stopping";
-    case CycleStatus.COMPLETED:
+    case "Completed":
       return "completed";
-    case CycleStatus.FAILED:
+    case "Failed":
       return "failed";
-    case CycleStatus.BLOCKED:
+    case "Blocked":
       return "blocked";
-    case CycleStatus.STOPPED:
+    case "Stopped":
       return "stopped";
-    case CycleStatus.CLEARED:
+    case "Cleared":
       return "cleared";
     default:
       return "unspecified";
@@ -131,16 +129,16 @@ function cycleLifecycle(status: CycleStatus): string {
 }
 
 function resultStatus(status?: ResultStatus): string | null {
-  switch (status) {
-    case ResultStatus.PENDING:
+  switch (status?.HarmosVariant.case) {
+    case "Pending":
       return "pending";
-    case ResultStatus.PASSED:
+    case "Passed":
       return "passed";
-    case ResultStatus.FAILED:
+    case "Failed":
       return "failed";
-    case ResultStatus.BLOCKED:
+    case "Blocked":
       return "blocked";
-    case ResultStatus.CANCELLED:
+    case "Cancelled":
       return "cancelled";
     default:
       return null;

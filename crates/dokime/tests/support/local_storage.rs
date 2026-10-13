@@ -19,7 +19,10 @@ use std::num::{NonZeroU32, NonZeroUsize};
 // Third Party Imports
 use harmos::{
     Identifier,
-    schema::{Cardinality, Field, Kind},
+    schema::{
+        Cardinality,
+        graph::{Field, Kind, Schema},
+    },
     storage::*,
 };
 
@@ -86,14 +89,24 @@ pub(crate) fn schema() -> StorageSchema {
     StorageSchema::new(
         position(1),
         key(),
-        vec![Field {
+        graph(vec![Field {
             name: "counter".into(),
             tag: 1,
             kind: Kind::U64,
             cardinality: Cardinality::Required,
-        }],
-        harmos::storage::SchemaEncoding::Inline,
+        }]),
     )
+}
+// A Single-Definition Row Graph For Fixture Schemas
+pub(crate) fn graph(fields: Vec<Field>) -> Schema {
+    Schema {
+        root: 0,
+        definitions: vec![fields],
+    }
+}
+// The Prepared Row Graph Of A Described Message
+pub(crate) fn declared<T: harmos::schema::Described>() -> Schema {
+    Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap()
 }
 pub(crate) fn record(sequence: u64) -> StoredRecord {
     StoredRecord {

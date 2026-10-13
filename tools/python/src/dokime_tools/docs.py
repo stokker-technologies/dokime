@@ -24,7 +24,6 @@ import urllib.request
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from . import _policy, docs_artifacts, docs_registry, docs_site
 

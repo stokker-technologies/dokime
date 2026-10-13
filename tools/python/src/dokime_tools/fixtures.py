@@ -12,9 +12,10 @@
 # === Imports === #
 
 # Standard Library Imports
+import argparse
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 # Third Party Imports
 
@@ -51,30 +52,38 @@ FIXTURES = (
 # === Public Functions === #
 
 
-def prepare() -> None:
-    tool = Path(os.environ["DOKIME_TEST_TOOL"])
+def prepare(
+    *, tool: Path | None = None, output: Path = Path("target/fixtures")
+) -> None:
+    tool = tool or Path(os.environ["DOKIME_TEST_TOOL"])
     if not tool.is_file():
         raise ValueError("run mise run build:release before preparing fixtures")
     for name, package, binary in FIXTURES:
-        output = Path("target/fixtures") / name / f"{name}.dokime"
+        bundle = output / name / f"{name}.dokime"
         command = [
             str(tool),
             "dokime",
             "build",
             "--package",
             package,
+            "--profile",
+            "release",
             "--output",
-            str(output),
+            str(bundle),
         ]
         if binary:
             command += ["--bin", binary]
         subprocess.run(command, check=True)
-        if not output.is_file():
-            raise ValueError(f"missing native test fixture: {output}")
+        if not bundle.is_file() or bundle.is_symlink():
+            raise ValueError(f"missing native test fixture: {bundle}")
 
 
 # === Private Functions === #
 
 # === Entry Point === #
 if __name__ == "__main__":
-    prepare()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tool", type=Path)
+    parser.add_argument("--output", type=Path, default=Path("target/fixtures"))
+    options = parser.parse_args()
+    prepare(tool=options.tool, output=options.output)

@@ -16,12 +16,11 @@
 import argparse
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
 import tomllib
-
+from pathlib import Path
 
 # Third Party Imports
 
@@ -70,12 +69,10 @@ def check(root: Path = ROOT) -> None:
         python_version(version),
         "pyproject.toml project.version",
     )
-    sdk_path = root / "crates/dokime-python/pyproject.toml"
-    if sdk_path.exists():
-        sdk = _toml(sdk_path)["project"]
-        expect(sdk.get("name"), "dokime", "Python distribution name")
-        if "version" not in sdk.get("dynamic", []):
-            errors.append("Python distribution must derive its version from Cargo")
+    sdk_path = root / "packages/dokime/pyproject.toml"
+    sdk = _toml(sdk_path)["project"]
+    expect(sdk.get("name"), "dokime", "Python distribution name")
+    expect(sdk.get("version"), python_version(version), "Python client version")
     for relative in [
         "crates/dokime-gui/package.json",
         "crates/dokime-gui/src-tauri/tauri.conf.json",
@@ -99,15 +96,13 @@ def check(root: Path = ROOT) -> None:
     expect(
         workspace.get("version"), python_version(version), "uv.lock workspace version"
     )
-    if sdk_path.exists():
-        sdk_lock = next((p for p in uv if p["name"] == "dokime"), {})
-        expect(
-            sdk_lock.get("source", {}).get("editable"),
-            "crates/dokime-python",
-            "uv.lock dynamic dokime source",
-        )
-        if "version" in sdk_lock:
-            errors.append("uv.lock dokime must use the dynamic Cargo version")
+    sdk_lock = next((p for p in uv if p["name"] == "dokime"), {})
+    expect(
+        sdk_lock.get("source", {}).get("editable"),
+        "packages/dokime",
+        "uv.lock dokime source",
+    )
+    expect(sdk_lock.get("version"), python_version(version), "uv.lock dokime version")
     pnpm = root / "pnpm-lock.yaml"
     if not pnpm.exists() or not re.search(
         r"(?m)^  crates/dokime-gui:\s*$", pnpm.read_text(encoding="utf-8")
@@ -123,8 +118,8 @@ def check(root: Path = ROOT) -> None:
     print("Version metadata is consistent.")
 
 
-def sync(root: Path = ROOT) -> None:
-    release, _mode = _version_target(root)
+def sync(root: Path = ROOT, *, value: str | None = None) -> None:
+    release = value if value is not None else _version_target(root)[0]
     if not RELEASE.fullmatch(release):
         raise ValueError(f"version must use X.Y.Z release form: {release!r}")
     version = release
@@ -139,6 +134,10 @@ def sync(root: Path = ROOT) -> None:
             (root / "pyproject.toml").read_text(encoding="utf-8"), "project", python
         ),
     }
+    sdk_path = root / "packages/dokime/pyproject.toml"
+    updates[sdk_path] = replace_section(
+        sdk_path.read_text(encoding="utf-8"), "project", python
+    )
     for relative in [
         "crates/dokime-gui/package.json",
         "crates/dokime-gui/src-tauri/tauri.conf.json",
@@ -203,20 +202,7 @@ def prepare(root: Path = ROOT) -> None:
         branch != f"release/{candidate}" and not hotfix
     ):
         raise ValueError("prepare requires release/<next-patch> or a declared hotfix")
-    previous = {
-        name: os.environ.get(name)
-        for name in ("DOKIME_VERSION_MODE", "DOKIME_VERSION_RELEASE")
-    }
-    try:
-        os.environ["DOKIME_VERSION_MODE"] = "release"
-        os.environ["DOKIME_VERSION_RELEASE"] = candidate
-        sync(root)
-    finally:
-        for name, value in previous.items():
-            if value is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = value
+    sync(root, value=candidate)
     subprocess.run(
         [
             "git-cliff",
@@ -255,17 +241,26 @@ def replace_section(text: str, section: str, version: str) -> str:
     return result
 
 
+def run(root: Path, verb: str, *, value: str | None = None) -> None:
+    if verb == "sync":
+        sync(root, value=value)
+        return
+    if value is not None:
+        raise ValueError("an explicit version is only valid for sync")
+    if verb == "check":
+        check(root)
+    elif verb == "prepare":
+        prepare(root)
+    else:
+        raise ValueError(f"unknown version operation: {verb}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["check", "sync", "prepare"])
     args = parser.parse_args()
     try:
-        if args.command == "check":
-            check()
-        elif args.command == "sync":
-            sync()
-        else:
-            prepare()
+        run(ROOT, args.command)
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
         print(error, file=sys.stderr)
         return 1

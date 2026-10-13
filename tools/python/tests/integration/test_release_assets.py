@@ -12,9 +12,9 @@
 # === Imports === #
 
 # Standard Library Imports
+import json
 from collections.abc import Callable
 from io import BytesIO
-import json
 from pathlib import Path
 from urllib.error import URLError
 

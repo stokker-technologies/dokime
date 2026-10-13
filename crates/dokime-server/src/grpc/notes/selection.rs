@@ -15,14 +15,14 @@
 // Standard Library Imports
 
 // Third Party Imports
-use prost::Message;
+use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
 use dokime_app::core::RecordScope;
 use dokime_app::execution::notes::NoteOwner;
 use dokime_app::runtime::query::RuntimeStateSnapshot;
-use dokime_protocol::v1;
+use dokime_contract::operations::{cursor::Cursor, notes as contract};
 
 /* === Constants === */
 
@@ -36,7 +36,7 @@ pub(super) struct Page {
     pub context: bool,
     pub limit: usize,
     pub after: String,
-    pub cursor: v1::Cursor,
+    pub cursor: Cursor,
     scope: Option<RecordScope>,
     case_executions: std::collections::BTreeSet<dokime_app::core::TestExecutionId>,
 }
@@ -48,11 +48,17 @@ pub(super) struct Page {
 /* === Implementations === */
 impl Page {
     pub fn new(
-        request: v1::ListAnnotationsRequest,
+        request: &mut contract::ListAnnotationsRequest,
         snapshot: &RuntimeStateSnapshot,
         kind: &str,
     ) -> Result<Self, Status> {
-        let mut selection = request.selection.unwrap_or_default();
+        let mut selection = request
+            .selection
+            .take()
+            .unwrap_or(contract::AnnotationSelection {
+                owner: None,
+                include_context: false,
+            });
         let owner = selection
             .owner
             .take()
@@ -69,7 +75,7 @@ impl Page {
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>()
         );
-        let cursor = v1::Cursor {
+        let cursor = Cursor {
             epoch: snapshot.state().process_epoch().to_string(),
             stream,
             position: snapshot.revision(),
@@ -80,6 +86,9 @@ impl Page {
         if request.after_id.len() > 64 {
             return Err(Status::invalid_argument("invalid after_id"));
         }
+        if !request.after_id.is_empty() && request.cursor.is_none() {
+            return Err(Status::invalid_argument("subsequent page requires cursor"));
+        }
         let after = if request.after_id.is_empty() {
             String::new()
         } else {
@@ -88,12 +97,9 @@ impl Page {
             if id.is_nil() {
                 return Err(Status::invalid_argument("after_id must not be nil"));
             }
-            request.after_id.clone()
+            std::mem::take(&mut request.after_id)
         };
-        if !request.after_id.is_empty() && request.cursor.is_none() {
-            return Err(Status::invalid_argument("subsequent page requires cursor"));
-        }
-        if let Some(given) = request.cursor {
+        if let Some(given) = request.cursor.take() {
             if given.epoch != cursor.epoch || given.stream != cursor.stream {
                 return Err(Status::failed_precondition(
                     "annotation epoch/selection changed; restart pagination",
@@ -116,6 +122,7 @@ impl Page {
             let executions = snapshot
                 .state()
                 .executions_for_cycle(cycle)
+                .take(dokime_app::execution::notes::NOTE_SCAN_LIMIT + 1)
                 .collect::<Vec<_>>();
             if executions.len() > dokime_app::execution::notes::NOTE_SCAN_LIMIT {
                 return Err(Status::resource_exhausted(

@@ -30,8 +30,21 @@ step_timeout_seconds = 900
 # === Conventions ===
 
 [conventions.ci.multitask]
-check = ["ci:route", "check"]
-test = ["ci:artifacts:restore", "test"]
+check_fast = ["ci:route", "check:fast"]
+contracts_prepare_release = [
+  "contracts:prepare:release",
+  "ci:contracts:archive",
+  "ci:contracts:publish",
+]
+build_release = ["ci:contracts:restore", "build:release"]
+test_integration_javascript = ["ci:contracts:restore", "test:integration:javascript"]
+test_integration_rust = ["ci:artifacts:restore", "test:integration:rust"]
+test_integration_python = ["ci:artifacts:restore", "test:integration:python"]
+test_acceptance_rust = ["ci:artifacts:restore", "test:acceptance:rust"]
+test_acceptance_python = ["ci:artifacts:restore", "test:acceptance:python"]
+test_system_javascript = ["ci:artifacts:restore", "test:system:javascript"]
+ci_coverage = ["ci:artifacts:restore", "ci:coverage"]
+test = ["ci:artifacts:restore", "ci:artifacts:collect", "ci:artifacts:validate"]
 
 [conventions.rust.source_roots]
 # Validate the authored source that this compile-only crate renders and includes.
@@ -42,7 +55,7 @@ dokime-starter-check = "crates/cargo-dokime/templates"
 include = ["**/*.rs", "**/*.py", "stkr.toml"]
 # Generated RPC output is owned and checked by the binding generators.
 exclude = [
-  "crates/dokime-python/python/dokime/client/_generated/**",
+  "packages/dokime/src/dokime/client/_generated/**",
   "crates/dokime-gui/src-tauri/src/rpc/generated.rs",
 ]
 
@@ -97,77 +110,3 @@ implementations = ["case.rs", "cycle.rs", "execution.rs", "suite.rs"]
 
 
 # === PyO3 ===
-
-[[pyo3.modules]]
-name = "_native"
-crate = "dokime-python"
-root = true
-module_rename = "_native"
-import = "dokime._native"
-flatten = ["authoring", "core_contracts", "server"]
-rust = "crates/dokime-python/src"
-stub = "crates/dokime-python/python/dokime/_native/__init__.pyi"
-class_module = "dokime.runtime"
-
-[pyo3.modules.native_classes]
-Runtime = "dokime._native"
-AuthoringContext = "dokime._native"
-Artifacts = "dokime._native"
-ArtifactWriter = "dokime._native"
-
-[pyo3.modules.public_classes]
-Runtime = "dokime._native"
-AuthoringContext = "dokime._native"
-Artifacts = "dokime._native"
-ArtifactWriter = "dokime._native"
-ServerConfig = "dokime.runtime"
-TlsIdentity = "dokime.runtime"
-BearerGrant = "dokime.runtime"
-Role = "dokime.runtime"
-
-[[pyo3.modules]]
-name = "authoring"
-crate = "dokime-python"
-module_rename = "authoring"
-import = "dokime._native.authoring"
-rust = "crates/dokime-python/src/authoring"
-stub = "crates/dokime-python/python/dokime/_native/authoring.pyi"
-
-[pyo3.modules.renames]
-PyContext = "AuthoringContext"
-
-[pyo3.modules.class_modules]
-PyContext = "dokime._native"
-PyArtifacts = "dokime._native"
-PyArtifactWriter = "dokime._native"
-
-[[pyo3.modules]]
-name = "server"
-crate = "dokime-python"
-module_rename = "server"
-import = "dokime._native.server"
-rust = "crates/dokime-python/src/server"
-stub = "crates/dokime-python/python/dokime/_native/server.pyi"
-
-[pyo3.modules.class_modules]
-PyServerConfig = "dokime.runtime"
-PyTlsIdentity = "dokime.runtime"
-PyBearerGrant = "dokime.runtime"
-PyRole = "dokime.runtime"
-
-[[pyo3.modules]]
-name = "core_contracts"
-crate = "dokime-python"
-module_rename = "core_contracts"
-import = "dokime._native.core_contracts"
-rust = "crates/dokime-python/src/core_contracts"
-stub = "crates/dokime-python/python/dokime/_native/core_contracts.pyi"
-
-[[pyo3.modules]]
-name = "client"
-crate = "dokime-python"
-module_rename = "client"
-import = "dokime._native.client"
-rust = "crates/dokime-python/src/client"
-stub = "crates/dokime-python/python/dokime/_native/client.pyi"
-class_module = "dokime._native.client"

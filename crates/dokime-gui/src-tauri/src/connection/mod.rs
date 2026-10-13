@@ -9,7 +9,6 @@
 
 /* === Modules === */
 mod contract;
-mod credentials;
 mod errors;
 mod transport;
 
@@ -26,7 +25,7 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use zeroize::Zeroizing;
 // Local Imports
-use credentials::{KeyringStore, SecretStore};
+use dokime_client::credentials::{KeyringStore, SecretStore};
 
 /* === Constants === */
 
@@ -52,7 +51,7 @@ struct SessionState {
 #[derive(Clone)]
 pub struct SessionLease {
     generation: String,
-    client: dokime::client::Client,
+    client: dokime_client::Client,
     cancellation: CancellationToken,
 }
 
@@ -63,12 +62,12 @@ pub struct SessionLease {
 /* === Implementations === */
 impl Default for ConnectionSession {
     fn default() -> Self {
-        Self::new(Arc::new(KeyringStore))
+        Self::with_credentials(Arc::new(KeyringStore))
     }
 }
 
 impl ConnectionSession {
-    fn new(secrets: Arc<dyn SecretStore>) -> Self {
+    pub fn with_credentials(secrets: Arc<dyn SecretStore>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(SessionState {
                 generation: 0,
@@ -106,6 +105,43 @@ impl ConnectionSession {
             return Err(ConnectionError::Superseded);
         }
         state.lease.clone().ok_or(ConnectionError::NotConnected)
+    }
+
+    pub(crate) fn browser_access(
+        &self,
+        generation: &str,
+    ) -> Result<BrowserAccess, ConnectionError> {
+        let state = self.inner.lock().expect("connection state poisoned");
+        if state.snapshot.generation != generation {
+            return Err(ConnectionError::Superseded);
+        }
+        let lease = state.lease.as_ref().ok_or(ConnectionError::NotConnected)?;
+        let backend = state
+            .snapshot
+            .backend
+            .as_ref()
+            .ok_or(ConnectionError::NotConnected)?;
+        let endpoint = state
+            .snapshot
+            .endpoint
+            .clone()
+            .ok_or(ConnectionError::NotConnected)?;
+        let request = lease.client.request(());
+        let authorization = request
+            .metadata()
+            .get("authorization")
+            .map(|value| value.to_str().map(str::to_owned))
+            .transpose()
+            .map_err(|_| ConnectionError::AuthenticationRequired)?;
+        Ok(BrowserAccess {
+            generation: generation.into(),
+            endpoint,
+            authorization,
+            backend_id: backend.backend_id.clone(),
+            epoch: backend.epoch.clone(),
+            limits: backend.limits.clone(),
+            methods: backend.methods.clone(),
+        })
     }
 
     pub fn disconnect(&self) -> Result<ConnectionSnapshot, ConnectionError> {
@@ -170,7 +206,9 @@ impl ConnectionSession {
                 let endpoint = target.endpoint.clone();
                 let token = self
                     .access_credentials(generation, &cancellation, move |store| {
-                        store.read(&endpoint)
+                        store
+                            .read(&endpoint)
+                            .map_err(|_| ConnectionError::CredentialsUnavailable)
                     })
                     .await?
                     .ok_or(ConnectionError::CredentialsUnavailable)?;
@@ -180,7 +218,7 @@ impl ConnectionSession {
                 (Some(Zeroizing::new(token)), remember)
             }
         };
-        let client = dokime::client::Client::connect(
+        let client = dokime_client::Client::connect(
             target.inner.clone(),
             token.as_ref().map(|token| token.as_str()),
             expected_id,
@@ -196,7 +234,9 @@ impl ConnectionSession {
         if remember && let Some(token) = token {
             let endpoint = target.endpoint.clone();
             self.access_credentials(generation, &lease.cancellation, move |store| {
-                store.write(&endpoint, token.as_str())
+                store
+                    .write(&endpoint, token.as_str())
+                    .map_err(|_| ConnectionError::CredentialsUnavailable)
             })
             .await?;
         }
@@ -259,7 +299,7 @@ impl Drop for SessionState {
 }
 
 impl SessionLease {
-    pub(crate) fn client(&self) -> &dokime::client::Client {
+    pub(crate) fn client(&self) -> &dokime_client::Client {
         &self.client
     }
 
@@ -299,3 +339,22 @@ impl SessionLease {
 /* === Private Functions === */
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn browser_access_requires_connected_generation() {
+        let session = super::ConnectionSession::default();
+        assert!(matches!(
+            session.browser_access("1"),
+            Err(super::ConnectionError::Superseded)
+        ));
+        assert!(matches!(
+            session.browser_access("0"),
+            Err(super::ConnectionError::NotConnected)
+        ));
+        let snapshot = serde_json::to_value(session.status()).unwrap();
+        assert!(snapshot.get("authorization").is_none());
+        assert!(snapshot.get("token").is_none());
+    }
+}

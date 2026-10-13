@@ -60,13 +60,13 @@ pub(super) struct StagedPackages(Vec<Package>);
 struct Program {
     plugin: crate::InstalledPlugin,
     executable: Executable,
-    definition: harmos::load::PluginDefinition,
+    definition: harmos::plugin::PluginDefinition,
     bindings: crate::plugins::dispatch::Bindings,
     configured: serde_json::Value,
 }
 
 #[derive(Clone)]
-struct Executable(harmos::sidecar::Executable);
+struct Executable(harmos::plugin::sidecar::Executable);
 
 struct Running {
     source: String,
@@ -378,7 +378,7 @@ impl Runtime {
             self.embedded.values(),
             [],
         )?;
-        let manager = harmos::load::PluginManager::new(candidate)?;
+        let manager = harmos::plugin::PluginManager::new(candidate)?;
         self.handle
             .routing
             .set(manager.router().clone())
@@ -951,10 +951,14 @@ impl Runtime {
 /* === Private Functions === */
 fn start_failure(
     error: &harmos::Error,
-) -> Option<(&str, &harmos::Error, &[harmos::load::PluginCleanupFailure])> {
+) -> Option<(
+    &str,
+    &harmos::Error,
+    &[harmos::plugin::PluginCleanupFailure],
+)> {
     match error {
         harmos::Error::PluginLifecycle { source } => match source.as_ref() {
-            harmos::load::PluginFailure::Start {
+            harmos::plugin::PluginFailure::Start {
                 artifact: plugin,
                 source,
                 cleanup,
@@ -978,7 +982,7 @@ fn graph<'a>(
     programs: impl IntoIterator<Item = &'a Program>,
     embedded: impl IntoIterator<Item = &'a super::embedded::Active>,
     rebuilt: impl IntoIterator<Item = String>,
-) -> Result<harmos::load::PluginDefinitions> {
+) -> Result<harmos::plugin::PluginDefinitions> {
     let definitions = programs
         .into_iter()
         .map(|program| program.definition.clone())
@@ -987,7 +991,7 @@ fn graph<'a>(
                 .into_iter()
                 .map(|provider| provider.definition.clone()),
         );
-    harmos::load::PluginDefinitions::new(definitions, rebuilt).map_err(Error::from)
+    harmos::plugin::PluginDefinitions::new(definitions, rebuilt).map_err(Error::from)
 }
 
 fn extraction_root(config: &crate::RuntimeConfig) -> PathBuf {
@@ -1016,8 +1020,11 @@ fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {
 }
 
 fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadBundle> {
-    let bytes = read_bounded(&input.path, harmos::plugin::Limits::default().archive_bytes)
-        .map_err(operation)?;
+    let bytes = read_bounded(
+        &input.path,
+        harmos::plugin::bundle::Limits::default().archive_bytes,
+    )
+    .map_err(operation)?;
     let content_digest = match cached_digest {
         Some(digest) => digest.to_owned(),
         None => digest(&bytes),
@@ -1108,8 +1115,9 @@ async fn prepare(
         let bindings =
             crate::plugins::dispatch::Bindings::inspect(&plugin, operations).map_err(operation)?;
         plugins.push(plugin.clone());
-        let mut executable = harmos::sidecar::Executable::at(directory.path().join(&file.path))
-            .map_err(operation)?;
+        let mut executable =
+            harmos::plugin::sidecar::Executable::at(directory.path().join(&file.path))
+                .map_err(operation)?;
         if executable.declaration() != declaration {
             return Err(operation(format!(
                 "extracted executable `{id}` has a different declaration than its verified bundle"
@@ -1121,7 +1129,7 @@ async fn prepare(
 
         let bytes = read_bounded(
             executable.path(),
-            harmos::plugin::Limits::default().file_bytes,
+            harmos::plugin::bundle::Limits::default().file_bytes,
         )
         .map_err(operation)?;
         let hash = Sha256::digest(&bytes);
@@ -1145,11 +1153,11 @@ async fn prepare(
         let initialization = handle.plugin_initialization(&plugin, &configured).await?;
         let declaration = executable.declaration();
         let operations = declaration.operations.clone();
-        let definition = harmos::load::PluginDefinition {
+        let definition = harmos::plugin::PluginDefinition {
             id: id.clone(),
             version: version.clone(),
             requires: Vec::new(),
-            artifact: harmos::load::PluginArtifact::Sidecar {
+            artifact: harmos::plugin::PluginArtifact::Sidecar {
                 path: executable.path().to_owned(),
                 sha256,
                 arguments: executable.arguments().to_vec(),
@@ -1159,17 +1167,17 @@ async fn prepare(
                 environment: executable.environment().iter().cloned().collect(),
             },
             configuration: serde_json::to_vec(&initialization).map_err(operation)?,
-            contributions: harmos::load::PluginContributions {
+            contributions: harmos::plugin::PluginContributions {
                 operations,
                 wire_contracts: declaration.contracts.provides.clone(),
                 required_contracts: Some(declaration.contracts.requires.clone()),
                 observers: declaration.observers.clone(),
                 observer_controls: match &declaration.carrier {
-                    harmos::artifact::inventory::CarrierSection::Sidecar {
+                    harmos::plugin::inventory::CarrierSection::Sidecar {
                         observer_controls,
                         ..
                     } => observer_controls.as_deref().cloned(),
-                    harmos::artifact::inventory::CarrierSection::Guest => None,
+                    harmos::plugin::inventory::CarrierSection::Guest => None,
                 },
                 lifecycle: Some(declaration.contracts.lifecycle.clone()),
                 listeners: declaration.listeners.clone(),
@@ -1293,7 +1301,7 @@ fn orphaned_extraction(name: &str, live: &BTreeSet<String>) -> bool {
     !live.contains(name) && uuid::Uuid::parse_str(name).is_ok()
 }
 
-fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::load::PluginDefinition>> {
+fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::plugin::PluginDefinition>> {
     packages
         .iter()
         .map(|package| {
@@ -1309,7 +1317,7 @@ fn package_definitions(packages: &[&Package]) -> Vec<Vec<harmos::load::PluginDef
 fn plan(
     store: &PluginStore,
     packages: &[&Package],
-    embedded: &[harmos::load::PluginDefinition],
+    embedded: &[harmos::plugin::PluginDefinition],
 ) -> Result<BTreeSet<usize>> {
     plan_graph(&package_definitions(packages), embedded, |index, reason| {
         failed(store, &packages[index].input, reason)
@@ -1317,8 +1325,8 @@ fn plan(
 }
 
 fn plan_graph(
-    packages: &[Vec<harmos::load::PluginDefinition>],
-    embedded: &[harmos::load::PluginDefinition],
+    packages: &[Vec<harmos::plugin::PluginDefinition>],
+    embedded: &[harmos::plugin::PluginDefinition],
     mut refuse: impl FnMut(usize, &str) -> Result<()>,
 ) -> Result<BTreeSet<usize>> {
     let mut removed = BTreeSet::new();
@@ -1336,33 +1344,33 @@ fn plan_graph(
             }
         }
         plugins.extend_from_slice(embedded);
-        match harmos::load::PluginGraph::resolve(plugins) {
+        match harmos::plugin::PluginGraph::resolve(plugins) {
             Ok(_) => return Ok(removed),
             Err(error) => {
                 let owner = match &error {
-                    harmos::load::Error::Unknown { .. } => {
+                    harmos::plugin::Error::Unknown { .. } => {
                         return Err(operation(error));
                     }
-                    harmos::load::Error::Definition {
+                    harmos::plugin::Error::Definition {
                         artifact: plugin, ..
                     } => plugin,
-                    harmos::load::Error::StreamConflict { second, .. }
-                    | harmos::load::Error::OperationConflict { second, .. } => second,
-                    harmos::load::Error::Duplicate { id } => id,
-                    harmos::load::Error::Missing {
+                    harmos::plugin::Error::StreamConflict { second, .. }
+                    | harmos::plugin::Error::OperationConflict { second, .. } => second,
+                    harmos::plugin::Error::Duplicate { id } => id,
+                    harmos::plugin::Error::Missing {
                         artifact: plugin, ..
                     }
-                    | harmos::load::Error::Incompatible {
+                    | harmos::plugin::Error::Incompatible {
                         artifact: plugin, ..
                     }
-                    | harmos::load::Error::Cycle { artifact: plugin }
-                    | harmos::load::Error::IncompatibleOperation {
+                    | harmos::plugin::Error::Cycle { artifact: plugin }
+                    | harmos::plugin::Error::IncompatibleOperation {
                         artifact: plugin, ..
                     }
-                    | harmos::load::Error::AmbiguousOperation {
+                    | harmos::plugin::Error::AmbiguousOperation {
                         artifact: plugin, ..
                     }
-                    | harmos::load::Error::ProviderSelection {
+                    | harmos::plugin::Error::ProviderSelection {
                         artifact: plugin, ..
                     } => plugin,
                 };
@@ -1391,7 +1399,7 @@ fn prune(
 }
 
 fn prune_graph(
-    packages: &[Vec<harmos::load::PluginDefinition>],
+    packages: &[Vec<harmos::plugin::PluginDefinition>],
     removed: &mut BTreeSet<usize>,
     initial: usize,
 ) -> BTreeSet<usize> {

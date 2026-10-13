@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::artifact::plugin::Contribution;
+use harmos::plugin::contract::Contribution;
 
 // Local Imports
 use dokime::analysis::{
@@ -155,7 +155,7 @@ impl Analysis for Held {
 
 impl harmos::Application for Host {
     type State = ();
-    type Transaction = harmos::Never;
+    type Transaction = harmos::state::Never;
     type Record = ();
     type Streams = ();
     type Resources = ();
@@ -178,7 +178,10 @@ fn request(parameters: BTreeMap<String, Value>) -> Request {
 
 async fn serve() -> harmos::Runtime<Host> {
     let runtime = harmos::Runtime::<Host>::builder((), ())
-        .operation_preparation_bytes(NonZeroUsize::new(4096).unwrap())
+        .operation_settings(harmos::operations::Settings {
+            preparation_bytes: Some(NonZeroUsize::new(4096).unwrap()),
+            ..Default::default()
+        })
         .register(Lanes::catalog())
         .runtime()
         .await
@@ -191,7 +194,7 @@ async fn serve() -> harmos::Runtime<Host> {
 }
 
 async fn call<A: Analysis>(
-    operations: &harmos::OperationManager,
+    operations: &harmos::operations::OperationManager,
     request: Request,
 ) -> harmos::Result<Response> {
     let payload = operations
@@ -209,7 +212,7 @@ async fn call<A: Analysis>(
 /* === Tests === */
 
 pub(crate) fn named_analysis_params() {
-    let mut registrar = harmos::artifact::Registrar::new();
+    let mut registrar = harmos::plugin::Registrar::new();
     dokime::Evidence::<(), Analyses>::register(&mut registrar).unwrap();
     let registrations = registrar.finish();
     let declaration = registrations

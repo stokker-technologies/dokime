@@ -12,7 +12,10 @@
 
 /* === Local Imports === */
 
-import { CycleStatus, type CycleSummary } from "@/lib/rpc/generated/dokime/v1/execution_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+
+type CycleSummary = Wire<GeneratedCycleSummary>;
 
 /* === Types === */
 
@@ -28,7 +31,7 @@ export type CycleRow = {
   cycleId: string;
   executionCount: number;
   label: string;
-  status: CycleStatus;
+  status: NonNullable<NonNullable<CycleSummary["status"]>["HarmosVariant"]["case"]>;
   statusLabel: string;
   statusTone: "neutral" | "good" | "warn" | "bad";
   suiteLabel: string | null;
@@ -46,7 +49,7 @@ export type CycleGroup = {
 
 /* === Constants === */
 
-const ACTIVE_STATUSES = [CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING];
+const ACTIVE_STATUSES = ["Running", "Paused", "Stopping"];
 
 /**
  * The lifecycles after which a skipped attempt is a real skip.
@@ -56,25 +59,20 @@ const ACTIVE_STATUSES = [CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.ST
  * finished made every fresh cycle read as complete on this page, so they only
  * count once the cycle is sealed.
  */
-const SEALED_STATUSES = [
-  CycleStatus.COMPLETED,
-  CycleStatus.FAILED,
-  CycleStatus.STOPPED,
-  CycleStatus.CLEARED,
-];
+const SEALED_STATUSES = ["Completed", "Failed", "Stopped", "Cleared"];
 
-const STATUS_LABELS: Record<CycleStatus, string> = {
-  [CycleStatus.UNSPECIFIED]: "Unknown",
-  [CycleStatus.PREVIEWED]: "Previewed",
-  [CycleStatus.READY]: "Ready",
-  [CycleStatus.RUNNING]: "Running",
-  [CycleStatus.PAUSED]: "Paused",
-  [CycleStatus.STOPPING]: "Stopping",
-  [CycleStatus.COMPLETED]: "Completed",
-  [CycleStatus.FAILED]: "Failed",
-  [CycleStatus.BLOCKED]: "Blocked",
-  [CycleStatus.STOPPED]: "Stopped",
-  [CycleStatus.CLEARED]: "Cleared",
+const STATUS_LABELS: Record<CycleRow["status"], string> = {
+  ["Unspecified"]: "Unknown",
+  ["Previewed"]: "Previewed",
+  ["Ready"]: "Ready",
+  ["Running"]: "Running",
+  ["Paused"]: "Paused",
+  ["Stopping"]: "Stopping",
+  ["Completed"]: "Completed",
+  ["Failed"]: "Failed",
+  ["Blocked"]: "Blocked",
+  ["Stopped"]: "Stopped",
+  ["Cleared"]: "Cleared",
 };
 
 /* === Public Functions === */
@@ -91,8 +89,8 @@ export function cycleRows(
     finishedCount: finishedCases(cycle),
     executionCount: Number(cycle.executionCount),
     label: cycle.metadata?.label || cycle.cycleId,
-    status: cycle.status,
-    statusLabel: STATUS_LABELS[cycle.status] ?? "Unknown",
+    status: cycle.status?.HarmosVariant.case ?? "Unspecified",
+    statusLabel: STATUS_LABELS[cycle.status?.HarmosVariant.case ?? "Unspecified"] ?? "Unknown",
     statusTone: statusTone(cycle.status),
     suiteLabel: cycle.suite?.label || null,
     updatedAtIso: isoOrNull(timestampMs(cycle)),
@@ -111,9 +109,7 @@ export function cycleRows(
  * has been loaded" or "nothing matched", and those are different sentences.
  */
 export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[] {
-  const attention = rows.filter(
-    (row) => row.attentionCount > 0 || row.status === CycleStatus.BLOCKED,
-  );
+  const attention = rows.filter((row) => row.attentionCount > 0 || row.status === "Blocked");
   const attentionIds = new Set(attention.map((row) => row.cycleId));
   const active = rows.filter(
     (row) => !attentionIds.has(row.cycleId) && ACTIVE_STATUSES.includes(row.status),
@@ -159,16 +155,16 @@ export function applyFrozenOrder(rows: CycleRow[], frozenIds: readonly string[])
 
 /* === Private Functions === */
 
-function statusTone(status: CycleStatus): CycleRow["statusTone"] {
-  switch (status) {
-    case CycleStatus.RUNNING:
-    case CycleStatus.COMPLETED:
+function statusTone(status: CycleSummary["status"]): CycleRow["statusTone"] {
+  switch (status?.HarmosVariant.case) {
+    case "Running":
+    case "Completed":
       return "good";
-    case CycleStatus.PAUSED:
-    case CycleStatus.STOPPING:
-    case CycleStatus.BLOCKED:
+    case "Paused":
+    case "Stopping":
+    case "Blocked":
       return "warn";
-    case CycleStatus.FAILED:
+    case "Failed":
       return "bad";
     default:
       return "neutral";
@@ -186,7 +182,9 @@ function finishedCases(cycle: CycleSummary): number {
   const result = cycle.result;
   if (!result) return 0;
   const ended = result.passed + result.failed + result.blocked;
-  return SEALED_STATUSES.includes(cycle.status) ? ended + result.skipped : ended;
+  return SEALED_STATUSES.includes(cycle.status?.HarmosVariant.case ?? "")
+    ? ended + result.skipped
+    : ended;
 }
 
 function isoOrNull(milliseconds: number | null): string | null {

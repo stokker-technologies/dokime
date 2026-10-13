@@ -24,9 +24,11 @@ use std::{
 };
 // Third Party Imports
 use cargo_metadata::{Message, MetadataCommand, Package};
-use harmos::artifact::inventory::Declaration;
-use harmos::plugin::{Bundle, Executable, Facility, Identity, Limits, Source};
-use harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
+use harmos::plugin::bundle::{
+    Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source,
+};
+use harmos::plugin::inventory::Declaration;
+use harmos::plugin::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
 // Local Imports
 use crate::{Error, bundle::files, process};
 
@@ -372,12 +374,12 @@ async fn collect_executable(
     catalog_remaining: &mut usize,
 ) -> Result<(String, Vec<u8>, Executable, Option<(String, Vec<u8>)>), Error> {
     let binary = files::read(path, max_bytes)?;
-    let declaration = Declaration::inspect(&binary, harmos::artifact::inventory::Facility::Sidecar)
+    let declaration = Declaration::inspect(&binary, harmos::plugin::inventory::Facility::Sidecar)
         .map_err(|error| {
-            Error::Invalid(format!(
-                "selected binary has no complete native declaration: {error}"
-            ))
-        })?;
+        Error::Invalid(format!(
+            "selected binary has no complete native declaration: {error}"
+        ))
+    })?;
     if declaration.version.to_string() != package.version.to_string() {
         return Err(Error::Invalid(format!(
             "executable version {} differs from Cargo package version {}; the executable declaration must derive its version from the selected Cargo package",
@@ -464,10 +466,10 @@ fn select_package<'a>(
 
 fn package_identity(package: &Package) -> Identity {
     Identity {
-        name: package.name.clone(),
+        name: package.name.to_string(),
         version: package.version.clone(),
         description: package.description.clone().unwrap_or_default(),
-        package: harmos::plugin::PackageMetadata {
+        package: PackageMetadata {
             authors: package.authors.clone(),
             license: package.license.clone(),
             repository: package.repository.clone(),

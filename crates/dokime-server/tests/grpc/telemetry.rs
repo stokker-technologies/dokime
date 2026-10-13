@@ -22,7 +22,6 @@ use dokime_app::{
     core::{Identifier, Timestamp, Value},
     telemetry::{TelemetryBatch, TelemetrySample},
 };
-use dokime_protocol::v1::{self, telemetry_client::TelemetryClient};
 
 /* === Constants === */
 
@@ -41,8 +40,31 @@ use dokime_protocol::v1::{self, telemetry_client::TelemetryClient};
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn sequences(reply: &v1::TelemetrySamplesReply) -> Vec<u64> {
+fn sequences(reply: &contracts::telemetry::TelemetrySamplesReply) -> Vec<u64> {
     reply.samples.iter().map(|sample| sample.sequence).collect()
+}
+
+fn cursor(reply: &contracts::telemetry::TelemetrySamplesReply, stream: &str) -> Option<u64> {
+    reply
+        .through_stream_cursors
+        .iter()
+        .find(|entry| entry.key == stream)
+        .map(|entry| entry.value)
+}
+
+fn continuation(
+    reply: &contracts::telemetry::TelemetrySamplesReply,
+) -> Vec<contracts::telemetry::ListTelemetrySamplesRequestAfterStreamCursorsEntry> {
+    reply
+        .through_stream_cursors
+        .iter()
+        .map(
+            |entry| contracts::telemetry::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
+                key: entry.key.clone(),
+                value: entry.value,
+            },
+        )
+        .collect()
 }
 
 pub(crate) async fn telemetry_pages_window() {
@@ -73,40 +95,42 @@ pub(crate) async fn telemetry_pages_window() {
     let server = Server::start(handle.clone(), Config::local())
         .await
         .unwrap();
-    let mut client = TelemetryClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let stream = dokime_app::capabilities::telemetry::telemetry_stream_id(None, &id);
-    let base = v1::ListTelemetrySamplesRequest {
+    let base = contracts::telemetry::ListTelemetrySamplesRequest {
         streams: vec![id.to_string()],
         limit: 2,
         ..Default::default()
     };
 
     let first = client
-        .list_samples(authenticated(base.clone()))
+        .unary::<contracts::telemetry::ListSamples>(authenticated(base.clone()))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(sequences(&first), [1, 2]);
-    assert_eq!(first.through_stream_cursors.get(&stream), Some(&2));
+    assert_eq!(cursor(&first, &stream), Some(2));
 
     let second = client
-        .list_samples(authenticated(v1::ListTelemetrySamplesRequest {
-            after_stream_cursors: first.through_stream_cursors.clone(),
-            ..base.clone()
-        }))
+        .unary::<contracts::telemetry::ListSamples>(authenticated(
+            contracts::telemetry::ListTelemetrySamplesRequest {
+                after_stream_cursors: continuation(&first),
+                ..base.clone()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(sequences(&second), [3, 4]);
-    assert_eq!(second.through_stream_cursors.get(&stream), Some(&4));
+    assert_eq!(cursor(&second, &stream), Some(4));
 
     let tail = client
-        .list_samples(authenticated(v1::ListTelemetrySamplesRequest {
-            latest: true,
-            ..base.clone()
-        }))
+        .unary::<contracts::telemetry::ListSamples>(authenticated(
+            contracts::telemetry::ListTelemetrySamplesRequest {
+                latest: true,
+                ..base.clone()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -114,11 +138,13 @@ pub(crate) async fn telemetry_pages_window() {
     assert!(tail.through_stream_cursors.is_empty());
 
     let rejected = client
-        .list_samples(authenticated(v1::ListTelemetrySamplesRequest {
-            after_stream_cursors: second.through_stream_cursors,
-            latest: true,
-            ..base
-        }))
+        .unary::<contracts::telemetry::ListSamples>(authenticated(
+            contracts::telemetry::ListTelemetrySamplesRequest {
+                after_stream_cursors: continuation(&second),
+                latest: true,
+                ..base
+            },
+        ))
         .await
         .unwrap_err();
     assert_eq!(rejected.code(), Code::InvalidArgument);

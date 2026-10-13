@@ -40,11 +40,12 @@
 /* === Tests === */
 
 fn command(cwd: &std::path::Path) -> std::process::Command {
-    let target = super::support::target_directory();
-    let backend = target.join(format!("debug/dokime{}", std::env::consts::EXE_SUFFIX));
+    let backend = std::path::PathBuf::from(
+        std::env::var_os("DOKIME_TEST_HOST").expect("mise selects the exact prepared server"),
+    );
     assert!(
         backend.is_file(),
-        "build:cli:dev must provide {}",
+        "Prepared Server Must Provide {}",
         backend.display()
     );
     let mut command = std::process::Command::new(super::support::tool());

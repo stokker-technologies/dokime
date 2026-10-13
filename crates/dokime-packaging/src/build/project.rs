@@ -110,7 +110,7 @@ impl Project {
         Ok(Self {
             options,
             metadata,
-            package_name,
+            package_name: package_name.to_string(),
             sdk_version,
             sdk_source,
             watch_paths,

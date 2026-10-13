@@ -30,7 +30,7 @@
 #[derive(Debug, thiserror::Error)]
 pub(super) enum Error {
     #[error(transparent)]
-    Publication(#[from] dokime::harmos::sidecar::PublishError),
+    Publication(#[from] dokime::harmos::plugin::sidecar::PublishError),
     #[error(transparent)]
     Published(#[from] dokime::Error),
     #[error("fixture lifecycle marker: {0}")]

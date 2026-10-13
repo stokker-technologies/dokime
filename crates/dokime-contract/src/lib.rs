@@ -20,11 +20,15 @@ pub mod core;
 
 pub mod definition;
 
+pub mod diagnostics;
+
 pub mod document;
 
 pub mod domains;
 
 pub mod expressions;
+
+pub mod execution;
 
 pub mod operations;
 
@@ -49,6 +53,9 @@ pub use error::{Error, Result};
 // Local Imports
 
 /* === Constants === */
+pub const DEV_PROTOCOL: u32 = 4;
+
+pub const READINESS_PROTOCOL: u64 = 3;
 
 /* === Macros === */
 /* === Type Aliases === */

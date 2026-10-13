@@ -1,0 +1,90 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+# === Package ===
+
+[package]
+name = "dokime-client"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+# === Package Targets ===
+
+# === Features ===
+
+# === Dependencies ===
+
+[dependencies]
+# Local
+dokime-contract = { path = "../dokime-contract" }
+dokime-filesystem = { path = "../dokime-filesystem" }
+
+# Git
+harmos = { workspace = true, features = ["grpc"] }
+
+# Error Handling
+thiserror = { workspace = true, default-features = true }
+
+# Utilities
+keyring = { workspace = true }
+sha2 = { workspace = true, default-features = true }
+zeroize = { workspace = true, default-features = true }
+
+# Serialization
+serde = { workspace = true, default-features = true }
+serde_json = { workspace = true, default-features = true }
+
+# Async
+futures-util = { workspace = true, features = ["std", "async-await"] }
+tokio = { workspace = true, default-features = true }
+tokio-stream = { workspace = true, default-features = true, features = ["sync"] }
+tokio-util = { workspace = true, default-features = true, features = ["rt"] }
+
+# Networking
+rustls = { workspace = true, features = ["ring", "std"] }
+tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
+url = { workspace = true, default-features = true }
+
+
+# === Build Dependencies ===
+
+
+# === Dev Dependencies ===
+
+[dev-dependencies]
+tempfile = { workspace = true, default-features = true }
+
+# === Target Dependencies ===
+
+# === Test Targets ===
+
+[[test]]
+name = "profiles"
+path = "tests/integration/profiles/main.rs"
+
+# === Bench Targets ===
+
+# === Example Targets ===
+
+[[example]]
+name = "remote-operations"
+path = "examples/remote_operations/main.rs"
+
+# === Workspace Lints ===
+
+# === Lints ===
+
+# === Profiles ===
+
+# === Patches ===
+
+# === Other ===

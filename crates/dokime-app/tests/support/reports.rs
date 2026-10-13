@@ -48,8 +48,8 @@ struct ReportOwner;
 /* === Implementations === */
 impl harmos::Application for ReportOwner {
     type State = ();
-    type Transaction = harmos::Never;
-    type Record = harmos::Never;
+    type Transaction = harmos::state::Never;
+    type Record = harmos::state::Never;
     type Streams = ();
     type Resources = ();
 }

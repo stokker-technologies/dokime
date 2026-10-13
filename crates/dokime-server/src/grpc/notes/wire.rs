@@ -17,12 +17,12 @@
 // Third Party Imports
 use tonic::Status;
 // Local Imports
-use super::super::value::{self, projection};
+use super::super::value::{self, canonical};
 use dokime_app::capabilities::evidence::notes::{NoteCreation, NotePublication};
 use dokime_app::core::{CaseId, TestCycleId, TestExecutionId};
 use dokime_app::execution::notes::NoteOwner;
 use dokime_app::execution::{HealthItem, HealthSeverity, OperatorNote};
-use dokime_protocol::v1;
+use dokime_contract::operations::{common, notes as contract};
 
 /* === Constants === */
 
@@ -39,8 +39,8 @@ use dokime_protocol::v1;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn owner(value: Option<v1::AnnotationOwner>) -> Result<NoteOwner, Status> {
-    use v1::annotation_owner::Owner;
+pub(super) fn owner(value: Option<contract::AnnotationOwner>) -> Result<NoteOwner, Status> {
+    use contract::AnnotationOwnerOwner as Owner;
     match value
         .and_then(|value| value.owner)
         .ok_or_else(|| Status::invalid_argument("explicit annotation owner required"))?
@@ -67,19 +67,21 @@ pub(super) fn owner(value: Option<v1::AnnotationOwner>) -> Result<NoteOwner, Sta
     }
 }
 
-pub(super) fn encode_owner(value: &NoteOwner) -> v1::AnnotationOwner {
-    use v1::annotation_owner::Owner;
-    v1::AnnotationOwner {
+pub(super) fn encode_owner(value: &NoteOwner) -> contract::AnnotationOwner {
+    use contract::AnnotationOwnerOwner as Owner;
+    contract::AnnotationOwner {
         owner: Some(match value {
             NoteOwner::Cycle { cycle_id } => Owner::CycleId(cycle_id.to_string()),
-            NoteOwner::Case { cycle_id, case_id } => Owner::PlannedCase(v1::PlannedCaseNoteOwner {
-                cycle_id: cycle_id.to_string(),
-                case_id: case_id.to_string(),
-            }),
+            NoteOwner::Case { cycle_id, case_id } => {
+                Owner::PlannedCase(contract::PlannedCaseNoteOwner {
+                    cycle_id: cycle_id.to_string(),
+                    case_id: case_id.to_string(),
+                })
+            }
             NoteOwner::Execution {
                 cycle_id,
                 execution_id,
-            } => Owner::Execution(v1::ExecutionNoteOwner {
+            } => Owner::Execution(contract::ExecutionNoteOwner {
                 cycle_id: cycle_id.to_string(),
                 execution_id: execution_id.to_string(),
             }),
@@ -116,13 +118,13 @@ pub(crate) fn note_memory(note: &OperatorNote) -> harmos::Result<usize> {
         bounded_text(author, dokime_app::execution::notes::NOTE_ACTOR_BYTES)
             .map_err(|_| construction_limit())?;
     }
-    let scope = projection::scope_memory(&note.scope);
+    let scope = canonical::scope_memory(&note.scope).map_err(|_| construction_limit())?;
     if scope == usize::MAX {
         return Err(construction_limit());
     }
-    let bytes = std::mem::size_of::<v1::OperatorNote>()
+    let bytes = std::mem::size_of::<contract::OperatorNote>()
         .saturating_add(note.note_id.as_str().len())
-        .saturating_add(scope - std::mem::size_of::<v1::EvidenceScope>())
+        .saturating_add(scope - std::mem::size_of::<common::EvidenceScope>())
         .saturating_add(note.message.len())
         .saturating_add(note.author.as_ref().map_or(0, String::len));
     if bytes == usize::MAX {
@@ -138,13 +140,13 @@ pub(crate) fn health_memory(item: &HealthItem) -> harmos::Result<usize> {
         bounded_text(detail, dokime_app::execution::notes::NOTE_TEXT_BYTES)
             .map_err(|_| construction_limit())?;
     }
-    let scope = projection::scope_memory(&item.scope);
+    let scope = canonical::scope_memory(&item.scope).map_err(|_| construction_limit())?;
     if scope == usize::MAX {
         return Err(construction_limit());
     }
-    let bytes = std::mem::size_of::<v1::HealthItem>()
+    let bytes = std::mem::size_of::<contract::HealthItem>()
         .saturating_add(item.health_item_id.as_str().len())
-        .saturating_add(scope - std::mem::size_of::<v1::EvidenceScope>())
+        .saturating_add(scope - std::mem::size_of::<common::EvidenceScope>())
         .saturating_add(item.message.len())
         .saturating_add(item.detail.as_ref().map_or(0, String::len));
     if bytes == usize::MAX {
@@ -153,53 +155,53 @@ pub(crate) fn health_memory(item: &HealthItem) -> harmos::Result<usize> {
     Ok(bytes)
 }
 
-pub(crate) fn note(note: &OperatorNote) -> Result<v1::OperatorNote, Status> {
+pub(crate) fn note(note: &OperatorNote) -> Result<contract::OperatorNote, Status> {
     note_size(note)?;
-    Ok(v1::OperatorNote {
+    Ok(contract::OperatorNote {
         note_id: note.note_id.as_str().to_owned(),
         scope: Some(
-            projection::scope(&note.scope)
+            canonical::scope(&note.scope)
                 .map_err(|_| Status::resource_exhausted("note scope construction failed"))?,
         ),
         author: note.author.clone(),
         message: note.message.clone(),
-        created_at: Some(value::timestamp(&note.created_at)?),
+        created_at: Some(canonical::timestamp(&note.created_at)?),
     })
 }
 
-pub(crate) fn health(item: &HealthItem) -> Result<v1::HealthItem, Status> {
+pub(crate) fn health(item: &HealthItem) -> Result<contract::HealthItem, Status> {
     health_size(item)?;
-    Ok(v1::HealthItem {
+    Ok(contract::HealthItem {
         health_item_id: item.health_item_id.as_str().to_owned(),
         scope: Some(
-            projection::scope(&item.scope)
+            canonical::scope(&item.scope)
                 .map_err(|_| Status::resource_exhausted("health scope construction failed"))?,
         ),
         severity: match item.severity {
-            HealthSeverity::Info => v1::Severity::Info,
-            HealthSeverity::Warning => v1::Severity::Warn,
-            HealthSeverity::Error => v1::Severity::Error,
-        } as i32,
+            HealthSeverity::Info => common::Severity::Info,
+            HealthSeverity::Warning => common::Severity::Warn,
+            HealthSeverity::Error => common::Severity::Error,
+        },
         message: item.message.clone(),
         detail: item.detail.clone(),
-        observed_at: Some(value::timestamp(&item.observed_at)?),
+        observed_at: Some(canonical::timestamp(&item.observed_at)?),
     })
 }
 
-pub(super) fn receipt(value: NoteCreation) -> Result<v1::NoteReceipt, Status> {
-    let (publication, unconfirmed_targets) = match value.publication {
+pub(super) fn receipt(value: &NoteCreation) -> Result<contract::NoteReceipt, Status> {
+    let (publication, unconfirmed_targets) = match &value.publication {
         NotePublication::NoExistingDatasets => {
-            (v1::NotePublication::NoExistingDatasets, Vec::new())
+            (contract::NotePublication::NoExistingDatasets, Vec::new())
         }
-        NotePublication::Confirmed => (v1::NotePublication::Confirmed, Vec::new()),
+        NotePublication::Confirmed => (contract::NotePublication::Confirmed, Vec::new()),
         NotePublication::Unconfirmed { targets } => (
-            v1::NotePublication::Unconfirmed,
+            contract::NotePublication::Unconfirmed,
             targets.iter().map(ToString::to_string).collect(),
         ),
     };
     let epoch = value.epoch.to_string();
-    let value = value.admission;
-    Ok(v1::NoteReceipt {
+    let value = &value.admission;
+    Ok(contract::NoteReceipt {
         epoch,
         mutation_id: value.mutation_id.to_string(),
         owner: Some(encode_owner(&value.owner)),
@@ -209,9 +211,43 @@ pub(super) fn receipt(value: NoteCreation) -> Result<v1::NoteReceipt, Status> {
             .iter()
             .map(ToString::to_string)
             .collect(),
-        publication: publication as i32,
+        publication,
         unconfirmed_targets,
     })
+}
+
+pub(super) fn receipt_memory(value: &NoteCreation) -> Result<usize, Status> {
+    let admission = &value.admission;
+    let owner = match &admission.owner {
+        NoteOwner::Cycle { cycle_id } => cycle_id.as_str().len(),
+        NoteOwner::Case { cycle_id, case_id } => {
+            value::text(case_id.as_str())?;
+            cycle_id
+                .as_str()
+                .len()
+                .saturating_add(case_id.as_str().len())
+        }
+        NoteOwner::Execution {
+            cycle_id,
+            execution_id,
+        } => cycle_id
+            .as_str()
+            .len()
+            .saturating_add(execution_id.as_str().len()),
+    };
+    let targets = admission
+        .checkpoint_targets
+        .len()
+        .saturating_add(match &value.publication {
+            NotePublication::Unconfirmed { targets } => targets.len(),
+            _ => 0,
+        });
+    Ok(std::mem::size_of::<contract::NoteReceipt>()
+        .saturating_add(value.epoch.as_str().len())
+        .saturating_add(admission.mutation_id.as_str().len())
+        .saturating_add(owner)
+        .saturating_add(note_memory(&admission.note).map_err(super::memory_failure)?)
+        .saturating_add(targets.saturating_mul(4 * std::mem::size_of::<String>() + 36)))
 }
 
 /* === Private Functions === */

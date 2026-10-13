@@ -20,7 +20,7 @@ use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
 use harmos::catalog::Projection;
-use harmos::{Application, DefinitionId, Identified, Never, Runtime, storage::*};
+use harmos::{Application, DefinitionId, Identified, Runtime, state::Never, storage::*};
 
 // Local Imports
 use super::storage::write_batch;
@@ -118,8 +118,7 @@ async fn admit_object_schemas(backend: &NativeBackend<Objects>) {
             schemas.push(StorageSchema::new(
                 position(schemas.len() as u64 + 1),
                 definition.schema()?,
-                definition.fields().to_vec(),
-                SchemaEncoding::GraphV1,
+                definition.graph(&harmos::config::SchemaSettings::default())?,
             ));
             Ok::<(), harmos::Error>(())
         })
@@ -445,7 +444,7 @@ pub(crate) async fn manager_replicates_collections() {
         .await
         .unwrap();
     storage
-        .write_schema(&super::storage::key(), &super::storage::schema().fields)
+        .write_schema(&super::storage::key(), &super::storage::schema().schema)
         .await
         .unwrap();
     let first = storage

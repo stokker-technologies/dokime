@@ -36,11 +36,11 @@ use std::{path::Path, process::Command};
 
 /* === Private Functions === */
 fn installation() -> tempfile::TempDir {
-    let backend = super::support::target_directory()
-        .join("debug")
-        .join(format!("dokime{}", std::env::consts::EXE_SUFFIX))
-        .canonicalize()
-        .expect("test:plugin-cli requires mise's build:cli:dev task");
+    let backend = std::path::PathBuf::from(
+        std::env::var_os("DOKIME_TEST_HOST").expect("mise selects the exact prepared server"),
+    )
+    .canonicalize()
+    .expect("prepared server exists");
     let directory = tempfile::Builder::new()
         .prefix("dokime-installation-")
         .tempdir_in(super::support::target_directory())

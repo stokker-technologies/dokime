@@ -12,6 +12,7 @@
 
 # Standard Library Imports
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 # Third Party Imports
@@ -90,9 +91,9 @@ class GuiPackageTests(unittest.TestCase):
             patch.object(bootstrap.os, "geteuid", create=True, return_value=1000),
             patch.object(bootstrap, "_package_installed", return_value=False),
             patch.object(bootstrap, "_run") as run,
+            self.assertRaises(SystemExit) as caught,
         ):
-            with self.assertRaises(SystemExit) as caught:
-                bootstrap.install_gui_packages()
+            bootstrap.install_gui_packages()
         run.assert_not_called()
         self.assertIn(bootstrap.GUI_MARKER_PACKAGE, str(caught.exception))
 
@@ -150,6 +151,70 @@ def test_hosted_linux_sudo(monkeypatch):
     bootstrap.install_gui_packages()
     assert calls[0] == ["sudo", "-n", "apt-get", "update"]
     assert calls[1][:4] == ["sudo", "-n", "apt-get", "install"]
+
+
+@pytest.mark.parametrize("revision", ["main", "a" * 39, "A" * 40])
+def test_harmos_pin(tmp_path: Path, revision: str) -> None:
+    (tmp_path / "Cargo.toml").write_text(
+        '[workspace.dependencies]\nharmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "'
+        + revision
+        + '" }\n'
+    )
+    with pytest.raises(ValueError, match="exact declared public Git revision"):
+        bootstrap.harmos_pin(tmp_path)
+
+
+def test_harmos_consumer(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "Cargo.toml").write_text(
+        "[workspace.dependencies]\n"
+        + "".join(
+            f'{name} = {{ git = "https://github.com/stokker-technologies/harmos.git", rev = "{"a" * 40}" }}\n'
+            for name in ("harmos", "harmos-contract", "harmos-signal")
+        )
+    )
+    monkeypatch.setattr(
+        bootstrap.subprocess, "check_output", lambda *args, **kwargs: "pinned rustc"
+    )
+    calls = []
+    monkeypatch.setattr(bootstrap, "_run", calls.append)
+    with pytest.raises(ValueError, match="consumers never rebuild"):
+        bootstrap.prepare_harmos(tmp_path, allow_install=False)
+    assert calls == []
+
+    def install(command):
+        calls.append(command)
+        destination = Path(command[command.index("--root") + 1])
+        binary = (
+            destination
+            / "bin"
+            / ("cargo-harmos.exe" if bootstrap.os.name == "nt" else "cargo-harmos")
+        )
+        binary.parent.mkdir()
+        binary.write_bytes(b"prepared canonical tool")
+
+    monkeypatch.setattr(bootstrap, "_run", install)
+    bootstrap.prepare_harmos(tmp_path, allow_install=True)
+    assert len(calls) == 1
+    bootstrap.prepare_harmos(tmp_path, allow_install=False)
+    assert len(calls) == 1
+    binary = next((tmp_path / ".cache/harmos-tool/bin").iterdir())
+    binary.write_bytes(b"changed tool")
+    with pytest.raises(ValueError, match="consumers never rebuild"):
+        bootstrap.prepare_harmos(tmp_path, allow_install=False)
+    assert len(calls) == 1
+
+    manifest = tmp_path / "Cargo.toml"
+    lines = manifest.read_text().splitlines()
+    manifest.write_text(
+        "\n".join(
+            line.replace("a" * 40, "b" * 40)
+            if line.startswith("harmos-contract =")
+            else line
+            for line in lines
+        )
+    )
+    with pytest.raises(ValueError, match="all Harmos dependencies"):
+        bootstrap.harmos_pin(tmp_path)
 
 
 # === Private Functions === #

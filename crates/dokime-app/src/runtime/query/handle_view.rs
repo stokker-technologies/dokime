@@ -83,24 +83,34 @@ impl RuntimeHandle {
                     RuntimeViewPayload::ExecutionFiles { frame }
                 }
                 RuntimeViewTopic::Records => {
-                    let records = self.records_at(snapshot).await?;
                     let captured = crate::queries::records::execution_capture(
                         snapshot.state().executions.values(),
                         scope.and_then(|scope| scope.test_execution_id.as_ref()),
                     );
-
-                    RuntimeViewPayload::Records {
-                        frame: Box::new(crate::queries::records::record_frame_with_subscriptions(
-                            records.iter(),
-                            scope,
-                            window,
-                            resolution,
-                            |record| {
-                                captured.and_then(|captures| {
-                                    captures.subscribed_records().get(&record.record_id)
-                                })
+                    let filter = crate::queries::records::view_filter(snapshot, scope, captured)?;
+                    let frame = self
+                        .record_source
+                        .saved_filtered_records(
+                            &self.state_manager,
+                            snapshot.revision(),
+                            filter,
+                            |pages, allowance| {
+                                crate::queries::records::record_frame(
+                                    pages.iter().flat_map(|page| page.iter()),
+                                    window,
+                                    resolution,
+                                    |record| {
+                                        captured.and_then(|captures| {
+                                            captures.subscribed_records().get(&record.record_id)
+                                        })
+                                    },
+                                    allowance,
+                                )
                             },
-                        )),
+                        )
+                        .await?;
+                    RuntimeViewPayload::Records {
+                        frame: Box::new(frame),
                     }
                 }
                 RuntimeViewTopic::Telemetry { stream } => {

@@ -41,7 +41,7 @@ pub(crate) async fn build(
     fresh: RuntimeState,
     records: Arc<super::record_capture::Source>,
     storage: &dokime::storage::Manager,
-) -> std::result::Result<HarmosRuntime, harmos::Incompatible> {
+) -> std::result::Result<HarmosRuntime, harmos::runtime::Incompatible> {
     let session_id = fresh.session_id.clone();
     let record_namespace = fresh.process_epoch().clone();
     let group_limits = super::record_capture::group_limits();

@@ -20,10 +20,6 @@ use prost::Message;
 use super::*;
 use dokime_app::core::Value;
 use dokime_app::definition::{FileDefinition, ParameterExpr, ParameterSelection, SuiteSet};
-use dokime_protocol::v1::{
-    catalog_client::CatalogClient, execution_client::ExecutionClient,
-    planning_client::PlanningClient,
-};
 
 /* === Constants === */
 
@@ -42,8 +38,10 @@ use dokime_protocol::v1::{
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn selection(suite: &dokime_app::definition::TestSuite) -> v1::RegisteredSelection {
-    v1::RegisteredSelection {
+fn selection(
+    suite: &dokime_app::definition::TestSuite,
+) -> contracts::planning::RegisteredSelection {
+    contracts::planning::RegisteredSelection {
         suite_id: suite.metadata.identifier.to_string(),
         template_id: suite.test_case_templates[0]
             .test_case_template_id
@@ -52,24 +50,31 @@ fn selection(suite: &dokime_app::definition::TestSuite) -> v1::RegisteredSelecti
     }
 }
 
-fn integer(value: i64) -> v1::Value {
-    v1::Value {
-        kind: Some(v1::value::Kind::IntegerValue(value)),
-    }
+fn integer(value: i64) -> contracts::value::Value {
+    contracts::value::Value::from(&Value::Integer(value))
 }
 
-fn plan(selections: Vec<v1::RegisteredSelection>) -> v1::SelectionPlan {
-    v1::SelectionPlan {
+fn field(value: &contracts::value::Value, key: &str) -> Value {
+    let Value::Object(mut fields) = value.to_core().unwrap() else {
+        panic!("planned parameters and file attributes must be objects");
+    };
+    fields.remove(key).expect("declared field is present")
+}
+
+fn plan(
+    selections: Vec<contracts::planning::RegisteredSelection>,
+) -> contracts::planning::SelectionPlan {
+    contracts::planning::SelectionPlan {
         selections,
         max_cases: 0,
         case_ids: vec![],
     }
 }
 
-fn create(plan: v1::SelectionPlan) -> v1::CreateCycleRequest {
-    v1::CreateCycleRequest {
+fn create(plan: contracts::planning::SelectionPlan) -> contracts::execution::CreateCycleRequest {
+    contracts::execution::CreateCycleRequest {
         plan: Some(plan),
-        metadata: Some(v1::Metadata {
+        metadata: Some(contracts::common::Metadata {
             identifier: "planning.cycle".into(),
             label: "Plan".into(),
             description: None,
@@ -81,9 +86,11 @@ fn create(plan: v1::SelectionPlan) -> v1::CreateCycleRequest {
 
 fn error_code(status: &tonic::Status) -> String {
     let envelope = tonic_types::Status::decode(status.details()).unwrap();
-    v1::Rejection::decode(envelope.details[0].value.as_slice())
-        .unwrap()
-        .code
+    <contracts::execution::Rejection as harmos::Protobuf>::decode(
+        envelope.details[0].value.as_slice(),
+    )
+    .unwrap()
+    .code
 }
 
 pub(crate) async fn ordered_selections_provider() {
@@ -138,32 +145,36 @@ pub(crate) async fn ordered_selections_provider() {
     )
     .await
     .unwrap();
-    let mut planning = PlanningClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut selected = selection(&first);
-    selected.parameters.insert(
-        "fixture.result".into(),
-        v1::SelectionValues {
-            values: vec![integer(i64::MIN), integer(i64::MAX), integer(i64::MIN)],
-        },
-    );
+    selected
+        .parameters
+        .push(contracts::planning::RegisteredSelectionParametersEntry {
+            key: "fixture.result".into(),
+            value: Some(contracts::planning::SelectionValues {
+                values: vec![integer(i64::MIN), integer(i64::MAX), integer(i64::MIN)],
+            }),
+        });
     let mut multiple = selection(&second);
-    multiple.parameters.insert(
-        "fixture.result".into(),
-        v1::SelectionValues {
-            values: vec![v1::Value {
-                kind: Some(v1::value::Kind::ArrayValue(v1::ValueList {
-                    values: vec![integer(i64::MIN), integer(i64::MAX), integer(i64::MIN)],
-                })),
-            }],
-        },
-    );
+    multiple
+        .parameters
+        .push(contracts::planning::RegisteredSelectionParametersEntry {
+            key: "fixture.result".into(),
+            value: Some(contracts::planning::SelectionValues {
+                values: vec![contracts::value::Value::from(&Value::Array(vec![
+                    Value::Integer(i64::MIN),
+                    Value::Integer(i64::MAX),
+                    Value::Integer(i64::MIN),
+                ]))],
+            }),
+        });
     let input = plan(vec![selected.clone(), multiple, selected]);
     let preview = planning
-        .preview_selection(authenticated(v1::PreviewSelectionRequest {
-            plan: Some(input.clone()),
-        }))
+        .unary::<contracts::planning::PreviewSelection>(authenticated(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(input.clone()),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -186,21 +197,32 @@ pub(crate) async fn ordered_selections_provider() {
         7
     );
     assert_eq!(
-        preview.cases[0].parameters.as_ref().unwrap().fields["fixture.result"],
-        integer(i64::MIN)
+        field(
+            preview.cases[0].parameters.as_ref().unwrap(),
+            "fixture.result"
+        ),
+        Value::Integer(i64::MIN)
     );
     assert_eq!(
-        preview.cases[1].parameters.as_ref().unwrap().fields["fixture.result"],
-        integer(i64::MAX)
+        field(
+            preview.cases[1].parameters.as_ref().unwrap(),
+            "fixture.result"
+        ),
+        Value::Integer(i64::MAX)
     );
     assert!(matches!(
-        preview.cases[3].parameters.as_ref().unwrap().fields["fixture.result"].kind,
-        Some(v1::value::Kind::ArrayValue(_))
+        field(
+            preview.cases[3].parameters.as_ref().unwrap(),
+            "fixture.result"
+        ),
+        Value::Array(_)
     ));
     let repeated = planning
-        .preview_selection(authenticated(v1::PreviewSelectionRequest {
-            plan: Some(input.clone()),
-        }))
+        .unary::<contracts::planning::PreviewSelection>(authenticated(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(input.clone()),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -211,11 +233,9 @@ pub(crate) async fn ordered_selections_provider() {
         assert_eq!(&fields, expected);
     }
     assert_eq!(repeated.cases.len(), preview.cases.len());
-    let mut catalog = CatalogClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let catalog = WireClient::connect(server.local_endpoint()).await.unwrap();
     let definition = catalog
-        .get_suite(authenticated(v1::GetSuiteRequest {
+        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuiteRequest {
             suite_id: first.metadata.identifier.to_string(),
         }))
         .await
@@ -229,14 +249,12 @@ pub(crate) async fn ordered_selections_provider() {
     let file = &definition.templates[0].files[0];
     assert_eq!(file.default_value.as_deref(), Some("plugin:default"));
     assert_eq!(
-        file.attributes.as_ref().unwrap().fields["maximum"],
-        integer(i64::MAX)
+        field(file.attributes.as_ref().unwrap(), "maximum"),
+        Value::Integer(i64::MAX)
     );
-    let mut execution = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let reply = execution
-        .create_cycle(authenticated(create(input)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(input)))
         .await
         .unwrap()
         .into_inner();
@@ -299,14 +317,14 @@ pub(crate) async fn planning_refuses_inputs() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut planning = PlanningClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mixed = plan(vec![selection(&first), selection(&second)]);
     let failure = planning
-        .preview_selection(v1::PreviewSelectionRequest {
-            plan: Some(mixed.clone()),
-        })
+        .unary::<contracts::planning::PreviewSelection>(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(mixed.clone()),
+            },
+        )
         .await
         .unwrap_err();
     assert_eq!(error_code(&failure), "mixed_provider_targets");
@@ -327,38 +345,38 @@ pub(crate) async fn planning_refuses_inputs() {
         .await
         .unwrap();
     let failure = planning
-        .preview_selection(v1::PreviewSelectionRequest {
-            plan: Some(mixed.clone()),
-        })
+        .unary::<contracts::planning::PreviewSelection>(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(mixed.clone()),
+            },
+        )
         .await
         .unwrap_err();
     assert_eq!(error_code(&failure), "mixed_provider_targets");
-    let mut execution = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut invalid = selection(&first);
-    invalid.files.insert(
-        "fixture.file".into(),
-        v1::SelectedFile {
-            kind: Some(v1::selected_file::Kind::Clear(0)),
-        },
-    );
+    invalid
+        .files
+        .push(contracts::planning::RegisteredSelectionFilesEntry {
+            key: "fixture.file".into(),
+            value: Some(contracts::planning::SelectedFile {
+                kind: Some(contracts::planning::SelectedFileKind::Clear),
+            }),
+        });
     let mut unknown = selection(&first);
     unknown.template_id = first.test_case_templates[0].metadata.identifier.to_string();
     let mut cartesian = selection(&first);
-    cartesian.parameters.insert(
-        "fixture.result".into(),
-        v1::SelectionValues {
-            values: vec![
-                v1::Value {
-                    kind: Some(v1::value::Kind::TextValue("a".into())),
-                },
-                v1::Value {
-                    kind: Some(v1::value::Kind::TextValue("b".into())),
-                },
-            ],
-        },
-    );
+    cartesian
+        .parameters
+        .push(contracts::planning::RegisteredSelectionParametersEntry {
+            key: "fixture.result".into(),
+            value: Some(contracts::planning::SelectionValues {
+                values: vec![
+                    contracts::value::Value::from(&Value::Text("a".into())),
+                    contracts::value::Value::from(&Value::Text("b".into())),
+                ],
+            }),
+        });
     for (label, expected, input) in [
         ("no selections", Code::InvalidArgument, plan(vec![])),
         ("a cleared file", Code::InvalidArgument, plan(vec![invalid])),
@@ -366,7 +384,7 @@ pub(crate) async fn planning_refuses_inputs() {
         (
             "a case ceiling above the limit",
             Code::ResourceExhausted,
-            v1::SelectionPlan {
+            contracts::planning::SelectionPlan {
                 max_cases: 1001,
                 ..plan(vec![selection(&first)])
             },
@@ -374,7 +392,7 @@ pub(crate) async fn planning_refuses_inputs() {
         (
             "an expansion past its own ceiling",
             Code::InvalidArgument,
-            v1::SelectionPlan {
+            contracts::planning::SelectionPlan {
                 max_cases: 3,
                 ..plan(vec![cartesian.clone(), cartesian])
             },
@@ -387,9 +405,11 @@ pub(crate) async fn planning_refuses_inputs() {
     ] {
         assert_eq!(
             planning
-                .preview_selection(v1::PreviewSelectionRequest {
-                    plan: Some(input.clone())
-                })
+                .unary::<contracts::planning::PreviewSelection>(
+                    contracts::planning::PreviewSelectionRequest {
+                        plan: Some(input.clone())
+                    }
+                )
                 .await
                 .unwrap_err()
                 .code(),
@@ -398,7 +418,7 @@ pub(crate) async fn planning_refuses_inputs() {
         );
         assert_eq!(
             execution
-                .create_cycle(create(input))
+                .unary::<contracts::execution::CreateCycle>(create(input))
                 .await
                 .unwrap_err()
                 .code(),
@@ -416,31 +436,33 @@ pub(crate) async fn planning_refuses_inputs() {
     )
     .await
     .unwrap();
-    let mut planning = PlanningClient::connect(read.local_endpoint())
-        .await
-        .unwrap();
+    let planning = WireClient::connect(read.local_endpoint()).await.unwrap();
     planning
-        .preview_selection(authenticated(v1::PreviewSelectionRequest {
-            plan: Some(plan(vec![selection(&first)])),
-        }))
+        .unary::<contracts::planning::PreviewSelection>(authenticated(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(plan(vec![selection(&first)])),
+            },
+        ))
         .await
         .unwrap();
     assert_eq!(
         planning
-            .preview_selection(v1::PreviewSelectionRequest {
-                plan: Some(plan(vec![selection(&first)]))
-            })
+            .unary::<contracts::planning::PreviewSelection>(
+                contracts::planning::PreviewSelectionRequest {
+                    plan: Some(plan(vec![selection(&first)]))
+                }
+            )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
-    let mut execution = ExecutionClient::connect(read.local_endpoint())
-        .await
-        .unwrap();
+    let execution = WireClient::connect(read.local_endpoint()).await.unwrap();
     assert_eq!(
         execution
-            .create_cycle(authenticated(create(plan(vec![selection(&first)]))))
+            .unary::<contracts::execution::CreateCycle>(authenticated(create(plan(vec![
+                selection(&first)
+            ]))))
             .await
             .unwrap_err()
             .code(),
@@ -471,13 +493,13 @@ pub(crate) async fn template_conflicts_disambiguate() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut planning = PlanningClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let failure = planning
-        .preview_selection(v1::PreviewSelectionRequest {
-            plan: Some(plan(vec![selection(&first)])),
-        })
+        .unary::<contracts::planning::PreviewSelection>(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(plan(vec![selection(&first)])),
+            },
+        )
         .await
         .unwrap_err();
     assert_eq!(error_code(&failure), "ambiguous_registered_identity");
@@ -493,11 +515,9 @@ pub(crate) async fn template_conflicts_disambiguate() {
         )
         .await
         .unwrap();
-    let mut execution = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let created = execution
-        .create_cycle(create(plan(vec![selection(&first)])))
+        .unary::<contracts::execution::CreateCycle>(create(plan(vec![selection(&first)])))
         .await
         .unwrap()
         .into_inner();
@@ -523,12 +543,8 @@ pub(crate) async fn effective_native_materialization() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut planning = PlanningClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
-    let mut execution = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     for expression in [
         ParameterExpr::Range {
             start: 0,
@@ -557,33 +573,45 @@ pub(crate) async fn effective_native_materialization() {
         common::register_fixture_execution(&owner.handle(), suite.clone()).await;
         let input = plan(vec![selection(&suite)]);
         let failure = planning
-            .preview_selection(v1::PreviewSelectionRequest {
-                plan: Some(input.clone()),
-            })
+            .unary::<contracts::planning::PreviewSelection>(
+                contracts::planning::PreviewSelectionRequest {
+                    plan: Some(input.clone()),
+                },
+            )
             .await
             .unwrap_err();
         assert_eq!(error_code(&failure), "parameter_expansion_limit");
-        let failure = execution.create_cycle(create(input)).await.unwrap_err();
+        let failure = execution
+            .unary::<contracts::execution::CreateCycle>(create(input))
+            .await
+            .unwrap_err();
         assert_eq!(error_code(&failure), "parameter_expansion_limit");
         // The registered expression is irrelevant when explicitly overridden.
         let mut selected = selection(&suite);
-        selected.parameters.insert(
-            "fixture.result".into(),
-            v1::SelectionValues {
-                values: vec![integer(7)],
-            },
-        );
+        selected
+            .parameters
+            .push(contracts::planning::RegisteredSelectionParametersEntry {
+                key: "fixture.result".into(),
+                value: Some(contracts::planning::SelectionValues {
+                    values: vec![integer(7)],
+                }),
+            });
         let preview = planning
-            .preview_selection(v1::PreviewSelectionRequest {
-                plan: Some(plan(vec![selected])),
-            })
+            .unary::<contracts::planning::PreviewSelection>(
+                contracts::planning::PreviewSelectionRequest {
+                    plan: Some(plan(vec![selected])),
+                },
+            )
             .await
             .unwrap()
             .into_inner();
         assert_eq!(preview.cases.len(), 1);
         assert_eq!(
-            preview.cases[0].parameters.as_ref().unwrap().fields["fixture.result"],
-            integer(7)
+            field(
+                preview.cases[0].parameters.as_ref().unwrap(),
+                "fixture.result"
+            ),
+            Value::Integer(7)
         );
     }
     suite.test_case_templates[0].parameters[0].expression = ParameterExpr::Range {
@@ -598,14 +626,21 @@ pub(crate) async fn effective_native_materialization() {
     common::register_fixture_execution(&owner.handle(), suite.clone()).await;
     let input = plan(vec![selection(&suite)]);
     let failure = planning
-        .preview_selection(v1::PreviewSelectionRequest {
-            plan: Some(input.clone()),
-        })
+        .unary::<contracts::planning::PreviewSelection>(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(input.clone()),
+            },
+        )
         .await
         .unwrap_err();
     assert_eq!(error_code(&failure), "invalid_selection");
     assert!(failure.message().contains("10201"));
-    assert!(execution.create_cycle(create(input)).await.is_err());
+    assert!(
+        execution
+            .unary::<contracts::execution::CreateCycle>(create(input))
+            .await
+            .is_err()
+    );
     assert!(owner.handle().cycles().await.is_empty());
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
@@ -636,37 +671,44 @@ pub(crate) async fn payload_budget_allocation() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut planning = PlanningClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
-    let mut execution = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let input = plan(vec![selection(&suite)]);
     let failure = planning
-        .preview_selection(v1::PreviewSelectionRequest {
-            plan: Some(input.clone()),
-        })
+        .unary::<contracts::planning::PreviewSelection>(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(input.clone()),
+            },
+        )
         .await
         .unwrap_err();
     assert_eq!(error_code(&failure), "planning_payload_limit");
     assert_eq!(
-        error_code(&execution.create_cycle(create(input)).await.unwrap_err()),
+        error_code(
+            &execution
+                .unary::<contracts::execution::CreateCycle>(create(input))
+                .await
+                .unwrap_err()
+        ),
         "planning_payload_limit"
     );
     // A smaller explicit selection is valid with the same large default files.
     let mut selected = selection(&suite);
-    selected.parameters.insert(
-        "fixture.result".into(),
-        v1::SelectionValues {
-            values: vec![integer(0)],
-        },
-    );
+    selected
+        .parameters
+        .push(contracts::planning::RegisteredSelectionParametersEntry {
+            key: "fixture.result".into(),
+            value: Some(contracts::planning::SelectionValues {
+                values: vec![integer(0)],
+            }),
+        });
     assert_eq!(
         planning
-            .preview_selection(v1::PreviewSelectionRequest {
-                plan: Some(plan(vec![selected]))
-            })
+            .unary::<contracts::planning::PreviewSelection>(
+                contracts::planning::PreviewSelectionRequest {
+                    plan: Some(plan(vec![selected]))
+                }
+            )
             .await
             .unwrap()
             .into_inner()
@@ -679,9 +721,11 @@ pub(crate) async fn payload_budget_allocation() {
     suite.metadata.description = Some("description".repeat(1000));
     common::register_fixture_execution(&owner.handle(), suite.clone()).await;
     let failure = planning
-        .preview_selection(v1::PreviewSelectionRequest {
-            plan: Some(plan(vec![selection(&suite)])),
-        })
+        .unary::<contracts::planning::PreviewSelection>(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(plan(vec![selection(&suite)])),
+            },
+        )
         .await
         .unwrap_err();
     assert_eq!(error_code(&failure), "planning_payload_limit");
@@ -709,16 +753,23 @@ pub(crate) async fn payload_budget_allocation() {
     assert_eq!(
         error_code(
             &planning
-                .preview_selection(v1::PreviewSelectionRequest {
-                    plan: Some(input.clone())
-                })
+                .unary::<contracts::planning::PreviewSelection>(
+                    contracts::planning::PreviewSelectionRequest {
+                        plan: Some(input.clone())
+                    }
+                )
                 .await
                 .unwrap_err()
         ),
         "planning_payload_limit"
     );
     assert_eq!(
-        error_code(&execution.create_cycle(create(input)).await.unwrap_err()),
+        error_code(
+            &execution
+                .unary::<contracts::execution::CreateCycle>(create(input))
+                .await
+                .unwrap_err()
+        ),
         "planning_payload_limit"
     );
     assert!(owner.handle().cycles().await.is_empty());
@@ -743,20 +794,18 @@ pub(crate) async fn registered_cases_selection() {
     let server = Server::start(owner.handle(), Config::local())
         .await
         .unwrap();
-    let mut planning = PlanningClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
-    let request = v1::RegisterSelectionRequest {
+    let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let request = contracts::planning::RegisterSelectionRequest {
         plan: Some(plan(vec![selection(&suite)])),
         idempotency_key: "register-once".into(),
     };
     let first = planning
-        .register_selection(request.clone())
+        .unary::<contracts::planning::RegisterSelection>(request.clone())
         .await
         .unwrap()
         .into_inner();
     let retried = planning
-        .register_selection(request)
+        .unary::<contracts::planning::RegisterSelection>(request)
         .await
         .unwrap()
         .into_inner();
@@ -771,14 +820,16 @@ pub(crate) async fn registered_cases_selection() {
             .is_empty()
     );
     let ids = vec![first.cases[0].case_id.clone(); 2];
-    let selected = v1::SelectionPlan {
+    let selected = contracts::planning::SelectionPlan {
         case_ids: ids.clone(),
         ..Default::default()
     };
     let preview = planning
-        .preview_selection(v1::PreviewSelectionRequest {
-            plan: Some(selected.clone()),
-        })
+        .unary::<contracts::planning::PreviewSelection>(
+            contracts::planning::PreviewSelectionRequest {
+                plan: Some(selected.clone()),
+            },
+        )
         .await
         .unwrap()
         .into_inner();
@@ -790,11 +841,9 @@ pub(crate) async fn registered_cases_selection() {
             .collect::<Vec<_>>(),
         ids
     );
-    let mut execution = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let created = execution
-        .create_cycle(create(selected))
+        .unary::<contracts::execution::CreateCycle>(create(selected))
         .await
         .unwrap()
         .into_inner();
@@ -811,14 +860,16 @@ pub(crate) async fn registered_cases_selection() {
         cycle.test_executions[1].test_case_id
     );
 
-    let mixed = v1::SelectionPlan {
+    let mixed = contracts::planning::SelectionPlan {
         case_ids: ids,
         selections: vec![selection(&suite)],
         ..Default::default()
     };
     assert_eq!(
         planning
-            .preview_selection(v1::PreviewSelectionRequest { plan: Some(mixed) })
+            .unary::<contracts::planning::PreviewSelection>(
+                contracts::planning::PreviewSelectionRequest { plan: Some(mixed) }
+            )
             .await
             .unwrap_err()
             .code(),

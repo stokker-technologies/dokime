@@ -33,8 +33,8 @@ struct Checks;
 #[derive(Debug)]
 struct Error;
 
-#[sdk::message]
-#[derive(Clone, sdk::TelemetryRow)]
+#[sdk::row]
+#[derive(Clone)]
 struct Row {
     value: f64,
 }

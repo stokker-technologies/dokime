@@ -234,7 +234,7 @@ impl RuntimeHandle {
 
     pub(crate) async fn journal_records_through(
         &self,
-        frontier: harmos::Position,
+        frontier: harmos::state::Position,
     ) -> crate::Result<Vec<RecordEntry>> {
         validate_frontier(frontier, self.state_manager.applied())?;
         self.record_source
@@ -269,7 +269,7 @@ impl RuntimeHandle {
                 )
                 .collect::<BTreeSet<_>>();
         Ok(self
-            .journal_records_through(harmos::Position(snapshot.revision()))
+            .journal_records_through(harmos::state::Position(snapshot.revision()))
             .await?
             .into_iter()
             .filter(|record| {
@@ -422,7 +422,10 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 
-fn validate_frontier(frontier: harmos::Position, applied: harmos::Position) -> crate::Result<()> {
+fn validate_frontier(
+    frontier: harmos::state::Position,
+    applied: harmos::state::Position,
+) -> crate::Result<()> {
     if frontier > applied {
         return Err(crate::Error::Operation(
             "record frontier exceeds applied state position".into(),

@@ -16,7 +16,7 @@ pub(crate) use crate::transactions::{ControlCycle as Control, CycleControlAction
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::RequestKey;
+use harmos::state::RequestKey;
 // Local Imports
 use crate::{CommandContext, Error, RuntimeHandle, unavailable_rejection};
 use dokime::core::{TestCycleId, TestExecutionId, Timestamp};

@@ -131,6 +131,12 @@ impl Source {
     }
 
     pub(crate) async fn initialize(&self) -> Result<()> {
+        use harmos::schema::Described;
+        let schema = harmos::schema::graph::Schema::from_declaration(
+            records::RecordRow::DEFINITION,
+            &harmos::config::SchemaSettings::default(),
+        )
+        .map_err(projection_error)?;
         let mut query = SchemaQuery::new();
         query.schema = Some(self.schema.clone());
         query.options = QueryOptions {
@@ -144,7 +150,7 @@ impl Source {
         let mut found = false;
         while let Some(validated) = schemas
             .next_page_projected(marker_memory, |rows, _| {
-                if found || rows.len() != 1 || rows[0].fields != records::fields() {
+                if found || rows.len() != 1 || rows[0].schema != schema {
                     return Err(projection_error("stored capture schema differs"));
                 }
                 Ok(true)
@@ -158,7 +164,7 @@ impl Source {
         if !found {
             let declared = self
                 .storage
-                .write_schema(&self.schema, records::fields())
+                .write_schema(&self.schema, &schema)
                 .await
                 .map_err(Error::from)?;
             self.storage
@@ -173,7 +179,7 @@ impl Source {
         self.closed.send_replace(true);
     }
 
-    pub(crate) fn begin(&self, origin: harmos::Position) {
+    pub(crate) fn begin(&self, origin: harmos::state::Position) {
         self.origin.store(origin.0, Ordering::Release);
     }
 
@@ -199,7 +205,7 @@ impl Source {
     ) -> Result<()> {
         self.healthy(state_manager)?;
         state_manager
-            .wait_until_captured(harmos::Position(frontier))
+            .wait_until_captured(harmos::state::Position(frontier))
             .await
             .map_err(error)?;
         self.healthy(state_manager)
@@ -221,8 +227,9 @@ impl Source {
             if *progress.borrow_and_update() {
                 return Ok(None);
             }
-            let watched = state_manager
-                .watch::<harmos::Recorded<crate::app::Dokime>>(harmos::Position(after));
+            let watched = state_manager.watch::<harmos::state::Recorded<crate::app::Dokime>>(
+                harmos::state::Position(after),
+            );
             tokio::pin!(watched);
             tokio::select! {
                 _ = progress.changed() => {},
@@ -245,7 +252,7 @@ impl Source {
 impl harmos::storage::RecordProjection for Projection {
     fn project<'a>(
         &'a self,
-        envelope: &'a harmos::Envelope<&serde_json::Value>,
+        envelope: &'a harmos::state::Envelope<&serde_json::Value>,
         output: &'a mut harmos::storage::ProjectedRecords<'_>,
     ) -> harmos::storage::StorageFuture<'a, ()> {
         let span = tracing::debug_span!(
@@ -268,14 +275,14 @@ impl harmos::storage::RecordProjection for Projection {
                 };
                 let produced = preparation.finish(
                     (|allowance: std::num::NonZeroUsize| -> harmos::Result<_> {
-                        let record = if let Some(fact) = harmos::SystemFact::restore(
+                        let record = if let Some(fact) = harmos::state::SystemFact::restore(
                             &envelope.id,
                             envelope.version,
                             envelope.payload,
                         )
                         .map_err(projection_error)?
                         {
-                            let harmos::FactSource::Sidecar(owner) = fact.source else {
+                            let harmos::state::FactSource::Sidecar(owner) = fact.source else {
                                 return Ok(None);
                             };
                             let persisted: PersistedRecord =

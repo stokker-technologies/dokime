@@ -49,6 +49,7 @@ impl dokime::Plugin for Bench {
 fn main() -> std::io::Result<()> { dokime::plugin::run::<Bench>() }
 ```
 
+- Payloads, records and reusable measurement rows use `#[dokime::message]`, `#[dokime::record(...)]` and `#[dokime::row]`. These wrappers use one shared message codec/schema implementation; record/row field annotations retain their domain meaning. Do not stack declarations or use the retired `TelemetryRow` derive.
 - Device behaviour is a `#[dokime::operation]` on an inherent impl with `new(Arc<Resources>)` and `async fn run(&mut self, ctx: &Supervisor, request: &Req) -> Result<Resp, Refusal>`, listed in a `#[dokime::catalog]` and named by `provides`. Requests and responses are `#[dokime::message]` values or `()`. There are no routes, route tables, handles or route contexts.
 - `requires(...)` names only operations another plugin or the host provides, with their grants. A plugin's own operations stay Private (the default) and are callable by its own runs without being listed; Harmos refuses a plugin that requires its own operation. Share an operation with other plugins with `visibility = Shared` on its declaration.
 - Contributions are inert, namespaced sections the host reads without running the plugin: `Suites`, `Records`, `Prompts`, `Evidence`, `Settings`. List only the domains the plugin contributes.

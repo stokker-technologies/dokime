@@ -15,16 +15,21 @@
 // Standard Library Imports
 
 // Third Party Imports
-use tonic::{Request, Status};
+use std::sync::Arc;
+
+use harmos::operations::{Context, Operation};
+use tonic::Status;
 // Local Imports
-use super::codec::{self, CommandWire};
-use super::{Principal, Role, requests, value};
+use super::loan;
+use super::{requests, value};
+use crate::grpc::access::{Principal, Role};
+use crate::grpc::value::canonical;
 use dokime_app::capabilities::execution::requests::{
     RunReceipt, StepCommand, StepCommandPhase, StepCommandReceipt,
 };
 use dokime_app::core::{CommandId, StepId, TestExecutionId};
 use dokime_app::{Error, RuntimeHandle};
-use dokime_protocol::v1;
+use dokime_contract::operations::execution as wire;
 
 /* === Constants === */
 
@@ -33,29 +38,94 @@ use dokime_protocol::v1;
 /* === Type Aliases === */
 
 /* === Structs === */
+struct Submit {
+    resources: Arc<super::Resources>,
+}
+struct Lookup {
+    resources: Arc<super::Resources>,
+}
 
 /* === Enums === */
+#[harmos::catalog]
+enum Operations {
+    Submit(Submit),
+    Lookup(Lookup),
+}
 
 /* === Traits === */
 
 /* === Implementations === */
+impl Operation for Submit {
+    type Declaration = wire::SubmitExecutionCommand;
+    type Resources = super::Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Self::Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        context: Self::Context<'a>,
+        request: &mut wire::SubmitExecutionCommandRequest,
+        _: &mut (),
+    ) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
+        submit(&self.resources, requests::principal(&context)?, request).await
+    }
+}
+
+impl Operation for Lookup {
+    type Declaration = wire::GetExecutionCommand;
+    type Resources = super::Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Self::Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        context: Self::Context<'a>,
+        request: &mut wire::GetExecutionCommandRequest,
+        _: &mut (),
+    ) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
+        get(&self.resources, requests::principal(&context)?, request).await
+    }
+}
 
 /* === Public Functions === */
-pub(super) async fn submit(
+pub(super) fn register(
     runtime: &RuntimeHandle,
-    request: Request<v1::SubmitExecutionCommandRequest>,
-) -> Result<codec::CommandReceipt, Status> {
-    let principal = Principal::of(&request)?.clone();
+    max_message_bytes: usize,
+) -> Result<(), crate::grpc::Error> {
+    runtime
+        .operations()
+        .register_wire_operations::<Operations, super::Resources>(
+            "dokime",
+            dokime_app::app::Lanes::Open,
+            Arc::new(super::Resources {
+                runtime: runtime.clone(),
+                max_message_bytes,
+            }),
+        )?;
+    Ok(())
+}
+
+async fn submit(
+    resources: &super::Resources,
+    principal: &Principal,
+    request: &wire::SubmitExecutionCommandRequest,
+) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
+    let runtime = &resources.runtime;
     if principal.role() < Role::Control {
         return Err(Status::permission_denied("control permission is required"));
     }
-    let request = request.into_inner();
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
-    let execution_id = TestExecutionId::from_uuid(request.execution_id)
+    let execution_id = TestExecutionId::from_uuid(request.execution_id.clone())
         .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
-    let action = action(request.action, request.step_id)?;
-    owned(runtime, &principal, &request_id).await?;
+    let action = action(request.action, request.step_id.as_deref())?;
+    owned(runtime, principal, &request_id).await?;
     let receipt = runtime
         .admit_execution_command(&request_id, command_id, execution_id, action)
         .await
@@ -68,23 +138,23 @@ pub(super) async fn submit(
                 &error,
             ),
         })?;
-    charged_project(runtime, &request_id, &receipt)
+    charged_project(resources, &request_id, &receipt)
 }
 
-pub(super) async fn get(
-    runtime: &RuntimeHandle,
-    request: Request<v1::GetExecutionCommandRequest>,
-) -> Result<codec::CommandReceipt, Status> {
-    let principal = Principal::of(&request)?.clone();
-    let request = request.into_inner();
+async fn get(
+    resources: &super::Resources,
+    principal: &Principal,
+    request: &wire::GetExecutionCommandRequest,
+) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
+    let runtime = &resources.runtime;
     let request_id = command_id(&request.request_id)?;
     let command_id = command_id(&request.command_id)?;
-    let receipt = owned(runtime, &principal, &request_id).await?;
+    let receipt = owned(runtime, principal, &request_id).await?;
     let command = receipt
         .commands
         .get(&command_id)
         .ok_or_else(|| Status::not_found("execution command not found"))?;
-    charged_project(runtime, &request_id, command)
+    charged_project(resources, &request_id, command)
 }
 
 /* === Private Functions === */
@@ -108,14 +178,19 @@ async fn owned(
 }
 
 fn command_id(id: &str) -> Result<CommandId, Status> {
+    value::text(id)?;
     CommandId::from_uuid(id).map_err(|_| Status::invalid_argument("invalid command UUID"))
 }
 
-fn action(action: i32, step_id: Option<String>) -> Result<StepCommand, Status> {
-    match (v1::ExecutionCommandAction::try_from(action), step_id) {
-        (Ok(v1::ExecutionCommandAction::Next), None) => Ok(StepCommand::Next),
-        (Ok(v1::ExecutionCommandAction::Finish), None) => Ok(StepCommand::Finish),
-        (Ok(v1::ExecutionCommandAction::RunStep), Some(id)) => {
+fn action(
+    action: wire::ExecutionCommandAction,
+    step_id: Option<&str>,
+) -> Result<StepCommand, Status> {
+    match (action, step_id) {
+        (wire::ExecutionCommandAction::Next, None) => Ok(StepCommand::Next),
+        (wire::ExecutionCommandAction::Finish, None) => Ok(StepCommand::Finish),
+        (wire::ExecutionCommandAction::RunStep, Some(id)) => {
+            value::text(id)?;
             let step_id = StepId::from_uuid(id)
                 .map_err(|_| Status::invalid_argument("invalid frozen step UUID"))?;
             Ok(StepCommand::RunStep { step_id })
@@ -127,11 +202,11 @@ fn action(action: i32, step_id: Option<String>) -> Result<StepCommand, Status> {
 }
 
 fn charged_project(
-    runtime: &RuntimeHandle,
+    resources: &super::Resources,
     request_id: &CommandId,
     receipt: &StepCommandReceipt,
-) -> Result<codec::CommandReceipt, Status> {
-    let bytes = std::mem::size_of::<CommandWire>()
+) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
+    let bytes = std::mem::size_of::<wire::ExecutionCommandReceipt>()
         .saturating_add(request_id.as_str().len())
         .saturating_add(receipt.command_id.as_str().len())
         .saturating_add(receipt.execution_id.as_str().len())
@@ -146,48 +221,51 @@ fn charged_project(
             StepCommand::Next | StepCommand::Finish => 0,
         })
         .saturating_add(receipt.detail.as_ref().map_or(0, String::len));
-    let preparation = codec::reserve(runtime, bytes)?;
-    let output = CommandWire(project(request_id, receipt)?);
+    let preparation = loan::reserve(&resources.runtime, bytes)?;
+    let output = project(request_id, receipt)?;
+    loan::response_limit(&output, resources.max_message_bytes)?;
     preparation
         .finish(output)
-        .map_err(codec::memory_error)?
+        .map_err(loan::memory_error)?
         .try_into_value()
-        .map_err(codec::memory_error)
+        .map_err(loan::memory_error)?
+        .try_into_response()
+        .map_err(loan::memory_error)
 }
 
 fn project(
     request_id: &CommandId,
     receipt: &StepCommandReceipt,
-) -> Result<v1::ExecutionCommandReceipt, Status> {
+) -> Result<wire::ExecutionCommandReceipt, Status> {
     let (action, step_id) = match &receipt.action {
-        StepCommand::Next => (v1::ExecutionCommandAction::Next, None),
+        StepCommand::Next => (wire::ExecutionCommandAction::Next, None),
         StepCommand::RunStep { step_id } => (
-            v1::ExecutionCommandAction::RunStep,
+            wire::ExecutionCommandAction::RunStep,
             Some(step_id.as_str().to_owned()),
         ),
-        StepCommand::Finish => (v1::ExecutionCommandAction::Finish, None),
+        StepCommand::Finish => (wire::ExecutionCommandAction::Finish, None),
     };
     if let Some(detail) = &receipt.detail {
         value::text(detail)?;
     }
-    Ok(v1::ExecutionCommandReceipt {
+    Ok(wire::ExecutionCommandReceipt {
         request_id: request_id.as_str().to_owned(),
         command_id: receipt.command_id.as_str().to_owned(),
         execution_id: receipt.execution_id.as_str().to_owned(),
-        action: action as i32,
+        action,
         step_id,
         phase: match receipt.phase {
-            StepCommandPhase::Accepted => v1::ExecutionCommandPhase::Accepted,
-            StepCommandPhase::Dispatching => v1::ExecutionCommandPhase::Dispatching,
-            StepCommandPhase::Running => v1::ExecutionCommandPhase::Running,
-            StepCommandPhase::Completed => v1::ExecutionCommandPhase::Completed,
-            StepCommandPhase::Refused => v1::ExecutionCommandPhase::Refused,
-            StepCommandPhase::Failed => v1::ExecutionCommandPhase::Failed,
-            StepCommandPhase::Interrupted => v1::ExecutionCommandPhase::Interrupted,
-        } as i32,
+            StepCommandPhase::Accepted => wire::ExecutionCommandPhase::Accepted,
+            StepCommandPhase::Dispatching => wire::ExecutionCommandPhase::Dispatching,
+            StepCommandPhase::Running => wire::ExecutionCommandPhase::Running,
+            StepCommandPhase::Completed => wire::ExecutionCommandPhase::Completed,
+            StepCommandPhase::Refused => wire::ExecutionCommandPhase::Refused,
+            StepCommandPhase::Failed => wire::ExecutionCommandPhase::Failed,
+            StepCommandPhase::Interrupted => wire::ExecutionCommandPhase::Interrupted,
+        },
         attempt_id: receipt.attempt_id.as_ref().map(|id| id.as_str().to_owned()),
-        accepted_at: Some(requests::timestamp(&receipt.accepted_at)?),
-        updated_at: Some(requests::timestamp(&receipt.updated_at)?),
+        accepted_at: Some(canonical::timestamp(&receipt.accepted_at)?),
+        updated_at: Some(canonical::timestamp(&receipt.updated_at)?),
         detail: receipt.detail.clone(),
     })
 }

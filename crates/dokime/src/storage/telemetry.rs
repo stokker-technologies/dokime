@@ -17,7 +17,7 @@ pub use sample::Sample;
 // Standard Library Imports
 use std::num::NonZeroUsize;
 // Third Party Imports
-use harmos::{MemorySize, Message, schema::Described, storage::SchemaKey};
+use harmos::{MemorySize, Message, storage::SchemaKey};
 // Local Imports
 use super::{Error, Result, records::ScopeRow, values};
 use crate::core::{Identifier, SessionId};
@@ -196,10 +196,6 @@ pub fn schema() -> SchemaKey {
         id: Identifier::new("dokime.capture.telemetry").unwrap(),
         version: 1.try_into().unwrap(),
     }
-}
-
-pub fn fields() -> &'static [harmos::schema::Field] {
-    TelemetryRow::FIELDS
 }
 
 pub fn encode(entry: &TelemetryEntry, max_bytes: usize) -> Result<Vec<u8>> {

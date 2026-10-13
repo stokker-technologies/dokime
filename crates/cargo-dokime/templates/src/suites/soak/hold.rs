@@ -97,7 +97,7 @@ pub struct SoakResources {
 // criterion reads them with `ctx.samples::<SoakRow>()`, and the
 // `#[observer]` below adds only the cadence it publishes them on.
 // `#[stream]` writes the columns as well, so this does not also derive
-// `dokime::TelemetryRow`, and every column comes with a handle a document names
+// `#[dokime::row]`, and every column comes with a handle a document names
 // it by — rename `celsius` and the plot above stops compiling rather than
 // quietly drawing nothing.
 #[stream(id = "{{owner}}.soak.samples", window = 4096, label = "Soak Samples", description = "The chamber, once per interval, for the length of the attempt.")]

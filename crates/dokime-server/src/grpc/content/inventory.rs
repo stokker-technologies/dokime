@@ -12,33 +12,38 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-
 // Standard Library Imports
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 // Third Party Imports
-use prost::Message;
+use harmos::Protobuf;
+use harmos::operations::{Context, Operation, Response};
 use sha2::{Digest, Sha256};
+use tonic::Status;
 
 // Local Imports
-use super::super::{enums, value::projection};
-use dokime_app::{ExecutionFileEntry, core::TestExecutionId};
-use dokime_protocol::v1;
+use crate::grpc::value::{self, projection};
+use dokime_app::{ExecutionFileEntry, RuntimeHandle, core::TestExecutionId};
+use dokime_contract::operations::content as wire;
 
 /* === Constants === */
-include!(concat!(env!("OUT_DIR"), "/inventory-output-fields.rs"));
 const INVENTORY_LIMIT: usize = 512;
-const DIGEST_BYTES: usize = std::mem::size_of::<[u8; 32]>();
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+struct Resources {
+    runtime: RuntimeHandle,
+    maximum: usize,
+}
+struct List {
+    resources: Arc<Resources>,
+}
 struct Count {
     memory: usize,
-    encoded: usize,
-    metadata_buffer: usize,
     after: usize,
     returned: usize,
     more: bool,
@@ -49,35 +54,93 @@ struct Count {
 /* === Traits === */
 
 /* === Implementations === */
+impl Operation for List {
+    type Declaration = wire::ListExecutionFiles;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut wire::ListExecutionFilesRequest,
+        _: &mut (),
+    ) -> Result<Response<wire::ListExecutionFilesReply>, Status> {
+        let (id, epoch) = super::files::execution(&self.resources.runtime, &request.execution_id)?;
+        value::text(&request.after_path)?;
+        if request.limit > 100 {
+            return Err(Status::invalid_argument("page limit exceeds 100"));
+        }
+        if !request.after_path.is_empty() && request.cursor.is_none() {
+            return Err(Status::invalid_argument("subsequent page requires cursor"));
+        }
+        if let Some(cursor) = &request.cursor
+            && (cursor.epoch != epoch || cursor.execution_id != id.as_str())
+        {
+            return Err(Status::failed_precondition(
+                "file cursor epoch or execution mismatch",
+            ));
+        }
+        let page = self
+            .resources
+            .runtime
+            .execution_files_projected(&id, |entries, allowance| {
+                project(
+                    entries,
+                    &id,
+                    &epoch,
+                    request,
+                    allowance,
+                    self.resources.maximum,
+                )
+            })
+            .await
+            .map_err(super::files::read_failure)?;
+        page.try_into_response()
+            .map_err(|source| super::files::read_failure(source.into()))
+    }
+}
 
 /* === Public Functions === */
-pub(super) fn encode(
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    runtime.operations().register_wire_operation::<List>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            maximum,
+        }),
+    )?;
+    Ok(())
+}
+
+/* === Private Functions === */
+fn project(
     entries: &[ExecutionFileEntry],
     id: &TestExecutionId,
     epoch: &str,
-    request: &v1::ListExecutionFilesRequest,
+    request: &wire::ListExecutionFilesRequest,
     allowance: NonZeroUsize,
     maximum: usize,
-) -> harmos::Result<Vec<u8>> {
+) -> harmos::Result<wire::ListExecutionFilesReply> {
     let counted = count(entries, id, epoch, request)?;
-    if counted.memory > allowance.get() || counted.encoded > maximum {
+    if counted.memory > allowance.get() {
         return Err(exhausted());
     }
-
     let mut files = projection::slots(entries.len())?;
     for entry in entries {
         files.push(metadata(entry)?);
     }
-    let mut scratch = projection::slots(counted.metadata_buffer)?;
     let mut hash = Sha256::new();
     for file in &files {
-        scratch.clear();
-        file.encode_length_delimited(&mut scratch)
-            .map_err(|_| invalid_wire())?;
-        if scratch.capacity() > counted.metadata_buffer {
-            return Err(exhausted());
-        }
-        hash.update(&scratch);
+        let encoded = file.encode_to_vec();
+        let mut prefix = Vec::with_capacity(10);
+        prost::encoding::encode_varint(encoded.len() as u64, &mut prefix);
+        hash.update(&prefix);
+        hash.update(&encoded);
     }
     let digest = hash.finalize();
     if request
@@ -90,49 +153,36 @@ pub(super) fn encode(
             reason: "metadata fingerprint differs",
         });
     }
-    let mut metadata_sha256 = projection::slots(digest.len())?;
-    metadata_sha256.extend_from_slice(&digest);
-    let cursor = v1::ExecutionFilesCursor {
-        epoch: projection::text(epoch)?,
-        execution_id: projection::text(id.as_str())?,
-        metadata_sha256,
-    };
     let mut selected = projection::slots(counted.returned)?;
-    for file in files.into_iter().skip(counted.after).take(counted.returned) {
-        selected.push(file);
-    }
+    selected.extend(files.into_iter().skip(counted.after).take(counted.returned));
     let next_after_path = if counted.more {
         Some(projection::text(
-            &selected
-                .last()
-                .expect("nonempty continuation page")
-                .relative_path,
+            &selected.last().ok_or_else(invalid_wire)?.relative_path,
         )?)
     } else {
         None
     };
-    let wire = v1::ListExecutionFilesReply {
+    let mut metadata_sha256 = projection::slots(digest.len())?;
+    metadata_sha256.extend_from_slice(&digest);
+    let page = wire::ListExecutionFilesReply {
         files: selected,
         next_after_path,
-        cursor: Some(cursor),
+        cursor: Some(wire::ExecutionFilesCursor {
+            epoch: projection::text(epoch)?,
+            execution_id: projection::text(id.as_str())?,
+            metadata_sha256,
+        }),
     };
-    if wire.encoded_len() != counted.encoded {
-        return Err(invalid_wire());
+    if page.encoded_len() > maximum {
+        return Err(exhausted());
     }
-    let mut target = projection::slots(counted.encoded)?;
-    wire.encode(&mut target).map_err(|_| invalid_wire())?;
-    if target.len() != counted.encoded {
-        return Err(invalid_wire());
-    }
-    Ok(target)
+    Ok(page)
 }
-
-/* === Private Functions === */
 fn count(
     entries: &[ExecutionFileEntry],
     id: &TestExecutionId,
     epoch: &str,
-    request: &v1::ListExecutionFilesRequest,
+    request: &wire::ListExecutionFilesRequest,
 ) -> harmos::Result<Count> {
     if entries.len() > INVENTORY_LIMIT {
         return Err(exhausted());
@@ -162,123 +212,66 @@ fn count(
     };
     let returned = entries.len().saturating_sub(after).min(limit);
     let more = entries.len().saturating_sub(after) > returned;
-    let mut memory = std::mem::size_of::<Vec<v1::ExecutionFileMetadata>>()
-        .checked_add(
+    let mut memory = std::mem::size_of::<wire::ListExecutionFilesReply>()
+        .saturating_add(std::mem::size_of::<Vec<wire::ExecutionFileMetadata>>())
+        .saturating_add(
             entries
                 .len()
-                .checked_mul(std::mem::size_of::<v1::ExecutionFileMetadata>())
-                .ok_or_else(exhausted)?,
+                .saturating_add(returned)
+                .saturating_mul(std::mem::size_of::<wire::ExecutionFileMetadata>()),
         )
-        .ok_or_else(exhausted)?;
-    let mut metadata_buffer = 0usize;
-    let mut encoded = 0usize;
-    for (index, entry) in entries.iter().enumerate() {
-        super::super::value::text(&entry.relative_path).map_err(|_| exhausted())?;
-        if let Some(media_type) = &entry.content_type {
-            super::super::value::text(media_type).map_err(|_| exhausted())?;
+        .saturating_add(epoch.len())
+        .saturating_add(id.as_str().len())
+        .saturating_add(32);
+    let mut scratch = 0usize;
+    for entry in entries {
+        value::text(&entry.relative_path).map_err(|_| exhausted())?;
+        if let Some(content_type) = &entry.content_type {
+            value::text(content_type).map_err(|_| exhausted())?;
         }
-        memory = memory
-            .checked_add(entry.relative_path.len())
-            .and_then(|bytes| bytes.checked_add(entry.content_type.as_ref().map_or(0, String::len)))
-            .ok_or_else(exhausted)?;
-        let length = metadata_length(entry)?;
-        let delimited = prost::encoding::encoded_len_varint(length as u64)
-            .checked_add(length)
-            .ok_or_else(exhausted)?;
-        metadata_buffer = metadata_buffer.max(delimited);
-        if index >= after && index < after + returned {
-            encoded = encoded
-                .checked_add(projection::framed(FILES, length)?)
-                .ok_or_else(exhausted)?;
-        }
+        let heap = entry
+            .relative_path
+            .len()
+            .saturating_add(entry.content_type.as_ref().map_or(0, String::len));
+        memory = memory.saturating_add(heap);
+        scratch = scratch.max(
+            std::mem::size_of::<wire::ExecutionFileMetadata>()
+                .saturating_add(heap)
+                .saturating_mul(2)
+                .saturating_add(16),
+        );
     }
-    let next = if more {
-        entries[after + returned - 1].relative_path.len()
-    } else {
-        0
-    };
     if more {
-        encoded = encoded
-            .checked_add(projection::framed(NEXT, next)?)
-            .ok_or_else(exhausted)?;
+        memory = memory.saturating_add(entries[after + returned - 1].relative_path.len());
     }
-    let digest_length = projection::framed(DIGEST, DIGEST_BYTES)?;
-    let cursor_length = string_length(EPOCH, epoch)?
-        .checked_add(string_length(EXECUTION, id.as_str())?)
-        .and_then(|bytes| bytes.checked_add(digest_length))
-        .ok_or_else(exhausted)?;
-    encoded = encoded
-        .checked_add(projection::framed(CURSOR, cursor_length)?)
-        .ok_or_else(exhausted)?;
-    for bytes in [
-        std::mem::size_of::<Vec<u8>>(),
-        metadata_buffer,
-        std::mem::size_of::<v1::ListExecutionFilesReply>(),
-        returned
-            .checked_mul(std::mem::size_of::<v1::ExecutionFileMetadata>())
-            .ok_or_else(exhausted)?,
-        next,
-        epoch.len(),
-        id.as_str().len(),
-        DIGEST_BYTES,
-        std::mem::size_of::<Vec<u8>>(),
-        encoded,
-    ] {
-        memory = memory.checked_add(bytes).ok_or_else(exhausted)?;
+    memory = memory.saturating_add(scratch);
+    if memory == usize::MAX {
+        return Err(exhausted());
     }
     Ok(Count {
         memory,
-        encoded,
-        metadata_buffer,
         after,
         returned,
         more,
     })
 }
-
-fn metadata_length(entry: &ExecutionFileEntry) -> harmos::Result<usize> {
-    let scalars = v1::ExecutionFileMetadata {
-        kind: enums::execution_file_kind(&entry.content_kind) as i32,
-        state: enums::execution_file_state(&entry.stream_state) as i32,
-        size_bytes: entry.size_bytes,
-        created_at: Some(timestamp(entry)?),
-        ..Default::default()
-    };
-    let media_type = entry
-        .content_type
-        .as_ref()
-        .map_or(Ok(0), |value| projection::framed(MEDIA_TYPE, value.len()))?;
-    scalars
-        .encoded_len()
-        .checked_add(string_length(PATH, &entry.relative_path)?)
-        .and_then(|bytes| bytes.checked_add(media_type))
-        .ok_or_else(exhausted)
-}
-
-fn string_length(tag: u32, value: &str) -> harmos::Result<usize> {
-    if value.is_empty() {
-        Ok(0)
-    } else {
-        projection::framed(tag, value.len())
-    }
-}
-
-fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<v1::ExecutionFileMetadata> {
-    Ok(v1::ExecutionFileMetadata {
+fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<wire::ExecutionFileMetadata> {
+    Ok(wire::ExecutionFileMetadata {
         relative_path: projection::text(&entry.relative_path)?,
         content_type: entry
             .content_type
             .as_deref()
             .map(projection::text)
             .transpose()?,
-        kind: enums::execution_file_kind(&entry.content_kind) as i32,
-        state: enums::execution_file_state(&entry.stream_state) as i32,
+        kind: super::files::kind(&entry.content_kind),
+        state: super::files::state(&entry.stream_state),
         size_bytes: entry.size_bytes,
         created_at: Some(timestamp(entry)?),
     })
 }
-
-fn timestamp(entry: &ExecutionFileEntry) -> harmos::Result<prost_types::Timestamp> {
+fn timestamp(
+    entry: &ExecutionFileEntry,
+) -> harmos::Result<dokime_contract::operations::common::Timestamp> {
     let at = time::OffsetDateTime::parse(
         entry.updated_at.as_str(),
         &time::format_description::well_known::Rfc3339,
@@ -290,7 +283,7 @@ fn timestamp(entry: &ExecutionFileEntry) -> harmos::Result<prost_types::Timestam
             source,
         )
     })?;
-    Ok(prost_types::Timestamp {
+    Ok(dokime_contract::operations::common::Timestamp {
         seconds: at.unix_timestamp(),
         nanos: at.nanosecond() as i32,
     })

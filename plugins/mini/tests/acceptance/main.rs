@@ -45,9 +45,15 @@ const EXECUTABLE: &str = env!("CARGO_BIN_EXE_mini-sidecar");
 /* === Macros === */
 
 /* === Type Aliases === */
-type NoticeHandler = Box<dyn Fn(&harmos::Service<Fixture>, harmos::sidecar::Notice) + Send + Sync>;
-type Resident = harmos::sidecar::Supervised<Fixture, harmos::sidecar::Executable, NoticeHandler>;
-type Publication = harmos::sidecar::Publish<Fixture, harmos::sidecar::Executable, NoticeHandler>;
+type NoticeHandler =
+    Box<dyn Fn(&harmos::Service<Fixture>, harmos::plugin::sidecar::Notice) + Send + Sync>;
+type Resident = harmos::plugin::sidecar::Supervised<
+    Fixture,
+    harmos::plugin::sidecar::Executable,
+    NoticeHandler,
+>;
+type Publication =
+    harmos::plugin::sidecar::Publish<Fixture, harmos::plugin::sidecar::Executable, NoticeHandler>;
 
 /* === Structs === */
 struct Fixture;
@@ -85,7 +91,7 @@ struct Bench {
     runtime: harmos::Runtime<Fixture>,
     plugins: PluginManager<(), Backend, ()>,
     host: Host,
-    declaration: harmos::artifact::inventory::Declaration,
+    declaration: harmos::plugin::inventory::Declaration,
 }
 
 struct Evidence(Arc<Hosting>);
@@ -405,7 +411,7 @@ impl PluginLifecycle for Host {
                 assert!(captures.publications.len() < 4096);
                 captures.publications.push((publication.clone(), scope));
             });
-            let executable = harmos::sidecar::Executable::at(EXECUTABLE)
+            let executable = harmos::plugin::sidecar::Executable::at(EXECUTABLE)
                 .expect("mini executable has a valid declaration");
             let resident = Resident::new(executable, handler);
             let _ = self.hosting.resident.set(resident.clone());
@@ -474,7 +480,7 @@ impl PluginLifecycle for Host {
         };
         let bytes = std::fs::read(path).unwrap();
         assert_eq!(Sha256::digest(&bytes).as_slice(), sha256);
-        let executable = harmos::sidecar::Executable::at(path).unwrap();
+        let executable = harmos::plugin::sidecar::Executable::at(path).unwrap();
         let inspected: std::collections::BTreeMap<_, _> = executable
             .declaration()
             .operations
@@ -600,7 +606,7 @@ impl Bench {
     async fn new() -> Self {
         let path = std::path::PathBuf::from(EXECUTABLE);
         let bytes = std::fs::read(&path).unwrap();
-        let declaration = harmos::sidecar::Executable::at(&path)
+        let declaration = harmos::plugin::sidecar::Executable::at(&path)
             .unwrap()
             .declaration()
             .clone();
@@ -608,7 +614,7 @@ impl Bench {
             mini_sidecar::BenchSettings,
         >())
         .unwrap();
-        let mut registrar = harmos::artifact::Registrar::new();
+        let mut registrar = harmos::plugin::Registrar::new();
         <MiniSidecar as harmos::Plugin>::register(&mut registrar).unwrap();
         let definition = PluginDefinition {
             id: declaration.id.clone(),
@@ -629,11 +635,11 @@ impl Bench {
                 streams: declaration.streams.clone(),
                 observers: declaration.observers.clone(),
                 observer_controls: match &declaration.carrier {
-                    harmos::artifact::inventory::CarrierSection::Sidecar {
+                    harmos::plugin::inventory::CarrierSection::Sidecar {
                         observer_controls,
                         ..
                     } => observer_controls.as_deref().cloned(),
-                    harmos::artifact::inventory::CarrierSection::Guest => None,
+                    harmos::plugin::inventory::CarrierSection::Guest => None,
                 },
                 listeners: declaration.listeners.clone(),
                 sections: declaration.sections.clone(),
@@ -995,7 +1001,7 @@ async fn harmos_and_dokime_share_noncloneable_resources() {
 }
 
 fn executable_declares_identity_and_execution_routes() {
-    let declared = harmos::sidecar::Executable::at(EXECUTABLE)
+    let declared = harmos::plugin::sidecar::Executable::at(EXECUTABLE)
         .expect("the mini-sidecar executable declares itself")
         .declaration()
         .clone();

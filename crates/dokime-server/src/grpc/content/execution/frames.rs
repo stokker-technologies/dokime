@@ -1,0 +1,145 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+use std::num::NonZeroUsize;
+
+// Third Party Imports
+use harmos::Protobuf;
+use sha2::{Digest, Sha256};
+
+// Local Imports
+use super::super::files;
+use crate::grpc::value::projection;
+use dokime_app::ExecutionFileContent;
+use dokime_contract::operations::content as wire;
+
+/* === Constants === */
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+pub(super) fn metadata(
+    content: &ExecutionFileContent,
+    allowance: NonZeroUsize,
+    maximum: usize,
+) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
+    let bytes = std::mem::size_of::<wire::ExecutionFileDownloadFrame>()
+        .saturating_add(content.relative_path.len())
+        .saturating_add(content.content_type.as_ref().map_or(0, String::len));
+    admit(bytes, allowance)?;
+    let frame = wire::ExecutionFileDownloadFrame {
+        payload: Some(wire::ExecutionFileDownloadFramePayload::Metadata(
+            wire::ExecutionFileDownloadMetadata {
+                relative_path: projection::text(&content.relative_path)?,
+                content_type: content
+                    .content_type
+                    .as_deref()
+                    .map(projection::text)
+                    .transpose()?,
+                kind: files::kind(&content.content_kind),
+                state: files::state(&content.stream_state),
+                observed_size_bytes: content.size_bytes,
+            },
+        )),
+    };
+    checked(frame, maximum)
+}
+pub(super) fn chunk(
+    content: &ExecutionFileContent,
+    allowance: NonZeroUsize,
+    maximum: usize,
+) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
+    admit(
+        std::mem::size_of::<wire::ExecutionFileDownloadFrame>().saturating_add(content.bytes.len()),
+        allowance,
+    )?;
+    let mut bytes = projection::slots(content.bytes.len())?;
+    bytes.extend_from_slice(&content.bytes);
+    checked(
+        wire::ExecutionFileDownloadFrame {
+            payload: Some(wire::ExecutionFileDownloadFramePayload::Chunk(
+                wire::ArtifactChunk {
+                    offset: content.offset,
+                    data: bytes,
+                },
+            )),
+        },
+        maximum,
+    )
+}
+pub(super) fn complete(
+    size: u64,
+    digest: &Sha256,
+    allowance: NonZeroUsize,
+    maximum: usize,
+) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
+    admit(
+        std::mem::size_of::<wire::ExecutionFileDownloadFrame>().saturating_add(64),
+        allowance,
+    )?;
+    let digest = digest.clone().finalize();
+    let mut hex = [0u8; 64];
+    let alphabet = b"0123456789abcdef";
+    for (index, byte) in digest.iter().enumerate() {
+        hex[index * 2] = alphabet[(byte >> 4) as usize];
+        hex[index * 2 + 1] = alphabet[(byte & 15) as usize];
+    }
+    let sha256 = projection::text(std::str::from_utf8(&hex).expect("hexadecimal digest is ASCII"))?;
+    checked(
+        wire::ExecutionFileDownloadFrame {
+            payload: Some(wire::ExecutionFileDownloadFramePayload::Complete(
+                wire::ArtifactCompletion {
+                    size_bytes: size,
+                    sha256,
+                },
+            )),
+        },
+        maximum,
+    )
+}
+
+/* === Private Functions === */
+fn admit(bytes: usize, allowance: NonZeroUsize) -> harmos::Result<()> {
+    if bytes > allowance.get() {
+        return Err(exhausted());
+    }
+    Ok(())
+}
+fn checked(
+    frame: wire::ExecutionFileDownloadFrame,
+    maximum: usize,
+) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
+    if frame.encoded_len() > maximum {
+        return Err(exhausted());
+    }
+    Ok(frame)
+}
+fn exhausted() -> harmos::Error {
+    harmos::Error::ResourceExhausted {
+        resource: "canonical execution download frame",
+    }
+}
+
+/* === Tests === */

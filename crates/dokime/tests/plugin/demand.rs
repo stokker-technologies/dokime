@@ -11,8 +11,8 @@
 pub(crate) mod observers {
     use super::*;
 
-    #[dokime::message]
-    #[derive(Clone, dokime::TelemetryRow)]
+    #[dokime::row]
+    #[derive(Clone)]
     pub(super) struct Row {
         #[row(label = "Measured Value", unit = "V", format = fixed(2), description = "A shared measurement")]
         pub(super) value: i64,
@@ -69,26 +69,27 @@ pub(crate) mod observers {
         probe: Arc<Probe>,
     }
 
-    impl dokime::harmos::artifact::inventory::observers::Declared for Auxiliaries {
-        const ENTRY: dokime::harmos::artifact::inventory::observers::Entry =
-            dokime::harmos::artifact::inventory::observers::Entry {
-                id: <Self as dokime::harmos::sidecar::Observer<Publishing>>::ID,
+    impl dokime::harmos::plugin::inventory::observers::Declared for Auxiliaries {
+        const ENTRY: dokime::harmos::plugin::inventory::observers::Entry =
+            dokime::harmos::plugin::inventory::observers::Entry {
+                id: <Self as dokime::harmos::plugin::sidecar::Observer<Publishing>>::ID,
                 description: "",
-                interval: <Self as dokime::harmos::sidecar::Observer<Publishing>>::INTERVAL,
-                activation: <Self as dokime::harmos::sidecar::Observer<Publishing>>::ACTIVATION,
-                streams: <Self as dokime::harmos::sidecar::Observer<Publishing>>::STREAMS,
+                interval: <Self as dokime::harmos::plugin::sidecar::Observer<Publishing>>::INTERVAL,
+                activation:
+                    <Self as dokime::harmos::plugin::sidecar::Observer<Publishing>>::ACTIVATION,
+                streams: <Self as dokime::harmos::plugin::sidecar::Observer<Publishing>>::STREAMS,
                 demand_keys: &[],
             };
     }
 
-    impl dokime::harmos::sidecar::Observer<Publishing> for Auxiliaries {
+    impl dokime::harmos::plugin::sidecar::Observer<Publishing> for Auxiliaries {
         type Resources = Resource;
         type Error = Error;
         const ID: &'static str = "fixture.auxiliaries";
-        const STREAMS: &'static [dokime::harmos::artifact::inventory::publications::Entry] =
-            &[dokime::harmos::artifact::inventory::publications::Entry::of::<Auxiliary>()];
-        const ACTIVATION: dokime::harmos::sidecar::Activation =
-            dokime::harmos::sidecar::Activation::Demand;
+        const STREAMS: &'static [dokime::harmos::plugin::inventory::publications::Entry] =
+            &[dokime::harmos::plugin::inventory::publications::Entry::of::<Auxiliary>()];
+        const ACTIVATION: dokime::harmos::plugin::sidecar::Activation =
+            dokime::harmos::plugin::sidecar::Activation::Demand;
         const INTERVAL: Duration = Duration::from_millis(5);
 
         fn new(resource: &Resource) -> Result<Self, Error> {
@@ -157,9 +158,9 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime::harmos::artifact::plugin::Declared;
 use dokime::harmos::operations::{ServingError, WireTable};
-use dokime::harmos::sidecar::{DemandKey, ObserverAttachment, ObserverContext, Publisher};
+use dokime::harmos::plugin::contract::Declared;
+use dokime::harmos::plugin::sidecar::{DemandKey, ObserverAttachment, ObserverContext, Publisher};
 use harmos::Message;
 // Local Imports
 use dokime::plugin::Configuration;
@@ -275,9 +276,9 @@ struct RawIdentifiers {
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)]
-    Publication(#[from] dokime::harmos::sidecar::PublishError),
+    Publication(#[from] dokime::harmos::plugin::sidecar::PublishError),
     #[error(transparent)]
-    Undeclared(#[from] dokime::harmos::sidecar::PublicationError),
+    Undeclared(#[from] dokime::harmos::plugin::sidecar::PublicationError),
     #[error(transparent)]
     Published(#[from] dokime::Error),
     #[error("resource is temporarily unavailable")]
@@ -382,10 +383,10 @@ impl dokime::Plugin for Measured {
 
     fn attachment(
         &self,
-    ) -> Option<Arc<dyn dokime::harmos::artifact::plugin::Attachment<Supervisor>>> {
+    ) -> Option<Arc<dyn dokime::harmos::plugin::contract::Attachment<Supervisor>>> {
         self.observers.as_ref().map(|observers| {
             Arc::clone(observers)
-                as Arc<dyn dokime::harmos::artifact::plugin::Attachment<Supervisor>>
+                as Arc<dyn dokime::harmos::plugin::contract::Attachment<Supervisor>>
         })
     }
 
@@ -459,8 +460,8 @@ impl Noted {
             host.publisher::<Measured>()
                 .publish_on::<PushedRow>(&PushedRow { value: 1 })
                 .await,
-            Err(dokime::harmos::sidecar::PublishError::Publication(
-                dokime::harmos::sidecar::PublicationError::Undeclared { .. }
+            Err(dokime::harmos::plugin::sidecar::PublishError::Publication(
+                dokime::harmos::plugin::sidecar::PublicationError::Undeclared { .. }
             ))
         ));
         assert!(matches!(
@@ -547,7 +548,7 @@ fn configuration(probe: &Arc<Probe>, refuse: bool) -> Configuration {
 async fn opened(
     probe: &Arc<Probe>,
     demand_keys: Vec<String>,
-) -> super::native::Native<dokime::harmos::sidecar::PluginNative<Measured>> {
+) -> super::native::Native<dokime::harmos::plugin::sidecar::PluginNative<Measured>> {
     super::native::Native::initialize(
         super::native::attach::<Measured>(),
         <Measured as Declared>::VERSION,

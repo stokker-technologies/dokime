@@ -12,22 +12,16 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Callable
-
 import os
-from pathlib import Path
 import tomllib
-
+from collections.abc import Callable
+from pathlib import Path
 
 # Third Party Imports
-
 import pytest
 
-
 # Local Imports
-
 from dokime_tools import version
-
 
 # Type Checking Imports
 
@@ -65,7 +59,7 @@ def case_metadata_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         else:
             (tmp_path / "uv.lock").write_text(
                 f'[[package]]\nname = "dokime-rust-workspace"\nversion = "{version.python_version(current)}"\n'
-                '[[package]]\nname = "dokime"\n[package.source]\neditable = "crates/dokime-python"\n'
+                f'[[package]]\nname = "dokime"\nversion = "{version.python_version(current)}"\n[package.source]\neditable = "packages/dokime"\n'
             )
         assert kwargs == {"cwd": tmp_path, "check": True}
 
@@ -81,23 +75,41 @@ def case_metadata_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DOKIME_VERSION_MODE", "dev")
     with pytest.raises(ValueError, match="DOKIME_VERSION_MODE=release"):
         version.sync(tmp_path)
+    version.run(tmp_path, "sync", value="0.5.0")
+    version.run(tmp_path, "check")
+    assert (
+        tomllib.loads((tmp_path / "Cargo.toml").read_text())["workspace"]["package"][
+            "version"
+        ]
+        == "0.5.0"
+    )
+    assert os.environ["DOKIME_VERSION_MODE"] == "dev"
+    assert os.environ["DOKIME_VERSION_RELEASE"] == "0.4.9"
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    for verb, value in [("sync", "0.5"), ("check", "0.5.0"), ("unknown", None)]:
+        with pytest.raises(ValueError):
+            version.run(tmp_path, verb, value=value)
+        assert before == {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
 
 
-def test_dynamic_metadata(tmp_path: Path) -> None:
+def test_client_metadata(tmp_path: Path) -> None:
     _metadata(tmp_path)
     path = tmp_path / "uv.lock"
     original = path.read_text()
     for text, message in [
         (
             original.replace(
-                'editable = "crates/dokime-python"',
-                'editable = "packages/dokime-python"',
+                'editable = "packages/dokime"',
+                'editable = "packages/incorrect"',
             ),
-            "dynamic dokime source",
+            "dokime source",
         ),
         (
-            original.replace('name = "dokime"', 'name = "dokime"\nversion = "0.0.0"'),
-            "dynamic Cargo version",
+            original.replace(
+                'name = "dokime"\nversion = "0.1.0"',
+                'name = "dokime"\nversion = "0.0.0"',
+            ),
+            "dokime version",
         ),
     ]:
         path.write_text(text)
@@ -192,7 +204,7 @@ def case_prepare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         version,
         "sync",
-        lambda root: stamped.append((root, os.environ["DOKIME_VERSION_RELEASE"])),
+        lambda root, *, value: stamped.append((root, value)),
     )
     monkeypatch.setattr(version, "check", lambda root: None)
     monkeypatch.setattr(
@@ -229,8 +241,8 @@ def _metadata(root: Path) -> None:
         "crates/dokime-macros/Cargo.toml": '[package]\nname = "dokime-macros"\n',
         "Cargo.lock": '[[package]]\nname = "dokime"\nversion = "0.1.0"\n[[package]]\nname = "dokime-macros"\nversion = "0.1.0"\n[[package]]\nname = "external"\nversion = "9.9.9"\nsource = "registry+https://example.test"\n',
         "pyproject.toml": '[project]\nname = "dokime-rust-workspace"\nversion = "0.1.0"\n',
-        "crates/dokime-python/pyproject.toml": '[project]\nname = "dokime"\ndynamic = ["version"]\n',
-        "uv.lock": '[[package]]\nname = "dokime-rust-workspace"\nversion = "0.1.0"\n[[package]]\nname = "dokime"\n[package.source]\neditable = "crates/dokime-python"\n',
+        "packages/dokime/pyproject.toml": '[project]\nname = "dokime"\nversion = "0.1.0"\n',
+        "uv.lock": '[[package]]\nname = "dokime-rust-workspace"\nversion = "0.1.0"\n[[package]]\nname = "dokime"\nversion = "0.1.0"\n[package.source]\neditable = "packages/dokime"\n',
         "crates/dokime-gui/package.json": '{\n  "version": "0.1.0"\n}\n',
         "crates/dokime-gui/src-tauri/tauri.conf.json": '{\n  "version": "0.1.0"\n}\n',
         "crates/dokime-gui/src-tauri/Cargo.toml": '[package]\nname = "dokime-gui"\nversion.workspace = true\n',

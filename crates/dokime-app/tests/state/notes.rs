@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 // Local Imports
 use dokime::core::{
     CaseId, CommandId, NoteId, RecordScope, SessionId, TestCycleId, TestExecutionId, Timestamp,

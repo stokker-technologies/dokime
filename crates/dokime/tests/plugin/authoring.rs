@@ -30,7 +30,7 @@ pub(crate) mod catalog_lifecycle {
             SpikeChecks::definition()
         }
 
-        fn bind<P: dokime::harmos::artifact::plugin::Declared>(
+        fn bind<P: dokime::harmos::plugin::contract::Declared>(
             _: &mut WireTable<dokime::Supervisor>,
             _: &str,
             _: &[dokime::records::RecordContract],
@@ -51,9 +51,9 @@ pub(crate) mod catalog_lifecycle {
     }
 
     pub(crate) fn registration_inert_once() {
-        use dokime::harmos::artifact::plugin::Contribution;
+        use dokime::harmos::plugin::contract::Contribution;
 
-        let mut registrar = dokime::harmos::artifact::Registrar::new();
+        let mut registrar = dokime::harmos::plugin::Registrar::new();
         dokime::Suites::<CountedSuites>::register(&mut registrar).unwrap();
         assert_eq!(registrar.finish().len(), 1);
         assert_eq!(RECORDS.lock().unwrap().as_slice(), ["catalog"]);
@@ -92,9 +92,9 @@ use dokime::definition::{
 };
 use dokime::execution::{CriterionContext, ObserverContext, StepContext};
 use dokime::execution::{Run, Signal, Workflow};
-use dokime::harmos::artifact::Registrar;
-use dokime::harmos::artifact::plugin::Contribution;
 use dokime::harmos::operations::OperationDeclaration;
+use dokime::harmos::plugin::Registrar;
+use dokime::harmos::plugin::contract::Contribution;
 use dokime::plugin::registration::{SUITES_NAMESPACE, TELEMETRY_NAMESPACE};
 use dokime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use dokime::transport::{

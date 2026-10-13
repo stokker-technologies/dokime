@@ -24,7 +24,7 @@ use dokime::execution::Runnable;
 use dokime::schema::Described;
 use dokime_app::runtime::EmbeddedProvider;
 use dokime_app::{InstalledPlugin, Result};
-use harmos::sidecar::StreamDeclaration;
+use harmos::plugin::sidecar::StreamDeclaration;
 use std::sync::{Arc, Mutex};
 
 /* === Constants === */
@@ -157,7 +157,11 @@ impl EmbeddedProvider for Probe {
             id: Reading::ID.into(),
             schema: Reading::VERSION,
             window: Reading::WINDOW,
-            fields: Reading::FIELDS.to_vec(),
+            row: harmos::schema::graph::Schema::from_declaration(
+                <Reading as Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .unwrap(),
         }]
     }
 

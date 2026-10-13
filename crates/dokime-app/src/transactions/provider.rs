@@ -16,7 +16,7 @@ pub mod request;
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::{TestCase, TestCaseTemplate};
@@ -90,7 +90,7 @@ impl Transaction<RuntimeState> for RunProvider {
             .map_err(|error| error.to_string())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         request::queue_records(state, self).collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {

@@ -12,21 +12,15 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Callable
-
 import json
+from collections.abc import Callable
 from pathlib import Path
 
-
 # Third Party Imports
-
 import pytest
 
-
 # Local Imports
-
 from dokime_tools import installer
-
 
 # Type Checking Imports
 
@@ -71,6 +65,66 @@ def test_linux_names(
         assert (destination / "dokime-1.2.3-1.x86_64.rpm").read_bytes() == b"rpm"
 
 
+@pytest.mark.parametrize("refused", [False, True])
+def test_candidate_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, refused: bool
+) -> None:
+    from dokime_tools.check import release
+
+    monkeypatch.setattr(installer.sys, "platform", "win32")
+    monkeypatch.setenv("DOKIME_E2E_INSTALLER_SHA256", "untrusted-override")
+    monkeypatch.setenv("DOKIME_E2E_DRIVER", "candidate-driver.exe")
+    roles = ("installer", "desktop", "host", "client", "plugin")
+    entries = [
+        {"role": role, "path": f"artifacts/{role}", "sha256": str(index) * 64}
+        for index, role in enumerate(roles, 1)
+    ]
+    invoked = []
+
+    def verify(package, platform, root, **options):
+        assert package == tmp_path / "dist/build/windows"
+        assert platform == "windows" and root == tmp_path
+        assert options == {"require_validation": False, "check_tools": False}
+        if refused:
+            raise ValueError("candidate identity differs")
+        return {"files": entries}
+
+    def run(command, **options):
+        invoked.append(command)
+        assert command == [
+            "node",
+            "crates/dokime-gui/e2e/native-desktop.mjs",
+            "--junit",
+            str(tmp_path / "native.xml"),
+        ]
+        environment = options["env"]
+        for label, index in (
+            ("INSTALLER", 1),
+            ("SHELL", 2),
+            ("BACKEND", 3),
+            ("CLI", 4),
+            ("PLUGIN", 5),
+        ):
+            assert environment[f"DOKIME_E2E_{label}_SHA256"] == str(index) * 64
+        assert environment["DOKIME_E2E_INSTALLER"] == str(
+            (tmp_path / "dist/build/windows/artifacts/installer").resolve()
+        )
+        assert environment["DOKIME_E2E_PLUGIN"] == str(
+            (tmp_path / "dist/build/windows/artifacts/plugin").resolve()
+        )
+        assert options["check"] is True
+
+    monkeypatch.setattr(release, "verify_platform", verify)
+    monkeypatch.setattr(installer.subprocess, "run", run)
+    if refused:
+        with pytest.raises(ValueError, match="identity differs"):
+            installer.acceptance(tmp_path / "native.xml", tmp_path)
+        assert not invoked
+    else:
+        installer.acceptance(tmp_path / "native.xml", tmp_path)
+        assert len(invoked) == 1
+
+
 def case_build_sequence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(installer.sys, "platform", "win32")
     monkeypatch.setattr(installer, "_target_directory", lambda _: tmp_path / "target")
@@ -78,15 +132,17 @@ def case_build_sequence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         for failure in [None, "check", "build"]:
             calls: list[str] = []
 
-            def record(phase: str) -> None:
+            def record(phase: str, calls=calls, failure=failure) -> None:
                 calls.append(phase)
                 if phase == failure:
                     raise ValueError("build failed")
 
             monkeypatch.setattr(installer, "check", lambda _: record("check"))
-            monkeypatch.setattr(installer, "_signing_available", lambda: signed)
+            monkeypatch.setattr(
+                installer, "_signing_available", lambda signed=signed: signed
+            )
 
-            def run(command, **options):
+            def run(command, *, signed=signed, record=record, **options):
                 assert command[:2] == [
                     "node",
                     "./node_modules/@tauri-apps/cli/tauri.js",
@@ -97,9 +153,9 @@ def case_build_sequence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
             monkeypatch.setattr(installer.subprocess, "run", run)
 
-            def collect(root, **options):
+            def collect(root, *, expected_signed=signed, record=record, **options):
                 assert root == tmp_path
-                assert options["signed"] == signed
+                assert options["signed"] == expected_signed
                 assert options["profile"] == "release"
                 record("collect")
 
@@ -174,16 +230,19 @@ def case_companion_staging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         executable.write_bytes(b"native companion")
         calls = []
 
-        def output(command, **options):
+        def output(command, *, calls=calls, executable=executable, **options):
             calls.append(command)
             assert options["cwd"] == tmp_path
             return (
-                json.dumps(
-                    {
-                        "reason": "compiler-artifact",
-                        "target": {"name": "dokime"},
-                        "executable": str(executable),
-                    }
+                "\n".join(
+                    json.dumps(
+                        {
+                            "reason": "compiler-artifact",
+                            "target": {"name": name, "kind": ["bin"]},
+                            "executable": str(executable),
+                        }
+                    )
+                    for name in ("dokime", "dokime-server")
                 )
                 + "\n"
             )
@@ -193,6 +252,13 @@ def case_companion_staging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         destination = (
             tmp_path / installer.TAURI / "binaries" / f"dokime-{triple}{extension}"
         )
+        server = (
+            tmp_path
+            / installer.TAURI
+            / "binaries"
+            / f"dokime-server-{triple}{extension}"
+        )
+        assert server.read_bytes() == executable.read_bytes()
         assert destination.read_bytes() == executable.read_bytes()
         assert calls[0][:4] == ["mise", "exec", "--", "cargo"]
         assert calls[0][-2:] == ["--target", triple]
@@ -200,6 +266,22 @@ def case_companion_staging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         installer.stage_resources(tmp_path, profile="dev", target=triple)
         assert destination.stat().st_ino == metadata.st_ino
         assert destination.stat().st_mtime_ns == metadata.st_mtime_ns
+
+        def incomplete(command, *, executable=executable, **options):
+            return (
+                json.dumps(
+                    {
+                        "reason": "compiler-artifact",
+                        "target": {"name": "dokime", "kind": ["bin"]},
+                        "executable": str(executable),
+                    }
+                )
+                + "\n"
+            )
+
+        monkeypatch.setattr(installer.subprocess, "check_output", incomplete)
+        with pytest.raises(ValueError, match="exactly one companion dokime-server"):
+            installer.stage_resources(tmp_path, profile="dev", target=triple)
 
 
 # === Private Functions === #

@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{
@@ -120,7 +120,7 @@ impl Transaction<RuntimeState> for ControlCycle {
             .map_err(|error| error.to_string())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         prepare_cycle_control(state, self)
             .expect("checked cycle control")
             .1

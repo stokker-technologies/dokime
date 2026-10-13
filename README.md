@@ -143,6 +143,208 @@ Install the `.dokime` bundle through the application's plugin settings and
 restart the application to activate it. Use its charging templates to assemble
 a cycle, choose operating points, and inspect live measurements and results.
 
+## Browser Origins
+
+A browser client requires its exact origin in the server configuration:
+
+```sh
+dokime-server --allowed-origin tauri://localhost
+```
+
+Repeat `--allowed-origin` for additional origins. An origin contains only its
+scheme and authority; paths, credentials and wildcards are refused. The desktop
+sets its own platform origin when starting an owned local backend. Development
+builds also select the configured `http://127.0.0.1:5173` frontend origin.
+Remote listeners still require explicit remote configuration, TLS and bearer
+credentials; browser-origin permission does not grant operation access.
+
+## Plugin Operation Permissions
+
+Remote plugin calls require an explicit permission on the existing server
+`--auth-file` bearer grant. Product operations keep their declared role policy:
+
+```json
+{
+  "grants": [{
+    "subject": "operator",
+    "role": "control",
+    "token": "REPLACE_WITH_A_PRIVATE_TOKEN_OF_AT_LEAST_32_BYTES",
+    "operations": [{ "owner": "chamber", "id": "chamber.read", "grants": [] }]
+  }]
+}
+```
+
+The owner and operation ID are exact; wildcards and duplicate permissions are
+refused. Unlisted plugin operations remain denied, including trusted-local
+connections. `grants` contains only explicitly configured Harmos capability
+grants required by that operation; an empty list grants none. The same permission
+filters live discovery and actual invocation. Rediscover after a provider changes;
+metadata does not promise admission or bypass request-dependent grants.
+
+## Backend Profiles
+
+The CLI connects to an existing server. Save and select a backend with:
+
+```sh
+dokime backend add lab --endpoint https://dokime.example:8765 --expected-backend BACKEND_ID --ca /path/to/ca.pem --keyring
+dokime backend use lab
+dokime auth login --backend lab --token-file /path/to/token
+dokime status --backend lab --json
+dokime operation list --backend lab
+dokime operation show dokime.runtime.health --backend lab --json
+dokime auth logout --backend lab
+```
+
+`operation list` and `operation show` read live provider contracts, including
+owner, generation, grants, gRPC availability and conditional access. Discovery
+is bounded and does not promise admission of a later invocation. `show` retains
+all visible providers of the selected operation.
+
+`operation list` displays operation ID, provider owner and description. Select a
+provider explicitly for metadata or a call:
+
+```sh
+dokime operation show OPERATION_ID --owner OWNER --backend lab --json
+dokime operation call OPERATION_ID --owner OWNER --backend lab --input-file request.json --json
+dokime operation call OPERATION_ID --owner OWNER --backend lab --input-file request.json --input-stream-file items.jsonl --json
+```
+
+Inputs use the discovered contract's protobuf JSON shape. Streaming input is one
+item per line; output emits item and completion events. Ctrl+C closes the local
+call. The [Remote Operations Example](crates/dokime-client/examples/remote_operations/main.rs)
+uses the same live contract discovery and shared Harmos codec from Rust.
+
+Browse the registered suite catalog and request an explicit backend stop:
+
+```sh
+dokime catalog list --backend lab --json
+dokime catalog show REGISTERED_SUITE_ID --backend lab --json
+dokime cycle stop CYCLE_UUID --backend lab --json
+```
+
+Replace the identifiers with those returned by the backend. `catalog list
+--json` emits one complete suite definition per line; a later read failure
+returns a nonzero exit status after any earlier lines. `cycle stop` requests
+backend work to stop and returns its observed cursor. It does not wait for a
+sealed report. Cancelling a local request wait leaves backend work running;
+query the durable request again to observe settlement.
+
+Selection uses explicit `--backend` or `--endpoint`, then `DOKIME_BACKEND`, then
+that configuration's saved default. An explicit endpoint uses only credentials
+supplied for that invocation. Profile edits affect future connections.
+`backend list`, `show`, `use`, and `remove` operate offline; removal clears a
+matching default and retains OS credentials. `auth login` negotiates backend
+identity and caller capabilities with the supplied bearer, then saves it for
+that endpoint and marks the selected profile for keyring lookup. It refuses a
+profile whose target changed during login. `auth logout` removes the local
+credential; it sends no revocation request. Use `--token-file` on individual
+commands for headless connections when an OS store is unavailable.
+
+`status` and `auth status` perform a bounded live check. JSON distinguishes
+`ready`, `unreachable`, `authentication`, `permission_denied`, `incompatible`,
+`not_ready`, `timed_out` and `credentials_unavailable`; failed checks return exit
+code 1. `--timeout-seconds` bounds connection and credential-store waits. A
+store operation already in progress can finish after its caller times out.
+Profile settings and OS credentials are separate writes: a file publication
+failure can leave the credential saved, and explicit logout removes it.
+
+Configuration lives at `$XDG_CONFIG_HOME/dokime/backends.json` (falling back to
+`$HOME/.config/dokime/backends.json`) on Linux, `$APPDATA/dokime/backends.json` on
+Windows, or `$HOME/Library/Application Support/dokime/backends.json` on macOS.
+`--profiles-file` overrides `DOKIME_PROFILES_FILE` and the standard location.
+
+The version 1 JSON contract keeps secrets in a separate OS credential store:
+
+```json
+{
+  "version": 1,
+  "default": "lab",
+  "profiles": [{
+    "name": "lab",
+    "endpoint": "https://dokime.example:8765",
+    "expected_backend_id": "BACKEND_ID",
+    "ca_certificate_pem": null,
+    "credential": "keyring"
+  }]
+}
+```
+
+Names contain 1–64 ASCII letters, digits, dots, underscores or hyphens. Unknown
+fields, duplicate names, unsupported versions, invalid endpoints and dangling
+defaults are refused. Files are limited to 1 MiB and 128 profiles. CLI edits lock
+and atomically replace the file; contention refuses the edit for retry. Tokens
+stay outside JSON. Python reads explicitly named profiles with
+`DokimeClient.from_profile("lab", token=token)`; it uses the same configuration
+location and accepts an explicit `path` override.
+
+## Planning And Creating Cycles
+
+Use exact registered suite and template IDs from the catalog:
+
+```sh
+dokime plan preview --suite-id SUITE_ID --template-id TEMPLATE_ID --backend lab --json
+dokime plan register --suite-id SUITE_ID --template-id TEMPLATE_ID --request-key campaign-1 --backend lab --json
+dokime cycle create --case-id CASE_ID --identifier campaign.1 --label "Campaign 1" --backend lab --json
+```
+
+Preview leaves registration unchanged. Registration returns case IDs; retain its
+key and repeat the same request to recover registration after an uncertain
+response. Repeated selections and `--case-id` arguments preserve order and
+create distinct attempts. Omitted parameters and files use registered backend
+defaults. `--selection-json` accepts a canonical `RegisteredSelection` and can
+be repeated for parameter sweeps and file selections.
+
+Each `--input-file` takes the operation's canonical JSON request and refuses
+selection or metadata flag overrides. For example, `plan register` accepts:
+
+```json
+{
+  "plan": {
+    "selections": [{
+      "suite_id": "SUITE_ID",
+      "template_id": "TEMPLATE_ID",
+      "parameters": [],
+      "files": []
+    }],
+    "max_cases": 0,
+    "case_ids": []
+  },
+  "idempotency_key": "campaign-1"
+}
+```
+
+`plan preview` uses the same `plan` without `idempotency_key`. The backend
+validates expansion and materializes cases; zero `max_cases` selects its limit
+of 1000. A plan selects templates or registered case IDs. For `cycle create`,
+save this canonical request as `cycle.json`:
+
+```json
+{
+  "plan": {"selections": [], "max_cases": 0, "case_ids": ["CASE_ID"]},
+  "metadata": {
+    "identifier": "campaign.1",
+    "label": "Campaign 1",
+    "description": null,
+    "tags": [],
+    "attributes": [],
+    "created_at": null,
+    "updated_at": null
+  },
+  "continue_on_failure": false,
+  "context": null
+}
+```
+
+```sh
+dokime cycle create --input-file cycle.json --request-key run-1 --wait-seconds 60 --backend lab --json
+```
+
+Creation prints and flushes the cycle ID before submitting work. Retain the
+cycle ID and run key to recover an uncertain admission. Creation, admission and
+an optional terminal receipt are separate JSON lines; a later failure leaves
+already emitted recovery identities available. Creating a cycle does not
+itself run it. Waiting locally does not seal a report or cancel backend work.
+
 ## Examples
 
 ### Qualify An On-Board Charger
@@ -269,28 +471,29 @@ and authoring macros.
 | --- | --- | --- |
 | `native` | Yes | Native plugin SDK, sidecar support, and plugin prelude. |
 | `derive` | Yes | Suite, template, step, observer, and other authoring macros. |
-| `client` | No | Rust client for remote Dokime instances. |
 | `storage` | No | Storage APIs and the SQLite backend. |
 
-For a remote automation client that does not author native plugins, select only
-`client`:
+For remote automation, depend on the reusable client crate:
 
 ```toml
 [dependencies]
-dokime = { git = "https://github.com/stokker-technologies/dokime", rev = "<tested-commit>", default-features = false, features = ["client"] }
+dokime-client = { git = "https://github.com/stokker-technologies/dokime", rev = "<tested-commit>" }
 ```
 
-Replace `<tested-commit>` with the revision used by your integration. The flags
-are independent: `client` and `storage` do not enable `native` or `derive`.
-Disabling defaults does not remove the SDK's underlying Harmos runtime
-dependency. See the [crate manifest](crates/dokime/Cargo.toml) for details.
+Replace `<tested-commit>` with the revision used by your integration.
+`dokime-client` owns remote connection, authentication, discovery, listening,
+recovery and profile access. The `dokime` crate owns plugin authoring; its
+`storage` feature does not enable `native` or `derive` when defaults are disabled.
+Disabling defaults retains the SDK's underlying Harmos dependency. See the
+[SDK manifest](crates/dokime/Cargo.toml) and
+[client manifest](crates/dokime-client/Cargo.toml) for details.
 
 ## Documentation
 
 - [Mini Plugin](plugins/mini/) — the charger simulation and complete test templates.
 - [Plugin Starter](crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Rust SDK](crates/dokime/src/lib.rs) — public authoring APIs and module documentation.
-- [Client API](crates/dokime/src/client/) — programmatic access to cycles and executions.
+- [Client API](crates/dokime-client/src/) — programmatic access to cycles and executions.
 - [Contributing](CONTRIBUTING.md) — repository setup and development workflow.
 
 ## Project Status & Roadmap
@@ -311,8 +514,8 @@ for development discussions and [the changelog](CHANGELOG.md) for recorded chang
 Use the source setup in [Quick Start](#quick-start). For a headless server:
 
 ```sh
-mise run build:cli:dev
-cargo run -p dokime-cli -- serve
+mise run build:server:dev
+cargo run -p dokime-server --
 ```
 
 The main repository checks are:
@@ -322,13 +525,53 @@ mise run check
 mise run test
 ```
 
-Dev integration requires the full Linux check, release build, correctness tests,
-and exact-revision artifact catalog. Windows validation runs independently as
-advisory, with its results and artifacts retained. Main and releases require both
-native platforms. Trusted Dev-push Linux check and test jobs use the
-restricted local runner; Docker-dependent release builds remain hosted.
+Dev integration requires Linux checks, release builds, ordinary correctness
+scenarios and the exact-revision artifact catalog. Each native platform prepares
+its compatible release applications, installers, test executables, fixtures and
+Python packages once; downstream ordinary correctness consumes those exact bytes.
+JavaScript generation scenarios can start from the verified portable contract
+export while application packaging continues. Full premerge and protected Dev/Main
+updates also retain a separate coverage lane; ordinary correctness stays
+uninstrumented. Windows validation runs independently as advisory for ordinary
+Dev updates, with its results and artifacts retained. Main and releases require
+both native platforms. Windows validation also installs that candidate's NSIS
+package and requires native launch, control, live listening and restart evidence.
+Run `mise run test:system:javascript` on a disposable interactive Windows account
+with `DOKIME_E2E_DISPOSABLE_WINDOWS=1`, WebView2 and a matching `msedgedriver.exe`
+(`DOKIME_E2E_DRIVER` can select it). Restore the exact build package first with
+`mise run ci:artifacts:restore`; the runner verifies its manifest and supplies the
+installer, executable and fixture hashes. Linux desktop system scenarios require
+a display and WebKitWebDriver.
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
+
+### Python Contract Preparation
+
+Maintainers prepare Python contracts from a selected successful portable Rust contract build:
+
+```sh
+mise run prepare:harmos
+mise run contracts:prepare:dev
+mise exec -- uv run --no-sync python -m dokime_tools.bindings --build-json target/contracts/build.jsonl
+mise exec -- uv run --no-sync python -m dokime_tools.bindings --build-json target/contracts/build.jsonl --check
+```
+
+The selected `dokime-contract-export` build exports the `operations` catalog under Cargo's output
+directory. Preparation invokes Harmos's shared `cargo harmos bindings python`
+exporter and copies its exact generated `dokime` package assets alongside the
+maintained client subpackage. The exporter must match the published Harmos
+revision pinned by this checkout. Ordinary wheel and source-package installation
+uses prepared files and requires no Rust compiler or contract generation.
+
+`prepare:harmos` installs the pinned CLI in this checkout's cache and verifies its
+revision, compiler inputs and binary hash. Binding generation refuses a missing
+or mismatched receipt. CI consumers use the prepared tool artifact and never rebuild it.
+
+Desktop requests and live listeners use authenticated gRPC-web. File-backed uploads,
+plugin staging and recordings use a narrow native transfer adapter through the
+shared Rust client, because browser gRPC-web does not provide client streaming.
+Credentials stay with the active desktop session; ordinary requests do not use a
+native RPC bridge.
 
 ## Contributing
 

@@ -18,14 +18,17 @@ use std::sync::Arc;
 // Third Party Imports
 use async_trait::async_trait;
 use harmos::Message;
-use harmos::sidecar::StreamDeclaration;
+use harmos::plugin::sidecar::StreamDeclaration;
 // Local Imports
 use super::{RuntimeHandle, native_telemetry};
 use crate::state::ProviderCatalog;
 use crate::{Error, InstalledPlugin, Result};
 use dokime::core::{Identifier, Value};
 use dokime::execution::{EmbeddedPublisher, Runnable, SampleOutput};
-use dokime::schema::{Cardinality, Field, Kind};
+use dokime::schema::{
+    Cardinality,
+    graph::{Field, Kind, Schema},
+};
 
 /* === Constants === */
 
@@ -37,7 +40,7 @@ use dokime::schema::{Cardinality, Field, Kind};
 pub(super) struct Active {
     pub(super) provider: Arc<dyn EmbeddedProvider>,
     pub(super) catalog: ProviderCatalog,
-    pub(super) definition: harmos::load::PluginDefinition,
+    pub(super) definition: harmos::plugin::PluginDefinition,
     pub(super) streams: Vec<StreamDeclaration>,
     observers: native_telemetry::Subscriptions,
 }
@@ -51,7 +54,7 @@ pub(super) struct Instance {
 }
 
 struct Running {
-    instance: harmos::load::PluginEndpoint,
+    instance: harmos::plugin::PluginEndpoint,
     publisher: Option<Arc<Publisher>>,
     templates: Vec<Arc<dyn Runnable>>,
     provider_started: bool,
@@ -68,12 +71,12 @@ struct Publisher {
     owner: String,
     executions: native_telemetry::Executions,
     streams: BTreeMap<Identifier, Publication>,
-    _registration: harmos::StreamRegistration,
+    _registration: harmos::streams::StreamRegistration,
 }
 
 struct Publication {
-    lease: Arc<harmos::PublicationLease>,
-    fields: Vec<Field>,
+    lease: Arc<harmos::streams::PublicationLease>,
+    schema: Schema,
 }
 
 /* === Enums === */
@@ -101,15 +104,15 @@ impl Active {
             .iter()
             .map(|contract| contract.operation().clone())
             .collect();
-        let definition = harmos::load::PluginDefinition {
+        let definition = harmos::plugin::PluginDefinition {
             id: catalog.source.clone(),
             version: catalog.version.parse().map_err(operation)?,
-            artifact: harmos::load::PluginArtifact::Embedded {
+            artifact: harmos::plugin::PluginArtifact::Embedded {
                 revision: generation.clone(),
             },
             requires: Vec::new(),
             configuration: b"null".to_vec(),
-            contributions: harmos::load::PluginContributions {
+            contributions: harmos::plugin::PluginContributions {
                 // EmbeddedProvider Declares No SDK Hooks Or Plugin Listeners.
                 lifecycle: None,
                 operations,
@@ -166,8 +169,8 @@ impl Instance {
     pub(super) async fn start(
         &mut self,
         handle: &RuntimeHandle,
-        router: &harmos::load::Router,
-        authority: &harmos::load::PluginLifecycleAuthority<'_>,
+        router: &harmos::plugin::Router,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let instance = router.enter(&self.owner).map_err(operation)?;
         self.running = Some(Running {
@@ -188,8 +191,8 @@ impl Instance {
             .ok_or_else(|| operation("embedded endpoint has no managed activation scope"))?;
         if !authority.matches_scope(
             &scope,
-            harmos::load::PluginKind::Embedded,
-            harmos::load::PluginLifecyclePhase::Initialize,
+            harmos::plugin::PluginKind::Embedded,
+            harmos::plugin::PluginLifecyclePhase::Initialize,
         ) {
             return Err(operation("embedded initialization generation differs"));
         }
@@ -243,7 +246,7 @@ impl Instance {
 
     pub(super) async fn stop(
         &mut self,
-        authority: &harmos::load::PluginLifecycleAuthority<'_>,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         if self.running.is_none() {
             return Ok(());
@@ -255,8 +258,8 @@ impl Instance {
                 .ok_or_else(|| operation("embedded shutdown has no retained activation scope"))?;
             if !authority.matches_scope(
                 scope,
-                harmos::load::PluginKind::Embedded,
-                harmos::load::PluginLifecyclePhase::Shutdown,
+                harmos::plugin::PluginKind::Embedded,
+                harmos::plugin::PluginLifecyclePhase::Shutdown,
             ) {
                 return Err(operation("embedded shutdown generation differs"));
             }
@@ -299,7 +302,7 @@ impl harmos::operations::Operation for EmbeddedRun {
     type Declaration = dokime::execution::Run<()>;
     type Resources = Served;
     type Endpoints = ();
-    type Error = harmos::sidecar::Refusal;
+    type Error = harmos::plugin::sidecar::Refusal;
     type Context<'a> = harmos::operations::Context<'a>;
 
     fn new(served: Arc<Served>) -> std::result::Result<Self, Self::Error> {
@@ -311,7 +314,10 @@ impl harmos::operations::Operation for EmbeddedRun {
         _: Self::Context<'ctx>,
         request: &mut dokime::transport::RunExecutionRequest,
         _: &mut (),
-    ) -> std::result::Result<dokime::transport::SidecarExecutionOutcome, Self::Error> {
+    ) -> std::result::Result<
+        harmos::operations::Response<dokime::transport::SidecarExecutionOutcome>,
+        Self::Error,
+    > {
         let request = std::mem::take(request);
         let host = Arc::new(crate::capabilities::execution::run::host::Embedded::new(
             Arc::clone(&self.0.sessions),
@@ -326,6 +332,7 @@ impl harmos::operations::Operation for EmbeddedRun {
                 dokime::execution::Caller::default(),
             )
             .await
+            .map(Into::into)
     }
 }
 
@@ -333,7 +340,7 @@ impl harmos::operations::Operation for EmbeddedSignal {
     type Declaration = dokime::execution::Signal<()>;
     type Resources = Served;
     type Endpoints = ();
-    type Error = harmos::sidecar::Refusal;
+    type Error = harmos::plugin::sidecar::Refusal;
     type Context<'a> = harmos::operations::Context<'a>;
 
     fn new(served: Arc<Served>) -> std::result::Result<Self, Self::Error> {
@@ -345,15 +352,21 @@ impl harmos::operations::Operation for EmbeddedSignal {
         _: Self::Context<'ctx>,
         signal: &mut dokime::transport::ExecutionSignal,
         _: &mut (),
-    ) -> std::result::Result<dokime::transport::SignalReply, Self::Error> {
-        self.0.template.signal(std::mem::take(signal))
+    ) -> std::result::Result<
+        harmos::operations::Response<dokime::transport::SignalReply>,
+        Self::Error,
+    > {
+        self.0
+            .template
+            .signal(std::mem::take(signal))
+            .map(Into::into)
     }
 }
 
 impl Publisher {
     async fn stage(
         handle: &RuntimeHandle,
-        scope: &harmos::load::PluginScope,
+        scope: &harmos::plugin::PluginScope,
         declarations: Vec<StreamDeclaration>,
     ) -> Result<Self> {
         let registration = handle
@@ -369,7 +382,7 @@ impl Publisher {
                     Identifier::new(declaration.id).map_err(operation)?,
                     Publication {
                         lease,
-                        fields: declaration.fields,
+                        schema: declaration.row,
                     },
                 ))
             })
@@ -405,14 +418,14 @@ impl EmbeddedPublisher for Publisher {
         // The engine's observation timestamp is metadata rather than a payload column.
         // Like sidecar publication, stamp submission at the transport boundary.
         values.remove("timestamp");
-        let payload = encode(&publication.fields, &values)?;
+        let payload = encode(&publication.schema, &values)?;
         let published_unix_micros =
             i64::try_from(time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000)
                 .map_err(|_| "publication time exceeds the protocol range")?;
         publication
             .lease
             .publish_row(
-                harmos::PublicationRow {
+                harmos::streams::PublicationRow {
                     payload,
                     published_unix_micros: Some(published_unix_micros),
                     context: Some(token.into()),
@@ -426,7 +439,7 @@ impl EmbeddedPublisher for Publisher {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Registration>> {
+fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::plugin::sidecar::Registration>> {
     use dokime::plugin::registration::{
         APPEARANCE_NAMESPACE, AppearanceRegistration, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE,
         PERMISSIONS_NAMESPACE, PROMPTS_NAMESPACE, RECORDS_NAMESPACE, SETTINGS_NAMESPACE,
@@ -468,7 +481,7 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Regis
     values
         .into_iter()
         .map(|(namespace, payload)| {
-            Ok(harmos::sidecar::Registration {
+            Ok(harmos::plugin::sidecar::Registration {
                 namespace: namespace.into(),
                 schema: domain_schema(namespace),
                 payload: payload.map_err(operation)?,
@@ -495,15 +508,20 @@ fn operation(error: impl std::fmt::Display) -> Error {
 }
 
 fn encode(
-    fields: &[Field],
+    schema: &Schema,
     values: &BTreeMap<String, Value>,
 ) -> std::result::Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
-    encode_fields(fields, values, &mut bytes)?;
+    schema
+        .prepare(&harmos::config::SchemaSettings::default())
+        .map_err(|error| error.to_string())?;
+    let fields = schema.root().map_err(|error| error.to_string())?.fields();
+    encode_fields(schema, fields, values, &mut bytes)?;
     Ok(bytes)
 }
 
 fn encode_fields(
+    schema: &Schema,
     fields: &[Field],
     values: &BTreeMap<String, Value>,
     bytes: &mut Vec<u8>,
@@ -528,7 +546,7 @@ fn encode_fields(
             .find(|(_, field)| values.contains_key(field.name.as_ref()))
             .ok_or("stream enum has no selected variant")?;
         (index as u32).encode_into(bytes);
-        return encode_value(&field.kind, &values[field.name.as_ref()], bytes);
+        return encode_value(schema, &field.kind, &values[field.name.as_ref()], bytes);
     }
     for field in fields {
         let value = values.get(field.name.as_ref());
@@ -546,16 +564,17 @@ fn encode_fields(
             };
             items.len().encode_into(bytes);
             for value in items {
-                encode_value(&field.kind, value, bytes)?;
+                encode_value(schema, &field.kind, value, bytes)?;
             }
         } else {
-            encode_value(&field.kind, value, bytes)?;
+            encode_value(schema, &field.kind, value, bytes)?;
         }
     }
     Ok(())
 }
 
 fn encode_value(
+    schema: &Schema,
     kind: &Kind,
     value: &Value,
     bytes: &mut Vec<u8>,
@@ -590,7 +609,13 @@ fn encode_value(
                 byte.encode_into(bytes);
             }
         }
-        (Kind::Message { fields }, Value::Object(values)) => encode_fields(fields, values, bytes)?,
+        (Kind::Message { definition }, Value::Object(values)) => {
+            let fields = schema
+                .view(*definition)
+                .map_err(|error| error.to_string())?
+                .fields();
+            encode_fields(schema, fields, values, bytes)?;
+        }
         _ => return Err(mismatch()),
     }
     Ok(())

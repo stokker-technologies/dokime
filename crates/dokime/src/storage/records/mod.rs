@@ -17,7 +17,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::{Message, schema::Described, storage::SchemaKey};
+use harmos::{Message, storage::SchemaKey};
 
 // Local Imports
 use super::{Error, Result, values};
@@ -610,10 +610,6 @@ pub fn schema() -> SchemaKey {
         id: Identifier::new("dokime.capture.record").unwrap(),
         version: 1.try_into().unwrap(),
     }
-}
-
-pub fn fields() -> &'static [harmos::schema::Field] {
-    RecordRow::FIELDS
 }
 
 /* === Private Functions === */

@@ -11,6 +11,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { isReportBuild } from "@/lib/ui-mode";
 import type { RpcError } from "../desktop/rpc";
 import { normalizeRpcError } from "./errors";
+import * as grpcWeb from "./grpc-web";
 import { descriptorSha256 } from "./generated/identity";
 
 export interface SessionIdentity {
@@ -84,13 +85,9 @@ export async function unary<I extends DescMessage, O extends DescMessage>(
   output: O,
   session: SessionIdentity,
   request: MessageInitShape<I>,
+  timeoutMs?: number,
 ): Promise<MessageShape<O>> {
-  const response = await invokeOwned<ArrayBuffer>(
-    session,
-    command,
-    requestBytes(session, toBinary(input, create(input, request))),
-  );
-  return fromBinary(output, responseBytes(session, response, 8).subarray(8));
+  return grpcWeb.unary(command, input, output, session, request, timeoutMs);
 }
 
 export interface NativeStream<T> extends AsyncIterable<T> {
@@ -114,6 +111,7 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
   session: SessionIdentity,
   request: MessageInitShape<I>,
 ): Promise<NativeClientStream<I, O>> {
+  if (command !== "plugin_stage_open") fail({ kind: "invalid_request" });
   const response = responseBytes(
     session,
     await invokeOwned<ArrayBuffer>(
@@ -205,74 +203,8 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
   output: O,
   session: SessionIdentity,
   request: MessageInitShape<I>,
+  envelope?: DescMessage,
+  timeoutMs?: number,
 ): Promise<NativeStream<MessageShape<O>>> {
-  const response = responseBytes(
-    session,
-    await invokeOwned<ArrayBuffer>(
-      session,
-      command,
-      requestBytes(session, toBinary(input, create(input, request))),
-    ),
-    16,
-  );
-  if (response.byteLength !== 16) fail({ kind: "invalid_request" });
-  const handle = new DataView(response.buffer).getBigUint64(8, true);
-  let sequence = 0n;
-  let ended = false;
-  let reading = false;
-  function payload(ack: boolean) {
-    const bytes = new Uint8Array(ack ? 16 : 8);
-    const view = new DataView(bytes.buffer);
-    view.setBigUint64(0, handle, true);
-    if (ack) view.setBigUint64(8, sequence, true);
-    return requestBytes(session, bytes);
-  }
-  const cancel = async () => {
-    if (ended) return;
-    ended = true;
-    // Session replacement already cancels native streams. Never address its successor.
-    if (session.isCurrent()) await invokeOwned<void>(session, "stream_cancel", payload(false));
-  };
-  const iterator: AsyncIterator<MessageShape<O>> = {
-    async next() {
-      if (ended) return { done: true, value: undefined };
-      if (reading) fail({ kind: "busy" });
-      reading = true;
-      try {
-        while (!ended) {
-          const frame = responseBytes(
-            session,
-            await invokeOwned<ArrayBuffer>(session, "stream_next", payload(true)),
-            25,
-          );
-          if (ended) return { done: true, value: undefined };
-          const view = new DataView(frame.buffer);
-          if (view.getBigUint64(8, true) !== handle) fail({ kind: "unknown_stream" });
-          const nextSequence = view.getBigUint64(16, true);
-          const kind = frame[24];
-          if (kind === 2 && nextSequence === sequence && frame.length === 25) continue;
-          if (nextSequence !== sequence + 1n || (kind !== 0 && kind !== 1))
-            fail({ kind: "invalid_ack" });
-          sequence = nextSequence;
-          if (kind === 1) {
-            ended = true;
-            if (frame.length !== 25) fail({ kind: "invalid_request" });
-            return { done: true, value: undefined };
-          }
-          return { done: false, value: fromBinary(output, frame.subarray(25)) };
-        }
-        return { done: true, value: undefined };
-      } catch (error) {
-        await cancel().catch(() => undefined);
-        throw normalizeRpcError(error);
-      } finally {
-        reading = false;
-      }
-    },
-    async return() {
-      await cancel();
-      return { done: true, value: undefined };
-    },
-  };
-  return { cancel, [Symbol.asyncIterator]: () => iterator };
+  return grpcWeb.openStream(command, input, output, session, request, envelope, timeoutMs);
 }

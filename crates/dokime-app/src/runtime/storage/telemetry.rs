@@ -563,6 +563,18 @@ pub(crate) fn prepare(
 }
 
 pub(crate) async fn initialize(storage: &Manager) -> Result<()> {
+    use harmos::schema::Described;
+    let graph = harmos::schema::graph::Schema::from_declaration(
+        telemetry::TelemetryRow::DEFINITION,
+        &harmos::config::SchemaSettings::default(),
+    )
+    .map_err(|error| {
+        harmos::Error::backend(
+            "resolve native telemetry schema",
+            harmos::BackendFailure::Permanent,
+            error,
+        )
+    })?;
     let schema = telemetry::schema();
     let mut selection = harmos::storage::SchemaQuery::new();
     selection.schema = Some(schema.clone());
@@ -574,15 +586,12 @@ pub(crate) async fn initialize(storage: &Manager) -> Result<()> {
     let existing = schemas.next_page().await?;
     drop(schemas);
     if let Some(existing) = existing {
-        if existing.len() != 1
-            || existing[0].key != schema
-            || existing[0].fields != telemetry::fields()
-        {
+        if existing.len() != 1 || existing[0].key != schema || existing[0].schema != graph {
             return Err(invalid("stored native telemetry schema differs"));
         }
         return Ok(());
     }
-    let declared = storage.write_schema(&schema, telemetry::fields()).await?;
+    let declared = storage.write_schema(&schema, &graph).await?;
     storage.flush_until(&declared).await?;
     Ok(())
 }

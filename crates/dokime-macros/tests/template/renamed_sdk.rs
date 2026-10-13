@@ -34,9 +34,9 @@ pub(crate) mod dokime {
 use std::sync::Arc;
 
 // Third Party Imports
-use sdk::harmos::artifact::plugin::{Attachment, Declared};
 use sdk::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
-use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
+use sdk::harmos::plugin::contract::{Attachment, Declared};
+use sdk::harmos::plugin::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
 // Local Imports
 
@@ -60,8 +60,8 @@ struct Renamed {
 
 struct Resources;
 
-#[sdk::message]
-#[derive(Clone, sdk::TelemetryRow)]
+#[sdk::row]
+#[derive(Clone)]
 pub struct Row {
     value: i64,
 }
@@ -486,9 +486,9 @@ extern crate sdk;
 
 use std::sync::Arc;
 
-use sdk::harmos::artifact::plugin::{Attachment, Declared};
+use sdk::harmos::plugin::contract::{Attachment, Declared};
 use sdk::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
-use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
+use sdk::harmos::plugin::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
@@ -657,10 +657,10 @@ fn operation_ids(
 }
 
 #[cfg(test)]
-fn declaration_of(source: &str) -> sdk::harmos::artifact::inventory::Declaration {
-    sdk::harmos::artifact::inventory::Declaration::inspect(
+fn declaration_of(source: &str) -> sdk::harmos::plugin::inventory::Declaration {
+    sdk::harmos::plugin::inventory::Declaration::inspect(
         &artifact(source),
-        sdk::harmos::artifact::inventory::Facility::Sidecar,
+        sdk::harmos::plugin::inventory::Facility::Sidecar,
     )
     .unwrap()
 }
@@ -669,6 +669,19 @@ fn declaration_of(source: &str) -> sdk::harmos::artifact::inventory::Declaration
 
 #[cfg(test)]
 pub(crate) fn alias_compiles_operations() {
+    // Renamed Facade Uses One Shared Codec For Every Domain Shape.
+    let record = Observed { value: 19 };
+    let encoded = sdk::Message::encode_to_vec(&record);
+    let recovered = <Observed as sdk::Message>::decode(&encoded).unwrap();
+    assert_eq!(recovered.value, 19);
+    assert_eq!(
+        <Observed as sdk::records::DeclaredRecord>::RECORD_TYPE,
+        "renamed.observed"
+    );
+    let row = Row { value: 23 };
+    let encoded = sdk::Message::encode_to_vec(&row);
+    assert_eq!(<Row as sdk::Message>::decode(&encoded).unwrap().value, 23);
+    assert_eq!(Row::column_value().field(), "value");
     assert_eq!(<Renamed as Declared>::ID, "renamed");
     let mut served = operation_ids(<Renamed as Declared>::PROVIDES);
     served.sort_unstable();
@@ -778,9 +791,9 @@ fn operations_under_one_id_are_refused_when_inspected() {
     );
     let bytes = std::fs::read(&output).unwrap();
     std::fs::remove_file(output).unwrap();
-    let refused = sdk::harmos::artifact::inventory::Declaration::inspect(
+    let refused = sdk::harmos::plugin::inventory::Declaration::inspect(
         &bytes,
-        sdk::harmos::artifact::inventory::Facility::Sidecar,
+        sdk::harmos::plugin::inventory::Facility::Sidecar,
     )
     .expect_err("two operations under one id are one operation too many");
     assert!(
@@ -918,9 +931,9 @@ fn observers_sharing_a_stream_register_its_output_once() {
         String::from_utf8_lossy(&built.stderr)
     );
 
-    let declaration = sdk::harmos::artifact::inventory::Declaration::inspect(
+    let declaration = sdk::harmos::plugin::inventory::Declaration::inspect(
         &std::fs::read(&output).unwrap(),
-        sdk::harmos::artifact::inventory::Facility::Sidecar,
+        sdk::harmos::plugin::inventory::Facility::Sidecar,
     )
     .expect("shared producers produce a valid artifact");
     assert_eq!(

@@ -14,6 +14,7 @@
 pub mod diagnostics_assembly;
 mod error;
 pub mod grpc;
+pub mod host;
 
 /* === Re-Exports === */
 pub use error::{Error, Result};

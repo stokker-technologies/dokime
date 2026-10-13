@@ -11,22 +11,10 @@
 
 /* === External Imports === */
 
-import { create } from "@bufbuild/protobuf";
-
 /* === Local Imports === */
 
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type AnnotationOwner,
-  AnnotationOwnerSchema,
-  type AnnotationSelection,
-  AnnotationSelectionSchema,
-  ExecutionNoteOwnerSchema,
-  type HealthItem as NativeHealthItem,
-  type OperatorNote as NativeOperatorNote,
-  NotePublication,
-  PlannedCaseNoteOwnerSchema,
-} from "@/lib/rpc/generated/dokime/v1/notes_pb";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, HealthItem, OperatorNote, RecordScope } from "@/lib/types";
 import {
@@ -38,6 +26,14 @@ import {
   recordScopeFromNative,
   timestampIso,
 } from "./native-values";
+
+/* === Types === */
+
+type AnnotationOwner = Wire<NonNullable<Parameters<typeof rpc.notesCreateNote>[1]["owner"]>>;
+type AnnotationSelection = Wire<NonNullable<Parameters<typeof rpc.notesListNotes>[1]["selection"]>>;
+type NativeOperatorNote = Wire<Awaited<ReturnType<typeof rpc.notesListNotes>>["notes"][number]>;
+type NativeHealthItem = Wire<Awaited<ReturnType<typeof rpc.healthListHealth>>["items"][number]>;
+type NotePublication = Wire<Awaited<ReturnType<typeof rpc.notesCreateNote>>>["publication"];
 
 /* === Public API === */
 
@@ -156,12 +152,12 @@ function mapNativeHealth(item: NativeHealthItem): HealthItem {
 }
 
 function notePublicationName(value: NotePublication): string {
-  switch (value) {
-    case NotePublication.NO_EXISTING_DATASETS:
+  switch (value?.HarmosVariant.case) {
+    case "NoExistingDatasets":
       return "no_existing_datasets";
-    case NotePublication.CONFIRMED:
+    case "Confirmed":
       return "confirmed";
-    case NotePublication.UNCONFIRMED:
+    case "Unconfirmed":
       return "unconfirmed";
     default:
       return "unspecified";
@@ -174,31 +170,24 @@ export function annotationOwner(scope?: RecordScope | null): AnnotationOwner {
     throw new Error("Native notes require a cycle-scoped owner.");
   }
   if (scope.test_execution_id) {
-    return create(AnnotationOwnerSchema, {
+    return {
       owner: {
-        case: "execution",
-        value: create(ExecutionNoteOwnerSchema, {
-          cycleId,
-          executionId: scope.test_execution_id,
-        }),
+        HarmosVariant: {
+          case: "Execution",
+          value: { field0: { cycleId, executionId: scope.test_execution_id } },
+        },
       },
-    });
+    };
   }
   const caseId = scope.test_case_id;
   if (caseId) {
-    return create(AnnotationOwnerSchema, {
-      owner: {
-        case: "plannedCase",
-        value: create(PlannedCaseNoteOwnerSchema, { cycleId, caseId }),
-      },
-    });
+    return {
+      owner: { HarmosVariant: { case: "PlannedCase", value: { field0: { cycleId, caseId } } } },
+    };
   }
-  return create(AnnotationOwnerSchema, { owner: { case: "cycleId", value: cycleId } });
+  return { owner: { HarmosVariant: { case: "CycleId", value: { field0: cycleId } } } };
 }
 
 function annotationSelection(scope: RecordScope): AnnotationSelection {
-  return create(AnnotationSelectionSchema, {
-    owner: annotationOwner(scope),
-    includeContext: false,
-  });
+  return { owner: annotationOwner(scope), includeContext: false };
 }

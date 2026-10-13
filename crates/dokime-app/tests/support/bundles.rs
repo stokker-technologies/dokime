@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::plugin::{Bundle, Executable, Facility, Identity, Limits, Source};
+use harmos::plugin::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
 // Local Imports
 
 /* === Constants === */
@@ -41,10 +41,10 @@ pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
         package: Default::default(),
     };
     let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
-    let policy = harmos::OperationPolicy {
+    let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
-        retries: harmos::RetryPolicy::Never,
+        retries: harmos::operations::RetryPolicy::Never,
     };
     let lifecycle = [
         harmos::operations::lifecycle::Descriptor::new(
@@ -66,7 +66,7 @@ pub fn bundle(package: &str, owner: &str, version: &str) -> Vec<u8> {
         serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos::artifact::PREFIX).unwrap()
+        prefix = std::str::from_utf8(harmos_contract::PREFIX).unwrap()
     );
     Bundle::build(
         identity,

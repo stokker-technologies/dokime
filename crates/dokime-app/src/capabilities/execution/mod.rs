@@ -51,14 +51,14 @@ impl RuntimeHandle {
         &self,
         idempotency_key: Option<String>,
         transaction: T,
-    ) -> Result<harmos::Receipt, Error>
+    ) -> Result<harmos::state::Receipt, Error>
     where
-        T: harmos::Transaction<RuntimeState> + Into<Transactions>,
+        T: harmos::state::Transaction<RuntimeState> + Into<Transactions>,
         T::Error: From<String> + std::fmt::Display,
     {
         match idempotency_key.filter(|key| !key.is_empty()) {
             Some(key) => {
-                self.commit_keyed(harmos::RequestKey::new(key), transaction)
+                self.commit_keyed(harmos::state::RequestKey::new(key), transaction)
                     .await
             }
             None => self.commit(transaction).await,

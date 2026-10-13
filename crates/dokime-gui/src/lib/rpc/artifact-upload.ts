@@ -7,12 +7,13 @@ import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/p
 /* === Local Imports === */
 
 import type { RpcError } from "../desktop/rpc";
+import type { Wire } from "./canonical";
 import { normalizeRpcError } from "./errors";
 import {
-  type ArtifactMetadata,
-  ArtifactMetadataSchema,
-  UploadArtifactHeaderSchema,
-} from "./generated/dokime/v1/content_pb";
+  type Row2 as ArtifactMetadata,
+  Row2Schema as ArtifactMetadataSchema,
+  Row15Schema as UploadArtifactHeaderSchema,
+} from "../../../.generated/dokime/v1/ContentMessages/UploadArtifact/messages_pb";
 import { invokeOwned, requestBytes, responseBytes, type SessionIdentity } from "./transport";
 
 /* === Public Types === */
@@ -21,7 +22,7 @@ export interface NativeArtifactUpload {
   /** Send one bounded raw slice in order. */
   write(slice: Uint8Array): Promise<void>;
   /** Close the upload and await its verified, server-issued metadata. */
-  finish(): Promise<ArtifactMetadata>;
+  finish(): Promise<Wire<ArtifactMetadata>>;
   /** Cancel the upload and release the native sink. */
   cancel(): Promise<void>;
 }
@@ -100,7 +101,7 @@ export async function openNativeArtifactUpload(
       writing = false;
     }
   };
-  const finish = async (): Promise<ArtifactMetadata> => {
+  const finish = async (): Promise<Wire<ArtifactMetadata>> => {
     if (inputClosed || settled || cancellationRequested) fail({ kind: "unknown_stream" });
     if (writing) fail({ kind: "busy" });
     inputClosed = true;

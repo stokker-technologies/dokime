@@ -19,7 +19,6 @@ use std::pin::Pin;
 use tonic::{Code, Status, transport::Channel};
 // Local Imports
 use super::*;
-use dokime_protocol::v1;
 use dokime_server::grpc::access::Role;
 
 /* === Constants === */
@@ -28,9 +27,9 @@ const STREAMING_CASES: &[Case] = &[
         path: "/dokime.v1.Content/UploadArtifact",
         call: |stream, token| {
             Box::pin(async move {
-                v1::content_client::ContentClient::new(stream)
-                    .upload_artifact(credentialed(
-                        tokio_stream::iter(Vec::<v1::UploadArtifactFrame>::new()),
+                WireClient::new(stream)
+                    .upload::<contracts::content::UploadArtifact>(credentialed(
+                        tokio_stream::iter(Vec::<contracts::content::UploadArtifactFrame>::new()),
                         token,
                     ))
                     .await
@@ -42,9 +41,9 @@ const STREAMING_CASES: &[Case] = &[
         path: "/dokime.v1.Plugins/Stage",
         call: |stream, token| {
             Box::pin(async move {
-                v1::plugins_client::PluginsClient::new(stream)
-                    .stage(credentialed(
-                        tokio_stream::iter(Vec::<v1::StagePluginFrame>::new()),
+                WireClient::new(stream)
+                    .upload::<contracts::plugins::Stage>(credentialed(
+                        tokio_stream::iter(Vec::<contracts::plugins::StagePluginFrame>::new()),
                         token,
                     ))
                     .await
@@ -56,13 +55,21 @@ const STREAMING_CASES: &[Case] = &[
 
 /* === Macros === */
 macro_rules! matrix {
-    ($($path:literal, $module:ident :: $client:ident, $method:ident, $request:ident;)*) => {
+    (@request) => {
+        Default::default()
+    };
+    (@request $request:expr) => {
+        $request
+    };
+    ($($path:literal, $method:ident, $operation:path $(= $request:expr)?;)*) => {
         const CASES: &[Case] = &[$(Case {
             path: $path,
             call: |stream, token| {
                 Box::pin(async move {
-                    v1::$module::$client::new(stream)
-                        .$method(credentialed(v1::$request::default(), token))
+                    let request: <$operation as harmos::operations::OperationDeclaration>::Request =
+                        matrix!(@request $($request)?);
+                    WireClient::new(stream)
+                        .$method::<$operation>(credentialed(request, token))
                         .await
                         .err()
                 })
@@ -72,109 +79,137 @@ macro_rules! matrix {
 }
 
 matrix! {
-    "/dokime.v1.Appearance/GetAppearance", appearance_client::AppearanceClient, get_appearance, GetAppearanceRequest;
-    "/dokime.v1.Backend/CollectDiagnostics", backend_client::BackendClient, collect_diagnostics, CollectDiagnosticsRequest;
-    "/dokime.v1.Backend/GetCapabilities", backend_client::BackendClient, get_capabilities, GetCapabilitiesRequest;
-    "/dokime.v1.Backend/GetDiagnostics", backend_client::BackendClient, get_diagnostics, GetDiagnosticsRequest;
-    "/dokime.v1.Backend/GetHealth", backend_client::BackendClient, get_health, GetHealthRequest;
-    "/dokime.v1.Backend/GetIdentity", backend_client::BackendClient, get_identity, GetIdentityRequest;
-    "/dokime.v1.Backend/WatchLogs", backend_client::BackendClient, watch_logs, WatchLogsRequest;
-    "/dokime.v1.Catalog/GetRecordSchema", catalog_client::CatalogClient, get_record_schema, GetRecordSchemaRequest;
-    "/dokime.v1.Catalog/GetSuite", catalog_client::CatalogClient, get_suite, GetSuiteRequest;
-    "/dokime.v1.Catalog/GetTelemetrySchema", catalog_client::CatalogClient, get_telemetry_schema, GetTelemetrySchemaRequest;
-    "/dokime.v1.Catalog/ListRecordSchemas", catalog_client::CatalogClient, list_record_schemas, ListRecordSchemasRequest;
-    "/dokime.v1.Catalog/ListSuites", catalog_client::CatalogClient, list_suites, ListSuitesRequest;
-    "/dokime.v1.Catalog/ListTelemetrySchemas", catalog_client::CatalogClient, list_telemetry_schemas, ListTelemetrySchemasRequest;
-    "/dokime.v1.Content/DownloadAppearanceAsset", content_client::ContentClient, download_appearance_asset, DownloadAppearanceAssetRequest;
-    "/dokime.v1.Content/DownloadArtifact", content_client::ContentClient, download_artifact, DownloadArtifactRequest;
-    "/dokime.v1.Content/DownloadCycleBundle", content_client::ContentClient, download_cycle_bundle, DownloadCycleBundleRequest;
-    "/dokime.v1.Content/DownloadExecutionFile", content_client::ContentClient, download_execution_file, DownloadExecutionFileRequest;
-    "/dokime.v1.Content/GetCycleFolderPath", content_client::ContentClient, get_cycle_folder_path, GetCycleFolderPathRequest;
-    "/dokime.v1.Content/ListArtifacts", content_client::ContentClient, list_artifacts, ListArtifactsRequest;
-    "/dokime.v1.Content/ListExecutionFiles", content_client::ContentClient, list_execution_files, ListExecutionFilesRequest;
-    "/dokime.v1.Content/ReadExecutionFile", content_client::ContentClient, read_execution_file, ReadExecutionFileRequest;
-    "/dokime.v1.Documents/CaptureCurrentDocument", documents_client::DocumentsClient, capture_current_document, CaptureCurrentDocumentRequest;
-    "/dokime.v1.Evidence/GetCapturedRecordSchema", evidence_client::EvidenceClient, get_captured_record_schema, GetCapturedRecordSchemaRequest;
-    "/dokime.v1.Evidence/ListRecords", evidence_client::EvidenceClient, list_records, ListRecordsRequest;
-    "/dokime.v1.Evidence/WatchRecords", evidence_client::EvidenceClient, watch_records, WatchRecordsRequest;
-    "/dokime.v1.Execution/AppendPlannedCases", execution_client::ExecutionClient, append_planned_cases, AppendPlannedCasesRequest;
-    "/dokime.v1.Execution/ClearCycle", execution_client::ExecutionClient, clear_cycle, CycleControlRequest;
-    "/dokime.v1.Execution/CopyCycle", execution_client::ExecutionClient, copy_cycle, CopyCycleRequest;
-    "/dokime.v1.Execution/CreateCycle", execution_client::ExecutionClient, create_cycle, CreateCycleRequest;
-    "/dokime.v1.Execution/DeleteCase", execution_client::ExecutionClient, delete_case, CaseControlRequest;
-    "/dokime.v1.Execution/GetCase", execution_client::ExecutionClient, get_case, GetCaseRequest;
-    "/dokime.v1.Execution/GetCycle", execution_client::ExecutionClient, get_cycle, GetCycleRequest;
-    "/dokime.v1.Execution/GetExecution", execution_client::ExecutionClient, get_execution, GetExecutionRequest;
-    "/dokime.v1.Execution/GetExecutionCommand", execution_client::ExecutionClient, get_execution_command, GetExecutionCommandRequest;
-    "/dokime.v1.Execution/GetRunRequest", execution_client::ExecutionClient, get_run_request, GetRunRequestRequest;
-    "/dokime.v1.Execution/ListCaseParameters", execution_client::ExecutionClient, list_case_parameters, ListCaseParametersRequest;
-    "/dokime.v1.Execution/ListCases", execution_client::ExecutionClient, list_cases, ListCasesRequest;
-    "/dokime.v1.Execution/ListCycles", execution_client::ExecutionClient, list_cycles, ListCyclesRequest;
-    "/dokime.v1.Execution/ListExecutionParameters", execution_client::ExecutionClient, list_execution_parameters, ListExecutionParametersRequest;
-    "/dokime.v1.Execution/ListExecutionSteps", execution_client::ExecutionClient, list_execution_steps, ListExecutionStepsRequest;
-    "/dokime.v1.Execution/ListExecutions", execution_client::ExecutionClient, list_executions, ListExecutionsRequest;
-    "/dokime.v1.Execution/ListStepCriteria", execution_client::ExecutionClient, list_step_criteria, ListStepEvidenceRequest;
-    "/dokime.v1.Execution/PauseCycle", execution_client::ExecutionClient, pause_cycle, CycleControlRequest;
-    "/dokime.v1.Execution/ResumeCycle", execution_client::ExecutionClient, resume_cycle, CycleControlRequest;
-    "/dokime.v1.Execution/RunCase", execution_client::ExecutionClient, run_case, RunCaseRequest;
-    "/dokime.v1.Execution/RunExecution", execution_client::ExecutionClient, run_execution, RunExecutionRequest;
-    "/dokime.v1.Execution/PauseExecution", execution_client::ExecutionClient, pause_execution, ExecutionControlRequest;
-    "/dokime.v1.Execution/ResumeExecution", execution_client::ExecutionClient, resume_execution, ExecutionControlRequest;
-    "/dokime.v1.Execution/StopExecution", execution_client::ExecutionClient, stop_execution, ExecutionControlRequest;
-    "/dokime.v1.Execution/SubmitExecutionCommand", execution_client::ExecutionClient, submit_execution_command, SubmitExecutionCommandRequest;
-    "/dokime.v1.Execution/RunCycle", execution_client::ExecutionClient, run_cycle, RunCycleRequest;
-    "/dokime.v1.Execution/ScheduleCaseRerun", execution_client::ExecutionClient, schedule_case_rerun, CaseControlRequest;
-    "/dokime.v1.Execution/StopCycle", execution_client::ExecutionClient, stop_cycle, CycleControlRequest;
-    "/dokime.v1.Execution/UpdateCyclePolicy", execution_client::ExecutionClient, update_cycle_policy, UpdateCyclePolicyRequest;
-    "/dokime.v1.Health/ListHealth", health_client::HealthClient, list_health, ListAnnotationsRequest;
-    "/dokime.v1.History/BrowseExecutions", history_client::HistoryClient, browse_executions, BrowseExecutionsRequest;
-    "/dokime.v1.History/DeleteExecution", history_client::HistoryClient, delete_execution, DeleteExecutionRequest;
-    "/dokime.v1.History/DownloadCheckpointArtifact", history_client::HistoryClient, download_checkpoint_artifact, DownloadCheckpointArtifactRequest;
-    "/dokime.v1.History/GetCheckpointContext", history_client::HistoryClient, get_checkpoint_context, GetCheckpointContextRequest;
-    "/dokime.v1.History/GetCheckpointDocument", history_client::HistoryClient, get_checkpoint_document, GetCheckpointDocumentRequest;
-    "/dokime.v1.History/GetCheckpointEvidence", history_client::HistoryClient, get_checkpoint_evidence, GetCheckpointEvidenceRequest;
-    "/dokime.v1.History/GetExecutionCheckpoint", history_client::HistoryClient, get_execution_checkpoint, GetExecutionCheckpointRequest;
-    "/dokime.v1.History/ListCheckpointRecords", history_client::HistoryClient, list_checkpoint_records, ListCheckpointRecordsRequest;
-    "/dokime.v1.History/ListCheckpointTelemetry", history_client::HistoryClient, list_checkpoint_telemetry, ListCheckpointTelemetryRequest;
-    "/dokime.v1.History/ReadCheckpointOutput", history_client::HistoryClient, read_checkpoint_output, ReadCheckpointOutputRequest;
-    "/dokime.v1.Notes/CreateNote", notes_client::NotesClient, create_note, CreateNoteRequest;
-    "/dokime.v1.Notes/ListNotes", notes_client::NotesClient, list_notes, ListAnnotationsRequest;
-    "/dokime.v1.Observation/GetRuntimeShell", observation_client::ObservationClient, get_runtime_shell, GetRuntimeShellRequest;
-    "/dokime.v1.Observation/GetTraceability", observation_client::ObservationClient, get_traceability, GetTraceabilityRequest;
-    "/dokime.v1.Observation/WatchExecutionProgress", observation_client::ObservationClient, watch_execution_progress, WatchExecutionProgressRequest;
-    "/dokime.v1.Observation/WatchRuntime", observation_client::ObservationClient, watch_runtime, WatchRuntimeRequest;
-    "/dokime.v1.Planning/PreviewSelection", planning_client::PlanningClient, preview_selection, PreviewSelectionRequest;
-    "/dokime.v1.Planning/RegisterSelection", planning_client::PlanningClient, register_selection, RegisterSelectionRequest;
-    "/dokime.v1.Plots/ListAnalyses", plots_client::PlotsClient, list_analyses, ListAnalysesRequest;
-    "/dokime.v1.Plots/QuerySnapshots", plots_client::PlotsClient, query_snapshots, PlotSnapshotsRequest;
-    "/dokime.v1.Plots/Watch", plots_client::PlotsClient, watch, PlotWatchRequest;
-    "/dokime.v1.Plugins/Consent", plugins_client::PluginsClient, consent, ConsentPluginRequest;
-    "/dokime.v1.Plugins/GetInstallation", plugins_client::PluginsClient, get_installation, GetInstallationRequest;
-    "/dokime.v1.Plugins/ListAdmittedPlugins", plugins_client::PluginsClient, list_admitted_plugins, ListAdmittedPluginsRequest;
-    "/dokime.v1.Plugins/ListInstallations", plugins_client::PluginsClient, list_installations, ListInstallationsRequest;
-    "/dokime.v1.Plugins/Remove", plugins_client::PluginsClient, remove, RemovePluginRequest;
-    "/dokime.v1.Plugins/SetEnabled", plugins_client::PluginsClient, set_enabled, SetPluginEnabledRequest;
-    "/dokime.v1.Prompts/GetDefinition", prompts_client::PromptsClient, get_definition, GetPromptDefinitionRequest;
-    "/dokime.v1.Prompts/GetPrompt", prompts_client::PromptsClient, get_prompt, GetPromptRequest;
-    "/dokime.v1.Prompts/ListDefinitions", prompts_client::PromptsClient, list_definitions, ListPromptDefinitionsRequest;
-    "/dokime.v1.Prompts/ListPending", prompts_client::PromptsClient, list_pending, ListPendingPromptsRequest;
-    "/dokime.v1.Prompts/Respond", prompts_client::PromptsClient, respond, RespondToPromptRequest;
-    "/dokime.v1.Query/Aggregate", query_client::QueryClient, aggregate, AggregateRequest;
-    "/dokime.v1.Reports/DownloadCycleReport", reports_client::ReportsClient, download_cycle_report, DownloadCycleReportRequest;
-    "/dokime.v1.Reports/RenderCheckpointReport", reports_client::ReportsClient, render_checkpoint_report, RenderCheckpointReportRequest;
-    "/dokime.v1.Settings/GetPluginSettings", settings_client::SettingsClient, get_plugin_settings, GetPluginSettingsRequest;
-    "/dokime.v1.Settings/GetSettings", settings_client::SettingsClient, get_settings, GetSettingsRequest;
-    "/dokime.v1.Settings/ReadApplicationSettings", settings_client::SettingsClient, read_application_settings, ReadApplicationSettingsRequest;
-    "/dokime.v1.Settings/ReadStoragePolicy", settings_client::SettingsClient, read_storage_policy, ReadStoragePolicyRequest;
-    "/dokime.v1.Settings/UpdateStoragePolicy", settings_client::SettingsClient, update_storage_policy, UpdateStoragePolicyRequest;
-    "/dokime.v1.Settings/ListStorageSources", settings_client::SettingsClient, list_storage_sources, ListStorageSourcesRequest;
-    "/dokime.v1.Settings/ReorderStorageSources", settings_client::SettingsClient, reorder_storage_sources, ReorderStorageSourcesRequest;
-    "/dokime.v1.Settings/SetStorageSourceEnabled", settings_client::SettingsClient, set_storage_source_enabled, SetStorageSourceEnabledRequest;
-    "/dokime.v1.Settings/UpdateAppearance", settings_client::SettingsClient, update_appearance, UpdateAppearanceRequest;
-    "/dokime.v1.Settings/UpdateDataRoot", settings_client::SettingsClient, update_data_root, UpdateDataRootRequest;
-    "/dokime.v1.Settings/UpdatePluginCredential", settings_client::SettingsClient, update_plugin_credential, UpdatePluginCredentialRequest;
-    "/dokime.v1.Settings/UpdatePluginSettings", settings_client::SettingsClient, update_plugin_settings, UpdatePluginSettingsRequest;
-    "/dokime.v1.Telemetry/ListSamples", telemetry_client::TelemetryClient, list_samples, ListTelemetrySamplesRequest;
+    "/harmos.host.v1.Host/Operations", unary, harmos::operations::host::Operations;
+    "/dokime.v1.Content/FollowExecutionFile", download, contracts::content::FollowExecutionFile;
+    "/dokime.v1.Appearance/GetAppearance", unary, contracts::appearance::GetAppearance;
+    "/dokime.v1.Backend/CollectDiagnostics", download, contracts::backend::CollectDiagnostics;
+    "/dokime.v1.Backend/GetCapabilities", unary, contracts::backend::GetCapabilities;
+    "/dokime.v1.Backend/GetDiagnostics", unary, contracts::backend::GetDiagnostics;
+    "/dokime.v1.Backend/GetHealth", unary, contracts::backend::GetHealth;
+    "/dokime.v1.Backend/GetIdentity", unary, contracts::backend::GetIdentity;
+    "/dokime.v1.Backend/WatchLogs", download, contracts::backend::WatchLogs = contracts::backend::WatchLogsRequest {
+        min_level: contracts::backend::LogLevel::Unspecified,
+        replay_lines: 0,
+    };
+    "/dokime.v1.Catalog/GetRecordSchema", unary, contracts::catalog::GetRecordSchema;
+    "/dokime.v1.Catalog/GetSuite", unary, contracts::catalog::GetSuite;
+    "/dokime.v1.Catalog/GetTelemetrySchema", unary, contracts::catalog::GetTelemetrySchema;
+    "/dokime.v1.Catalog/ListRecordSchemas", unary, contracts::catalog::ListRecordSchemas;
+    "/dokime.v1.Catalog/ListSuites", unary, contracts::catalog::ListSuites;
+    "/dokime.v1.Catalog/ListTelemetrySchemas", unary, contracts::catalog::ListTelemetrySchemas;
+    "/dokime.v1.Content/DownloadAppearanceAsset", download, contracts::content::DownloadAppearanceAsset;
+    "/dokime.v1.Content/DownloadArtifact", download, contracts::content::DownloadArtifact;
+    "/dokime.v1.Content/DownloadCycleBundle", download, contracts::content::DownloadCycleBundle;
+    "/dokime.v1.Content/DownloadExecutionFile", download, contracts::content::DownloadExecutionFile;
+    "/dokime.v1.Content/GetCycleFolderPath", unary, contracts::content::GetCycleFolderPath;
+    "/dokime.v1.Content/ListArtifacts", unary, contracts::content::ListArtifacts;
+    "/dokime.v1.Content/ListExecutionFiles", unary, contracts::content::ListExecutionFiles;
+    "/dokime.v1.Content/ReadExecutionFile", unary, contracts::content::ReadExecutionFile;
+    "/dokime.v1.Documents/CaptureCurrentDocument", download, contracts::documents::CaptureCurrentDocument;
+    "/dokime.v1.Evidence/GetCapturedRecordSchema", unary, contracts::evidence::GetCapturedRecordSchema;
+    "/dokime.v1.Evidence/ListRecords", unary, contracts::evidence::ListRecords;
+    "/dokime.v1.Evidence/WatchRecords", download, contracts::evidence::WatchRecords;
+    "/dokime.v1.Execution/AppendPlannedCases", unary, contracts::execution::AppendPlannedCases;
+    "/dokime.v1.Execution/ClearCycle", unary, contracts::execution::ClearCycle;
+    "/dokime.v1.Execution/CopyCycle", unary, contracts::execution::CopyCycle;
+    "/dokime.v1.Execution/CreateCycle", unary, contracts::execution::CreateCycle;
+    "/dokime.v1.Execution/DeleteCase", unary, contracts::execution::DeleteCase;
+    "/dokime.v1.Execution/GetCase", unary, contracts::execution::GetCase;
+    "/dokime.v1.Execution/GetCycle", unary, contracts::execution::GetCycle;
+    "/dokime.v1.Execution/GetExecution", unary, contracts::execution::GetExecution;
+    "/dokime.v1.Execution/GetExecutionCommand", unary, contracts::execution::GetExecutionCommand;
+    "/dokime.v1.Execution/GetRunRequest", unary, contracts::execution::GetRunRequest;
+    "/dokime.v1.Execution/ListCaseParameters", unary, contracts::execution::ListCaseParameters;
+    "/dokime.v1.Execution/ListCases", unary, contracts::execution::ListCases;
+    "/dokime.v1.Execution/ListCycles", unary, contracts::execution::ListCycles;
+    "/dokime.v1.Execution/ListExecutionParameters", unary, contracts::execution::ListExecutionParameters = contracts::execution::ListExecutionParametersRequest {
+        execution_id: String::new(),
+        set: contracts::execution::ExecutionParameterSet::Unspecified,
+        limit: 0,
+        after_name: String::new(),
+        cursor: None,
+    };
+    "/dokime.v1.Execution/ListExecutionSteps", unary, contracts::execution::ListExecutionSteps;
+    "/dokime.v1.Execution/ListExecutions", unary, contracts::execution::ListExecutions;
+    "/dokime.v1.Execution/ListStepCriteria", unary, contracts::execution::ListStepCriteria;
+    "/dokime.v1.Execution/PauseCycle", unary, contracts::execution::PauseCycle;
+    "/dokime.v1.Execution/ResumeCycle", unary, contracts::execution::ResumeCycle;
+    "/dokime.v1.Execution/RunCase", unary, contracts::execution::RunCase;
+    "/dokime.v1.Execution/RunExecution", unary, contracts::execution::RunExecution = contracts::execution::RunExecutionRequest {
+        execution_id: String::new(),
+        context: None,
+        idempotency_key: None,
+        mode: contracts::execution::ExecutionMode::Automatic,
+    };
+    "/dokime.v1.Execution/PauseExecution", unary, contracts::execution::PauseExecution;
+    "/dokime.v1.Execution/ResumeExecution", unary, contracts::execution::ResumeExecution;
+    "/dokime.v1.Execution/StopExecution", unary, contracts::execution::StopExecution;
+    "/dokime.v1.Execution/SubmitExecutionCommand", unary, contracts::execution::SubmitExecutionCommand = contracts::execution::SubmitExecutionCommandRequest {
+        request_id: String::new(),
+        command_id: String::new(),
+        execution_id: String::new(),
+        action: contracts::execution::ExecutionCommandAction::Unspecified,
+        step_id: None,
+    };
+    "/dokime.v1.Execution/RunCycle", unary, contracts::execution::RunCycle;
+    "/dokime.v1.Execution/ScheduleCaseRerun", unary, contracts::execution::ScheduleCaseRerun;
+    "/dokime.v1.Execution/StopCycle", unary, contracts::execution::StopCycle;
+    "/dokime.v1.Execution/UpdateCyclePolicy", unary, contracts::execution::UpdateCyclePolicy;
+    "/dokime.v1.Health/ListHealth", unary, contracts::notes::ListHealth;
+    "/dokime.v1.History/BrowseExecutions", unary, contracts::history::BrowseExecutions;
+    "/dokime.v1.History/DeleteExecution", unary, contracts::history::DeleteExecution;
+    "/dokime.v1.History/DownloadCheckpointArtifact", download, contracts::history::DownloadCheckpointArtifact;
+    "/dokime.v1.History/GetCheckpointContext", unary, contracts::history::GetCheckpointContext;
+    "/dokime.v1.History/GetCheckpointDocument", unary, contracts::history::GetCheckpointDocument;
+    "/dokime.v1.History/GetCheckpointEvidence", unary, contracts::history::GetCheckpointEvidence;
+    "/dokime.v1.History/GetExecutionCheckpoint", unary, contracts::history::GetExecutionCheckpoint;
+    "/dokime.v1.History/ListCheckpointRecords", unary, contracts::history::ListCheckpointRecords;
+    "/dokime.v1.History/ListCheckpointTelemetry", unary, contracts::history::ListCheckpointTelemetry;
+    "/dokime.v1.History/ReadCheckpointOutput", unary, contracts::history::ReadCheckpointOutput;
+    "/dokime.v1.Notes/CreateNote", unary, contracts::notes::CreateNote;
+    "/dokime.v1.Notes/ListNotes", unary, contracts::notes::ListNotes;
+    "/dokime.v1.Observation/GetRuntimeShell", unary, contracts::observation::GetRuntimeShell;
+    "/dokime.v1.Observation/GetTraceability", unary, contracts::observation::GetTraceability;
+    "/dokime.v1.Observation/WatchExecutionProgress", download, contracts::observation::WatchExecutionProgress;
+    "/dokime.v1.Observation/WatchRuntime", download, contracts::observation::WatchRuntime;
+    "/dokime.v1.Planning/PreviewSelection", unary, contracts::planning::PreviewSelection;
+    "/dokime.v1.Planning/RegisterSelection", unary, contracts::planning::RegisterSelection;
+    "/dokime.v1.Plots/ListAnalyses", unary, contracts::plots::ListAnalyses;
+    "/dokime.v1.Plots/QuerySnapshots", unary, contracts::plots::QuerySnapshots;
+    "/dokime.v1.Plots/Watch", download, contracts::plots::Watch;
+    "/dokime.v1.Plugins/Consent", unary, contracts::plugins::Consent;
+    "/dokime.v1.Plugins/GetInstallation", unary, contracts::plugins::GetInstallation;
+    "/dokime.v1.Plugins/ListAdmittedPlugins", unary, contracts::plugins::ListAdmittedPlugins;
+    "/dokime.v1.Plugins/ListInstallations", unary, contracts::plugins::ListInstallations;
+    "/dokime.v1.Plugins/Remove", unary, contracts::plugins::Remove;
+    "/dokime.v1.Plugins/SetEnabled", unary, contracts::plugins::SetEnabled;
+    "/dokime.v1.Prompts/GetDefinition", unary, contracts::prompts::GetDefinition;
+    "/dokime.v1.Prompts/GetPrompt", unary, contracts::prompts::GetPrompt;
+    "/dokime.v1.Prompts/ListDefinitions", unary, contracts::prompts::ListDefinitions;
+    "/dokime.v1.Prompts/ListPending", unary, contracts::prompts::ListPending;
+    "/dokime.v1.Prompts/Respond", unary, contracts::prompts::Respond;
+    "/dokime.v1.Query/Aggregate", unary, contracts::query::Aggregate = contracts::query::AggregateRequest {
+        source: contracts::query::QuerySource::Unspecified,
+        filters: vec![],
+        group_by: vec![],
+        aggregates: vec![],
+        limit: 0,
+    };
+    "/dokime.v1.Reports/DownloadCycleReport", download, contracts::reports::DownloadCycleReport;
+    "/dokime.v1.Reports/RenderCheckpointReport", unary, contracts::reports::RenderCheckpointReport;
+    "/dokime.v1.Settings/GetPluginSettings", unary, contracts::settings::GetPluginSettings;
+    "/dokime.v1.Settings/GetSettings", unary, contracts::settings::GetSettings;
+    "/dokime.v1.Settings/ReadApplicationSettings", unary, contracts::settings::ReadApplicationSettings;
+    "/dokime.v1.Settings/ReadStoragePolicy", unary, contracts::settings::ReadStoragePolicy;
+    "/dokime.v1.Settings/UpdateStoragePolicy", unary, contracts::settings::UpdateStoragePolicy;
+    "/dokime.v1.Settings/ListStorageSources", unary, contracts::settings::ListStorageSources;
+    "/dokime.v1.Settings/ReorderStorageSources", unary, contracts::settings::ReorderStorageSources;
+    "/dokime.v1.Settings/SetStorageSourceEnabled", unary, contracts::settings::SetStorageSourceEnabled;
+    "/dokime.v1.Settings/UpdateAppearance", unary, contracts::settings::UpdateAppearance;
+    "/dokime.v1.Settings/UpdateDataRoot", unary, contracts::settings::UpdateDataRoot;
+    "/dokime.v1.Settings/UpdatePluginCredential", unary, contracts::settings::UpdatePluginCredential;
+    "/dokime.v1.Settings/UpdatePluginSettings", unary, contracts::settings::UpdatePluginSettings;
+    "/dokime.v1.Telemetry/ListSamples", unary, contracts::telemetry::ListSamples;
 }
 
 /* === Type Aliases === */
@@ -225,24 +260,26 @@ where
     Box::pin(async move {
         use harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
         let bytes = std::num::NonZeroUsize::new(4096).unwrap();
-        let codec =
-            Codec::<O::Response, std::sync::Arc<dokime::operations::runtime::Request>>::new(
-                DecodeSettings {
-                    message_bytes: bytes,
-                    retained_bytes: bytes,
-                },
-                EncodeSettings {
-                    message_bytes: bytes,
-                    buffer_bytes: bytes,
-                },
-            )
-            .unwrap();
+        let codec = Codec::<
+            O::Response,
+            harmos::operations::Response<dokime::operations::runtime::Request>,
+        >::new(
+            DecodeSettings {
+                message_bytes: bytes,
+                retained_bytes: bytes,
+            },
+            EncodeSettings {
+                message_bytes: bytes,
+                buffer_bytes: bytes,
+            },
+        )
+        .unwrap();
         let mut client = tonic::client::Grpc::new(channel);
         client.ready().await.unwrap();
         client
             .unary(
                 credentialed(
-                    std::sync::Arc::new(dokime::operations::runtime::Request {}),
+                    harmos::operations::Response::new(dokime::operations::runtime::Request {}),
                     token,
                 ),
                 tonic::codegen::http::uri::PathAndQuery::from_static(path),
@@ -303,8 +340,11 @@ pub(crate) async fn permission_matrix_enforcement() {
 
     // Distinct Credentials Exercise Every Insufficient Role On One Listener.
     for &(role, token) in PRINCIPALS {
-        let advertised: std::collections::BTreeSet<_> = BackendClient::new(channel.clone())
-            .get_capabilities(credentialed(v1::GetCapabilitiesRequest {}, Some(token)))
+        let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
+            .unary::<contracts::backend::GetCapabilities>(credentialed(
+                contracts::backend::GetCapabilitiesRequest {},
+                Some(token),
+            ))
             .await
             .unwrap()
             .into_inner()

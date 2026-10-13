@@ -1,11 +1,13 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // Native appearance resources. The session owner disposes resources when replaced.
 import * as rpc from "./generated/client.js";
-import type {
-  AppearanceAssetMetadata,
-  AppearanceSnapshot,
-} from "./generated/dokime/v1/appearance_pb.js";
+import type { Wire } from "./canonical.js";
+type AppearanceAssetMetadata = NonNullable<NonNullable<AppearanceSnapshot["logo"]>["asset"]>;
 import type { SessionIdentity } from "./transport.js";
+
+/* === Canonical Types === */
+
+type AppearanceSnapshot = Wire<Awaited<ReturnType<typeof rpc.appearanceGetAppearance>>>;
 
 const maxAssetBytes = 8n * 1024n * 1024n;
 
@@ -50,7 +52,11 @@ export async function loadAppearance(session: SessionIdentity): Promise<Appearan
       invalid();
     const bytes = new Uint8Array(new ArrayBuffer(Number(expected.sizeBytes)));
     const download = await rpc.contentDownloadAppearanceAsset(session, {
-      reference: expected.reference,
+      reference: {
+        pluginId: expected.reference.pluginId,
+        assetId: expected.reference.assetId,
+        sha256: expected.reference.sha256,
+      },
     });
     let offset = 0;
     let header = false;
@@ -58,13 +64,17 @@ export async function loadAppearance(session: SessionIdentity): Promise<Appearan
     try {
       for await (const frame of download) {
         if (complete) invalid();
-        switch (frame.payload.case) {
-          case "metadata":
-            if (header || !sameMetadata(frame.payload.value, expected)) invalid();
+        const payload = frame.payload?.HarmosVariant;
+        if (!payload?.case || !payload.value.field0) invalid();
+        switch (payload.case) {
+          case "Metadata":
+            if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
+            if (header || !sameMetadata(payload.value.field0, expected)) invalid();
             header = true;
             break;
-          case "chunk": {
-            const chunk = frame.payload.value;
+          case "Chunk": {
+            if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
+            const chunk = payload.value.field0;
             if (
               !header ||
               chunk.offset !== BigInt(offset) ||
@@ -77,12 +87,13 @@ export async function loadAppearance(session: SessionIdentity): Promise<Appearan
             offset += chunk.data.length;
             break;
           }
-          case "complete":
+          case "Complete":
+            if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
             if (
               !header ||
               offset !== bytes.length ||
-              frame.payload.value.sizeBytes !== expected.sizeBytes ||
-              frame.payload.value.sha256 !== expected.reference.sha256
+              payload.value.field0.sizeBytes !== expected.sizeBytes ||
+              payload.value.field0.sha256 !== expected.reference.sha256
             )
               invalid();
             complete = true;

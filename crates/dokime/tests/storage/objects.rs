@@ -17,7 +17,8 @@ use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
 use harmos::{
-    Application, Never, Runtime,
+    Application, Runtime,
+    state::Never,
     storage::{StorageBackends, StorageSettings},
 };
 
@@ -444,13 +445,13 @@ pub(crate) async fn executions_reopen_results() {
     };
     let row = dokime::storage::objects::execution::Execution::try_from(&expected).unwrap();
     let receipt = storage.write_object(&row).await.unwrap_or_else(|error| {
-        let fields =
-            <dokime::storage::objects::execution::Execution as harmos::schema::Described>::FIELDS;
+        let schema =
+            crate::sqlite::storage::declared::<dokime::storage::objects::execution::Execution>();
         panic!(
             "execution admission failed: {error}; payload={} resident={} schema={}",
             harmos::Message::encoded_len(&row),
             harmos::MemorySize::memory_size(&row),
-            serde_json::to_vec(fields).unwrap().len(),
+            serde_json::to_vec(&schema).unwrap().len(),
         )
     });
     storage.flush_until(&receipt.position).await.unwrap();

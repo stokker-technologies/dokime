@@ -24,12 +24,12 @@ use std::{
     time::Duration,
 };
 // Third Party Imports
-use dokime::harmos::artifact::plugin::Contribution;
-use dokime::harmos::artifact::{Registrar, RegistrationError, inventory::Section};
 use dokime::harmos::operations::{
-    OperationDeclaration, OperationPolicy, RetryPolicy, ServingError, Visibility, WireOperation,
-    WireTable,
+    OperationDeclaration, OperationPolicy, Response, RetryPolicy, ServingError, Visibility,
+    WireOperation, WireTable,
 };
+use dokime::harmos::plugin::contract::Contribution;
+use dokime::harmos::plugin::{Registrar, RegistrationError, inventory::Section};
 // Local Imports
 use dokime::core::{
     Identifier, Metadata, StepAttemptId, StepId, TemplateId, Timestamp, Value, ValueType,
@@ -92,9 +92,12 @@ macro_rules! operation {
                 context: Self::Context<'ctx>,
                 request: &mut $request,
                 _: &mut (),
-            ) -> Result<$response, Refusal> {
+            ) -> Result<Response<$response>, Refusal> {
                 let request = std::mem::take(request);
-                self.resources.$method(context, request).await
+                self.resources
+                    .$method(context, request)
+                    .await
+                    .map(Response::new)
             }
         }
     };
@@ -298,10 +301,11 @@ impl<M: Mode> dokime::harmos::operations::Operation for Running<M> {
         host: Self::Context<'ctx>,
         request: &mut RunExecutionRequest,
         _: &mut (),
-    ) -> Result<SidecarExecutionOutcome, Refusal> {
+    ) -> Result<Response<SidecarExecutionOutcome>, Refusal> {
         self.resources
             .execute(host, M::MODE, std::mem::take(request))
             .await
+            .map(Response::new)
     }
 }
 
@@ -328,8 +332,10 @@ impl<M: Mode> dokime::harmos::operations::Operation for Signalling<M> {
         _: Self::Context<'ctx>,
         signal: &mut ExecutionSignal,
         _: &mut (),
-    ) -> Result<SignalReply, Refusal> {
-        self.resources.signal(std::mem::take(signal))
+    ) -> Result<Response<SignalReply>, Refusal> {
+        self.resources
+            .signal(std::mem::take(signal))
+            .map(Response::new)
     }
 }
 

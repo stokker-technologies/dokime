@@ -27,7 +27,7 @@ use tokio::{
 // The development-stream contracts a backend must report to be trusted. The
 // desktop and its backend ship from one installer, so this is the same gate
 // cargo-dokime applies to a separately installed host.
-use dokime_protocol::{DEV_PROTOCOL, READINESS_PROTOCOL};
+use dokime_contract::{DEV_PROTOCOL, READINESS_PROTOCOL};
 
 /* === Constants === */
 const READINESS_LIMIT: u64 = 16 * 1024;
@@ -88,7 +88,7 @@ impl Backend {
 impl Search {
     fn from_environment() -> Self {
         Self {
-            // The installer puts `dokime` beside `dokime-gui` on every
+            // The installer puts `dokime-server` beside `dokime-gui` on every
             // platform, so this application's own directory is the first and
             // most specific answer. A development build finds its sibling in
             // the same Cargo target directory.
@@ -247,7 +247,7 @@ fn installed_directories() -> Vec<PathBuf> {
 }
 
 fn backend_name() -> String {
-    format!("dokime{}", std::env::consts::EXE_SUFFIX)
+    format!("dokime-server{}", std::env::consts::EXE_SUFFIX)
 }
 
 fn executable_file(path: &Path) -> Option<PathBuf> {

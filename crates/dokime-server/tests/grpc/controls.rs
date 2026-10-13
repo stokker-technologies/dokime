@@ -47,55 +47,67 @@ pub(crate) async fn cycle_edits_state() {
         cycle: id,
     } = Gated::open().await;
     let cases = client
-        .list_cases(authenticated(v1::ListCasesRequest {
-            cycle_id: id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListCases>(authenticated(
+            contracts::execution::ListCasesRequest {
+                cycle_id: id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .cases;
-    let case = v1::CaseControlRequest {
+    let case = contracts::execution::CaseControlRequest {
         cycle_id: id.clone(),
         case_id: cases[0].case_id.clone(),
         context: None,
     };
     assert_eq!(
-        client.delete_case(case.clone()).await.unwrap_err().code(),
+        client
+            .unary::<contracts::execution::DeleteCase>(case.clone())
+            .await
+            .unwrap_err()
+            .code(),
         Code::Unauthenticated
     );
     client
-        .update_cycle_policy(authenticated(v1::UpdateCyclePolicyRequest {
-            cycle_id: id.clone(),
-            continue_on_failure: true,
-            context: None,
-        }))
+        .unary::<contracts::execution::UpdateCyclePolicy>(authenticated(
+            contracts::execution::UpdateCyclePolicyRequest {
+                cycle_id: id.clone(),
+                continue_on_failure: true,
+                context: None,
+            },
+        ))
         .await
         .unwrap();
     assert!(
         client
-            .get_cycle(authenticated(v1::GetCycleRequest {
-                cycle_id: id.clone()
-            }))
+            .unary::<contracts::execution::GetCycle>(authenticated(
+                contracts::execution::GetCycleRequest {
+                    cycle_id: id.clone()
+                }
+            ))
             .await
             .unwrap()
             .into_inner()
             .continue_on_failure
     );
     client
-        .run_case(authenticated(v1::RunCaseRequest {
-            cycle_id: id.clone(),
-            case_id: case.case_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .unary::<contracts::execution::RunCase>(authenticated(
+            contracts::execution::RunCaseRequest {
+                cycle_id: id.clone(),
+                case_id: case.case_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+        ))
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_secs(5), gate.started.notified())
         .await
         .unwrap();
     let error = client
-        .clear_cycle(authenticated(control(&id)))
+        .unary::<contracts::execution::ClearCycle>(authenticated(control(&id)))
         .await
         .unwrap_err();
     assert_eq!(error.code(), Code::FailedPrecondition);
@@ -110,28 +122,33 @@ pub(crate) async fn cycle_edits_state() {
     assert_eq!(first.len(), 1);
     assert_eq!(
         client
-            .delete_case(authenticated(case.clone()))
+            .unary::<contracts::execution::DeleteCase>(authenticated(case.clone()))
             .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition
     );
     client
-        .schedule_case_rerun(authenticated(case.clone()))
+        .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(case.clone()))
         .await
         .unwrap();
     let planned = attempts(&mut client, &id).await;
     assert_eq!(planned.len(), 2);
     assert_eq!(planned[0], first[0]);
     assert_ne!(planned[1].execution_id, first[0].execution_id);
-    assert_eq!(planned[1].status(), v1::ExecutionStatus::Skipped);
+    assert_eq!(
+        planned[1].status,
+        contracts::execution::ExecutionStatus::Skipped
+    );
     client
-        .run_case(authenticated(v1::RunCaseRequest {
-            cycle_id: id.clone(),
-            case_id: case.case_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .unary::<contracts::execution::RunCase>(authenticated(
+            contracts::execution::RunCaseRequest {
+                cycle_id: id.clone(),
+                case_id: case.case_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+        ))
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_secs(5), gate.started.notified())
@@ -144,14 +161,17 @@ pub(crate) async fn cycle_edits_state() {
     assert_eq!(second[0], first[0]);
     assert_ne!(second[0].execution_id, second[1].execution_id);
     client
-        .schedule_case_rerun(authenticated(case.clone()))
+        .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(case.clone()))
         .await
         .unwrap();
     let retained = attempts(&mut client, &id).await;
     assert_eq!(retained.len(), 3);
     assert_eq!(&retained[..2], &second[..]);
     assert_eq!(retained[2].case_id, case.case_id);
-    assert_eq!(retained[2].status(), v1::ExecutionStatus::Skipped);
+    assert_eq!(
+        retained[2].status,
+        contracts::execution::ExecutionStatus::Skipped
+    );
     assert!(
         second
             .iter()
@@ -159,32 +179,36 @@ pub(crate) async fn cycle_edits_state() {
     );
     assert_eq!(
         client
-            .delete_case(authenticated(case))
+            .unary::<contracts::execution::DeleteCase>(authenticated(case))
             .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition
     );
     client
-        .clear_cycle(authenticated(control(&id)))
+        .unary::<contracts::execution::ClearCycle>(authenticated(control(&id)))
         .await
         .unwrap();
     let cleared = client
-        .get_cycle(authenticated(v1::GetCycleRequest {
-            cycle_id: id.clone(),
-        }))
+        .unary::<contracts::execution::GetCycle>(authenticated(
+            contracts::execution::GetCycleRequest {
+                cycle_id: id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(cleared.status(), v1::CycleStatus::Cleared);
+    assert_eq!(cleared.status, contracts::execution::CycleStatus::Cleared);
     assert_eq!(cleared.case_count, 0);
     assert_eq!(
         client
-            .update_cycle_policy(authenticated(v1::UpdateCyclePolicyRequest {
-                cycle_id: id,
-                continue_on_failure: false,
-                context: None
-            }))
+            .unary::<contracts::execution::UpdateCyclePolicy>(authenticated(
+                contracts::execution::UpdateCyclePolicyRequest {
+                    cycle_id: id,
+                    continue_on_failure: false,
+                    context: None
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -195,32 +219,36 @@ pub(crate) async fn cycle_edits_state() {
 }
 
 async fn attempts(
-    client: &mut ExecutionClient<tonic::transport::Channel>,
+    client: &mut WireClient,
     id: &str,
-) -> Vec<v1::ExecutionSummary> {
+) -> Vec<contracts::execution::ExecutionSummary> {
     client
-        .list_executions(authenticated(v1::ListExecutionsRequest {
-            cycle_id: id.into(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutions>(authenticated(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id: id.into(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .executions
 }
 
-async fn completed(client: &mut ExecutionClient<tonic::transport::Channel>, id: &str) {
+async fn completed(client: &mut WireClient, id: &str) {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             if client
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: id.into(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: id.into(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner()
-                .status()
-                == v1::CycleStatus::Completed
+                .status
+                == contracts::execution::CycleStatus::Completed
             {
                 break;
             }

@@ -17,7 +17,7 @@ import { useNativeAppearance } from "@/app/native-session/NativeSessionProvider"
 import { type Brand, BrandProvider, defaultBrand } from "@/lib/brand";
 import { setDesktopWindowTitle } from "@/lib/desktop-title";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
-import { ThemeModePolicy as NativeThemeModePolicy } from "@/lib/rpc/generated/dokime/v1/appearance_pb";
+
 import { isReportBuild } from "@/lib/ui-mode";
 
 /* === Types === */
@@ -143,7 +143,7 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
       label: theme.label,
       description: theme.description ?? null,
       stylesheet: theme.stylesheet ?? null,
-      variables: { ...theme.variables },
+      variables: Object.fromEntries(theme.variables.map(({ key, value }) => [key, value])),
       corner_radii: theme.cornerRadii
         ? {
             base: theme.cornerRadii.base ?? null,
@@ -157,11 +157,15 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
           }
         : undefined,
       light: {
-        variables: { ...(theme.light?.variables ?? {}) },
+        variables: Object.fromEntries(
+          (theme.light?.variables ?? []).map(({ key, value }) => [key, value]),
+        ),
         plot_palette: [...(theme.light?.plotPalette ?? [])],
       },
       dark: {
-        variables: { ...(theme.dark?.variables ?? {}) },
+        variables: Object.fromEntries(
+          (theme.dark?.variables ?? []).map(({ key, value }) => [key, value]),
+        ),
         plot_palette: [...(theme.dark?.plotPalette ?? [])],
       },
     })),
@@ -173,13 +177,15 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
   };
 }
 
-function nativeModePolicy(policy: NativeThemeModePolicy): RuntimeThemeModePolicy {
-  switch (policy) {
-    case NativeThemeModePolicy.FORCE_SYSTEM:
+function nativeModePolicy(
+  policy: AppearanceResource["appearance"]["modePolicy"],
+): RuntimeThemeModePolicy {
+  switch (policy?.HarmosVariant.case) {
+    case "ForceSystem":
       return "force_system";
-    case NativeThemeModePolicy.FORCE_LIGHT:
+    case "ForceLight":
       return "force_light";
-    case NativeThemeModePolicy.FORCE_DARK:
+    case "ForceDark":
       return "force_dark";
     default:
       return "user_or_system";

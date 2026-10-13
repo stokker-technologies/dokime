@@ -82,7 +82,7 @@ use dokime_app::{
     execution::{CycleView, ExecutionStatus},
     transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome},
 };
-use dokime_protocol::v1::{self, backend_client::BackendClient};
+use dokime_client::contracts;
 use dokime_server::grpc::{
     Config, Server, TlsIdentity,
     access::{BearerGrant, Role},
@@ -96,6 +96,24 @@ const TOKEN: &str = "fixture-token-012345678901234567890123456789";
 /* === Type Aliases === */
 
 /* === Structs === */
+// Keep Per-Request Metadata Available For Wire Authorization Scenarios.
+#[derive(Clone, Debug)]
+struct WireClient {
+    channel: Channel,
+    decoding: usize,
+    encoding: usize,
+}
+
+struct WireBytes<C> {
+    codec: C,
+}
+
+struct BytesEncoder;
+
+struct WireStream<T> {
+    frames: std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<T, tonic::Status>> + Send>>,
+}
+
 struct Gate {
     started: Notify,
     release: Notify,
@@ -107,6 +125,292 @@ struct Gate {
 /* === Traits === */
 
 /* === Implementations === */
+impl WireClient {
+    fn new(channel: Channel) -> Self {
+        Self {
+            channel,
+            decoding: 4 * 1024 * 1024,
+            encoding: u32::MAX as usize,
+        }
+    }
+
+    async fn connect(endpoint: String) -> Result<Self, tonic::transport::Error> {
+        let channel = Endpoint::from_shared(endpoint)?.connect().await?;
+        Ok(Self::new(channel))
+    }
+
+    fn max_decoding_message_size(mut self, bytes: usize) -> Self {
+        self.decoding = bytes;
+        self
+    }
+
+    fn max_encoding_message_size(mut self, bytes: usize) -> Self {
+        self.encoding = bytes;
+        self
+    }
+
+    fn codec<D, E>(
+        &self,
+    ) -> Result<harmos::grpc::Codec<D, harmos::operations::Response<E>>, tonic::Status>
+    where
+        D: harmos::Protobuf + harmos::MemorySize + 'static,
+        E: harmos::Protobuf + Send + Sync + 'static,
+    {
+        use std::num::NonZeroUsize;
+        harmos::grpc::Codec::new(
+            harmos::grpc::DecodeSettings {
+                message_bytes: NonZeroUsize::new(self.decoding).unwrap(),
+                retained_bytes: NonZeroUsize::new(self.decoding).unwrap(),
+            },
+            harmos::grpc::EncodeSettings {
+                message_bytes: NonZeroUsize::new(self.encoding).unwrap(),
+                buffer_bytes: NonZeroUsize::new(self.encoding.min(8192)).unwrap(),
+            },
+        )
+    }
+
+    async fn grpc(&self) -> Result<tonic::client::Grpc<Channel>, tonic::Status> {
+        let mut grpc = tonic::client::Grpc::new(self.channel.clone())
+            .max_decoding_message_size(self.decoding)
+            .max_encoding_message_size(self.encoding);
+        grpc.ready()
+            .await
+            .map_err(|_| tonic::Status::unavailable("channel is not ready"))?;
+        Ok(grpc)
+    }
+
+    async fn unary<O>(
+        &self,
+        request: impl tonic::IntoRequest<O::Request>,
+    ) -> Result<tonic::Response<O::Response>, tonic::Status>
+    where
+        O: contracts::Endpoint,
+        O::Request: harmos::Protobuf + Sync,
+        O::Response: harmos::Protobuf + harmos::MemorySize,
+    {
+        let request = request
+            .into_request()
+            .map(harmos::operations::Response::new);
+        let codec = self.codec::<O::Response, O::Request>()?;
+        let response = self
+            .grpc()
+            .await?
+            .unary(request, O::PATH.parse().unwrap(), codec)
+            .await?;
+        let (metadata, value, extensions) = response.into_parts();
+        let (value, _claims) = value
+            .into_request()
+            .map_err(|error| tonic::Status::data_loss(error.to_string()))?;
+        Ok(tonic::Response::from_parts(metadata, value, extensions))
+    }
+
+    // Exercise Both Malformed Wire Types And Well-Formed Unknown Variants.
+    async fn invalid_enum<O, E>(
+        &self,
+        request: Request<O::Request>,
+        field: &str,
+        unknown_variant: bool,
+    ) -> Result<tonic::Response<O::Response>, tonic::Status>
+    where
+        O: contracts::Endpoint,
+        O::Request: harmos::Protobuf + harmos::schema::Described + Sync,
+        O::Response: harmos::Protobuf + harmos::MemorySize,
+        E: harmos::schema::Described,
+    {
+        use harmos::schema::Described;
+        use prost::encoding::{
+            DecodeContext, WireType, decode_key, encode_key, encode_varint, skip_field,
+        };
+        let tag = O::Request::FIELDS
+            .iter()
+            .find(|entry| entry.name == field)
+            .expect("canonical request declares the enum field")
+            .tag;
+        let request = request.map(|message| {
+            let original = harmos::Protobuf::encode_to_vec(&message);
+            let mut remaining = original.as_slice();
+            let mut bytes = Vec::new();
+            // Replace The Entire Enum Field So No Valid Variant Masks The Refusal.
+            while !remaining.is_empty() {
+                let before = remaining;
+                let (current, wire) = decode_key(&mut remaining).unwrap();
+                skip_field(wire, current, &mut remaining, DecodeContext::default()).unwrap();
+                if current != tag {
+                    bytes.extend_from_slice(&before[..before.len() - remaining.len()]);
+                }
+            }
+            if unknown_variant {
+                let unknown = (1..=536_870_911)
+                    .find(|candidate| {
+                        !(19_000..=19_999).contains(candidate)
+                            && !E::FIELDS.iter().any(|entry| entry.tag == *candidate)
+                    })
+                    .expect("an undeclared enum tag exists");
+                let mut variant = Vec::new();
+                encode_key(unknown, WireType::LengthDelimited, &mut variant);
+                encode_varint(0, &mut variant);
+                encode_key(tag, WireType::LengthDelimited, &mut bytes);
+                encode_varint(variant.len() as u64, &mut bytes);
+                bytes.extend(variant);
+            } else {
+                encode_key(tag, WireType::Varint, &mut bytes);
+                encode_varint(99, &mut bytes);
+            }
+            bytes
+        });
+        let codec = WireBytes {
+            codec: self.codec::<O::Response, ()>()?,
+        };
+        let response = self
+            .grpc()
+            .await?
+            .unary(request, O::PATH.parse().unwrap(), codec)
+            .await?;
+        let (metadata, value, extensions) = response.into_parts();
+        let (value, _claims) = value
+            .into_request()
+            .map_err(|error| tonic::Status::data_loss(error.to_string()))?;
+        Ok(tonic::Response::from_parts(metadata, value, extensions))
+    }
+
+    async fn download<O>(
+        &self,
+        request: impl tonic::IntoRequest<O::Request>,
+    ) -> Result<tonic::Response<WireStream<O::Item>>, tonic::Status>
+    where
+        O: contracts::Endpoint + harmos::operations::OutputDeclaration,
+        O::Request: harmos::Protobuf + Sync,
+        O::Response: harmos::Protobuf + harmos::MemorySize,
+        O::Item: harmos::Protobuf + harmos::MemorySize,
+    {
+        use futures_util::StreamExt;
+        use harmos::grpc::OutputEnvelope;
+        let request = request
+            .into_request()
+            .map(harmos::operations::Response::new);
+        let codec = self.codec::<OutputEnvelope<O::Item, O::Response>, O::Request>()?;
+        let response = self
+            .grpc()
+            .await?
+            .server_streaming(request, O::PATH.parse().unwrap(), codec)
+            .await?;
+        let (metadata, incoming, extensions) = response.into_parts();
+        let frames = futures_util::stream::unfold(Some(incoming), |state| async move {
+            let mut incoming = state?;
+            match incoming.next().await {
+                Some(Err(error)) => Some((Err(error), None)),
+                None => Some((
+                    Err(tonic::Status::data_loss(
+                        "operation stream has no completion",
+                    )),
+                    None,
+                )),
+                Some(Ok(frame)) => match OutputEnvelope::project(frame) {
+                    Err(error) => Some((Err(tonic::Status::data_loss(error.to_string())), None)),
+                    Ok(OutputEnvelope::Item(item)) => {
+                        let value = item
+                            .into_request()
+                            .map(|(value, _claims)| value)
+                            .map_err(|error| tonic::Status::data_loss(error.to_string()));
+                        Some((value, Some(incoming)))
+                    }
+                    Ok(OutputEnvelope::Response(_)) => match incoming.next().await {
+                        Some(Err(error)) => Some((Err(error), None)),
+                        Some(Ok(_)) => Some((
+                            Err(tonic::Status::data_loss(
+                                "operation continued after completion",
+                            )),
+                            None,
+                        )),
+                        None => None,
+                    },
+                },
+            }
+        });
+        Ok(tonic::Response::from_parts(
+            metadata,
+            WireStream {
+                frames: Box::pin(frames),
+            },
+            extensions,
+        ))
+    }
+
+    async fn upload<O>(
+        &self,
+        request: impl tonic::IntoStreamingRequest<Message = O::Item>,
+    ) -> Result<tonic::Response<O::Response>, tonic::Status>
+    where
+        O: contracts::Endpoint + harmos::operations::InputDeclaration,
+        O::Request: harmos::Protobuf + Sync + Default,
+        O::Response: harmos::Protobuf + harmos::MemorySize,
+        O::Item: harmos::Protobuf + Sync,
+    {
+        use futures_util::StreamExt;
+        use harmos::grpc::InputEnvelope;
+        use harmos::operations::Response;
+        let request = request.into_streaming_request().map(|items| {
+            let opening = futures_util::stream::once(async {
+                Response::new(InputEnvelope::Request(O::Request::default()))
+            });
+            opening.chain(items.map(|item| Response::new(InputEnvelope::Item(item))))
+        });
+        let codec = self.codec::<O::Response, InputEnvelope<O::Request, O::Item>>()?;
+        let response = self
+            .grpc()
+            .await?
+            .client_streaming(request, O::PATH.parse().unwrap(), codec)
+            .await?;
+        let (metadata, value, extensions) = response.into_parts();
+        let (value, _claims) = value
+            .into_request()
+            .map_err(|error| tonic::Status::data_loss(error.to_string()))?;
+        Ok(tonic::Response::from_parts(metadata, value, extensions))
+    }
+}
+
+impl<C: tonic::codec::Codec> tonic::codec::Codec for WireBytes<C> {
+    type Encode = Vec<u8>;
+    type Decode = C::Decode;
+    type Encoder = BytesEncoder;
+    type Decoder = C::Decoder;
+
+    fn encoder(&mut self) -> Self::Encoder {
+        BytesEncoder
+    }
+    fn decoder(&mut self) -> Self::Decoder {
+        self.codec.decoder()
+    }
+}
+
+impl tonic::codec::Encoder for BytesEncoder {
+    type Item = Vec<u8>;
+    type Error = tonic::Status;
+
+    fn encode(
+        &mut self,
+        item: Self::Item,
+        buffer: &mut tonic::codec::EncodeBuf<'_>,
+    ) -> Result<(), Self::Error> {
+        use prost::bytes::BufMut;
+        buffer.put_slice(&item);
+        Ok(())
+    }
+}
+
+impl<T> std::fmt::Debug for WireStream<T> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("WireStream").finish_non_exhaustive()
+    }
+}
+
+impl<T> WireStream<T> {
+    async fn message(&mut self) -> Result<Option<T>, tonic::Status> {
+        use futures_util::StreamExt;
+        self.frames.next().await.transpose()
+    }
+}
+
 impl Default for Gate {
     fn default() -> Self {
         Self::reporting(passed_outcome)
@@ -226,10 +530,8 @@ fn passed_outcome(cycle: &CycleView) -> ProviderCycleOutcome {
     }
 }
 
-async fn connect(server: &Server) -> BackendClient<Channel> {
-    BackendClient::connect(server.local_endpoint())
-        .await
-        .unwrap()
+async fn connect(server: &Server) -> WireClient {
+    WireClient::connect(server.local_endpoint()).await.unwrap()
 }
 
 pub(crate) async fn discovery_shares_independently() {
@@ -243,9 +545,9 @@ pub(crate) async fn discovery_shares_independently() {
         .await
         .unwrap();
     let address = server.address();
-    let mut client = connect(&server).await;
+    let client = connect(&server).await;
     let identity = client
-        .get_identity(v1::GetIdentityRequest {})
+        .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentityRequest {})
         .await
         .unwrap()
         .into_inner();
@@ -255,14 +557,14 @@ pub(crate) async fn discovery_shares_independently() {
     assert!(identity.started_at.is_none());
     assert_eq!(identity.api.unwrap().descriptor_sha256.len(), 32);
     let health = client
-        .get_health(v1::GetHealthRequest {})
+        .unary::<contracts::backend::GetHealth>(contracts::backend::GetHealthRequest {})
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(health.readiness(), v1::Readiness::Ready);
+    assert_eq!(health.readiness, contracts::backend::Readiness::Ready);
     assert_eq!(health.epoch, epoch);
-    let native = dokime::client::Client::connect(
-        dokime::client::Target::local(server.local_endpoint()).unwrap(),
+    let native = dokime_client::Client::connect(
+        dokime_client::Target::local(server.local_endpoint()).unwrap(),
         None,
         Some(&node_id),
     )
@@ -274,19 +576,33 @@ pub(crate) async fn discovery_shares_independently() {
     assert_eq!(managed_identity.epoch, epoch);
     assert_eq!(managed_identity.display_name, identity.display_name);
     assert_eq!(managed_identity.product_version, identity.product_version);
-    let operations = native.operations().unwrap();
+    let operations = native.operations().await.unwrap();
+    assert!(operations.iter().any(|operation| {
+        operation.contract.operation().id.as_str() == dokime::operations::evidence::WatchRecords::ID
+            && operation.grpc_available
+    }));
     assert!(operations.iter().any(|operation| {
         operation.contract.operation().id.as_str() == dokime::operations::runtime::GetIdentity::ID
-            && operation.access == dokime::operations::Access::Read
+            && operation.grpc_available
     }));
-    let request = dokime::client::operations::Request::from_json(
-        dokime::operations::runtime::GetIdentity::ID,
-        b"{}",
-    )
-    .unwrap();
-    let response = native.invoke(request).await.unwrap();
-    assert_eq!(response["backend_id"], node_id);
-    assert_eq!(response["epoch"], epoch);
+    let response = native
+        .call_operation(
+            dokime::operations::runtime::GetIdentity::ID,
+            None,
+            b"{}",
+            vec![],
+        )
+        .await
+        .unwrap();
+    let Some(dokime_client::dynamic::Event::Completion(identity_response)) =
+        response.message().await.unwrap()
+    else {
+        panic!("unary identity operation must return a completion");
+    };
+    assert_eq!(identity_response["backendId"], node_id);
+    assert_eq!(identity_response["epoch"], epoch);
+    assert!(response.message().await.unwrap().is_none());
+    response.close().await;
     assert_eq!(managed.backend_id, node_id);
     assert_eq!(managed.epoch, epoch);
     assert_eq!(
@@ -296,7 +612,7 @@ pub(crate) async fn discovery_shares_independently() {
     assert!(managed.observed_at_nanoseconds < 1_000_000_000);
     native.close_and_wait().await;
     let capabilities = client
-        .get_capabilities(v1::GetCapabilitiesRequest {})
+        .unary::<contracts::backend::GetCapabilities>(contracts::backend::GetCapabilitiesRequest {})
         .await
         .unwrap()
         .into_inner();
@@ -341,7 +657,7 @@ pub(crate) async fn discovery_shares_independently() {
     assert_eq!(
         connect(&second)
             .await
-            .get_identity(v1::GetIdentityRequest {})
+            .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentityRequest {})
             .await
             .unwrap()
             .into_inner()
@@ -366,8 +682,8 @@ pub(crate) async fn malformed_credentials_wire() {
         .with_bearer_auth(vec![grant(Role::Read)])
         .unwrap();
     let server = Server::start(owner.handle(), config).await.unwrap();
-    let mut client = connect(&server).await;
-    let mut invalid = Request::new(v1::GetIdentityRequest {});
+    let client = connect(&server).await;
+    let mut invalid = Request::new(contracts::backend::GetIdentityRequest {});
     invalid.metadata_mut().insert(
         "authorization",
         "Bearer a-different-long-token-01234567890123456789"
@@ -375,7 +691,11 @@ pub(crate) async fn malformed_credentials_wire() {
             .unwrap(),
     );
     assert_eq!(
-        client.get_identity(invalid).await.unwrap_err().code(),
+        client
+            .unary::<contracts::backend::GetIdentity>(invalid)
+            .await
+            .unwrap_err()
+            .code(),
         Code::Unauthenticated
     );
     for authorization in [
@@ -383,36 +703,51 @@ pub(crate) async fn malformed_credentials_wire() {
         "Bearer short".to_owned(),
         format!("Bearer  {TOKEN}"),
     ] {
-        let mut malformed = Request::new(v1::GetIdentityRequest {});
+        let mut malformed = Request::new(contracts::backend::GetIdentityRequest {});
         malformed
             .metadata_mut()
             .insert("authorization", authorization.parse().unwrap());
-        let error = client.get_identity(malformed).await.unwrap_err();
+        let error = client
+            .unary::<contracts::backend::GetIdentity>(malformed)
+            .await
+            .unwrap_err();
         assert_eq!(error.code(), Code::Unauthenticated);
         assert_eq!(error.message(), "invalid credentials");
     }
-    let mut duplicate = authenticated(v1::GetIdentityRequest {});
+    let mut duplicate = authenticated(contracts::backend::GetIdentityRequest {});
     duplicate
         .metadata_mut()
         .append("authorization", format!("Bearer {TOKEN}").parse().unwrap());
     assert_eq!(
-        client.get_identity(duplicate).await.unwrap_err().code(),
+        client
+            .unary::<contracts::backend::GetIdentity>(duplicate)
+            .await
+            .unwrap_err()
+            .code(),
         Code::Unauthenticated
     );
     client
-        .get_identity(authenticated(v1::GetIdentityRequest {}))
+        .unary::<contracts::backend::GetIdentity>(authenticated(
+            contracts::backend::GetIdentityRequest {},
+        ))
         .await
         .unwrap();
     client
-        .get_health(authenticated(v1::GetHealthRequest {}))
+        .unary::<contracts::backend::GetHealth>(authenticated(
+            contracts::backend::GetHealthRequest {},
+        ))
         .await
         .unwrap();
     client
-        .get_capabilities(authenticated(v1::GetCapabilitiesRequest {}))
+        .unary::<contracts::backend::GetCapabilities>(authenticated(
+            contracts::backend::GetCapabilitiesRequest {},
+        ))
         .await
         .unwrap();
     client
-        .get_diagnostics(authenticated(v1::GetDiagnosticsRequest {}))
+        .unary::<contracts::backend::GetDiagnostics>(authenticated(
+            contracts::backend::GetDiagnosticsRequest {},
+        ))
         .await
         .unwrap();
     server.shutdown().await.unwrap();
@@ -426,9 +761,9 @@ pub(crate) async fn diagnostics_projects_paths() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut client = connect(&server).await;
+    let client = connect(&server).await;
     let diagnostics = client
-        .get_diagnostics(v1::GetDiagnosticsRequest {})
+        .unary::<contracts::backend::GetDiagnostics>(contracts::backend::GetDiagnosticsRequest {})
         .await
         .unwrap()
         .into_inner();
@@ -439,14 +774,14 @@ pub(crate) async fn diagnostics_projects_paths() {
     assert_eq!(runtime.session_id, epoch);
     assert_eq!(runtime.storage_root, root.path().to_string_lossy());
     assert_eq!(
-        runtime.startup_doctor.unwrap().status(),
-        v1::DiagnosticCheckStatus::Ok
+        runtime.startup_doctor.unwrap().status,
+        contracts::backend::DiagnosticCheckStatus::Ok
     );
     assert!(
         runtime
             .path_conventions
             .iter()
-            .any(|path| path.key() == v1::DiagnosticPathKey::HubLog)
+            .any(|path| path.key == contracts::backend::DiagnosticPathKey::HubLog)
     );
     let counts = runtime.counts.expect("diagnostic counts");
     assert_eq!(counts.cycles, 0);
@@ -506,17 +841,19 @@ pub(crate) async fn tls_listener_clients() {
         .connect()
         .await
         .unwrap();
-    let mut client = BackendClient::new(stream);
+    let client = WireClient::new(stream);
     assert_eq!(
         client
-            .get_identity(v1::GetIdentityRequest {})
+            .unary::<contracts::backend::GetIdentity>(contracts::backend::GetIdentityRequest {})
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
     client
-        .get_identity(authenticated(v1::GetIdentityRequest {}))
+        .unary::<contracts::backend::GetIdentity>(authenticated(
+            contracts::backend::GetIdentityRequest {},
+        ))
         .await
         .unwrap();
     server.shutdown().await.unwrap();

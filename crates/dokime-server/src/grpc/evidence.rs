@@ -8,36 +8,23 @@
  */
 
 /* === Modules === */
-pub(super) mod codec;
+pub(super) mod canonical;
 mod selection;
-mod wire;
-
-mod generated {
-    include!(concat!(env!("OUT_DIR"), "/dokime.v1.Evidence.rs"));
-}
 
 /* === Re-Exports === */
-pub(super) use generated::evidence_server::EvidenceServer;
-pub(crate) use wire::{
-    allocation_memory as historical_record_memory, copy_memory as historical_copy_memory,
-    object_allocation as historical_object_memory, record as historical_record,
-    scope_allocation as historical_scope_memory,
-};
-
 /* === Imports === */
 // Standard Library Imports
-use std::pin::Pin;
+use std::sync::Arc;
 // Third Party Imports
-use futures_util::{Stream, stream};
-use prost::Message;
-use tokio::sync::watch;
-use tonic::{Request, Response, Status};
+use harmos::{
+    Protobuf,
+    operations::{Context, Operation, Response, StreamOutput},
+};
+use tonic::Status;
 // Local Imports
 use super::error::detailed;
-use codec::{Page, WirePage};
 use dokime_app::{RuntimeHandle, runtime::CapturedRecords};
-use dokime_protocol::v1;
-use generated::evidence_server::Evidence;
+use dokime_contract::operations::{cursor::Cursor, evidence as v1, schema::RecordSchema};
 
 use selection::Selection;
 
@@ -49,11 +36,11 @@ const PAGE_BYTES: usize = 512 * 1024;
 /* === Macros === */
 
 /* === Type Aliases === */
+type Page = harmos::storage::QueryValue<v1::RecordPage>;
 
 /* === Structs === */
-pub(super) struct Service {
+struct Resources {
     pub(super) runtime: RuntimeHandle,
-    pub(super) stopping: watch::Receiver<bool>,
     pub(super) max_message_bytes: usize,
 }
 
@@ -75,13 +62,13 @@ impl Reader {
     fn new(
         runtime: &RuntimeHandle,
         selection: Option<v1::CapturedRecordSelection>,
-        after: Option<v1::Cursor>,
-        through: Option<v1::Cursor>,
+        after: Option<Cursor>,
+        through: Option<Cursor>,
         bytes: usize,
     ) -> Result<Self, Status> {
         let source = runtime.captured_records();
         let selection = Selection::new(selection)?;
-        let validate = |cursor: &v1::Cursor| {
+        let validate = |cursor: &Cursor| {
             if cursor.epoch != source.epoch() || cursor.stream != selection.stream {
                 return Err(Status::failed_precondition(
                     "record cursor epoch/selection mismatch; resynchronize without cursors",
@@ -112,8 +99,8 @@ impl Reader {
             bytes: bytes.min(PAGE_BYTES),
         })
     }
-    fn cursor(&self, position: u64) -> v1::Cursor {
-        v1::Cursor {
+    fn cursor(&self, position: u64) -> Cursor {
+        Cursor {
             epoch: self.source.epoch().into(),
             stream: self.selection.stream.clone(),
             position,
@@ -128,10 +115,10 @@ impl Reader {
             .map_err(memory_error)?;
         let allowance = preparation.allowance().get();
         let mut scanned = self.scanned;
-        let envelope_memory = std::mem::size_of::<WirePage>()
+        let envelope_memory = std::mem::size_of::<v1::RecordPage>()
             .saturating_add(RECORD_LIMIT.saturating_mul(std::mem::size_of::<v1::CapturedRecord>()))
-            .saturating_add(wire::copy_memory(self.source.epoch().len()).saturating_mul(3))
-            .saturating_add(wire::copy_memory(self.selection.stream.len()).saturating_mul(3));
+            .saturating_add(self.source.epoch().len().saturating_mul(3))
+            .saturating_add(self.selection.stream.len().saturating_mul(3));
         if envelope_memory > allowance {
             return Err(Status::resource_exhausted(
                 "record page envelope exceeds native memory allowance",
@@ -160,9 +147,8 @@ impl Reader {
             .epoch
             .capacity()
             .saturating_add(page.scanned.as_ref().unwrap().stream.capacity());
-        let envelope = WirePage(page);
-        let mut memory = envelope.memory_size().saturating_add(cursor_scratch);
-        let WirePage(mut page) = envelope;
+        let mut memory = page.memory_size().saturating_add(cursor_scratch);
+        let mut page = page;
         if memory > allowance {
             return Err(Status::resource_exhausted(
                 "record page envelope exceeds native memory allowance",
@@ -179,7 +165,7 @@ impl Reader {
                 break;
             };
             if self.selection.matches(&record) {
-                let candidate_memory = wire::allocation_memory(&record)?;
+                let candidate_memory = canonical::memory(&record)?;
                 if memory.saturating_add(candidate_memory) > allowance {
                     if page.records.is_empty() {
                         return Err(Status::resource_exhausted(
@@ -188,7 +174,7 @@ impl Reader {
                     }
                     break;
                 }
-                let encoded = wire::record(&record)?;
+                let encoded = canonical::record(&record)?;
                 let size = encoded.encoded_len().saturating_add(10);
                 if bytes.saturating_add(size) > self.bytes {
                     if page.records.is_empty() {
@@ -210,118 +196,189 @@ impl Reader {
         page.scanned = Some(self.cursor(scanned));
         page.replay_complete = scanned == self.through;
         let output = preparation
-            .finish(WirePage(page))
+            .finish(page)
             .map_err(memory_error)?
             .try_into_value()
             .map_err(memory_error)?;
         self.scanned = scanned;
-        Ok(Page(output))
+        Ok(output)
     }
 }
 
-#[tonic::async_trait]
-impl Evidence for Service {
-    type WatchRecordsStream = Pin<Box<dyn Stream<Item = Result<Page, Status>> + Send + 'static>>;
-
-    async fn list_records(
-        &self,
-        request: Request<v1::ListRecordsRequest>,
-    ) -> Result<Response<Page>, Status> {
-        let request = request.into_inner();
+struct List {
+    resources: Arc<Resources>,
+}
+struct Watch {
+    resources: Arc<Resources>,
+}
+struct Schema {
+    resources: Arc<Resources>,
+}
+impl Operation for List {
+    type Declaration = v1::ListRecords;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::ListRecordsRequest,
+        _: &mut (),
+    ) -> Result<Response<v1::RecordPage>, Status> {
         if request.after.is_some() != request.through.is_some() {
             return Err(Status::invalid_argument(
                 "pagination requires both after and through cursors",
             ));
         }
         let mut reader = Reader::new(
-            &self.runtime,
-            request.selection,
-            request.after,
-            request.through,
-            self.max_message_bytes,
+            &self.resources.runtime,
+            request.selection.take(),
+            request.after.take(),
+            request.through.take(),
+            self.resources.max_message_bytes,
         )?;
-        Ok(Response::new(reader.page().await?))
+        reader
+            .page()
+            .await?
+            .try_into_response()
+            .map_err(memory_error)
     }
-
-    async fn watch_records(
-        &self,
-        request: Request<v1::WatchRecordsRequest>,
-    ) -> Result<Response<Self::WatchRecordsStream>, Status> {
-        if *self.stopping.borrow() {
-            return Err(Status::unavailable("listener is stopping"));
-        }
-        let request = request.into_inner();
-        let reader = Reader::new(
-            &self.runtime,
-            request.selection,
-            request.after,
+}
+impl Operation for Watch {
+    type Declaration = v1::WatchRecords;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = StreamOutput<v1::RecordPage>;
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::WatchRecordsRequest,
+        output: &mut Self::Endpoints,
+    ) -> Result<Response<()>, Status> {
+        let mut reader = Reader::new(
+            &self.resources.runtime,
+            request.selection.take(),
+            request.after.take(),
             None,
-            self.max_message_bytes,
+            self.resources.max_message_bytes,
         )?;
-        let frames = stream::unfold(
-            Some((reader, self.stopping.clone(), true)),
-            |state| async move {
-                let (mut reader, mut stopping, initial) = state?;
-                if *stopping.borrow() {
-                    return None;
+        let mut initial = true;
+        loop {
+            if !initial && reader.scanned == reader.through {
+                match reader
+                    .source
+                    .wait_after(reader.scanned)
+                    .await
+                    .map_err(capture_error)?
+                {
+                    Some(through) => reader.through = through,
+                    None => return Ok((()).into()),
                 }
-                let next = async {
-                    if !initial && reader.scanned == reader.through {
-                        match reader
-                            .source
-                            .wait_after(reader.scanned)
-                            .await
-                            .map_err(capture_error)?
-                        {
-                            Some(through) => reader.through = through,
-                            None => return Ok(None),
-                        }
-                    }
-                    reader.page().await.map(Some)
-                };
-                let result = tokio::select! { biased;
-                    _ = stopping.changed() => return None,
-                    result = next => result,
-                };
-                match result {
-                    Ok(Some(page)) => Some((Ok(page), Some((reader, stopping, false)))),
-                    Ok(None) => None,
-                    Err(error) => Some((Err(error), None)),
-                }
-            },
-        );
-        Ok(Response::new(Box::pin(frames)))
+            }
+            output
+                .send_owned(
+                    reader
+                        .page()
+                        .await?
+                        .try_into_response()
+                        .map_err(memory_error)?,
+                )
+                .await
+                .map_err(memory_error)?;
+            initial = false;
+        }
     }
-
-    async fn get_captured_record_schema(
-        &self,
-        request: Request<v1::GetCapturedRecordSchemaRequest>,
-    ) -> Result<Response<v1::RecordSchema>, Status> {
-        let request = request.into_inner();
-        let snapshot = self.runtime.watch_state().latest();
-        if request.epoch != self.runtime.captured_records().epoch() {
+}
+impl Operation for Schema {
+    type Declaration = v1::GetCapturedRecordSchema;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::GetCapturedRecordSchemaRequest,
+        _: &mut (),
+    ) -> Result<Response<RecordSchema>, Status> {
+        let snapshot = self.resources.runtime.watch_state().latest();
+        if request.epoch != self.resources.runtime.captured_records().epoch() {
             return Err(Status::failed_precondition(
                 "record schema epoch mismatch; resynchronize",
             ));
         }
         super::value::text(&request.record_type)?;
-        let kind = dokime_app::core::Identifier::new(request.record_type)
+        let kind = dokime_app::core::Identifier::new(std::mem::take(&mut request.record_type))
             .map_err(|_| Status::invalid_argument("invalid record type"))?;
         let contract = snapshot
             .state()
             .historical_record_contract(&kind, request.schema_version)
             .ok_or_else(|| Status::not_found("exact admitted record schema is unavailable"))?;
+        let required = super::catalog::schemas::record_memory(contract)?;
+        if required > self.resources.max_message_bytes {
+            return Err(Status::resource_exhausted(
+                "record schema exceeds original allowance",
+            ));
+        }
+        let preparation = self
+            .resources
+            .runtime
+            .storage()
+            .prepare_production(
+                std::num::NonZeroUsize::new(required)
+                    .ok_or_else(|| Status::resource_exhausted("invalid schema allowance"))?,
+            )
+            .map_err(memory_error)?;
         let schema = super::catalog::schemas::record(contract)?;
-        if schema.encoded_len() > self.max_message_bytes {
+        if schema.encoded_len() > self.resources.max_message_bytes {
             return Err(Status::resource_exhausted(
                 "record schema exceeds transport response budget",
             ));
         }
-        Ok(Response::new(schema))
+        preparation
+            .finish(schema)
+            .map_err(memory_error)?
+            .try_into_value()
+            .map_err(memory_error)?
+            .try_into_response()
+            .map_err(memory_error)
     }
 }
 
 /* === Public Functions === */
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        max_message_bytes: maximum,
+    });
+    runtime.operations().register_wire_operation::<List>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        resources.clone(),
+    )?;
+    runtime.operations().register_wire_operation::<Watch>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        resources.clone(),
+    )?;
+    runtime.operations().register_wire_operation::<Schema>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        resources,
+    )?;
+    Ok(())
+}
 
 /* === Private Functions === */
 fn memory_error(error: harmos::Error) -> Status {

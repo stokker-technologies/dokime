@@ -629,7 +629,7 @@ async fn recover_published_cycle(
         state_manager
             .state()
             .read(|state| {
-                use harmos::Transaction;
+                use harmos::state::Transaction;
                 complete.check(state)
             })
             .await?

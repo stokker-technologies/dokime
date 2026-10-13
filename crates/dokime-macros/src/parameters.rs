@@ -410,7 +410,9 @@ fn declare_choice(attribute: TokenStream, item: &TokenStream) -> Result<TokenStr
             "a choice admits at least one value: declare a variant",
         ));
     }
-    let declared = stripped_choice(&input);
+    // Choices Used In Records And Rows Share The Same Message Codec.
+    let stripped = stripped_choice(&input);
+    let declared = crate::message::message(crate::message::Kind::Plain, quote!(), stripped);
     let name = &input.ident;
     let (generics, types, predicates) = input.generics.split_for_impl();
     let choices = variants.iter().map(|variant| {

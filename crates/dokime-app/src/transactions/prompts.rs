@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::Error;
@@ -73,7 +73,7 @@ impl Transaction<RuntimeState> for RequestPrompt {
             .map_err(|error| error.to_string())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         prepare_request(state, self)
             .expect("checked prompt plan")
             .1
@@ -94,7 +94,7 @@ impl Transaction<RuntimeState> for SubmitPromptResponse {
             .map_err(|error| error.to_string())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         prepare_response(state, self)
             .expect("checked response plan")
             .1

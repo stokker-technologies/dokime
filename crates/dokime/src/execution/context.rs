@@ -81,6 +81,7 @@ pub struct Context<'a, C, O, I, Stage> {
     environment: &'a Environment<'a, C, O, I>,
     transport: &'a mut dyn ExecutionTransport,
     stage: Stage,
+    call_stage: String,
 }
 
 pub struct Initialize;
@@ -141,7 +142,13 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
             environment,
             transport,
             stage,
+            call_stage: String::new(),
         }
+    }
+
+    pub(super) fn calling_stage(mut self, stage: impl Into<String>) -> Self {
+        self.call_stage = stage.into();
+        self
     }
 
     pub fn environment(&self) -> &'a Environment<'a, C, O, I> {
@@ -201,7 +208,10 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
         <Op::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
         C: Calls<Op>,
     {
-        self.environment.caller().call::<Op>(request).await
+        self.environment
+            .caller()
+            .call_at::<Op>(&self.call_stage, request)
+            .await
     }
 }
 
@@ -376,7 +386,10 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         <Op::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
         C: Calls<Op>,
     {
-        self.caller.call::<Op>(request).await
+        let stage = self.log.map_or_else(String::new, |(_, criterion)| {
+            format!("criterion/{criterion}")
+        });
+        self.caller.call_at::<Op>(&stage, request).await
     }
 
     #[cfg(feature = "native")]

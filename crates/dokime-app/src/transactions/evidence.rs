@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::Error;
@@ -149,7 +149,7 @@ impl Transaction<RuntimeState> for PublishRecord {
             .map_err(|error| error.to_string())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         prepare_record(state, self)
             .expect("checked record plan")
             .collect(out);

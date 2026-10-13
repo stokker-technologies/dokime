@@ -37,9 +37,9 @@ use dokime_app::state::PluginOwner;
 /* === Public Functions === */
 pub(super) fn page(
     runtime: &RuntimeHandle,
-    request: v1::ListAdmittedPluginsRequest,
+    request: &mut v1::ListAdmittedPluginsRequest,
     limit: usize,
-) -> Result<v1::AdmittedPluginPage, Status> {
+) -> Result<harmos::operations::Response<v1::AdmittedPluginPage>, Status> {
     let size = page_size(request.page_size)?;
     let snapshot = runtime.watch_state().latest();
     let state = snapshot.state();
@@ -64,6 +64,13 @@ pub(super) fn page(
     let mut selected = state
         .installed_plugins
         .range::<str, _>((start, std::ops::Bound::Unbounded));
+    let preparation = runtime
+        .storage()
+        .prepare_production(
+            std::num::NonZeroUsize::new(limit)
+                .ok_or_else(|| Status::resource_exhausted("invalid inventory allowance"))?,
+        )
+        .map_err(super::memory_failure)?;
     let mut artifacts = Vec::new();
     let mut bytes = 256usize;
     for (id, artifact) in selected.by_ref().take(size) {
@@ -97,9 +104,9 @@ pub(super) fn page(
             version: artifact.version.clone(),
             enabled: artifact.enabled,
             owner: owner.map(|owner| match owner {
-                PluginOwner::Host => v1::admitted_plugin::Owner::Host(true),
+                PluginOwner::Host => v1::AdmittedPluginOwner::Host(true),
                 PluginOwner::Embedded { generation } => {
-                    v1::admitted_plugin::Owner::Embedded(v1::AdmittedEmbeddedOwner {
+                    v1::AdmittedPluginOwner::Embedded(v1::AdmittedEmbeddedOwner {
                         generation: generation.clone(),
                     })
                 }
@@ -107,7 +114,7 @@ pub(super) fn page(
                     package,
                     installation,
                     content_digest,
-                } => v1::admitted_plugin::Owner::Bundle(v1::AdmittedBundleOwner {
+                } => v1::AdmittedPluginOwner::Bundle(v1::AdmittedBundleOwner {
                     package: package.clone(),
                     installation_id: installation.clone(),
                     content_digest: content_digest.clone(),
@@ -122,13 +129,25 @@ pub(super) fn page(
             after_plugin_id: artifact.plugin_id.clone(),
         })
     });
-    Ok(v1::AdmittedPluginPage {
+    let reply = v1::AdmittedPluginPage {
         plugins: artifacts,
         next,
         total_count: state.installed_plugins.len() as u64,
         epoch,
         revision: snapshot.revision(),
-    })
+    };
+    if reply.encoded_len() > limit {
+        return Err(Status::resource_exhausted(
+            "plugin inventory exceeds wire budget",
+        ));
+    }
+    preparation
+        .finish(reply)
+        .map_err(super::memory_failure)?
+        .try_into_value()
+        .map_err(super::memory_failure)?
+        .try_into_response()
+        .map_err(super::memory_failure)
 }
 
 /* === Private Functions === */

@@ -16,7 +16,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
 // Third Party Imports
-use harmos::sidecar::Refusal;
+use harmos::plugin::sidecar::Refusal;
 use tokio::sync::Notify;
 // Local Imports
 use super::{CommandExecutionReply, CommandExecutionRequest};

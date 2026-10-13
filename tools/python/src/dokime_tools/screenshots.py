@@ -20,6 +20,7 @@ from pathlib import Path
 # Third Party Imports
 
 # Local Imports
+# isort: split
 from . import _policy, evidence
 
 # Type Checking Imports
@@ -96,7 +97,7 @@ def check(directory: Path, _: str = "check") -> None:
         width, height = dimensions(path.read_bytes())
         if entry["viewport"] != {"width": width, "height": height}:
             raise _policy.ToolError(f"screenshot viewport mismatch: {path.name}")
-        timestamp = datetime.fromisoformat(entry["captured_at"].replace("Z", "+00:00"))
+        timestamp = datetime.fromisoformat(entry["captured_at"])
         if timestamp.tzinfo is None:
             raise _policy.ToolError("captured_at requires a timezone")
         revision = entry["revision"]

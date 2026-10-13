@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 // Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
-use dokime_protocol::v1;
+use dokime_contract::operations::content as v1;
 
 /* === Constants === */
 
@@ -44,7 +44,7 @@ pub(crate) struct VerifiedContent {
 /* === Implementations === */
 impl VerifiedContent {
     fn from_download<T>(
-        download: dokime::client::Download<T>,
+        download: dokime_client::Download<T>,
         content_type: impl FnOnce(T) -> Option<String>,
     ) -> Self {
         Self {
@@ -68,7 +68,7 @@ pub(crate) async fn fetch_verified(
             .map_err(|error| error.to_string())?;
     }
     let client = lease.client().with_frame_limit(
-        std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit"),
+        std::num::NonZeroUsize::new(crate::uploads::MAX_FRAME_BYTES).expect("desktop frame limit"),
     );
     let destination = destination.to_path_buf();
     let result = match source {
@@ -121,7 +121,8 @@ pub(crate) async fn push_verified(
     lease
         .client()
         .with_frame_limit(
-            std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit"),
+            std::num::NonZeroUsize::new(crate::uploads::MAX_FRAME_BYTES)
+                .expect("desktop frame limit"),
         )
         .upload_artifact_file(source, header)
         .await

@@ -52,8 +52,8 @@ pub(crate) use runtime::{handle, state as runtime_state};
 
 pub use app::Dokime;
 pub use capabilities::documents::{
-    CurrentDocumentCapture, CurrentDocumentTelemetryCut, ExecutionFileStream,
-    PreparedCurrentDocument,
+    CurrentDocumentCapture, CurrentDocumentTelemetryCut, ExecutionFileFollower,
+    ExecutionFileStream, PreparedCurrentDocument,
 };
 pub use capabilities::execution::outputs::{
     ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState,

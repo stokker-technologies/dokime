@@ -19,7 +19,8 @@ use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc, time::Duration};
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 use harmos::{
-    Application, Identifier, Never, Runtime,
+    Application, Identifier, Runtime,
+    state::Never,
     storage::{
         QueryOptions, ReadKind, ReadSelection, RecordWrite, StorageBackends, StorageManager,
         StorageSettings, StreamWrite,
@@ -92,8 +93,13 @@ impl Fixture {
             .runtime_with_storage(&storage)
             .await
             .unwrap();
+        let graph = harmos::schema::graph::Schema::from_declaration(
+            <telemetry::TelemetryRow as harmos::schema::Described>::DEFINITION,
+            &harmos::config::SchemaSettings::default(),
+        )
+        .unwrap();
         storage
-            .write_schema(&telemetry::schema(), telemetry::fields())
+            .write_schema(&telemetry::schema(), &graph)
             .await
             .unwrap();
         let fixture = Self {

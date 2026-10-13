@@ -71,12 +71,14 @@ impl ExecutionScope {
         self
     }
 
-    pub fn current(host: &harmos::sidecar::Supervisor) -> Option<Self> {
+    #[cfg(feature = "native")]
+    pub fn current(host: &harmos::plugin::sidecar::Supervisor) -> Option<Self> {
         host.context().value::<Self>().ok().flatten()
     }
 
+    #[cfg(feature = "native")]
     pub fn serving<O: harmos::operations::Declares>(
-        host: &harmos::sidecar::Supervisor,
+        host: &harmos::plugin::sidecar::Supervisor,
     ) -> Option<Self> {
         Self::current(host).map(|scope| {
             scope.routed(<O::Declaration as harmos::operations::OperationDeclaration>::ID)
@@ -84,7 +86,15 @@ impl ExecutionScope {
     }
 
     pub fn key(&self) -> IdempotencyKey {
-        IdempotencyKey(format!("{}/{}/{}", self.execution, self.stage, self.route))
+        IdempotencyKey(format!(
+            "{}:{}{}:{}{}:{}",
+            self.execution.len(),
+            self.execution,
+            self.stage.len(),
+            self.stage,
+            self.route.len(),
+            self.route,
+        ))
     }
 }
 

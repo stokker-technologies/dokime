@@ -15,7 +15,9 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
+    convert::Infallible,
     net::{Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
     time::Duration,
 };
 // Third Party Imports
@@ -27,17 +29,14 @@ use tonic::{
     transport::{Identity, Server, ServerTlsConfig},
 };
 // Local Imports
+use dokime_client::contracts::{Endpoint, backend, catalog, plugins, runtime};
+use dokime_client::credentials::{Error as CredentialError, SecretStore};
 use dokime_gui::connection::*;
-use dokime_protocol::v1::{
-    self,
-    backend_client::BackendClient,
-    backend_server::{Backend, BackendServer},
-};
-use keyring::credential::{Credential, CredentialApi, CredentialBuilderApi, CredentialPersistence};
 use std::{
     future::Future,
     sync::{Arc, Mutex},
 };
+use zeroize::Zeroizing;
 
 /* === Constants === */
 static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::new(|| {
@@ -47,18 +46,20 @@ static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::ne
     (generated.cert.pem(), generated.signing_key.serialize_pem())
 });
 
+static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
+    let contracts =
+        harmos::operations::Contracts::of::<dokime_client::contracts::Operations>().unwrap();
+    let artifacts = harmos::grpc::Artifacts::new(&contracts).unwrap();
+    Sha256::digest(artifacts.descriptors()).to_vec()
+});
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
 #[derive(Default)]
-struct MemorySecrets(Arc<Mutex<BTreeMap<String, Vec<u8>>>>);
-
-struct CredentialEntry {
-    store: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
-    account: String,
-}
+struct MemorySecrets(Arc<Mutex<BTreeMap<String, String>>>);
 
 struct Gate {
     entered: Notify,
@@ -73,7 +74,7 @@ struct Service {
     capabilities_epoch: String,
     api_package: String,
     api_version: String,
-    readiness: i32,
+    readiness: backend::Readiness,
     max_request_bytes: u64,
     max_response_bytes: u64,
     descriptor: Vec<u8>,
@@ -101,53 +102,25 @@ struct Listener {
 /* === Traits === */
 
 /* === Implementations === */
-impl CredentialBuilderApi for MemorySecrets {
-    fn build(
-        &self,
-        _: Option<&str>,
-        service: &str,
-        user: &str,
-    ) -> keyring::Result<Box<Credential>> {
-        assert_eq!(service, "com.stokker.dokime.backend");
-        Ok(Box::new(CredentialEntry {
-            store: self.0.clone(),
-            account: user.into(),
-        }))
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn persistence(&self) -> CredentialPersistence {
-        CredentialPersistence::ProcessOnly
-    }
-}
-
-impl CredentialApi for CredentialEntry {
-    fn set_secret(&self, secret: &[u8]) -> keyring::Result<()> {
-        self.store
+impl SecretStore for MemorySecrets {
+    fn read(&self, endpoint: &str) -> Result<Option<Zeroizing<String>>, CredentialError> {
+        Ok(self
+            .0
             .lock()
             .unwrap()
-            .insert(self.account.clone(), secret.to_vec());
+            .get(endpoint)
+            .cloned()
+            .map(Zeroizing::new))
+    }
+
+    fn write(&self, endpoint: &str, token: &str) -> Result<(), CredentialError> {
+        self.0.lock().unwrap().insert(endpoint.into(), token.into());
         Ok(())
     }
-    fn get_secret(&self) -> keyring::Result<Vec<u8>> {
-        self.store
-            .lock()
-            .unwrap()
-            .get(&self.account)
-            .cloned()
-            .ok_or(keyring::Error::NoEntry)
-    }
-    fn delete_credential(&self) -> keyring::Result<()> {
-        self.store
-            .lock()
-            .unwrap()
-            .remove(&self.account)
-            .map(|_| ())
-            .ok_or(keyring::Error::NoEntry)
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
+
+    fn remove(&self, endpoint: &str) -> Result<(), CredentialError> {
+        self.0.lock().unwrap().remove(endpoint);
+        Ok(())
     }
 }
 
@@ -168,15 +141,17 @@ impl Service {
             health_epoch: "epoch".into(),
             capabilities_epoch: "epoch".into(),
             api_package: "dokime.v1".into(),
-            api_version: dokime_protocol::API_VERSION.into(),
-            readiness: v1::Readiness::Ready as i32,
+            api_version: backend::API_VERSION.into(),
+            readiness: backend::Readiness::Ready,
             max_request_bytes: u64::MAX,
             max_response_bytes: u64::MAX,
-            descriptor: Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET).to_vec(),
+            descriptor: DESCRIPTOR.clone(),
             methods: vec![
                 "/dokime.v1.Backend/GetIdentity".into(),
                 "/dokime.v1.Backend/GetHealth".into(),
                 "/dokime.v1.Backend/GetCapabilities".into(),
+                runtime::GetIdentity::PATH.into(),
+                runtime::GetHealth::PATH.into(),
             ],
             token: None,
             requests: Arc::default(),
@@ -203,117 +178,455 @@ impl Service {
     }
 }
 
+#[derive(Clone)]
+struct BackendService(Service);
+
+#[derive(Clone)]
+struct PluginsService(Service);
+
+#[derive(Clone)]
+struct RuntimeService(Service);
+
+struct Unary<O> {
+    service: Service,
+    operation: std::marker::PhantomData<O>,
+}
+
+struct Logs(Service);
+struct Upload(Service);
+
+type FixtureFuture<T> = std::pin::Pin<Box<dyn Future<Output = Result<T, Status>> + Send>>;
+type HttpRequest = tonic::codegen::http::Request<tonic::body::Body>;
+type HttpResponse = tonic::codegen::http::Response<tonic::body::Body>;
+type HttpFuture = std::pin::Pin<Box<dyn Future<Output = Result<HttpResponse, Infallible>> + Send>>;
+type LogEnvelope = harmos::grpc::OutputEnvelope<backend::LogFrame, ()>;
+type UploadEnvelope = harmos::grpc::InputEnvelope<(), plugins::StagePluginFrame>;
+
 #[tonic::async_trait]
-impl Backend for Service {
-    async fn get_identity(
-        &self,
-        request: Request<v1::GetIdentityRequest>,
-    ) -> Result<Response<v1::BackendIdentity>, Status> {
-        self.authorize(&request)?;
-        if let Some(gate) = &self.gate {
+trait FixtureUnary: harmos::operations::OperationDeclaration + Send + 'static {
+    async fn reply(service: Service) -> Result<Self::Response, Status>;
+}
+
+#[tonic::async_trait]
+impl FixtureUnary for backend::GetIdentity {
+    async fn reply(service: Service) -> Result<backend::BackendIdentity, Status> {
+        if let Some(gate) = &service.gate {
             gate.entered.notify_one();
             gate.release.acquire().await.unwrap().forget();
         }
-        Ok(Response::new(v1::BackendIdentity {
-            backend_id: self.id.clone(),
-            epoch: self.identity_epoch.lock().unwrap().clone(),
+        Ok(backend::BackendIdentity {
+            backend_id: service.id,
+            epoch: service.identity_epoch.lock().unwrap().clone(),
             display_name: "Fixture".into(),
             product_version: "0.1.0".into(),
             started_at: None,
             source_revision: None,
             sdk_revision: None,
-            api: Some(v1::ApiIdentity {
-                package: self.api_package.clone(),
-                version: self.api_version.clone(),
-                descriptor_sha256: self.descriptor.clone(),
+            api: Some(backend::ApiIdentity {
+                package: service.api_package,
+                version: service.api_version,
+                descriptor_sha256: service.descriptor,
             }),
-        }))
+        })
     }
-    async fn get_health(
-        &self,
-        request: Request<v1::GetHealthRequest>,
-    ) -> Result<Response<v1::BackendHealth>, Status> {
-        self.authorize(&request)?;
-        Ok(Response::new(v1::BackendHealth {
-            backend_id: self.id.clone(),
-            epoch: self.health_epoch.clone(),
-            readiness: self.readiness,
+}
+
+#[tonic::async_trait]
+impl FixtureUnary for backend::GetHealth {
+    async fn reply(service: Service) -> Result<backend::BackendHealth, Status> {
+        Ok(backend::BackendHealth {
+            backend_id: service.id,
+            epoch: service.health_epoch,
+            readiness: service.readiness,
             observed_at: None,
             message: String::new(),
-        }))
+        })
     }
-    async fn get_capabilities(
-        &self,
-        request: Request<v1::GetCapabilitiesRequest>,
-    ) -> Result<Response<v1::BackendCapabilities>, Status> {
-        self.authorize(&request)?;
-        Ok(Response::new(v1::BackendCapabilities {
-            backend_id: self.id.clone(),
-            epoch: self.capabilities_epoch.clone(),
-            methods: self.methods.clone(),
-            limits: Some(v1::BackendLimits {
-                max_request_bytes: self.max_request_bytes,
-                max_response_bytes: self.max_response_bytes,
+}
+
+#[tonic::async_trait]
+impl FixtureUnary for backend::GetCapabilities {
+    async fn reply(service: Service) -> Result<backend::BackendCapabilities, Status> {
+        Ok(backend::BackendCapabilities {
+            backend_id: service.id,
+            epoch: service.capabilities_epoch,
+            methods: service.methods,
+            limits: Some(backend::BackendLimits {
+                max_request_bytes: service.max_request_bytes,
+                max_response_bytes: service.max_response_bytes,
                 max_content_bytes: Some(u64::MAX),
                 max_chunk_bytes: Some(u32::MAX),
                 max_page_items: None,
                 max_stream_buffer_items: None,
             }),
-        }))
+        })
     }
+}
 
-    async fn get_diagnostics(
-        &self,
-        request: Request<v1::GetDiagnosticsRequest>,
-    ) -> Result<Response<v1::DiagnosticsResponse>, Status> {
-        self.authorize(&request)?;
-        Ok(Response::new(v1::DiagnosticsResponse {
-            server: Some(v1::BackendDiagnostics {
+#[tonic::async_trait]
+impl FixtureUnary for backend::GetDiagnostics {
+    async fn reply(_: Service) -> Result<backend::DiagnosticsResponse, Status> {
+        Ok(backend::DiagnosticsResponse {
+            server: Some(backend::BackendDiagnostics {
                 version: "fixture".into(),
                 process: None,
             }),
             runtime: None,
-        }))
-    }
-
-    type CollectDiagnosticsStream = std::pin::Pin<
-        Box<
-            dyn tokio_stream::Stream<Item = Result<v1::DiagnosticsBundleFrame, Status>>
-                + Send
-                + 'static,
-        >,
-    >;
-    async fn collect_diagnostics(
-        &self,
-        _request: Request<v1::CollectDiagnosticsRequest>,
-    ) -> Result<Response<Self::CollectDiagnosticsStream>, Status> {
-        Err(Status::unimplemented("not exercised by this fixture"))
-    }
-
-    type WatchLogsStream = std::pin::Pin<
-        Box<dyn tokio_stream::Stream<Item = Result<v1::LogFrame, Status>> + Send + 'static>,
-    >;
-    async fn watch_logs(
-        &self,
-        request: Request<v1::WatchLogsRequest>,
-    ) -> Result<Response<Self::WatchLogsStream>, Status> {
-        self.authorize(&request)?;
-        let (sender, receiver) = tokio::sync::mpsc::channel(1);
-        sender.send(Ok(v1::LogFrame::default())).await.unwrap();
-        let closed = self.stream_closed.clone();
-        tokio::spawn(async move {
-            sender.closed().await;
-            closed.notify_one();
-        });
-
-        Ok(Response::new(Box::pin(
-            tokio_stream::wrappers::ReceiverStream::new(receiver),
-        )))
+        })
     }
 }
 
+#[tonic::async_trait]
+impl FixtureUnary for runtime::GetIdentity {
+    async fn reply(service: Service) -> Result<runtime::Identity, Status> {
+        Ok(runtime::Identity {
+            backend_id: service.id,
+            epoch: service.identity_epoch.lock().unwrap().clone(),
+            display_name: "Fixture".into(),
+            product_version: "0.1.0".into(),
+        })
+    }
+}
+
+#[tonic::async_trait]
+impl FixtureUnary for runtime::GetHealth {
+    async fn reply(service: Service) -> Result<runtime::Health, Status> {
+        let readiness = match service.readiness {
+            backend::Readiness::Unspecified | backend::Readiness::Starting => {
+                runtime::Readiness::Starting
+            }
+            backend::Readiness::Ready => runtime::Readiness::Ready,
+            backend::Readiness::Degraded => runtime::Readiness::Degraded,
+            backend::Readiness::Stopping => runtime::Readiness::Stopping,
+        };
+        Ok(runtime::Health {
+            backend_id: service.id,
+            epoch: service.health_epoch,
+            readiness,
+            observed_at_seconds: 0,
+            observed_at_nanoseconds: 0,
+            message: String::new(),
+        })
+    }
+}
+
+impl<O> tonic::server::UnaryService<harmos::operations::StreamItem<O::Request>> for Unary<O>
+where
+    O: FixtureUnary,
+    O::Request: harmos::Protobuf + harmos::MemorySize,
+    O::Response: harmos::Protobuf,
+{
+    type Response = harmos::operations::Response<O::Response>;
+    type Future = FixtureFuture<Response<Self::Response>>;
+
+    fn call(
+        &mut self,
+        request: Request<harmos::operations::StreamItem<O::Request>>,
+    ) -> Self::Future {
+        let service = self.service.clone();
+        Box::pin(async move {
+            service.authorize(&request)?;
+            let response = O::reply(service).await?;
+            Ok(Response::new(harmos::operations::Response::new(response)))
+        })
+    }
+}
+
+impl
+    tonic::server::ServerStreamingService<harmos::operations::StreamItem<backend::WatchLogsRequest>>
+    for Logs
+{
+    type Response = harmos::operations::Response<LogEnvelope>;
+    type ResponseStream = tokio_stream::wrappers::ReceiverStream<Result<Self::Response, Status>>;
+    type Future = FixtureFuture<Response<Self::ResponseStream>>;
+
+    fn call(
+        &mut self,
+        request: Request<harmos::operations::StreamItem<backend::WatchLogsRequest>>,
+    ) -> Self::Future {
+        let service = self.0.clone();
+        Box::pin(async move {
+            service.authorize(&request)?;
+            let (sender, receiver) = tokio::sync::mpsc::channel(1);
+            sender
+                .send(Ok(harmos::operations::Response::new(LogEnvelope::Item(
+                    backend::LogFrame {
+                        time: None,
+                        level: backend::LogLevel::Unspecified,
+                        target: String::new(),
+                        message: String::new(),
+                        fields: vec![],
+                        dropped: 0,
+                    },
+                ))))
+                .await
+                .unwrap();
+            let closed = service.stream_closed;
+            tokio::spawn(async move {
+                sender.closed().await;
+                closed.notify_one();
+            });
+            Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(
+                receiver,
+            )))
+        })
+    }
+}
+
+impl tonic::server::ClientStreamingService<harmos::operations::StreamItem<UploadEnvelope>>
+    for Upload
+{
+    type Response = harmos::operations::Response<plugins::PluginInstallation>;
+    type Future = FixtureFuture<Response<Self::Response>>;
+
+    fn call(
+        &mut self,
+        request: Request<tonic::Streaming<harmos::operations::StreamItem<UploadEnvelope>>>,
+    ) -> Self::Future {
+        let service = self.0.clone();
+        Box::pin(async move {
+            service.authorize(&request)?;
+            let mut input = request.into_inner();
+            let opening = input
+                .message()
+                .await?
+                .expect("upload starts with its canonical request");
+            assert!(matches!(
+                opening
+                    .into_request()
+                    .map_err(|error| Status::data_loss(error.to_string()))?
+                    .0,
+                UploadEnvelope::Request(())
+            ));
+            let first = input
+                .message()
+                .await?
+                .expect("upload produces its first item");
+            assert!(matches!(
+                first
+                    .into_request()
+                    .map_err(|error| Status::data_loss(error.to_string()))?
+                    .0,
+                UploadEnvelope::Item(_)
+            ));
+            if let Some(gate) = &service.upload_gate {
+                gate.entered.notify_one();
+                let _permit = gate.release.acquire().await.unwrap();
+            }
+            let mut count = 1;
+            if service.upload_drain {
+                while let Some(frame) = input.message().await? {
+                    assert!(matches!(
+                        frame
+                            .into_request()
+                            .map_err(|error| Status::data_loss(error.to_string()))?
+                            .0,
+                        UploadEnvelope::Item(_)
+                    ));
+                    count += 1;
+                }
+            }
+            drop(input);
+            Ok(Response::new(harmos::operations::Response::new(
+                plugins::PluginInstallation {
+                    install_id: count.to_string(),
+                    sha256: String::new(),
+                    staged_at: None,
+                    consented_at: None,
+                    state: plugins::PluginInstallationState::Unspecified,
+                    last_boot: None,
+                    metadata: None,
+                    error: None,
+                    active: false,
+                    restart_required: false,
+                    boot_error: None,
+                },
+            )))
+        })
+    }
+}
+
+impl tonic::server::NamedService for BackendService {
+    const NAME: &'static str = "dokime.v1.Backend";
+}
+impl tonic::server::NamedService for PluginsService {
+    const NAME: &'static str = "dokime.v1.Plugins";
+}
+
+impl tonic::codegen::Service<HttpRequest> for BackendService {
+    type Response = HttpResponse;
+    type Error = Infallible;
+    type Future = HttpFuture;
+
+    fn poll_ready(
+        &mut self,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, request: HttpRequest) -> Self::Future {
+        let service = self.0.clone();
+        Box::pin(async move {
+            let response = match request.uri().path() {
+                backend::GetIdentity::PATH => {
+                    serve_unary::<backend::GetIdentity>(service, request).await
+                }
+                backend::GetHealth::PATH => {
+                    serve_unary::<backend::GetHealth>(service, request).await
+                }
+                backend::GetCapabilities::PATH => {
+                    serve_unary::<backend::GetCapabilities>(service, request).await
+                }
+                backend::GetDiagnostics::PATH => {
+                    serve_unary::<backend::GetDiagnostics>(service, request).await
+                }
+                backend::WatchLogs::PATH => wire_codec::<
+                    backend::WatchLogsRequest,
+                    harmos::operations::Response<LogEnvelope>,
+                >()
+                .server()
+                .server_streaming(Logs(service), request)
+                .await,
+                _ => Status::unimplemented("unused test route").into_http(),
+            };
+            Ok(response)
+        })
+    }
+}
+
+impl tonic::codegen::Service<HttpRequest> for PluginsService {
+    type Response = HttpResponse;
+    type Error = Infallible;
+    type Future = HttpFuture;
+
+    fn poll_ready(
+        &mut self,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, request: HttpRequest) -> Self::Future {
+        let service = self.0.clone();
+        Box::pin(async move {
+            let response = match request.uri().path() {
+                plugins::Stage::PATH => {
+                    wire_codec::<
+                        UploadEnvelope,
+                        harmos::operations::Response<plugins::PluginInstallation>,
+                    >()
+                    .server()
+                    .client_streaming(Upload(service), request)
+                    .await
+                }
+                _ => Status::unimplemented("unused test route").into_http(),
+            };
+            Ok(response)
+        })
+    }
+}
+
+impl tonic::server::NamedService for RuntimeService {
+    const NAME: &'static str = "dokime.v1.Runtime";
+}
+
+impl tonic::codegen::Service<HttpRequest> for RuntimeService {
+    type Response = HttpResponse;
+    type Error = Infallible;
+    type Future = HttpFuture;
+
+    fn poll_ready(
+        &mut self,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, request: HttpRequest) -> Self::Future {
+        let service = self.0.clone();
+        Box::pin(async move {
+            let response = match request.uri().path() {
+                runtime::GetIdentity::PATH => {
+                    serve_unary::<runtime::GetIdentity>(service, request).await
+                }
+                runtime::GetHealth::PATH => {
+                    serve_unary::<runtime::GetHealth>(service, request).await
+                }
+                _ => Status::unimplemented("unused test route").into_http(),
+            };
+            Ok(response)
+        })
+    }
+}
+
+fn wire_codec<D, E>() -> harmos::grpc::Codec<D, E>
+where
+    D: harmos::Protobuf + harmos::MemorySize + 'static,
+    E: harmos::grpc::Encode,
+{
+    let bytes = NonZeroUsize::new(1024 * 1024).unwrap();
+    harmos::grpc::Codec::new(
+        harmos::grpc::DecodeSettings {
+            message_bytes: bytes,
+            retained_bytes: bytes,
+        },
+        harmos::grpc::EncodeSettings {
+            message_bytes: bytes,
+            buffer_bytes: NonZeroUsize::new(8192).unwrap(),
+        },
+    )
+    .unwrap()
+}
+
+async fn serve_unary<O>(service: Service, request: HttpRequest) -> HttpResponse
+where
+    O: FixtureUnary,
+    O::Request: harmos::Protobuf + harmos::MemorySize,
+    O::Response: harmos::Protobuf,
+{
+    wire_codec::<O::Request, harmos::operations::Response<O::Response>>()
+        .server()
+        .unary(
+            Unary::<O> {
+                service,
+                operation: std::marker::PhantomData,
+            },
+            request,
+        )
+        .await
+}
+
+async fn server_health(endpoint: &str) -> backend::BackendHealth {
+    let channel = tonic::transport::Endpoint::from_shared(endpoint.to_owned())
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let mut client = tonic::client::Grpc::new(channel);
+    client.ready().await.unwrap();
+    let reply =
+        bounded(client.unary(
+            Request::new(harmos::operations::Response::new(
+                backend::GetHealthRequest {},
+            )),
+            tonic::codegen::http::uri::PathAndQuery::from_static(backend::GetHealth::PATH),
+            wire_codec::<
+                backend::BackendHealth,
+                harmos::operations::Response<backend::GetHealthRequest>,
+            >(),
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    reply
+        .into_request()
+        .expect("canonical health reply transfers an owned payload")
+        .0
+}
+
 impl tokio_stream::Stream for UploadInput {
-    type Item = v1::StagePluginFrame;
+    type Item = plugins::StagePluginFrame;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
@@ -321,7 +634,7 @@ impl tokio_stream::Stream for UploadInput {
     ) -> std::task::Poll<Option<Self::Item>> {
         if self.first {
             self.first = false;
-            return std::task::Poll::Ready(Some(v1::StagePluginFrame::default()));
+            return std::task::Poll::Ready(Some(plugins::StagePluginFrame::default()));
         }
 
         std::task::Poll::Pending
@@ -331,69 +644,6 @@ impl tokio_stream::Stream for UploadInput {
 impl Drop for UploadInput {
     fn drop(&mut self) {
         self.dropped.notify_one();
-    }
-}
-
-#[tonic::async_trait]
-impl v1::plugins_server::Plugins for Service {
-    async fn stage(
-        &self,
-        request: Request<tonic::Streaming<v1::StagePluginFrame>>,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
-        let mut input = request.into_inner();
-        assert!(input.message().await?.is_some());
-        if let Some(gate) = &self.upload_gate {
-            gate.entered.notify_one();
-            let _permit = gate.release.acquire().await.unwrap();
-        }
-        let mut count = 1;
-        if self.upload_drain {
-            while input.message().await?.is_some() {
-                count += 1;
-            }
-        }
-        drop(input);
-
-        Ok(Response::new(v1::PluginInstallation {
-            install_id: count.to_string(),
-            ..Default::default()
-        }))
-    }
-    async fn list_installations(
-        &self,
-        _: Request<v1::ListInstallationsRequest>,
-    ) -> Result<Response<v1::InstallationPage>, Status> {
-        Err(Status::unimplemented("unused test route"))
-    }
-    async fn get_installation(
-        &self,
-        _: Request<v1::GetInstallationRequest>,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
-        Err(Status::unimplemented("unused test route"))
-    }
-    async fn consent(
-        &self,
-        _: Request<v1::ConsentPluginRequest>,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
-        Err(Status::unimplemented("unused test route"))
-    }
-    async fn set_enabled(
-        &self,
-        _: Request<v1::SetPluginEnabledRequest>,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
-        Err(Status::unimplemented("unused test route"))
-    }
-    async fn remove(
-        &self,
-        _: Request<v1::RemovePluginRequest>,
-    ) -> Result<Response<v1::RemovePluginReply>, Status> {
-        Err(Status::unimplemented("unused test route"))
-    }
-    async fn list_admitted_plugins(
-        &self,
-        _: Request<v1::ListAdmittedPluginsRequest>,
-    ) -> Result<Response<v1::AdmittedPluginPage>, Status> {
-        Err(Status::unimplemented("unused test route"))
     }
 }
 
@@ -418,8 +668,9 @@ impl Listener {
         }
         let task = tokio::spawn(async move {
             server
-                .add_service(v1::plugins_server::PluginsServer::new(service.clone()))
-                .add_service(BackendServer::new(service))
+                .add_service(RuntimeService(service.clone()))
+                .add_service(PluginsService(service.clone()))
+                .add_service(BackendService(service))
                 .serve_with_incoming(TcpListenerStream::new(listener))
                 .await
                 .unwrap();
@@ -522,12 +773,7 @@ pub(crate) async fn switching_cancels_work() {
         Err(ConnectionError::Superseded)
     );
     // The session never owns the server: it remains callable after disconnect.
-    let mut client = BackendClient::connect(second.endpoint.clone())
-        .await
-        .unwrap();
-    bounded(client.get_health(v1::GetHealthRequest {}))
-        .await
-        .unwrap();
+    bounded(server_health(&second.endpoint)).await;
 }
 
 pub(crate) async fn identity_is_consistent() {
@@ -587,6 +833,8 @@ pub(crate) async fn api_negotiation_capabilities() {
         "/dokime.v1.Backend/GetIdentity",
         "/dokime.v1.Backend/GetHealth",
         "/dokime.v1.Backend/GetCapabilities",
+        runtime::GetIdentity::PATH,
+        runtime::GetHealth::PATH,
     ] {
         let mut service = Service::new("backend");
         service.methods.retain(|method| method != missing);
@@ -604,8 +852,7 @@ pub(crate) async fn api_negotiation_capabilities() {
 pub(crate) async fn credentials_endpoint_bound() {
     let secrets = MemorySecrets::default();
     let entries = secrets.0.clone();
-    keyring::set_default_credential_builder(Box::new(secrets));
-    let session = ConnectionSession::default();
+    let session = ConnectionSession::with_credentials(Arc::new(secrets));
     let mut service = Service::new("backend");
     service.token = Some("private-token".into());
     let first = Listener::start(service.clone(), false, Ipv4Addr::LOCALHOST).await;
@@ -643,13 +890,7 @@ pub(crate) async fn credentials_endpoint_bound() {
         ConnectionError::Unauthenticated
     );
     assert_eq!(entries.lock().unwrap().len(), 1);
-    assert_eq!(
-        entries.lock().unwrap()[&Sha256::digest(first.endpoint.as_bytes())
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()],
-        b"private-token"
-    );
+    assert_eq!(entries.lock().unwrap()[&first.endpoint], "private-token");
 }
 
 pub(crate) async fn remote_requires_auth() {
@@ -691,16 +932,21 @@ pub(crate) async fn remote_requires_auth() {
 
 pub(crate) async fn shared_connection_scenarios() {
     let scenarios: Vec<serde_json::Value> = serde_json::from_str(include_str!(
-        "../../../../dokime-protocol/proto/fixtures/negotiation.json"
+        "../../../../../packages/dokime/tests/integration/client/fixtures/negotiation.json"
     ))
     .unwrap();
 
     for case in scenarios {
         let mut service = Service::new("backend");
         service.api_version = case["version"].as_str().unwrap().into();
-        service.readiness = case["readiness"]
-            .as_i64()
-            .unwrap_or(v1::Readiness::Ready as i64) as i32;
+        service.readiness = match case["readiness"].as_i64().unwrap_or(2) {
+            0 => backend::Readiness::Unspecified,
+            1 => backend::Readiness::Starting,
+            2 => backend::Readiness::Ready,
+            3 => backend::Readiness::Degraded,
+            4 => backend::Readiness::Stopping,
+            value => panic!("fixture has an unknown readiness: {value}"),
+        };
         service.max_request_bytes = case["max_request_bytes"].as_u64().unwrap_or(u64::MAX);
         service.max_response_bytes = case["max_response_bytes"].as_u64().unwrap_or(u64::MAX);
         service.health_epoch = case["health_epoch"].as_str().unwrap_or("epoch").into();
@@ -734,7 +980,7 @@ pub(crate) async fn shared_connection_scenarios() {
 /* === Tests === */
 
 pub(crate) async fn shared_client_server() {
-    use dokime::client::{Client, Error, Target};
+    use dokime_client::{Client, Error, Target};
 
     let server = Listener::start(Service::new("shared"), false, Ipv4Addr::LOCALHOST).await;
     let client = Client::connect(
@@ -770,16 +1016,11 @@ pub(crate) async fn shared_client_server() {
         Err(Error::Closed)
     ));
 
-    let mut backend = BackendClient::connect(server.endpoint.clone())
-        .await
-        .unwrap();
-    bounded(backend.get_health(v1::GetHealthRequest {}))
-        .await
-        .unwrap();
+    bounded(server_health(&server.endpoint)).await;
 }
 
 pub(crate) async fn shared_client_identity() {
-    use dokime::client::{Client, Error, Target};
+    use dokime_client::{Client, Error, Target};
 
     let service = Service::new("shared");
     let epoch = service.identity_epoch.clone();
@@ -791,13 +1032,13 @@ pub(crate) async fn shared_client_identity() {
 
     client.verify(true).await.unwrap();
     let health = client
-        .backend_get_health(v1::GetHealthRequest {})
+        .backend_get_health(backend::GetHealthRequest {})
         .await
         .unwrap();
     assert_eq!(health.backend_id, "shared");
     let calls = requests.lock().unwrap().len();
     assert!(matches!(
-        client.catalog_get_suite(v1::GetSuiteRequest { suite_id: "absent".into() }).await,
+        client.catalog_get_suite(catalog::GetSuiteRequest { suite_id: "absent".into() }).await,
         Err(Error::Rpc(status)) if status.code() == tonic::Code::PermissionDenied
     ));
 
@@ -815,7 +1056,7 @@ pub(crate) async fn shared_client_identity() {
 }
 
 pub(crate) async fn shared_client_limit() {
-    use dokime::client::{Client, Error, Target};
+    use dokime_client::{Client, Error, Target};
 
     let mut service = Service::new("shared");
     service.max_response_bytes = 1;
@@ -825,13 +1066,13 @@ pub(crate) async fn shared_client_limit() {
         .unwrap();
 
     assert!(matches!(
-        client.backend_get_health(v1::GetHealthRequest {}).await,
+        client.backend_get_health(backend::GetHealthRequest {}).await,
         Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange
     ));
 }
 
 pub(crate) async fn shared_stream_path() {
-    use dokime::client::{Client, Error, Target};
+    use dokime_client::{Client, Error, Target};
 
     for action in ["client", "stream", "drop"] {
         let mut service = Service::new("shared");
@@ -842,7 +1083,10 @@ pub(crate) async fn shared_stream_path() {
             .await
             .unwrap();
         let stream = client
-            .backend_watch_logs(v1::WatchLogsRequest::default())
+            .backend_watch_logs(backend::WatchLogsRequest {
+                min_level: backend::LogLevel::Unspecified,
+                replay_lines: 0,
+            })
             .await
             .unwrap();
         assert!(bounded(stream.message()).await.unwrap().is_some());
@@ -858,7 +1102,7 @@ pub(crate) async fn shared_stream_path() {
             "stream" => {
                 bounded(stream.close()).await;
                 client
-                    .backend_get_health(v1::GetHealthRequest {})
+                    .backend_get_health(backend::GetHealthRequest {})
                     .await
                     .unwrap();
             }
@@ -867,17 +1111,12 @@ pub(crate) async fn shared_stream_path() {
         }
 
         bounded(closed.notified()).await;
-        let mut backend = BackendClient::connect(server.endpoint.clone())
-            .await
-            .unwrap();
-        bounded(backend.get_health(v1::GetHealthRequest {}))
-            .await
-            .unwrap();
+        bounded(server_health(&server.endpoint)).await;
     }
 }
 
 pub(crate) async fn shared_stream_together() {
-    use dokime::client::{Client, Error, Target};
+    use dokime_client::{Client, Error, Target};
 
     let mut service = Service::new("shared");
     service.methods.push("/dokime.v1.Backend/WatchLogs".into());
@@ -887,7 +1126,10 @@ pub(crate) async fn shared_stream_together() {
         .await
         .unwrap();
     let stream = client
-        .backend_watch_logs(v1::WatchLogsRequest::default())
+        .backend_watch_logs(backend::WatchLogsRequest {
+            min_level: backend::LogLevel::Unspecified,
+            replay_lines: 0,
+        })
         .await
         .unwrap();
     let other = stream.clone();
@@ -913,13 +1155,13 @@ pub(crate) async fn shared_stream_together() {
     bounded(other.close()).await;
     bounded(closed.notified()).await;
     client
-        .backend_get_health(v1::GetHealthRequest {})
+        .backend_get_health(backend::GetHealthRequest {})
         .await
         .unwrap();
 }
 
 pub(crate) async fn shared_upload_stops() {
-    use dokime::client::{Client, Error, Target};
+    use dokime_client::{Client, Error, Target};
 
     for action in ["reply", "caller", "client"] {
         let mut service = Service::new("shared");
@@ -959,23 +1201,19 @@ pub(crate) async fn shared_upload_stops() {
 
         bounded(dropped.notified()).await;
         gate.release.add_permits(1);
-        let mut backend = BackendClient::connect(server.endpoint.clone())
-            .await
-            .unwrap();
-        bounded(backend.get_health(v1::GetHealthRequest {}))
-            .await
-            .unwrap();
+        bounded(server_health(&server.endpoint)).await;
     }
 }
 
 pub(crate) async fn shared_upload_operation() {
-    use dokime::client::{Client, Error, Target};
+    use dokime_client::{Client, Error, Target};
 
     for action in ["finish", "cancel", "client", "waiter"] {
         let mut service = Service::new("shared");
         service.methods.push("/dokime.v1.Plugins/Stage".into());
         service.upload_drain = true;
-        service.max_request_bytes = 1;
+        // An Empty Canonical Input Envelope Requires Two Framing Bytes.
+        service.max_request_bytes = 2;
         let gate = Arc::new(Gate::new());
         if action != "finish" {
             service.upload_gate = Some(gate.clone());
@@ -985,9 +1223,9 @@ pub(crate) async fn shared_upload_operation() {
             .await
             .unwrap();
         let upload = client.plugins_stage_open().unwrap();
-        let oversized = v1::StagePluginFrame {
-            frame: Some(v1::stage_plugin_frame::Frame::Header(
-                v1::StagePluginHeader {
+        let oversized = plugins::StagePluginFrame {
+            frame: Some(plugins::StagePluginFrameFrame::Header(
+                plugins::StagePluginHeader {
                     size_bytes: 1,
                     sha256: String::new(),
                 },
@@ -996,13 +1234,13 @@ pub(crate) async fn shared_upload_operation() {
         assert!(matches!(bounded(upload.send(oversized)).await,
             Err(Error::Rpc(status)) if status.code() == tonic::Code::OutOfRange));
         let retained = upload.clone();
-        bounded(upload.send(v1::StagePluginFrame::default()))
+        bounded(upload.send(plugins::StagePluginFrame::default()))
             .await
             .unwrap();
         drop(upload);
 
         if action == "finish" {
-            bounded(retained.send(v1::StagePluginFrame::default()))
+            bounded(retained.send(plugins::StagePluginFrame::default()))
                 .await
                 .unwrap();
             assert_eq!(bounded(retained.finish()).await.unwrap().install_id, "2");
@@ -1040,17 +1278,12 @@ pub(crate) async fn shared_upload_operation() {
         }
 
         assert!(matches!(
-            bounded(retained.send(v1::StagePluginFrame::default())).await,
+            bounded(retained.send(plugins::StagePluginFrame::default())).await,
             Err(Error::Closed)
         ));
         bounded(retained.close()).await;
         bounded(retained.close()).await;
-        let mut backend = BackendClient::connect(server.endpoint.clone())
-            .await
-            .unwrap();
-        bounded(backend.get_health(v1::GetHealthRequest {}))
-            .await
-            .unwrap();
+        bounded(server_health(&server.endpoint)).await;
     }
 }
 

@@ -48,12 +48,12 @@ enum Operations {
 /* === Implementations === */
 impl dokime::Contribution for Marker {
     const NAMESPACE: &'static str = "fixture.marker";
-    const SECTION: dokime::harmos::artifact::inventory::Section =
-        dokime::harmos::artifact::inventory::Section::new("fixture.marker", "{}");
+    const SECTION: dokime::harmos::plugin::inventory::Section =
+        dokime::harmos::plugin::inventory::Section::new("fixture.marker", "{}");
 
     fn register(
-        registrar: &mut dokime::harmos::artifact::Registrar,
-    ) -> Result<(), dokime::harmos::artifact::RegistrationError> {
+        registrar: &mut dokime::harmos::plugin::Registrar,
+    ) -> Result<(), dokime::harmos::plugin::RegistrationError> {
         if let Some(path) = std::env::var_os("FIXTURE_EXPORT_MARKER") {
             std::fs::write(path, b"registered").unwrap();
         }

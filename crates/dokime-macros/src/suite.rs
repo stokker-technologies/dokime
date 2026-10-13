@@ -62,7 +62,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let sdk = crate::facade::root();
     let arguments = Arguments::read(attribute, "a suite", ARGUMENTS)?;
     let block: ItemImpl = syn::parse2(item.clone())?;
-    if let Some((_, path, _)) = &block.trait_ {
+    if let Some((path, _)) = &block.trait_ {
         return Err(Error::new(
             path.span(),
             "`#[dokime::suite]` declares the suite's own inherent impl, not a trait implementation",
@@ -174,11 +174,11 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                 <Self>::definition()
             }
 
-            fn bind<__DokimePlugin: #sdk::__harmos::artifact::plugin::Declared>(
-                table: &mut #sdk::__harmos::sidecar::operations::WireTable<#sdk::Supervisor>,
+            fn bind<__DokimePlugin: #sdk::__harmos::plugin::contract::Declared>(
+                table: &mut #sdk::__harmos::plugin::sidecar::operations::WireTable<#sdk::Supervisor>,
                 _: &str,
                 _: &[#sdk::records::RecordContract],
-            ) -> ::core::result::Result<(), #sdk::__harmos::sidecar::operations::ServingError> {
+            ) -> ::core::result::Result<(), #sdk::__harmos::plugin::sidecar::operations::ServingError> {
                 let contracts = <Self>::definition().record_contracts;
                 for bind in <#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateBindings<__DokimePlugin>>>::ENTRIES {
                     bind(table, #identifier, &contracts)?;

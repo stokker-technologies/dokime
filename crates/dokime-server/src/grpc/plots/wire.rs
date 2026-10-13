@@ -15,12 +15,12 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use prost::Message;
+use harmos::Protobuf;
 use serde_json::Value as JsonValue;
 use tonic::Status;
 // Local Imports
-use super::super::enums;
-use super::super::value::{self, Budget};
+use super::super::enums::canonical as enums;
+use super::super::value::{self, Budget, canonical};
 use super::cursor::{bounded_text, expression_stream};
 use dokime_app::{
     core::{Identifier, Value},
@@ -34,7 +34,6 @@ use dokime_app::{
         plot_payload_request_for_descriptor,
     },
 };
-use dokime_protocol::v1;
 
 /* === Constants === */
 
@@ -53,7 +52,7 @@ use dokime_protocol::v1;
 /* === Public Functions === */
 pub(crate) fn document_plot_definition(
     descriptor: &PlotDescriptor,
-) -> Result<v1::DocumentPlotDefinition, Status> {
+) -> Result<dokime_contract::operations::documents::DocumentPlotDefinition, Status> {
     let request = plot_payload_request_for_descriptor(
         descriptor,
         Some(descriptor.input.scope.clone()),
@@ -61,25 +60,27 @@ pub(crate) fn document_plot_definition(
         descriptor.input.live_window_s,
         None,
     );
-    Ok(v1::DocumentPlotDefinition {
-        metadata: Some(value::checked_metadata(&descriptor.metadata)?),
-        request: Some(plot_request_wire(&request)?),
-        presentation: Some(plot_presentation(&descriptor.input)?),
-        z_expression: descriptor
-            .input
-            .z_expression
-            .as_ref()
-            .map(data_expression_wire)
-            .transpose()?,
-    })
+    Ok(
+        dokime_contract::operations::documents::DocumentPlotDefinition {
+            metadata: Some(canonical::metadata(&descriptor.metadata)?),
+            request: Some(plot_request_wire(&request)?),
+            presentation: Some(plot_presentation(&descriptor.input)?),
+            z_expression: descriptor
+                .input
+                .z_expression
+                .as_ref()
+                .map(data_expression_wire)
+                .transpose()?,
+        },
+    )
 }
 
 pub(super) fn envelope(
     value: PlotPayloadEnvelope,
     epoch: &str,
     selection: &str,
-) -> Result<v1::PlotEnvelope, Status> {
-    Ok(v1::PlotEnvelope {
+) -> Result<dokime_contract::operations::plots::PlotEnvelope, Status> {
+    Ok(dokime_contract::operations::plots::PlotEnvelope {
         plot_id: value.plot_id,
         revision: value.revision,
         cursor: Some(plot_cursor_wire(value.cursor, epoch, selection)),
@@ -94,28 +95,25 @@ pub(super) fn stream_frame(
     value: PlotPayloadEnvelope,
     epoch: &str,
     selection: &str,
-) -> Result<v1::PlotStreamFrame, Status> {
-    Ok(v1::PlotStreamFrame {
-        kind: plot_stream_kind(kind) as i32,
+) -> Result<dokime_contract::operations::plots::PlotStreamFrame, Status> {
+    Ok(dokime_contract::operations::plots::PlotStreamFrame {
+        kind: plot_stream_kind(kind),
         envelope: Some(envelope(value, epoch, selection)?),
     })
 }
 
-pub(crate) fn values(values: &BTreeMap<String, Value>) -> Result<v1::ValueObject, Status> {
-    value::collection(values.len())?;
-    let mut budget = Budget::new();
-    Ok(v1::ValueObject {
-        fields: values
-            .iter()
-            .map(|(key, item)| {
-                value::text(key)?;
-                Ok((key.clone(), value::encode(item, &mut budget, 0)?))
-            })
-            .collect::<Result<_, Status>>()?,
-    })
+pub(crate) fn values(
+    values: &BTreeMap<String, Value>,
+) -> Result<dokime_contract::operations::value::Value, Status> {
+    canonical::object(values, &mut Budget::new())
+}
+fn optional_format(
+    value: Option<&dokime_app::core::ValueFormat>,
+) -> Option<dokime_contract::operations::schema::ValueFormat> {
+    value.map(canonical::format)
 }
 
-pub(super) fn ensure_message_budget<M: Message>(
+pub(super) fn ensure_message_budget<M: Protobuf>(
     value: &M,
     limit: usize,
     label: &str,
@@ -129,7 +127,9 @@ pub(super) fn ensure_message_budget<M: Message>(
 }
 
 /* === Private Functions === */
-fn plot_request_wire(request: &PlotPayloadRequest) -> Result<v1::PlotRequest, Status> {
+fn plot_request_wire(
+    request: &PlotPayloadRequest,
+) -> Result<dokime_contract::operations::plots::PlotRequest, Status> {
     let stream = wire_stream(&request.stream)?;
     value::collection(request.y_keys.len())?;
     let y_keys = request
@@ -143,7 +143,7 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<v1::PlotRequest, St
         .iter()
         .map(|value| bounded_text(value.clone()))
         .collect::<Result<_, _>>()?;
-    Ok(v1::PlotRequest {
+    Ok(dokime_contract::operations::plots::PlotRequest {
         analysis: request
             .analysis
             .as_ref()
@@ -154,12 +154,12 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<v1::PlotRequest, St
             .as_ref()
             .map(|value| bounded_text(value.clone()))
             .transpose()?,
-        plot_type: request
-            .plot_type
-            .as_ref()
-            .map_or(v1::PlotType::Unspecified, enums::plot_type) as i32,
-        x_scale: enums::axis_scale(&request.x_scale) as i32,
-        y_scale: enums::axis_scale(&request.y_scale) as i32,
+        plot_type: request.plot_type.as_ref().map_or(
+            dokime_contract::operations::plots::PlotType::Unspecified,
+            enums::plot_type,
+        ),
+        x_scale: enums::axis_scale(&request.x_scale),
+        y_scale: enums::axis_scale(&request.y_scale),
         stream,
         y_keys,
         marker_record_types,
@@ -227,59 +227,71 @@ fn plot_request_wire(request: &PlotPayloadRequest) -> Result<v1::PlotRequest, St
             .window_s
             .map(|value| finite_duration(value, "plot window_s"))
             .transpose()?,
-        scope: request.scope.as_ref().map(value::scope),
+        scope: request.scope.as_ref().map(canonical::scope).transpose()?,
         // A document owner definition is a fresh query selection. Cursors are
         // process-local and are added only when a caller opens a live stream.
         cursor: None,
-        technique: enums::downsample_technique(&request.technique) as i32,
+        technique: enums::downsample_technique(&request.technique),
     })
 }
 
-pub(crate) fn plot_filter_wire(filter: &DocumentFilter) -> Result<v1::PlotFilter, Status> {
-    Ok(v1::PlotFilter {
+pub(crate) fn plot_filter_wire(
+    filter: &DocumentFilter,
+) -> Result<dokime_contract::operations::plots::PlotFilter, Status> {
+    Ok(dokime_contract::operations::plots::PlotFilter {
         expression: Some(data_expression_wire(&filter.expression)?),
-        operator: enums::filter_operator(&filter.operator) as i32,
+        operator: enums::filter_operator(&filter.operator),
         value: filter
             .value
             .as_ref()
-            .map(|value| value::encode(value, &mut Budget::new(), 0))
+            .map(|value| canonical::encode(value, &mut Budget::new(), 0))
             .transpose()?,
     })
 }
 
 pub(crate) fn data_expression_wire(
     expression: &DataExpression,
-) -> Result<v1::DataExpression, Status> {
+) -> Result<dokime_contract::operations::plots::DataExpression, Status> {
     value::collection(expression.transforms.len())?;
     let source = Some(match &expression.source {
         DataSource::Telemetry { stream, field } => {
-            v1::data_expression::Source::Telemetry(v1::TelemetryDataSource {
-                stream: expression_stream(stream.clone())?,
-                field: bounded_text(field.clone())?,
-            })
+            dokime_contract::operations::plots::DataExpressionSource::Telemetry(
+                dokime_contract::operations::plots::TelemetryDataSource {
+                    stream: expression_stream(stream.clone())?,
+                    field: bounded_text(field.clone())?,
+                },
+            )
         }
         DataSource::Parameter { name } => {
-            v1::data_expression::Source::Parameter(v1::ParameterDataSource {
-                name: bounded_text(name.clone())?,
-            })
+            dokime_contract::operations::plots::DataExpressionSource::Parameter(
+                dokime_contract::operations::plots::ParameterDataSource {
+                    name: bounded_text(name.clone())?,
+                },
+            )
         }
         DataSource::Dimension { name } => {
-            v1::data_expression::Source::Dimension(v1::DimensionDataSource {
-                name: bounded_text(name.clone())?,
-            })
+            dokime_contract::operations::plots::DataExpressionSource::Dimension(
+                dokime_contract::operations::plots::DimensionDataSource {
+                    name: bounded_text(name.clone())?,
+                },
+            )
         }
         DataSource::Record { record_type } => {
-            v1::data_expression::Source::Record(v1::RecordDataSource {
-                record_type: bounded_text(record_type.clone())?,
-            })
+            dokime_contract::operations::plots::DataExpressionSource::Record(
+                dokime_contract::operations::plots::RecordDataSource {
+                    record_type: bounded_text(record_type.clone())?,
+                },
+            )
         }
         DataSource::Artifact { artifact } => {
-            v1::data_expression::Source::Artifact(v1::ArtifactDataSource {
-                artifact: bounded_text(artifact.clone())?,
-            })
+            dokime_contract::operations::plots::DataExpressionSource::Artifact(
+                dokime_contract::operations::plots::ArtifactDataSource {
+                    artifact: bounded_text(artifact.clone())?,
+                },
+            )
         }
     });
-    Ok(v1::DataExpression {
+    Ok(dokime_contract::operations::plots::DataExpression {
         label: expression
             .label
             .as_ref()
@@ -294,41 +306,51 @@ pub(crate) fn data_expression_wire(
     })
 }
 
-fn data_transform_wire(transform: &DataTransform) -> Result<v1::DataTransform, Status> {
-    use v1::data_transform::Kind;
+fn data_transform_wire(
+    transform: &DataTransform,
+) -> Result<dokime_contract::operations::plots::DataTransform, Status> {
+    use dokime_contract::operations::plots::DataTransformKind as Kind;
     let kind = match transform {
-        DataTransform::Count => Kind::Count(v1::EmptyTransform {}),
-        DataTransform::Mean => Kind::Mean(v1::EmptyTransform {}),
-        DataTransform::Median => Kind::Median(v1::EmptyTransform {}),
-        DataTransform::Min => Kind::Min(v1::EmptyTransform {}),
-        DataTransform::Max => Kind::Max(v1::EmptyTransform {}),
+        DataTransform::Count => Kind::Count(dokime_contract::operations::plots::EmptyTransform {}),
+        DataTransform::Mean => Kind::Mean(dokime_contract::operations::plots::EmptyTransform {}),
+        DataTransform::Median => {
+            Kind::Median(dokime_contract::operations::plots::EmptyTransform {})
+        }
+        DataTransform::Min => Kind::Min(dokime_contract::operations::plots::EmptyTransform {}),
+        DataTransform::Max => Kind::Max(dokime_contract::operations::plots::EmptyTransform {}),
         DataTransform::TimeBetween {
             previous_record_type,
-        } => Kind::TimeBetween(v1::TimeBetweenTransform {
+        } => Kind::TimeBetween(dokime_contract::operations::plots::TimeBetweenTransform {
             previous_record_type: bounded_text(previous_record_type.clone())?,
         }),
-        DataTransform::TelemetryAtOrBefore { stream, field } => {
-            Kind::TelemetryAtOrBefore(v1::TelemetryAtOrBeforeTransform {
+        DataTransform::TelemetryAtOrBefore { stream, field } => Kind::TelemetryAtOrBefore(
+            dokime_contract::operations::plots::TelemetryAtOrBeforeTransform {
                 stream: expression_stream(stream.clone())?,
                 field: bounded_text(field.clone())?,
+            },
+        ),
+        DataTransform::Detail { name } => {
+            Kind::Detail(dokime_contract::operations::plots::DetailTransform {
+                name: bounded_text(name.clone())?,
             })
         }
-        DataTransform::Detail { name } => Kind::Detail(v1::DetailTransform {
-            name: bounded_text(name.clone())?,
-        }),
-        DataTransform::PerCase => Kind::PerCase(v1::EmptyTransform {}),
+        DataTransform::PerCase => {
+            Kind::PerCase(dokime_contract::operations::plots::EmptyTransform {})
+        }
     };
-    Ok(v1::DataTransform { kind: Some(kind) })
+    Ok(dokime_contract::operations::plots::DataTransform { kind: Some(kind) })
 }
 
-fn plot_presentation(input: &PlotInput) -> Result<v1::PlotPresentation, Status> {
+fn plot_presentation(
+    input: &PlotInput,
+) -> Result<dokime_contract::operations::documents::PlotPresentation, Status> {
     let (x_axis, x_axis_unit) = enums::plot_axis(input.x_axis.as_ref());
     // PlotInput is materialized after layout normalization and intentionally
     // carries no authored group. The document layout remains the grouping
     // authority; an empty group lets clients apply that parent section.
-    Ok(v1::PlotPresentation {
+    Ok(dokime_contract::operations::documents::PlotPresentation {
         group: String::new(),
-        style: enums::plot_style(&input.style) as i32,
+        style: enums::plot_style(&input.style),
         fft: Some(plot_fft_wire(&input.fft)?),
         interval: Some(plot_interval_wire(&input.interval)?),
         histogram: Some(plot_histogram_wire(&input.histogram)?),
@@ -346,22 +368,24 @@ fn plot_presentation(input: &PlotInput) -> Result<v1::PlotPresentation, Status> 
             .live_window_s
             .map(|value| finite_duration(value, "plot live_window_s"))
             .transpose()?,
-        x_format: value::optional_value_format(input.x_format.as_ref()),
-        y_format: value::optional_value_format(input.y_format.as_ref()),
+        x_format: optional_format(input.x_format.as_ref()),
+        y_format: optional_format(input.y_format.as_ref()),
         x_axis,
         x_axis_unit: x_axis_unit.map(bounded_text).transpose()?,
     })
 }
 
-fn plot_fft_wire(value: &FftOptions) -> Result<v1::PlotFftOptions, Status> {
-    Ok(v1::PlotFftOptions {
+fn plot_fft_wire(
+    value: &FftOptions,
+) -> Result<dokime_contract::operations::plots::PlotFftOptions, Status> {
+    Ok(dokime_contract::operations::plots::PlotFftOptions {
         sample_rate_hz: value
             .sample_rate_hz
             .map(|value| finite_nonnegative(value, "plot FFT sample_rate_hz"))
             .transpose()?,
-        window: enums::fft_window(&value.window) as i32,
-        detrend: enums::fft_detrend(&value.detrend) as i32,
-        level_unit: enums::frequency_level_unit(&value.level_unit) as i32,
+        window: enums::fft_window(&value.window),
+        detrend: enums::fft_detrend(&value.detrend),
+        level_unit: enums::frequency_level_unit(&value.level_unit),
         include_dc: value.include_dc,
         min_frequency_hz: value
             .min_frequency_hz
@@ -374,16 +398,20 @@ fn plot_fft_wire(value: &FftOptions) -> Result<v1::PlotFftOptions, Status> {
     })
 }
 
-fn plot_interval_wire(value: &SigmaIntervalOptions) -> Result<v1::PlotIntervalOptions, Status> {
-    Ok(v1::PlotIntervalOptions {
+fn plot_interval_wire(
+    value: &SigmaIntervalOptions,
+) -> Result<dokime_contract::operations::plots::PlotIntervalOptions, Status> {
+    Ok(dokime_contract::operations::plots::PlotIntervalOptions {
         bin_width: finite_nonnegative(value.bin_width, "plot interval bin_width")?,
         sigma: finite_nonnegative(value.sigma, "plot interval sigma")?,
         clip_to_observed: value.clip_to_observed,
     })
 }
 
-fn plot_histogram_wire(value: &HistogramOptions) -> Result<v1::PlotHistogramOptions, Status> {
-    Ok(v1::PlotHistogramOptions {
+fn plot_histogram_wire(
+    value: &HistogramOptions,
+) -> Result<dokime_contract::operations::plots::PlotHistogramOptions, Status> {
+    Ok(dokime_contract::operations::plots::PlotHistogramOptions {
         bins: u64::try_from(value.bins)
             .map_err(|_| Status::internal("plot histogram bins do not fit wire"))?,
         unit: value
@@ -394,9 +422,11 @@ fn plot_histogram_wire(value: &HistogramOptions) -> Result<v1::PlotHistogramOpti
     })
 }
 
-fn plot_reference_line_wire(value: &ReferenceLine) -> Result<v1::PlotReferenceLine, Status> {
-    Ok(v1::PlotReferenceLine {
-        axis: enums::reference_axis(&value.axis) as i32,
+fn plot_reference_line_wire(
+    value: &ReferenceLine,
+) -> Result<dokime_contract::operations::documents::PlotReferenceLine, Status> {
+    Ok(dokime_contract::operations::documents::PlotReferenceLine {
+        axis: enums::reference_axis(&value.axis),
         value: value
             .value
             .map(|value| finite_number(value, "plot reference line value"))
@@ -416,9 +446,11 @@ fn plot_reference_line_wire(value: &ReferenceLine) -> Result<v1::PlotReferenceLi
     })
 }
 
-fn plot_reference_band_wire(value: &ReferenceBand) -> Result<v1::PlotReferenceBand, Status> {
-    Ok(v1::PlotReferenceBand {
-        axis: enums::reference_axis(&value.axis) as i32,
+fn plot_reference_band_wire(
+    value: &ReferenceBand,
+) -> Result<dokime_contract::operations::documents::PlotReferenceBand, Status> {
+    Ok(dokime_contract::operations::documents::PlotReferenceBand {
+        axis: enums::reference_axis(&value.axis),
         min: value
             .min
             .map(|value| finite_number(value, "plot reference band min"))
@@ -472,28 +504,46 @@ fn finite_duration(value: f64, label: &str) -> Result<f64, Status> {
     finite_nonnegative(value, label)
 }
 
-fn plot_stream_kind(value: PlotPayloadStreamKind) -> v1::PlotStreamKind {
+fn plot_stream_kind(
+    value: PlotPayloadStreamKind,
+) -> dokime_contract::operations::plots::PlotStreamKind {
     match value {
-        PlotPayloadStreamKind::Snapshot => v1::PlotStreamKind::Snapshot,
-        PlotPayloadStreamKind::Append => v1::PlotStreamKind::Append,
-        PlotPayloadStreamKind::Replace => v1::PlotStreamKind::Replace,
-        PlotPayloadStreamKind::Error => v1::PlotStreamKind::Error,
+        PlotPayloadStreamKind::Snapshot => {
+            dokime_contract::operations::plots::PlotStreamKind::Snapshot
+        }
+        PlotPayloadStreamKind::Append => dokime_contract::operations::plots::PlotStreamKind::Append,
+        PlotPayloadStreamKind::Replace => {
+            dokime_contract::operations::plots::PlotStreamKind::Replace
+        }
+        PlotPayloadStreamKind::Error => dokime_contract::operations::plots::PlotStreamKind::Error,
     }
 }
 
-fn plot_cursor_wire(value: PlotPayloadCursor, epoch: &str, selection: &str) -> v1::PlotCursor {
-    v1::PlotCursor {
-        telemetry_streams: value.telemetry_streams.into_iter().collect(),
+fn plot_cursor_wire(
+    value: PlotPayloadCursor,
+    epoch: &str,
+    selection: &str,
+) -> dokime_contract::operations::plots::PlotCursor {
+    dokime_contract::operations::plots::PlotCursor {
+        telemetry_streams: value
+            .telemetry_streams
+            .into_iter()
+            .map(|(key, value)| {
+                dokime_contract::operations::plots::PlotCursorTelemetryStreamsEntry { key, value }
+            })
+            .collect(),
         record_sequence: value.record_sequence,
         epoch: epoch.to_owned(),
         selection: selection.to_owned(),
     }
 }
 
-fn plot_payload(value: dokime_app::runtime::query::PlotPayload) -> Result<v1::PlotPayload, Status> {
+fn plot_payload(
+    value: dokime_app::runtime::query::PlotPayload,
+) -> Result<dokime_contract::operations::plots::PlotPayload, Status> {
     let context = values(&value.context)?;
     let cartesian = value.cartesian.map(plot_cartesian).transpose()?;
-    Ok(v1::PlotPayload {
+    Ok(dokime_contract::operations::plots::PlotPayload {
         computed: value
             .computed
             .map(super::analysis::computation)
@@ -517,7 +567,7 @@ fn plot_payload(value: dokime_app::runtime::query::PlotPayload) -> Result<v1::Pl
             .map_err(|_| Status::internal("plot max_points does not fit wire"))?,
         window_s: value.window_s,
         generated_at: value.generated_at,
-        x_format: value::optional_value_format(value.x_format.as_ref()),
+        x_format: optional_format(value.x_format.as_ref()),
         run_started_at: value.run_started_at,
         cycle_started_at: value.cycle_started_at,
         analysis: value.analysis.map(plot_analysis).transpose()?,
@@ -526,29 +576,29 @@ fn plot_payload(value: dokime_app::runtime::query::PlotPayload) -> Result<v1::Pl
 
 fn plot_analysis(
     value: dokime_app::runtime::query::PlotAnalysis,
-) -> Result<v1::PlotAnalysis, Status> {
+) -> Result<dokime_contract::operations::plots::PlotAnalysis, Status> {
     use dokime_app::runtime::query::PlotAnalysis;
-    use v1::plot_analysis::Result as Analysis;
+    use dokime_contract::operations::plots::PlotAnalysisResult as Analysis;
 
     let count = |value| {
         u64::try_from(value).map_err(|_| Status::internal("analysis count does not fit wire"))
     };
     let number = |value| finite_number(value, "plot analysis number");
     let result = match value {
-        PlotAnalysis::Error { message } => Analysis::Error(v1::PlotAnalysisError {
+        PlotAnalysis::Error { message } => Analysis::Error(dokime_contract::operations::plots::PlotAnalysisError {
             message: bounded_text(message)?,
         }),
-        PlotAnalysis::Histogram { series } => Analysis::Histogram(v1::PlotHistogramAnalysis {
+        PlotAnalysis::Histogram { series } => Analysis::Histogram(dokime_contract::operations::plots::PlotHistogramAnalysis {
             series: series
                 .into_iter()
                 .map(|series| {
-                    Ok(v1::PlotHistogramSeries {
+                    Ok(dokime_contract::operations::plots::PlotHistogramSeries {
                         key: bounded_text(series.key)?,
                         count: count(series.count)?,
                         statistics: series
                             .statistics
                             .map(|statistics| {
-                                Ok::<_, Status>(v1::PlotHistogramStatistics {
+                                Ok::<_, Status>(dokime_contract::operations::plots::PlotHistogramStatistics {
                                     mean: number(statistics.mean)?,
                                     median: number(statistics.median)?,
                                     std: number(statistics.std)?,
@@ -562,7 +612,7 @@ fn plot_analysis(
                             .bins
                             .into_iter()
                             .map(|bin| {
-                                Ok(v1::PlotHistogramBin {
+                                Ok(dokime_contract::operations::plots::PlotHistogramBin {
                                     lower: number(bin.lower)?,
                                     upper: number(bin.upper)?,
                                     count: count(bin.count)?,
@@ -573,11 +623,11 @@ fn plot_analysis(
                 })
                 .collect::<Result<_, Status>>()?,
         }),
-        PlotAnalysis::BoxSummary { series } => Analysis::BoxSummary(v1::PlotBoxSummaryAnalysis {
+        PlotAnalysis::BoxSummary { series } => Analysis::BoxSummary(dokime_contract::operations::plots::PlotBoxSummaryAnalysis {
             series: series
                 .into_iter()
                 .map(|series| {
-                    Ok(v1::PlotBoxSummary {
+                    Ok(dokime_contract::operations::plots::PlotBoxSummary {
                         key: bounded_text(series.key)?,
                         label: bounded_text(series.label)?,
                         count: count(series.count)?,
@@ -598,17 +648,17 @@ fn plot_analysis(
                 .collect::<Result<_, Status>>()?,
         }),
         PlotAnalysis::SigmaInterval { series } => {
-            Analysis::SigmaInterval(v1::PlotSigmaIntervalAnalysis {
+            Analysis::SigmaInterval(dokime_contract::operations::plots::PlotSigmaIntervalAnalysis {
                 series: series
                     .into_iter()
                     .map(|series| {
-                        Ok(v1::PlotSigmaSeries {
+                        Ok(dokime_contract::operations::plots::PlotSigmaSeries {
                             key: bounded_text(series.key)?,
                             bins: series
                                 .bins
                                 .into_iter()
                                 .map(|bin| {
-                                    Ok(v1::PlotSigmaBin {
+                                    Ok(dokime_contract::operations::plots::PlotSigmaBin {
                                         x: number(bin.x)?,
                                         count: count(bin.count)?,
                                         mean: number(bin.mean)?,
@@ -624,7 +674,7 @@ fn plot_analysis(
         }
     };
 
-    Ok(v1::PlotAnalysis {
+    Ok(dokime_contract::operations::plots::PlotAnalysis {
         result: Some(result),
     })
 }
@@ -666,27 +716,29 @@ fn json_value(value: JsonValue) -> Result<Value, Status> {
 
 fn plot_cartesian(
     value: dokime_app::runtime::query::PlotCartesianFrame,
-) -> Result<v1::PlotCartesianFrame, Status> {
-    Ok(v1::PlotCartesianFrame {
+) -> Result<dokime_contract::operations::plots::PlotCartesianFrame, Status> {
+    Ok(dokime_contract::operations::plots::PlotCartesianFrame {
         mode: match value.mode {
             dokime_app::runtime::query::PlotCartesianMode::Aligned => {
-                v1::PlotCartesianMode::Aligned
+                dokime_contract::operations::plots::PlotCartesianMode::Aligned
             }
             dokime_app::runtime::query::PlotCartesianMode::Faceted => {
-                v1::PlotCartesianMode::Faceted
+                dokime_contract::operations::plots::PlotCartesianMode::Faceted
             }
-        } as i32,
+        },
         series: value
             .series
             .into_iter()
-            .map(|series| v1::PlotCartesianSeriesFrame {
-                x: series.x,
-                y: series
-                    .y
-                    .into_iter()
-                    .map(|value| v1::NullableNumber { value })
-                    .collect(),
-            })
+            .map(
+                |series| dokime_contract::operations::plots::PlotCartesianSeriesFrame {
+                    x: series.x,
+                    y: series
+                        .y
+                        .into_iter()
+                        .map(|value| dokime_contract::operations::plots::NullableNumber { value })
+                        .collect(),
+                },
+            )
             .collect(),
         x_domain: value.x_domain.map(plot_domain),
         y_domain: value.y_domain.map(plot_domain),
@@ -696,8 +748,10 @@ fn plot_cartesian(
     })
 }
 
-fn plot_domain(value: dokime_app::runtime::query::PlotDomain) -> v1::PlotDomain {
-    v1::PlotDomain {
+fn plot_domain(
+    value: dokime_app::runtime::query::PlotDomain,
+) -> dokime_contract::operations::plots::PlotDomain {
+    dokime_contract::operations::plots::PlotDomain {
         min: value.min,
         max: value.max,
     }
@@ -705,8 +759,8 @@ fn plot_domain(value: dokime_app::runtime::query::PlotDomain) -> v1::PlotDomain 
 
 fn plot_diagnostics(
     value: dokime_app::runtime::query::PlotPayloadDiagnostics,
-) -> Result<v1::PlotPayloadDiagnostics, Status> {
-    Ok(v1::PlotPayloadDiagnostics {
+) -> Result<dokime_contract::operations::plots::PlotPayloadDiagnostics, Status> {
+    Ok(dokime_contract::operations::plots::PlotPayloadDiagnostics {
         series_count: u64::try_from(value.series_count)
             .map_err(|_| Status::internal("plot series count does not fit wire"))?,
         point_count: u64::try_from(value.point_count)
@@ -721,8 +775,10 @@ fn plot_diagnostics(
     })
 }
 
-fn plot_series(value: dokime_app::runtime::query::PlotSeries) -> Result<v1::PlotSeries, Status> {
-    Ok(v1::PlotSeries {
+fn plot_series(
+    value: dokime_app::runtime::query::PlotSeries,
+) -> Result<dokime_contract::operations::plots::PlotSeries, Status> {
+    Ok(dokime_contract::operations::plots::PlotSeries {
         key: value.key,
         label: value.label,
         unit: value.unit,
@@ -734,21 +790,33 @@ fn plot_series(value: dokime_app::runtime::query::PlotSeries) -> Result<v1::Plot
         raw_points: u64::try_from(value.raw_points)
             .map_err(|_| Status::internal("plot raw point count does not fit wire"))?,
         downsampled: value.downsampled,
-        format: value::optional_value_format(value.format.as_ref()),
+        format: optional_format(value.format.as_ref()),
     })
 }
 
-fn plot_point(value: dokime_app::runtime::query::PlotPoint) -> Result<v1::PlotPoint, Status> {
-    Ok(v1::PlotPoint {
-        x: Some(value::encode(&json_value(value.x)?, &mut Budget::new(), 0)?),
+fn plot_point(
+    value: dokime_app::runtime::query::PlotPoint,
+) -> Result<dokime_contract::operations::plots::PlotPoint, Status> {
+    Ok(dokime_contract::operations::plots::PlotPoint {
+        x: Some(canonical::encode(
+            &json_value(value.x)?,
+            &mut Budget::new(),
+            0,
+        )?),
         y: value.y,
         z: value.z,
     })
 }
 
-fn plot_marker(value: dokime_app::runtime::query::PlotMarker) -> Result<v1::PlotMarker, Status> {
-    Ok(v1::PlotMarker {
-        x: Some(value::encode(&json_value(value.x)?, &mut Budget::new(), 0)?),
+fn plot_marker(
+    value: dokime_app::runtime::query::PlotMarker,
+) -> Result<dokime_contract::operations::plots::PlotMarker, Status> {
+    Ok(dokime_contract::operations::plots::PlotMarker {
+        x: Some(canonical::encode(
+            &json_value(value.x)?,
+            &mut Budget::new(),
+            0,
+        )?),
         label: value.label,
         record_type: value.record_type,
         color: value.color,

@@ -62,10 +62,11 @@ pub struct RuntimeHandle {
     pub(crate) request_storage: Arc<crate::runtime::storage::requests::RequestStorage>,
     pub(crate) execution_storage: Arc<crate::runtime::storage::executions::ExecutionStorage>,
     pub(crate) plugin_boot: Arc<RwLock<BTreeMap<uuid::Uuid, bool>>>,
-    pub(crate) state_manager: harmos::StateManager<Dokime>,
+    pub(crate) state_manager: harmos::state::StateManager<Dokime>,
     pub(crate) record_source: Arc<crate::runtime::storage::record_capture::Source>,
     pub(crate) streams: crate::app::Streams,
     pub(crate) operations: harmos::operations::OperationManager,
+    grpc: harmos::grpc::GrpcManager,
     pub(crate) publication_core: Arc<super::sidecars::core::Publications>,
     pub(crate) record_ingress: Arc<super::sidecars::core::RecordIngress>,
     pub(crate) execution_sessions: Arc<crate::capabilities::execution::run::Sessions>,
@@ -94,7 +95,7 @@ pub struct RuntimeHandle {
     pub(crate) state: Arc<RwLock<Arc<RuntimeState>>>,
     pub(crate) state_watch: tokio::sync::watch::Sender<crate::queries::RuntimeStateSnapshot>,
     action_dispatchers: Arc<RwLock<BTreeMap<Identifier, Arc<dyn ActionDispatcher>>>>,
-    pub(crate) routing: Arc<std::sync::OnceLock<harmos::load::Router>>,
+    pub(crate) routing: Arc<std::sync::OnceLock<harmos::plugin::Router>>,
     config: Arc<RuntimeConfig>,
     settings: crate::config::Settings,
     plugin_preferences: Arc<PluginPreferences>,
@@ -124,7 +125,7 @@ impl RuntimeHandle {
         &self.storage
     }
 
-    pub fn streams(&self) -> &harmos::StreamManager<Dokime> {
+    pub fn streams(&self) -> &harmos::streams::StreamManager<Dokime> {
         &self.streams
     }
 
@@ -137,9 +138,9 @@ impl RuntimeHandle {
     pub(crate) async fn commit<T>(
         &self,
         transaction: T,
-    ) -> std::result::Result<harmos::Receipt, harmos::Error<T::Error>>
+    ) -> std::result::Result<harmos::state::Receipt, harmos::Error<T::Error>>
     where
-        T: harmos::Transaction<RuntimeState> + Into<Transactions>,
+        T: harmos::state::Transaction<RuntimeState> + Into<Transactions>,
         T::Error: From<String>,
     {
         let receipt = self.state_manager.commit(transaction).await?;
@@ -151,11 +152,11 @@ impl RuntimeHandle {
 
     pub(crate) async fn commit_keyed<T>(
         &self,
-        key: harmos::RequestKey,
+        key: harmos::state::RequestKey,
         transaction: T,
-    ) -> std::result::Result<harmos::Receipt, harmos::Error<T::Error>>
+    ) -> std::result::Result<harmos::state::Receipt, harmos::Error<T::Error>>
     where
-        T: harmos::Transaction<RuntimeState> + Into<Transactions>,
+        T: harmos::state::Transaction<RuntimeState> + Into<Transactions>,
         T::Error: From<String>,
     {
         let receipt = self.state_manager.commit_keyed(key, transaction).await?;
@@ -385,6 +386,7 @@ impl RuntimeHandle {
                 record_source,
                 streams: harmos_runtime.streams.clone(),
                 operations: harmos_runtime.operations.clone(),
+                grpc: harmos_runtime.grpc().clone(),
                 publication_core,
                 record_ingress,
                 execution_sessions,
@@ -427,7 +429,7 @@ impl RuntimeHandle {
 
             runtime
                 .commit_keyed(
-                    harmos::RequestKey::new("dokime.node.identity.v2"),
+                    harmos::state::RequestKey::new("dokime.node.identity.v2"),
                     crate::transactions::EstablishNodeIdentity {
                         candidate: node_identity,
                     },
@@ -485,11 +487,16 @@ impl RuntimeHandle {
         Arc::new(self.state_read().installed_plugins.clone())
     }
 
+    // The Listener Shares The Booted Runtime Registry And Shutdown Owner.
+    pub fn grpc(&self) -> &harmos::grpc::GrpcManager {
+        &self.grpc
+    }
+
     pub fn operations(&self) -> &harmos::operations::OperationManager {
         &self.operations
     }
 
-    pub fn router(&self) -> &harmos::load::Router {
+    pub fn router(&self) -> &harmos::plugin::Router {
         self.routing
             .get()
             .expect("plugin session initialized before runtime exposure")

@@ -13,13 +13,12 @@
 # Standard Library Imports
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import tomllib
+from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.ci.artifacts import REPOSITORY, _request
 

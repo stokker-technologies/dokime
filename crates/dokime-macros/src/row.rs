@@ -21,8 +21,7 @@ use quote::{format_ident, quote};
 use syn::ext::IdentExt;
 use syn::spanned::Spanned;
 use syn::{
-    Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Path, Token, Type,
-    punctuated::Punctuated,
+    Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Token, Type, punctuated::Punctuated,
 };
 // Local Imports
 
@@ -54,13 +53,6 @@ struct RowFieldDeclaration {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn row(item: TokenStream) -> TokenStream {
-    match expand(item) {
-        Ok(derived) => crate::facade::contracted(derived),
-        Err(refused) => refused.to_compile_error(),
-    }
-}
-
 pub(crate) fn implementation(input: &DeriveInput) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let row = &input.ident;
@@ -106,24 +98,6 @@ pub(crate) fn implementation(input: &DeriveInput) -> Result<TokenStream, Error> 
 
 pub(crate) fn stripped(input: &DeriveInput) -> DeriveInput {
     crate::arguments::stripped(input, "dokime_row_format")
-}
-
-pub(crate) fn derives_row(input: &DeriveInput) -> bool {
-    input
-        .attrs
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("derive"))
-        .filter_map(|attribute| {
-            attribute
-                .parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
-                .ok()
-        })
-        .flatten()
-        .any(|path| {
-            path.segments
-                .last()
-                .is_some_and(|segment| segment.ident == "TelemetryRow")
-        })
 }
 
 pub(crate) fn column_count(input: &DeriveInput) -> Result<usize, Error> {
@@ -207,13 +181,6 @@ pub(crate) fn optional(ty: &Type) -> bool {
 }
 
 /* === Private Functions === */
-fn expand(item: TokenStream) -> Result<TokenStream, Error> {
-    let mut input: DeriveInput = syn::parse2(item)?;
-    prepare(&mut input)?;
-
-    implementation(&input)
-}
-
 fn handles(fields: &[RowFieldDeclaration]) -> Vec<TokenStream> {
     let sdk = crate::facade::root();
     let mut handles = fields

@@ -20,7 +20,7 @@ import {
   workflowQueryKeys,
 } from "@/features/cycle/server-state";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
-import type { RuntimeStateFrame } from "@/lib/rpc/generated/dokime/v1/observation_pb";
+import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { useHubStore } from "@/stores/hub-store";
 import {
   createRuntimeProjectionRefreshCoordinator,

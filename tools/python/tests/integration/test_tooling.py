@@ -13,21 +13,16 @@
 
 # Standard Library Imports
 
-from copy import deepcopy
 import json
-from pathlib import Path
 import shutil
-
+from copy import deepcopy
+from pathlib import Path
 
 # Third Party Imports
-
 import pytest
 
-
 # Local Imports
-
 from dokime_tools import frontend, installer
-
 
 # Type Checking Imports
 
@@ -68,7 +63,7 @@ def test_report_freshness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     text = "<p>“Temperature” · Температура</p>"
     report.write_bytes(text.encode("utf-8"))
     script = assets / "app.js"
-    script.write_bytes(f'const label = "{text}";'.encode("utf-8"))
+    script.write_bytes(f'const label = "{text}";'.encode())
     monkeypatch.setattr(frontend, "WEB_ROOT", web)
     monkeypatch.setattr(frontend, "REPORT", report)
     original_open = Path.open

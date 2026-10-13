@@ -13,7 +13,6 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
 import type { NativeExecutionSelection } from "@/lib/api/native-checkpoints";
-import { ExecutionOrderKey } from "@/lib/rpc/generated/dokime/v1/history_pb";
 import { fetchExecutionPage, groupExecutions } from "./explore-data-source";
 
 /* === Query Keys === */
@@ -40,7 +39,7 @@ export function useExploreHistoryQuery(text = "") {
   const selection = useMemo<NativeExecutionSelection>(
     () => ({
       filter: { text: needle, statuses: [], templateIds: [], cycleIds: [] },
-      order: { key: ExecutionOrderKey.STARTED_AT, descending: true },
+      order: { key: { HarmosVariant: { case: "StartedAt", value: {} } }, descending: true },
     }),
     [needle],
   );

@@ -22,12 +22,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type AppearancePreference,
-  type ApplicationSettings,
-  Density as WireDensity,
-  ThemeMode as WireThemeMode,
-} from "@/lib/rpc/generated/dokime/v1/settings_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+type ApplicationSettings = Wire<Awaited<ReturnType<typeof rpc.settingsReadApplicationSettings>>>;
+type AppearancePreference = NonNullable<ApplicationSettings["appearance"]>;
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Types === */
@@ -50,16 +47,16 @@ export type ApplicationSettingsView = {
 
 /* === Constants === */
 
-const THEME_MODES: Record<ThemeMode, WireThemeMode> = {
-  system: WireThemeMode.SYSTEM,
-  light: WireThemeMode.LIGHT,
-  dark: WireThemeMode.DARK,
-};
-const DENSITIES: Record<Density, WireDensity> = {
-  comfortable: WireDensity.COMFORTABLE,
-  compact: WireDensity.COMPACT,
-  touch: WireDensity.TOUCH,
-};
+const THEME_MODES = {
+  system: "System",
+  light: "Light",
+  dark: "Dark",
+} as const;
+const DENSITIES = {
+  comfortable: "Comfortable",
+  compact: "Compact",
+  touch: "Touch",
+} as const;
 
 /* Saves are serialized so independent controls cannot overwrite each other. */
 let pendingSave: Promise<unknown> = Promise.resolve();
@@ -167,18 +164,18 @@ function settingsView(wire: ApplicationSettings): ApplicationSettingsView {
 
 function appearance(wire: AppearancePreference | undefined): Appearance {
   return {
-    themeMode: fromWire(THEME_MODES, wire?.themeMode, "system"),
+    themeMode: fromWire(THEME_MODES, wire?.themeMode?.HarmosVariant.case, "system"),
     themeFamily: wire?.themeFamily ?? null,
-    density: fromWire(DENSITIES, wire?.density, "comfortable"),
+    density: fromWire(DENSITIES, wire?.density?.HarmosVariant.case, "comfortable"),
   };
 }
 
 function appearancePreference(value: Appearance): AppearancePreference {
   return {
-    themeMode: THEME_MODES[value.themeMode],
+    themeMode: { HarmosVariant: { case: THEME_MODES[value.themeMode], value: {} } },
     themeFamily: value.themeFamily ?? undefined,
-    density: DENSITIES[value.density],
-  } as AppearancePreference;
+    density: { HarmosVariant: { case: DENSITIES[value.density], value: {} } },
+  };
 }
 
 function fromWire<K extends string, V>(table: Record<K, V>, wire: V | undefined, fallback: K): K {

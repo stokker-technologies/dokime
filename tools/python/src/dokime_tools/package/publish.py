@@ -12,19 +12,18 @@
 # === Imports === #
 
 # Standard Library Imports
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.check.release import (
     digest,
@@ -104,9 +103,12 @@ class Registry:
             raise
         if len(contents) > RESPONSE_BYTES:
             raise ValueError("release metadata exceeds response budget")
-        value = json.loads(contents)
-        if not isinstance(value, dict):
-            raise ValueError("release API returned invalid metadata")
+        try:
+            value = json.loads(contents)
+            if not isinstance(value, dict):
+                raise TypeError("release API returned invalid metadata")
+        except TypeError as error:
+            raise ValueError("release API returned invalid metadata") from error
         return value
 
     def ensure_tag(self, tag: str, commit: str) -> None:

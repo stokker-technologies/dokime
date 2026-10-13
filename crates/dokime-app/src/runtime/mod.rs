@@ -75,7 +75,7 @@ pub(crate) struct BackgroundTask(pub(crate) tokio::task::JoinHandle<()>);
 struct Shutdown {
     providers: Vec<crate::operations::provider::ProviderTask>,
     prepared: bool,
-    participant: Option<harmos::StopParticipant>,
+    participant: Option<harmos::runtime::StopParticipant>,
     overview: Option<RuntimeOverviewSnapshot>,
     stopped: bool,
     complete: bool,

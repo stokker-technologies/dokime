@@ -17,10 +17,7 @@
 // Third Party Imports
 use serde::Serialize;
 // Local Imports
-use crate::{
-    connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget},
-    native_session::BackendSelection,
-};
+use crate::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
 
 /* === Constants === */
 
@@ -45,7 +42,11 @@ pub struct DesktopLaunch {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<BackendSelection, String> {
+// A command line names an attach target or nothing; the owned local backend
+// is the default and shared profiles are selected from the desktop session.
+pub fn parse(
+    arguments: impl IntoIterator<Item = String>,
+) -> Result<Option<ConnectRequest>, String> {
     let mut arguments = arguments.into_iter();
     let mut endpoint = None;
     let mut backend_id = None;
@@ -86,21 +87,19 @@ pub fn parse(arguments: impl IntoIterator<Item = String>) -> Result<BackendSelec
             };
             crate::connection::ConnectionSession::validate_target(target.clone())
                 .map_err(|_| "Invalid native backend endpoint".to_owned())?;
-            Ok(BackendSelection::Attach {
-                request: ConnectRequest {
-                    target,
-                    credentials: if remote {
-                        ConnectionCredentials::Saved
-                    } else {
-                        ConnectionCredentials::None
-                    },
-                    expected_backend_id: backend_id,
+            Ok(Some(ConnectRequest {
+                target,
+                credentials: if remote {
+                    ConnectionCredentials::Saved
+                } else {
+                    ConnectionCredentials::None
                 },
-            })
+                expected_backend_id: backend_id,
+            }))
         }
         None if shutdown_stdin => Err("--shutdown-stdin requires --endpoint".into()),
         None if backend_id.is_some() => Err("--expected-backend-id requires --endpoint".into()),
-        None => Ok(BackendSelection::OwnedLocal),
+        None => Ok(None),
     }
 }
 
@@ -114,11 +113,11 @@ pub fn configuration(arguments: impl IntoIterator<Item = String>) -> DesktopLaun
         error: None,
     };
     match parse(arguments) {
-        Ok(BackendSelection::Attach { request }) => {
+        Ok(Some(request)) => {
             launch.target = Some(request.target);
             launch.expected_backend_id = request.expected_backend_id;
         }
-        Ok(BackendSelection::OwnedLocal) => {}
+        Ok(None) => {}
         Err(error) => launch.error = Some(error),
     }
     launch

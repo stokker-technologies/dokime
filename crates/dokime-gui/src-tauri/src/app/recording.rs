@@ -54,7 +54,7 @@ struct Mp4Box {
 /* === Public Functions === */
 pub async fn desktop_recording_finish(
     window: WebviewWindow,
-    bridge: tauri::State<'_, crate::rpc::Bridge>,
+    bridge: tauri::State<'_, crate::uploads::Bridge>,
     generation: String,
     duration_ms: u64,
     media_type: String,

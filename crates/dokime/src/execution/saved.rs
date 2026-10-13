@@ -8,12 +8,11 @@
  */
 
 /* === Modules === */
-#[cfg(any(feature = "client", feature = "storage"))]
-mod cursor;
 
 /* === Re-Exports === */
-#[cfg(any(feature = "client", feature = "storage"))]
-pub use cursor::PageCursor;
+#[cfg(feature = "storage")]
+pub use dokime_contract::execution::PageCursor;
+pub use dokime_contract::execution::{ExecutionCheckpoint, SavedEvidenceError};
 
 /* === Imports === */
 // Standard Library Imports
@@ -56,15 +55,6 @@ macro_rules! owned_memory {
 pub type Result<T> = std::result::Result<T, SavedEvidenceError>;
 
 /* === Structs === */
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ExecutionCheckpoint {
-    pub execution_id: TestExecutionId,
-    pub position: StorageCursor,
-    pub version: ObjectVersionToken,
-    pub evidence_through: StorageCursor,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExecutionRevision {
@@ -137,26 +127,9 @@ pub enum SavedStreamState {
     Interrupted,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum SavedEvidenceError {
-    #[error("invalid saved execution evidence: {0}")]
-    Invalid(&'static str),
-    #[error(transparent)]
-    Storage(#[from] harmos::Error),
-    #[error(transparent)]
-    Timestamp(#[from] time::error::Parse),
-}
-
 /* === Traits === */
 
 /* === Implementations === */
-owned_memory!(
-    ExecutionCheckpoint,
-    execution_id,
-    position,
-    version,
-    evidence_through
-);
 owned_memory!(ExecutionRevision, execution_id, position, version);
 owned_memory!(
     ExecutionSource,
@@ -210,13 +183,6 @@ impl harmos::MemorySize for ExecutionOutputContent {
 impl harmos::MemorySize for SavedStreamState {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
-    }
-}
-
-impl ExecutionCheckpoint {
-    pub fn validate(&self) -> Result<()> {
-        self.version.check_position(&self.position)?;
-        require_saved(&self.position, &self.evidence_through)
     }
 }
 

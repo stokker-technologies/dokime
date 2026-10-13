@@ -6,12 +6,13 @@
 #
 # ***
 
-"""Prepare the installed native wheel for cross-language acceptance."""
+"""Prepare the exact installed client wheel for cross-language acceptance."""
 
 # === Imports === #
 
 # Standard Library Imports
 from __future__ import annotations
+
 import argparse
 import os
 import subprocess
@@ -20,7 +21,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.package.wheel import WheelSelectionError, select_wheel
 
@@ -47,7 +47,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     wheel = _unique_wheel(wheel_dir)
 
-    # One immutable wheel supplies all cross-language and native categories.
+    # One immutable client wheel supplies all cross-language categories.
     # Mise prepares the shared workspace before installing this wheel.
     root = Path(__file__).resolve().parents[5]
     native_environment = root / ".venv"

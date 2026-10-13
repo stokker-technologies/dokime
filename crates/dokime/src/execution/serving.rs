@@ -20,8 +20,8 @@ use std::time::Duration;
 
 // Third Party Imports
 use harmos::operations::{OperationDeclaration, OperationPolicy, RetryPolicy, Visibility};
-use harmos::sidecar::operations::{ServingError, WireTable};
-use harmos::sidecar::{Refusal, Supervisor};
+use harmos::plugin::sidecar::operations::{ServingError, WireTable};
+use harmos::plugin::sidecar::{Refusal, Supervisor};
 
 // Local Imports
 use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
@@ -176,16 +176,18 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Running<T> {
         host: Self::Context<'ctx>,
         request: &mut RunExecutionRequest,
         _: &mut (),
-    ) -> Result<SidecarExecutionOutcome, Refusal> {
+    ) -> Result<harmos::operations::Response<SidecarExecutionOutcome>, Refusal> {
         let request = std::mem::take(request);
-        self.0
+        let outcome = self
+            .0
             .execute(
                 request,
                 Arc::new(host.clone()),
                 Some(SampleOutput::Host(host.clone())),
                 Caller::host(host.clone()),
             )
-            .await
+            .await?;
+        Ok(outcome.into())
     }
 }
 
@@ -205,8 +207,8 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Signalling<T> {
         _: Self::Context<'ctx>,
         signal: &mut ExecutionSignal,
         _: &mut (),
-    ) -> Result<SignalReply, Refusal> {
-        self.0.signal(std::mem::take(signal))
+    ) -> Result<harmos::operations::Response<SignalReply>, Refusal> {
+        self.0.signal(std::mem::take(signal)).map(Into::into)
     }
 }
 
@@ -425,8 +427,7 @@ pub fn contracts(
             operation,
             contract.version(),
             contract.codec(),
-            contract.request().to_vec(),
-            contract.response().to_vec(),
+            contract.schema().clone(),
         )
     };
     Ok([
@@ -441,7 +442,7 @@ pub fn contracts(
 /* === Public Functions === */
 pub fn serve<P, S>(table: &mut WireTable<Supervisor>) -> Result<(), ServingError>
 where
-    P: harmos::artifact::plugin::Declared,
+    P: harmos::plugin::contract::Declared,
     S: crate::catalog::Catalog<crate::catalog::SuiteBindings<P>>,
 {
     for bind in crate::catalog::entries::<S, crate::catalog::SuiteBindings<P>>() {
@@ -474,7 +475,7 @@ pub fn bind<T, P>(
 ) -> Result<(), ServingError>
 where
     T: SidecarTemplate,
-    P: harmos::artifact::plugin::Declared,
+    P: harmos::plugin::contract::Declared,
 {
     let workflow = Arc::new(
         Workflow::<T>::new(workflow, P::ID)

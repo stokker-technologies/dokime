@@ -17,8 +17,11 @@
 // Third Party Imports
 
 // Local Imports
-use super::*;
+use super::super::value::canonical;
+use super::{contract as v1, value};
 use dokime_app::plugins::{PluginEntry, PluginLastBoot, PluginState};
+use harmos::Protobuf;
+use tonic::Status;
 
 /* === Constants === */
 
@@ -39,13 +42,7 @@ pub(super) fn entry(
     mut entry: PluginEntry,
     limit: usize,
 ) -> Result<v1::PluginInstallation, Status> {
-    if entry.metadata.is_some() && disclosure(&entry, limit).is_err() {
-        entry.metadata = None;
-        entry.error = Some("Verified permission metadata exceeds response budget; consent is unavailable. Installation identity and state remain accessible.".into());
-    }
-    dokime_app::document::bounded::document_size(&entry, limit / 2, 32).map_err(|_| {
-        Status::resource_exhausted("plugin installation state exceeds response budget")
-    })?;
+    normalize(&mut entry, limit)?;
     let installation = entry.installation;
     let metadata = entry.metadata.map(|metadata| v1::PluginMetadata {
         identity: Some(v1::PluginIdentity {
@@ -69,13 +66,13 @@ pub(super) fn entry(
         .last_boot
         .map(|boot| {
             let (at, result) = match boot {
-                PluginLastBoot::Loaded { at } => (at, v1::plugin_last_boot::Result::Loaded(true)),
+                PluginLastBoot::Loaded { at } => (at, v1::PluginLastBootResult::Loaded(true)),
                 PluginLastBoot::Failed { error, at } => {
-                    (at, v1::plugin_last_boot::Result::Error(error))
+                    (at, v1::PluginLastBootResult::Error(error))
                 }
             };
             Ok::<_, Status>(v1::PluginLastBoot {
-                at: Some(value::timestamp(&at)?),
+                at: Some(canonical::timestamp(&at)?),
                 result: Some(result),
             })
         })
@@ -83,17 +80,17 @@ pub(super) fn entry(
     let result = v1::PluginInstallation {
         install_id: installation.install_id.to_string(),
         sha256: installation.sha256,
-        staged_at: Some(value::timestamp(&installation.staged_at)?),
+        staged_at: Some(canonical::timestamp(&installation.staged_at)?),
         consented_at: installation
             .consented_at
             .as_ref()
-            .map(value::timestamp)
+            .map(canonical::timestamp)
             .transpose()?,
         state: match installation.state {
-            PluginState::Staged => 1,
-            PluginState::Installed => 2,
-            PluginState::Disabled => 3,
-            PluginState::RemovalPending => 4,
+            PluginState::Staged => v1::PluginInstallationState::Staged,
+            PluginState::Installed => v1::PluginInstallationState::Installed,
+            PluginState::Disabled => v1::PluginInstallationState::Disabled,
+            PluginState::RemovalPending => v1::PluginInstallationState::RemovalPending,
         },
         last_boot,
         metadata,
@@ -102,7 +99,7 @@ pub(super) fn entry(
         restart_required: entry.restart_required,
         boot_error: entry.boot_error,
     };
-    if prost::Message::encoded_len(&result) > limit {
+    if result.encoded_len() > limit {
         return Err(Status::resource_exhausted(
             "plugin metadata exceeds response budget",
         ));
@@ -122,6 +119,68 @@ pub(super) fn disclosure(entry: &PluginEntry, limit: usize) -> Result<(), Status
         )
     })?;
     Ok(())
+}
+
+pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Status> {
+    if entry.metadata.is_some() && disclosure(&entry, limit).is_err() {
+        entry.metadata = None;
+        entry.error = Some("Verified permission metadata exceeds response budget; consent is unavailable. Installation identity and state remain accessible.".into());
+    }
+    dokime_app::document::bounded::document_size(&entry, limit / 2, 32).map_err(|_| {
+        Status::resource_exhausted("plugin installation state exceeds response budget")
+    })?;
+    Ok(())
+}
+pub(super) fn memory(entry: &PluginEntry) -> Result<usize, Status> {
+    let mut bytes = std::mem::size_of::<v1::PluginInstallation>() + 36;
+    let mut add = |text: &str| -> Result<(), Status> {
+        value::text(text)?;
+        bytes = bytes.saturating_add(text.len());
+        Ok(())
+    };
+    add(&entry.installation.sha256)?;
+    if let Some(text) = &entry.error {
+        add(text)?;
+    }
+    if let Some(text) = &entry.boot_error {
+        add(text)?;
+    }
+    if let Some(PluginLastBoot::Failed { error, .. }) = &entry.installation.last_boot {
+        add(error)?;
+    }
+    if let Some(metadata) = &entry.metadata {
+        for text in [
+            &metadata.identity.name,
+            &metadata.identity.version,
+            &metadata.identity.description,
+        ] {
+            add(text)?;
+        }
+        for text in &metadata.owners {
+            add(text)?;
+        }
+        for reference in &metadata.environment_references {
+            for text in [&reference.owner, &reference.setting, &reference.variable] {
+                add(text)?;
+            }
+        }
+    }
+    if let Some(metadata) = &entry.metadata {
+        bytes = bytes
+            .saturating_add(
+                metadata
+                    .owners
+                    .len()
+                    .saturating_mul(4 * std::mem::size_of::<String>()),
+            )
+            .saturating_add(
+                metadata
+                    .environment_references
+                    .len()
+                    .saturating_mul(4 * std::mem::size_of::<v1::PluginEnvironmentReference>()),
+            );
+    }
+    Ok(bytes)
 }
 
 /* === Private Functions === */

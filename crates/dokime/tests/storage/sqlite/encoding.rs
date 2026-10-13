@@ -19,7 +19,8 @@ use std::num::{NonZeroU32, NonZeroUsize};
 // Third Party Imports
 use harmos::{
     schema::{
-        Cardinality, Field, Kind,
+        Cardinality,
+        graph::{Field, Kind},
         reflection::{DynamicMessage, Value},
     },
     storage::*,
@@ -51,7 +52,7 @@ use dokime::storage::sqlite::{Backend, Limits};
 
 pub(crate) async fn saved_descriptors_reopen() {
     let root = tempfile::tempdir().unwrap();
-    let fields = vec![
+    let graph = super::storage::graph(vec![
         Field {
             name: "voltage".into(),
             tag: 1,
@@ -82,8 +83,10 @@ pub(crate) async fn saved_descriptors_reopen() {
             kind: Kind::F32,
             cardinality: Cardinality::Repeated,
         },
-    ];
-    let descriptor = harmos::schema::reflection::descriptor(&fields).unwrap();
+    ]);
+    let settings = harmos::config::SchemaSettings::default();
+    let descriptor =
+        harmos::schema::reflection::descriptor_schema(&graph, "fixture", &settings).unwrap();
     let mut payloads = Vec::new();
     for (voltage, enabled) in [(229.5, Some(false)), (230.5, None)] {
         let mut message = DynamicMessage::new(descriptor.clone());
@@ -112,12 +115,7 @@ pub(crate) async fn saved_descriptors_reopen() {
         id: harmos::Identifier::new("fixture.protobuf.samples").unwrap(),
         version: NonZeroU32::MIN,
     };
-    let schemas = [StorageSchema::new(
-        position(1),
-        key.clone(),
-        fields,
-        SchemaEncoding::Inline,
-    )];
+    let schemas = [StorageSchema::new(position(1), key.clone(), graph.clone())];
     let rows: Vec<_> = payloads
         .iter()
         .enumerate()
@@ -170,8 +168,10 @@ pub(crate) async fn saved_descriptors_reopen() {
     assert!(schemas.next.is_none());
     let schema = &schemas.entries[0];
     assert_eq!(schema.key, key);
-    assert_eq!(schema.encoding(), SchemaEncoding::Inline);
-    let descriptor = harmos::schema::reflection::descriptor(&schema.fields).unwrap();
+    assert_eq!(schema.schema, graph);
+    let descriptor =
+        harmos::schema::reflection::descriptor_schema(&schema.schema, "fixture", &settings)
+            .unwrap();
     let mut selection = ReadSelection::new(ReadKind::Stream);
     selection.schema = Some(key.clone());
     let rows = backend

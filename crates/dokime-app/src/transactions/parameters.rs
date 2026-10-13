@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::{MaterializedParameter, ParameterSource};

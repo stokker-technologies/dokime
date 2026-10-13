@@ -15,8 +15,8 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use dokime::harmos::artifact::plugin::Declared;
 use dokime::harmos::operations::{ServingError, WireTable};
+use dokime::harmos::plugin::contract::Declared;
 // Local Imports
 use dokime::{Refusal, Supervisor};
 
@@ -27,8 +27,8 @@ use dokime::{Refusal, Supervisor};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::message]
-#[derive(Clone, PartialEq, dokime::TelemetryRow)]
+#[dokime::row]
+#[derive(Clone, PartialEq)]
 struct DirectReading {
     value: u32,
 }
@@ -158,8 +158,12 @@ pub(crate) async fn stream_alias_publication() {
     for (name, expected, stream) in [("inlet", vec![7], inlet), ("outlet", vec![8], outlet)] {
         assert_eq!(stream.definition().id(), format!("sdk-streams.{name}"));
         assert_eq!(
-            stream.definition().fields().unwrap(),
-            <DirectReading as harmos::schema::Described>::FIELDS,
+            stream.definition().schema().unwrap(),
+            &harmos::schema::graph::Schema::from_declaration(
+                <DirectReading as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .unwrap(),
         );
         let values: Vec<_> = stream
             .query(..)

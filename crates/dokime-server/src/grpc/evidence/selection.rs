@@ -15,12 +15,12 @@
 // Standard Library Imports
 
 // Third Party Imports
-use prost::Message;
+use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
 use dokime_app::records::RecordEntry;
-use dokime_protocol::v1;
+use dokime_contract::operations::{common, evidence as v1};
 
 /* === Constants === */
 pub(super) const MAX_ALTERNATIVES: usize = 64;
@@ -61,16 +61,27 @@ impl Selection {
                 .map_err(|_| Status::invalid_argument("invalid record type"))?;
         }
         if value.severities.len() > MAX_SEVERITIES
-            || value
-                .severities
-                .iter()
-                .any(|severity| !matches!(*severity, 2..=5))
+            || value.severities.iter().any(|severity| {
+                !matches!(
+                    *severity,
+                    common::Severity::Debug
+                        | common::Severity::Info
+                        | common::Severity::Warn
+                        | common::Severity::Error
+                )
+            })
         {
             return Err(Status::invalid_argument(
                 "expected Debug, Info, Warn or Error severity",
             ));
         }
-        value.severities.sort();
+        value.severities.sort_by_key(|severity| match severity {
+            common::Severity::Debug => 2,
+            common::Severity::Info => 3,
+            common::Severity::Warn => 4,
+            common::Severity::Error => 5,
+            _ => 0,
+        });
         value.severities.dedup();
         if let Some(scope) = &mut value.scope {
             for id in [
@@ -93,7 +104,7 @@ impl Selection {
                 }
                 *id = parsed.to_string();
             }
-            if scope == &v1::EvidenceScope::default() {
+            if scope == &common::EvidenceScope::default() {
                 value.scope = None;
             }
         }
@@ -118,7 +129,7 @@ impl Selection {
             || !value.severities.is_empty()
                 && !value
                     .severities
-                    .contains(&super::wire::severity(record.severity))
+                    .contains(&super::canonical::severity(record.severity))
         {
             return false;
         }
@@ -128,7 +139,9 @@ impl Selection {
         let Some(scope) = &record.scope else {
             return false;
         };
-        let actual = super::super::value::scope(scope);
+        let Ok(actual) = super::super::value::canonical::scope(scope) else {
+            return false;
+        };
         [
             (&selected.session_id, &actual.session_id),
             (&selected.cycle_id, &actual.cycle_id),

@@ -156,11 +156,13 @@ pub trait DeclaredSuite {
     fn definition() -> TestSuiteDefinition;
 
     #[cfg(feature = "native")]
-    fn bind<P: harmos::artifact::plugin::Declared>(
-        table: &mut harmos::sidecar::operations::WireTable<harmos::sidecar::Supervisor>,
+    fn bind<P: harmos::plugin::contract::Declared>(
+        table: &mut harmos::plugin::sidecar::operations::WireTable<
+            harmos::plugin::sidecar::Supervisor,
+        >,
         workflow: &str,
         records: &[RecordContract],
-    ) -> Result<(), harmos::sidecar::operations::ServingError>;
+    ) -> Result<(), harmos::plugin::sidecar::operations::ServingError>;
 
     #[cfg(feature = "native")]
     fn runners() -> Vec<std::sync::Arc<dyn crate::execution::Runnable>>;

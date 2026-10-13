@@ -34,17 +34,17 @@ use dokime::transport::{DeliverRecordRequest, ExecutionSignal};
 #[derive(Clone)]
 pub(crate) struct PublicationIngest {
     streams: crate::app::Streams,
-    progress: tokio::sync::watch::Receiver<harmos::Cursor>,
+    progress: tokio::sync::watch::Receiver<harmos::storage::Cursor>,
 }
 
 #[derive(Default)]
 pub(crate) struct RecordDemands {
     sources: BTreeMap<String, RecordDemandSource>,
-    listeners: BTreeMap<(String, String, String), harmos::sidecar::DemandLease>,
+    listeners: BTreeMap<(String, String, String), harmos::plugin::sidecar::DemandLease>,
 }
 
 struct RecordDemandSource {
-    demands: harmos::sidecar::DemandSource,
+    demands: harmos::plugin::sidecar::DemandSource,
     ready: tokio::sync::watch::Receiver<bool>,
     _watch: BackgroundTask,
 }
@@ -58,7 +58,7 @@ impl RuntimeHandle {
     pub(crate) fn register_record_demand_source(
         &self,
         source: String,
-        demands: harmos::sidecar::DemandSource,
+        demands: harmos::plugin::sidecar::DemandSource,
         ready: tokio::sync::watch::Receiver<bool>,
     ) {
         let owned = std::sync::Arc::downgrade(&self.record_demands);
@@ -111,7 +111,7 @@ impl RuntimeHandle {
     pub(crate) fn hold_record_demand(
         &self,
         records: &[Identifier],
-    ) -> crate::Result<Vec<harmos::sidecar::DemandLease>> {
+    ) -> crate::Result<Vec<harmos::plugin::sidecar::DemandLease>> {
         let artifacts = self.installed_plugins();
         let unavailable = self
             .unavailable_plugins
@@ -173,7 +173,7 @@ impl RecordDemands {
         &mut self,
         artifacts: &super::handle::InstalledPlugins,
         unavailable: &BTreeSet<String>,
-        router: Option<&harmos::load::Router>,
+        router: Option<&harmos::plugin::Router>,
     ) -> crate::Result<()> {
         let wanted = listener_demands(artifacts, unavailable, router, |owner| {
             self.sources.get(owner).map(|source| *source.ready.borrow())
@@ -209,7 +209,10 @@ pub(crate) fn spawn_lease_gap_watch(
                 .iter()
                 .filter(|(key, instance)| {
                     key.scope == root_scope
-                        && matches!(instance.status, harmos::ServiceStatus::Inactive { .. })
+                        && matches!(
+                            instance.status,
+                            harmos::services::ServiceStatus::Inactive { .. }
+                        )
                 })
                 .map(|(key, _)| key.definition.clone())
                 .collect::<std::collections::BTreeSet<_>>();
@@ -242,8 +245,8 @@ pub(crate) fn spawn_publication_ingest(
     handle: RuntimeHandle,
 ) -> (PublicationIngest, BackgroundTask) {
     let streams = handle.streams.clone();
-    let mut feed = streams.follow(harmos::Cursor::ORIGIN);
-    let (admitted, progress) = tokio::sync::watch::channel(harmos::Cursor::ORIGIN);
+    let mut feed = streams.follow(harmos::storage::Cursor::ORIGIN);
+    let (admitted, progress) = tokio::sync::watch::channel(harmos::storage::Cursor::ORIGIN);
     let task = tokio::spawn(async move {
         let mut native = super::native_telemetry::Decoder::default();
         while let Some(batch) = feed.next().await {
@@ -335,7 +338,7 @@ pub(crate) fn record_demand_key(record: &str) -> String {
 fn listener_demands(
     artifacts: &super::handle::InstalledPlugins,
     unavailable: &BTreeSet<String>,
-    router: Option<&harmos::load::Router>,
+    router: Option<&harmos::plugin::Router>,
     source: impl Fn(&str) -> Option<bool>,
 ) -> BTreeSet<(String, String, String)> {
     let ready = |artifact: &&dokime::domains::InstalledPlugin| {

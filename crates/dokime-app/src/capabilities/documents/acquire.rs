@@ -16,7 +16,7 @@
 use std::{collections::BTreeSet, io::Write, mem::size_of};
 // Third Party Imports
 use harmos::storage::QueryValue;
-use harmos::{MemorySize, PageLimits, ReadCut, ReadLimits};
+use harmos::{MemorySize, streams::PageLimits, streams::ReadCut, streams::ReadLimits};
 use sha2::{Digest, Sha256};
 // Local Imports
 use crate::document::{DocumentDataInput, DocumentSelection, bounded::document_size};
@@ -346,11 +346,15 @@ fn source(error: impl std::fmt::Display) -> DocumentAcquisitionFailure {
     DocumentAcquisitionFailure::Source(error.to_string())
 }
 
-fn read_error(error: harmos::ReadError) -> DocumentAcquisitionFailure {
+fn read_error(error: harmos::streams::ReadError) -> DocumentAcquisitionFailure {
     match error {
-        harmos::ReadError::Limit(_) | harmos::ReadError::Busy => DocumentAcquisitionFailure::Limit,
-        harmos::ReadError::IncompleteCapture => DocumentAcquisitionFailure::IncompleteCapture,
-        harmos::ReadError::Retained { .. } => DocumentAcquisitionFailure::Retained,
+        harmos::streams::ReadError::Limit(_) | harmos::streams::ReadError::Busy => {
+            DocumentAcquisitionFailure::Limit
+        }
+        harmos::streams::ReadError::IncompleteCapture => {
+            DocumentAcquisitionFailure::IncompleteCapture
+        }
+        harmos::streams::ReadError::Retained { .. } => DocumentAcquisitionFailure::Retained,
         error => source(error),
     }
 }

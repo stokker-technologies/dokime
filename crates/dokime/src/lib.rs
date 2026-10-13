@@ -16,9 +16,6 @@ pub mod catalog;
 
 pub mod contributions;
 
-#[cfg(feature = "client")]
-pub mod client;
-
 pub mod definition;
 
 pub mod diagnostics;
@@ -102,6 +99,7 @@ pub use definition::{Parameter, ParameterDefault, ParameterExpansion};
 pub use dokime_contract::Error as ApiError;
 pub use dokime_contract::core::*;
 pub use dokime_contract::settings;
+pub use dokime_contract::{DEV_PROTOCOL, READINESS_PROTOCOL};
 pub use error::{Error, Result};
 pub use execution::Slot;
 pub use parameters::{FromParameters, ParameterChoice, ParameterHandle, ParameterValue};
@@ -112,10 +110,10 @@ pub use publication::Publishable;
 // reach the host as Harmos contributions.
 pub use contributions::{Evidence, Prompts, Records, Settings, Suites};
 pub use harmos::Plugin;
-pub use harmos::artifact::plugin::{Contribution, Grant, Requirement};
 pub use harmos::operations::{CallContext, Declares, Operation};
+pub use harmos::plugin::contract::{Contribution, Grant, Requirement};
 #[cfg(feature = "native")]
-pub use harmos::sidecar::{Refusal, Supervisor};
+pub use harmos::plugin::sidecar::{Refusal, Supervisor};
 
 pub use harmos;
 pub use values::{FieldError, FieldValue};
@@ -127,16 +125,14 @@ pub use values::{FieldError, FieldValue};
 // [`plugin`] are the API, and these are the path most authors take to them.
 #[cfg(feature = "derive")]
 pub use dokime_macros::{
-    TelemetryRow, catalog, choice, criterion, listener, message, observer, operation, parameters,
-    plugin, prompt, record, section, settings, step, stream, suite, template,
+    catalog, choice, criterion, listener, message, observer, operation, parameters, plugin, prompt,
+    record, row, section, settings, step, stream, suite, template,
 };
 pub use harmos::{Message, StreamSpec, schema};
 
 // Generated authoring code resolves implementation dependencies through the SDK.
 
 pub use harmos as __harmos;
-
-pub use harmos::artifact as __artifact;
 
 pub use prost as __prost;
 
@@ -152,7 +148,7 @@ extern crate self as dokime;
 // Local Imports
 
 /* === Constants === */
-pub const MACRO_CONTRACT: u32 = 25;
+pub const MACRO_CONTRACT: u32 = 26;
 
 /* === Macros === */
 /* === Type Aliases === */

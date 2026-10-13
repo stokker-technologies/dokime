@@ -10,9 +10,16 @@ const harness = openHarness();
 const { invoke, load } = harness;
 try {
   const api = await load("generated/client.js");
-  const value = await load("generated/dokime/v1/value_pb.js");
-  const execution = await load("generated/dokime/v1/execution_pb.js");
-  const session = { generation: "1", isCurrent: () => true };
+  const value = await harness.loadCanonical("dokime/v1/CatalogMessages/GetSuite/messages_pb.js");
+  const execution = await harness.loadCanonical("dokime/v1/ExecutionMessages/RunCycle/messages_pb.js");
+  const { bindConnection } = await load("grpc-web.js");
+  const access = JSON.parse(process.env.DOKIME_TEST_BROWSER_ACCESS);
+  function connected(isCurrent = () => true) {
+    const session = { generation: access.generation, isCurrent };
+    bindConnection(session, { ...access });
+    return session;
+  }
+  const session = connected();
   const { loadAppearance } = await load("appearance.js");
   const appearance = await loadAppearance(session);
   assert.equal(appearance.appearance.appName, "Dokime");
@@ -58,7 +65,7 @@ try {
   assert.equal(frame.value.cycleCount, 1n);
   await stream.cancel();
   let active = true;
-  const late = api.catalogListSuites({ generation: "1", isCurrent: () => active }, {});
+  const late = api.catalogListSuites(connected(() => active), {});
   active = false;
   await assert.rejects(
     late,
@@ -66,7 +73,7 @@ try {
   );
   active = true;
   const lateError = api.catalogGetSuite(
-    { generation: "1", isCurrent: () => active },
+    connected(() => active),
     { suiteId: "missing" },
   );
   active = false;
@@ -76,7 +83,7 @@ try {
   );
   active = true;
   const lateOpen = api.contentDownloadArtifact(
-    { generation: "1", isCurrent: () => active },
+    connected(() => active),
     { artifactId: "missing" },
   );
   active = false;
@@ -86,10 +93,9 @@ try {
   );
   active = true;
   const staleStream = await api.observationWatchRuntime(
-    { generation: "1", isCurrent: () => active },
+    connected(() => active),
     {},
   );
-  await invoke("fixture_cancel_streams", new Uint8Array());
   const lateRead = staleStream[Symbol.asyncIterator]().next();
   active = false;
   await assert.rejects(
@@ -107,25 +113,25 @@ try {
     complete = false;
   for await (const frame of download) {
     assert.equal(complete, false, "completion must be last data frame");
-    switch (frame.payload.case) {
-      case "metadata":
+    switch (frame.payload.HarmosVariant.case) {
+      case "Metadata":
         assert.equal(metadata, null);
-        metadata = frame.payload.value;
+        metadata = frame.payload.HarmosVariant.value.field0;
         assert.equal(metadata.artifactId, process.env.DOKIME_TEST_ARTIFACT_ID);
         assert.equal(metadata.sizeBytes, 150000n);
         break;
-      case "chunk": {
+      case "Chunk": {
         assert.notEqual(metadata, null);
-        const chunk = frame.payload.value;
+        const chunk = frame.payload.HarmosVariant.value.field0;
         assert.equal(chunk.offset, offset);
         assert.ok(chunk.data.length > 0 && chunk.data.length <= 65536);
         offset += BigInt(chunk.data.length);
         received.push(chunk.data);
         break;
       }
-      case "complete":
-        assert.equal(frame.payload.value.sizeBytes, offset);
-        assert.equal(frame.payload.value.sha256, metadata.sha256);
+      case "Complete":
+        assert.equal(frame.payload.HarmosVariant.value.field0.sizeBytes, offset);
+        assert.equal(frame.payload.HarmosVariant.value.field0.sha256, metadata.sha256);
         complete = true;
         break;
       default:
@@ -137,27 +143,31 @@ try {
   const content = Buffer.concat(received);
   assert.equal(createHash("sha256").update(content).digest("hex"), metadata.sha256);
   assert.deepEqual(content, Buffer.from(Array.from({ length: 150000 }, (_, i) => i % 251)));
-  const values = create(value.ValueObjectSchema, {
-    fields: {
-      minimum: { kind: { case: "integerValue", value: -9223372036854775808n } },
-      maximum: { kind: { case: "integerValue", value: 9223372036854775807n } },
-      null: { kind: { case: "nullValue", value: 0 } },
-      unset: {},
-    },
+  const values = create(value.Row19Schema, {
+    nodes: [
+      { kind: { HarmosVariant: { case: "Object", value: { field0: { fields: [
+        { key: "minimum", value: 1 }, { key: "maximum", value: 2 },
+        { key: "null", value: 3 }, { key: "unset", value: 4 },
+      ] } } } } },
+      { kind: { HarmosVariant: { case: "Integer", value: { field0: -9223372036854775808n } } } },
+      { kind: { HarmosVariant: { case: "Integer", value: { field0: 9223372036854775807n } } } },
+      { kind: { HarmosVariant: { case: "Null", value: {} } } },
+      {},
+    ],
   });
   const valueReply = fromBinary(
-    value.ValueObjectSchema,
-    new Uint8Array(await invoke("fixture_value", toBinary(value.ValueObjectSchema, values))),
+    value.Row19Schema,
+    new Uint8Array(await invoke("fixture_value", toBinary(value.Row19Schema, values))),
   );
   assert.deepEqual(valueReply, values);
-  const admission = create(execution.AdmissionSchema, {
+  const admission = create(execution.Row7Schema, {
     cursor: { position: 18446744073709551615n },
     acceptedAt: { seconds: -1n, nanos: 999999999 },
   });
   const admissionReply = fromBinary(
-    execution.AdmissionSchema,
+    execution.Row7Schema,
     new Uint8Array(
-      await invoke("fixture_admission", toBinary(execution.AdmissionSchema, admission)),
+      await invoke("fixture_admission", toBinary(execution.Row7Schema, admission)),
     ),
   );
   assert.deepEqual(admissionReply, admission);

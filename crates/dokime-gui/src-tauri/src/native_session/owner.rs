@@ -87,7 +87,7 @@ impl DesktopSession {
     pub fn status(&self) -> DesktopSessionSnapshot {
         let state = self.0.state.lock().expect("desktop owner poisoned");
         DesktopSessionSnapshot {
-            ownership: state.ownership,
+            ownership: state.ownership.clone(),
             phase: state.phase.clone(),
             connection: self.0.connection.status(),
         }
@@ -108,6 +108,47 @@ impl DesktopSession {
         &self,
         selection: BackendSelection,
     ) -> Result<DesktopSessionSnapshot, Error> {
+        // Resolve The Shared Profile Before Replacing An Active Session.
+        let selection = match selection {
+            BackendSelection::Profile { name } => {
+                let store = dokime_client::profiles::Store::discover(None).map_err(|error| {
+                    Error::Startup {
+                        message: error.to_string(),
+                    }
+                })?;
+                let document = store.load().map_err(|error| Error::Startup {
+                    message: error.to_string(),
+                })?;
+                let profile = document.get(&name).map_err(|error| Error::Startup {
+                    message: error.to_string(),
+                })?;
+                let resolved = profile.selection().map_err(|error| Error::Startup {
+                    message: error.to_string(),
+                })?;
+                let target = if resolved.target.is_remote() {
+                    ConnectionTarget::Remote {
+                        endpoint: profile.endpoint.clone(),
+                        ca_certificate_pem: profile.ca_certificate_pem.clone(),
+                    }
+                } else {
+                    ConnectionTarget::Local {
+                        endpoint: profile.endpoint.clone(),
+                    }
+                };
+                let credentials = match resolved.credential {
+                    dokime_client::profiles::Credential::None => ConnectionCredentials::None,
+                    dokime_client::profiles::Credential::Keyring => ConnectionCredentials::Saved,
+                };
+                BackendSelection::Attach {
+                    request: ConnectRequest {
+                        target,
+                        credentials,
+                        expected_backend_id: resolved.expected_backend_id,
+                    },
+                }
+            }
+            selection => selection,
+        };
         if let BackendSelection::Attach { request } = &selection {
             ConnectionSession::validate_target(request.target.clone())
                 .map_err(|error| Error::Connection { error })?;
@@ -197,6 +238,7 @@ impl DesktopSession {
         resources.shutdown().await?;
         self.current(revision)?;
         let (request, ownership) = match selection {
+            BackendSelection::Profile { .. } => unreachable!("profile resolved before transition"),
             BackendSelection::Attach { request } => (request, BackendOwnership::Attached),
             BackendSelection::OwnedLocal => {
                 let backend = self.backend()?;
@@ -234,7 +276,7 @@ impl DesktopSession {
                 let snapshot = {
                     let mut state = self.0.state.lock().expect("desktop owner poisoned");
                     if state.revision == revision {
-                        state.ownership = ownership;
+                        state.ownership = ownership.clone();
                         // Startup is over: whatever phase it last reported no
                         // longer describes anything a caller should show.
                         state.phase = None;

@@ -11,11 +11,14 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Callable
+import base64
+import hashlib
+import io
 import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -25,14 +28,15 @@ import pytest
 # Local Imports
 from dokime_tools import _policy, evidence
 from dokime_tools.check import release as checks
-from dokime_tools.ci import artifacts as native
-from dokime_tools.package import artifacts as stage
-from dokime_tools.release import inputs as source_inputs
 from dokime_tools.check.release import (
     TARGETS,
     digest,
     verify_release,
 )
+from dokime_tools.check.wheel import verify_wheel
+from dokime_tools.ci import artifacts as native
+from dokime_tools.package import artifacts as stage
+from dokime_tools.release import inputs as source_inputs
 
 # Type Checking Imports
 
@@ -99,7 +103,7 @@ def case_release_pair(tmp_path: Path) -> None:
     downloads.mkdir(parents=True)
     for platform in ("linux", "windows"):
         package = root / platform
-        template = package / "reports/report.html"
+        template = package / checks.REPORT_TEMPLATE
         original = template.read_bytes()
         archive = downloads / f"dokime-{platform}.zip"
         with ZipFile(archive, "w") as contents:
@@ -107,7 +111,7 @@ def case_release_pair(tmp_path: Path) -> None:
                 if path.is_file():
                     contents.write(path, path.relative_to(package))
         native.restore(tmp_path, platform)
-        restored = tmp_path / "dist/build" / platform / "reports/report.html"
+        restored = tmp_path / "dist/build" / platform / checks.REPORT_TEMPLATE
         assert restored.read_bytes() == original
         canonical = tmp_path / "crates/dokime-app/dist-report/report.html"
         assert canonical.read_bytes() == original
@@ -166,16 +170,26 @@ def test_release_drift(tmp_path: Path, field: str, value: object) -> None:
         verify_release(root, COMMIT, TAG, tmp_path)
 
 
+def test_windows_installed_evidence(tmp_path: Path) -> None:
+    root = _release(tmp_path)
+    path = root / "windows/manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["validation"]["suites"].remove("system-javascript")
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="complete native test evidence"):
+        verify_release(root, COMMIT, TAG, tmp_path)
+
+
 @pytest.mark.parametrize("change", ["changed", "missing", "unlisted", "dependency"])
 def test_release_refuses(tmp_path: Path, change: str) -> None:
     root = _release(tmp_path)
-    wheel = next((root / "linux").glob("*.whl"))
+    wheel = next((root / "linux/python").glob("*.whl"))
     if change == "changed":
         wheel.write_bytes(b"different wheel")
     elif change == "missing":
         wheel.unlink()
     elif change == "unlisted":
-        (root / "linux/unverified.whl").write_bytes(b"extra")
+        (root / "linux/python/unverified.whl").write_bytes(b"extra")
     else:
         (tmp_path / "Cargo.lock").write_text("changed dependency resolution")
     with pytest.raises(ValueError):
@@ -200,6 +214,77 @@ def test_release_inventory(tmp_path: Path, change: str) -> None:
         verify_release(root, COMMIT, TAG, tmp_path)
 
 
+@pytest.mark.parametrize(
+    "change",
+    [
+        "misplaced-binary",
+        "nested-archive",
+        "foreign-role",
+        "proto-unlisted",
+        "proto-revision",
+        "proto-archive",
+        "example-missing",
+        "example-empty",
+        "example-misplaced",
+    ],
+)
+def test_release_layout(tmp_path: Path, change: str) -> None:
+    root = _release(tmp_path)
+    package = root / "linux"
+    path = package / "manifest.json"
+    manifest = json.loads(path.read_text())
+    roles = {item["role"]: item for item in manifest["files"]}
+
+    def move(role: str, target: str) -> None:
+        entry = roles[role]
+        (package / target).parent.mkdir(parents=True, exist_ok=True)
+        (package / entry["path"]).rename(package / target)
+        entry["path"] = target
+
+    if change == "misplaced-binary":
+        move("host", "runtime/host")
+    elif change == "nested-archive":
+        move("plugin", "plugins/plugin.tar")
+    elif change == "foreign-role":
+        foreign = package / "contracts/revision.txt"
+        foreign.parent.mkdir()
+        foreign.write_bytes(b"foreign")
+        manifest["files"].append(
+            {
+                "role": "contracts",
+                "path": "contracts/revision.txt",
+                "bytes": foreign.stat().st_size,
+                "sha256": digest(foreign),
+            }
+        )
+    elif change == "proto-unlisted":
+        extra = package / checks.PROTO / "extra.proto"
+        extra.write_bytes(b"unlisted")
+        manifest["files"].append(
+            {
+                "role": "proto:extra.proto",
+                "path": f"{checks.PROTO}/extra.proto",
+                "bytes": extra.stat().st_size,
+                "sha256": digest(extra),
+            }
+        )
+    elif change == "proto-archive":
+        del manifest["contracts"]
+    elif change == "example-missing":
+        entry = roles[f"example:{checks.EXAMPLE_REPORT}"]
+        (package / entry["path"]).unlink()
+        manifest["files"].remove(entry)
+    elif change == "example-misplaced":
+        move(f"example:{checks.EXAMPLE_REPORT}", checks.EXAMPLE_REPORT)
+    path.write_text(json.dumps(manifest))
+    if change == "proto-revision":
+        _replace(package, "proto:revision.txt", b"b" * 40 + b"\n")
+    elif change == "example-empty":
+        _replace(package, f"example:{checks.EXAMPLE_REPORT}", b"  \n")
+    with pytest.raises(ValueError, match="layout|directory|archive|protocol|example"):
+        verify_release(root, COMMIT, TAG, tmp_path)
+
+
 @pytest.mark.parametrize("result", ["failure", "error", "skipped", "empty"])
 def test_release_passing(tmp_path: Path, result: str) -> None:
     root = _release(tmp_path)
@@ -208,6 +293,58 @@ def test_release_passing(tmp_path: Path, result: str) -> None:
         content = "<testsuite/>"
     _replace(root / "linux", "test:tests-acceptance-python.xml", content.encode())
     with pytest.raises(ValueError, match="validation"):
+        verify_release(root, COMMIT, TAG, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "missing-proof",
+        "wrong-inputs",
+        "missing-suite",
+        "ordinary-report",
+        "empty-report",
+    ],
+)
+def test_release_coverage(tmp_path: Path, change: str) -> None:
+    root = _release(tmp_path)
+    package = root / "linux"
+    manifest_path = package / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    if change == "missing-proof":
+        entry = next(
+            item
+            for item in manifest["files"]
+            if item["role"] == "coverage:coverage.json"
+        )
+        (package / entry["path"]).unlink()
+        manifest["files"].remove(entry)
+        manifest_path.write_text(json.dumps(manifest))
+    else:
+        proof = json.loads(
+            (package / checks.COVERAGE_EVIDENCE / "coverage.json").read_text()
+        )
+        if change == "wrong-inputs":
+            proof["inputs"] = {}
+        elif change == "missing-suite":
+            proof["suites"].pop()
+        else:
+            name = "latest.json" if change == "ordinary-report" else "coverage-rust.xml"
+            if change == "ordinary-report":
+                report = json.loads(
+                    (package / checks.COVERAGE_EVIDENCE / "latest.json").read_text()
+                )
+                report["tests"]["integration-rust"]["coverage"] = False
+                content = json.dumps(report).encode()
+            else:
+                content = b'<coverage lines-valid="0"/>'
+            _replace(package, f"coverage:{name}", content)
+            entry = next(item for item in proof["files"] if item["path"] == name)
+            entry.update(bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
+        _replace(package, "coverage:coverage.json", json.dumps(proof).encode())
+    with pytest.raises(
+        (ValueError, evidence.EvidenceError), match="coverage|executable"
+    ):
         verify_release(root, COMMIT, TAG, tmp_path)
 
 
@@ -221,15 +358,14 @@ def case_release_wheel(tmp_path: Path) -> None:
     assert (root / "linux/manifest.json").read_bytes() == before
 
 
-@pytest.mark.parametrize("report", ["abi3-audit", "linux-audit"])
-def test_release_audit(tmp_path: Path, report: str) -> None:
+@pytest.mark.parametrize("field", ["wheel", "sha256", "pure", "files"])
+def test_release_audit(tmp_path: Path, field: str) -> None:
     root = _release(tmp_path)
-    document = (
-        {"specs": {"other.whl": {"kind": "wheel"}}}
-        if report == "abi3-audit"
-        else {"wheel": "other.whl"}
-    )
-    _replace(root / "linux", report, json.dumps(document).encode())
+    manifest = json.loads((root / "linux/manifest.json").read_text())
+    report = next(item for item in manifest["files"] if item["role"] == "wheel-audit")
+    document = json.loads((root / "linux" / report["path"]).read_text())
+    document[field] = "tampered"
+    _replace(root / "linux", "wheel-audit", json.dumps(document).encode())
     with pytest.raises(ValueError, match="audit"):
         verify_release(root, COMMIT, TAG, tmp_path)
 
@@ -252,10 +388,10 @@ def case_release_distribution(tmp_path: Path) -> None:
     manifest = json.loads(path.read_text())
     entry = next(item for item in manifest["files"] if item["role"] == "sdist")
     old = root / "linux" / entry["path"]
-    entry["path"] = "other-1.2.3.tar.gz"
+    entry["path"] = "python/other-1.2.3.tar.gz"
     old.rename(root / "linux" / entry["path"])
     path.write_text(json.dumps(manifest))
-    with pytest.raises(ValueError, match="unified dokime distribution"):
+    with pytest.raises(ValueError, match="dokime distribution"):
         verify_release(root, COMMIT, TAG, tmp_path)
 
 
@@ -292,8 +428,8 @@ def test_signed_installer(tmp_path, monkeypatch, change):
     path = directory / "manifest.json"
     manifest = json.loads(path.read_text())
     for role, name, content in [
-        ("signature", f"{installer}.sig", signature + "\n"),
-        ("updater", "latest.json", json.dumps(metadata)),
+        ("signature", f"installers/{installer}.sig", signature + "\n"),
+        ("updater", "installers/latest.json", json.dumps(metadata)),
     ]:
         artifact = directory / name
         artifact.write_text(content)
@@ -334,122 +470,135 @@ def resolved_inputs(monkeypatch):
 def _release(source: Path) -> Path:
     (source / "Cargo.lock").write_text("locked dependencies")
     (source / "mise.toml").write_text('[tools]\npython="3.13.15"\nuv="0.11.33"\n')
-    sdk = source / "crates/dokime-python"
-    sdk.mkdir(parents=True)
-    (sdk / "pyproject.toml").write_text(
-        '[build-system]\nrequires=["maturin==1.15.0"]\n'
-    )
     root = source / "release"
     for platform in ("linux", "windows"):
         directory = root / platform
         directory.mkdir(parents=True)
-        wheel = f"dokime-1.2.3-cp313-abi3-{'win_amd64' if platform == 'windows' else 'manylinux_2_28_x86_64'}.whl"
+        wheel = "dokime-1.2.3-py3-none-any.whl"
+        content = _wheel()
+        wheel_path = directory / "python" / wheel
+        wheel_path.parent.mkdir()
+        wheel_path.write_bytes(content)
+        audit = verify_wheel(wheel_path)["wheel-audit"]
         files = {
-            "wheel": (wheel, b"already verified native wheel fixture"),
-            "abi3-audit": (
-                "abi3.json",
-                json.dumps(
-                    {
-                        "specs": {
-                            wheel: {
-                                "kind": "wheel",
-                                "wheel": [
-                                    {
-                                        "name": "_native.pyd"
-                                        if platform == "windows"
-                                        else "_native.abi3.so",
-                                        "result": {
-                                            "is_abi3": True,
-                                            "is_abi3_baseline_compatible": True,
-                                            "baseline": "3.13",
-                                            "non_abi3_symbols": [],
-                                            "future_abi3_objects": {},
-                                        },
-                                    }
-                                ],
-                            }
-                        }
-                    }
-                ).encode(),
-            ),
+            "wheel": (f"python/{wheel}", content),
+            "wheel-audit": (f"{checks.AUDITS}/wheel-audit.json", audit.encode()),
+            "sdist": ("python/dokime-1.2.3.tar.gz", b"sdist fixture"),
         }
-        for name in stage.SUITES:
+        for name in checks.required_suites(platform):
             files[f"test:tests-{name}.xml"] = (
-                f"tests-{name}.xml",
+                f"{checks.TEST_EVIDENCE}/tests-{name}.xml",
                 b"<testsuite><testcase name='native'/></testsuite>",
             )
         if platform == "linux":
             files.update(
                 {
-                    "deb": ("dokime_1.2.3_amd64.deb", b"deb fixture"),
-                    "rpm": ("dokime-1.2.3-1.x86_64.rpm", b"rpm fixture"),
-                    "sdist": ("dokime-1.2.3.tar.gz", b"sdist fixture"),
-                    "linux-audit": (
-                        "linux.json",
-                        json.dumps(
-                            {
-                                "version": 1,
-                                "wheel": wheel,
-                                "pure": False,
-                                "overall_tag": "manylinux_2_28_x86_64",
-                                "unsupported_isa": False,
-                            }
-                        ).encode(),
-                    ),
+                    "deb": ("installers/dokime_1.2.3_amd64.deb", b"deb fixture"),
+                    "rpm": ("installers/dokime-1.2.3-1.x86_64.rpm", b"rpm fixture"),
                 }
             )
         else:
             files["installer"] = (
-                "dokime-1.2.3-windows-x86_64-setup.exe",
+                "installers/dokime-1.2.3-windows-x86_64-setup.exe",
                 b"installer fixture",
             )
         files.update(
             {
-                role: (role, role.encode())
-                for role in (
-                    "host",
-                    "tool",
-                    "desktop",
-                    "plugin",
-                    "protocol",
-                    "protocol-checksum",
-                )
+                role: (f"{checks.BINARIES}/{role}", role.encode())
+                for role in ("host", "client", "tool", "desktop")
             }
         )
-        (directory / "licenses").mkdir()
-        (directory / "reports").mkdir()
+        files["plugin"] = ("plugins/plugin.dokime", b"plugin")
         files["report-template"] = (
-            "reports/report.html",
-            "<html>“Original Report” · Температура</html>".encode("utf-8"),
+            checks.REPORT_TEMPLATE,
+            "<html>“Original Report” · Температура</html>".encode(),
         )
         files["license"] = ("licenses/LICENSE-APACHE", b"Apache license fixture")
-        files["sdist"] = ("dokime-1.2.3.tar.gz", b"sdist fixture")
-        if platform == "linux":
-            from dokime_tools.package.linux import IMAGE, PACKAGES
-
-            files["wheel-build"] = (
-                "wheel-build.json",
-                json.dumps(
-                    {
-                        "version": 1,
-                        "image": IMAGE,
-                        "compatibility": "manylinux_2_28",
-                        "rustc": "original version",
-                        "python": "Python 3.13.15",
-                        "uv": "uv 0.11.33",
-                        "maturin": "maturin 1.15.0",
-                        "packages": list(PACKAGES),
-                        "wheel_sha256": checks.hashlib.sha256(
-                            files["wheel"][1]
-                        ).hexdigest(),
-                        "sdist_sha256": checks.hashlib.sha256(
-                            files["sdist"][1]
-                        ).hexdigest(),
-                    }
-                ).encode(),
+        files[f"example:{checks.EXAMPLE_REPORT}"] = (
+            f"{checks.EXAMPLES}/{checks.EXAMPLE_REPORT}",
+            "<html>Sealed charger report · Отчёт</html>".encode(),
+        )
+        protocol = {
+            "contracts.json": b"{}",
+            "descriptors.bin": b"descriptors",
+            "dokime/operations.proto": b'syntax = "proto3";',
+        }
+        protocol["manifest.txt"] = "".join(f"{name}\n" for name in protocol).encode()
+        protocol["revision.txt"] = f"{COMMIT}\n".encode("ascii")
+        for name, data in protocol.items():
+            files[f"proto:{name}"] = (f"{checks.PROTO}/{name}", data)
+        for name, _, _ in stage.FIXTURES:
+            files[f"fixture:{name}"] = (
+                f"{checks.FIXTURE_BUNDLES}/{name}/{name}.dokime",
+                name.encode(),
             )
+        files["archive:fixture.tar.zst"] = (
+            f"{checks.TEST_ARCHIVES}/fixture.tar.zst",
+            b"release test executables",
+        )
+        files["archive:fixture.tar.json"] = (
+            f"{checks.TEST_ARCHIVES}/fixture.tar.json",
+            b"archive receipt",
+        )
+        coverage_suites = (
+            "integration-rust",
+            "acceptance-rust",
+            "integration-python",
+            "acceptance-python",
+        )
+        for suite in coverage_suites:
+            files[f"coverage:tests-{suite}.xml"] = (
+                f"{checks.COVERAGE_EVIDENCE}/tests-{suite}.xml",
+                b"<testsuite><testcase name='native'/></testsuite>",
+            )
+        for language in ("rust", "python"):
+            files[f"coverage:coverage-{language}.xml"] = (
+                f"{checks.COVERAGE_EVIDENCE}/coverage-{language}.xml",
+                b'<coverage lines-valid="1" lines-covered="1"><packages><package name="fixture"><classes><class name="fixture" filename="fixture.rs"><lines><line number="1" hits="1"/></lines></class></classes></package></packages></coverage>',
+            )
+        files["coverage:latest.json"] = (
+            f"{checks.COVERAGE_EVIDENCE}/latest.json",
+            json.dumps(
+                {
+                    "tests": {
+                        suite: {
+                            "outcome": "passed",
+                            "coverage": True,
+                            "revision": COMMIT,
+                            "platform": platform,
+                            "requested_configuration": None,
+                        }
+                        for suite in coverage_suites
+                    }
+                }
+            ).encode(),
+        )
+        proof = {
+            "version": 1,
+            "platform": platform,
+            "inputs": checks.inputs(source),
+            "pipeline_id": "2",
+            "run_attempt": "1",
+            "coverage_job_id": "30",
+            "build_manifest_sha256": "a" * 64,
+            "suites": list(coverage_suites),
+            "files": [
+                {
+                    "path": Path(name).name,
+                    "bytes": len(content),
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                }
+                for role, (name, content) in files.items()
+                if role.startswith("coverage:")
+            ],
+        }
+        files["coverage:coverage.json"] = (
+            f"{checks.COVERAGE_EVIDENCE}/coverage.json",
+            json.dumps(proof).encode(),
+        )
         artifacts = []
         for role, (name, content) in files.items():
+            (directory / name).parent.mkdir(parents=True, exist_ok=True)
             (directory / name).write_bytes(content)
             artifacts.append(
                 {
@@ -469,17 +618,48 @@ def _release(source: Path) -> Path:
             },
             "platform": platform,
             "architecture": "x86_64",
-            "python": "cp313",
-            "abi": "abi3",
+            "python": "py3",
+            "abi": "none",
             "profile": "release",
             "target": TARGETS[platform],
             "toolchain": f"rustc 1.99.0 (fixture)\nrelease: 1.99.0\nhost: {TARGETS[platform]}",
             "inputs": checks.inputs(source),
+            "contracts": {"archive_sha256": "e" * 64},
             "files": artifacts,
-            "validation": {"suites": list(stage.SUITES)},
+            "pipeline_id": "2",
+            "run_attempt": "1",
+            "validation": {
+                "suites": list(checks.required_suites(platform)),
+                "coverage_job_id": "30",
+                "build_manifest_sha256": "a" * 64,
+            },
         }
         (directory / "manifest.json").write_text(json.dumps(manifest))
     return root
+
+
+def _wheel() -> bytes:
+    root = "dokime-1.2.3.dist-info"
+    payload = {
+        "dokime/__init__.py": b"# Client",
+        f"{root}/METADATA": b"Metadata-Version: 2.4\nName: dokime\nVersion: 1.2.3\n",
+        f"{root}/WHEEL": b"Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
+    }
+    rows = []
+    for name, content in payload.items():
+        digest = (
+            base64.urlsafe_b64encode(hashlib.sha256(content).digest())
+            .rstrip(b"=")
+            .decode()
+        )
+        rows.append(f"{name},sha256={digest},{len(content)}\n")
+    rows.append(f"{root}/RECORD,,\n")
+    payload[f"{root}/RECORD"] = "".join(rows).encode()
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        for name, content in payload.items():
+            archive.writestr(name, content)
+    return stream.getvalue()
 
 
 def _replace(root: Path, role: str, content: bytes) -> None:

@@ -17,7 +17,6 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_protocol::DEV_PROTOCOL;
 
 /* === Constants === */
 
@@ -28,7 +27,7 @@ use dokime_protocol::DEV_PROTOCOL;
 /* === Structs === */
 #[derive(Debug, clap::Args)]
 pub struct Args {
-    #[arg(long, help = "Emit stable host identity for development tools.")]
+    #[arg(long, help = "Emit CLI version metadata as JSON.")]
     json: bool,
 }
 
@@ -45,8 +44,6 @@ pub fn run(args: Args) {
             "{}",
             serde_json::json!({
                 "version": env!("CARGO_PKG_VERSION"),
-                "sdk_revision": serde_json::Value::Null,
-                "dev_protocol": DEV_PROTOCOL,
             })
         );
     } else {

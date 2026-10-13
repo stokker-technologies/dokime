@@ -17,7 +17,6 @@ use std::io::{Cursor, Read as _, Write as _};
 use std::time::Duration;
 // Third Party Imports
 use sha2::Digest as _;
-use tonic::transport::Channel;
 // Local Imports
 use super::*;
 use dokime_app::{
@@ -26,7 +25,6 @@ use dokime_app::{
     core::{Identifier, Value},
     settings::{SecretSetting, SettingValues, Settings, SettingsEntry, TextArea},
 };
-use dokime_protocol::v1::{self, backend_client::BackendClient};
 
 /* === Constants === */
 const SECRET: &str = "diagnostics-fake-credential-material";
@@ -48,7 +46,7 @@ const DISCOVERED_SECRET: &str = "diagnostics-fake-discovered-material";
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn fixture() -> (common::TestEnvironment, Server, BackendClient<Channel>) {
+async fn fixture() -> (common::TestEnvironment, Server, WireClient) {
     let environment = common::TestEnvironment::with_installed_plugins(vec![secret_module()]).await;
     let artifact_id = Identifier::new("fixture.diagnostics").unwrap();
     environment
@@ -76,9 +74,7 @@ async fn fixture() -> (common::TestEnvironment, Server, BackendClient<Channel>) 
     let server = Server::start(environment.runtime.clone(), Config::default())
         .await
         .unwrap();
-    let client = BackendClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     (environment, server, client)
 }
 
@@ -128,11 +124,13 @@ fn record(level: &str, message: &str) -> String {
 /* === Tests === */
 
 pub(crate) async fn collected_archive_material() {
-    let (environment, server, mut client) = fixture().await;
+    let (environment, server, client) = fixture().await;
     let mut stream = client
-        .collect_diagnostics(v1::CollectDiagnosticsRequest {
-            max_log_tail_bytes: None,
-        })
+        .download::<contracts::backend::CollectDiagnostics>(
+            contracts::backend::CollectDiagnosticsRequest {
+                max_log_tail_bytes: None,
+            },
+        )
         .await
         .unwrap()
         .into_inner();
@@ -142,12 +140,16 @@ pub(crate) async fn collected_archive_material() {
     let mut completion = None;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.payload.expect("every frame carries a payload") {
-            v1::diagnostics_bundle_frame::Payload::Header(value) => header = Some(value),
-            v1::diagnostics_bundle_frame::Payload::Chunk(chunk) => {
+            contracts::backend::DiagnosticsBundleFramePayload::Header(value) => {
+                header = Some(value)
+            }
+            contracts::backend::DiagnosticsBundleFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, archive.len() as u64, "chunks are contiguous");
                 archive.extend_from_slice(&chunk.data);
             }
-            v1::diagnostics_bundle_frame::Payload::Complete(value) => completion = Some(value),
+            contracts::backend::DiagnosticsBundleFramePayload::Complete(value) => {
+                completion = Some(value)
+            }
         }
     }
 
@@ -231,7 +233,7 @@ pub(crate) async fn collected_archive_material() {
         );
         for index in 0..zip.len() {
             let mut member = zip.by_index(index).unwrap();
-            let name = member.name().to_owned();
+            let name = member.name().unwrap().into_owned();
             let mut bytes = Vec::new();
             member.read_to_end(&mut bytes).unwrap();
             assert!(
@@ -260,7 +262,7 @@ pub(crate) async fn collected_archive_material() {
 }
 
 pub(crate) async fn log_stream_file() {
-    let (environment, server, mut client) = fixture().await;
+    let (environment, server, client) = fixture().await;
     let log = environment
         .root
         .path()
@@ -279,8 +281,8 @@ pub(crate) async fn log_stream_file() {
     .unwrap();
 
     let mut stream = client
-        .watch_logs(v1::WatchLogsRequest {
-            min_level: v1::LogLevel::Warn as i32,
+        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogsRequest {
+            min_level: contracts::backend::LogLevel::Warn,
             replay_lines: 500,
         })
         .await
@@ -292,7 +294,7 @@ pub(crate) async fn log_stream_file() {
         .await
         .unwrap()
         .expect("the WARN record replays");
-    assert_eq!(replayed.level(), v1::LogLevel::Warn);
+    assert_eq!(replayed.level, contracts::backend::LogLevel::Warn);
     assert_eq!(replayed.target, "dokime::fixture");
     assert_eq!(replayed.message, "slow");
     assert_eq!(replayed.dropped, 0);
@@ -314,7 +316,7 @@ pub(crate) async fn log_stream_file() {
         .expect("an appended record arrives without reconnecting")
         .unwrap()
         .expect("the ERROR record follows");
-    assert_eq!(live.level(), v1::LogLevel::Error);
+    assert_eq!(live.level, contracts::backend::LogLevel::Error);
     assert_eq!(live.message, "failed");
 
     server.shutdown().await.unwrap();
@@ -322,7 +324,7 @@ pub(crate) async fn log_stream_file() {
 }
 
 pub(crate) async fn level_filter_stream() {
-    let (environment, server, mut client) = fixture().await;
+    let (environment, server, client) = fixture().await;
     let log = environment
         .root
         .path()
@@ -333,8 +335,8 @@ pub(crate) async fn level_filter_stream() {
         r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
     )).unwrap();
     let mut stream = client
-        .watch_logs(v1::WatchLogsRequest {
-            min_level: v1::LogLevel::Warn as i32,
+        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogsRequest {
+            min_level: contracts::backend::LogLevel::Warn,
             replay_lines: 0,
         })
         .await
@@ -345,10 +347,18 @@ pub(crate) async fn level_filter_stream() {
         .unwrap()
         .unwrap()
         .unwrap();
-    assert_eq!(frame.level(), v1::LogLevel::Warn);
+    assert_eq!(frame.level, contracts::backend::LogLevel::Warn);
     assert_eq!(frame.target, "dokime::hub");
     assert_eq!(frame.message, "slow");
-    assert_eq!(frame.fields["api_token"], "<redacted>");
+    assert_eq!(
+        frame
+            .fields
+            .iter()
+            .find(|entry| entry.key == "api_token")
+            .expect("token field is present")
+            .value,
+        "<redacted>",
+    );
     assert_eq!(frame.dropped, 0);
     assert!(frame.time.is_some());
     server.shutdown().await.unwrap();
@@ -363,15 +373,15 @@ pub(crate) async fn level_filter_stream() {
 }
 
 pub(crate) async fn missing_file_live() {
-    let (environment, server, mut client) = fixture().await;
+    let (environment, server, client) = fixture().await;
     let log = environment
         .root
         .path()
         .join("application/logs/dokime.jsonl");
     assert!(!log.exists());
     let mut stream = client
-        .watch_logs(v1::WatchLogsRequest {
-            min_level: v1::LogLevel::Unspecified as i32,
+        .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogsRequest {
+            min_level: contracts::backend::LogLevel::Unspecified,
             replay_lines: 0,
         })
         .await
@@ -389,7 +399,7 @@ pub(crate) async fn missing_file_live() {
         .unwrap()
         .unwrap()
         .unwrap();
-    assert_eq!(frame.level(), v1::LogLevel::Error);
+    assert_eq!(frame.level, contracts::backend::LogLevel::Error);
     assert_eq!(frame.message, "failed");
     server.shutdown().await.unwrap();
     drop(environment);

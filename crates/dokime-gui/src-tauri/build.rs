@@ -36,6 +36,11 @@
 
 /* === Private Functions === */
 fn main() {
+    let artifacts =
+        dokime_contract::operations::artifacts().expect("canonical desktop transfer contracts");
+    artifacts
+        .export_build("operations")
+        .expect("desktop transfer descriptors");
     tauri_build::build();
 
     // Tauri embeds its manifest in binaries only. Library test executables also

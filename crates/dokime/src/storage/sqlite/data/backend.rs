@@ -546,10 +546,6 @@ impl<C: ObjectCatalog> Backend<C> {
 impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     type Catalog = C;
 
-    fn schema_encoding(&self) -> SchemaEncoding {
-        SchemaEncoding::GraphV1
-    }
-
     fn history(&self) -> &StoreHistory {
         &self.history
     }
@@ -571,7 +567,15 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         let mut found = false;
         C::definitions().try_for_each(|definition| {
             if Some(&definition.schema()?) == request.selection.schema.as_ref() {
-                request.check_schema(definition.fields())?;
+                let schema = definition.graph(&harmos::config::SchemaSettings::default())?;
+                let root = schema.root().map_err(|error| {
+                    harmos::Error::backend(
+                        "validate catalog scalar schema",
+                        harmos::BackendFailure::Permanent,
+                        error,
+                    )
+                })?;
+                request.check_schema(root.fields())?;
                 found = true;
             }
             Ok::<(), harmos::Error>(())
@@ -1064,6 +1068,14 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
 
     read_entries!(read_schemas, StorageSchema, Schema, Schemas);
     read_entries!(read_objects, ObjectEntry, Object, Objects);
+    fn validate_record_filter(
+        &self,
+        selection: &ReadSelection,
+        limits: QueryLimits,
+    ) -> harmos::Result<()> {
+        super::record_filter::admission(selection, limits)
+    }
+
     read_entries!(read_records, StoredRecord, Record, Records);
     read_entries!(read_stream, StoredRow, Stream, Stream);
     read_entries!(read_files, FileReference, File, Files);

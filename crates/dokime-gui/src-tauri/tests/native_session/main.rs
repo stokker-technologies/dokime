@@ -170,7 +170,6 @@ echo $$ > "$owner"
 #[cfg(unix)]
 fn owned(executable: std::path::PathBuf, root: &Path) -> Backend {
     let arguments = vec![
-        "serve".into(),
         "--shutdown-stdin".into(),
         "--dev-control".into(),
         "--output-root".into(),

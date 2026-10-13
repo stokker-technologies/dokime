@@ -151,9 +151,9 @@ impl Operation for Evidence {
         context: Self::Context<'ctx>,
         batch: &mut EvidenceBatch,
         _: &mut (),
-    ) -> harmos::Result<EvidenceReceipt> {
+    ) -> harmos::Result<harmos::operations::Response<EvidenceReceipt>> {
         let session = self.0.serving(&context)?;
-        Ok(session.accept(std::mem::take(batch)).await)
+        Ok(session.accept(std::mem::take(batch)).await.into())
     }
 }
 
@@ -177,11 +177,12 @@ impl Operation for Question {
         context: Self::Context<'ctx>,
         question: &mut OperatorQuestion,
         _: &mut (),
-    ) -> harmos::Result<OperatorAnswer> {
+    ) -> harmos::Result<harmos::operations::Response<OperatorAnswer>> {
         let session = self.0.serving(&context)?;
         session
             .ask(std::mem::take(question))
             .await
+            .map(Into::into)
             .map_err(|_| harmos::Error::InvalidInput {
                 field: "operator question",
                 reason: "the question was refused or the execution was cancelled",
@@ -209,9 +210,9 @@ impl Operation for Lease {
         context: Self::Context<'ctx>,
         ask: &mut LeaseAsk,
         _: &mut (),
-    ) -> harmos::Result<LeaseResolution> {
+    ) -> harmos::Result<harmos::operations::Response<LeaseResolution>> {
         let session = self.0.serving(&context)?;
-        Ok(session.lease(std::mem::take(ask)).await)
+        Ok(session.lease(std::mem::take(ask)).await.into())
     }
 }
 

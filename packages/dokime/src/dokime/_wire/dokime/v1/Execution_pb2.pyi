@@ -1,0 +1,33 @@
+from dokime._wire.dokime.v1.ExecutionMessages.AppendPlannedCases import messages_pb2 as _messages_pb2
+from dokime._wire.dokime.v1.ExecutionMessages.ClearCycle import messages_pb2 as _messages_pb2_1
+from dokime._wire.dokime.v1.ExecutionMessages.CopyCycle import messages_pb2 as _messages_pb2_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.CreateCycle import messages_pb2 as _messages_pb2_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.DeleteCase import messages_pb2 as _messages_pb2_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.GetCase import messages_pb2 as _messages_pb2_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.GetCycle import messages_pb2 as _messages_pb2_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.GetExecution import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.GetExecutionCommand import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.GetRunRequest import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ListCaseParameters import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ListCases import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ListCycles import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ListExecutionParameters import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ListExecutionSteps import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ListExecutions import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ListStepCriteria import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.PauseCycle import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.PauseExecution import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ResumeCycle import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ResumeExecution import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.RunCase import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.RunCycle import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.RunExecution import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.ScheduleCaseRerun import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.StopCycle import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.StopExecution import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.SubmitExecutionCommand import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.ExecutionMessages.UpdateCyclePolicy import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1_1
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor

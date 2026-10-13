@@ -23,7 +23,6 @@ use dokime_app::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
 use dokime_app::runtime::command::CommandContext;
 use dokime_app::telemetry::{TelemetryBatch, TelemetrySample};
 use dokime_app::transactions::CycleDefinition;
-use dokime_protocol::v1::{self, observation_client::ObservationClient};
 
 /* === Constants === */
 
@@ -112,15 +111,15 @@ pub(crate) async fn get_traceability_cursor() {
     )
     .await
     .unwrap();
-    let mut client = ObservationClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
 
     let first = client
-        .get_traceability(authenticated(v1::GetTraceabilityRequest {
-            limit: 1,
-            ..Default::default()
-        }))
+        .unary::<contracts::observation::GetTraceability>(authenticated(
+            contracts::observation::GetTraceabilityRequest {
+                limit: 1,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -154,23 +153,27 @@ pub(crate) async fn get_traceability_cursor() {
     assert_eq!(first_host_receipt.accepted, 1);
     assert_eq!(
         client
-            .get_traceability(authenticated(v1::GetTraceabilityRequest {
-                limit: 1,
-                after_traceability_id: first.next_after_traceability_id.clone(),
-                cursor: first.cursor.clone(),
-                host_traceability_fingerprint: "changed".into(),
-                ..Default::default()
-            }))
+            .unary::<contracts::observation::GetTraceability>(authenticated(
+                contracts::observation::GetTraceabilityRequest {
+                    limit: 1,
+                    after_traceability_id: first.next_after_traceability_id.clone(),
+                    cursor: first.cursor.clone(),
+                    host_traceability_fingerprint: "changed".into(),
+                    ..Default::default()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
         Code::Aborted
     );
     let first_after_host = client
-        .get_traceability(authenticated(v1::GetTraceabilityRequest {
-            limit: 1,
-            ..Default::default()
-        }))
+        .unary::<contracts::observation::GetTraceability>(authenticated(
+            contracts::observation::GetTraceabilityRequest {
+                limit: 1,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -181,13 +184,15 @@ pub(crate) async fn get_traceability_cursor() {
         }
         let page = pages.last().unwrap();
         let next = client
-            .get_traceability(authenticated(v1::GetTraceabilityRequest {
-                limit: 1,
-                after_traceability_id: page.next_after_traceability_id.clone(),
-                cursor: page.cursor.clone(),
-                host_traceability_fingerprint: page.host_traceability_fingerprint.clone(),
-                ..Default::default()
-            }))
+            .unary::<contracts::observation::GetTraceability>(authenticated(
+                contracts::observation::GetTraceabilityRequest {
+                    limit: 1,
+                    after_traceability_id: page.next_after_traceability_id.clone(),
+                    cursor: page.cursor.clone(),
+                    host_traceability_fingerprint: page.host_traceability_fingerprint.clone(),
+                    ..Default::default()
+                },
+            ))
             .await
             .unwrap()
             .into_inner();
@@ -228,14 +233,16 @@ pub(crate) async fn get_traceability_cursor() {
     assert_eq!(second_host_receipt.accepted, 1);
 
     let scoped = client
-        .get_traceability(authenticated(v1::GetTraceabilityRequest {
-            scope: Some(v1::EvidenceScope {
-                cycle_id: Some(cycle_id.to_string()),
+        .unary::<contracts::observation::GetTraceability>(authenticated(
+            contracts::observation::GetTraceabilityRequest {
+                scope: Some(contracts::common::EvidenceScope {
+                    cycle_id: Some(cycle_id.to_string()),
+                    ..Default::default()
+                }),
+                limit: 100,
                 ..Default::default()
-            }),
-            limit: 100,
-            ..Default::default()
-        }))
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -270,10 +277,12 @@ pub(crate) async fn get_traceability_cursor() {
             })
     );
     let current = client
-        .get_traceability(authenticated(v1::GetTraceabilityRequest {
-            limit: 100,
-            ..Default::default()
-        }))
+        .unary::<contracts::observation::GetTraceability>(authenticated(
+            contracts::observation::GetTraceabilityRequest {
+                limit: 100,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -286,9 +295,9 @@ pub(crate) async fn get_traceability_cursor() {
                 && entry
                     .value
                     .as_ref()
-                    .and_then(|value| value.kind.as_ref())
+                    .map(|value| value.to_core().unwrap())
                     .is_some_and(|kind| {
-                        matches!(kind, v1::value::Kind::TextValue(value) if value == "second-host")
+                        matches!(kind, dokime_app::core::Value::Text(value) if value == "second-host")
                     })
         })
     }));
@@ -297,12 +306,14 @@ pub(crate) async fn get_traceability_cursor() {
     invalid_cursor.epoch = "different-epoch".into();
     assert_eq!(
         client
-            .get_traceability(authenticated(v1::GetTraceabilityRequest {
-                cursor: Some(invalid_cursor),
-                after_traceability_id: pages[0].next_after_traceability_id.clone(),
-                host_traceability_fingerprint: pages[0].host_traceability_fingerprint.clone(),
-                ..Default::default()
-            }))
+            .unary::<contracts::observation::GetTraceability>(authenticated(
+                contracts::observation::GetTraceabilityRequest {
+                    cursor: Some(invalid_cursor),
+                    after_traceability_id: pages[0].next_after_traceability_id.clone(),
+                    host_traceability_fingerprint: pages[0].host_traceability_fingerprint.clone(),
+                    ..Default::default()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),

@@ -19,7 +19,12 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::{
     MemorySize,
-    storage::{QueryOptions, QueryValue, ReadLimits, RecordQuery, RecordQueryResult, StoredRecord},
+    storage::{
+        QueryOptions, QueryValue, ReadLimits, RecordClause, RecordFilter, RecordQuery,
+        RecordQueryResult, StoredRecord,
+        frame::{Compare, Expr, Predicate, ScalarField, ScalarPath},
+        reduce::{ScalarKind, ScalarValue},
+    },
 };
 
 // Local Imports
@@ -42,7 +47,6 @@ pub(super) type PositionedRecord = super::paging::Positioned<ContextRecord>;
 pub struct RecordReader {
     reader: RecordQueryResult<records::RecordRow>,
     view: ExecutionView,
-    context: bool,
     projection: NonZeroUsize,
     pending: Option<QueryValue<Vec<PositionedRecord>>>,
 }
@@ -61,6 +65,7 @@ impl RecordReader {
                 after,
                 ..QueryOptions::default()
             },
+            false,
         )?;
         let mut reader = storage.query_in(view.view(), query)?;
         reader.retain_view()?;
@@ -68,7 +73,6 @@ impl RecordReader {
         Ok(Self {
             reader,
             view: view.clone(),
-            context: false,
             projection,
             pending: None,
         })
@@ -99,13 +103,13 @@ impl RecordReader {
                 decoded_bytes: Some(projection),
                 ..QueryOptions::default()
             },
+            context,
         )?;
         let mut reader = storage.query_in(view.view(), query)?;
         reader.retain_view()?;
         Ok(Self {
             reader,
             view: view.clone(),
-            context,
             projection,
             pending: None,
         })
@@ -151,7 +155,6 @@ impl RecordReader {
             return Err(invalid("record reader has an unsettled context projection"));
         }
         let execution = self.view.execution();
-        let context = self.context;
         let selected = self
             .reader
             .next_page_projected(self.projection, |rows, allowance| {
@@ -210,23 +213,17 @@ impl RecordReader {
                 }
                 for row in rows {
                     let mut decoded = decode(row, allowance)?;
-                    if select_execution(
+                    apply_execution_scope(
                         &mut decoded.record,
                         &execution.records,
                         &execution.test_cycle_id,
                         &execution.test_case_id,
                         &execution.test_execution_id,
-                    )? || (context
-                        && super::context_records::matches(
-                            Some(&execution.test_cycle_id),
-                            decoded.record.scope.as_ref(),
-                        ))
-                    {
-                        selected.push(PositionedRecord {
-                            position: row.position.sequence,
-                            captured: decoded,
-                        });
-                    }
+                    )?;
+                    selected.push(PositionedRecord {
+                        position: row.position.sequence,
+                        captured: decoded,
+                    });
                 }
                 Ok(selected)
             })
@@ -241,6 +238,7 @@ impl RecordReader {
 fn selected_query(
     view: &ExecutionView,
     mut options: QueryOptions,
+    context: bool,
 ) -> Result<RecordQuery<records::RecordRow>> {
     let through = view.evidence_through()?;
     if !view.view().saved()?.covers(through)? {
@@ -257,7 +255,78 @@ fn selected_query(
         records::RecordRow::from_bytes(bytes, allowance.get()).map_err(codec_error)
     });
     query.options = options;
+    query.filter = Some(execution_filter(view, context)?);
     Ok(query)
+}
+
+fn execution_filter(view: &ExecutionView, context: bool) -> Result<RecordFilter> {
+    let execution = view.execution();
+    let subscriptions = execution.records.subscribed_records();
+    let reserved = if context { 8 } else { 1 };
+    let membership_clauses = subscriptions.len().div_ceil(64);
+    if membership_clauses > 64 - reserved {
+        return Err(harmos::Error::ResourceExhausted {
+            resource: "frozen record selection predicates",
+        }
+        .into());
+    }
+    let mut columns = [
+        "test_execution_id",
+        "test_cycle_id",
+        "test_case_id",
+        "step_id",
+        "criterion_id",
+    ]
+    .into_iter()
+    .map(|name| ScalarField {
+        path: ScalarPath::Payload(vec![
+            harmos::Identifier::new("scope").expect("constant scope field"),
+            harmos::Identifier::new(name).expect("constant owner field"),
+        ]),
+        kind: ScalarKind::Text,
+    })
+    .collect::<Vec<_>>();
+    columns.push(ScalarField {
+        path: ScalarPath::Item,
+        kind: ScalarKind::Text,
+    });
+    let equal = |index, value: &str| Predicate::Compare {
+        expr: Expr::Col(index),
+        compare: Compare::Eq,
+        value: ScalarValue::Text(value.to_owned()),
+    };
+    let absent = |index| Predicate::Exists {
+        expr: Expr::Col(index),
+        present: false,
+    };
+    let mut clauses = vec![RecordClause {
+        predicates: vec![equal(0, execution.test_execution_id.as_str())],
+    }];
+    if context {
+        clauses.push(RecordClause {
+            predicates: vec![absent(0), equal(1, execution.test_cycle_id.as_str())],
+        });
+        clauses.push(RecordClause {
+            predicates: (0..5).map(absent).collect(),
+        });
+    }
+    let mut ids = subscriptions.keys();
+    for _ in 0..membership_clauses {
+        let values = ids
+            .by_ref()
+            .take(64)
+            .map(|id| ScalarValue::Text(id.as_str().to_owned()))
+            .collect();
+        clauses.push(RecordClause {
+            predicates: vec![Predicate::In {
+                expr: Expr::Col(5),
+                values,
+            }],
+        });
+    }
+    let filter = RecordFilter { columns, clauses };
+    filter.check()?;
+    Ok(filter)
 }
 
 fn exhausted() -> harmos::Error {
@@ -297,13 +366,13 @@ fn decode(
     Ok(ContextRecord { epoch, record })
 }
 
-fn select_execution(
+fn apply_execution_scope(
     record: &mut RecordEntry,
     captures: &TestRecordSet,
     cycle: &TestCycleId,
     case: &CaseId,
     execution: &TestExecutionId,
-) -> harmos::Result<bool> {
+) -> harmos::Result<()> {
     if let Some(scope) = captures.subscribed_records().get(&record.record_id) {
         if scope.test_execution_id.as_ref() != Some(execution)
             || scope.test_cycle_id.as_ref().is_some_and(|id| id != cycle)
@@ -316,10 +385,10 @@ fn select_execution(
         record.scope = Some(scope.clone());
     }
     let Some(scope) = record.scope.as_ref() else {
-        return Ok(false);
+        return Ok(());
     };
     if scope.test_execution_id.as_ref() != Some(execution) {
-        return Ok(false);
+        return Ok(());
     }
     if scope.test_cycle_id.as_ref().is_some_and(|id| id != cycle)
         || scope.test_case_id.as_ref().is_some_and(|id| id != case)
@@ -328,7 +397,7 @@ fn select_execution(
             "captured record belongs to another cycle or case",
         )));
     }
-    Ok(true)
+    Ok(())
 }
 
 fn codec_error(source: dokime::storage::Error) -> harmos::Error {

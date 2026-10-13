@@ -12,22 +12,23 @@
 # === Imports === #
 
 # Standard Library Imports
-from collections.abc import Callable
-import json
 import hashlib
+import json
+import stat
+from collections.abc import Callable
 from http.client import HTTPMessage
 from io import BytesIO
-from urllib.error import HTTPError
 from pathlib import Path
-import stat
+from urllib.error import HTTPError
 from zipfile import ZipFile, ZipInfo
 
 # Third Party Imports
 import pytest
 
+from dokime_tools.check.release import digest
+
 # Local Imports
 from dokime_tools.ci import artifacts
-from dokime_tools.check.release import digest
 
 # Type Checking Imports
 
@@ -45,7 +46,7 @@ from dokime_tools.check.release import digest
 
 def case_preserves_executable(tmp_path: Path, monkeypatch) -> None:
     archive = tmp_path / "native.zip"
-    executable = ZipInfo("runtime/dokime")
+    executable = ZipInfo("bin/dokime")
     executable.create_system = 3
     executable.external_attr = (stat.S_IFREG | 0o755) << 16
     with ZipFile(archive, "w") as contents:
@@ -71,7 +72,7 @@ def case_refuses_ambiguous_package(tmp_path: Path, monkeypatch, kind: str) -> No
     archive = tmp_path / "native.zip"
     with ZipFile(archive, "w") as contents:
         if kind == "symlink":
-            link = ZipInfo("runtime/dokime")
+            link = ZipInfo("bin/dokime")
             link.external_attr = (stat.S_IFLNK | 0o777) << 16
             contents.writestr(link, "outside")
         elif kind == "duplicate":
@@ -270,7 +271,7 @@ def case_selected_catalog(
     monkeypatch.setattr(artifacts, "current_event", lambda: event)
     monkeypatch.setenv("GITHUB_RUN_ID", "17")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
-    monkeypatch.setattr(artifacts, "job_id", lambda *args: "90")
+    monkeypatch.setattr(artifacts, "job_id", lambda *args, **kwargs: "90")
     monkeypatch.setattr(artifacts, "_request", lambda *args: {"head_sha": "a" * 40})
     monkeypatch.setattr(artifacts, "_valid_artifact", lambda *args: None)
     monkeypatch.setattr(artifacts, "_checksum", lambda item: "c" * 64)
@@ -278,6 +279,7 @@ def case_selected_catalog(
     for index, platform in enumerate(selected):
         test = str(20 + index)
         available[f"validation-{platform}-{test}"] = {"id": test}
+        available[f"coverage-{platform}-90"] = {"id": "90"}
         package = tmp_path / "dist/build" / platform
         package.mkdir(parents=True)
         (package / "manifest.json").write_text("{}")
@@ -296,7 +298,15 @@ def case_selected_catalog(
         return {
             "pipeline_id": "17",
             "build_job_id": str(10 + index),
-            "validation": {"pipeline_id": "17", "test_job_id": str(20 + index)},
+            "validation": {
+                "pipeline_id": "17",
+                "test_job_id": str(20 + index),
+                "contract_job_id": "90",
+                "coverage_job_id": "90",
+                "lane_job_ids": {
+                    suite: "90" for suite in artifacts.required_suites(platform)
+                },
+            },
         }
 
     monkeypatch.setattr(artifacts, "verify_platform", verify)
@@ -325,7 +335,7 @@ def case_selected_catalog(
         ),
         pytest.param(
             case_refuses_unsafe_entries,
-            ("runtime/../outside",),
+            ("bin/../outside",),
             id="refuses_unsafe_entries-3",
         ),
         pytest.param(

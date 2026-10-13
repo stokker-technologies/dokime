@@ -216,6 +216,85 @@ pub(crate) async fn live_reader_cursor() {
     owner.shutdown().await.unwrap();
 }
 
+pub(crate) async fn filtered_record_view_polling() {
+    use dokime_app::core::{RecordScope, SessionId};
+    use dokime_app::runtime::query::{
+        RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow,
+    };
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let handle = owner.handle();
+    let selected = RecordScope {
+        session_id: Some(SessionId::from_seed("record-view.selected")),
+        ..RecordScope::default()
+    };
+    for scope in [
+        selected.clone(),
+        RecordScope {
+            session_id: Some(SessionId::from_seed("record-view.other")),
+            ..RecordScope::default()
+        },
+    ] {
+        let mut draft = ProductCalibrationDetails::new(
+            "fixture.tool",
+            ProductCalibrationKind::Field,
+            ProductCalibrationPhase::Completed,
+        )
+        .into_draft("fixture.product");
+        draft.scope = Some(scope);
+        handle.publish_product_record(draft).await.unwrap();
+    }
+    let query = RuntimeViewQuery {
+        scope: Some(selected.clone()),
+        topic: RuntimeViewTopic::Records,
+        window: RuntimeWindow::Full,
+        resolution: RuntimeResolution::Raw,
+        cursor: None,
+    };
+    let first = handle.query_runtime_view(query.clone()).await.unwrap();
+    let first_cursor = first.cursor;
+    let RuntimeViewPayload::Records { frame: first } = first.payload else {
+        panic!("expected saved record frame");
+    };
+    assert_eq!(first.records.len(), 1);
+    assert_eq!(first.records[0].scope.as_ref(), Some(&selected));
+    let first_id = first.records[0].record_id.clone();
+    let stable = handle.query_runtime_view(query.clone()).await.unwrap();
+    let RuntimeViewPayload::Records { frame: stable } = stable.payload else {
+        panic!("expected saved record frame");
+    };
+    assert_eq!(stable.records.len(), 1);
+    assert_eq!(stable.records[0].record_id, first_id);
+
+    let mut draft = ProductCalibrationDetails::new(
+        "fixture.tool",
+        ProductCalibrationKind::Field,
+        ProductCalibrationPhase::Completed,
+    )
+    .into_draft("fixture.product");
+    draft.scope = Some(selected.clone());
+    handle.publish_product_record(draft).await.unwrap();
+    let mut delta = query.clone();
+    delta.window = RuntimeWindow::Since {
+        cursor: first_cursor,
+    };
+    let delta = handle.query_runtime_view(delta).await.unwrap();
+    let RuntimeViewPayload::Records { frame: delta } = delta.payload else {
+        panic!("expected next explicit record cut");
+    };
+    assert_eq!(delta.records.len(), 1);
+    assert_ne!(delta.records[0].record_id, first_id);
+    assert_eq!(delta.records[0].scope.as_ref(), Some(&selected));
+    assert!(delta.records[0].sequence > first_cursor.0);
+    let full = handle.query_runtime_view(query).await.unwrap();
+    let RuntimeViewPayload::Records { frame: full } = full.payload else {
+        panic!("expected full saved record frame");
+    };
+    assert_eq!(full.records.len(), 2);
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
 pub(crate) async fn fixed_replay_append() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;

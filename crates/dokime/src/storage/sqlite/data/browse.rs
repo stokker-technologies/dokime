@@ -17,7 +17,7 @@
 use std::{mem::size_of, num::NonZeroUsize, sync::Arc};
 
 // Third Party Imports
-use harmos::{MemorySize, schema::Field, storage::*};
+use harmos::{MemorySize, schema::graph::Field, storage::*};
 use rusqlite::{
     Connection,
     types::{Value, ValueRef},

@@ -25,14 +25,21 @@ updater = ["dep:tauri-plugin-updater"]
 console = []
 
 [build-dependencies]
+# Local
+dokime-contract = { path = "../../dokime-contract", features = ["descriptors"] }
+
 # UI
 tauri-build = { workspace = true, default-features = true, features = [] }
 
 [dependencies]
 # Local
-dokime = { path = "../../dokime", default-features = false, features = ["native", "client"] }
+dokime-client = { path = "../../dokime-client" }
+dokime = { path = "../../dokime", default-features = false, features = ["native"] }
 dokime-filesystem = { path = "../../dokime-filesystem" }
-dokime-protocol = { path = "../../dokime-protocol" }
+dokime-contract = { path = "../../dokime-contract" }
+
+# Git
+harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 anyhow = { workspace = true, default-features = true }
@@ -52,7 +59,6 @@ zeroize = { workspace = true, default-features = true }
 
 # Serialization
 base64 = { workspace = true, default-features = true }
-prost = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
 
@@ -67,7 +73,6 @@ tokio-util = { workspace = true, default-features = true, features = ["rt"] }
 # Networking
 reqwest = { workspace = true }
 tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
-tonic-prost = { workspace = true, default-features = true }
 url = { workspace = true, default-features = true }
 
 # UI
@@ -88,7 +93,8 @@ dokime-app = { path = "../../dokime-app", features = ["fft"] }
 dokime-server = { path = "../../dokime-server" }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "sidecar"] }
+harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
+harmos-contract = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true, default-features = true }

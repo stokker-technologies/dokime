@@ -18,9 +18,10 @@ version = { workspace = true }
 [dependencies]
 # Local
 dokime = { path = "../dokime" }
-dokime-app = { path = "../dokime-app" }
+dokime-app = { path = "../dokime-app", features = ["fft"] }
 dokime-contract = { path = "../dokime-contract" }
-dokime-protocol = { path = "../dokime-protocol", default-features = false, features = ["server"] }
+dokime-filesystem = { path = "../dokime-filesystem" }
+dokime-terminal = { path = "../dokime-terminal" }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }
@@ -29,6 +30,11 @@ harmos = { workspace = true, features = ["grpc"] }
 thiserror = { workspace = true, default-features = true }
 
 # Logging
+tracing-appender = { workspace = true, default-features = true }
+tracing-chrome = { workspace = true, default-features = true }
+tracing-error = { workspace = true, default-features = true }
+tracing-flame = { workspace = true, default-features = true }
+tracing-subscriber = { workspace = true, default-features = true }
 tracing = { workspace = true, default-features = true }
 
 # Utilities
@@ -45,6 +51,10 @@ prost-types = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
 serde_json = { workspace = true, default-features = true }
 
+# Configuration
+clap = { workspace = true, default-features = true }
+dotenv = { workspace = true, default-features = true }
+
 # Filesystem
 tempfile = { workspace = true, default-features = true }
 zip = { workspace = true }
@@ -60,19 +70,21 @@ rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["server", "router", "tls-ring"] }
 tonic-prost = { workspace = true, default-features = true }
 tonic-types = { workspace = true, default-features = true }
-tower = { workspace = true, default-features = true }
+
+[build-dependencies]
+# Local
+dokime-contract = { path = "../dokime-contract", features = ["descriptors"] }
 
 [dev-dependencies]
 # Local
-dokime = { path = "../dokime", features = ["client"] }
+dokime-client = { path = "../dokime-client" }
 dokime-host = { path = "../dokime-host" }
-dokime-protocol = { path = "../dokime-protocol", features = ["client"] }
+
+# Git
+harmos-contract = { workspace = true }
 
 # Error Handling
 anyhow = { workspace = true, default-features = true }
-
-# Logging
-tracing-subscriber = { workspace = true, default-features = true }
 
 # Async
 tokio = { workspace = true, default-features = true, features = ["test-util"] }
@@ -84,22 +96,17 @@ tonic = { workspace = true, features = ["channel"] }
 # Testing
 criterion = { workspace = true, default-features = true }
 
-[build-dependencies]
-# Local
-dokime-contract = { path = "../dokime-contract" }
-dokime-protocol = { path = "../dokime-protocol", default-features = false }
-
-# Git
-harmos = { workspace = true, features = ["grpc"] }
-
-# Serialization
-prost = { workspace = true, default-features = true }
-prost-types = { workspace = true, default-features = true }
-
-# Networking
-tonic-prost-build = { workspace = true, default-features = true }
-
 [[bench]]
 name = "grpc"
 path = "benches/grpc/main.rs"
+harness = false
+
+[[bin]]
+name = "dokime-server"
+path = "src/main.rs"
+doc = false
+
+[[bench]]
+name = "shutdown"
+path = "benches/host/main.rs"
 harness = false

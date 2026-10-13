@@ -1,0 +1,145 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+
+// Third Party Imports
+use tonic::{
+    metadata::{Ascii, MetadataValue},
+    transport::Channel,
+};
+
+// Local Imports
+use super::{Backend, Error, Limits, Result, transport};
+use dokime_contract::operations::{Endpoint, backend, runtime};
+
+/* === Constants === */
+const DISCOVERY_BYTES: usize = 1024 * 1024;
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+pub(super) async fn discover(
+    channel: Channel,
+    authorization: Option<&MetadataValue<Ascii>>,
+    expected_id: Option<&str>,
+) -> Result<Backend> {
+    let identity = transport::unary::<backend::BackendIdentity, _>(
+        channel.clone(),
+        authorization,
+        backend::GetIdentity::PATH,
+        backend::GetIdentityRequest {},
+        DISCOVERY_BYTES,
+        DISCOVERY_BYTES,
+    )
+    .await?;
+    let identity = transport::value(identity)?;
+    let api = identity.api.as_ref().ok_or(Error::IncompatibleApi)?;
+    if !backend::compatible_api(&api.package, &api.version) || api.descriptor_sha256.len() != 32 {
+        return Err(Error::IncompatibleApi);
+    }
+    if identity.backend_id.is_empty()
+        || identity.epoch.is_empty()
+        || expected_id.is_some_and(|expected| expected != identity.backend_id)
+    {
+        return Err(Error::IdentityChanged);
+    }
+    let health = transport::unary::<backend::BackendHealth, _>(
+        channel.clone(),
+        authorization,
+        backend::GetHealth::PATH,
+        backend::GetHealthRequest {},
+        DISCOVERY_BYTES,
+        DISCOVERY_BYTES,
+    )
+    .await?;
+    let health = transport::value(health)?;
+    let capabilities = transport::unary::<backend::BackendCapabilities, _>(
+        channel,
+        authorization,
+        backend::GetCapabilities::PATH,
+        backend::GetCapabilitiesRequest {},
+        DISCOVERY_BYTES,
+        DISCOVERY_BYTES,
+    )
+    .await?;
+    let capabilities = transport::value(capabilities)?;
+    if health.backend_id != identity.backend_id
+        || health.epoch != identity.epoch
+        || capabilities.backend_id != identity.backend_id
+        || capabilities.epoch != identity.epoch
+    {
+        return Err(Error::IdentityChanged);
+    }
+    if !matches!(
+        health.readiness,
+        backend::Readiness::Ready | backend::Readiness::Degraded
+    ) {
+        return Err(Error::BackendUnavailable);
+    }
+    let required = [
+        backend::GetIdentity::PATH,
+        backend::GetHealth::PATH,
+        backend::GetCapabilities::PATH,
+        runtime::GetIdentity::PATH,
+        runtime::GetHealth::PATH,
+    ];
+    if required
+        .iter()
+        .any(|required| !capabilities.methods.iter().any(|method| method == required))
+    {
+        return Err(Error::IncompatibleApi);
+    }
+    let limits = capabilities.limits.as_ref().ok_or(Error::IncompatibleApi)?;
+    if limits.max_request_bytes == 0 || limits.max_response_bytes == 0 {
+        return Err(Error::IncompatibleApi);
+    }
+    let api_version = api.version.clone();
+    let descriptor_sha256 = api
+        .descriptor_sha256
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    Ok(Backend {
+        backend_id: identity.backend_id,
+        epoch: identity.epoch,
+        display_name: identity.display_name,
+        product_version: identity.product_version,
+        api_version,
+        descriptor_sha256,
+        methods: capabilities.methods,
+        limits: Limits {
+            max_request_bytes: limits.max_request_bytes,
+            max_response_bytes: limits.max_response_bytes,
+            max_content_bytes: limits.max_content_bytes,
+            max_chunk_bytes: limits.max_chunk_bytes,
+            max_page_items: limits.max_page_items,
+            max_stream_buffer_items: limits.max_stream_buffer_items,
+        },
+    })
+}
+
+/* === Private Functions === */
+
+/* === Tests === */

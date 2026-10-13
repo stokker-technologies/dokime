@@ -15,22 +15,17 @@
 
 import json
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import time
-
+from pathlib import Path
 
 # Third Party Imports
-
 import pytest
 
-
 # Local Imports
-
 from dokime_tools import desktop
-
 
 # Type Checking Imports
 

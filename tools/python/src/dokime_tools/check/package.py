@@ -6,25 +6,28 @@
 #
 # ***
 
-"""Verify expected Rust-era Python package build artifacts exist."""
+"""Verify Exact Pure Python Distribution Payloads."""
 
 # === Imports === #
 
 # Standard Library Imports
 from __future__ import annotations
+
 import os
 import tarfile
 import tomllib
 from collections.abc import Iterable
 from email.message import Message
 from email.parser import Parser
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
 # Third Party Imports
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
 
 # Local Imports
-from dokime_tools.check.native_wheel import verify_native_wheel
+from dokime_tools.check.wheel import verify_wheel
 
 # Type Checking Imports
 
@@ -37,13 +40,13 @@ PACKAGES = {
         "distribution_name": "dokime",
         "module_paths": (
             "dokime/__init__.py",
-            "dokime/core/__init__.py",
-            "dokime/_native/__init__.pyi",
             "dokime/py.typed",
             "dokime/client/__init__.py",
-            "dokime/client/_generated/dokime/v1/execution_pb2.pyi",
+            "dokime/__init__.pyi",
+            "dokime/contracts.json",
+            "dokime/descriptors.bin",
+            "dokime/_wire/_pool.py",
         ),
-        "requires_dist": ("protobuf>=7.35.1,<8",),
     },
 }
 
@@ -60,6 +63,10 @@ def main() -> int:
         raise SystemExit("Missing dist/python/.")
 
     expected_version = _expected_version()
+    project = tomllib.loads(Path("packages/dokime/pyproject.toml").read_text())[
+        "project"
+    ]
+    required_dependencies = tuple(project["dependencies"])
     for package_name, expectations in PACKAGES.items():
         wheel_path = _artifact(
             dist,
@@ -89,9 +96,19 @@ def main() -> int:
             wheel_metadata,
             sdist_metadata,
             expectations["distribution_name"],
-            expectations["requires_dist"],
+            required_dependencies,
         )
         for metadata in (wheel_metadata, sdist_metadata):
+            requires_python = metadata.get_all("Requires-Python", [])
+            if (
+                len(requires_python) != 1
+                or SpecifierSet(requires_python[0])
+                != SpecifierSet(project["requires-python"])
+                or metadata.get_all("Provides-Extra", [])
+            ):
+                raise SystemExit(
+                    "Python runtime constraints differ from prepared source."
+                )
             if metadata.get("License-Expression") != "Apache-2.0":
                 raise SystemExit("Python distributions require Apache-2.0 metadata.")
         canonical_license = Path("LICENSE-APACHE").read_bytes()
@@ -119,7 +136,7 @@ def main() -> int:
         _verify_wheel_paths(wheel_path, expectations["module_paths"])
         _verify_wheel_payload(wheel_path, Path.cwd())
         _verify_sdist_build_inputs(sdist_path, Path.cwd())
-        verify_native_wheel(wheel_path)
+        verify_wheel(wheel_path)
 
     return 0
 
@@ -211,7 +228,7 @@ def _read_wheel_metadata(wheel_path: Path) -> Message:
         metadata_names = [
             name for name in wheel.namelist() if name.endswith(".dist-info/METADATA")
         ]
-        if not metadata_names:
+        if len(metadata_names) != 1:
             raise SystemExit(f"Missing wheel metadata in {wheel_path}.")
         metadata = wheel.read(metadata_names[0]).decode()
 
@@ -223,7 +240,7 @@ def _read_sdist_metadata(sdist_path: Path) -> Message:
         pkg_info_members = [
             member for member in sdist.getmembers() if member.name.endswith("/PKG-INFO")
         ]
-        if not pkg_info_members:
+        if len(pkg_info_members) != 1:
             raise SystemExit(f"Missing source distribution metadata in {sdist_path}.")
         pkg_info = sdist.extractfile(pkg_info_members[0])
         if pkg_info is None:
@@ -247,7 +264,9 @@ def _expected_version() -> str:
     if explicit_version:
         return explicit_version
 
-    data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    data = tomllib.loads(
+        Path("packages/dokime/pyproject.toml").read_text(encoding="utf-8")
+    )
     project = data.get("project")
     if not isinstance(project, dict) or not isinstance(project.get("version"), str):
         raise SystemExit("pyproject.toml is missing [project].version.")
@@ -260,16 +279,14 @@ def _verify_required_dependencies(
     version: str,
     required_dependencies: tuple[str, ...],
 ) -> None:
-    if not required_dependencies:
-        return
-
-    actual = set(metadata.get_all("Requires-Dist", []))
-    for dependency in required_dependencies:
-        expected = dependency.format(version=version)
-        if expected not in actual:
-            raise SystemExit(
-                f"{distribution_name} metadata is missing Requires-Dist: {expected}."
-            )
+    expected = {
+        str(Requirement(value.format(version=version)))
+        for value in required_dependencies
+    }
+    values = metadata.get_all("Requires-Dist", [])
+    actual = [str(Requirement(value)) for value in values]
+    if len(actual) != len(set(actual)) or set(actual) != expected:
+        raise SystemExit(f"{distribution_name} metadata dependency inventory mismatch.")
 
 
 def _normalize_name(name: str | None) -> str:
@@ -290,12 +307,15 @@ def _verify_wheel_paths(wheel_path: Path, required_paths: tuple[str, ...]) -> No
 
 
 def _python_inputs(source_root: Path) -> list[Path]:
-    python_root = source_root / "crates/dokime-python/python/dokime"
+    python_root = source_root / "packages/dokime/src/dokime"
     files = sorted(
         path
         for path in python_root.rglob("*")
         if path.is_file()
-        and (path.suffix in {".py", ".pyi"} or path.name == "py.typed")
+        and (
+            path.suffix in {".py", ".pyi"}
+            or path.name in {"py.typed", "contracts.json", "descriptors.bin"}
+        )
     )
     if not files:
         raise SystemExit("Missing Python sources for package verification.")
@@ -303,7 +323,7 @@ def _python_inputs(source_root: Path) -> list[Path]:
 
 
 def _verify_wheel_payload(wheel_path: Path, source_root: Path) -> None:
-    python_root = source_root / "crates/dokime-python/python"
+    python_root = source_root / "packages/dokime/src"
     expected = {
         path.relative_to(python_root).as_posix(): path
         for path in _python_inputs(source_root)
@@ -318,7 +338,11 @@ def _verify_wheel_payload(wheel_path: Path, source_root: Path) -> None:
             name
             for name in names
             if name.startswith("dokime/")
-            and (name.endswith((".py", ".pyi")) or name.endswith("/py.typed"))
+            and (
+                name.endswith((".py", ".pyi"))
+                or name.rsplit("/", 1)[-1]
+                in {"py.typed", "contracts.json", "descriptors.bin"}
+            )
         }
         if actual != expected.keys():
             raise SystemExit(
@@ -326,15 +350,8 @@ def _verify_wheel_payload(wheel_path: Path, source_root: Path) -> None:
                 f"missing={sorted(expected.keys() - actual)}, "
                 f"unexpected={sorted(actual - expected.keys())}."
             )
-        native = [
-            name
-            for name in names
-            if name.startswith("dokime/_native.") and name.endswith((".so", ".pyd"))
-        ]
-        if len(native) != 1 or wheel.getinfo(native[0]).file_size == 0:
-            raise SystemExit(
-                f"Expected one nonempty native extension in {wheel_path.name}."
-            )
+        if any(name.endswith((".so", ".pyd", ".dll", ".dylib")) for name in names):
+            raise SystemExit(f"Native payload in pure client wheel {wheel_path.name}.")
 
         for name, source in expected.items():
             if wheel.read(name) != source.read_bytes():
@@ -342,44 +359,73 @@ def _verify_wheel_payload(wheel_path: Path, source_root: Path) -> None:
 
 
 def _verify_sdist_build_inputs(sdist_path: Path, source_root: Path) -> None:
-    """Verify Python payloads and crate-local inputs consumed by Rust build scripts."""
-    inputs = sorted(
-        (source_root / "crates/dokime-protocol/proto/dokime/v1").glob("*.proto")
+    """Verify the prepared client source inventory without backend build inputs."""
+    package = source_root / "packages/dokime"
+    inputs = _python_inputs(source_root)
+    inputs.extend(
+        package / name for name in ("pyproject.toml", "README.md", "LICENSE-APACHE")
     )
-    if not inputs:
-        raise SystemExit("Missing source protobuf definitions for sdist verification.")
-    inputs.append(source_root / "crates/dokime-app/dist-report/report.html")
-    bundle = source_root / "branding"
-    inputs.append(bundle / "brand.toml")
-    for folder in ("theme", "fonts", "logos"):
-        directory = bundle / folder
-        if not directory.is_dir() or directory.is_symlink():
-            raise SystemExit(f"Missing source branding directory: {folder}.")
-        inputs.extend(sorted(path for path in directory.iterdir() if path.is_file()))
-    python_root = source_root / "crates/dokime-python"
-    inputs.extend(_python_inputs(source_root))
+    inputs.extend(
+        sorted(path for path in (package / "examples").rglob("*.py") if path.is_file())
+    )
     prefix = sdist_path.name.removesuffix(".tar.gz")
-
-    with tarfile.open(sdist_path, "r:gz") as sdist:
-        members = {member.name: member for member in sdist.getmembers()}
+    with tarfile.open(sdist_path, "r:gz") as archive:
+        entries = archive.getmembers()
+        names = [entry.name for entry in entries]
+        if len(names) != len(set(names)):
+            raise SystemExit("Duplicate source distribution entries.")
+        members = {entry.name: entry for entry in entries}
+        for entry in entries:
+            relative = PurePosixPath(entry.name)
+            if (
+                relative.is_absolute()
+                or relative.as_posix() != entry.name
+                or "\\" in entry.name
+                or ".." in relative.parts
+                or not relative.parts
+                or relative.parts[0] != prefix
+                or not (entry.isfile() or entry.isdir())
+                or relative.name in {"Cargo.toml", "Cargo.lock"}
+                or relative.suffix in {".rs", ".so", ".pyd", ".dll", ".dylib"}
+            ):
+                raise SystemExit("Invalid or native source distribution entry.")
         for source in inputs:
-            relative = source.relative_to(
-                python_root if source.is_relative_to(python_root) else source_root
-            ).as_posix()
-            if not source.is_file():
+            relative = source.relative_to(package).as_posix()
+            if not source.is_file() or source.is_symlink():
                 raise SystemExit(f"Missing source build input: {relative}.")
             member = members.get(f"{prefix}/{relative}")
             if member is None or not member.isfile():
                 raise SystemExit(
-                    f"Missing source distribution build input in {sdist_path.name}: "
-                    f"{relative}."
+                    f"Missing source distribution build input: {relative}."
                 )
-            archived = sdist.extractfile(member)
-            if archived is None or archived.read() != source.read_bytes():
-                raise SystemExit(
-                    f"Stale source distribution build input in {sdist_path.name}: "
-                    f"{relative}."
-                )
+            content = archive.extractfile(member)
+            if content is None or content.read() != source.read_bytes():
+                raise SystemExit(f"Stale source distribution build input: {relative}.")
+        actual = {
+            entry.name.removeprefix(prefix + "/")
+            for entry in entries
+            if entry.isfile() and entry.name.startswith(prefix + "/src/dokime/")
+        }
+        expected = {
+            path.relative_to(package).as_posix() for path in _python_inputs(source_root)
+        }
+        if actual != expected:
+            raise SystemExit("Source distribution Python inventory mismatch.")
+        expected_files = {path.relative_to(package).as_posix() for path in inputs}
+        expected_files.add("PKG-INFO")
+        ignore = source_root / ".gitignore"
+        if ignore.is_file():
+            # Hatch Preserves The Repository Ignore Rules In Its Source Archive.
+            expected_files.add(".gitignore")
+            member = members.get(f"{prefix}/.gitignore")
+            content = archive.extractfile(member) if member is not None else None
+            if content is None or content.read() != ignore.read_bytes():
+                raise SystemExit("Stale source distribution ignore rules.")
+        actual_files = {
+            entry.name.removeprefix(prefix + "/") for entry in entries if entry.isfile()
+        }
+        if actual_files != expected_files:
+            raise SystemExit("Source distribution build inventory mismatch.")
 
 
 # === Entry Point === #

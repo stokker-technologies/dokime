@@ -695,9 +695,13 @@ fn validate_schema(
             error,
         ))
     };
-    let bytes = harmos::schema::validation_memory_bytes(&schema.fields).map_err(failure)?;
+    let settings = harmos::config::SchemaSettings::default();
+    let bytes = schema
+        .schema
+        .validation_memory_bytes(&settings)
+        .map_err(failure)?;
     let _validation = memory.reserve_owned(bytes, usize::MAX)?;
-    harmos::schema::validate(&schema.fields).map_err(failure)?;
+    schema.schema.prepare(&settings).map_err(failure)?;
     Ok(())
 }
 

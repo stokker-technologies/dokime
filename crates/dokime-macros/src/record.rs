@@ -63,21 +63,11 @@ struct FieldArguments {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn record(attribute: TokenStream, item: TokenStream) -> TokenStream {
-    match declare(attribute, &item) {
-        Ok(declared) => crate::facade::contracted(declared),
-        Err(refused) => {
-            let refusal = refused.to_compile_error();
-
-            quote! { #item #refusal }
-        }
-    }
-}
-
-/* === Private Functions === */
-fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
+pub(crate) fn implementation(
+    attribute: TokenStream,
+    input: &DeriveInput,
+) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
-    let input: DeriveInput = syn::parse2(item.clone())?;
     let arguments = Arguments::read(
         attribute,
         "a record",
@@ -99,7 +89,6 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     let described = crate::arguments::description(arguments.value("description"), &input.attrs)
         .map(|text| quote!(.described(#text)));
     let fields = declarations(&input)?;
-    let declared = stripped(&input);
     let name = &input.ident;
     let (generics, types, predicates) = input.generics.split_for_impl();
     let contract_fields = fields.iter().map(contract_field);
@@ -115,8 +104,6 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     };
 
     Ok(quote! {
-        #declared
-
         #[automatically_derived]
         impl #generics #name #types #predicates {
             #handles
@@ -203,6 +190,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     })
 }
 
+/* === Private Functions === */
 fn declared_severity(value: &Expr) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let written = match value {
@@ -386,7 +374,7 @@ fn read(field: &RecordFieldDeclaration) -> TokenStream {
     quote!(#name: #sdk::records::field(values, #identifier)?)
 }
 
-fn stripped(input: &DeriveInput) -> DeriveInput {
+pub(crate) fn stripped(input: &DeriveInput) -> DeriveInput {
     crate::arguments::stripped(input, "record")
 }
 

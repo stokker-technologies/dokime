@@ -17,7 +17,7 @@ pub use copy::CopyCycle;
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::{TestCase, TestSuite};
@@ -141,7 +141,7 @@ impl Transaction<RuntimeState> for CreateCycle {
             .map_err(|error| error.to_string())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         prepare_create_cycle(state, self)
             .expect("checked cycle plan")
             .1

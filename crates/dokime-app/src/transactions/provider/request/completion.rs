@@ -295,7 +295,7 @@ impl Transaction<RuntimeState> for SettleRun {
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
         outcomes_settled(state, &self.request_id)
     }
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         if state.run_requests[&self.request_id].completion_at.is_none() {
             CompleteRun {
                 request_id: self.request_id.clone(),

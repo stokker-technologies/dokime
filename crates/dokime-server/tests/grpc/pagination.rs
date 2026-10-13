@@ -56,17 +56,15 @@ pub(crate) async fn large_cycles_order() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = client
-        .create_cycle(create(&owner))
+        .unary::<contracts::execution::CreateCycle>(create(&owner))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let summary = client
-        .get_cycle(v1::GetCycleRequest {
+        .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
             cycle_id: id.clone(),
         })
         .await
@@ -74,7 +72,7 @@ pub(crate) async fn large_cycles_order() {
         .into_inner();
     assert_eq!(summary.case_count, 257);
     assert_eq!(summary.execution_count, 257);
-    let mut request = v1::ListCasesRequest {
+    let mut request = contracts::execution::ListCasesRequest {
         cycle_id: id.clone(),
         limit: 73,
         ..Default::default()
@@ -82,7 +80,7 @@ pub(crate) async fn large_cycles_order() {
     let mut cases = Vec::new();
     loop {
         let page = client
-            .list_cases(request.clone())
+            .unary::<contracts::execution::ListCases>(request.clone())
             .await
             .unwrap()
             .into_inner();
@@ -107,7 +105,7 @@ pub(crate) async fn large_cycles_order() {
     }
     assert_eq!(
         client
-            .list_cases(v1::ListCasesRequest {
+            .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
                 cycle_id: id.clone(),
                 after_case_id: "missing".into(),
                 cursor: summary.observed_cursor.clone(),
@@ -120,7 +118,7 @@ pub(crate) async fn large_cycles_order() {
     );
     assert_eq!(
         client
-            .list_cases(v1::ListCasesRequest {
+            .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
                 cycle_id: id.clone(),
                 after_case_id: cases[0].case_id.clone(),
                 ..Default::default()
@@ -133,13 +131,22 @@ pub(crate) async fn large_cycles_order() {
     // A single-case cycle is enough to advance the observed cursor. The first
     // cycle still crosses the 256-case boundary through every RPC projection.
     common::register_fixture_execution(&owner.handle(), common::fixture_suite(&["passed"])).await;
-    client.create_cycle(create(&owner)).await.unwrap();
+    client
+        .unary::<contracts::execution::CreateCycle>(create(&owner))
+        .await
+        .unwrap();
     assert_eq!(
-        client.list_cases(request).await.unwrap_err().code(),
+        client
+            .unary::<contracts::execution::ListCases>(request)
+            .await
+            .unwrap_err()
+            .code(),
         Code::Aborted
     );
     let list = client
-        .list_cycles(v1::ListCyclesRequest::default())
+        .unary::<contracts::execution::ListCycles>(
+            contracts::execution::ListCyclesRequest::default(),
+        )
         .await
         .unwrap()
         .into_inner();
@@ -150,7 +157,7 @@ pub(crate) async fn large_cycles_order() {
         .unwrap();
     assert_eq!(large.case_count, 257);
     assert_eq!(large.execution_count, 257);
-    let mut request = v1::ListExecutionsRequest {
+    let mut request = contracts::execution::ListExecutionsRequest {
         cycle_id: id.clone(),
         limit: 73,
         ..Default::default()
@@ -158,7 +165,7 @@ pub(crate) async fn large_cycles_order() {
     let mut attempts = Vec::new();
     loop {
         let page = client
-            .list_executions(request.clone())
+            .unary::<contracts::execution::ListExecutions>(request.clone())
             .await
             .unwrap()
             .into_inner();
@@ -179,16 +186,21 @@ pub(crate) async fn large_cycles_order() {
         assert_eq!(execution.ordinal, ordinal as u64);
         assert_eq!(execution.execution_id, native.test_execution_id.as_str());
         assert_eq!(execution.case_id, native.test_case_id.as_str());
-        assert_eq!(execution.status(), v1::ExecutionStatus::Skipped);
+        assert_eq!(
+            execution.status,
+            contracts::execution::ExecutionStatus::Skipped
+        );
     }
     assert_eq!(
         client
-            .list_executions(v1::ListExecutionsRequest {
-                cycle_id: id,
-                after_execution_id: "missing".into(),
-                cursor: list.cursor.clone(),
-                ..Default::default()
-            })
+            .unary::<contracts::execution::ListExecutions>(
+                contracts::execution::ListExecutionsRequest {
+                    cycle_id: id,
+                    after_execution_id: "missing".into(),
+                    cursor: list.cursor.clone(),
+                    ..Default::default()
+                }
+            )
             .await
             .unwrap_err()
             .code(),
@@ -196,7 +208,7 @@ pub(crate) async fn large_cycles_order() {
     );
     assert_eq!(
         client
-            .list_cycles(v1::ListCyclesRequest {
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCyclesRequest {
                 after_cycle_id: "00000000-0000-0000-0000-000000000001".into(),
                 cursor: list.cursor,
                 ..Default::default()
@@ -227,35 +239,40 @@ pub(crate) async fn large_run_preparation() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = client
-        .create_cycle(create(&owner))
+        .unary::<contracts::execution::CreateCycle>(create(&owner))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let outcome = client
-        .run_cycle(run(&id))
+        .unary::<contracts::execution::RunCycle>(run(&id))
         .await
         .unwrap()
         .into_inner()
         .outcome
         .unwrap();
-    assert!(matches!(outcome, v1::run_reply::Outcome::Accepted(_)));
+    assert!(matches!(
+        outcome,
+        contracts::execution::RunReplyOutcome::Accepted(_)
+    ));
     tokio::time::timeout(Duration::from_secs(10), async {
-        client.stop_cycle(control(&id)).await.unwrap();
+        client
+            .unary::<contracts::execution::StopCycle>(control(&id))
+            .await
+            .unwrap();
         let summary = client
-            .get_cycle(v1::GetCycleRequest {
+            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
                 cycle_id: id.clone(),
             })
             .await
             .unwrap()
             .into_inner();
         assert!(matches!(
-            summary.status(),
-            v1::CycleStatus::Stopping | v1::CycleStatus::Stopped
+            summary.status,
+            contracts::execution::CycleStatus::Stopping
+                | contracts::execution::CycleStatus::Stopped
         ));
     })
     .await
@@ -274,13 +291,13 @@ pub(crate) async fn large_run_preparation() {
     let after = tokio::time::timeout(terminal_budget, async {
         loop {
             let summary = client
-                .get_cycle(v1::GetCycleRequest {
+                .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
                     cycle_id: id.clone(),
                 })
                 .await
                 .unwrap()
                 .into_inner();
-            if summary.status() == v1::CycleStatus::Stopped {
+            if summary.status == contracts::execution::CycleStatus::Stopped {
                 break summary;
             }
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -300,7 +317,7 @@ pub(crate) async fn large_run_preparation() {
             .is_err(),
         "stopping preparation must prevent provider dispatch"
     );
-    let mut request = v1::ListExecutionsRequest {
+    let mut request = contracts::execution::ListExecutionsRequest {
         cycle_id: id.clone(),
         limit: 73,
         ..Default::default()
@@ -308,14 +325,15 @@ pub(crate) async fn large_run_preparation() {
     let mut count = 0;
     loop {
         let page = client
-            .list_executions(request.clone())
+            .unary::<contracts::execution::ListExecutions>(request.clone())
             .await
             .unwrap()
             .into_inner();
         for execution in &page.executions {
             assert!(matches!(
-                execution.status(),
-                v1::ExecutionStatus::Cancelled | v1::ExecutionStatus::Skipped
+                execution.status,
+                contracts::execution::ExecutionStatus::Cancelled
+                    | contracts::execution::ExecutionStatus::Skipped
             ));
         }
         count += page.executions.len();

@@ -44,6 +44,19 @@ pub struct ConnectionSnapshot {
     pub error: Option<ConnectionError>,
 }
 
+/// Ephemeral Access For Trusted Application JavaScript, Never Status Or Logs.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserAccess {
+    pub generation: String,
+    pub endpoint: String,
+    pub authorization: Option<String>,
+    pub backend_id: String,
+    pub epoch: String,
+    pub limits: BackendLimits,
+    pub methods: Vec<String>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackendSnapshot {

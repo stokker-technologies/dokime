@@ -60,7 +60,7 @@ const run = promisify(execFile);
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 
-const backendBinary = process.env.DOKIME_SHOTS_BACKEND ?? join(root, "target/debug/dokime");
+const backendBinary = process.env.DOKIME_SHOTS_BACKEND ?? join(root, "target/debug/dokime-server");
 
 const shellBinary = process.env.DOKIME_SHOTS_SHELL ?? join(root, "target/debug/dokime-gui");
 
@@ -165,7 +165,6 @@ async function startBackend(work) {
   const child = spawn(
     backendBinary,
     [
-      "serve",
       "--plugin",
       pluginBundle,
       "--port",

@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 // Local Imports
 use dokime::core::{
     CaseId, CommandId, Identifier, Metadata, TemplateId, TestCycleId, Timestamp, Value,

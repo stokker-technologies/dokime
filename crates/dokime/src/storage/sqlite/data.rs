@@ -18,6 +18,7 @@ mod index;
 mod inventory;
 mod mutations;
 mod production;
+mod record_filter;
 pub(super) mod recovery;
 mod retained;
 mod retention;
@@ -410,9 +411,10 @@ impl State {
         } else {
             limits.rows.get().min(64)
         };
+        let bound = if selection.record_filter.is_none() { format!(" LIMIT {}", count + 1) } else { String::new() };
         let sql = format!("SELECT entries.position,length(entries.body) FROM storage_data_entries AS entries
-            INDEXED BY storage_data_kind_position WHERE {} ORDER BY entries.position {} LIMIT {}",
-            clauses.join(" AND "), if selection.order == ReadOrder::Ascending { "ASC" } else { "DESC" }, count+1);
+            INDEXED BY storage_data_kind_position WHERE {} ORDER BY entries.position {}{}",
+            clauses.join(" AND "), if selection.order == ReadOrder::Ascending { "ASC" } else { "DESC" }, bound);
 
                 let head = saved(connection)?;
                 head.history.check(&through.history)?;
@@ -429,6 +431,7 @@ impl State {
                     }
                     .into());
                 }
+                let filter = record_filter::Prepared::new(connection, &memory.0.memory, &cut, &selection, entry_bytes)?;
                 let mut statement = connection.prepare(&sql)?;
                 let mut rows = statement.query(rusqlite::params_from_iter(arguments))?;
                 let metadata = count.checked_mul(std::mem::size_of::<Entry>() + std::mem::size_of::<super::memory::Reservation>())
@@ -438,12 +441,13 @@ impl State {
                 let mut entries = Vec::with_capacity(count);
                 let mut bytes = 0usize;
                 while let Some(row) = rows.next()? {
+                    super::query::checkpoint()?;
                     let length = usize::try_from(row.get::<_, i64>(1)?)
                         .map_err(|_| Error::Corrupt("stored entry length exceeds address space"))?;
                     if length > entry_bytes.get() {
                         return Err(Error::Corrupt("stored entry exceeds backend bound"));
                     }
-                    if entries.len() == count
+                    if filter.is_none() && entries.len() == count
                     {
                         if entries.is_empty() {
                             return Err(Error::Data("first entry exceeds page byte bound"));
@@ -464,20 +468,28 @@ impl State {
                     }
                     check_digest(body, blob(content_row, 1)?)?;
                     let portable = Entry::portable_bytes(kind(selection.kind), body)?;
-                    if portable > limits.bytes.get().saturating_sub(bytes) {
+                    if filter.is_none() && portable > limits.bytes.get().saturating_sub(bytes) {
                         if entries.is_empty() {
                             return Err(Error::Data("first entry exceeds page byte bound"));
                         }
                         return finish(Page { entries, has_more: true });
                     }
-                    decoded.push(memory.0.memory.reserve_owned(
+                    let charge = memory.0.memory.reserve_owned(
                         Entry::decoding_bytes(kind(selection.kind), body.len())?, usize::MAX
-                    )?);
+                    )?;
                     let entry = Entry::decode(kind(selection.kind), body)?;
                     if position(entry.position().sequence) != selected {
                         return Err(Error::Corrupt("entry index position differs"));
                     }
                     entry.position().history.check(&through.history)?;
+                    if let Some(filter) = &filter {
+                        if !filter.matches(&entry, &selection, &cut, &memory.0.memory, entry_bytes)? { continue; }
+                        if entries.len() == count || portable > limits.bytes.get().saturating_sub(bytes) {
+                            if entries.is_empty() { return Err(Error::Data("first selected entry exceeds page byte bound")); }
+                            return finish(Page { entries, has_more: true });
+                        }
+                    }
+                    decoded.push(charge);
                     bytes += portable;
                     entries.push(entry);
                 }

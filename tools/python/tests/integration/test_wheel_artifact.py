@@ -11,8 +11,8 @@
 # === Imports === #
 
 # Standard Library Imports
-import os
 import io
+import os
 import tarfile
 import unittest
 from pathlib import Path
@@ -20,11 +20,10 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 # Third Party Imports
-
 # Local Imports
 from dokime_tools.check import package as check_package
-from dokime_tools.package import install_wheel as install_dist_wheel
 from dokime_tools.environment import native as native_environment
+from dokime_tools.package import install_wheel as install_dist_wheel
 from dokime_tools.package.wheel import WheelSelectionError, select_wheel
 
 # Type Checking Imports
@@ -43,16 +42,12 @@ class WheelTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             inputs = {
-                "branding/brand.toml": b'name = "Dokime"',
-                "branding/theme/base.css": b"body {}",
-                "branding/fonts/font.otf": b"font",
-                "branding/logos/logo.svg": b"<svg />",
-                "crates/dokime-protocol/proto/dokime/v1/common.proto": b'syntax = "proto3";',
-                "crates/dokime-protocol/proto/dokime/v1/execution.proto": b"message Execution {}",
-                "crates/dokime-app/dist-report/report.html": b"<html>Report</html>",
-                "crates/dokime-python/python/dokime/core/__init__.py": b"# Core API",
-                "crates/dokime-python/python/dokime/core/suites.pyi": b"# Stubs",
-                "crates/dokime-python/python/dokime/py.typed": b"",
+                "packages/dokime/src/dokime/__init__.py": b"# Client",
+                "packages/dokime/src/dokime/client/api.pyi": b"# Stubs",
+                "packages/dokime/src/dokime/py.typed": b"",
+                "packages/dokime/pyproject.toml": b"# Build",
+                "packages/dokime/README.md": b"# Dokime",
+                "packages/dokime/LICENSE-APACHE": b"Apache license",
             }
             for name, content in inputs.items():
                 source = root / name
@@ -63,30 +58,30 @@ class WheelTests(unittest.TestCase):
             for missing in (None, *inputs):
                 with self.subTest(missing=missing):
                     with tarfile.open(archive, "w:gz") as output:
+                        metadata = b"Name: dokime\nVersion: 0.1.0\n"
+                        entry = tarfile.TarInfo("dokime-0.1.0/PKG-INFO")
+                        entry.size = len(metadata)
+                        output.addfile(entry, io.BytesIO(metadata))
                         for name, content in inputs.items():
                             if name == missing:
                                 continue
-                            relative = name.removeprefix("crates/dokime-python/")
+                            relative = name.removeprefix("packages/dokime/")
                             member = tarfile.TarInfo(f"dokime-0.1.0/{relative}")
                             member.size = len(content)
                             output.addfile(member, io.BytesIO(content))
                     if missing is None:
                         check_package._verify_sdist_build_inputs(archive, root)
-                        source = (
-                            root / "crates/dokime-protocol/proto/dokime/v1/common.proto"
-                        )
+                        source = root / "packages/dokime/src/dokime/__init__.py"
                         source.write_bytes(b"changed")
-                        with self.assertRaisesRegex(SystemExit, "Stale.*common.proto"):
+                        with self.assertRaisesRegex(SystemExit, "Stale.*__init__.py"):
                             check_package._verify_sdist_build_inputs(archive, root)
                         source.write_bytes(
-                            inputs[
-                                "crates/dokime-protocol/proto/dokime/v1/common.proto"
-                            ]
+                            inputs["packages/dokime/src/dokime/__init__.py"]
                         )
                     else:
                         with self.assertRaisesRegex(
                             SystemExit,
-                            "Missing.*" + missing.removeprefix("crates/dokime-python/"),
+                            "Missing.*" + missing.removeprefix("packages/dokime/"),
                         ):
                             check_package._verify_sdist_build_inputs(archive, root)
 

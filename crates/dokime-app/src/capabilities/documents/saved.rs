@@ -251,6 +251,19 @@ impl SavedOutputs {
 }
 
 impl SavedOutputFile {
+    pub(crate) fn project_descriptor<U: MemorySize>(
+        &mut self,
+        maximum: NonZeroUsize,
+        map: impl FnOnce(&ExecutionOutput, NonZeroUsize) -> harmos::Result<U>,
+    ) -> Result<QueryValue<U>> {
+        let index = self.index;
+        Ok(self.outputs.original.project(
+            &self.outputs.revision,
+            maximum.min(self.outputs.original.decoded_bytes()),
+            |revision, allowance| map(&source(revision)?.outputs[index], allowance),
+        )?)
+    }
+
     pub(crate) fn descriptor(&self) -> &ExecutionOutput {
         &self
             .outputs

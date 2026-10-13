@@ -126,7 +126,7 @@ impl RuntimeHandle {
             sealed_executions: Vec::new(),
         };
         let (summary, cycle) = {
-            use harmos::Transaction;
+            use harmos::state::Transaction;
             let mut preview = self.state_read().as_ref().clone();
             complete.check(&preview).map_err(Error::Operation)?;
             complete.apply(&mut preview);

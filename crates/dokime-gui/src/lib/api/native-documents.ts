@@ -11,7 +11,7 @@
 
 /* === External Imports === */
 
-import { create, toBinary } from "@bufbuild/protobuf";
+import { toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
@@ -27,52 +27,8 @@ import {
 } from "@/lib/document-presentation";
 import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type DocumentCard,
-  DocumentCardKind,
-  type DocumentDensity,
-  DocumentDensitySchema,
-  type DocumentFrame,
-  DocumentFrameSchema,
-  type DocumentLayoutNode,
-  type DocumentHeader,
-  type DocumentBinding,
-  type DocumentSummaryGroupDefinition,
-  type DocumentSummaryTileDefinition,
-  type DocumentRepeatSelection,
-  type DocumentRepeatInstance,
-  type DocumentSectionIdentity,
-  type DocumentRail,
-  DocumentRailSchema,
-  type DocumentScope,
-  DocumentScopeSchema,
-  DocumentSummaryFormatSchema,
-  type DocumentSummaryGroup,
-  DocumentSummaryPresentation,
-  DocumentSummaryStat,
-  DocumentSummaryState,
-  type DocumentSummaryTile,
-  type DocumentTableRow,
-  type DocumentWarning,
-  PlotAxisKind as NativePlotAxisKind,
-  type PlotStyle,
-  PlotStyleSchema,
-  ReferenceAxis,
-} from "@/lib/rpc/generated/dokime/v1/documents_pb";
-import {
-  type AxisScale,
-  AxisScaleSchema,
-  type DataExpression,
-  type FftDetrend,
-  FftDetrendSchema,
-  type FftWindow,
-  FftWindowSchema,
-  FilterOperator,
-  FrequencyLevelUnit,
-  FrequencyLevelUnitSchema,
-  type PlotRequest,
-  PlotType,
-} from "@/lib/rpc/generated/dokime/v1/plots_pb";
+import * as documentWire from "../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   DocumentDataExpression,
@@ -86,6 +42,41 @@ import {
   nativeValueObjectToJson,
   nativeValueToJson,
 } from "./native-values";
+
+/* === Canonical Types === */
+
+type DocumentFrame = documentWire.Row3;
+const DocumentFrameSchema = documentWire.Row3Schema;
+type DocumentCard = Wire<documentWire.Row22>;
+type DocumentDensity = Wire<documentWire.Row116>;
+type DocumentHeader = Wire<documentWire.Row20>;
+type DocumentBinding = Wire<documentWire.Row30>;
+type DocumentLayoutNode = Wire<documentWire.Row21>;
+type DocumentSummaryGroupDefinition = Wire<documentWire.Row28>;
+type DocumentSummaryTileDefinition = Wire<documentWire.Row29>;
+type DocumentRepeatSelection = Wire<documentWire.Row31>;
+type DocumentRepeatInstance = Wire<documentWire.Row32>;
+type DocumentSectionIdentity = Wire<documentWire.Row33>;
+type DocumentRail = Wire<documentWire.Row117>;
+type DocumentScope = Wire<documentWire.Row4>;
+type DocumentSummaryGroup = Wire<documentWire.Row24>;
+type DocumentSummaryPresentation = Wire<documentWire.Row43>;
+type DocumentSummaryState = Wire<documentWire.Row44>;
+type DocumentSummaryTile = Wire<documentWire.Row25>;
+type DocumentTableRow = Wire<documentWire.Row23>;
+type DocumentWarning = Wire<documentWire.Row26>;
+type NativePlotAxisKind = Wire<documentWire.Row184>;
+type PlotStyle = Wire<documentWire.Row180>;
+type AxisScale = Wire<documentWire.Row173>;
+type DataExpression = Wire<documentWire.Row45>;
+type FftWindow = Wire<documentWire.Row213>;
+type FftDetrend = Wire<documentWire.Row214>;
+type FrequencyLevelUnit = Wire<documentWire.Row215>;
+type PlotRequest = Wire<documentWire.Row142>;
+type PlotType = Wire<documentWire.Row172>;
+type FilterOperator = Wire<documentWire.Row54>;
+type DocumentCardKind = Wire<documentWire.Row118>;
+type NativePlotDefinition = Wire<documentWire.Row107>;
 
 export const documentLimits = {
   bytes: 32 * 1024 * 1024,
@@ -205,7 +196,10 @@ function mapNativeCard(
   const id = binding.metadata?.identifier;
   if (!id) invalid("binding metadata is missing");
   const metadata = metadataFromNative(binding.metadata, id);
-  if (binding.result.case === "summary" && card.body.case === "summary") {
+  const result = binding.result?.HarmosVariant;
+  const body = card.body?.HarmosVariant;
+  if (!result?.case || !body?.case) invalid("card body or binding result is missing");
+  if (result.case === "Summary" && body.case === "Summary") {
     return documentCard(metadata, "overview", {
       groups: (document.groups.get(id) ?? []).map((group) => ({
         group_id: group.metadata?.identifier ?? `${id}-${group.ordinal}`,
@@ -216,32 +210,33 @@ function mapNativeCard(
             value: nativeValueToJson(tile.value),
             unavailable: tile.unavailable,
             unit: tile.unit,
-            format: enumTail(DocumentSummaryFormatSchema, tile.format, "auto"),
+            format: enumTail(undefined, tile.format, "auto"),
             presentation: mapSummaryPresentation(tile.presentation),
             state: tile.state === undefined ? null : mapSummaryState(tile.state),
-            stat: tile.stat === DocumentSummaryStat.LATEST ? "latest" : undefined,
+            stat: tile.stat?.HarmosVariant.case === "Latest" ? "latest" : undefined,
           }),
         ),
       })),
     });
   }
   if (
-    binding.result.case === "plot" &&
-    card.body.case === "owner" &&
-    card.body.value.kind === DocumentCardKind.PLOT
+    result.case === "Plot" &&
+    body.case === "Owner" &&
+    body.value.field0?.kind?.HarmosVariant.case === "Plot"
   ) {
-    const plot = mapNativePlot(binding.result.value, id);
+    if (!result.value.field0) invalid("plot binding is missing");
+    const plot = mapNativePlot(result.value.field0, id);
     plot.group = document.header.metadata?.label || document.header.documentId;
     return documentCard(metadata, "plots", { plots: [plot] });
   }
-  if (binding.result.case !== "literal" || !binding.result.value || card.body.case === "summary")
+  if (result.case !== "Literal" || !result.value.field0 || body.case === "Summary")
     invalid("binding result differs from its declaration");
-  switch (card.body.case) {
-    case "markdown":
+  switch (body.case) {
+    case "Markdown":
       return documentCard(metadata, "overview", {
-        groups: [documentText(metadata, card.body.value)],
+        groups: [documentText(metadata, body.value.field0)],
       });
-    case "table":
+    case "Table":
       return documentCard(metadata, "table", {
         rows: documentTableRows(
           id,
@@ -250,8 +245,8 @@ function mapNativeCard(
           ),
         ),
       });
-    case "owner": {
-      const kind = mapCardKind(card.body.value.kind);
+    case "Owner": {
+      const kind = mapCardKind(body.value.field0?.kind);
       if (!kind || kind === "plots") invalid("literal owner kind is invalid");
       return documentCard(metadata, kind);
     }
@@ -271,19 +266,23 @@ function mapNativeLayout(nodes: readonly DocumentLayoutNode[]): DeclaredNode[] {
   }
   const mapNodes = (key: string): DeclaredNode[] =>
     (children.get(key) ?? []).map((node) => {
-      switch (node.node.case) {
-        case "section":
+      const kind = node.node?.HarmosVariant;
+      if (!kind?.case || !kind.value.field0) invalid("layout node kind is missing");
+      switch (kind.case) {
+        case "Section":
+          if (!kind.value.field0) invalid("layout node payload is missing");
           return {
             type: "section",
-            node_id: node.node.value.nodeId,
-            repeat: Boolean(node.node.value.repeat),
+            node_id: kind.value.field0.nodeId,
+            repeat: Boolean(kind.value.field0.repeat),
             children: mapNodes(node.ordinal.toString()),
           };
-        case "placement":
+        case "Placement":
+          if (!kind.value.field0) invalid("layout node payload is missing");
           return {
             type: "card",
-            card_id: node.node.value.cardId,
-            layout: mapNativePlacementLayout(node.node.value),
+            card_id: kind.value.field0.cardId,
+            layout: mapNativePlacementLayout(kind.value.field0),
           };
         default:
           return invalid("layout node kind is missing");
@@ -329,34 +328,34 @@ function mapNativePlacementLayout(placement?: {
 }
 
 function mapDensity(value?: DocumentDensity): "compact" | "normal" | "spacious" {
-  return enumTail(DocumentDensitySchema, value, "normal");
+  return enumTail(undefined, value, "normal");
 }
 
 function mapRail(value?: DocumentRail): "main" | "right" | "left" {
-  return enumTail(DocumentRailSchema, value, "main");
+  return enumTail(undefined, value, "main");
 }
 
-function mapCardKind(value: DocumentCardKind): DocumentViewCard["kind"] | null {
-  switch (value) {
-    case DocumentCardKind.PLOT:
+function mapCardKind(value: DocumentCardKind | undefined): DocumentViewCard["kind"] | null {
+  switch (value?.HarmosVariant.case) {
+    case "Plot":
       return "plots";
-    case DocumentCardKind.STEPS:
+    case "Steps":
       return "steps";
-    case DocumentCardKind.CRITERIA:
+    case "Criteria":
       return "criteria";
-    case DocumentCardKind.TRACEABILITY:
+    case "Traceability":
       return "traceability";
-    case DocumentCardKind.NOTES:
+    case "Notes":
       return "notes";
-    case DocumentCardKind.RECORDS:
+    case "Records":
       return "records";
-    case DocumentCardKind.ARTIFACTS:
+    case "Artifacts":
       return "artifacts";
-    case DocumentCardKind.MEDIA:
+    case "Media":
       return "media";
-    case DocumentCardKind.HEALTH:
+    case "Health":
       return "health";
-    case DocumentCardKind.TELEMETRY_CONTEXT:
+    case "TelemetryContext":
       return "telemetry_context";
     default:
       return null;
@@ -364,12 +363,12 @@ function mapCardKind(value: DocumentCardKind): DocumentViewCard["kind"] | null {
 }
 
 function mapSummaryPresentation(
-  value: DocumentSummaryPresentation,
+  value: DocumentSummaryPresentation | undefined,
 ): "value" | "progress" | "badge" {
-  switch (value) {
-    case DocumentSummaryPresentation.PROGRESS:
+  switch (value?.HarmosVariant.case) {
+    case "Progress":
       return "progress";
-    case DocumentSummaryPresentation.BADGE:
+    case "Badge":
       return "badge";
     default:
       return "value";
@@ -377,16 +376,16 @@ function mapSummaryPresentation(
 }
 
 function mapSummaryState(
-  value: DocumentSummaryState,
+  value: DocumentSummaryState | undefined,
 ): "ok" | "warning" | "critical" | "muted" | null {
-  switch (value) {
-    case DocumentSummaryState.OK:
+  switch (value?.HarmosVariant.case) {
+    case "Ok":
       return "ok";
-    case DocumentSummaryState.WARNING:
+    case "Warning":
       return "warning";
-    case DocumentSummaryState.CRITICAL:
+    case "Critical":
       return "critical";
-    case DocumentSummaryState.MUTED:
+    case "Muted":
       return "muted";
     default:
       return null;
@@ -394,7 +393,7 @@ function mapSummaryState(
 }
 
 function mapNativePlot(
-  definition: NonNullable<Extract<DocumentCard["body"], { case: "owner" }>["value"]["plot"]>,
+  definition: NativePlotDefinition,
   fallbackId: string,
 ): DocumentViewCard["plots"][number] {
   const request = definition.request;
@@ -460,7 +459,7 @@ function mapNativePlot(
     marker_record_types: [...request.markerRecordTypes],
     filters: request.filters.map(mapNativeFilter),
     reference_lines: (presentation?.referenceLines ?? []).map((line) => ({
-      axis: line.axis === ReferenceAxis.X ? "x" : "y",
+      axis: line.axis?.HarmosVariant.case === "X" ? "x" : "y",
       value: line.value ?? null,
       source: mapNativeExpression(line.source),
       source_scale: line.sourceScale,
@@ -468,7 +467,7 @@ function mapNativePlot(
       color: line.color,
     })),
     reference_bands: (presentation?.referenceBands ?? []).map((band) => ({
-      axis: band.axis === ReferenceAxis.X ? "x" : "y",
+      axis: band.axis?.HarmosVariant.case === "X" ? "x" : "y",
       min: band.min ?? null,
       max: band.max ?? null,
       center: mapNativeExpression(band.center),
@@ -497,48 +496,50 @@ function mapNativePlotAxis(
   kind: NativePlotAxisKind | undefined,
   unit: string | undefined,
 ): DocumentViewCard["plots"][number]["x_axis"] {
-  switch (kind) {
-    case NativePlotAxisKind.WALL_TIME:
+  switch (kind?.HarmosVariant.case) {
+    case "WallTime":
       return { kind: "wall_time" };
-    case NativePlotAxisKind.ELAPSED:
+    case "Elapsed":
       return { kind: "elapsed", unit: unit?.trim() || "s" };
     default:
       return null;
   }
 }
 
-function mapNativePlotType(value: PlotType): DocumentViewCard["plots"][number]["plot_type"] {
-  switch (value) {
-    case PlotType.BAR:
+function mapNativePlotType(
+  value: PlotType | undefined,
+): DocumentViewCard["plots"][number]["plot_type"] {
+  switch (value?.HarmosVariant.case) {
+    case "Bar":
       return "bar";
-    case PlotType.GROUPED_BAR:
-    case PlotType.STACKED_BAR:
-    case PlotType.PIE:
-    case PlotType.DONUT:
-    case PlotType.PARETO:
-    case PlotType.AGGREGATE_TABLE:
-      throw new Error(`Unsupported document plot type: ${PlotType[value].toLowerCase()}`);
-    case PlotType.XY_SCATTER:
+    case "GroupedBar":
+    case "StackedBar":
+    case "Pie":
+    case "Donut":
+    case "Pareto":
+    case "AggregateTable":
+      throw new Error(`Unsupported document plot type: ${value?.HarmosVariant.case}`);
+    case "XyScatter":
       return "xy_scatter";
-    case PlotType.XY_LINE:
+    case "XyLine":
       return "xy_line";
-    case PlotType.XY_INTERVAL:
+    case "XyInterval":
       return "xy_interval";
-    case PlotType.TRAJECTORY:
+    case "Trajectory":
       return "trajectory";
-    case PlotType.HEATMAP:
+    case "Heatmap":
       return "heatmap";
-    case PlotType.XY_VALUE_HEATMAP:
+    case "XyValueHeatmap":
       return "xy_value_heatmap";
-    case PlotType.WIFI_CHANNEL_OCCUPANCY:
+    case "WifiChannelOccupancy":
       return "wifi_channel_occupancy";
-    case PlotType.FREQUENCY_SERIES:
+    case "FrequencySeries":
       return "frequency_series";
-    case PlotType.HISTOGRAM:
+    case "Histogram":
       return "histogram";
-    case PlotType.BOX_SUMMARY:
+    case "BoxSummary":
       return "box_summary";
-    case PlotType.TIME_SERIES:
+    case "TimeSeries":
       return "time_series";
     default:
       throw new Error(`Unsupported document plot type: ${value}`);
@@ -546,27 +547,27 @@ function mapNativePlotType(value: PlotType): DocumentViewCard["plots"][number]["
 }
 
 function mapPlotStyle(value?: PlotStyle): "line" | "points" | "line_points" | "step" {
-  return enumTail(PlotStyleSchema, value, "line");
+  return enumTail(undefined, value, "line");
 }
 
 function mapAxisScale(value?: AxisScale): "linear" | "log" {
-  return enumTail(AxisScaleSchema, value, "linear");
+  return enumTail(undefined, value, "linear");
 }
 
 function mapFftWindow(value?: FftWindow): "hann" | "rectangular" {
-  return enumTail(FftWindowSchema, value, "hann");
+  return enumTail(undefined, value, "hann");
 }
 
 function mapFftDetrend(value?: FftDetrend): "none" | "mean" {
-  return enumTail(FftDetrendSchema, value, "mean");
+  return enumTail(undefined, value, "mean");
 }
 
 /* The level units keep their proto casing, so every member is an override. */
 function mapFrequencyLevelUnit(value?: FrequencyLevelUnit): "linear" | "dB" | "dBu" | "dBm" {
-  return enumTail(FrequencyLevelUnitSchema, value, "linear", {
-    [FrequencyLevelUnit.DB]: "dB",
-    [FrequencyLevelUnit.DBU]: "dBu",
-    [FrequencyLevelUnit.DBM]: "dBm",
+  return enumTail(undefined, value, "linear", {
+    Db: "dB",
+    Dbu: "dBu",
+    Dbm: "dBm",
   });
 }
 
@@ -576,30 +577,32 @@ function mapNativeFilter(filter: PlotRequest["filters"][number]): {
   value?: unknown;
 } {
   if (!filter.expression) throw new Error("Native plot filter has no expression.");
+  const expression = mapNativeExpression(filter.expression);
+  if (!expression) invalid("plot filter expression is missing");
   return {
-    expression: mapNativeExpression(filter.expression) ?? {},
+    expression,
     operator: mapFilterOperator(filter.operator),
     ...(filter.value === undefined ? {} : { value: nativeValueToJson(filter.value) }),
   };
 }
 
 function mapFilterOperator(
-  value: FilterOperator,
+  value: FilterOperator | undefined,
 ): "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists" {
-  switch (value) {
-    case FilterOperator.NE:
+  switch (value?.HarmosVariant.case) {
+    case "Ne":
       return "ne";
-    case FilterOperator.GT:
+    case "Gt":
       return "gt";
-    case FilterOperator.GTE:
+    case "Gte":
       return "gte";
-    case FilterOperator.LT:
+    case "Lt":
       return "lt";
-    case FilterOperator.LTE:
+    case "Lte":
       return "lte";
-    case FilterOperator.CONTAINS:
+    case "Contains":
       return "contains";
-    case FilterOperator.EXISTS:
+    case "Exists":
       return "exists";
     default:
       return "eq";
@@ -608,51 +611,67 @@ function mapFilterOperator(
 
 function mapNativeExpression(value?: DataExpression): DocumentDataExpression | null {
   if (!value) return null;
-  if (!value.source.case || value.transforms.length > 32)
+  const sourceKind = value.source?.HarmosVariant;
+  if (!sourceKind?.case || !sourceKind.value.field0 || value.transforms.length > 32)
     invalid("expression source or transform bound is invalid");
   const source = (() => {
-    switch (value.source.case) {
-      case "telemetry":
+    switch (sourceKind.case) {
+      case "Telemetry":
+        if (!sourceKind.value.field0) invalid("expression source is missing");
         return {
           type: "telemetry" as const,
-          stream: value.source.value.stream,
-          field: value.source.value.field,
+          stream: sourceKind.value.field0.stream,
+          field: sourceKind.value.field0.field,
         };
-      case "parameter":
-        return { type: "parameter" as const, name: value.source.value.name };
-      case "dimension":
-        return { type: "dimension" as const, name: value.source.value.name };
-      case "record":
-        return { type: "record" as const, record_type: value.source.value.recordType };
-      case "artifact":
-        return { type: "artifact" as const, artifact: value.source.value.artifact };
+      case "Parameter":
+        if (!sourceKind.value.field0) invalid("expression source is missing");
+        return { type: "parameter" as const, name: sourceKind.value.field0.name };
+      case "Dimension":
+        if (!sourceKind.value.field0) invalid("expression source is missing");
+        return { type: "dimension" as const, name: sourceKind.value.field0.name };
+      case "Record":
+        if (!sourceKind.value.field0) invalid("expression source is missing");
+        return { type: "record" as const, record_type: sourceKind.value.field0.recordType };
+      case "Artifact":
+        if (!sourceKind.value.field0) invalid("expression source is missing");
+        return { type: "artifact" as const, artifact: sourceKind.value.field0.artifact };
       default:
         return invalid("expression kind is missing");
     }
   })();
 
   const transforms = value.transforms.map((transform) => {
-    switch (transform.kind.case) {
-      case "count":
-      case "mean":
-      case "median":
-      case "min":
-      case "max":
-        return { type: transform.kind.case };
-      case "timeBetween":
+    const kind = transform.kind?.HarmosVariant;
+    if (!kind?.case || !kind.value.field0) invalid("expression transform is missing");
+    switch (kind.case) {
+      case "Count":
+        return { type: "count" as const };
+      case "Mean":
+        return { type: "mean" as const };
+      case "Median":
+        return { type: "median" as const };
+      case "Min":
+        return { type: "min" as const };
+      case "Max":
+        return { type: "max" as const };
+      case "TimeBetween":
+        if (!kind.value.field0) invalid("expression transform is missing");
         return {
           type: "time_between" as const,
-          previous_record_type: transform.kind.value.previousRecordType,
+          previous_record_type: kind.value.field0.previousRecordType,
         };
-      case "telemetryAtOrBefore":
+      case "TelemetryAtOrBefore":
+        if (!kind.value.field0) invalid("expression transform is missing");
         return {
           type: "telemetry_at_or_before" as const,
-          stream: transform.kind.value.stream,
-          field: transform.kind.value.field,
+          stream: kind.value.field0.stream,
+          field: kind.value.field0.field,
         };
-      case "detail":
-        return { type: "detail" as const, name: transform.kind.value.name };
-      case "perCase":
+      case "Detail":
+        if (!kind.value.field0) invalid("expression transform is missing");
+        return { type: "detail" as const, name: kind.value.field0.name };
+      case "PerCase":
+        if (!kind.value.field0) invalid("expression transform is missing");
         return { type: "per_case" as const };
       default:
         return invalid("expression kind is missing");
@@ -666,10 +685,10 @@ function mapNativeExpression(value?: DataExpression): DocumentDataExpression | n
 }
 
 function createDocumentScope(request: NativeDocumentRequest) {
-  return create(DocumentScopeSchema, {
+  return {
     cycleId: request.cycleId,
     executionId: request.executionId,
-  });
+  };
 }
 
 /** Keep this adapter independent from the React session provider. */
@@ -708,12 +727,14 @@ export async function assembleDocument(
     bytes += length;
     if (length > documentLimits.frameBytes || bytes > documentLimits.bytes)
       invalid("capture byte budget exceeded");
-    const frame = item.frame;
-    if (!header && frame.case !== "header") invalid("header must be first");
+    const frame = item.frame?.HarmosVariant;
+    if (!frame?.case) invalid("frame payload is missing");
+    if (!header && frame.case !== "Header") invalid("header must be first");
     switch (frame.case) {
-      case "header": {
+      case "Header": {
         if (header) invalid("duplicate header");
-        const value = frame.value;
+        const value = frame.value.field0;
+        if (!value) invalid("frame payload is missing");
         if (
           value.documentId !== expected.documentId ||
           value.scope?.cycleId !== expected.scope.cycleId ||
@@ -725,78 +746,96 @@ export async function assembleDocument(
         header = value;
         break;
       }
-      case "layoutNode": {
-        const node = frame.value;
-        if (node.ordinal !== BigInt(layout.length) || !node.node.case || layout.length >= 4096)
+      case "LayoutNode": {
+        const node = frame.value.field0;
+        if (!node) invalid("frame payload is missing");
+        if (
+          node.ordinal !== BigInt(layout.length) ||
+          !node.node?.HarmosVariant.case ||
+          layout.length >= 4096
+        )
           invalid("layout ordinals are not contiguous or exceed the budget");
         if (node.parentOrdinal === undefined) path = [];
         else {
           const parent = byOrdinal.get(node.parentOrdinal);
           const ancestor = path.indexOf(node.parentOrdinal);
-          if (!parent || parent.node.case === "placement" || ancestor < 0)
+          if (!parent || parent.node?.HarmosVariant.case === "Placement" || ancestor < 0)
             invalid("layout parent is missing or outside the pre-order path");
           path = path.slice(0, ancestor + 1);
         }
         path.push(node.ordinal);
         if (path.length > documentLimits.depth) invalid("layout depth budget exceeded");
         if (
-          node.node.case === "section" &&
-          (!node.node.value.nodeId ||
-            !node.node.value.metadata ||
-            (node.node.value.repeat && !node.node.value.repeat.value))
+          node.node?.HarmosVariant.case === "Section" &&
+          (!node.node.HarmosVariant.value.field0?.nodeId ||
+            !node.node.HarmosVariant.value.field0?.metadata ||
+            (node.node.HarmosVariant.value.field0?.repeat &&
+              !node.node.HarmosVariant.value.field0?.repeat.value))
         )
           invalid("section declaration is incomplete");
         byOrdinal.set(node.ordinal, node);
         layout.push(node);
         break;
       }
-      case "card": {
-        const card = frame.value;
+      case "Card": {
+        const card = frame.value.field0;
+        if (!card) invalid("frame payload is missing");
         const id = card.metadata?.identifier;
-        if (!id || cards.has(id) || !card.body.case || cards.size >= 4096)
+        if (!id || cards.has(id) || !card.body?.HarmosVariant.case || cards.size >= 4096)
           invalid("missing or duplicate card identity");
         cards.set(id, card);
-        if (card.body.case === "table") rows.set(id, []);
-        if (card.body.case === "summary") {
+        if (card.body?.HarmosVariant.case === "Table") rows.set(id, []);
+        if (card.body?.HarmosVariant.case === "Summary") {
           definitions.set(id, []);
           definitionTiles.set(id, new Map());
         }
         break;
       }
-      case "binding": {
-        const binding = frame.value;
+      case "Binding": {
+        const binding = frame.value.field0;
+        if (!binding) invalid("frame payload is missing");
         const id = binding.metadata?.identifier;
         const source = cards.get(binding.sourceId);
-        if (!id || bindings.has(id) || !source || !binding.result.case || bindings.size >= 4096)
+        if (
+          !id ||
+          bindings.has(id) ||
+          !source ||
+          !binding.result?.HarmosVariant.case ||
+          bindings.size >= 4096
+        )
           invalid("binding source or identity is invalid");
         const expectedResult =
-          source.body.case === "summary"
-            ? "summary"
-            : source.body.case === "owner" && source.body.value.kind === DocumentCardKind.PLOT
-              ? "plot"
-              : "literal";
+          source.body?.HarmosVariant.case === "Summary"
+            ? "Summary"
+            : source.body?.HarmosVariant.case === "Owner" &&
+                source.body.HarmosVariant.value.field0?.kind?.HarmosVariant.case === "Plot"
+              ? "Plot"
+              : "Literal";
         if (
-          binding.result.case !== expectedResult ||
-          (binding.result.case === "literal" && !binding.result.value)
+          binding.result?.HarmosVariant.case !== expectedResult ||
+          (binding.result?.HarmosVariant.case === "Literal" &&
+            !binding.result.HarmosVariant.value.field0)
         )
           invalid("binding result differs from its declaration");
         bindings.set(id, binding);
-        if (binding.result.case === "summary") {
+        if (binding.result?.HarmosVariant.case === "Summary") {
           groups.set(id, []);
           tiles.set(id, new Map());
         }
         break;
       }
-      case "tableRow": {
-        const row = frame.value;
+      case "TableRow": {
+        const row = frame.value.field0;
+        if (!row) invalid("frame payload is missing");
         const target = rows.get(row.cardId);
         if (!target || row.ordinal !== BigInt(target.length) || !row.values)
           invalid("table row has no matching card or contiguous ordinal");
         target.push(row);
         break;
       }
-      case "groupDefinition": {
-        const group = frame.value;
+      case "GroupDefinition": {
+        const group = frame.value.field0;
+        if (!group) invalid("frame payload is missing");
         const target = definitions.get(group.cardId);
         if (!target || group.ordinal !== BigInt(target.length) || !group.metadata)
           invalid("summary definition group is invalid");
@@ -804,16 +843,18 @@ export async function assembleDocument(
         definitionTiles.get(group.cardId)?.set(group.ordinal, []);
         break;
       }
-      case "tileDefinition": {
-        const tile = frame.value;
+      case "TileDefinition": {
+        const tile = frame.value.field0;
+        if (!tile) invalid("frame payload is missing");
         const target = definitionTiles.get(tile.cardId)?.get(tile.groupOrdinal);
         if (!target || tile.ordinal !== BigInt(target.length) || !tile.metadata || !tile.value)
           invalid("summary definition tile is invalid");
         target.push(tile);
         break;
       }
-      case "summaryGroup": {
-        const group = frame.value;
+      case "SummaryGroup": {
+        const group = frame.value.field0;
+        if (!group) invalid("frame payload is missing");
         const target = groups.get(group.cardId);
         if (!target || group.ordinal !== BigInt(target.length) || !group.metadata)
           invalid("summary group has no matching binding or contiguous ordinal");
@@ -821,8 +862,9 @@ export async function assembleDocument(
         tiles.get(group.cardId)?.set(group.ordinal, []);
         break;
       }
-      case "summaryTile": {
-        const tile = frame.value;
+      case "SummaryTile": {
+        const tile = frame.value.field0;
+        if (!tile) invalid("frame payload is missing");
         const target = tiles.get(tile.cardId)?.get(tile.groupOrdinal);
         if (!target || tile.ordinal !== BigInt(target.length) || !tile.metadata)
           invalid("summary tile has no matching group or contiguous ordinal");
@@ -830,16 +872,18 @@ export async function assembleDocument(
         target.push(tile);
         break;
       }
-      case "repeatSelection": {
-        const repeat = frame.value;
+      case "RepeatSelection": {
+        const repeat = frame.value.field0;
+        if (!repeat) invalid("frame payload is missing");
         if (!repeat.nodeId || repeats.has(repeat.nodeId) || repeats.size >= 4096)
           invalid("repeat selection identity is invalid");
         repeats.set(repeat.nodeId, repeat);
         instances.set(repeat.nodeId, []);
         break;
       }
-      case "repeatInstance": {
-        const instance = frame.value;
+      case "RepeatInstance": {
+        const instance = frame.value.field0;
+        if (!instance) invalid("frame payload is missing");
         const target = instances.get(instance.selectionId);
         if (
           !target ||
@@ -853,8 +897,9 @@ export async function assembleDocument(
         target.push(instance);
         break;
       }
-      case "sectionIdentity": {
-        const section = frame.value;
+      case "SectionIdentity": {
+        const section = frame.value.field0;
+        if (!section) invalid("frame payload is missing");
         if (
           !section.nodeId ||
           !section.metadata ||
@@ -866,11 +911,13 @@ export async function assembleDocument(
         sections.set(section.nodeId, section);
         break;
       }
-      case "warning":
-        warnings.push(frame.value);
+      case "Warning":
+        if (!frame.value.field0) invalid("warning payload is missing");
+        warnings.push(frame.value.field0);
         break;
-      case "completion": {
-        const value = frame.value;
+      case "Completion": {
+        const value = frame.value.field0;
+        if (!value) invalid("frame payload is missing");
         if (
           value.frameCount !== BigInt(count) ||
           value.cardCount !== BigInt(cards.size) ||
@@ -891,13 +938,13 @@ export async function assembleDocument(
   if (!complete || !header) invalid("transfer ended before completion");
   for (const [id, card] of cards) {
     if (
-      card.body.case === "table" &&
-      card.body.value.rowCount !== BigInt(rows.get(id)?.length ?? 0)
+      card.body?.HarmosVariant.case === "Table" &&
+      card.body.HarmosVariant.value.field0?.rowCount !== BigInt(rows.get(id)?.length ?? 0)
     )
       invalid("table row count is incomplete");
-    if (card.body.case === "summary") {
+    if (card.body?.HarmosVariant.case === "Summary") {
       const entries = definitions.get(id) ?? [];
-      if (card.body.value.groupCount !== BigInt(entries.length))
+      if (card.body.HarmosVariant.value.field0?.groupCount !== BigInt(entries.length))
         invalid("summary definition group count is incomplete");
       for (const group of entries)
         if (group.tileCount !== BigInt(definitionTiles.get(id)?.get(group.ordinal)?.length ?? 0))
@@ -905,9 +952,9 @@ export async function assembleDocument(
     }
   }
   for (const [id, binding] of bindings) {
-    if (binding.result.case !== "summary") continue;
+    if (binding.result?.HarmosVariant.case !== "Summary") continue;
     const entries = groups.get(id) ?? [];
-    if (binding.result.value.groupCount !== BigInt(entries.length))
+    if (binding.result.HarmosVariant.value.field0?.groupCount !== BigInt(entries.length))
       invalid("summary group count is incomplete");
     for (const group of entries)
       if (group.tileCount !== BigInt(tiles.get(id)?.get(group.ordinal)?.length ?? 0))
@@ -917,7 +964,11 @@ export async function assembleDocument(
     if (repeat.instanceCount !== BigInt(instances.get(id)?.length ?? 0))
       invalid("repeat instance count is incomplete");
   for (const node of layout)
-    if (node.node.case === "placement" && !cards.has(node.node.value.cardId))
+    if (
+      node.node?.HarmosVariant.case === "Placement" &&
+      (!node.node.HarmosVariant.value.field0 ||
+        !cards.has(node.node.HarmosVariant.value.field0.cardId))
+    )
       invalid("layout references a missing source card");
   return {
     header,

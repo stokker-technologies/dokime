@@ -131,7 +131,18 @@ impl Prepared {
 
     pub async fn finish(&mut self) -> Result<StorageCursor> {
         if self.schema_position.is_none() {
-            self.schema_position = Some(self.manager.write_schema(&self.schema, fields()).await?);
+            let graph = harmos::schema::graph::Schema::from_declaration(
+                Publication::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .map_err(|error| {
+                harmos::Error::backend(
+                    "prepare report schema",
+                    harmos::BackendFailure::Permanent,
+                    error,
+                )
+            })?;
+            self.schema_position = Some(self.manager.write_schema(&self.schema, &graph).await?);
         }
         if self.position.is_none() {
             self.position = Some(
@@ -478,10 +489,6 @@ pub fn schema() -> SchemaKey {
         id: Identifier::new("dokime.report.publication").unwrap(),
         version: 1.try_into().unwrap(),
     }
-}
-
-pub fn fields() -> &'static [harmos::schema::Field] {
-    Publication::FIELDS
 }
 
 pub fn query(owner: Owner<'_>, report: Option<Identifier>) -> RecordQuery<Publication> {

@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+pub use dokime_contract::execution::ExecutionMode;
 
 /* === Imports === */
 // Standard Library Imports
@@ -186,14 +187,6 @@ pub struct ExecutionInvalidation {
 }
 
 /* === Enums === */
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ExecutionMode {
-    #[default]
-    Automatic,
-    Interactive,
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleStatus {
@@ -650,15 +643,6 @@ impl harmos::MemorySize for TestCycle {
                     bytes.saturating_add(owned.saturating_sub(inline))
                 }
             })
-    }
-}
-
-impl ExecutionMode {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Automatic => "automatic",
-            Self::Interactive => "interactive",
-        }
     }
 }
 

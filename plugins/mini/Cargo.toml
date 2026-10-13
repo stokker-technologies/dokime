@@ -37,7 +37,7 @@ tokio = { workspace = true, default-features = true }
 
 [dev-dependencies]
 # Git
-harmos = { workspace = true, features = ["sidecar-host"] }
+harmos = { workspace = true, features = ["plugin-sidecar"] }
 
 # Utilities
 sha2 = { workspace = true }

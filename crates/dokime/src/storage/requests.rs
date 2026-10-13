@@ -525,10 +525,6 @@ pub fn schema() -> SchemaKey {
     }
 }
 
-pub fn fields() -> &'static [harmos::schema::Field] {
-    Request::FIELDS
-}
-
 pub fn encode(receipt: &RunReceipt, max_bytes: usize) -> Result<Vec<u8>> {
     receipt.summary.accepted_at.to_datetime()?;
     if let Some(timestamp) = &receipt.summary.provider_started_at {

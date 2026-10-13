@@ -14,16 +14,24 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, sync::Arc};
 
 // Third Party Imports
-use prost::Message;
+use harmos::{
+    Protobuf,
+    operations::{Context, Operation, Response},
+};
 use tonic::{Code, Status};
 
 // Local Imports
-use super::super::value::projection;
+use super::super::{
+    telemetry::projection as samples,
+    value::{self, projection},
+};
+use super::wire;
+use dokime_app::RuntimeHandle;
 use dokime_app::runtime::query::checkpoint_telemetry::ExecutionTelemetryPage;
-use dokime_protocol::v1;
+use dokime_contract::operations::history as contract;
 
 /* === Constants === */
 
@@ -32,6 +40,13 @@ use dokime_protocol::v1;
 /* === Type Aliases === */
 
 /* === Structs === */
+struct Resources {
+    runtime: RuntimeHandle,
+    maximum: usize,
+}
+struct List {
+    resources: Arc<Resources>,
+}
 
 /* === Enums === */
 
@@ -39,12 +54,53 @@ use dokime_protocol::v1;
 
 /* === Implementations === */
 
+impl Operation for List {
+    type Declaration = contract::ListCheckpointTelemetry;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut contract::ListCheckpointTelemetryRequest,
+        _: &mut (),
+    ) -> Result<Response<contract::CheckpointTelemetryPage>, Status> {
+        value::text(&request.table)?;
+        value::text(&request.after)?;
+        let stream = dokime_app::core::Identifier::new(std::mem::take(&mut request.table))
+            .map_err(|_| {
+                Status::invalid_argument("native telemetry stream identifier is required")
+            })?;
+        let checkpoint = wire::checkpoint(request.checkpoint.take())?;
+        let query = dokime_app::runtime::query::checkpoint_telemetry::ExecutionTelemetryQuery {
+            after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),
+            limit: (request.limit != 0).then_some(request.limit as usize),
+        };
+        self.resources
+            .runtime
+            .execution_checkpoint_telemetry_projected(
+                checkpoint,
+                &stream,
+                query,
+                |page, allowance| project(page, allowance, self.resources.maximum),
+            )
+            .await
+            .map_err(wire::query_failure)?
+            .try_into_response()
+            .map_err(|source| wire::query_failure(source.into()))
+    }
+}
+
 /* === Public Functions === */
-pub(super) fn encode(
+fn project(
     page: &ExecutionTelemetryPage,
     allowance: NonZeroUsize,
     maximum: usize,
-) -> harmos::Result<Vec<u8>> {
+) -> harmos::Result<contract::CheckpointTelemetryPage> {
     // The Original Native Page Remains Charged Separately. These Bounds Admit
     // Every Wire Slot And Copied Field Before Constructing The Target Graph.
     let graph = graph_memory(page)?;
@@ -53,17 +109,21 @@ pub(super) fn encode(
     }
     let mut records = projection::slots(page.rows.len())?;
     for row in &page.rows {
-        records.push(super::wire::telemetry_row(row).map_err(original_error)?);
+        records.push(contract::SavedTelemetrySample {
+            epoch: projection::text(row.epoch.as_str())?,
+            ordinal: row.ordinal,
+            sample: Some(samples::sample(&row.sample).map_err(original_error)?),
+        });
     }
     let mut issues = projection::slots(page.issues.len())?;
     for issue in &page.issues {
-        issues.push(v1::HistoryIssue {
+        issues.push(contract::HistoryIssue {
             source: issue.source.as_deref().map(projection::text).transpose()?,
             dataset: issue.dataset.as_deref().map(projection::text).transpose()?,
             message: projection::text(&issue.message)?,
         });
     }
-    let wire = v1::CheckpointTelemetryPage {
+    let wire = contract::CheckpointTelemetryPage {
         checkpoint: Some(
             super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?,
         ),
@@ -73,34 +133,36 @@ pub(super) fn encode(
         issues,
         issues_truncated: page.issues_truncated,
     };
-    let length = wire.encoded_len();
-    let peak = graph
-        .checked_add(std::mem::size_of::<Vec<u8>>())
-        .and_then(|bytes| bytes.checked_add(length))
-        .ok_or_else(exhausted)?;
-    if peak > allowance.get() || length > maximum {
+    if wire.encoded_len() > maximum {
         return Err(exhausted());
     }
-    let mut bytes = projection::slots(length)?;
-    wire.encode(&mut bytes).map_err(|_| invalid())?;
-    if bytes.len() != length || bytes.capacity() > length {
-        return Err(invalid());
-    }
-    Ok(bytes)
+    Ok(wire)
+}
+
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    runtime.operations().register_wire_operation::<List>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            maximum,
+        }),
+    )?;
+    Ok(())
 }
 
 /* === Private Functions === */
 fn graph_memory(page: &ExecutionTelemetryPage) -> harmos::Result<usize> {
     let checkpoint = &page.checkpoint;
-    let mut bytes = std::mem::size_of::<v1::CheckpointTelemetryPage>();
+    let mut bytes = std::mem::size_of::<contract::CheckpointTelemetryPage>();
     for value in [
         page.rows
             .len()
-            .checked_mul(std::mem::size_of::<v1::SavedTelemetrySample>())
+            .checked_mul(std::mem::size_of::<contract::SavedTelemetrySample>())
             .ok_or_else(exhausted)?,
         page.issues
             .len()
-            .checked_mul(std::mem::size_of::<v1::HistoryIssue>())
+            .checked_mul(std::mem::size_of::<contract::HistoryIssue>())
             .ok_or_else(exhausted)?,
         page.table.len(),
         checkpoint.execution_id.as_str().len(),
@@ -114,7 +176,11 @@ fn graph_memory(page: &ExecutionTelemetryPage) -> harmos::Result<usize> {
         bytes = bytes.checked_add(value).ok_or_else(exhausted)?;
     }
     for row in &page.rows {
-        let row_memory = super::wire::telemetry_memory(row).map_err(original_error)?;
+        let row_memory = row
+            .epoch
+            .as_str()
+            .len()
+            .saturating_add(samples::memory(&row.sample).map_err(original_error)?);
         bytes = bytes.checked_add(row_memory).ok_or_else(exhausted)?;
     }
     for issue in &page.issues {
@@ -143,11 +209,4 @@ fn exhausted() -> harmos::Error {
         resource: "canonical saved telemetry page",
     }
 }
-fn invalid() -> harmos::Error {
-    harmos::Error::InvalidInput {
-        field: "canonical saved telemetry page",
-        reason: "encoded length differs",
-    }
-}
-
 /* === Tests === */

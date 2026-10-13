@@ -25,9 +25,22 @@
 
 import { NativeApiUnsupportedError } from "@/lib/api/native-values";
 import * as rpc from "@/lib/rpc/generated/client";
-import { LogLevel } from "@/lib/rpc/generated/dokime/v1/backend_pb";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { HubRecord, Severity } from "@/lib/types";
+
+/* === Constants === */
+
+const MIN_LEVEL: Record<InstanceLogLevel, LogLevel> = {
+  debug: { HarmosVariant: { case: "Debug", value: {} } },
+  error: { HarmosVariant: { case: "Error", value: {} } },
+  info: { HarmosVariant: { case: "Info", value: {} } },
+  trace: { HarmosVariant: { case: "Trace", value: {} } },
+  warning: { HarmosVariant: { case: "Warn", value: {} } },
+};
+
+/* === Types === */
+
+type LogLevel = Parameters<typeof rpc.backendWatchLogs>[1]["minLevel"];
 
 /* === Types === */
 
@@ -44,16 +57,6 @@ export type InstanceLogFrame = {
   fields: Record<string, string>;
   /** Cumulative count of matching lines the client fell behind on. */
   dropped: number;
-};
-
-/* === Constants === */
-
-const MIN_LEVEL: Record<InstanceLogLevel, LogLevel> = {
-  debug: LogLevel.DEBUG,
-  error: LogLevel.ERROR,
-  info: LogLevel.INFO,
-  trace: LogLevel.TRACE,
-  warning: LogLevel.WARN,
 };
 
 /* === Public Functions === */
@@ -85,7 +88,7 @@ export async function openInstanceLogStream(
       for await (const frame of reader) {
         yield {
           dropped: Number(frame.dropped),
-          fields: { ...frame.fields },
+          fields: Object.fromEntries(frame.fields.map(({ key, value }) => [key, value])),
           level: logSeverity(frame.level),
           message: frame.message,
           target: frame.target,
@@ -115,13 +118,13 @@ export function instanceLogRecord(frame: InstanceLogFrame, sequence: number): Hu
 
 /** Trace has no projection of its own; it reads as the debug row it is. */
 function logSeverity(level: LogLevel): Severity {
-  switch (level) {
-    case LogLevel.ERROR:
+  switch (level?.HarmosVariant?.case) {
+    case "Error":
       return "error";
-    case LogLevel.WARN:
+    case "Warn":
       return "warning";
-    case LogLevel.DEBUG:
-    case LogLevel.TRACE:
+    case "Debug":
+    case "Trace":
       return "debug";
     default:
       return "info";

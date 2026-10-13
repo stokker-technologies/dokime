@@ -20,7 +20,6 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
 use dokime_app::capabilities::installed_plugins::{ResolvedBrand, load_brand};
-use dokime_protocol::v1::{appearance_client::AppearanceClient, content_client::ContentClient};
 
 /* === Constants === */
 
@@ -47,7 +46,7 @@ fn brand(path: &std::path::Path) -> ResolvedBrand {
     brand
 }
 
-fn failure(status: tonic::Status, code: Code, kind: v1::AppearanceFailureKind) {
+fn failure(status: tonic::Status, code: Code, kind: contracts::appearance::AppearanceFailureKind) {
     assert_eq!(status.code(), code);
     let envelope = tonic_types::Status::decode(status.details()).unwrap();
     assert_eq!(envelope.code, code as i32);
@@ -56,9 +55,11 @@ fn failure(status: tonic::Status, code: Code, kind: v1::AppearanceFailureKind) {
         "type.googleapis.com/dokime.v1.AppearanceFailure"
     );
     assert_eq!(
-        v1::AppearanceFailure::decode(envelope.details[0].value.as_slice())
-            .unwrap()
-            .kind(),
+        <contracts::appearance::AppearanceFailure as harmos::Protobuf>::decode(
+            envelope.details[0].value.as_slice()
+        )
+        .unwrap()
+        .kind,
         kind
     );
 }
@@ -79,15 +80,13 @@ pub(crate) async fn appearance_asset_bound() {
     )
     .await
     .unwrap();
-    let mut appearance = AppearanceClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
-    let mut content = ContentClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let appearance = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let content = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         appearance
-            .get_appearance(v1::GetAppearanceRequest {})
+            .unary::<contracts::appearance::GetAppearance>(
+                contracts::appearance::GetAppearanceRequest {}
+            )
             .await
             .unwrap_err()
             .code(),
@@ -95,14 +94,18 @@ pub(crate) async fn appearance_asset_bound() {
     );
     assert_eq!(
         content
-            .download_appearance_asset(v1::DownloadAppearanceAssetRequest { reference: None })
+            .download::<contracts::content::DownloadAppearanceAsset>(
+                contracts::content::DownloadAppearanceAssetRequest { reference: None }
+            )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
     let actual = appearance
-        .get_appearance(authenticated(v1::GetAppearanceRequest {}))
+        .unary::<contracts::appearance::GetAppearance>(authenticated(
+            contracts::appearance::GetAppearanceRequest {},
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -118,16 +121,29 @@ pub(crate) async fn appearance_asset_bound() {
     );
     assert_eq!(actual.theme_family_locked, expected.theme_family_locked);
     assert_eq!(actual.mode_locked, expected.mode_locked);
-    assert_eq!(actual.mode_policy, v1::ThemeModePolicy::UserOrSystem as i32);
+    assert_eq!(
+        actual.mode_policy,
+        contracts::appearance::ThemeModePolicy::UserOrSystem
+    );
     assert_eq!(actual.source_plugin_id.as_deref(), Some("brand"));
     assert_eq!(actual.themes.len(), expected.themes.len());
     let theme = &actual.themes[0];
     assert_eq!(theme.stylesheet, expected.themes[0].stylesheet);
-    assert_eq!(theme.variables, expected.themes[0].variables);
-    assert_eq!(
-        theme.light.as_ref().unwrap().variables,
-        expected.themes[0].light.variables
-    );
+    let family_variables: std::collections::BTreeMap<_, _> = theme
+        .variables
+        .iter()
+        .map(|entry| (entry.key.clone(), entry.value.clone()))
+        .collect();
+    assert_eq!(family_variables, expected.themes[0].variables);
+    let light_variables: std::collections::BTreeMap<_, _> = theme
+        .light
+        .as_ref()
+        .unwrap()
+        .variables
+        .iter()
+        .map(|entry| (entry.key.clone(), entry.value.clone()))
+        .collect();
+    assert_eq!(light_variables, expected.themes[0].light.variables);
     assert_eq!(
         theme.dark.as_ref().unwrap().plot_palette,
         expected.themes[0].dark.plot_palette
@@ -150,30 +166,34 @@ pub(crate) async fn appearance_asset_bound() {
     );
     failure(
         content
-            .download_appearance_asset(authenticated(v1::DownloadAppearanceAssetRequest {
-                reference: Some(v1::AppearanceAssetReference {
-                    plugin_id: "unselected.owner".into(),
-                    ..reference.clone()
-                }),
-            }))
+            .download::<contracts::content::DownloadAppearanceAsset>(authenticated(
+                contracts::content::DownloadAppearanceAssetRequest {
+                    reference: Some(contracts::appearance::AppearanceAssetReference {
+                        plugin_id: "unselected.owner".into(),
+                        ..reference.clone()
+                    }),
+                },
+            ))
             .await
             .unwrap_err(),
         Code::NotFound,
-        v1::AppearanceFailureKind::AssetMissing,
+        contracts::appearance::AppearanceFailureKind::AssetMissing,
     );
     let request = || {
-        authenticated(v1::DownloadAppearanceAssetRequest {
+        authenticated(contracts::content::DownloadAppearanceAssetRequest {
             reference: Some(reference.clone()),
         })
     };
     let mut stream = content
-        .download_appearance_asset(request())
+        .download::<contracts::content::DownloadAppearanceAsset>(request())
         .await
         .unwrap()
         .into_inner();
     assert_eq!(
         stream.message().await.unwrap().unwrap().payload,
-        Some(v1::appearance_asset_frame::Payload::Metadata(metadata))
+        Some(contracts::content::AppearanceAssetFramePayload::Metadata(
+            metadata
+        ))
     );
     // Once admitted, changing the source cannot mix bytes into this transfer.
     std::fs::write(&path, b"changed").unwrap();
@@ -181,13 +201,13 @@ pub(crate) async fn appearance_asset_bound() {
     let mut complete = false;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.payload.unwrap() {
-            v1::appearance_asset_frame::Payload::Chunk(chunk) => {
+            contracts::content::AppearanceAssetFramePayload::Chunk(chunk) => {
                 assert!(!complete);
                 assert_eq!(chunk.offset, received.len() as u64);
                 assert!(chunk.data.len() <= 64 * 1024);
                 received.extend(chunk.data);
             }
-            v1::appearance_asset_frame::Payload::Complete(value) => {
+            contracts::content::AppearanceAssetFramePayload::Complete(value) => {
                 assert!(!complete);
                 assert_eq!(value.size_bytes, bytes.len() as u64);
                 assert_eq!(value.sha256, reference.sha256);
@@ -200,33 +220,35 @@ pub(crate) async fn appearance_asset_bound() {
     assert_eq!(received, bytes);
     failure(
         content
-            .download_appearance_asset(request())
+            .download::<contracts::content::DownloadAppearanceAsset>(request())
             .await
             .unwrap_err(),
         Code::FailedPrecondition,
-        v1::AppearanceFailureKind::AssetChanged,
+        contracts::appearance::AppearanceFailureKind::AssetChanged,
     );
     std::fs::remove_file(&path).unwrap();
     failure(
         content
-            .download_appearance_asset(request())
+            .download::<contracts::content::DownloadAppearanceAsset>(request())
             .await
             .unwrap_err(),
         Code::NotFound,
-        v1::AppearanceFailureKind::AssetMissing,
+        contracts::appearance::AppearanceFailureKind::AssetMissing,
     );
     failure(
         content
-            .download_appearance_asset(authenticated(v1::DownloadAppearanceAssetRequest {
-                reference: Some(v1::AppearanceAssetReference {
-                    asset_id: "../logo".into(),
-                    ..reference
-                }),
-            }))
+            .download::<contracts::content::DownloadAppearanceAsset>(authenticated(
+                contracts::content::DownloadAppearanceAssetRequest {
+                    reference: Some(contracts::appearance::AppearanceAssetReference {
+                        asset_id: "../logo".into(),
+                        ..reference
+                    }),
+                },
+            ))
             .await
             .unwrap_err(),
         Code::InvalidArgument,
-        v1::AppearanceFailureKind::InvalidReference,
+        contracts::appearance::AppearanceFailureKind::InvalidReference,
     );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
@@ -243,16 +265,16 @@ pub(crate) async fn appearance_refuses_transfer() {
     let server = Server::start(owner.handle(), Config::local())
         .await
         .unwrap();
-    let mut client = AppearanceClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     failure(
         client
-            .get_appearance(v1::GetAppearanceRequest {})
+            .unary::<contracts::appearance::GetAppearance>(
+                contracts::appearance::GetAppearanceRequest {},
+            )
             .await
             .unwrap_err(),
         Code::ResourceExhausted,
-        v1::AppearanceFailureKind::TooLarge,
+        contracts::appearance::AppearanceFailureKind::TooLarge,
     );
     // Source preflight also bounds CSS independently of a missing logo file.
     std::fs::remove_file(path).unwrap();
@@ -260,11 +282,13 @@ pub(crate) async fn appearance_refuses_transfer() {
     owner.handle().set_brand(Some(selected));
     failure(
         client
-            .get_appearance(v1::GetAppearanceRequest {})
+            .unary::<contracts::appearance::GetAppearance>(
+                contracts::appearance::GetAppearanceRequest {},
+            )
             .await
             .unwrap_err(),
         Code::ResourceExhausted,
-        v1::AppearanceFailureKind::TooLarge,
+        contracts::appearance::AppearanceFailureKind::TooLarge,
     );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

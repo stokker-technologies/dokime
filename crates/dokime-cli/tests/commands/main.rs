@@ -20,8 +20,8 @@ use std::io::Write;
 use clap::Parser;
 
 // Local Imports
-use dokime::client::operations::Error as OperationError;
 use dokime_cli::{Cli, Error};
+use dokime_client::profiles::Store;
 
 /* === Constants === */
 
@@ -44,8 +44,76 @@ use dokime_cli::{Cli, Error};
 /* === Tests === */
 
 pub(crate) async fn json_files_connection() {
+    assert!(Cli::try_parse_from(["dokime", "serve"]).is_err());
+    for arguments in [
+        vec!["plan", "preview", "--suite-id", "suite"],
+        vec![
+            "plan",
+            "preview",
+            "--input-file",
+            "request.json",
+            "--case-id",
+            "case",
+        ],
+        vec![
+            "plan",
+            "preview",
+            "--case-id",
+            "case",
+            "--selection-json",
+            "{}",
+        ],
+        vec![
+            "plan",
+            "register",
+            "--input-file",
+            "request.json",
+            "--request-key",
+            "plan-1",
+        ],
+        vec![
+            "cycle",
+            "create",
+            "--input-file",
+            "request.json",
+            "--label",
+            "Override",
+        ],
+    ] {
+        assert!(Cli::try_parse_from(std::iter::once("dokime").chain(arguments)).is_err());
+    }
+    // Dynamic Calls Accept Providers Absent From The Compiled Product Catalog.
+    assert!(
+        Cli::try_parse_from([
+            "dokime",
+            "operation",
+            "call",
+            "external.plugin.exchange",
+            "--owner",
+            "external-plugin",
+            "--input-stream-file",
+            "frames.jsonl",
+            "--json",
+            "--endpoint",
+            "http://127.0.0.1:8765",
+        ])
+        .is_ok()
+    );
+    assert!(
+        Cli::try_parse_from([
+            "dokime",
+            "operation",
+            "show",
+            "external.plugin.exchange",
+            "--owner",
+            "external-plugin",
+            "--json",
+        ])
+        .is_ok()
+    );
+
     let mut file = tempfile::NamedTempFile::new().unwrap();
-    file.write_all(b"{\"unexpected\":true}").unwrap();
+    file.write_all(b"{broken-json").unwrap();
     let args = Cli::try_parse_from([
         "dokime",
         "operation",
@@ -57,10 +125,7 @@ pub(crate) async fn json_files_connection() {
         file.path().to_str().unwrap(),
     ])
     .unwrap();
-    assert!(matches!(
-        args.run().await,
-        Err(Error::Operation(OperationError::Input(_)))
-    ));
+    assert!(matches!(args.run().await, Err(Error::Input(_))));
 
     let args = Cli::try_parse_from([
         "dokime",
@@ -71,10 +136,20 @@ pub(crate) async fn json_files_connection() {
         "invalid-endpoint",
     ])
     .unwrap();
-    assert!(matches!(
-        args.run().await,
-        Err(Error::Operation(OperationError::Unknown(_)))
-    ));
+    assert!(matches!(args.run().await, Err(Error::Client(_))));
+
+    let args = Cli::try_parse_from([
+        "dokime",
+        "operation",
+        "call",
+        "dokime.evidence.watch_records",
+        "--endpoint",
+        "invalid-endpoint",
+    ])
+    .unwrap();
+    let refused = args.run().await.unwrap_err();
+    assert_eq!(refused.exit_code(), std::process::ExitCode::from(2));
+    assert!(matches!(refused, Error::Client(_)));
 
     for arguments in [
         vec!["cycle", "run", "invalid", "--request-key", "run-1"],
@@ -86,6 +161,60 @@ pub(crate) async fn json_files_connection() {
             " ",
         ],
         vec!["cycle", "request", "invalid"],
+        vec!["cycle", "stop", "invalid"],
+        vec!["plan", "preview", "--case-id", "invalid"],
+        vec![
+            "plan",
+            "preview",
+            "--selection-json",
+            "{\"unexpected\":true}",
+        ],
+        vec![
+            "plan",
+            "register",
+            "--case-id",
+            "invalid",
+            "--request-key",
+            "plan-1",
+        ],
+        vec![
+            "plan",
+            "register",
+            "--suite-id",
+            "suite",
+            "--template-id",
+            "template",
+            "--request-key",
+            " ",
+        ],
+        vec![
+            "plan",
+            "preview",
+            "--input-file",
+            file.path().to_str().unwrap(),
+        ],
+        vec![
+            "plan",
+            "register",
+            "--input-file",
+            file.path().to_str().unwrap(),
+        ],
+        vec![
+            "cycle",
+            "create",
+            "--input-file",
+            file.path().to_str().unwrap(),
+        ],
+        vec![
+            "cycle",
+            "create",
+            "--case-id",
+            "invalid",
+            "--identifier",
+            "test",
+            "--label",
+            "Test",
+        ],
         vec![
             "cycle",
             "request",
@@ -110,6 +239,167 @@ pub(crate) async fn json_files_connection() {
     }
 }
 
+pub(crate) async fn offline_backend_profiles() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("backends.json");
+    let filename = path.to_str().unwrap();
+    let command = |arguments: &[&str]| {
+        Cli::try_parse_from(std::iter::once("dokime").chain(arguments.iter().copied())).unwrap()
+    };
+    command(&["backend", "list", "--profiles-file", filename, "--json"])
+        .run()
+        .await
+        .unwrap();
+    assert!(!path.exists());
+    let invalid = command(&[
+        "backend",
+        "add",
+        "lab",
+        "--endpoint",
+        "http://remote.example",
+        "--profiles-file",
+        filename,
+    ]);
+    assert_eq!(
+        invalid.run().await.unwrap_err().exit_code(),
+        std::process::ExitCode::from(2)
+    );
+    assert!(!path.exists());
+    command(&[
+        "backend",
+        "add",
+        "lab",
+        "--endpoint",
+        "http://127.0.0.1:8765",
+        "--profiles-file",
+        filename,
+    ])
+    .run()
+    .await
+    .unwrap();
+    let original = std::fs::read(&path).unwrap();
+    let duplicate = command(&[
+        "backend",
+        "add",
+        "lab",
+        "--endpoint",
+        "http://127.0.0.1:9000",
+        "--profiles-file",
+        filename,
+    ]);
+    assert!(matches!(duplicate.run().await, Err(Error::Input(_))));
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+    command(&["backend", "use", "lab", "--profiles-file", filename])
+        .run()
+        .await
+        .unwrap();
+    assert_eq!(
+        Store::new(&path).load().unwrap().default.as_deref(),
+        Some("lab")
+    );
+    command(&[
+        "backend",
+        "show",
+        "lab",
+        "--profiles-file",
+        filename,
+        "--json",
+    ])
+    .run()
+    .await
+    .unwrap();
+    let selected = std::fs::read(&path).unwrap();
+    assert!(matches!(
+        command(&["backend", "use", "unknown", "--profiles-file", filename])
+            .run()
+            .await,
+        Err(Error::Input(_))
+    ));
+    assert_eq!(std::fs::read(&path).unwrap(), selected);
+    command(&["backend", "remove", "lab", "--profiles-file", filename])
+        .run()
+        .await
+        .unwrap();
+    let document = Store::new(&path).load().unwrap();
+    assert!(document.default.is_none());
+    assert!(document.profiles.is_empty());
+}
+
+pub(crate) async fn authentication_inputs_precede_external_operations() {
+    assert!(
+        Cli::try_parse_from([
+            "dokime",
+            "status",
+            "--backend",
+            "lab",
+            "--endpoint",
+            "http://127.0.0.1"
+        ])
+        .is_err()
+    );
+    assert!(
+        Cli::try_parse_from([
+            "dokime",
+            "status",
+            "--backend",
+            "lab",
+            "--ca",
+            "missing.pem"
+        ])
+        .is_err()
+    );
+    assert!(
+        Cli::try_parse_from([
+            "dokime",
+            "status",
+            "--backend",
+            "lab",
+            "--expected-backend",
+            "machine"
+        ])
+        .is_err()
+    );
+    assert!(
+        Cli::try_parse_from([
+            "dokime",
+            "status",
+            "--endpoint",
+            "http://127.0.0.1",
+            "--timeout-seconds",
+            "0"
+        ])
+        .is_err()
+    );
+    let login =
+        Cli::try_parse_from(["dokime", "auth", "login", "--endpoint", "http://127.0.0.1"]).unwrap();
+    assert!(matches!(login.run().await, Err(Error::Input(_))));
+    let logout = Cli::try_parse_from([
+        "dokime",
+        "auth",
+        "logout",
+        "--endpoint",
+        "http://127.0.0.1",
+        "--token-file",
+        "missing-token",
+    ])
+    .unwrap();
+    assert!(matches!(logout.run().await, Err(Error::Input(_))));
+    let check = Error::Check(Box::new(Error::Client(
+        dokime_client::Error::IncompatibleApi,
+    )));
+    assert_eq!(check.exit_code(), std::process::ExitCode::from(1));
+    let exhausted = dokime_client::Error::Rpc(tonic::Status::resource_exhausted("response budget"));
+    assert_eq!(
+        Error::Client(exhausted).exit_code(),
+        std::process::ExitCode::from(4)
+    );
+    let exhausted = dokime_client::Error::Rpc(tonic::Status::resource_exhausted("response budget"));
+    assert_eq!(
+        Error::Operation(exhausted.into()).exit_code(),
+        std::process::ExitCode::from(4)
+    );
+}
+
 fn fresh_runtime(
     multithread: bool,
     threads: Option<usize>,
@@ -130,6 +420,15 @@ fn domain_contract() {
     {
         eprintln!("Scenario: json_files_connection");
         run_scenario(json_files_connection, false, None, false);
+        eprintln!("Scenario: offline_backend_profiles");
+        run_scenario(offline_backend_profiles, false, None, false);
+        eprintln!("Scenario: authentication_inputs_precede_external_operations");
+        run_scenario(
+            authentication_inputs_precede_external_operations,
+            false,
+            None,
+            false,
+        );
     }
 }
 

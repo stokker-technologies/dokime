@@ -526,8 +526,7 @@ pub(crate) async fn private_import_abort() {
                 id: harmos::Identifier::new("fixture.import").unwrap(),
                 version: std::num::NonZeroU32::MIN,
             },
-            vec![],
-            harmos::storage::SchemaEncoding::Inline,
+            super::storage::graph(vec![]),
         );
         let schemas = [schema];
         let parts = [StoragePart::Schemas(&schemas)];
@@ -666,8 +665,7 @@ pub(crate) async fn failed_private_fence() {
             id: harmos::Identifier::new("fixture.import").unwrap(),
             version: std::num::NonZeroU32::MIN,
         },
-        vec![],
-        harmos::storage::SchemaEncoding::Inline,
+        super::storage::graph(vec![]),
     )];
     let parts = [StoragePart::Schemas(&schemas)];
     let batch = StorageBatch::new(&parts, NonZeroUsize::new(4096).unwrap()).unwrap();
@@ -712,8 +710,7 @@ pub(crate) async fn private_rows_atomically() {
             sequence: 1,
         },
         key.clone(),
-        vec![],
-        harmos::storage::SchemaEncoding::Inline,
+        super::storage::graph(vec![]),
     )];
     let records = [StoredRecord {
         position: StorageCursor {
@@ -1206,10 +1203,10 @@ pub(crate) async fn private_manifest_schema() {
                 id: harmos::Identifier::new("fixture.dependency").unwrap(),
                 version: std::num::NonZeroU32::MIN,
             };
-            let field = harmos::schema::Field {
+            let field = harmos::schema::graph::Field {
                 name: "value".into(),
                 tag: 1,
-                kind: harmos::schema::Kind::U64,
+                kind: harmos::schema::graph::Kind::U64,
                 cardinality: harmos::schema::Cardinality::Required,
             };
             let schemas = [StorageSchema::new(
@@ -1218,12 +1215,11 @@ pub(crate) async fn private_manifest_schema() {
                     sequence: schema_position,
                 },
                 key.clone(),
-                if valid {
+                super::storage::graph(if valid {
                     vec![field]
                 } else {
                     vec![field.clone(), field]
-                },
-                harmos::storage::SchemaEncoding::Inline,
+                }),
             )];
             let records = [StoredRecord {
                 position: StorageCursor {
@@ -1326,8 +1322,7 @@ pub(crate) async fn private_import_floor() {
                 sequence: 1,
             },
             key.clone(),
-            vec![],
-            harmos::storage::SchemaEncoding::Inline,
+            super::storage::graph(vec![]),
         )];
         let records = [StoredRecord {
             position: identity.cut().clone(),

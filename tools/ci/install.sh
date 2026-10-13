@@ -23,14 +23,10 @@ if [ -n "${GITHUB_PATH:-}" ]; then
 fi
 mise trust mise.toml
 mise install --locked python uv
-mise run --skip-tools ci:bootstrap
-mise install --locked
-git diff --exit-code -- mise.lock
-mise exec -- rustc --version
-mise exec -- cargo --version
-mise exec -- python --version
-mise exec -- uv --version
-mise exec -- node --version
-mise exec -- pnpm --version
-
-mise run sync
+role=${DOKIME_CI_ROLE:-check}
+case "$role" in
+    build|test|coverage) gui=--gui-packages ;;
+    check|contracts|catalog|javascript|publish) gui= ;;
+    *) printf '%s\n' "Unknown CI role: $role" >&2; exit 1 ;;
+esac
+mise exec -- python tools/python/src/dokime_tools/ci/bootstrap.py $gui --role "$role"

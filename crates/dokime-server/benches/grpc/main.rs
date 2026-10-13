@@ -20,9 +20,8 @@ use anyhow::{Context, Result, bail};
 use criterion::{Criterion, criterion_group, criterion_main};
 use serde::Serialize;
 use tokio::task::JoinSet;
-use tonic::{Request, transport::Channel};
 // Local Imports
-use dokime_protocol::v1::{self, observation_client::ObservationClient};
+use dokime_client::{Client, Target, contracts::observation::GetRuntimeShellRequest};
 
 /* === Constants === */
 const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:5173";
@@ -136,15 +135,18 @@ async fn run_probe(args: &Args) -> Result<ProbeSummary> {
     let endpoint = args.endpoint.trim_end_matches('/').to_owned();
     let client = tokio::time::timeout(
         REQUEST_TIMEOUT,
-        ObservationClient::connect(endpoint.clone()),
+        Client::connect(
+            Target::new(endpoint.clone(), None)?,
+            args.bearer_token.as_deref(),
+            None,
+        ),
     )
     .await
     .context("native gRPC benchmark connection timed out")?
     .context("failed to connect native gRPC benchmark client")?;
 
     for _ in 0..args.warmup_requests {
-        let sample =
-            get_runtime_shell(client.clone(), args.page_items, args.bearer_token.clone()).await;
+        let sample = get_runtime_shell(client.clone(), args.page_items).await;
         if !sample.ok {
             bail!(
                 "native gRPC benchmark warmup failed: {}",
@@ -158,19 +160,14 @@ async fn run_probe(args: &Args) -> Result<ProbeSummary> {
     run_probe_windowed(args, client, endpoint).await
 }
 
-async fn run_probe_windowed(
-    args: &Args,
-    client: ObservationClient<Channel>,
-    endpoint: String,
-) -> Result<ProbeSummary> {
+async fn run_probe_windowed(args: &Args, client: Client, endpoint: String) -> Result<ProbeSummary> {
     let started = Instant::now();
     let mut samples = Vec::with_capacity(args.requests);
     let mut requests = JoinSet::new();
     for _ in 0..args.requests {
         let client = client.clone();
-        let bearer_token = args.bearer_token.clone();
         let page_items = args.page_items;
-        requests.spawn(async move { get_runtime_shell(client, page_items, bearer_token).await });
+        requests.spawn(async move { get_runtime_shell(client, page_items).await });
         if requests.len() >= args.concurrency {
             samples.push(
                 requests
@@ -192,31 +189,17 @@ async fn run_probe_windowed(
     ))
 }
 
-async fn get_runtime_shell(
-    mut client: ObservationClient<Channel>,
-    page_items: u32,
-    bearer_token: Option<String>,
-) -> ProbeSample {
+async fn get_runtime_shell(client: Client, page_items: u32) -> ProbeSample {
     let started = Instant::now();
-    let mut request = Request::new(v1::GetRuntimeShellRequest {
+    let request = GetRuntimeShellRequest {
         limit: page_items,
         ..Default::default()
-    });
-    if let Some(token) = bearer_token {
-        let value = match format!("Bearer {token}").parse() {
-            Ok(value) => value,
-            Err(error) => {
-                return ProbeSample {
-                    duration_ms: started.elapsed().as_secs_f64() * 1_000.0,
-                    ok: false,
-                    error: Some(format!("invalid bearer token: {error}")),
-                };
-            }
-        };
-        request.metadata_mut().insert("authorization", value);
-    }
-
-    let result = tokio::time::timeout(REQUEST_TIMEOUT, client.get_runtime_shell(request)).await;
+    };
+    let result = tokio::time::timeout(
+        REQUEST_TIMEOUT,
+        client.observation_get_runtime_shell(request),
+    )
+    .await;
     let duration_ms = started.elapsed().as_secs_f64() * 1_000.0;
     match result {
         Ok(Ok(_)) => ProbeSample {

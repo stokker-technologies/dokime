@@ -15,9 +15,11 @@
 // Standard Library Imports
 
 // Third Party Imports
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::*;
+use dokime_contract::operations::content as wire;
 
 /* === Constants === */
 
@@ -65,8 +67,90 @@ pub(crate) async fn execution_save_sealing() {
     let snapshot = running.value.snapshot.clone();
     drop(running);
     drop(view);
+
+    // Resume The Original Live File After Its Viewer Disconnects.
+    let path = "follow.bin";
+    let target = handle
+        .execution_file_target(&id, path.to_owned(), false, true)
+        .await
+        .unwrap()
+        .unwrap();
+    std::fs::write(&target.absolute_path, b"prefix").unwrap();
+    let maximum = std::num::NonZeroUsize::new(3).unwrap();
+    let mut follower = handle
+        .follow_execution_file(&id, path, None, 0)
+        .await
+        .unwrap()
+        .unwrap();
+    let identity = follower.metadata().identity.clone().unwrap();
+    let first = follower.next_frame(maximum).await.unwrap().unwrap();
+    let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &first.payload else {
+        panic!("live file starts with its retained prefix");
+    };
+    assert_eq!(chunk.offset, 0);
+    assert_eq!(chunk.data, b"pre");
+    drop(first);
+    drop(follower);
+    let expected = b"prefix-appended";
+    {
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&target.absolute_path)
+            .unwrap();
+        std::io::Write::write_all(&mut file, b"-appended").unwrap();
+    }
+    let mut other = identity.clone();
+    other.relative_path = "other.bin".to_owned();
+    assert!(
+        handle
+            .follow_execution_file(&id, path, Some(&other), 3)
+            .await
+            .is_err()
+    );
+    let mut follower = handle
+        .follow_execution_file(&id, path, Some(&identity), 3)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(follower.metadata().identity.as_ref(), Some(&identity));
+    let mut retained = b"pre".to_vec();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while retained.len() < expected.len() {
+            let frame = follower.next_frame(maximum).await.unwrap().unwrap();
+            let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+                panic!("live file remains producing until its original owner settles");
+            };
+            assert_eq!(chunk.offset, retained.len() as u64);
+            retained.extend_from_slice(&chunk.data);
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(retained, expected);
     executor.release();
     let completed = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
+    let frame = tokio::time::timeout(Duration::from_secs(5), follower.next_frame(maximum))
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
+        panic!("the original production closes with a sealed reference");
+    };
+    assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
+    let sealed = terminal.sealed.as_ref().unwrap();
+    assert_eq!(sealed.identity.as_ref(), Some(&identity));
+    assert_eq!(sealed.length, expected.len() as u64);
+    assert_eq!(
+        sealed.sha256,
+        Sha256::digest(expected)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    );
+    assert!(follower.next_frame(maximum).await.unwrap().is_none());
+    drop(frame);
+    drop(follower);
     let cycle_seal = completed.saved.as_ref().expect("completed cycle is sealed");
     cycle_seal.validate_view(&completed).unwrap();
     assert_eq!(cycle_seal.executions.len(), 1);
@@ -127,6 +211,17 @@ pub(crate) async fn execution_save_sealing() {
     assert_eq!(restored.execution().snapshot, snapshot);
     assert_eq!(crate::support::native::report(&handle, &id).await, html);
     drop(restored);
+    let follower = handle
+        .follow_execution_file(&id, path, Some(&identity), expected.len() as u64)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(follower.metadata().identity.as_ref(), Some(&identity));
+    assert_eq!(
+        follower.metadata().phase,
+        wire::ExecutionFilePhase::Finished
+    );
+    drop(follower);
     drop(handle);
     reopened.shutdown().await.unwrap();
 }

@@ -20,7 +20,7 @@ use quote::{ToTokens, quote};
 // Local Imports
 
 /* === Constants === */
-pub(crate) const MACRO_CONTRACT: u32 = 25;
+pub(crate) const MACRO_CONTRACT: u32 = 26;
 
 /* === Macros === */
 

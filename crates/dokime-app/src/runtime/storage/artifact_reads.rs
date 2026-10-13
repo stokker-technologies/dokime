@@ -104,6 +104,21 @@ impl ArtifactReader {
         metadata
     }
 
+    pub fn project_record<T: MemorySize>(
+        &self,
+        maximum: NonZeroUsize,
+        project: impl FnOnce(&ArtifactRecord, NonZeroUsize) -> harmos::Result<T>,
+    ) -> Result<QueryValue<T>> {
+        self.descriptor
+            .try_project(maximum, |output, allowance| {
+                let ExecutionOutputContent::Artifact { record, .. } = &output.content else {
+                    unreachable!("reader construction selects only saved artifact descriptors");
+                };
+                project(record, allowance)
+            })
+            .map_err(Into::into)
+    }
+
     pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<FileChunk>> {
         let maximum = NonZeroUsize::new(maximum.get().min(CHUNK_BYTES))
             .expect("nonempty bounded artifact chunk");

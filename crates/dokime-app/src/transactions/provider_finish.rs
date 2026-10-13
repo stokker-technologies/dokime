@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::TestCase;
@@ -89,7 +89,7 @@ impl Transaction<RuntimeState> for FinishProvider {
         Ok(())
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         prepare_finish_provider(state, self).collect(out);
     }
 
@@ -110,7 +110,7 @@ impl FinishPlan {
         }
     }
 
-    fn collect(&self, out: &mut harmos::Records) {
+    fn collect(&self, out: &mut harmos::state::Records) {
         self.evidence.collect(out);
         self.terminal.collect(out);
     }

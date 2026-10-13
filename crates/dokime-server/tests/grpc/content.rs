@@ -24,7 +24,6 @@ use dokime_app::core::RecordScope;
 use dokime_app::domains::ExecutionProviderTarget;
 use dokime_app::execution::CycleView;
 use dokime_app::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
-use dokime_protocol::v1::{content_client::ContentClient, execution_client::ExecutionClient};
 
 /* === Constants === */
 const LARGE_ARTIFACT_BYTES: u64 = 300 * 1024 * 1024;
@@ -199,46 +198,52 @@ pub(crate) async fn artifact_transfer_listener() {
         .connect()
         .await
         .unwrap();
-    let mut execution = ExecutionClient::new(stream.clone());
+    let execution = WireClient::new(stream.clone());
     let cycle_id = execution
-        .create_cycle(authenticated(v1::CreateCycleRequest {
-            plan: Some(super::workflow::selection_plan(&owner)),
-            metadata: Some(v1::Metadata {
-                identifier: "content.cycle".into(),
-                label: "Content".into(),
-                description: None,
+        .unary::<contracts::execution::CreateCycle>(authenticated(
+            contracts::execution::CreateCycleRequest {
+                plan: Some(super::workflow::selection_plan(&owner)),
+                metadata: Some(contracts::common::Metadata {
+                    identifier: "content.cycle".into(),
+                    label: "Content".into(),
+                    description: None,
+                    ..Default::default()
+                }),
                 ..Default::default()
-            }),
-            ..Default::default()
-        }))
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let reply = execution
-        .run_cycle(authenticated(v1::RunCycleRequest {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .unary::<contracts::execution::RunCycle>(authenticated(
+            contracts::execution::RunCycleRequest {
+                cycle_id: cycle_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert!(matches!(
         reply.outcome,
-        Some(v1::run_reply::Outcome::Accepted(_))
+        Some(contracts::execution::RunReplyOutcome::Accepted(_))
     ));
     tokio::time::timeout(transfer_budget, artifacts.ready.notified())
         .await
         .unwrap();
     let records = artifacts.records.lock().unwrap().clone();
     assert_eq!(records.len(), 4);
-    let mut content = ContentClient::new(stream).max_decoding_message_size(4096);
+    let content = WireClient::new(stream).max_decoding_message_size(4096);
     let first_page = content
-        .list_artifacts(authenticated(v1::ListArtifactsRequest {
-            limit: 2,
-            ..Default::default()
-        }))
+        .unary::<contracts::content::ListArtifacts>(authenticated(
+            contracts::content::ListArtifactsRequest {
+                limit: 2,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -246,11 +251,13 @@ pub(crate) async fn artifact_transfer_listener() {
     let next_after = first_page.next_after_artifact_id.clone().unwrap();
     let cursor = first_page.cursor.clone().unwrap();
     let second_page = content
-        .list_artifacts(authenticated(v1::ListArtifactsRequest {
-            limit: 2,
-            after_artifact_id: next_after,
-            cursor: Some(cursor.clone()),
-        }))
+        .unary::<contracts::content::ListArtifacts>(authenticated(
+            contracts::content::ListArtifactsRequest {
+                limit: 2,
+                after_artifact_id: next_after,
+                cursor: Some(cursor.clone()),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -260,11 +267,13 @@ pub(crate) async fn artifact_transfer_listener() {
     invalid_cursor.metadata_sha256[0] ^= 1;
     assert_eq!(
         content
-            .list_artifacts(authenticated(v1::ListArtifactsRequest {
-                limit: 2,
-                after_artifact_id: first_page.next_after_artifact_id.clone().unwrap(),
-                cursor: Some(invalid_cursor),
-            }))
+            .unary::<contracts::content::ListArtifacts>(authenticated(
+                contracts::content::ListArtifactsRequest {
+                    limit: 2,
+                    after_artifact_id: first_page.next_after_artifact_id.clone().unwrap(),
+                    cursor: Some(invalid_cursor),
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -273,9 +282,11 @@ pub(crate) async fn artifact_transfer_listener() {
     let first_id = records[0].0.artifact_id.to_string();
     assert_eq!(
         content
-            .download_artifact(v1::DownloadArtifactRequest {
-                artifact_id: first_id.clone()
-            })
+            .download::<contracts::content::DownloadArtifact>(
+                contracts::content::DownloadArtifactRequest {
+                    artifact_id: first_id.clone()
+                }
+            )
             .await
             .unwrap_err()
             .code(),
@@ -283,9 +294,11 @@ pub(crate) async fn artifact_transfer_listener() {
     );
     assert_eq!(
         content
-            .download_artifact(authenticated(v1::DownloadArtifactRequest {
-                artifact_id: "../file".into()
-            }))
+            .download::<contracts::content::DownloadArtifact>(authenticated(
+                contracts::content::DownloadArtifactRequest {
+                    artifact_id: "../file".into()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -293,9 +306,11 @@ pub(crate) async fn artifact_transfer_listener() {
     );
     assert_eq!(
         content
-            .download_artifact(authenticated(v1::DownloadArtifactRequest {
-                artifact_id: dokime_app::core::ArtifactId::new().to_string(),
-            }))
+            .download::<contracts::content::DownloadArtifact>(authenticated(
+                contracts::content::DownloadArtifactRequest {
+                    artifact_id: dokime_app::core::ArtifactId::new().to_string(),
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -303,15 +318,15 @@ pub(crate) async fn artifact_transfer_listener() {
     );
 
     // Shared Native Verification And Publication
-    let native = dokime::client::Client::connect(
-        dokime::client::Target::local(server.local_endpoint()).unwrap(),
+    let native = dokime_client::Client::connect(
+        dokime_client::Target::local(server.local_endpoint()).unwrap(),
         Some(TOKEN),
         None,
     )
     .await
     .unwrap();
     let destination = root.path().join("verified.bin");
-    let request = v1::DownloadArtifactRequest {
+    let request = contracts::content::DownloadArtifactRequest {
         artifact_id: first_id.clone(),
     };
     let verified = native
@@ -322,6 +337,45 @@ pub(crate) async fn artifact_transfer_listener() {
     assert_eq!(std::fs::read(&destination).unwrap(), records[0].1);
     assert_eq!(verified.size_bytes, records[0].1.len() as u64);
     assert!(!root.path().join("verified.bin.part").exists());
+    // Invoke The Live Catalog's Streaming Operation.
+    let request_json = serde_json::to_vec(&serde_json::json!({"artifactId": first_id})).unwrap();
+    let dynamic = native
+        .call_operation(
+            <contracts::content::DownloadArtifact as harmos::operations::OperationDeclaration>::ID,
+            None,
+            &request_json,
+            vec![],
+        )
+        .await
+        .unwrap();
+    let mut item_count = 0;
+    let mut completed = false;
+    tokio::time::timeout(transfer_budget, async {
+        while let Some(event) = dynamic.message().await.unwrap() {
+            assert!(!completed, "dynamic completion must be the final event");
+            match event {
+                dokime_client::dynamic::Event::Item(value) => {
+                    assert!(value.as_object().is_some_and(|fields| !fields.is_empty()));
+                    item_count += 1;
+                }
+                dokime_client::dynamic::Event::Completion(_) => {
+                    assert!(
+                        item_count >= 3,
+                        "metadata, content and artifact completion precede operation completion"
+                    );
+                    completed = true;
+                }
+            }
+        }
+    })
+    .await
+    .expect("dynamic artifact stream exceeds the transfer budget");
+    assert!(
+        completed,
+        "dynamic stream must report completion after final OK status"
+    );
+    dynamic.close().await;
+
     artifacts.release.notify_one();
     common::wait_for_cycle_lifecycle(
         &owner.handle(),
@@ -334,7 +388,7 @@ pub(crate) async fn artifact_transfer_listener() {
         native
             .upload_artifact_file(
                 &destination,
-                v1::UploadArtifactHeader {
+                contracts::content::UploadArtifactHeader {
                     scope: verified.metadata.scope.clone(),
                     filename: "native-upload.bin".into(),
                     content_type: verified.metadata.content_type.clone(),
@@ -350,7 +404,7 @@ pub(crate) async fn artifact_transfer_listener() {
     std::fs::create_dir(&directory).unwrap();
     assert!(matches!(
         native.download_artifact(request.clone(), directory).await,
-        Err(dokime::client::DownloadError::Publication(_))
+        Err(dokime_client::DownloadError::Publication(_))
     ));
     assert!(root.path().join("publication-directory.part").exists());
 
@@ -358,7 +412,7 @@ pub(crate) async fn artifact_transfer_listener() {
     std::fs::write(&partial, b"another owner").unwrap();
     assert!(matches!(
         native.download_artifact(request, destination).await,
-        Err(dokime::client::DownloadError::Io(_))
+        Err(dokime_client::DownloadError::Io(_))
     ));
     assert_eq!(std::fs::read(&partial).unwrap(), b"another owner");
     native.close_and_wait().await;
@@ -368,13 +422,13 @@ pub(crate) async fn artifact_transfer_listener() {
         for (record, expected) in records.iter().take(3) {
             let id = record.artifact_id.to_string();
             let mut stream = content
-                .download_artifact(authenticated(v1::DownloadArtifactRequest {
-                    artifact_id: id,
-                }))
+                .download::<contracts::content::DownloadArtifact>(authenticated(
+                    contracts::content::DownloadArtifactRequest { artifact_id: id },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            let Some(v1::artifact_frame::Payload::Metadata(metadata)) =
+            let Some(contracts::content::ArtifactFramePayload::Metadata(metadata)) =
                 stream.message().await.unwrap().unwrap().payload
             else {
                 panic!("an artifact download opens with its metadata");
@@ -388,11 +442,11 @@ pub(crate) async fn artifact_transfer_listener() {
                     .collect::<String>()
             );
             assert_eq!(
-                metadata.state(),
+                metadata.state,
                 if record.filename == "partial.bin" {
-                    v1::ArtifactState::Cancelled
+                    contracts::content::ArtifactState::Cancelled
                 } else {
-                    v1::ArtifactState::Complete
+                    contracts::content::ArtifactState::Complete
                 }
             );
             let mut actual = Vec::new();
@@ -400,13 +454,13 @@ pub(crate) async fn artifact_transfer_listener() {
             while let Some(frame) = stream.message().await.unwrap() {
                 assert!(!complete, "completion must be the last frame");
                 match frame.payload.unwrap() {
-                    v1::artifact_frame::Payload::Chunk(chunk) => {
+                    contracts::content::ArtifactFramePayload::Chunk(chunk) => {
                         assert_eq!(chunk.offset, actual.len() as u64);
                         assert!(!chunk.data.is_empty());
                         assert!(chunk.data.len() <= 4096 - 32);
                         actual.extend(chunk.data);
                     }
-                    v1::artifact_frame::Payload::Complete(done) => {
+                    contracts::content::ArtifactFramePayload::Complete(done) => {
                         assert_eq!(done.size_bytes, expected.len() as u64);
                         assert_eq!(
                             done.sha256,
@@ -425,9 +479,11 @@ pub(crate) async fn artifact_transfer_listener() {
         }
         assert_eq!(
             content
-                .download_cycle_bundle(authenticated(v1::DownloadCycleBundleRequest {
-                    cycle_id: cycle_id.clone(),
-                }))
+                .download::<contracts::content::DownloadCycleBundle>(authenticated(
+                    contracts::content::DownloadCycleBundleRequest {
+                        cycle_id: cycle_id.clone(),
+                    }
+                ))
                 .await
                 .unwrap_err()
                 .code(),
@@ -439,24 +495,28 @@ pub(crate) async fn artifact_transfer_listener() {
     eprintln!("artifact transfer: {:?}", transfer_started.elapsed());
     assert_eq!(
         content
-            .get_cycle_folder_path(authenticated(v1::GetCycleFolderPathRequest {
-                cycle_id: cycle_id.clone(),
-            }))
+            .unary::<contracts::content::GetCycleFolderPath>(authenticated(
+                contracts::content::GetCycleFolderPathRequest {
+                    cycle_id: cycle_id.clone(),
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
         Code::Unimplemented
     );
     let mut stalled = content
-        .download_artifact(authenticated(v1::DownloadArtifactRequest {
-            artifact_id: records[3].0.artifact_id.to_string(),
-        }))
+        .download::<contracts::content::DownloadArtifact>(authenticated(
+            contracts::content::DownloadArtifactRequest {
+                artifact_id: records[3].0.artifact_id.to_string(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert!(matches!(
         stalled.message().await.unwrap().unwrap().payload,
-        Some(v1::artifact_frame::Payload::Metadata(_))
+        Some(contracts::content::ArtifactFramePayload::Metadata(_))
     ));
     // The server grants existing connections a five-second graceful drain;
     // a stalled peer must still be disconnected within ten seconds.
@@ -472,7 +532,7 @@ pub(crate) async fn artifact_transfer_listener() {
                 Ok(None) => return false,
                 Ok(Some(frame)) => assert!(!matches!(
                     frame.payload,
-                    Some(v1::artifact_frame::Payload::Complete(_))
+                    Some(contracts::content::ArtifactFramePayload::Complete(_))
                 )),
             }
         }
@@ -534,44 +594,50 @@ pub(crate) async fn artifact_upload_owned() {
         .connect()
         .await
         .unwrap();
-    let mut execution = ExecutionClient::new(stream.clone());
+    let execution = WireClient::new(stream.clone());
     let cycle_id = execution
-        .create_cycle(authenticated(v1::CreateCycleRequest {
-            plan: Some(super::workflow::selection_plan(&owner)),
-            metadata: Some(v1::Metadata {
-                identifier: "content.upload".into(),
-                label: "Upload".into(),
-                description: None,
+        .unary::<contracts::execution::CreateCycle>(authenticated(
+            contracts::execution::CreateCycleRequest {
+                plan: Some(super::workflow::selection_plan(&owner)),
+                metadata: Some(contracts::common::Metadata {
+                    identifier: "content.upload".into(),
+                    label: "Upload".into(),
+                    description: None,
+                    ..Default::default()
+                }),
                 ..Default::default()
-            }),
-            ..Default::default()
-        }))
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     execution
-        .run_cycle(authenticated(v1::RunCycleRequest {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .unary::<contracts::execution::RunCycle>(authenticated(
+            contracts::execution::RunCycleRequest {
+                cycle_id: cycle_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+        ))
         .await
         .unwrap();
     gate.started.notified().await;
     let execution_id = execution
-        .list_executions(authenticated(v1::ListExecutionsRequest {
-            cycle_id: cycle_id.clone(),
-            limit: 100,
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutions>(authenticated(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id: cycle_id.clone(),
+                limit: 100,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .executions
         .remove(0)
         .execution_id;
-    let scope = || v1::ArtifactScope {
+    let scope = || contracts::content::ArtifactScope {
         cycle_id: Some(cycle_id.clone()),
         case_id: None,
         execution_id: Some(execution_id.clone()),
@@ -581,14 +647,14 @@ pub(crate) async fn artifact_upload_owned() {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
-    let mut content = ContentClient::new(stream)
+    let content = WireClient::new(stream)
         .max_decoding_message_size(4096)
         .max_encoding_message_size(4096);
     let uploaded = content
-        .upload_artifact(authenticated(tokio_stream::iter(vec![
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Header(
-                    v1::UploadArtifactHeader {
+        .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
+                    contracts::content::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: "native.bin".into(),
                         content_type: Some("application/octet-stream".into()),
@@ -597,9 +663,9 @@ pub(crate) async fn artifact_upload_owned() {
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
-                    v1::ArtifactChunk {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
                         offset: 0,
                         data: bytes.clone(),
                     },
@@ -610,11 +676,11 @@ pub(crate) async fn artifact_upload_owned() {
         .unwrap()
         .into_inner();
     assert_eq!(uploaded.filename, "native.bin");
-    assert_eq!(uploaded.state(), v1::ArtifactState::Complete);
+    assert_eq!(uploaded.state, contracts::content::ArtifactState::Complete);
     assert_eq!(uploaded.sha256, digest);
 
-    let native = dokime::client::Client::connect(
-        dokime::client::Target::local(server.local_endpoint()).unwrap(),
+    let native = dokime_client::Client::connect(
+        dokime_client::Target::local(server.local_endpoint()).unwrap(),
         Some(TOKEN),
         None,
     )
@@ -625,7 +691,7 @@ pub(crate) async fn artifact_upload_owned() {
     let uploaded = native
         .upload_artifact_file(
             &source,
-            v1::UploadArtifactHeader {
+            contracts::content::UploadArtifactHeader {
                 scope: Some(scope()),
                 filename: "native-upload.bin".into(),
                 content_type: None,
@@ -637,14 +703,14 @@ pub(crate) async fn artifact_upload_owned() {
         .unwrap();
     assert_eq!(uploaded.size_bytes, bytes.len() as u64);
     assert_eq!(uploaded.sha256, digest);
-    assert_eq!(uploaded.state(), v1::ArtifactState::Complete);
+    assert_eq!(uploaded.state, contracts::content::ArtifactState::Complete);
     native.close_and_wait().await;
 
     let error = content
-        .upload_artifact(authenticated(tokio_stream::iter(vec![
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Header(
-                    v1::UploadArtifactHeader {
+        .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
+                    contracts::content::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: "bad-offset.bin".into(),
                         content_type: None,
@@ -653,9 +719,9 @@ pub(crate) async fn artifact_upload_owned() {
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
-                    v1::ArtifactChunk {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
                         offset: 1,
                         data: b"bad".to_vec(),
                     },
@@ -679,10 +745,10 @@ pub(crate) async fn artifact_upload_owned() {
     );
 
     let error = content
-        .upload_artifact(authenticated(tokio_stream::iter(vec![
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Header(
-                    v1::UploadArtifactHeader {
+        .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
+                    contracts::content::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: "bad-size.bin".into(),
                         content_type: None,
@@ -691,9 +757,9 @@ pub(crate) async fn artifact_upload_owned() {
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
-                    v1::ArtifactChunk {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
                         offset: 0,
                         data: b"bad".to_vec(),
                     },
@@ -717,10 +783,10 @@ pub(crate) async fn artifact_upload_owned() {
     );
 
     let error = content
-        .upload_artifact(authenticated(tokio_stream::iter(vec![
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Header(
-                    v1::UploadArtifactHeader {
+        .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
+                    contracts::content::UploadArtifactHeader {
                         scope: Some(scope()),
                         filename: "bad-digest.bin".into(),
                         content_type: None,
@@ -729,9 +795,9 @@ pub(crate) async fn artifact_upload_owned() {
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
-                    v1::ArtifactChunk {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
                         offset: 0,
                         data: b"bad".to_vec(),
                     },
@@ -755,22 +821,30 @@ pub(crate) async fn artifact_upload_owned() {
     );
 
     let listed = content
-        .list_artifacts(authenticated(v1::ListArtifactsRequest::default()))
+        .unary::<contracts::content::ListArtifacts>(authenticated(
+            contracts::content::ListArtifactsRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner()
         .artifacts;
     for (filename, state) in [
-        ("native.bin", v1::ArtifactState::Complete),
-        ("bad-offset.bin", v1::ArtifactState::Cancelled),
-        ("bad-size.bin", v1::ArtifactState::Rejected),
-        ("bad-digest.bin", v1::ArtifactState::Rejected),
+        ("native.bin", contracts::content::ArtifactState::Complete),
+        (
+            "bad-offset.bin",
+            contracts::content::ArtifactState::Cancelled,
+        ),
+        ("bad-size.bin", contracts::content::ArtifactState::Rejected),
+        (
+            "bad-digest.bin",
+            contracts::content::ArtifactState::Rejected,
+        ),
     ] {
         assert_eq!(
             listed
                 .iter()
                 .find(|artifact| artifact.filename == filename)
-                .map(|artifact| artifact.state()),
+                .map(|artifact| artifact.state),
             Some(state),
             "list must preserve {filename} state",
         );
@@ -780,13 +854,15 @@ pub(crate) async fn artifact_upload_owned() {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let cycle = execution
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: cycle_id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: cycle_id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status() == v1::CycleStatus::Completed {
+            if cycle.status == contracts::execution::CycleStatus::Completed {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -802,11 +878,11 @@ async fn completion_harness() -> (
     tempfile::TempDir,
     Runtime,
     Server,
-    ExecutionClient<Channel>,
-    ContentClient<Channel>,
+    WireClient,
+    WireClient,
     Arc<UploadGate>,
     String,
-    v1::ArtifactScope,
+    contracts::content::ArtifactScope,
 ) {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
@@ -835,49 +911,55 @@ async fn completion_harness() -> (
         .connect()
         .await
         .unwrap();
-    let mut execution = ExecutionClient::new(stream.clone());
+    let execution = WireClient::new(stream.clone());
     let cycle_id = execution
-        .create_cycle(authenticated(v1::CreateCycleRequest {
-            plan: Some(super::workflow::selection_plan(&owner)),
-            metadata: Some(v1::Metadata {
-                identifier: "content.completion".into(),
-                label: "Completion".into(),
-                description: None,
+        .unary::<contracts::execution::CreateCycle>(authenticated(
+            contracts::execution::CreateCycleRequest {
+                plan: Some(super::workflow::selection_plan(&owner)),
+                metadata: Some(contracts::common::Metadata {
+                    identifier: "content.completion".into(),
+                    label: "Completion".into(),
+                    description: None,
+                    ..Default::default()
+                }),
                 ..Default::default()
-            }),
-            ..Default::default()
-        }))
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     execution
-        .run_cycle(authenticated(v1::RunCycleRequest {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .unary::<contracts::execution::RunCycle>(authenticated(
+            contracts::execution::RunCycleRequest {
+                cycle_id: cycle_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+        ))
         .await
         .unwrap();
     gate.started.notified().await;
     let execution_id = execution
-        .list_executions(authenticated(v1::ListExecutionsRequest {
-            cycle_id: cycle_id.clone(),
-            limit: 100,
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutions>(authenticated(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id: cycle_id.clone(),
+                limit: 100,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .executions
         .remove(0)
         .execution_id;
-    let scope = v1::ArtifactScope {
+    let scope = contracts::content::ArtifactScope {
         cycle_id: Some(cycle_id.clone()),
         case_id: None,
         execution_id: Some(execution_id),
     };
-    let content = ContentClient::new(stream)
+    let content = WireClient::new(stream)
         .max_decoding_message_size(4096)
         .max_encoding_message_size(4096);
     (
@@ -886,7 +968,7 @@ async fn completion_harness() -> (
 }
 
 async fn finish_completion_harness(
-    mut execution: ExecutionClient<Channel>,
+    execution: WireClient,
     cycle_id: String,
     gate: Arc<UploadGate>,
     mut owner: Runtime,
@@ -896,13 +978,15 @@ async fn finish_completion_harness(
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let cycle = execution
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: cycle_id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: cycle_id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status() == v1::CycleStatus::Completed {
+            if cycle.status == contracts::execution::CycleStatus::Completed {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -915,7 +999,7 @@ async fn finish_completion_harness(
 }
 
 pub(crate) async fn artifact_upload_digest() {
-    let (_root, owner, server, execution, mut content, gate, cycle_id, scope) =
+    let (_root, owner, server, execution, content, gate, cycle_id, scope) =
         completion_harness().await;
     let bytes = b"trailing completion digest upload".to_vec();
     let digest = Sha256::digest(&bytes)
@@ -923,10 +1007,10 @@ pub(crate) async fn artifact_upload_digest() {
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     let uploaded = content
-        .upload_artifact(authenticated(tokio_stream::iter(vec![
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Header(
-                    v1::UploadArtifactHeader {
+        .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
+                    contracts::content::UploadArtifactHeader {
                         scope: Some(scope.clone()),
                         filename: "trailing.bin".into(),
                         content_type: Some("application/octet-stream".into()),
@@ -935,17 +1019,17 @@ pub(crate) async fn artifact_upload_digest() {
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
-                    v1::ArtifactChunk {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
                         offset: 0,
                         data: bytes.clone(),
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Complete(
-                    v1::ArtifactCompletion {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Complete(
+                    contracts::content::ArtifactCompletion {
                         size_bytes: bytes.len() as u64,
                         sha256: digest.clone(),
                     },
@@ -956,13 +1040,13 @@ pub(crate) async fn artifact_upload_digest() {
         .unwrap()
         .into_inner();
     assert_eq!(uploaded.filename, "trailing.bin");
-    assert_eq!(uploaded.state(), v1::ArtifactState::Complete);
+    assert_eq!(uploaded.state, contracts::content::ArtifactState::Complete);
     assert_eq!(uploaded.sha256, digest);
     finish_completion_harness(execution, cycle_id, gate, owner, server).await;
 }
 
 pub(crate) async fn artifact_upload_match() {
-    let (_root, owner, server, execution, mut content, gate, cycle_id, scope) =
+    let (_root, owner, server, execution, content, gate, cycle_id, scope) =
         completion_harness().await;
     let bytes = b"mismatched trailing digest upload".to_vec();
     let wrong_digest = Sha256::digest(b"not the uploaded bytes")
@@ -970,10 +1054,10 @@ pub(crate) async fn artifact_upload_match() {
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     let error = content
-        .upload_artifact(authenticated(tokio_stream::iter(vec![
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Header(
-                    v1::UploadArtifactHeader {
+        .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
+                    contracts::content::UploadArtifactHeader {
                         scope: Some(scope.clone()),
                         filename: "mismatched.bin".into(),
                         content_type: None,
@@ -982,17 +1066,17 @@ pub(crate) async fn artifact_upload_match() {
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
-                    v1::ArtifactChunk {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
                         offset: 0,
                         data: bytes.clone(),
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Complete(
-                    v1::ArtifactCompletion {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Complete(
+                    contracts::content::ArtifactCompletion {
                         size_bytes: bytes.len() as u64,
                         sha256: wrong_digest,
                     },
@@ -1018,7 +1102,7 @@ pub(crate) async fn artifact_upload_match() {
 }
 
 pub(crate) async fn artifact_upload_completion() {
-    let (_root, owner, server, execution, mut content, gate, cycle_id, scope) =
+    let (_root, owner, server, execution, content, gate, cycle_id, scope) =
         completion_harness().await;
     let bytes = b"frame after completion".to_vec();
     let digest = Sha256::digest(&bytes)
@@ -1026,10 +1110,10 @@ pub(crate) async fn artifact_upload_completion() {
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     let error = content
-        .upload_artifact(authenticated(tokio_stream::iter(vec![
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Header(
-                    v1::UploadArtifactHeader {
+        .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
+                    contracts::content::UploadArtifactHeader {
                         scope: Some(scope.clone()),
                         filename: "trailing-extra.bin".into(),
                         content_type: None,
@@ -1038,25 +1122,25 @@ pub(crate) async fn artifact_upload_completion() {
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
-                    v1::ArtifactChunk {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
                         offset: 0,
                         data: bytes.clone(),
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Complete(
-                    v1::ArtifactCompletion {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Complete(
+                    contracts::content::ArtifactCompletion {
                         size_bytes: bytes.len() as u64,
                         sha256: digest,
                     },
                 )),
             },
-            v1::UploadArtifactFrame {
-                payload: Some(v1::upload_artifact_frame::Payload::Chunk(
-                    v1::ArtifactChunk {
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
                         offset: bytes.len() as u64,
                         data: b"x".to_vec(),
                     },
@@ -1104,43 +1188,49 @@ pub(crate) async fn large_artifact_buffering() {
         .connect()
         .await
         .unwrap();
-    let mut execution = ExecutionClient::new(stream.clone());
+    let execution = WireClient::new(stream.clone());
     let cycle_id = execution
-        .create_cycle(authenticated(v1::CreateCycleRequest {
-            plan: Some(super::workflow::selection_plan(&owner)),
-            metadata: Some(v1::Metadata {
-                identifier: "content.bundle".into(),
-                label: "Bundle".into(),
-                description: None,
+        .unary::<contracts::execution::CreateCycle>(authenticated(
+            contracts::execution::CreateCycleRequest {
+                plan: Some(super::workflow::selection_plan(&owner)),
+                metadata: Some(contracts::common::Metadata {
+                    identifier: "content.bundle".into(),
+                    label: "Bundle".into(),
+                    description: None,
+                    ..Default::default()
+                }),
                 ..Default::default()
-            }),
-            ..Default::default()
-        }))
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     execution
-        .run_cycle(authenticated(v1::RunCycleRequest {
-            cycle_id: cycle_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .unary::<contracts::execution::RunCycle>(authenticated(
+            contracts::execution::RunCycleRequest {
+                cycle_id: cycle_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+        ))
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_secs(60), async {
         loop {
             let cycle = execution
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: cycle_id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: cycle_id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status() == v1::CycleStatus::Completed {
+            if cycle.status == contracts::execution::CycleStatus::Completed {
                 break;
             }
-            assert_ne!(cycle.status(), v1::CycleStatus::Failed);
+            assert_ne!(cycle.status, contracts::execution::CycleStatus::Failed);
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
@@ -1151,21 +1241,23 @@ pub(crate) async fn large_artifact_buffering() {
             owner.handle().watch_state().latest().state().run_requests
         )
     });
-    let mut content = ContentClient::new(stream);
+    let content = WireClient::new(stream);
     let artifacts = owner.handle().artifacts().await.unwrap();
     let artifact = artifacts
         .iter()
         .find(|artifact| artifact.filename == "large.bin")
         .unwrap();
     let mut download = content
-        .download_artifact(authenticated(v1::DownloadArtifactRequest {
-            artifact_id: artifact.artifact_id.to_string(),
-        }))
+        .download::<contracts::content::DownloadArtifact>(authenticated(
+            contracts::content::DownloadArtifactRequest {
+                artifact_id: artifact.artifact_id.to_string(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     let metadata = match download.message().await.unwrap().unwrap().payload {
-        Some(v1::artifact_frame::Payload::Metadata(metadata)) => metadata,
+        Some(contracts::content::ArtifactFramePayload::Metadata(metadata)) => metadata,
         payload => panic!("unexpected artifact header: {payload:?}"),
     };
     assert_eq!(metadata.size_bytes, LARGE_ARTIFACT_BYTES);
@@ -1178,14 +1270,14 @@ pub(crate) async fn large_artifact_buffering() {
             .unwrap()
             .expect("artifact completion");
         match frame.payload.unwrap() {
-            v1::artifact_frame::Payload::Chunk(chunk) => {
+            contracts::content::ArtifactFramePayload::Chunk(chunk) => {
                 assert_eq!(chunk.offset, downloaded);
                 assert!(!chunk.data.is_empty());
                 downloaded += chunk.data.len() as u64;
                 digest.update(&chunk.data);
             }
-            v1::artifact_frame::Payload::Complete(done) => break done,
-            v1::artifact_frame::Payload::Metadata(_) => {
+            contracts::content::ArtifactFramePayload::Complete(done) => break done,
+            contracts::content::ArtifactFramePayload::Metadata(_) => {
                 panic!("artifact metadata must be emitted once")
             }
         }

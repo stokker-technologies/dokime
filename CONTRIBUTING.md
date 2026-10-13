@@ -72,9 +72,20 @@ full tests with `STKR_COVERAGE=1`. `Ci Gate / Full Validation Gate` rejects miss
 cancelled, or skipped required jobs and target advances that change the tested
 integration tree. A green check-only run does not satisfy that gate.
 
-Each native download archive in `dist/downloads/` contains `installers/`,
-`python/`, `reports/`, `licenses/`, and, after successful validation, `tests/`.
-Runtime, plugins, and protocol files retain their own product directories. The
+Each native download archive in `dist/downloads/` carries `manifest.json` at
+its root beside `bin/` (every executable), `installers/`, `python/` (wheel and
+source archive), `plugins/`, `licenses/`, and `proto/` (the unpacked portable
+contract: `.proto` files, descriptor set, `contracts.json`, `manifest.txt`,
+`revision.txt`). The manifest lists every file with its SHA-256 and records the
+published contract archive's hash under `contracts.archive_sha256`. Everything
+validation needs but users do not lives under `validation/`: the report template
+that `ci:artifacts:restore` rehydrates, `audits/`, Cargo timings, `fixtures/`,
+`test-archives/`, and, after successful validation, `tests/` and `coverage/`.
+Only `python/` and `validation/test-archives/` may nest archives. After
+validation, `examples/charger-report.html` is the sealed report the Python
+acceptance lane captured from this same candidate against the Mini charger
+sidecar (`DOKIME_EXAMPLE_REPORT` declares where that lane exports it; a declared
+export without a completed capture fails the lane). The
 catalog records both platforms' original native build/test jobs, run attempt,
 artifact IDs, and archive hashes. Dependency and tool caches live in `.cache/`;
 instrumented Cargo output is cached separately from release packages. JUnit,

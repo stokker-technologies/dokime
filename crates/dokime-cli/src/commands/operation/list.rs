@@ -43,7 +43,7 @@ pub(crate) struct Args {
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let client = args.connection.connect().await?;
-    let result = client.operations();
+    let result = client.operations().await;
     client.close_and_wait().await;
     let operations = result?;
     if args.json {
@@ -51,7 +51,10 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     } else {
         for operation in operations {
             let definition = operation.contract.operation();
-            println!("{}\t{}", definition.id, definition.description);
+            println!(
+                "{}\t{}\t{}",
+                definition.id, operation.owner, definition.description
+            );
         }
     }
     Ok(())

@@ -29,8 +29,8 @@ use mini_runtime::device::Reading;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::message]
-#[derive(Clone, dokime::TelemetryRow)]
+#[dokime::row]
+#[derive(Clone)]
 pub struct InputMeasurement {
     #[row(role = counter)]
     pub sample_index: i64,

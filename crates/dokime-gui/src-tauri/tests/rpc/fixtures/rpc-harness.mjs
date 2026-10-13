@@ -8,7 +8,7 @@
  */
 
 /**
- * Shared TypeScript transpilation and native IPC test transport
+ * Canonical TypeScript Transpilation And Native Adapter Test Transport
  */
 
 /* === Imports === */
@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { createInterface } from "node:readline";
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 
@@ -56,46 +56,51 @@ export function openHarness() {
   }
   globalThis.__DOKIME_UI_MODE__ = "live";
   globalThis.window = { __TAURI_INTERNALS__: { invoke } };
-  // The source tree is written under tsconfig's moduleResolution "Bundler", so
-  // hand-authored relative imports (e.g. "./errors") omit extensions; Vite's
-  // bundler resolves those fine in the real app. Plain Node ESM does not: it
-  // requires an explicit extension on every relative specifier. Rewrite every
-  // extensionless relative specifier to end in ".js" instead of hardcoding each
-  // offending import, so a newly added extensionless import keeps working here.
-  function resolvableSpecifiers(source) {
-    return source
-      .replaceAll('"@/lib/ui-mode"', '"./ui-mode.js"')
-      .replace(/(from\s+["'])(\.\.?\/[^"']+)(["'])/g, (match, prefix, specifier, suffix) => {
-        const basename = specifier.slice(specifier.lastIndexOf("/") + 1);
-        return basename.includes(".") ? match : `${prefix}${specifier}.js${suffix}`;
-      });
+  // Preserve The GUI Tree So Canonical Descriptor Imports Resolve Unchanged.
+  function resolvableSpecifiers(source, destination) {
+    return source.replace(/(from\s+["'])([^"']+)(["'])/g, (match, prefix, specifier, suffix) => {
+      if (specifier.startsWith("@/")) {
+        const target = resolve(temporary, "src", specifier.slice(2));
+        const path = relative(dirname(destination), target).split(sep).join("/");
+        specifier = path.startsWith(".") ? path : `./${path}`;
+      }
+      if (!specifier.startsWith("./") && !specifier.startsWith("../")) return match;
+      const basename = specifier.slice(specifier.lastIndexOf("/") + 1);
+      const extension = basename.includes(".") ? "" : ".js";
+      return `${prefix}${specifier}${extension}${suffix}`;
+    });
   }
   function compile(source, destination) {
     mkdirSync(destination, { recursive: true });
     for (const entry of readdirSync(source, { withFileTypes: true })) {
-      if (entry.isDirectory())
+      if (entry.isDirectory()) {
         compile(resolve(source, entry.name), resolve(destination, entry.name));
-      else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
-        const text = readFileSync(resolve(source, entry.name), "utf8");
-        const output = resolvableSpecifiers(
-          ts.transpileModule(text, {
-            compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-          }).outputText,
-        );
-        writeFileSync(resolve(destination, entry.name.replace(/\.ts$/, ".js")), output);
+        continue;
       }
+      if (!entry.name.endsWith(".ts") || entry.name.endsWith(".test.ts") || entry.name.endsWith(".d.ts")) continue;
+      const input = resolve(source, entry.name);
+      const outputPath = resolve(destination, entry.name.replace(/\.ts$/, ".js"));
+      const text = readFileSync(input, "utf8");
+      const output = ts.transpileModule(text, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+      }).outputText;
+      writeFileSync(outputPath, resolvableSpecifiers(output, outputPath));
     }
   }
-  compile(resolve(gui, "src/lib/rpc"), temporary);
-  writeFileSync(
-    resolve(temporary, "ui-mode.js"),
-    ts.transpileModule(readFileSync(resolve(gui, "src/lib/ui-mode.ts"), "utf8"), {
-      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-    }).outputText,
-  );
+  const rpc = resolve(temporary, "src/lib/rpc");
+  const canonical = resolve(temporary, ".generated");
+  compile(resolve(gui, "src/lib/rpc"), rpc);
+  compile(resolve(gui, ".generated"), canonical);
+  const uiMode = resolve(temporary, "src/lib/ui-mode.js");
+  const uiSource = readFileSync(resolve(gui, "src/lib/ui-mode.ts"), "utf8");
+  const uiOutput = ts.transpileModule(uiSource, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  }).outputText;
+  writeFileSync(uiMode, resolvableSpecifiers(uiOutput, uiMode));
   return {
     invoke,
-    load: (path) => import(pathToFileURL(resolve(temporary, path))),
+    load: (path) => import(pathToFileURL(resolve(rpc, path))),
+    loadCanonical: (path) => import(pathToFileURL(resolve(canonical, path))),
     close() {
       lines.close();
       rmSync(temporary, { recursive: true, force: true });

@@ -15,12 +15,12 @@
 
 import { isTauriDesktop } from "@/lib/desktop-open";
 import * as rpc from "@/lib/rpc/generated/client";
-import type { ExecutionCheckpoint } from "@/lib/rpc/generated/dokime/v1/checkpoint_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { Row3 as Checkpoint } from "../../../.generated/dokime/v1/ReportsMessages/RenderCheckpointReport/messages_pb";
 import type {
-  RenderedReport,
-  ReportHtmlFrame,
-  ReportMetadata,
-} from "@/lib/rpc/generated/dokime/v1/reports_pb";
+  Row3 as ReportFrame,
+  Row8 as Metadata,
+} from "../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import {
   NATIVE_HTML_DOCUMENT_BYTES,
@@ -28,6 +28,13 @@ import {
   saveNativeDocument,
 } from "./native-delivery";
 import { NativeApiLimitError, NativeApiUnsupportedError } from "./native-values";
+
+/* === Canonical Types === */
+
+type RenderedReport = Wire<Awaited<ReturnType<typeof rpc.reportsRenderCheckpointReport>>>;
+type ExecutionCheckpoint = Wire<Checkpoint>;
+type ReportHtmlFrame = Wire<ReportFrame>;
+type ReportMetadata = Wire<Metadata>;
 
 /* === Limits and public types === */
 
@@ -130,20 +137,25 @@ async function assembleReportHtml(
   for await (const frame of reader) {
     if (!active()) throw new Error("Reports.DownloadCycleReport was cancelled.");
     if (complete) throw new Error("Reports.DownloadCycleReport continued after completion.");
-    switch (frame.payload.case) {
-      case "report":
+    const payload = frame.payload?.HarmosVariant;
+    if (!payload?.case || !payload.value.field0)
+      throw new Error("Reports.DownloadCycleReport contained an incomplete frame.");
+    switch (payload.case) {
+      case "Report":
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
         if (
           report ||
-          frame.payload.value.testCycleId !== request.cycleId ||
-          frame.payload.value.identifier !== request.identifier
+          payload.value.field0.testCycleId !== request.cycleId ||
+          payload.value.field0.identifier !== request.identifier
         ) {
           throw new Error("Reports.DownloadCycleReport metadata identity is invalid.");
         }
-        report = frame.payload.value;
+        report = payload.value.field0;
         break;
-      case "chunk": {
+      case "Chunk": {
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
         if (!report) throw new Error("Reports.DownloadCycleReport sent data before metadata.");
-        const chunk = frame.payload.value;
+        const chunk = payload.value.field0;
         if (chunk.offset !== expectedOffset) {
           throw new Error("Reports.DownloadCycleReport chunks are not contiguous.");
         }
@@ -155,10 +167,11 @@ async function assembleReportHtml(
         expectedOffset = total;
         break;
       }
-      case "complete": {
+      case "Complete": {
+        if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
         if (!report) throw new Error("Reports.DownloadCycleReport completed before metadata.");
-        completionSize = frame.payload.value.sizeBytes;
-        completionSha = normalizedSha(frame.payload.value.sha256);
+        completionSize = payload.value.field0.sizeBytes;
+        completionSha = normalizedSha(payload.value.field0.sha256);
         complete = true;
         break;
       }

@@ -15,19 +15,15 @@
 
 import json
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import time
-
+from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
-
-from dokime_tools.frontend import WEB_ROOT, ROOT, ensure_report
-
+from dokime_tools.frontend import ROOT, WEB_ROOT, ensure_report
 
 # Type Checking Imports
 

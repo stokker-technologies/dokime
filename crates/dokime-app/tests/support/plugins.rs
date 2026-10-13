@@ -52,25 +52,25 @@ pub fn fixture_bundle(root: &Path, fixture: &str) -> PluginBundle {
 
 pub fn revised_bundle(root: &Path, fixture: &str, name: &str, revision: &str) -> PluginBundle {
     let original =
-        harmos::plugin::Bundle::inspect(&fixture_bundle_bytes(fixture), Default::default())
+        harmos::plugin::bundle::Bundle::inspect(&fixture_bundle_bytes(fixture), Default::default())
             .unwrap();
     let mut files: Vec<_> = original
         .manifest()
         .files
         .iter()
-        .map(|file| harmos::plugin::Source {
+        .map(|file| harmos::plugin::bundle::Source {
             path: file.path.as_str(),
             bytes: original.file(&file.path).unwrap(),
             executable: file.executable.clone(),
         })
         .collect();
-    files.push(harmos::plugin::Source {
+    files.push(harmos::plugin::bundle::Source {
         path: "revision.txt",
         bytes: revision.as_bytes(),
         executable: None,
     });
-    let candidate = harmos::plugin::Bundle::build(
-        harmos::plugin::Identity {
+    let candidate = harmos::plugin::bundle::Bundle::build(
+        harmos::plugin::bundle::Identity {
             name: name.into(),
             ..original.manifest().identity.clone()
         },

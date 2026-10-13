@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 // Local Imports
 use dokime::core::{Identifier, Timestamp};
 use dokime::records::RecordSeverity;

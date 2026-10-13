@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+pub use dokime_contract::execution::StepCommand;
 
 /* === Imports === */
 
@@ -21,7 +22,7 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::core::{
-    CaseId, CommandId, NodeId, StepAttemptId, StepId, TestCycleId, TestExecutionId, Timestamp,
+    CaseId, CommandId, NodeId, StepAttemptId, TestCycleId, TestExecutionId, Timestamp,
 };
 
 /* === Constants === */
@@ -93,14 +94,6 @@ pub enum RunPhase {
     Failed,
     Stopped,
     Interrupted,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
-pub enum StepCommand {
-    Next,
-    RunStep { step_id: StepId },
-    Finish,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -263,22 +256,6 @@ impl harmos::MemorySize for StepCommandReceipt {
                     bytes.saturating_add(owned.saturating_sub(inline))
                 }
             })
-    }
-}
-
-impl harmos::MemorySize for StepCommand {
-    fn memory_size(&self) -> usize {
-        match self {
-            Self::RunStep { step_id } => {
-                let owned = harmos::MemorySize::memory_size(step_id);
-                if owned == usize::MAX {
-                    return usize::MAX;
-                }
-                std::mem::size_of::<Self>()
-                    .saturating_add(owned.saturating_sub(std::mem::size_of_val(step_id)))
-            }
-            Self::Next | Self::Finish => std::mem::size_of::<Self>(),
-        }
     }
 }
 

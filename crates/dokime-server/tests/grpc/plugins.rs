@@ -13,26 +13,279 @@
 
 /* === Imports === */
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
-use dokime_protocol::v1::{plugins_client::PluginsClient, stage_plugin_frame::Frame};
+use dokime_client::contracts::plugins::StagePluginFrameFrame as Frame;
 
 /* === Constants === */
+const DYNAMIC_OWNER: &str = "grpc.dynamic-fixture";
+const DYNAMIC_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+    timeout: Duration::from_secs(5),
+    attempt_timeout: Duration::from_secs(5),
+    retries: harmos::operations::RetryPolicy::Never,
+};
+const DYNAMIC_CAPABILITY_TOKEN: &str = "fixture-capability-012345678901234567890";
+const DYNAMIC_DENIED_TOKEN: &str = "fixture-unlisted-admin-012345678901234567890";
+const DYNAMIC_WRONG_OWNER_TOKEN: &str = "fixture-wrong-owner-012345678901234567890";
+const DYNAMIC_WRONG_ID_TOKEN: &str = "fixture-wrong-operation-012345678901234567890";
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+#[harmos::message]
+#[derive(Clone)]
+struct DynamicNumber {
+    value: u32,
+}
+
+#[harmos::message]
+struct DynamicText {
+    value: String,
+}
+
+#[harmos::operation(request = DynamicText, response = DynamicText,
+    id = "fixture.dynamic.unary", version = 1, policy = DYNAMIC_POLICY,
+    visibility = harmos::operations::Visibility::Host,
+    grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
+struct DynamicReplacement;
+
+struct DynamicReplacementHandler {
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+struct DynamicUnary;
+
+struct DynamicUnaryHandler {
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[harmos::operation(request = DynamicNumber, response = DynamicNumber, output = DynamicNumber,
+    id = "fixture.dynamic.download", version = 1, policy = DYNAMIC_POLICY,
+    visibility = harmos::operations::Visibility::Host,
+    grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Download"))]
+struct DynamicDownload;
+
+struct DynamicDownloadHandler {
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[harmos::operation(request = DynamicNumber, response = DynamicNumber, input = DynamicNumber,
+    id = "fixture.dynamic.upload", version = 1, policy = DYNAMIC_POLICY,
+    visibility = harmos::operations::Visibility::Host,
+    grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Upload"))]
+struct DynamicUpload;
+
+struct DynamicUploadHandler {
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[harmos::operation(request = DynamicNumber, response = DynamicNumber, input = DynamicNumber, output = DynamicNumber,
+    id = "fixture.dynamic.duplex", version = 1, policy = DYNAMIC_POLICY,
+    visibility = harmos::operations::Visibility::Host,
+    grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Duplex"))]
+struct DynamicDuplex;
+
+struct DynamicDuplexHandler {
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl harmos::operations::Operation for DynamicReplacementHandler {
+    type Declaration = DynamicReplacement;
+    type Resources = std::sync::atomic::AtomicUsize;
+    type Error = tonic::Status;
+    type Context<'a> = harmos::operations::Context<'a>;
+    type Endpoints = ();
+
+    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+        Ok(Self { calls })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut DynamicText,
+        _: &mut Self::Endpoints,
+    ) -> Result<harmos::operations::Response<DynamicText>, Self::Error> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(DynamicText {
+            value: request.value.clone(),
+        }
+        .into())
+    }
+}
+
+impl harmos::operations::OperationDeclaration for DynamicUnary {
+    type Request = DynamicNumber;
+    type Response = DynamicNumber;
+    const ID: &'static str = "fixture.dynamic.unary";
+    const POLICY: harmos::operations::OperationPolicy = DYNAMIC_POLICY;
+    const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Host;
+
+    fn visit_wire<V: harmos::operations::WireVisitor>(visitor: V) -> Option<V::Entry> {
+        Some(visitor.unary::<Self>())
+    }
+
+    fn grant(request: &DynamicNumber) -> Option<harmos::plugin::contract::Grant> {
+        match request.value {
+            20 => Some(harmos::plugin::contract::Grant::Egress(
+                "fixture.allowed".into(),
+            )),
+            21 => Some(harmos::plugin::contract::Grant::Egress(
+                "fixture.refused".into(),
+            )),
+            _ => None,
+        }
+    }
+}
+
+impl harmos::operations::WireOperation for DynamicUnary {
+    const VERSION: u32 = 1;
+    const GRPC: Option<harmos::operations::Grpc> = Some(harmos::operations::Grpc::new(
+        "fixture.dynamic.v1",
+        "Provider",
+        "Unary",
+    ));
+
+    fn visit_grpc<V: harmos::operations::GrpcVisitor>(visitor: V) -> Option<V::Entry> {
+        Some(visitor.unary::<Self>())
+    }
+}
+
+impl harmos::operations::Operation for DynamicUnaryHandler {
+    type Declaration = DynamicUnary;
+    type Resources = std::sync::atomic::AtomicUsize;
+    type Error = tonic::Status;
+    type Context<'a> = harmos::operations::Context<'a>;
+    type Endpoints = ();
+
+    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+        Ok(Self { calls })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut DynamicNumber,
+        _: &mut Self::Endpoints,
+    ) -> Result<harmos::operations::Response<DynamicNumber>, Self::Error> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(DynamicNumber {
+            value: request.value + 1,
+        }
+        .into())
+    }
+}
+
+impl harmos::operations::Operation for DynamicDownloadHandler {
+    type Declaration = DynamicDownload;
+    type Resources = std::sync::atomic::AtomicUsize;
+    type Error = tonic::Status;
+    type Context<'a> = harmos::operations::Context<'a>;
+    type Endpoints = harmos::operations::StreamOutput<DynamicNumber>;
+
+    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+        Ok(Self { calls })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut DynamicNumber,
+        streams: &mut Self::Endpoints,
+    ) -> Result<harmos::operations::Response<DynamicNumber>, Self::Error> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        for value in [request.value + 1, request.value + 2] {
+            streams
+                .send_with(std::mem::size_of::<DynamicNumber>(), || {
+                    Ok(DynamicNumber { value })
+                })
+                .await
+                .map_err(|error| tonic::Status::internal(error.to_string()))?;
+        }
+        Ok(DynamicNumber {
+            value: request.value + 3,
+        }
+        .into())
+    }
+}
+
+impl harmos::operations::Operation for DynamicUploadHandler {
+    type Declaration = DynamicUpload;
+    type Resources = std::sync::atomic::AtomicUsize;
+    type Error = tonic::Status;
+    type Context<'a> = harmos::operations::Context<'a>;
+    type Endpoints = harmos::operations::StreamInput<DynamicNumber>;
+
+    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+        Ok(Self { calls })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut DynamicNumber,
+        streams: &mut Self::Endpoints,
+    ) -> Result<harmos::operations::Response<DynamicNumber>, Self::Error> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let mut value = request.value;
+        while let Some(item) = streams.recv().await {
+            value += item.value;
+        }
+        Ok(DynamicNumber { value }.into())
+    }
+}
+
+impl harmos::operations::Operation for DynamicDuplexHandler {
+    type Declaration = DynamicDuplex;
+    type Resources = std::sync::atomic::AtomicUsize;
+    type Error = tonic::Status;
+    type Context<'a> = harmos::operations::Context<'a>;
+    type Endpoints = (
+        harmos::operations::StreamInput<DynamicNumber>,
+        harmos::operations::StreamOutput<DynamicNumber>,
+    );
+
+    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+        Ok(Self { calls })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut DynamicNumber,
+        streams: &mut Self::Endpoints,
+    ) -> Result<harmos::operations::Response<DynamicNumber>, Self::Error> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let mut value = request.value;
+        while let Some(item) = streams.0.recv().await {
+            value += item.value;
+            streams
+                .1
+                .send_with(std::mem::size_of::<DynamicNumber>(), || {
+                    Ok(DynamicNumber { value })
+                })
+                .await
+                .map_err(|error| tonic::Status::internal(error.to_string()))?;
+        }
+        Ok(DynamicNumber { value }.into())
+    }
+}
+
+impl contracts::Endpoint for DynamicUnary {
+    const PATH: &'static str = "/fixture.dynamic.v1.Provider/Unary";
+    const ACCESS: Role = Role::Read;
+}
 
 /* === Public Functions === */
 
@@ -42,14 +295,14 @@ fn bundle() -> Vec<u8> {
 }
 
 fn bundle_description(description: &str) -> Vec<u8> {
-    use harmos::plugin::{Bundle, Executable, Facility, Identity, Limits, Source};
+    use harmos::plugin::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
     let owner = "grpc-plugin";
     let version = "1.0.0";
     let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
-    let policy = harmos::OperationPolicy {
+    let policy = harmos::operations::OperationPolicy {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
-        retries: harmos::RetryPolicy::Never,
+        retries: harmos::operations::RetryPolicy::Never,
     };
     let lifecycle = [
         harmos::operations::lifecycle::Descriptor::new(
@@ -72,7 +325,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
         serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{contributions}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos::artifact::PREFIX).unwrap()
+        prefix = std::str::from_utf8(harmos_contract::PREFIX).unwrap()
     );
     Bundle::build(
         Identity {
@@ -111,9 +364,9 @@ async fn fixture(root: &std::path::Path) -> Runtime {
     Runtime::start(config).await.unwrap()
 }
 
-fn frames(bytes: &[u8]) -> Vec<v1::StagePluginFrame> {
-    let mut frames = vec![v1::StagePluginFrame {
-        frame: Some(Frame::Header(v1::StagePluginHeader {
+fn frames(bytes: &[u8]) -> Vec<contracts::plugins::StagePluginFrame> {
+    let mut frames = vec![contracts::plugins::StagePluginFrame {
+        frame: Some(Frame::Header(contracts::plugins::StagePluginHeader {
             size_bytes: bytes.len() as u64,
             sha256: Sha256::digest(bytes)
                 .iter()
@@ -122,8 +375,8 @@ fn frames(bytes: &[u8]) -> Vec<v1::StagePluginFrame> {
         })),
     }];
     for (index, chunk) in bytes.chunks(37).enumerate() {
-        frames.push(v1::StagePluginFrame {
-            frame: Some(Frame::Chunk(v1::StagePluginChunk {
+        frames.push(contracts::plugins::StagePluginFrame {
+            frame: Some(Frame::Chunk(contracts::plugins::StagePluginChunk {
                 offset: (index * 37) as u64,
                 data: chunk.to_vec(),
             })),
@@ -143,23 +396,26 @@ pub(crate) async fn plugin_stage_identity() {
     )
     .await
     .unwrap();
-    let mut client = PluginsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client
-            .list_installations(v1::ListInstallationsRequest::default())
+            .unary::<contracts::plugins::ListInstallations>(
+                contracts::plugins::ListInstallationsRequest::default()
+            )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
     let staged = client
-        .stage(authenticated(tokio_stream::iter(frames(&bundle()))))
+        .upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(frames(&bundle()))))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(staged.state, v1::PluginInstallationState::Staged as i32);
+    assert_eq!(
+        staged.state,
+        contracts::plugins::PluginInstallationState::Staged
+    );
     assert!(!staged.active);
     assert!(!staged.restart_required);
     assert_eq!(staged.metadata.as_ref().unwrap().owners, ["grpc-plugin"]);
@@ -176,66 +432,486 @@ pub(crate) async fn plugin_stage_identity() {
     );
     assert_eq!(
         client
-            .consent(authenticated(v1::ConsentPluginRequest {
-                install_id: staged.install_id.clone(),
-                expected_sha256: "0".repeat(64)
-            }))
+            .unary::<contracts::plugins::Consent>(authenticated(
+                contracts::plugins::ConsentPluginRequest {
+                    install_id: staged.install_id.clone(),
+                    expected_sha256: "0".repeat(64)
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition
     );
     let installed = client
-        .consent(authenticated(v1::ConsentPluginRequest {
-            install_id: staged.install_id.clone(),
-            expected_sha256: staged.sha256.clone(),
-        }))
+        .unary::<contracts::plugins::Consent>(authenticated(
+            contracts::plugins::ConsentPluginRequest {
+                install_id: staged.install_id.clone(),
+                expected_sha256: staged.sha256.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(
         installed.state,
-        v1::PluginInstallationState::Installed as i32
+        contracts::plugins::PluginInstallationState::Installed
     );
     assert!(installed.consented_at.is_some());
     assert!(installed.restart_required);
     assert!(!installed.active);
     let disabled = client
-        .set_enabled(authenticated(v1::SetPluginEnabledRequest {
-            install_id: staged.install_id.clone(),
-            enabled: false,
-        }))
+        .unary::<contracts::plugins::SetEnabled>(authenticated(
+            contracts::plugins::SetPluginEnabledRequest {
+                install_id: staged.install_id.clone(),
+                enabled: false,
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(disabled.state, v1::PluginInstallationState::Disabled as i32);
+    assert_eq!(
+        disabled.state,
+        contracts::plugins::PluginInstallationState::Disabled
+    );
     let page = client
-        .list_installations(authenticated(v1::ListInstallationsRequest::default()))
+        .unary::<contracts::plugins::ListInstallations>(authenticated(
+            contracts::plugins::ListInstallationsRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(page.total_count, 1);
     assert_eq!(page.installations[0].install_id, staged.install_id);
     let removed = client
-        .remove(authenticated(v1::RemovePluginRequest {
-            install_id: staged.install_id.clone(),
-        }))
+        .unary::<contracts::plugins::Remove>(authenticated(
+            contracts::plugins::RemovePluginRequest {
+                install_id: staged.install_id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(
         removed.installation.unwrap().state,
-        v1::PluginInstallationState::RemovalPending as i32
+        contracts::plugins::PluginInstallationState::RemovalPending
     );
     let current = client
-        .get_installation(authenticated(v1::GetInstallationRequest {
-            install_id: staged.install_id,
-        }))
+        .unary::<contracts::plugins::GetInstallation>(authenticated(
+            contracts::plugins::GetInstallationRequest {
+                install_id: staged.install_id,
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert!(current.restart_required);
     server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+    dynamic_plugin_cardinalities().await;
+}
+
+async fn dynamic_plugin_cardinalities() {
+    use dokime_client::{Client, Target, dynamic::Event};
+    use dokime_server::grpc::access::OperationPermission;
+    use harmos::operations::OperationDeclaration;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let permission = |owner: &str, id: &str| OperationPermission {
+        owner: owner.into(),
+        id: id.into(),
+        grants: vec![],
+    };
+    let operation_ids = [
+        DynamicUnary::ID,
+        DynamicDownload::ID,
+        DynamicUpload::ID,
+        DynamicDuplex::ID,
+    ];
+    let mut capability = permission(DYNAMIC_OWNER, DynamicUnary::ID);
+    capability
+        .grants
+        .push(harmos::plugin::contract::Grant::Egress(
+            "fixture.allowed".into(),
+        ));
+    let grants = vec![
+        BearerGrant::new(
+            "conditional-capability".into(),
+            Role::Read,
+            DYNAMIC_CAPABILITY_TOKEN,
+        )
+        .unwrap()
+        .with_operations(vec![capability])
+        .unwrap(),
+        grant(Role::Read)
+            .with_operations(
+                operation_ids
+                    .iter()
+                    .map(|id| permission(DYNAMIC_OWNER, id))
+                    .collect(),
+            )
+            .unwrap(),
+        BearerGrant::new("unlisted-admin".into(), Role::Admin, DYNAMIC_DENIED_TOKEN).unwrap(),
+        BearerGrant::new("wrong-owner".into(), Role::Admin, DYNAMIC_WRONG_OWNER_TOKEN)
+            .unwrap()
+            .with_operations(vec![permission("grpc.other", DynamicUnary::ID)])
+            .unwrap(),
+        BearerGrant::new(
+            "wrong-operation".into(),
+            Role::Admin,
+            DYNAMIC_WRONG_ID_TOKEN,
+        )
+        .unwrap()
+        .with_operations(vec![permission(DYNAMIC_OWNER, "fixture.dynamic.unlisted")])
+        .unwrap(),
+    ];
+    for invalid in [
+        permission("*", DynamicUnary::ID),
+        permission(DYNAMIC_OWNER, "*"),
+        permission("dokime", DynamicUnary::ID),
+        permission("harmos", DynamicUnary::ID),
+    ] {
+        assert!(grant(Role::Admin).with_operations(vec![invalid]).is_err());
+    }
+    assert!(
+        grant(Role::Admin)
+            .with_operations(vec![
+                permission(DYNAMIC_OWNER, DynamicUnary::ID),
+                permission(DYNAMIC_OWNER, DynamicUnary::ID),
+            ])
+            .is_err()
+    );
+    let mut wildcard = permission(DYNAMIC_OWNER, DynamicUnary::ID);
+    wildcard
+        .grants
+        .push(harmos::plugin::contract::Grant::Egress("*".into()));
+    assert!(grant(Role::Admin).with_operations(vec![wildcard]).is_err());
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = fixture(root.path()).await;
+    let runtime = owner.handle();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let server = Server::start(
+        runtime.clone(),
+        Config::local().with_bearer_auth(grants).unwrap(),
+    )
+    .await
+    .unwrap();
+    let allowed = Client::connect(
+        Target::local(server.local_endpoint()).unwrap(),
+        Some(TOKEN),
+        None,
+    )
+    .await
+    .unwrap();
+    assert!(
+        !allowed
+            .operations()
+            .await
+            .unwrap()
+            .iter()
+            .any(|entry| entry.owner.as_str() == DYNAMIC_OWNER)
+    );
+
+    // Register After Connection To Require Live Discovery, Not A Client Dispatch Table.
+    runtime
+        .operations()
+        .register_wire_operation::<DynamicUnaryHandler>(
+            DYNAMIC_OWNER,
+            dokime_app::app::Lanes::Open,
+            calls.clone(),
+        )
+        .unwrap();
+    runtime
+        .operations()
+        .register_wire_operation::<DynamicDownloadHandler>(
+            DYNAMIC_OWNER,
+            dokime_app::app::Lanes::Open,
+            calls.clone(),
+        )
+        .unwrap();
+    runtime
+        .operations()
+        .register_wire_operation::<DynamicUploadHandler>(
+            DYNAMIC_OWNER,
+            dokime_app::app::Lanes::Open,
+            calls.clone(),
+        )
+        .unwrap();
+    runtime
+        .operations()
+        .register_wire_operation::<DynamicDuplexHandler>(
+            DYNAMIC_OWNER,
+            dokime_app::app::Lanes::Open,
+            calls.clone(),
+        )
+        .unwrap();
+    let catalog = allowed.operations().await.unwrap();
+    for id in [
+        DynamicUnary::ID,
+        DynamicDownload::ID,
+        DynamicUpload::ID,
+        DynamicDuplex::ID,
+    ] {
+        assert!(
+            catalog
+                .iter()
+                .any(|entry| entry.owner.as_str() == DYNAMIC_OWNER
+                    && entry.contract.operation().id.as_str() == id
+                    && entry.grpc_available)
+        );
+    }
+
+    // An Admin Role Alone Must Grant Neither Discovery Nor Direct Invocation.
+    let direct = WireClient::connect(server.local_endpoint()).await.unwrap();
+    for token in [
+        DYNAMIC_DENIED_TOKEN,
+        DYNAMIC_WRONG_OWNER_TOKEN,
+        DYNAMIC_WRONG_ID_TOKEN,
+    ] {
+        let denied = Client::connect(
+            Target::local(server.local_endpoint()).unwrap(),
+            Some(token),
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(
+            !denied
+                .operations()
+                .await
+                .unwrap()
+                .iter()
+                .any(|entry| entry.owner.as_str() == DYNAMIC_OWNER)
+        );
+        assert!(
+            denied
+                .call_operation(
+                    DynamicUnary::ID,
+                    Some(DYNAMIC_OWNER),
+                    b"{\"value\":10}",
+                    vec![]
+                )
+                .await
+                .is_err()
+        );
+        let mut request = Request::new(DynamicNumber { value: 10 });
+        request
+            .metadata_mut()
+            .insert("authorization", format!("Bearer {token}").parse().unwrap());
+        assert_eq!(
+            direct
+                .unary::<DynamicUnary>(request)
+                .await
+                .unwrap_err()
+                .code(),
+            Code::PermissionDenied
+        );
+        denied.close_and_wait().await;
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // A Different Request Schema Must Fail Before Handler Mutation.
+    let malformed = authenticated(harmos::operations::Response::new(DynamicText {
+        value: "wrong-schema".into(),
+    }));
+    let error = direct
+        .grpc()
+        .await
+        .unwrap()
+        .unary(
+            malformed,
+            <DynamicUnary as contracts::Endpoint>::PATH.parse().unwrap(),
+            direct.codec::<DynamicNumber, DynamicText>().unwrap(),
+        )
+        .await
+        .err()
+        .expect("wrong request schema is refused");
+    assert_eq!(error.code(), Code::InvalidArgument);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // Explicit Plugin Permissions Do Not Elevate The Token's Product Role.
+    assert_eq!(
+        direct
+            .unary::<contracts::execution::CreateCycle>(authenticated(
+                contracts::execution::CreateCycleRequest::default(),
+            ))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    assert!(runtime.cycles().await.is_empty());
+
+    for (id, input, expected, completion) in [
+        (DynamicUnary::ID, false, vec![], 11),
+        (DynamicDownload::ID, false, vec![11, 12], 13),
+        (DynamicUpload::ID, true, vec![], 16),
+        (DynamicDuplex::ID, true, vec![11, 13, 16], 16),
+    ] {
+        let inputs = if input {
+            [1, 2, 3]
+                .into_iter()
+                .map(|value| serde_json::to_vec(&serde_json::json!({"value": value})).unwrap())
+                .collect()
+        } else {
+            vec![]
+        };
+        let stream = allowed
+            .call_operation(id, Some(DYNAMIC_OWNER), b"{\"value\":10}", inputs)
+            .await
+            .unwrap();
+        let mut received = Vec::new();
+        let mut finished = false;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while let Some(event) = stream.message().await.unwrap() {
+                assert!(!finished, "completion must be the final event for {id}");
+                match event {
+                    Event::Item(value) => {
+                        received.push(value["value"].as_u64().expect("numeric fixture item"))
+                    }
+                    Event::Completion(value) => {
+                        assert_eq!(value["value"], completion, "{id}");
+                        finished = true;
+                    }
+                }
+            }
+        })
+        .await
+        .expect("dynamic plugin call settles within its policy");
+        assert_eq!(received, expected, "{id}");
+        assert!(finished, "{id} needs completion and final OK status");
+        stream.close().await;
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 4);
+    // Request-Dependent Grants Must Be Checked Before The Handler Mutates Anything.
+    let mut no_grant = Request::new(DynamicNumber { value: 20 });
+    no_grant
+        .metadata_mut()
+        .insert("authorization", format!("Bearer {TOKEN}").parse().unwrap());
+    assert_eq!(
+        direct
+            .unary::<DynamicUnary>(no_grant)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    let mut wrong_grant = Request::new(DynamicNumber { value: 21 });
+    wrong_grant.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {DYNAMIC_CAPABILITY_TOKEN}")
+            .parse()
+            .unwrap(),
+    );
+    assert_eq!(
+        direct
+            .unary::<DynamicUnary>(wrong_grant)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::PermissionDenied
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 4);
+    let mut matched = Request::new(DynamicNumber { value: 20 });
+    matched.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {DYNAMIC_CAPABILITY_TOKEN}")
+            .parse()
+            .unwrap(),
+    );
+    assert_eq!(
+        direct
+            .unary::<DynamicUnary>(matched)
+            .await
+            .unwrap()
+            .into_inner()
+            .value,
+        21
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 5);
+
+    // Reusing An ID Must Publish The New Generation And Its Entire Schema.
+    let original = catalog
+        .iter()
+        .find(|entry| {
+            entry.owner.as_str() == DYNAMIC_OWNER
+                && entry.contract.operation().id.as_str() == DynamicUnary::ID
+        })
+        .unwrap();
+    runtime
+        .operations()
+        .unregister_from(DYNAMIC_OWNER, DynamicUnary::ID)
+        .await
+        .unwrap();
+    assert!(
+        !allowed
+            .operations()
+            .await
+            .unwrap()
+            .iter()
+            .any(|entry| entry.owner.as_str() == DYNAMIC_OWNER
+                && entry.contract.operation().id.as_str() == DynamicUnary::ID)
+    );
+    runtime
+        .operations()
+        .register_wire_operation::<DynamicReplacementHandler>(
+            DYNAMIC_OWNER,
+            dokime_app::app::Lanes::Open,
+            calls.clone(),
+        )
+        .unwrap();
+    let replaced = allowed.operations().await.unwrap();
+    let replacement = replaced
+        .iter()
+        .find(|entry| {
+            entry.owner.as_str() == DYNAMIC_OWNER
+                && entry.contract.operation().id.as_str() == DynamicUnary::ID
+        })
+        .unwrap();
+    assert_ne!(replacement.generation, original.generation);
+    assert!(!replacement.contract.compatible(&original.contract));
+    assert!(!original.contract.compatible(&replacement.contract));
+    assert_eq!(
+        direct
+            .unary::<DynamicUnary>(authenticated(DynamicNumber { value: 10 }))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
+    assert!(
+        allowed
+            .call_operation(
+                DynamicUnary::ID,
+                Some(DYNAMIC_OWNER),
+                b"{\"value\":10}",
+                vec![]
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        5,
+        "stale requests must not enter the replacement"
+    );
+    let replacement = allowed
+        .call_operation(
+            DynamicUnary::ID,
+            Some(DYNAMIC_OWNER),
+            b"{\"value\":\"replacement\"}",
+            vec![],
+        )
+        .await
+        .unwrap();
+    let Some(Event::Completion(value)) = replacement.message().await.unwrap() else {
+        panic!("replacement unary call requires completion");
+    };
+    assert_eq!(value["value"], "replacement");
+    assert!(replacement.message().await.unwrap().is_none());
+    replacement.close().await;
+    assert_eq!(calls.load(Ordering::SeqCst), 6);
+
+    allowed.close_and_wait().await;
+    server.shutdown().await.unwrap();
+    drop(runtime);
     owner.shutdown().await.unwrap();
 }
 
@@ -250,16 +926,14 @@ pub(crate) async fn invalid_uploads_mutate() {
     )
     .await
     .unwrap();
-    let mut client = PluginsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut bad = frames(&bundle());
     if let Some(Frame::Chunk(chunk)) = &mut bad[1].frame {
         chunk.offset = 1;
     }
     assert_eq!(
         client
-            .stage(authenticated(tokio_stream::iter(bad)))
+            .upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(bad)))
             .await
             .unwrap_err()
             .code(),
@@ -269,7 +943,7 @@ pub(crate) async fn invalid_uploads_mutate() {
     short.pop();
     assert_eq!(
         client
-            .stage(authenticated(tokio_stream::iter(short)))
+            .upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(short)))
             .await
             .unwrap_err()
             .code(),
@@ -277,7 +951,9 @@ pub(crate) async fn invalid_uploads_mutate() {
     );
     assert_eq!(
         client
-            .list_installations(authenticated(v1::ListInstallationsRequest::default()))
+            .unary::<contracts::plugins::ListInstallations>(authenticated(
+                contracts::plugins::ListInstallationsRequest::default()
+            ))
             .await
             .unwrap()
             .into_inner()
@@ -291,7 +967,9 @@ pub(crate) async fn invalid_uploads_mutate() {
     tokio::time::timeout(Duration::from_secs(2), async {
         loop {
             match client
-                .list_installations(authenticated(v1::ListInstallationsRequest::default()))
+                .unary::<contracts::plugins::ListInstallations>(authenticated(
+                    contracts::plugins::ListInstallationsRequest::default(),
+                ))
                 .await
             {
                 Ok(page) => {
@@ -316,19 +994,21 @@ pub(crate) async fn invalid_uploads_mutate() {
     )
     .await
     .unwrap();
-    let mut client = PluginsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client
-            .list_installations(authenticated(v1::ListInstallationsRequest::default()))
+            .unary::<contracts::plugins::ListInstallations>(authenticated(
+                contracts::plugins::ListInstallationsRequest::default()
+            ))
             .await
             .unwrap_err()
             .code(),
         Code::PermissionDenied
     );
     let inventory = client
-        .list_admitted_plugins(authenticated(v1::ListAdmittedPluginsRequest::default()))
+        .unary::<contracts::plugins::ListAdmittedPlugins>(authenticated(
+            contracts::plugins::ListAdmittedPluginsRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -336,11 +1016,13 @@ pub(crate) async fn invalid_uploads_mutate() {
     assert_eq!(inventory.plugins[0].plugin_id, "grpc.host");
     assert_eq!(
         inventory.plugins[0].owner,
-        Some(v1::admitted_plugin::Owner::Host(true))
+        Some(contracts::plugins::AdmittedPluginOwner::Host(true))
     );
     assert_eq!(
         client
-            .stage(authenticated(tokio_stream::iter(frames(&bundle()))))
+            .upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(frames(
+                &bundle()
+            ))))
             .await
             .unwrap_err()
             .code(),
@@ -361,9 +1043,7 @@ pub(crate) async fn listener_shutdown_admission() {
     )
     .await
     .unwrap();
-    let mut client = PluginsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let (sender, upload) = open_upload(&mut client).await;
     tokio::time::timeout(Duration::from_secs(2), server.shutdown())
         .await
@@ -384,12 +1064,12 @@ pub(crate) async fn listener_shutdown_admission() {
     )
     .await
     .unwrap();
-    let mut client = PluginsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client
-            .list_installations(authenticated(v1::ListInstallationsRequest::default()))
+            .unary::<contracts::plugins::ListInstallations>(authenticated(
+                contracts::plugins::ListInstallationsRequest::default()
+            ))
             .await
             .unwrap()
             .into_inner()
@@ -403,21 +1083,23 @@ pub(crate) async fn listener_shutdown_admission() {
 // A competing query can win the sole permit before the upload arrives. Retry
 // only that explicit pre-admission Busy outcome, never an uncertain mutation.
 async fn open_upload(
-    client: &mut PluginsClient<Channel>,
+    client: &mut WireClient,
 ) -> (
-    tokio::sync::mpsc::Sender<v1::StagePluginFrame>,
-    tokio::task::JoinHandle<Result<tonic::Response<v1::PluginInstallation>, tonic::Status>>,
+    tokio::sync::mpsc::Sender<contracts::plugins::StagePluginFrame>,
+    tokio::task::JoinHandle<
+        Result<tonic::Response<contracts::plugins::PluginInstallation>, tonic::Status>,
+    >,
 ) {
     tokio::time::timeout(Duration::from_secs(3), async {
         loop {
             let (sender, receiver) = tokio::sync::mpsc::channel(1);
             sender.send(frames(&bundle()).remove(0)).await.unwrap();
-            let mut uploader = client.clone();
+            let uploader = client.clone();
             let upload = tokio::spawn(async move {
                 uploader
-                    .stage(authenticated(tokio_stream::wrappers::ReceiverStream::new(
-                        receiver,
-                    )))
+                    .upload::<contracts::plugins::Stage>(authenticated(
+                        tokio_stream::wrappers::ReceiverStream::new(receiver),
+                    ))
                     .await
             });
             // Let the streaming RPC submit its request before the admission
@@ -425,7 +1107,9 @@ async fn open_upload(
             tokio::task::yield_now().await;
             loop {
                 match client
-                    .list_installations(authenticated(v1::ListInstallationsRequest::default()))
+                    .unary::<contracts::plugins::ListInstallations>(authenticated(
+                        contracts::plugins::ListInstallationsRequest::default(),
+                    ))
                     .await
                 {
                     Err(error) if error.code() == Code::ResourceExhausted => {
@@ -462,27 +1146,29 @@ pub(crate) async fn oversized_permissions_consent() {
     )
     .await
     .unwrap();
-    let mut client = PluginsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let bytes = bundle_description(&"d".repeat(8192));
     let staged = client
-        .stage(authenticated(tokio_stream::iter(frames(&bytes))))
+        .upload::<contracts::plugins::Stage>(authenticated(tokio_stream::iter(frames(&bytes))))
         .await
         .unwrap()
         .into_inner();
     assert!(staged.metadata.is_none());
     assert!(staged.error.as_ref().unwrap().contains("budget"));
     let page = client
-        .list_installations(authenticated(v1::ListInstallationsRequest::default()))
+        .unary::<contracts::plugins::ListInstallations>(authenticated(
+            contracts::plugins::ListInstallationsRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(page.installations[0].install_id, staged.install_id);
     let entry = client
-        .get_installation(authenticated(v1::GetInstallationRequest {
-            install_id: staged.install_id.clone(),
-        }))
+        .unary::<contracts::plugins::GetInstallation>(authenticated(
+            contracts::plugins::GetInstallationRequest {
+                install_id: staged.install_id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -490,29 +1176,38 @@ pub(crate) async fn oversized_permissions_consent() {
     assert!(entry.metadata.is_none());
     assert_eq!(
         client
-            .consent(authenticated(v1::ConsentPluginRequest {
-                install_id: staged.install_id.clone(),
-                expected_sha256: staged.sha256
-            }))
+            .unary::<contracts::plugins::Consent>(authenticated(
+                contracts::plugins::ConsentPluginRequest {
+                    install_id: staged.install_id.clone(),
+                    expected_sha256: staged.sha256
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
         Code::ResourceExhausted
     );
     let entry = client
-        .get_installation(authenticated(v1::GetInstallationRequest {
-            install_id: staged.install_id.clone(),
-        }))
+        .unary::<contracts::plugins::GetInstallation>(authenticated(
+            contracts::plugins::GetInstallationRequest {
+                install_id: staged.install_id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(entry.state, v1::PluginInstallationState::Staged as i32);
+    assert_eq!(
+        entry.state,
+        contracts::plugins::PluginInstallationState::Staged
+    );
     assert!(entry.consented_at.is_none());
     assert!(
         client
-            .remove(authenticated(v1::RemovePluginRequest {
-                install_id: staged.install_id
-            }))
+            .unary::<contracts::plugins::Remove>(authenticated(
+                contracts::plugins::RemovePluginRequest {
+                    install_id: staged.install_id
+                }
+            ))
             .await
             .unwrap()
             .into_inner()

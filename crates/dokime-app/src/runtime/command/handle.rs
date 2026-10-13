@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::time::Instant;
 // Third Party Imports
-use harmos::{Error as HarmosError, Position, RequestKey};
+use harmos::{Error as HarmosError, state::Position, state::RequestKey};
 // Local Imports
 use crate::{
     CommandContext, CommandId, CommandReceipt, Error, JobRunId, RuntimeHandle,
@@ -465,7 +465,7 @@ impl RuntimeHandle {
 fn harmos_commit_rejection(error: HarmosError<String>) -> Error {
     match error {
         HarmosError::Rejected(message) => Error::conflict("runtime_conflict", message),
-        HarmosError::Preparation(harmos::PreparationError::Limit) => Error::overload(
+        HarmosError::Preparation(harmos::state::PreparationError::Limit) => Error::overload(
             "admission_resource_limit",
             "command exceeds the atomic admission record or payload budget",
         ),

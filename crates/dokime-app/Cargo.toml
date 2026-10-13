@@ -27,7 +27,7 @@ include = [
 default = []
 fft = ["harmos-signal/fft"]
 # Deterministic whole-runtime simulation, forwarded to the library that owns it.
-sim = ["harmos/sim"]
+sim = ["harmos/simulation"]
 
 [dependencies]
 # Local
@@ -38,7 +38,7 @@ dokime-host = { path = "../dokime-host" }
 dokime-theme = { path = "../dokime-theme" }
 
 # Git
-harmos = { workspace = true, features = ["runtime", "derive", "plugin", "sidecar-host", "grpc"] }
+harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
 harmos-signal = { workspace = true, default-features = false }
 
 # Error Handling
@@ -82,6 +82,9 @@ tokio-util = { workspace = true, default-features = true, features = ["io"] }
 # Storage
 
 [dev-dependencies]
+
+# Git
+harmos-contract = { workspace = true }
 
 # Logging
 tracing-subscriber = { workspace = true, default-features = true }

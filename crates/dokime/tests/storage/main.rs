@@ -96,8 +96,7 @@ pub(crate) async fn portable_records_identity() {
                 &[StoragePart::Schemas(&[StorageSchema::new(
                     position(1),
                     schema.clone(),
-                    records::fields().to_vec(),
-                    harmos::storage::SchemaEncoding::Inline,
+                    sqlite::storage::declared::<records::RecordRow>(),
                 )])],
                 (16 * 1024 * 1024).try_into().unwrap(),
             )
@@ -308,6 +307,15 @@ fn recovery_contract() {
     {
         eprintln!("Scenario: sqlite::frames::dropped_queued_view");
         run_scenario(sqlite::frames::dropped_queued_view, false, None, false);
+    }
+    {
+        eprintln!("Scenario: sqlite::frames::filtered_record_pages_cut");
+        run_scenario(
+            sqlite::frames::filtered_record_pages_cut,
+            false,
+            None,
+            false,
+        );
     }
     {
         eprintln!("Scenario: sqlite::frames::postcard_frames_cut");

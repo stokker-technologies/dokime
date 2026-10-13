@@ -14,18 +14,24 @@
 /* === Local Imports === */
 
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  CycleStatus,
-  type CycleSummary,
-  type ExecutionDetail,
-  ExecutionParameterSet,
-  type ExecutionStep,
-  type ParameterCursor,
-  type StepCriterion,
-  type StepPageCursor,
-  type ExecutionPluginIdentity as WirePluginIdentity,
-} from "@/lib/rpc/generated/dokime/v1/execution_pb";
-import type { Value } from "@/lib/rpc/generated/dokime/v1/value_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+type CycleSummary = Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>;
+type ExecutionDetail = Wire<Awaited<ReturnType<typeof rpc.executionGetExecution>>>;
+type ExecutionStep = Wire<
+  Awaited<ReturnType<typeof rpc.executionListExecutionSteps>>["steps"][number]
+>;
+type StepCriterion = Wire<
+  Awaited<ReturnType<typeof rpc.executionListStepCriteria>>["criteria"][number]
+>;
+type ParameterCursor = Parameters<typeof rpc.executionListExecutionParameters>[1]["cursor"];
+type ExecutionParameterSet = Parameters<typeof rpc.executionListExecutionParameters>[1]["set"];
+type StepPageCursor = Wire<Parameters<typeof rpc.executionListExecutionSteps>[1]["cursor"]>;
+type Value = NonNullable<
+  Wire<
+    Awaited<ReturnType<typeof rpc.executionListExecutionParameters>>["parameters"][number]
+  >["value"]
+>;
+type WirePluginIdentity = NonNullable<ExecutionDetail["admittedPlugin"]>;
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   ExecutionPluginIdentity,
@@ -98,7 +104,7 @@ export async function fetchNativeTestExecutionDetail(
     suite_id: item.suiteId,
     case_id: item.caseId,
     template_id: item.templateId,
-  })) as TestCase[];
+  }));
   return mapNativeExecution(native, mappedCases, cycle);
 }
 
@@ -242,7 +248,7 @@ export async function clearNativeTestCycle(
   cycleId: string,
 ): Promise<void> {
   const cycle = await rpc.executionGetCycle(session, { cycleId });
-  if ([CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING].includes(cycle.status)) {
+  if (["Running", "Paused", "Stopping"].includes(cycle.status?.HarmosVariant.case ?? "")) {
     await rpc.executionStopCycle(session, { cycleId });
     await waitForNativeCycleSettled(session, cycleId);
   }
@@ -308,7 +314,7 @@ async function waitForNativeCycleSettled(
 ): Promise<CycleSummary> {
   for (let attempt = 0; attempt < NATIVE_MAX_SETTLE_ATTEMPTS; attempt++) {
     const cycle = await rpc.executionGetCycle(session, { cycleId });
-    if (![CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING].includes(cycle.status)) {
+    if (!["Running", "Paused", "Stopping"].includes(cycle.status?.HarmosVariant.case ?? "")) {
       return cycle;
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -324,12 +330,12 @@ async function loadNativeExecution(
   executionId: string,
 ): Promise<NativeExecution> {
   const detail = await rpc.executionGetExecution(session, { executionId });
-  const inputs = await listExecutionParameters(session, executionId, ExecutionParameterSet.INPUTS);
-  const outputs = await listExecutionParameters(
-    session,
-    executionId,
-    ExecutionParameterSet.OUTPUTS,
-  );
+  const inputs = await listExecutionParameters(session, executionId, {
+    HarmosVariant: { case: "Inputs", value: {} },
+  });
+  const outputs = await listExecutionParameters(session, executionId, {
+    HarmosVariant: { case: "Outputs", value: {} },
+  });
   const steps = await listExecutionSteps(session, executionId);
   const criteria = await mapBounded(steps, async (step) => ({
     step,
@@ -347,7 +353,7 @@ type NativeExecution = {
 
 function mapNativeExecution(
   native: NativeExecution,
-  cases: TestCase[],
+  cases: Pick<TestCase, "case_id" | "template_id">[],
   summary: CycleSummary,
 ): TestExecution {
   const detail = native.detail;
@@ -358,7 +364,22 @@ function mapNativeExecution(
   const fallback = timestampIso(summary.updatedAt) ?? nowIso();
   const startedAt = timestampIso(detail.startedAt);
   return {
-    controls: detail.controls ?? null,
+    controls: detail.controls
+      ? {
+          requestId: detail.controls.requestId,
+          paused: detail.controls.paused,
+          stopRequested: detail.controls.stopRequested,
+          canPause: detail.controls.canPause,
+          canResume: detail.controls.canResume,
+          canStop: detail.controls.canStop,
+          mode:
+            detail.controls.mode?.HarmosVariant.case === "Automatic"
+              ? "automatic"
+              : detail.controls.mode?.HarmosVariant.case === "Interactive"
+                ? "interactive"
+                : null,
+        }
+      : null,
     test_execution_id: item.executionId,
     test_cycle_id: detail.cycleId,
     queue_item_id: item.caseId,
@@ -555,7 +576,7 @@ async function loadNativeExecutionsForPlan(
     suite_id: item.suiteId,
     case_id: item.caseId,
     template_id: item.templateId,
-  })) as TestCase[];
+  }));
   const cycle = await rpc.executionGetCycle(session, { cycleId });
   const executions = await mapBounded(summaries, (item) =>
     loadNativeExecution(session, item.executionId),
@@ -563,32 +584,26 @@ async function loadNativeExecutionsForPlan(
   return executions.map((execution) => mapNativeExecution(execution, mappedCases, cycle));
 }
 
-function stepCursorKey(cursor: unknown): string {
-  if (!cursor || typeof cursor !== "object") return "";
-  const value = cursor as {
-    executionId?: string;
-    stepId?: string;
-    kind?: number;
-    nextOrdinal?: bigint;
-  };
-  return `${value.executionId ?? ""}:${value.stepId ?? ""}:${value.kind ?? ""}:${String(value.nextOrdinal ?? "")}`;
+function stepCursorKey(cursor: StepPageCursor): string {
+  if (!cursor) return "";
+  return `${cursor.executionId}:${cursor.stepId}:${cursor.kind?.HarmosVariant?.case ?? ""}:${cursor.nextOrdinal}`;
 }
 
 function mapPluginIdentity(value: WirePluginIdentity | undefined): ExecutionPluginIdentity {
   if (!value) throw new Error("Execution invalidation has no previous provider identity.");
-  const implementation = value.implementation;
-  if (implementation.case === "contentDigest") {
+  const implementation = value.implementation?.HarmosVariant;
+  if (implementation?.case === "ContentDigest") {
     return {
       source: value.source,
       version: value.version,
-      implementation: { kind: "bundle", content_digest: implementation.value },
+      implementation: { kind: "bundle", content_digest: implementation.value.field0 },
     };
   }
-  if (implementation.case === "generation") {
+  if (implementation?.case === "Generation") {
     return {
       source: value.source,
       version: value.version,
-      implementation: { kind: "embedded", generation: implementation.value },
+      implementation: { kind: "embedded", generation: implementation.value.field0 },
     };
   }
   throw new Error("Execution provider identity has no implementation.");

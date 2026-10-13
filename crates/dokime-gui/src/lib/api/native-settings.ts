@@ -14,15 +14,7 @@
 /* === Local Imports === */
 
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  CredentialBackendKind,
-  HostCardTone,
-  type SecretReference as NativeSecretReference,
-  type SettingContribution,
-  type SettingsCard,
-  SettingsCardState,
-  type SettingsSection,
-} from "@/lib/rpc/generated/dokime/v1/settings_pb";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   HostCardBlock,
@@ -33,9 +25,32 @@ import type {
   SettingsEntry,
 } from "@/lib/types/view-contracts";
 
-type SettingValues = LegacyPluginRuntimeSettings["values"];
-
 import { jsonToNativeValue, nativeValueObjectToJson, safeNumber } from "./native-values";
+
+/* === Types === */
+
+type SettingsFrame = Wire<Awaited<ReturnType<typeof rpc.settingsGetSettings>>>;
+type SettingsSection = SettingsFrame["sections"][number];
+type SettingsCard = SettingsFrame["cards"][number];
+type SettingsCardState = SettingsCard["state"];
+type HostCardTone = NonNullable<
+  Extract<
+    NonNullable<NonNullable<SettingsCard["body"]>["blocks"][number]["kind"]>["HarmosVariant"],
+    { case: "Status" }
+  >["value"]["field0"]
+>["tone"];
+type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.settingsGetPluginSettings>>>;
+type SettingContribution = NonNullable<PluginRuntimeSettings["settings"]>["contributions"][number];
+type NativeSecretReference = NonNullable<
+  Extract<
+    NonNullable<SettingContribution["kind"]>["HarmosVariant"],
+    { case: "SecretReference" }
+  >["value"]["field0"]
+>["default"];
+type CredentialBackendKind = NonNullable<
+  NonNullable<PluginRuntimeSettings["credentialBindings"]>["bindings"][number]["value"]
+>["backend"];
+type SettingValues = LegacyPluginRuntimeSettings["values"];
 
 /* === Settings frame === */
 
@@ -51,7 +66,7 @@ export async function fetchNativeSettingsFrame(
 
 /* === Plugin Settings === */
 
-export type NativePluginRuntimeSettings = Awaited<ReturnType<typeof rpc.settingsGetPluginSettings>>;
+export type NativePluginRuntimeSettings = PluginRuntimeSettings;
 
 export function mapNativePluginRuntimeSettings(
   settings: NativePluginRuntimeSettings,
@@ -64,14 +79,17 @@ export function mapNativePluginRuntimeSettings(
     discovered: nativeValueObjectToJson(settings.discovered) as SettingValues,
     credential_bindings: {
       bindings: Object.fromEntries(
-        Object.entries(settings.credentialBindings?.bindings ?? {}).map(([id, binding]) => [
-          id,
-          {
-            credential_id: binding.credentialId,
-            backend: mapCredentialBackend(binding.backend),
-            configured: binding.configured,
-          },
-        ]),
+        (settings.credentialBindings?.bindings ?? []).map(({ key, value }) => {
+          if (!value) throw new Error(`Native settings omitted credential binding ${key}.`);
+          return [
+            key,
+            {
+              credential_id: value.credentialId,
+              backend: mapCredentialBackend(value.backend),
+              configured: value.configured,
+            },
+          ];
+        }),
       ),
       missing_required: settings.credentialBindings?.missingRequired ?? [],
     },
@@ -90,11 +108,7 @@ export async function updateNativePluginSettings(
   return mapNativePluginRuntimeSettings(
     await rpc.settingsUpdatePluginSettings(session, {
       pluginId,
-      values: {
-        fields: Object.fromEntries(
-          Object.entries(values).map(([id, value]) => [id, jsonToNativeValue(value)]),
-        ),
-      },
+      values: jsonToNativeValue(values),
     }),
   );
 }
@@ -114,10 +128,10 @@ export async function updateNativePluginCredential(
 
 function mapSettingsSection(section: SettingsSection): RuntimeSettingsSection {
   const owner =
-    section.owner.case === "app"
+    section.owner?.HarmosVariant.case === "App"
       ? { kind: "app" as const }
-      : section.owner.case === "installedPluginId"
-        ? { kind: "installed_plugin" as const, plugin_id: section.owner.value }
+      : section.owner?.HarmosVariant.case === "InstalledPluginId"
+        ? { kind: "installed_plugin" as const, plugin_id: section.owner.HarmosVariant.value.field0 }
         : null;
   if (!owner) throw new Error(`Native settings section ${section.sectionId} has no owner.`);
   return {
@@ -146,101 +160,129 @@ function mapSettingsCard(card: SettingsCard): RuntimeSettingsCard {
 function mapHostCardBlock(
   block: NonNullable<SettingsCard["body"]>["blocks"][number],
 ): HostCardBlock {
-  switch (block.kind.case) {
-    case "text":
-      return { type: "text", text: block.kind.value };
-    case "status":
+  const variant = block.kind?.HarmosVariant;
+  switch (variant?.case) {
+    case "Text": {
+      const entry = variant.value.field0;
+      return { type: "text", text: entry };
+    }
+    case "Status": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its status payload.");
       return {
         type: "status",
-        label: block.kind.value.label,
-        tone: mapHostCardTone(block.kind.value.tone),
-        detail: block.kind.value.detail ?? null,
+        label: entry.label,
+        tone: mapHostCardTone(entry.tone),
+        detail: entry.detail ?? null,
       };
-    case "keyValueList":
+    }
+    case "KeyValueList": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its keyValueList payload.");
       return {
         type: "key_value_list",
-        items: block.kind.value.items.map((item) => ({
+        items: entry.items.map((item) => ({
           label: item.label,
           value: item.value,
           detail: item.detail ?? null,
         })),
       };
-    case "metrics":
+    }
+    case "Metrics": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its metrics payload.");
       return {
         type: "metrics",
-        items: block.kind.value.items.map((item) => ({
+        items: entry.items.map((item) => ({
           label: item.label,
           value: item.value,
           unit: item.unit ?? null,
           trend: item.trend ?? null,
         })),
       };
+    }
     default:
       throw new Error("Native settings returned a card block without a kind.");
   }
 }
 
 function mapSettingContribution(contribution: SettingContribution): SettingsEntry {
-  switch (contribution.kind.case) {
-    case "boolean":
+  const variant = contribution.kind?.HarmosVariant;
+  switch (variant?.case) {
+    case "Boolean": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its boolean payload.");
       return {
         kind: "boolean",
-        id: contribution.kind.value.id,
-        title: contribution.kind.value.title,
-        description: contribution.kind.value.description ?? null,
-        default: contribution.kind.value.default,
+        id: entry.id,
+        title: entry.title,
+        description: entry.description ?? null,
+        default: entry.default,
       };
-    case "textArea":
+    }
+    case "TextArea": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its text area payload.");
       return {
         kind: "text_area",
-        id: contribution.kind.value.id,
-        title: contribution.kind.value.title,
-        description: contribution.kind.value.description ?? null,
-        default: contribution.kind.value.default,
-        required: contribution.kind.value.required,
+        id: entry.id,
+        title: entry.title,
+        description: entry.description ?? null,
+        default: entry.default,
+        required: entry.required,
       };
-    case "path":
+    }
+    case "Path": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its path payload.");
       return {
         kind: "path",
-        id: contribution.kind.value.id,
-        title: contribution.kind.value.title,
-        description: contribution.kind.value.description ?? null,
-        default: contribution.kind.value.default,
-        required: contribution.kind.value.required,
+        id: entry.id,
+        title: entry.title,
+        description: entry.description ?? null,
+        default: entry.default,
+        required: entry.required,
       };
-    case "number":
+    }
+    case "Number": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its number payload.");
       return {
         kind: "number",
-        id: contribution.kind.value.id,
-        title: contribution.kind.value.title,
-        description: contribution.kind.value.description ?? null,
-        default: contribution.kind.value.default,
-        min: contribution.kind.value.min ?? null,
-        max: contribution.kind.value.max ?? null,
-        step: contribution.kind.value.step ?? null,
+        id: entry.id,
+        title: entry.title,
+        description: entry.description ?? null,
+        default: entry.default,
+        min: entry.min ?? null,
+        max: entry.max ?? null,
+        step: entry.step ?? null,
       };
-    case "multipleChoice":
+    }
+    case "MultipleChoice": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its choice payload.");
       return {
         kind: "multiple_choice",
-        id: contribution.kind.value.id,
-        title: contribution.kind.value.title,
-        description: contribution.kind.value.description ?? null,
-        default: contribution.kind.value.default,
-        choices: contribution.kind.value.choices.map((choice) => ({
-          value: choice.value,
-          title: choice.title,
-        })),
-        provider: contribution.kind.value.provider ?? null,
+        id: entry.id,
+        title: entry.title,
+        description: entry.description ?? null,
+        default: entry.default,
+        choices: entry.choices.map((choice) => ({ value: choice.value, title: choice.title })),
+        provider: entry.provider ?? null,
       };
-    case "secretReference":
+    }
+    case "SecretReference": {
+      const entry = variant.value.field0;
+      if (!entry) throw new Error("Native settings omitted its secret reference payload.");
       return {
         kind: "secret_reference",
-        id: contribution.kind.value.id,
-        title: contribution.kind.value.title,
-        description: contribution.kind.value.description ?? null,
-        default: mapSecretReference(contribution.kind.value.default),
-        required: contribution.kind.value.required,
+        id: entry.id,
+        title: entry.title,
+        description: entry.description ?? null,
+        default: mapSecretReference(entry.default),
+        required: entry.required,
       };
+    }
     default:
       throw new Error("Native settings returned a contribution without a kind.");
   }
@@ -253,25 +295,32 @@ function mapSecretReference(
   | { kind: "stored_credential"; credential_id: string }
   | null {
   if (!reference) return null;
-  if (reference.kind.case === "environment")
-    return { kind: "environment", variable: reference.kind.value ?? "" };
-  if (reference.kind.case === "storedCredential")
-    return { kind: "stored_credential", credential_id: reference.kind.value ?? "" };
+  if (reference.kind?.HarmosVariant.case === "Environment")
+    return { kind: "environment", variable: reference.kind.HarmosVariant.value.field0 ?? "" };
+  if (reference.kind?.HarmosVariant.case === "StoredCredential")
+    return {
+      kind: "stored_credential",
+      credential_id: reference.kind.HarmosVariant.value.field0 ?? "",
+    };
   throw new Error("Native settings returned a secret reference without a kind.");
 }
 
 function mapRefreshPolicy(
   policy: NonNullable<SettingsCard["refresh"]>,
 ): RuntimeSettingsCard["refresh"] {
-  switch (policy.policy.case) {
-    case "manual":
+  const variant = policy.policy?.HarmosVariant;
+  switch (variant?.case) {
+    case "Manual":
       return { kind: "manual" };
-    case "cached":
+    case "Cached": {
+      const cached = variant.value.field0;
+      if (!cached) throw new Error("Native settings omitted its cached refresh policy.");
       return {
         kind: "cached",
-        max_age_ms: safeNumber(policy.policy.value.maxAgeMs, "Settings cache age"),
+        max_age_ms: safeNumber(cached.maxAgeMs, "Settings cache age"),
       };
-    case "onDemand":
+    }
+    case "OnDemand":
       return { kind: "on_demand" };
     default:
       throw new Error("Native settings returned a refresh policy without a kind.");
@@ -281,16 +330,16 @@ function mapRefreshPolicy(
 function mapHostCardTone(
   tone: HostCardTone,
 ): "neutral" | "info" | "success" | "warning" | "danger" {
-  switch (tone) {
-    case HostCardTone.NEUTRAL:
+  switch (tone?.HarmosVariant.case) {
+    case "Neutral":
       return "neutral";
-    case HostCardTone.INFO:
+    case "Info":
       return "info";
-    case HostCardTone.SUCCESS:
+    case "Success":
       return "success";
-    case HostCardTone.WARNING:
+    case "Warning":
       return "warning";
-    case HostCardTone.DANGER:
+    case "Danger":
       return "danger";
     default:
       return "neutral";
@@ -298,18 +347,18 @@ function mapHostCardTone(
 }
 
 function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["state"] {
-  switch (state) {
-    case SettingsCardState.READY:
+  switch (state?.HarmosVariant.case) {
+    case "Ready":
       return "ready";
-    case SettingsCardState.DISABLED:
+    case "Disabled":
       return "disabled";
-    case SettingsCardState.DISCONNECTED:
+    case "Disconnected":
       return "disconnected";
-    case SettingsCardState.STALE:
+    case "Stale":
       return "stale";
-    case SettingsCardState.ERROR:
+    case "Error":
       return "error";
-    case SettingsCardState.PERMISSION_DENIED:
+    case "PermissionDenied":
       return "permission_denied";
     default:
       throw new Error("Native settings returned an unknown card state.");
@@ -319,12 +368,12 @@ function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["st
 function mapCredentialBackend(
   backend: CredentialBackendKind,
 ): "os_keyring" | "memory" | "local_file" {
-  switch (backend) {
-    case CredentialBackendKind.OS_KEYRING:
+  switch (backend?.HarmosVariant.case) {
+    case "OsKeyring":
       return "os_keyring";
-    case CredentialBackendKind.MEMORY:
+    case "Memory":
       return "memory";
-    case CredentialBackendKind.LOCAL_FILE:
+    case "LocalFile":
       return "local_file";
     default:
       throw new Error("Native settings returned an unknown credential backend.");

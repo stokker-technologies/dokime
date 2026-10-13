@@ -22,6 +22,7 @@ use std::{
 // Third Party Imports
 use tokio::time::{Instant, sleep};
 // Local Imports
+use dokime_client::{Client, Target, contracts};
 
 /* === Constants === */
 const PLUGIN: &str = r#"
@@ -174,10 +175,12 @@ development-support = {{ path = {dependency_path:?} }}
     .unwrap();
     let source = root.path().join("plugin/src/main.rs");
     let target = super::support::target_directory().canonicalize().unwrap();
-    let backend = target.join(format!("debug/dokime{}", std::env::consts::EXE_SUFFIX));
+    let backend = std::path::PathBuf::from(
+        std::env::var_os("DOKIME_TEST_HOST").expect("mise selects the exact prepared server"),
+    );
     assert!(
         backend.is_file(),
-        "test:plugin-dev requires mise's build:cli:dev task ({})",
+        "test:plugin-dev requires mise's prepared server artifact ({})",
         backend.display()
     );
     let installation = tempfile::tempdir().unwrap();
@@ -285,12 +288,12 @@ development-support = {{ path = {dependency_path:?} }}
         .unwrap()
         .to_owned();
     let endpoint = format!("http://127.0.0.1:{port}");
-    let mut backend_client = tokio::time::timeout(Duration::from_secs(30), async {
+    let backend_client = tokio::time::timeout(Duration::from_secs(30), async {
         loop {
-            if let Ok(mut client) =
-                dokime_protocol::v1::backend_client::BackendClient::connect(endpoint.clone()).await
+            if let Ok(client) =
+                Client::connect(Target::local(endpoint.clone()).unwrap(), None, None).await
                 && client
-                    .get_health(dokime_protocol::v1::GetHealthRequest {})
+                    .backend_get_health(contracts::backend::GetHealthRequest {})
                     .await
                     .is_ok()
             {
@@ -302,22 +305,19 @@ development-support = {{ path = {dependency_path:?} }}
     .await
     .unwrap_or_else(|_| panic!("native host unavailable: {}", text(&diagnostics)));
     let session = backend_client
-        .get_identity(dokime_protocol::v1::GetIdentityRequest {})
+        .backend_get_identity(contracts::backend::GetIdentityRequest {})
         .await
         .unwrap()
-        .into_inner()
         .epoch;
-    let mut observation =
-        dokime_protocol::v1::observation_client::ObservationClient::connect(endpoint.clone())
-            .await
-            .unwrap();
-    let mut updates = observation
-        .watch_runtime(dokime_protocol::v1::WatchRuntimeRequest { cursor: None })
+    let observation = Client::connect(Target::local(endpoint.clone()).unwrap(), None, None)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
+    let updates = observation
+        .observation_watch_runtime(contracts::observation::WatchRuntimeRequest { cursor: None })
+        .await
+        .unwrap();
     assert!(updates.message().await.unwrap().unwrap().resynchronized);
-    let mut plugins = dokime_protocol::v1::plugins_client::PluginsClient::connect(endpoint)
+    let plugins = Client::connect(Target::local(endpoint).unwrap(), None, None)
         .await
         .unwrap();
     // The development host initializes the replacement before committing its
@@ -326,13 +326,12 @@ development-support = {{ path = {dependency_path:?} }}
     let inventory = tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let inventory = plugins
-                .list_admitted_plugins(dokime_protocol::v1::ListAdmittedPluginsRequest {
+                .plugins_list_admitted_plugins(contracts::plugins::ListAdmittedPluginsRequest {
                     page_size: 100,
                     after: None,
                 })
                 .await
-                .unwrap()
-                .into_inner();
+                .unwrap();
             if inventory
                 .plugins
                 .iter()
@@ -452,10 +451,9 @@ development-support = {{ path = {dependency_path:?} }}
     })
     .await;
     let identity = backend_client
-        .get_identity(dokime_protocol::v1::GetIdentityRequest {})
+        .backend_get_identity(contracts::backend::GetIdentityRequest {})
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert_eq!(
         identity.epoch, session,
         "plugin replacement must retain the host session"
@@ -487,7 +485,6 @@ development-support = {{ path = {dependency_path:?} }}
                     .map(|(name, path)| (*name, path)),
             )
             .args([
-                "serve",
                 "--shutdown-stdin",
                 "--no-seed-validation-artifact",
                 "--port",
@@ -504,12 +501,12 @@ development-support = {{ path = {dependency_path:?} }}
             .unwrap(),
     );
     let url = format!("http://127.0.0.1:{port}");
-    let mut client = tokio::time::timeout(Duration::from_secs(10), async {
+    let client = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            if let Ok(mut client) =
-                dokime_protocol::v1::plugins_client::PluginsClient::connect(url.clone()).await
+            if let Ok(client) =
+                Client::connect(Target::local(url.clone()).unwrap(), None, None).await
                 && client
-                    .list_installations(dokime_protocol::v1::ListInstallationsRequest {
+                    .plugins_list_installations(contracts::plugins::ListInstallationsRequest {
                         page_size: 1,
                         after: None,
                     })
@@ -539,18 +536,17 @@ development-support = {{ path = {dependency_path:?} }}
     );
     assert!(String::from_utf8_lossy(&installed.stderr).contains("restart the host"));
     let entries = client
-        .list_installations(dokime_protocol::v1::ListInstallationsRequest {
+        .plugins_list_installations(contracts::plugins::ListInstallationsRequest {
             page_size: 100,
             after: None,
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(entries.next.is_none());
     assert_eq!(entries.installations.len(), 1);
     assert_eq!(
         entries.installations[0].state,
-        dokime_protocol::v1::PluginInstallationState::Installed as i32
+        contracts::plugins::PluginInstallationState::Installed
     );
     assert_eq!(
         entries.installations[0].metadata.as_ref().unwrap().owners,
@@ -570,7 +566,7 @@ async fn stdin_quit_and_unrequested_eof() {
         .join("debug")
         .join(format!("dokime{}", std::env::consts::EXE_SUFFIX))
         .canonicalize()
-        .expect("test:plugin-dev requires mise's build:cli:dev task");
+        .expect("test:plugin-dev requires mise's prepared server artifact");
     for quit in [true, false] {
         let mut dev = Process(
             Command::new(super::support::tool())

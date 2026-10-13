@@ -630,7 +630,9 @@ async fn walk<T: SidecarTemplate>(
             };
         }
         evidence.record_step(step.clone());
-        let mut ctx = environment.step(transport);
+        let mut ctx = environment
+            .step(transport)
+            .calling_stage(format!("step/{}", declared.step_id));
 
         let stepped = {
             let work = caught(template.run_step(step.as_str(), &mut ctx))

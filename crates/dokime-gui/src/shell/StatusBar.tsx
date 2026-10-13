@@ -38,7 +38,6 @@ import { useRecordsQuery } from "@/features/cycle/server-state";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { fetchStorageSources } from "@/lib/api/native-storage-settings";
-import { CycleStatus } from "@/lib/rpc/generated/dokime/v1/execution_pb";
 import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
 import { consoleAttentionCount } from "@/shell/ConsoleDrawer";
@@ -64,7 +63,7 @@ type AttentionEntry = {
 
 /* === Constants === */
 
-const ACTIVE_CYCLE_STATUSES = [CycleStatus.RUNNING, CycleStatus.PAUSED, CycleStatus.STOPPING];
+const ACTIVE_CYCLE_STATUSES = ["Running", "Paused", "Stopping"];
 
 const statusItemClassName =
   "inline-flex h-full min-w-[var(--status-bar-height)] items-center whitespace-nowrap rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -282,7 +281,7 @@ function ActivityItem() {
   const navigate = useNavigate();
   const cycles = useCyclesQuery();
   const active = (cycles.data ?? []).filter((cycle) =>
-    ACTIVE_CYCLE_STATUSES.includes(cycle.status),
+    ACTIVE_CYCLE_STATUSES.includes(cycle.status?.HarmosVariant.case ?? ""),
   );
 
   if (!active.length) {

@@ -22,7 +22,8 @@ use std::{
 
 // Third Party Imports
 use harmos::{
-    MemorySize, Position,
+    MemorySize,
+    state::Position,
     storage::{
         FileReference, ObjectReceipt, ObjectVersionToken, QueryValue, SharedQueryValue,
         StorageCursor, StorageProductionPreparation,

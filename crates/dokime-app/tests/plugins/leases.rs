@@ -137,13 +137,13 @@ macro_rules! delivery_fixture {
                 _: Self::Context<'ctx>,
                 request: &mut ExecutionSignal,
                 _: &mut (),
-            ) -> harmos::Result<SignalReply> {
+            ) -> harmos::Result<harmos::operations::Response<SignalReply>> {
                 self.sidecar
                     .calls
                     .lock()
                     .unwrap()
                     .push(($id.into(), request.encode_to_vec()));
-                Ok(SignalReply::default())
+                Ok(harmos::operations::Response::new(SignalReply::default()))
             }
         }
     };

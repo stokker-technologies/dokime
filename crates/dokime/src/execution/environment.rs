@@ -151,14 +151,14 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         &'c self,
         transport: &'c mut dyn ExecutionTransport,
     ) -> InitializationContext<'c, C, O, I> {
-        Context::new(self, transport, Initialize)
+        Context::new(self, transport, Initialize).calling_stage("initialize")
     }
 
     pub fn traceability<'c>(
         &'c self,
         transport: &'c mut dyn ExecutionTransport,
     ) -> TraceabilityContext<'c, C, O, I> {
-        Context::new(self, transport, Traceability)
+        Context::new(self, transport, Traceability).calling_stage("traceability")
     }
 
     pub fn step<'c>(
@@ -187,7 +187,7 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
         transport: &'c mut dyn ExecutionTransport,
         reason: TerminationReason,
     ) -> CleanupContext<'c, C, O, I> {
-        Context::new(self, transport, Cleanup { reason })
+        Context::new(self, transport, Cleanup { reason }).calling_stage("cleanup")
     }
 
     pub fn criterion(&'a self, evidence: &'a ExecutionEvidence) -> CriterionContext<'a, C, I> {

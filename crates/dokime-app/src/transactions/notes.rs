@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::OperatorNote;
@@ -57,7 +57,7 @@ impl Transaction<RuntimeState> for AddOperatorNote {
         state.validate_operator_note(&self.note)
     }
 
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         self.plan(state).1.collect(out);
     }
 
@@ -157,7 +157,7 @@ impl Transaction<RuntimeState> for CreateOperatorNote {
         }
         Ok(())
     }
-    fn records(&self, state: &RuntimeState, out: &mut harmos::Records) {
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         if !state
             .note_admissions
             .contains_key(&self.admission.note.note_id)

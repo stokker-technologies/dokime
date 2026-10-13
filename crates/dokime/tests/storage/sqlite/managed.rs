@@ -21,7 +21,9 @@ use std::{
 
 // Third Party Imports
 use harmos::{
-    Application, Never, Runtime, state::SnapshotPolicy, storage::recovery::RecoveryBackend,
+    Application, Runtime,
+    state::{Never, SnapshotPolicy},
+    storage::recovery::RecoveryBackend,
     storage::*,
 };
 use prost::Message;
@@ -83,7 +85,7 @@ impl Application for Charger {
     type Resources = ();
 }
 
-impl harmos::Transaction<u32> for Setpoint {
+impl harmos::state::Transaction<u32> for Setpoint {
     type Error = String;
     fn check(&self, _: &u32) -> Result<(), String> {
         Ok(())
@@ -92,7 +94,7 @@ impl harmos::Transaction<u32> for Setpoint {
         *state = self.volts;
     }
 
-    fn records(&self, _: &u32, records: &mut harmos::Records) {
+    fn records(&self, _: &u32, records: &mut harmos::state::Records) {
         records.push(Selected { volts: self.volts }).unwrap();
     }
 }
@@ -100,7 +102,7 @@ impl harmos::Transaction<u32> for Setpoint {
 impl RecordProjection for Capture {
     fn project<'a>(
         &'a self,
-        entry: &'a harmos::Envelope<&serde_json::Value>,
+        entry: &'a harmos::state::Envelope<&serde_json::Value>,
         output: &'a mut ProjectedRecords<'_>,
     ) -> harmos::storage::StorageFuture<'a, ()> {
         Box::pin(async move {
@@ -176,7 +178,7 @@ fn snapshot_policy() -> SnapshotPolicy {
 
 pub(crate) async fn compacted_snapshots_receipts() {
     let root = tempfile::tempdir().unwrap();
-    let request = harmos::RequestKey::new("charger.power-up");
+    let request = harmos::state::RequestKey::new("charger.power-up");
     let mut first_receipt = None;
     for pass in 0..3 {
         let data = Arc::new(
@@ -361,7 +363,7 @@ pub(crate) async fn manager_queries_evidence() {
     let handle = runtime.handle();
     assert!(handle.storage().is_some());
     let key = key();
-    storage.write_schema(&key, &schema().fields).await.unwrap();
+    storage.write_schema(&key, &schema().schema).await.unwrap();
     let first = id("first");
     let scope = id("execution");
     let boundary = storage
@@ -542,8 +544,8 @@ pub(crate) async fn manager_queries_evidence() {
     assert!(recovered.next.is_none());
     let mut schemas = storage.query(SchemaQuery::new()).await.unwrap();
     assert_eq!(
-        schemas.next_page().await.unwrap().unwrap()[0].fields,
-        schema().fields
+        schemas.next_page().await.unwrap().unwrap()[0].schema,
+        schema().schema
     );
     let mut files = storage.query(FileQuery::new()).await.unwrap();
     assert_eq!(&*files.next_page().await.unwrap().unwrap(), &[file]);
@@ -593,7 +595,7 @@ pub(crate) async fn managed_journal_backends() {
             );
         } else {
             assert_eq!(restored.value, 400);
-            assert_eq!(restored.position, harmos::Position(6));
+            assert_eq!(restored.position, harmos::state::Position(6));
             runtime.state.commit(Setpoint { volts: 450 }).await.unwrap();
         }
         runtime.stop().await.unwrap();
@@ -638,9 +640,9 @@ pub(crate) async fn captured_records_duplicates() {
                 let existing = schemas.next_page().await?;
                 drop(schemas);
                 if let Some(existing) = existing {
-                    assert_eq!(existing[0].fields, schema().fields);
+                    assert_eq!(existing[0].schema, schema().schema);
                 } else {
-                    storage.write_schema(&key(), &schema().fields).await?;
+                    storage.write_schema(&key(), &schema().schema).await?;
                 }
                 let restored = state_manager.state().read(|state| *state).await?.value;
                 assert_eq!(restored, if pass == 1 { 230 } else { 0 });
@@ -651,30 +653,33 @@ pub(crate) async fn captured_records_duplicates() {
                 }
                 Ok(())
             })
-            .service("charger.ready", move |context: harmos::Service<Charger>| {
-                let signal = signal.clone();
-                let saved = saved.clone();
-                async move {
-                    assert_eq!(
-                        context
-                            .state()
-                            .state()
-                            .read(|state| *state)
-                            .await
-                            .unwrap()
-                            .value,
-                        0
-                    );
-                    assert_eq!(saved.status().accepted, saved.status().saved);
-                    assert_eq!(
-                        saved.status().recovery_accepted,
-                        saved.status().recovery_saved
-                    );
-                    context.ready();
-                    signal.notify_one();
-                    Ok::<(), harmos::Fault<String>>(())
-                }
-            })
+            .service(
+                "charger.ready",
+                move |context: harmos::services::Service<Charger>| {
+                    let signal = signal.clone();
+                    let saved = saved.clone();
+                    async move {
+                        assert_eq!(
+                            context
+                                .state()
+                                .state()
+                                .read(|state| *state)
+                                .await
+                                .unwrap()
+                                .value,
+                            0
+                        );
+                        assert_eq!(saved.status().accepted, saved.status().saved);
+                        assert_eq!(
+                            saved.status().recovery_accepted,
+                            saved.status().recovery_saved
+                        );
+                        context.ready();
+                        signal.notify_one();
+                        Ok::<(), harmos::services::Fault<String>>(())
+                    }
+                },
+            )
             .runtime_with_storage(&storage)
             .await
             .unwrap();
@@ -813,7 +818,7 @@ pub(crate) async fn oversized_admission_order() {
         .await
         .unwrap();
     let key = key();
-    let schema_cursor = storage.write_schema(&key, &schema().fields).await.unwrap();
+    let schema_cursor = storage.write_schema(&key, &schema().schema).await.unwrap();
     storage.flush_until(&schema_cursor).await.unwrap();
     let before = storage
         .view_with_limits(policy().query_execution)
@@ -896,7 +901,7 @@ pub(crate) async fn follower_bridges_admissions() {
         .await
         .unwrap();
     let key = key();
-    storage.write_schema(&key, &schema().fields).await.unwrap();
+    storage.write_schema(&key, &schema().schema).await.unwrap();
     let first = record(2);
     let first_cursor = storage
         .write_records(&[RecordWrite {
@@ -974,7 +979,7 @@ pub(crate) async fn replay_tail_saving() {
         .await
         .unwrap();
     let key = key();
-    storage.write_schema(&key, &schema().fields).await.unwrap();
+    storage.write_schema(&key, &schema().schema).await.unwrap();
     let first = record(2);
     let first_cursor = storage
         .write_records(&[record_write(&first)])
@@ -992,7 +997,7 @@ pub(crate) async fn replay_tail_saving() {
         version: key.version,
     };
     let boundary = storage
-        .write_schema(&tail_schema, &schema().fields)
+        .write_schema(&tail_schema, &schema().schema)
         .await
         .unwrap();
     let old = storage

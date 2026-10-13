@@ -47,9 +47,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut durations = Vec::with_capacity(args.samples.get());
     for sample in 1..=args.samples.get() {
         let started = Instant::now();
-        let declaration = harmos::artifact::inventory::Declaration::inspect(
+        let declaration = harmos::plugin::inventory::Declaration::inspect(
             black_box(&bytes),
-            harmos::artifact::inventory::Facility::Sidecar,
+            harmos::plugin::inventory::Facility::Sidecar,
         )?;
         let elapsed = started.elapsed().as_secs_f64();
         durations.push(elapsed);

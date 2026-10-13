@@ -15,27 +15,40 @@
 import argparse
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import tomllib
+from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 # Third Party Imports
-
 # Local Imports
-from dokime_tools.ci.artifacts import job_id
-from dokime_tools.check.native_wheel import verify_native_wheel
+from dokime_tools import contracts
 from dokime_tools.check.release import (
-    inputs,
+    AUDITS,
+    BINARIES,
+    COVERAGE_EVIDENCE,
+    EXAMPLE_REPORT,
+    EXAMPLES,
+    FIXTURE_BUNDLES,
+    PROTO,
+    REPORT_TEMPLATE,
     TARGETS,
+    TEST_ARCHIVES,
+    TEST_EVIDENCE,
+    VALIDATION,
     _passed_tests,
     digest,
+    inputs,
+    required_suites,
     verify_platform,
 )
+from dokime_tools.check.wheel import verify_wheel
+from dokime_tools.ci.artifacts import job_id
+from dokime_tools.fixtures import FIXTURES
 from dokime_tools.package.wheel import select_wheel
 
 # Type Checking Imports
@@ -45,13 +58,7 @@ from dokime_tools.package.wheel import select_wheel
 
 # === Constants === #
 PLATFORMS = ("linux", "windows")
-SUITES = (
-    "integration-rust",
-    "integration-python",
-    "integration-javascript",
-    "acceptance-rust",
-    "acceptance-python",
-)
+CONTRACT_ARCHIVE = Path("target/contracts/dokime-contract.tar")
 
 
 # === Types === #
@@ -88,23 +95,30 @@ def collect(root: Path) -> None:
     destination = directory(root)
     destination.parent.mkdir(parents=True, exist_ok=True)
     products = _products(root)
-    audits = verify_native_wheel(products["wheel"][0])
+    audits = verify_wheel(products["wheel"][0])
+    protocol = _protocol(root)
     with tempfile.TemporaryDirectory(dir=destination.parent) as temporary:
         staging = Path(temporary) / platform()
         staging.mkdir()
         files = []
-        for role, (source, owner) in products.items():
-            target = staging / owner / source.name
+        for role, (source, relative) in products.items():
+            target = staging / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
             files.append(_entry(staging, target, role))
+        for name, data in protocol.items():
+            path = staging / PROTO / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+            files.append(_entry(staging, path, f"proto:{name}"))
         for role, contents in audits.items():
-            path = staging / "reports" / f"{role}.json"
+            path = staging / AUDITS / f"{role}.json"
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(contents, encoding="utf-8")
             files.append(_entry(staging, path, role))
         for source in sorted((root / "target/cargo-timings").glob("cargo-timing.html")):
-            path = staging / "reports" / source.name
+            path = staging / VALIDATION / source.name
+            path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, path)
             files.append(_entry(staging, path, f"timing:{source.name}"))
         manifest = {
@@ -113,8 +127,8 @@ def collect(root: Path) -> None:
             "architecture": "x86_64",
             "profile": "release",
             "target": TARGETS[platform()],
-            "python": "cp313",
-            "abi": "abi3",
+            "python": "py3",
+            "abi": "none",
             "package_version": tomllib.loads(
                 (root / "Cargo.toml").read_text(encoding="utf-8")
             )["workspace"]["package"]["version"],
@@ -125,6 +139,7 @@ def collect(root: Path) -> None:
             "pipeline_id": os.environ.get("GITHUB_RUN_ID"),
             "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
             "inputs": identity,
+            "contracts": {"archive_sha256": digest(root / CONTRACT_ARCHIVE)},
             "tools": {
                 name: _output(root, [name, "--version"])
                 for name in (
@@ -154,17 +169,61 @@ def verify(root: Path) -> dict:
     return manifest
 
 
+def prepare_archives(root: Path) -> None:
+    from dokime_tools import test_archive
+
+    destination = root / "target/test-archives"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.is_symlink():
+        raise ValueError("test archive destination must not be a symlink")
+    with tempfile.TemporaryDirectory(
+        prefix="test-archives-", dir=destination.parent
+    ) as temporary:
+        staged = Path(temporary) / "archives"
+        test_archive.build(root, staged, all_features=False, coverage=False)
+        if destination.exists():
+            shutil.rmtree(destination)
+        staged.replace(destination)
+
+
+def collect_tests(root: Path) -> None:
+    from dokime_tools import evidence
+
+    inputs_directory = root / "dist/evidence-downloads"
+    lanes = sorted(inputs_directory.iterdir()) if inputs_directory.is_dir() else []
+    expected = {
+        f"evidence-{platform()}-{suite}" for suite in required_suites(platform())
+    }
+    if {path.name for path in lanes} != expected or any(
+        not path.is_dir() or path.is_symlink() for path in lanes
+    ):
+        raise ValueError("required native correctness lanes are missing or unexpected")
+    evidence.collect(root, lanes)
+
+
 def validate(root: Path) -> None:
     manifest = verify(root)
+    original_manifest = digest(directory(root) / "manifest.json")
+    coverage = None
+    coverage_directory = root / "dist/coverage" / platform()
+    if os.environ.get("GITHUB_ACTIONS") == "true" or coverage_directory.is_dir():
+        from dokime_tools.ci.coverage import verify_proof
+
+        coverage = verify_proof(root, coverage_directory, manifest)
     evidence = root / ".stkr/tests"
     results = json.loads((evidence / "latest.json").read_text(encoding="utf-8"))
-    for suite in SUITES:
+    for suite in required_suites(platform()):
         entry = results.get("tests", {}).get(suite, {})
         if (
             entry.get("outcome") != "passed"
+            or entry.get("coverage") is not False
             or entry.get("revision") != _output(root, ["git", "rev-parse", "HEAD"])
             or entry.get("platform") != platform()
-            or entry.get("started_unix_seconds", 0) < manifest["built_unix_seconds"]
+            or (
+                suite != "integration-javascript"
+                and entry.get("started_unix_seconds", 0)
+                < manifest["built_unix_seconds"]
+            )
             or entry.get("requested_configuration") is not None
         ):
             raise ValueError(f"missing or failed required evidence: {suite}")
@@ -173,19 +232,51 @@ def validate(root: Path) -> None:
     manifest["files"] = [
         entry for entry in manifest["files"] if not entry["role"].startswith("test:")
     ]
-    if (destination / "tests").exists():
-        shutil.rmtree(destination / "tests")
+    if (destination / TEST_EVIDENCE).exists():
+        shutil.rmtree(destination / TEST_EVIDENCE)
     for source in sorted(evidence.iterdir()):
         if source.is_file():
-            path = destination / "tests" / source.name
+            path = destination / TEST_EVIDENCE / source.name
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, path)
             manifest["files"].append(_entry(destination, path, f"test:{source.name}"))
     manifest["validation"] = {
         "test_job_id": job_id("test", platform()),
         "pipeline_id": os.environ.get("GITHUB_RUN_ID"),
-        "suites": list(SUITES),
+        "suites": list(required_suites(platform())),
+        "build_manifest_sha256": original_manifest,
+        "contract_job_id": job_id(
+            "contracts:prepare:release", platform(), completed=True
+        ),
+        "lane_job_ids": {
+            suite: job_id("test:" + suite.replace("-", ":"), platform(), completed=True)
+            for suite in required_suites(platform())
+        },
     }
+    example = root / "dist/examples" / platform() / EXAMPLE_REPORT
+    if not example.is_file() or example.is_symlink():
+        raise ValueError(f"missing acceptance example report: {example}")
+    if not example.read_text(encoding="utf-8").strip():
+        raise ValueError("acceptance example report is empty")
+    if (destination / EXAMPLES).exists():
+        shutil.rmtree(destination / EXAMPLES)
+    path = destination / EXAMPLES / EXAMPLE_REPORT
+    path.parent.mkdir(parents=True)
+    shutil.copy2(example, path)
+    manifest["files"] = [
+        entry for entry in manifest["files"] if not entry["role"].startswith("example:")
+    ]
+    manifest["files"].append(_entry(destination, path, f"example:{EXAMPLE_REPORT}"))
+    if coverage is not None:
+        manifest["validation"]["coverage_job_id"] = coverage["coverage_job_id"]
+        for source in sorted(coverage_directory.iterdir()):
+            if source.is_file():
+                path = destination / COVERAGE_EVIDENCE / source.name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, path)
+                manifest["files"].append(
+                    _entry(destination, path, f"coverage:{source.name}")
+                )
     _write(destination / "manifest.json", manifest)
     verify(root)
     export(root)
@@ -235,41 +326,81 @@ def _artifact_output(name: str) -> None:
 
 
 def _products(root: Path) -> dict[str, tuple[Path, str]]:
+    """Native build outputs keyed by role, with their package-relative paths."""
     suffix = ".exe" if platform() == "windows" else ""
     products = {
-        "license": (root / "LICENSE-APACHE", "licenses"),
-        "host": (root / f"target/release/dokime{suffix}", "runtime"),
-        "tool": (root / f"target/release/cargo-dokime{suffix}", "runtime"),
-        "desktop": (root / f"target/release/dokime-gui{suffix}", "runtime"),
+        "license": (root / "LICENSE-APACHE", "licenses/LICENSE-APACHE"),
         "report-template": (
             root / "crates/dokime-app/dist-report/report.html",
-            "reports",
+            REPORT_TEMPLATE,
         ),
-        "plugin": (root / "target/release/plugins/mini-sidecar.dokime", "plugins"),
-        "protocol": (root / "target/protocol/dokime-protocol.tar", "protocol"),
-        "protocol-checksum": (
-            root / "target/protocol/dokime-protocol.tar.sha256",
-            "protocol",
+        "plugin": (
+            root / "target/fixtures/mini-sidecar/mini-sidecar.dokime",
+            "plugins/mini-sidecar.dokime",
         ),
-        "wheel": (select_wheel(root / "dist/python", "dokime-*.whl"), "python"),
-        "sdist": (_one(root / "dist/python", "dokime-*.tar.gz"), "python"),
     }
-    if platform() == "linux":
-        products.update(
-            deb=(_one(root / "dist/tauri/linux-x86_64", "*.deb"), "installers"),
-            rpm=(_one(root / "dist/tauri/linux-x86_64", "*.rpm"), "installers"),
-            **{"wheel-build": (root / "dist/python/wheel-build.json", "reports")},
+    for role, name in (
+        ("host", "dokime-server"),
+        ("client", "dokime"),
+        ("tool", "cargo-dokime"),
+        ("desktop", "dokime-gui"),
+    ):
+        products[role] = (
+            root / f"target/release/{name}{suffix}",
+            f"{BINARIES}/{name}{suffix}",
         )
-    else:
-        source = root / "dist/tauri/windows-x86_64"
-        products["installer"] = (_one(source, "*setup.exe"), "installers")
+    for role, pattern in (("wheel", "dokime-*.whl"), ("sdist", "dokime-*.tar.gz")):
+        source = (
+            select_wheel(root / "dist/python", pattern)
+            if role == "wheel"
+            else _one(root / "dist/python", pattern)
+        )
+        products[role] = (source, f"python/{source.name}")
+    installers = root / "dist/tauri" / f"{platform()}-x86_64"
+    patterns = (
+        (("deb", "*.deb"), ("rpm", "*.rpm"))
+        if platform() == "linux"
+        else (("installer", "*setup.exe"),)
+    )
+    for role, pattern in patterns:
+        source = _one(installers, pattern)
+        products[role] = (source, f"installers/{source.name}")
+    if platform() == "windows":
         for role, pattern in (("signature", "*.exe.sig"), ("updater", "latest.json")):
-            if list(source.glob(pattern)):
-                products[role] = (_one(source, pattern), "installers")
+            if list(installers.glob(pattern)):
+                source = _one(installers, pattern)
+                products[role] = (source, f"installers/{source.name}")
+    for name, _, _ in FIXTURES:
+        products[f"fixture:{name}"] = (
+            root / "target/fixtures" / name / f"{name}.dokime",
+            f"{FIXTURE_BUNDLES}/{name}/{name}.dokime",
+        )
+    archives = root / "target/test-archives"
+    for path in sorted(archives.glob("*")):
+        if path.suffix not in {".json", ".zst"}:
+            raise ValueError(f"unexpected test archive artifact: {path}")
+        products[f"archive:{path.name}"] = (path, f"{TEST_ARCHIVES}/{path.name}")
+    if not any(role.startswith("archive:") for role in products):
+        raise ValueError("release preparation omitted Nextest archives")
     for source, _ in products.values():
         if not source.is_file() or source.is_symlink():
             raise ValueError(f"missing native build artifact: {source}")
     return products
+
+
+def _protocol(root: Path) -> dict[str, bytes]:
+    """Unpacked portable contract files whose archive the contracts job published."""
+    archive = root / CONTRACT_ARCHIVE
+    checksum = archive.with_suffix(".tar.sha256")
+    if not archive.is_file() or archive.is_symlink() or checksum.is_symlink():
+        raise ValueError(f"missing native build artifact: {archive}")
+    if checksum.read_text(encoding="ascii") != f"{digest(archive)}  {archive.name}\n":
+        raise ValueError("portable contract archive checksum differs")
+    members = contracts.members(archive)
+    revision = _output(root, ["git", "rev-parse", "HEAD"])
+    if members["revision.txt"] != (revision + "\n").encode("ascii"):
+        raise ValueError("portable contracts belong to another source commit")
+    return members
 
 
 def _one(root: Path, pattern: str) -> Path:
@@ -311,8 +442,15 @@ def _write(path: Path, value: dict) -> None:
 # === Entry Point === #
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("collect", "verify", "validate"))
-    arguments = parser.parse_args()
-    {"collect": collect, "verify": verify, "validate": validate}[arguments.command](
-        Path.cwd()
+    parser.add_argument(
+        "command",
+        choices=("collect", "verify", "validate", "collect-tests", "prepare-archives"),
     )
+    arguments = parser.parse_args()
+    {
+        "collect": collect,
+        "verify": verify,
+        "validate": validate,
+        "collect-tests": collect_tests,
+        "prepare-archives": prepare_archives,
+    }[arguments.command](Path.cwd())

@@ -37,7 +37,7 @@ use crate::traceability::TraceabilitySection;
 /* === Type Aliases === */
 
 pub type SamplePublisher = for<'a> fn(
-    &'a harmos::sidecar::Supervisor,
+    &'a harmos::plugin::sidecar::Supervisor,
     &'a str,
     &'a crate::core::Identifier,
     &'a BTreeMap<String, Value>,
@@ -116,8 +116,8 @@ pub trait SidecarTemplate: Send + Sized + 'static {
         Box::pin(async { Ok(()) })
     }
 
-    fn publish_sample<'a, P: harmos::artifact::plugin::Declared>(
-        _host: &'a harmos::sidecar::Supervisor,
+    fn publish_sample<'a, P: harmos::plugin::contract::Declared>(
+        _host: &'a harmos::plugin::sidecar::Supervisor,
         _token: &'a str,
         stream: &'a crate::core::Identifier,
         _values: &'a BTreeMap<String, Value>,

@@ -46,12 +46,6 @@ use dokime_app::domains::ExecutionProviderTarget;
 use dokime_app::execution::CycleView;
 use dokime_app::transport::ProviderExecutionFailure;
 use dokime_app::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
-use dokime_protocol::v1;
-use dokime_protocol::v1::{
-    catalog_client::CatalogClient, execution_client::ExecutionClient,
-    history_client::HistoryClient, observation_client::ObservationClient,
-    reports_client::ReportsClient,
-};
 
 /* === Constants === */
 
@@ -73,7 +67,7 @@ struct Gated {
     gate: Arc<Gate>,
     owner: Runtime,
     server: Server,
-    execution: ExecutionClient<Channel>,
+    execution: WireClient,
     cycle: String,
 }
 
@@ -131,11 +125,9 @@ impl Gated {
             config = config.with_max_message_bytes(bytes);
         }
         let server = Server::start(owner.handle(), config).await.unwrap();
-        let mut execution = ExecutionClient::connect(server.local_endpoint())
-            .await
-            .unwrap();
+        let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
         let cycle = execution
-            .create_cycle(authenticated(create(&owner)))
+            .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
             .await
             .unwrap()
             .into_inner()
@@ -152,15 +144,15 @@ impl Gated {
 }
 
 /* === Public Functions === */
-pub(super) fn selection_plan(owner: &Runtime) -> v1::SelectionPlan {
+pub(super) fn selection_plan(owner: &Runtime) -> contracts::planning::SelectionPlan {
     let snapshot = owner.handle().watch_state().latest();
     let suite = snapshot.state().suites.get("fixture.suite").unwrap();
-    v1::SelectionPlan {
+    contracts::planning::SelectionPlan {
         selections: suite
             .suite
             .test_case_templates
             .iter()
-            .map(|template| v1::RegisteredSelection {
+            .map(|template| contracts::planning::RegisteredSelection {
                 suite_id: suite.suite_id.clone(),
                 template_id: template.test_case_template_id.to_string(),
                 ..Default::default()
@@ -191,10 +183,10 @@ async fn fixture_with_provider(
     owner
 }
 
-fn create(owner: &Runtime) -> v1::CreateCycleRequest {
-    v1::CreateCycleRequest {
+fn create(owner: &Runtime) -> contracts::execution::CreateCycleRequest {
+    contracts::execution::CreateCycleRequest {
         plan: Some(selection_plan(owner)),
-        metadata: Some(v1::Metadata {
+        metadata: Some(contracts::common::Metadata {
             identifier: "grpc.cycle".into(),
             label: "gRPC cycle".into(),
             description: None,
@@ -204,8 +196,8 @@ fn create(owner: &Runtime) -> v1::CreateCycleRequest {
     }
 }
 
-fn control(id: &str) -> v1::CycleControlRequest {
-    v1::CycleControlRequest {
+fn control(id: &str) -> contracts::execution::CycleControlRequest {
+    contracts::execution::CycleControlRequest {
         cycle_id: id.into(),
         context: None,
     }
@@ -228,17 +220,19 @@ pub(crate) async fn registered_create_definitions() {
         .connect()
         .await
         .unwrap();
-    let mut catalog = CatalogClient::new(connection.clone());
-    let mut execution = ExecutionClient::new(connection.clone());
-    let mut observation = ObservationClient::new(connection);
+    let catalog = WireClient::new(connection.clone());
+    let execution = WireClient::new(connection.clone());
+    let observation = WireClient::new(connection);
     let suites = catalog
-        .list_suites(authenticated(v1::ListSuitesRequest::default()))
+        .unary::<contracts::catalog::ListSuites>(authenticated(
+            contracts::catalog::ListSuitesRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(suites.suites.len(), 1);
     let suite = catalog
-        .get_suite(authenticated(v1::GetSuiteRequest {
+        .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuiteRequest {
             suite_id: suites.suites[0].suite_id.clone(),
         }))
         .await
@@ -246,82 +240,93 @@ pub(crate) async fn registered_create_definitions() {
         .into_inner();
     assert_eq!(suite.templates.len(), 1);
     assert_eq!(
-        suite.templates[0].parameters[0].value_type(),
-        v1::ValueType::Text
+        suite.templates[0].parameters[0].value_type,
+        contracts::schema::ValueType::Text
     );
     assert!(matches!(
         suite.templates[0].parameters[0]
             .expression
             .as_ref()
             .unwrap()
+            .nodes[0]
             .kind,
-        Some(v1::parameter_expression::Kind::Literal(_))
+        Some(contracts::catalog::ParameterNodeKind::Literal(_))
     ));
     let mut stream = observation
-        .watch_runtime(authenticated(v1::WatchRuntimeRequest::default()))
+        .download::<contracts::observation::WatchRuntime>(authenticated(
+            contracts::observation::WatchRuntimeRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner();
     let initial = stream.message().await.unwrap().unwrap();
     assert!(initial.resynchronized);
     let id = execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let planned = execution
-        .get_cycle(authenticated(v1::GetCycleRequest {
-            cycle_id: id.clone(),
-        }))
+        .unary::<contracts::execution::GetCycle>(authenticated(
+            contracts::execution::GetCycleRequest {
+                cycle_id: id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(planned.status(), v1::CycleStatus::Ready);
+    assert_eq!(planned.status, contracts::execution::CycleStatus::Ready);
     assert_eq!(planned.case_count, 1);
     assert_eq!(planned.execution_count, 1);
     let cases = execution
-        .list_cases(authenticated(v1::ListCasesRequest {
-            cycle_id: id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListCases>(authenticated(
+            contracts::execution::ListCasesRequest {
+                cycle_id: id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .cases;
     assert_eq!(cases[0].template_id, suite.templates[0].template_id);
     let admitted = execution
-        .run_case(authenticated(v1::RunCaseRequest {
-            cycle_id: id.clone(),
-            case_id: cases[0].case_id.clone(),
-            context: None,
-            idempotency_key: None,
-        }))
+        .unary::<contracts::execution::RunCase>(authenticated(
+            contracts::execution::RunCaseRequest {
+                cycle_id: id.clone(),
+                case_id: cases[0].case_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert!(matches!(
         admitted.outcome,
-        Some(v1::run_reply::Outcome::Accepted(_))
+        Some(contracts::execution::RunReplyOutcome::Accepted(_))
     ));
     tokio::time::timeout(Duration::from_secs(5), gate.started.notified())
         .await
         .unwrap();
     execution
-        .pause_cycle(authenticated(control(&id)))
+        .unary::<contracts::execution::PauseCycle>(authenticated(control(&id)))
         .await
         .unwrap();
     execution
-        .resume_cycle(authenticated(control(&id)))
+        .unary::<contracts::execution::ResumeCycle>(authenticated(control(&id)))
         .await
         .unwrap();
     // Disconnect observation while admitted work is waiting on the fixture.
     drop(stream);
     gate.release.notify_one();
     let mut stream = observation
-        .watch_runtime(authenticated(v1::WatchRuntimeRequest {
-            cursor: initial.cursor.clone(),
-        }))
+        .download::<contracts::observation::WatchRuntime>(authenticated(
+            contracts::observation::WatchRuntimeRequest {
+                cursor: initial.cursor.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -329,23 +334,30 @@ pub(crate) async fn registered_create_definitions() {
     tokio::time::timeout(Duration::from_secs(8), async {
         loop {
             let cycle = execution
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status() == v1::CycleStatus::Completed {
+            if cycle.status == contracts::execution::CycleStatus::Completed {
                 assert_eq!(cycle.execution_count, 1);
                 let attempts = execution
-                    .list_executions(authenticated(v1::ListExecutionsRequest {
-                        cycle_id: id.clone(),
-                        ..Default::default()
-                    }))
+                    .unary::<contracts::execution::ListExecutions>(authenticated(
+                        contracts::execution::ListExecutionsRequest {
+                            cycle_id: id.clone(),
+                            ..Default::default()
+                        },
+                    ))
                     .await
                     .unwrap()
                     .into_inner();
-                assert_eq!(attempts.executions[0].status(), v1::ExecutionStatus::Passed);
+                assert_eq!(
+                    attempts.executions[0].status,
+                    contracts::execution::ExecutionStatus::Passed
+                );
                 break;
             }
             stream.message().await.unwrap().unwrap();
@@ -354,29 +366,33 @@ pub(crate) async fn registered_create_definitions() {
     .await
     .unwrap();
     let list = execution
-        .list_cycles(authenticated(v1::ListCyclesRequest::default()))
+        .unary::<contracts::execution::ListCycles>(authenticated(
+            contracts::execution::ListCyclesRequest::default(),
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(list.cycles.len(), 1);
     let other = execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     execution
-        .stop_cycle(authenticated(control(&other)))
+        .unary::<contracts::execution::StopCycle>(authenticated(control(&other)))
         .await
         .unwrap();
     assert_eq!(
         execution
-            .get_cycle(authenticated(v1::GetCycleRequest { cycle_id: other }))
+            .unary::<contracts::execution::GetCycle>(authenticated(
+                contracts::execution::GetCycleRequest { cycle_id: other }
+            ))
             .await
             .unwrap()
             .into_inner()
-            .status(),
-        v1::CycleStatus::Stopped
+            .status,
+        contracts::execution::CycleStatus::Stopped
     );
     tokio::time::timeout(Duration::from_secs(6), server.shutdown())
         .await
@@ -398,52 +414,54 @@ pub(crate) async fn stopping_running_unwind() {
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut execution = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let cycle_id = execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let reply = execution
-        .run_cycle(authenticated(run(&cycle_id)))
+        .unary::<contracts::execution::RunCycle>(authenticated(run(&cycle_id)))
         .await
         .unwrap()
         .into_inner();
     assert!(matches!(
         reply.outcome,
-        Some(v1::run_reply::Outcome::Accepted(_))
+        Some(contracts::execution::RunReplyOutcome::Accepted(_))
     ));
     tokio::time::timeout(Duration::from_secs(5), blocker.started.notified())
         .await
         .unwrap();
 
     execution
-        .stop_cycle(authenticated(control(&cycle_id)))
+        .unary::<contracts::execution::StopCycle>(authenticated(control(&cycle_id)))
         .await
         .unwrap();
     let stopping = execution
-        .get_cycle(authenticated(v1::GetCycleRequest {
-            cycle_id: cycle_id.clone(),
-        }))
+        .unary::<contracts::execution::GetCycle>(authenticated(
+            contracts::execution::GetCycleRequest {
+                cycle_id: cycle_id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(stopping.status(), v1::CycleStatus::Stopping);
+    assert_eq!(stopping.status, contracts::execution::CycleStatus::Stopping);
 
     blocker.release.notify_one();
     let stopped = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let summary = execution
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: cycle_id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: cycle_id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            if summary.status() == v1::CycleStatus::Stopped {
+            if summary.status == contracts::execution::CycleStatus::Stopped {
                 break summary;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -453,17 +471,19 @@ pub(crate) async fn stopping_running_unwind() {
     .unwrap();
     assert_eq!(stopped.execution_count, 1);
     let executions = execution
-        .list_executions(authenticated(v1::ListExecutionsRequest {
-            cycle_id,
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutions>(authenticated(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(executions.executions.len(), 1);
     assert_eq!(
-        executions.executions[0].status(),
-        v1::ExecutionStatus::Cancelled
+        executions.executions[0].status,
+        contracts::execution::ExecutionStatus::Cancelled
     );
 
     server.shutdown().await.unwrap();
@@ -481,26 +501,28 @@ pub(crate) async fn runtime_shell_cursor() {
         .connect()
         .await
         .unwrap();
-    let mut execution = ExecutionClient::new(connection.clone());
-    let mut observation = ObservationClient::new(connection);
+    let execution = WireClient::new(connection.clone());
+    let observation = WireClient::new(connection);
     let first_cycle = execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let second_cycle = execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
 
     let first = observation
-        .get_runtime_shell(authenticated(v1::GetRuntimeShellRequest {
-            limit: 1,
-            ..Default::default()
-        }))
+        .unary::<contracts::observation::GetRuntimeShell>(authenticated(
+            contracts::observation::GetRuntimeShellRequest {
+                limit: 1,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -513,11 +535,13 @@ pub(crate) async fn runtime_shell_cursor() {
     let cursor = first.observed_cursor.clone().expect("shell cursor");
 
     let second = observation
-        .get_runtime_shell(authenticated(v1::GetRuntimeShellRequest {
-            limit: 1,
-            after_cycle_id: next_cycle.clone(),
-            cursor: Some(cursor.clone()),
-        }))
+        .unary::<contracts::observation::GetRuntimeShell>(authenticated(
+            contracts::observation::GetRuntimeShellRequest {
+                limit: 1,
+                after_cycle_id: next_cycle.clone(),
+                cursor: Some(cursor.clone()),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -532,17 +556,19 @@ pub(crate) async fn runtime_shell_cursor() {
     );
     assert!(second.next_after_cycle_id.is_none());
 
-    let future_cursor = v1::Cursor {
+    let future_cursor = contracts::cursor::Cursor {
         position: cursor.position + 1,
         ..cursor.clone()
     };
     assert_eq!(
         observation
-            .get_runtime_shell(authenticated(v1::GetRuntimeShellRequest {
-                limit: 1,
-                after_cycle_id: next_cycle.clone(),
-                cursor: Some(future_cursor),
-            }))
+            .unary::<contracts::observation::GetRuntimeShell>(authenticated(
+                contracts::observation::GetRuntimeShellRequest {
+                    limit: 1,
+                    after_cycle_id: next_cycle.clone(),
+                    cursor: Some(future_cursor),
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -552,11 +578,13 @@ pub(crate) async fn runtime_shell_cursor() {
     wrong_epoch.epoch = "other-session".into();
     assert_eq!(
         observation
-            .get_runtime_shell(authenticated(v1::GetRuntimeShellRequest {
-                limit: 1,
-                after_cycle_id: next_cycle.clone(),
-                cursor: Some(wrong_epoch),
-            }))
+            .unary::<contracts::observation::GetRuntimeShell>(authenticated(
+                contracts::observation::GetRuntimeShellRequest {
+                    limit: 1,
+                    after_cycle_id: next_cycle.clone(),
+                    cursor: Some(wrong_epoch),
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -564,16 +592,18 @@ pub(crate) async fn runtime_shell_cursor() {
     );
 
     execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap();
     assert_eq!(
         observation
-            .get_runtime_shell(authenticated(v1::GetRuntimeShellRequest {
-                limit: 1,
-                after_cycle_id: next_cycle,
-                cursor: Some(cursor),
-            }))
+            .unary::<contracts::observation::GetRuntimeShell>(authenticated(
+                contracts::observation::GetRuntimeShellRequest {
+                    limit: 1,
+                    after_cycle_id: next_cycle,
+                    cursor: Some(cursor),
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -600,33 +630,37 @@ pub(crate) async fn checkpoint_telemetry_queries() {
         .connect()
         .await
         .unwrap();
-    let mut execution = ExecutionClient::new(connection.clone());
-    let mut history = HistoryClient::new(connection);
+    let execution = WireClient::new(connection.clone());
+    let history = WireClient::new(connection);
     let cycle_id = execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     execution
-        .run_cycle(authenticated(run(&cycle_id)))
+        .unary::<contracts::execution::RunCycle>(authenticated(run(&cycle_id)))
         .await
         .unwrap();
     let checkpoint = tokio::time::timeout(Duration::from_secs(8), async {
         loop {
             let cycle = execution
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: cycle_id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: cycle_id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status() == v1::CycleStatus::Completed {
+            if cycle.status == contracts::execution::CycleStatus::Completed {
                 break history
-                    .browse_executions(authenticated(v1::BrowseExecutionsRequest {
-                        limit: 1,
-                        ..Default::default()
-                    }))
+                    .unary::<contracts::history::BrowseExecutions>(authenticated(
+                        contracts::history::BrowseExecutionsRequest {
+                            limit: 1,
+                            ..Default::default()
+                        },
+                    ))
                     .await
                     .unwrap()
                     .into_inner()
@@ -647,10 +681,12 @@ pub(crate) async fn checkpoint_telemetry_queries() {
     .unwrap();
 
     let evidence = history
-        .get_checkpoint_evidence(authenticated(v1::GetCheckpointEvidenceRequest {
-            checkpoint: Some(checkpoint.clone()),
-            sections: vec![v1::EvidenceSection::TelemetryTables as i32],
-        }))
+        .unary::<contracts::history::GetCheckpointEvidence>(authenticated(
+            contracts::history::GetCheckpointEvidenceRequest {
+                checkpoint: Some(checkpoint.clone()),
+                sections: vec![contracts::history::EvidenceSection::TelemetryTables],
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -666,12 +702,14 @@ pub(crate) async fn checkpoint_telemetry_queries() {
     );
 
     let page = history
-        .list_checkpoint_telemetry(authenticated(v1::ListCheckpointTelemetryRequest {
-            checkpoint: Some(checkpoint),
-            table: telemetry.table.clone(),
-            limit: 10,
-            ..Default::default()
-        }))
+        .unary::<contracts::history::ListCheckpointTelemetry>(authenticated(
+            contracts::history::ListCheckpointTelemetryRequest {
+                checkpoint: Some(checkpoint),
+                table: telemetry.table.clone(),
+                limit: 10,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -697,20 +735,22 @@ pub(crate) async fn historical_checkpoint_content() {
         .connect()
         .await
         .unwrap();
-    let mut execution = ExecutionClient::new(connection.clone());
-    let mut history = HistoryClient::new(connection.clone());
-    let mut reports = ReportsClient::new(connection);
+    let execution = WireClient::new(connection.clone());
+    let history = WireClient::new(connection.clone());
+    let reports = WireClient::new(connection);
     let cycle_id = execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
     let case_id = execution
-        .list_cases(authenticated(v1::ListCasesRequest {
-            cycle_id: cycle_id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListCases>(authenticated(
+            contracts::execution::ListCasesRequest {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
@@ -729,12 +769,14 @@ pub(crate) async fn historical_checkpoint_content() {
         .unwrap()
         .clone();
     execution
-        .run_case(authenticated(v1::RunCaseRequest {
-            cycle_id: cycle_id.clone(),
-            case_id,
-            context: None,
-            idempotency_key: None,
-        }))
+        .unary::<contracts::execution::RunCase>(authenticated(
+            contracts::execution::RunCaseRequest {
+                cycle_id: cycle_id.clone(),
+                case_id,
+                context: None,
+                idempotency_key: None,
+            },
+        ))
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_secs(5), gate.started.notified())
@@ -744,14 +786,16 @@ pub(crate) async fn historical_checkpoint_content() {
     tokio::time::timeout(Duration::from_secs(8), async {
         loop {
             if execution
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: cycle_id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: cycle_id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner()
-                .status()
-                == v1::CycleStatus::Completed
+                .status
+                == contracts::execution::CycleStatus::Completed
             {
                 break;
             }
@@ -762,10 +806,12 @@ pub(crate) async fn historical_checkpoint_content() {
     .unwrap();
 
     let browse = history
-        .browse_executions(authenticated(v1::BrowseExecutionsRequest {
-            limit: 1,
-            ..Default::default()
-        }))
+        .unary::<contracts::history::BrowseExecutions>(authenticated(
+            contracts::history::BrowseExecutionsRequest {
+                limit: 1,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -790,9 +836,11 @@ pub(crate) async fn historical_checkpoint_content() {
     common::register_fixture_execution(&owner.handle(), replacement).await;
 
     let document = history
-        .get_checkpoint_document(authenticated(v1::GetCheckpointDocumentRequest {
-            checkpoint: Some(checkpoint.clone()),
-        }))
+        .unary::<contracts::history::GetCheckpointDocument>(authenticated(
+            contracts::history::GetCheckpointDocumentRequest {
+                checkpoint: Some(checkpoint.clone()),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -807,10 +855,12 @@ pub(crate) async fn historical_checkpoint_content() {
     );
 
     let evidence = history
-        .get_checkpoint_evidence(authenticated(v1::GetCheckpointEvidenceRequest {
-            checkpoint: Some(checkpoint.clone()),
-            sections: vec![],
-        }))
+        .unary::<contracts::history::GetCheckpointEvidence>(authenticated(
+            contracts::history::GetCheckpointEvidenceRequest {
+                checkpoint: Some(checkpoint.clone()),
+                sections: vec![],
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -842,11 +892,11 @@ pub(crate) async fn historical_checkpoint_content() {
     assert_eq!(definition.generation_index, frozen_case.generation_index);
     assert_eq!(
         definition.parameters,
-        vec![v1::CaseParameter {
+        vec![contracts::execution::CaseParameter {
             name: "fixture.result".into(),
-            value: Some(v1::Value {
-                kind: Some(v1::value::Kind::TextValue("passed".into())),
-            }),
+            value: Some(contracts::value::Value::from(
+                &dokime_app::core::Value::Text("passed".into())
+            )),
         }]
     );
     assert!(
@@ -857,9 +907,11 @@ pub(crate) async fn historical_checkpoint_content() {
     );
 
     let context = history
-        .get_checkpoint_context(authenticated(v1::GetCheckpointContextRequest {
-            checkpoint: Some(checkpoint.clone()),
-        }))
+        .unary::<contracts::history::GetCheckpointContext>(authenticated(
+            contracts::history::GetCheckpointContextRequest {
+                checkpoint: Some(checkpoint.clone()),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -873,31 +925,37 @@ pub(crate) async fn historical_checkpoint_content() {
         Some(execution_id.as_str())
     );
     let records = history
-        .list_checkpoint_records(authenticated(v1::ListCheckpointRecordsRequest {
-            checkpoint: Some(checkpoint.clone()),
-            limit: 1,
-            ..Default::default()
-        }))
+        .unary::<contracts::history::ListCheckpointRecords>(authenticated(
+            contracts::history::ListCheckpointRecordsRequest {
+                checkpoint: Some(checkpoint.clone()),
+                limit: 1,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(records.checkpoint, Some(checkpoint.clone()));
 
     let refusal = reports
-        .render_checkpoint_report(authenticated(v1::RenderCheckpointReportRequest {
-            context: Some(checkpoint.clone()),
-            checkpoints: vec![checkpoint.clone()],
-            identifier: "grpc.rendered".into(),
-        }))
+        .unary::<contracts::reports::RenderCheckpointReport>(authenticated(
+            contracts::reports::RenderCheckpointReportRequest {
+                context: Some(checkpoint.clone()),
+                checkpoints: vec![checkpoint.clone()],
+                identifier: "grpc.rendered".into(),
+            },
+        ))
         .await
         .unwrap_err();
     assert_eq!(refusal.code(), Code::Unimplemented);
 
     let mut html_stream = reports
-        .download_cycle_report(authenticated(v1::DownloadCycleReportRequest {
-            cycle_id: cycle_id.clone(),
-            identifier: "grpc.download".into(),
-        }))
+        .download::<contracts::reports::DownloadCycleReport>(authenticated(
+            contracts::reports::DownloadCycleReportRequest {
+                cycle_id: cycle_id.clone(),
+                identifier: "grpc.download".into(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -908,20 +966,22 @@ pub(crate) async fn historical_checkpoint_content() {
     let mut html = Vec::new();
     while let Some(frame) = html_stream.message().await.unwrap() {
         match frame.payload.expect("report payload") {
-            v1::report_html_frame::Payload::Report(snapshot) => {
+            contracts::reports::ReportHtmlFramePayload::Report(snapshot) => {
                 assert_eq!(snapshot.identifier, "grpc.download");
             }
-            v1::report_html_frame::Payload::Chunk(chunk) => html.extend(chunk.data),
-            v1::report_html_frame::Payload::Complete(_) => {}
+            contracts::reports::ReportHtmlFramePayload::Chunk(chunk) => html.extend(chunk.data),
+            contracts::reports::ReportHtmlFramePayload::Complete(_) => {}
         }
     }
     assert!(String::from_utf8_lossy(&html).contains("<!doctype html>"));
 
     let refreshed = history
-        .browse_executions(authenticated(v1::BrowseExecutionsRequest {
-            limit: 1,
-            ..Default::default()
-        }))
+        .unary::<contracts::history::BrowseExecutions>(authenticated(
+            contracts::history::BrowseExecutionsRequest {
+                limit: 1,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
@@ -967,13 +1027,15 @@ pub(crate) async fn historical_checkpoint_content() {
     )
     .await
     .unwrap();
-    let mut rebooted_history = HistoryClient::connect(rebooted_server.local_endpoint())
+    let rebooted_history = WireClient::connect(rebooted_server.local_endpoint())
         .await
         .unwrap();
     let restored = rebooted_history
-        .get_checkpoint_document(authenticated(v1::GetCheckpointDocumentRequest {
-            checkpoint: Some(checkpoint.clone()),
-        }))
+        .unary::<contracts::history::GetCheckpointDocument>(authenticated(
+            contracts::history::GetCheckpointDocumentRequest {
+                checkpoint: Some(checkpoint.clone()),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -983,20 +1045,22 @@ pub(crate) async fn historical_checkpoint_content() {
         "reboot without the original catalog must preserve captured provenance"
     );
 
-    let mut rebooted_reports = ReportsClient::connect(rebooted_server.local_endpoint())
+    let rebooted_reports = WireClient::connect(rebooted_server.local_endpoint())
         .await
         .unwrap();
     let mut restored_report = rebooted_reports
-        .download_cycle_report(authenticated(v1::DownloadCycleReportRequest {
-            cycle_id: cycle_id.clone(),
-            identifier: "grpc.download".into(),
-        }))
+        .download::<contracts::reports::DownloadCycleReport>(authenticated(
+            contracts::reports::DownloadCycleReportRequest {
+                cycle_id: cycle_id.clone(),
+                identifier: "grpc.download".into(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     let mut restored_html = Vec::new();
     while let Some(frame) = restored_report.message().await.unwrap() {
-        if let Some(v1::report_html_frame::Payload::Chunk(chunk)) = frame.payload {
+        if let Some(contracts::reports::ReportHtmlFramePayload::Chunk(chunk)) = frame.payload {
             assert_eq!(chunk.offset, restored_html.len() as u64);
             restored_html.extend(chunk.data);
         }
@@ -1022,55 +1086,64 @@ pub(crate) async fn read_role_admit() {
     )
     .await
     .unwrap();
-    let mut client = ExecutionClient::connect(read.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(read.local_endpoint()).await.unwrap();
     assert_eq!(
         client
-            .create_cycle(authenticated(create(&owner)))
+            .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
             .await
             .unwrap_err()
             .code(),
         Code::PermissionDenied
     );
     client
-        .list_cycles(authenticated(v1::ListCyclesRequest::default()))
+        .unary::<contracts::execution::ListCycles>(authenticated(
+            contracts::execution::ListCyclesRequest::default(),
+        ))
         .await
         .unwrap();
     read.shutdown().await.unwrap();
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     // A malformed wire value is refused while the plan is decoded, before any
     // suite lookup. What the removed global parameter object also caught —
     // a value that decodes but does not fit its declaration — is now the
     // template parameter's own admission, exercised where that is decided.
     for value in [
-        v1::Value::default(),
-        v1::Value {
-            kind: Some(v1::value::Kind::NullValue(99)),
+        contracts::value::Value::default(),
+        contracts::value::Value {
+            nodes: vec![contracts::value::ValueNode {
+                kind: Some(contracts::value::ValueKind::Array(
+                    contracts::value::ValueItems { items: vec![99] },
+                )),
+            }],
         },
     ] {
         let mut request = create(&owner);
         request.plan.as_mut().unwrap().selections[0]
             .parameters
-            .insert(
-                "fixture.result".into(),
-                v1::SelectionValues {
+            .push(contracts::planning::RegisteredSelectionParametersEntry {
+                key: "fixture.result".into(),
+                value: Some(contracts::planning::SelectionValues {
                     values: vec![value],
-                },
-            );
+                }),
+            });
         assert_eq!(
-            client.create_cycle(request).await.unwrap_err().code(),
+            client
+                .unary::<contracts::execution::CreateCycle>(request)
+                .await
+                .unwrap_err()
+                .code(),
             Code::InvalidArgument
         );
     }
     let mut request = create(&owner);
     request.plan.as_mut().unwrap().selections[0].suite_id = "not.registered".into();
-    let failure = client.create_cycle(request).await.unwrap_err();
+    let failure = client
+        .unary::<contracts::execution::CreateCycle>(request)
+        .await
+        .unwrap_err();
     assert_eq!(failure.code(), Code::NotFound);
     let envelope = tonic_types::Status::decode(failure.details()).unwrap();
     assert_eq!(envelope.code, Code::NotFound as i32);
@@ -1080,12 +1153,17 @@ pub(crate) async fn read_role_admit() {
         envelope.details[0].type_url,
         "type.googleapis.com/dokime.v1.Rejection"
     );
-    let rejection = v1::Rejection::decode(envelope.details[0].value.as_slice()).unwrap();
+    let rejection = <contracts::execution::Rejection as harmos::Protobuf>::decode(
+        envelope.details[0].value.as_slice(),
+    )
+    .unwrap();
     assert_eq!(rejection.code, "suite_not_found");
     assert_eq!(rejection.message, failure.message());
     assert!(
         client
-            .list_cycles(v1::ListCyclesRequest::default())
+            .unary::<contracts::execution::ListCycles>(
+                contracts::execution::ListCyclesRequest::default()
+            )
             .await
             .unwrap()
             .into_inner()
@@ -1094,7 +1172,7 @@ pub(crate) async fn read_role_admit() {
     );
     assert_eq!(
         client
-            .list_cycles(v1::ListCyclesRequest {
+            .unary::<contracts::execution::ListCycles>(contracts::execution::ListCyclesRequest {
                 limit: 101,
                 ..Default::default()
             })
@@ -1103,18 +1181,18 @@ pub(crate) async fn read_role_admit() {
             .code(),
         Code::InvalidArgument
     );
-    let mut observation = ObservationClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let observation = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         observation
-            .watch_runtime(v1::WatchRuntimeRequest {
-                cursor: Some(v1::Cursor {
-                    epoch: "other".into(),
-                    stream: "runtime.state".into(),
-                    position: 0
-                })
-            })
+            .download::<contracts::observation::WatchRuntime>(
+                contracts::observation::WatchRuntimeRequest {
+                    cursor: Some(contracts::cursor::Cursor {
+                        epoch: "other".into(),
+                        stream: "runtime.state".into(),
+                        position: 0
+                    })
+                }
+            )
             .await
             .unwrap_err()
             .code(),
@@ -1132,19 +1210,21 @@ pub(crate) async fn stalled_stream_execution() {
         .await
         .unwrap();
     let address = server.address();
-    let mut execution = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = execution
-        .create_cycle(create(&owner))
+        .unary::<contracts::execution::CreateCycle>(create(&owner))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
-    let result = execution.run_cycle(run(&id)).await.unwrap().into_inner();
+    let result = execution
+        .unary::<contracts::execution::RunCycle>(run(&id))
+        .await
+        .unwrap()
+        .into_inner();
     assert!(matches!(
         result.outcome,
-        Some(v1::run_reply::Outcome::Accepted(_))
+        Some(contracts::execution::RunReplyOutcome::Accepted(_))
     ));
     tokio::time::timeout(Duration::from_secs(5), gate.started.notified())
         .await
@@ -1156,9 +1236,11 @@ pub(crate) async fn stalled_stream_execution() {
         .connect()
         .await
         .unwrap();
-    let mut observation = ObservationClient::new(connection);
+    let observation = WireClient::new(connection);
     let mut stalled = observation
-        .watch_runtime(v1::WatchRuntimeRequest::default())
+        .download::<contracts::observation::WatchRuntime>(
+            contracts::observation::WatchRuntimeRequest::default(),
+        )
         .await
         .unwrap()
         .into_inner();
@@ -1178,20 +1260,18 @@ pub(crate) async fn stalled_stream_execution() {
     let next = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
-    let mut client = ExecutionClient::connect(next.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(next.local_endpoint()).await.unwrap();
     tokio::time::timeout(Duration::from_secs(8), async {
         loop {
             if client
-                .get_cycle(v1::GetCycleRequest {
+                .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
                     cycle_id: id.clone(),
                 })
                 .await
                 .unwrap()
                 .into_inner()
-                .status()
-                == v1::CycleStatus::Completed
+                .status
+                == contracts::execution::CycleStatus::Completed
             {
                 break;
             }
@@ -1221,9 +1301,9 @@ pub(crate) async fn run_cycle_targets() {
         .connect()
         .await
         .unwrap();
-    let mut execution = ExecutionClient::new(connection);
+    let execution = WireClient::new(connection);
     let cycle_id = execution
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
@@ -1231,7 +1311,7 @@ pub(crate) async fn run_cycle_targets() {
     let diagnostics = {
         let snapshot = owner.handle().watch_state().latest();
         let entry = snapshot.state().suites.get("fixture.diagnostics").unwrap();
-        v1::RegisteredSelection {
+        contracts::planning::RegisteredSelection {
             suite_id: entry.suite_id.clone(),
             template_id: entry.suite.test_case_templates[0]
                 .test_case_template_id
@@ -1240,25 +1320,30 @@ pub(crate) async fn run_cycle_targets() {
         }
     };
     execution
-        .append_planned_cases(authenticated(v1::AppendPlannedCasesRequest {
-            cycle_id: cycle_id.clone(),
-            plan: Some(v1::SelectionPlan {
-                selections: vec![diagnostics],
-                max_cases: 0,
-                case_ids: vec![],
-            }),
-            context: None,
-        }))
+        .unary::<contracts::execution::AppendPlannedCases>(authenticated(
+            contracts::execution::AppendPlannedCasesRequest {
+                cycle_id: cycle_id.clone(),
+                plan: Some(contracts::planning::SelectionPlan {
+                    selections: vec![diagnostics],
+                    max_cases: 0,
+                    case_ids: vec![],
+                }),
+                context: None,
+            },
+        ))
         .await
         .unwrap();
 
     let admitted = execution
-        .run_cycle(authenticated(run(&cycle_id)))
+        .unary::<contracts::execution::RunCycle>(authenticated(run(&cycle_id)))
         .await
         .unwrap()
         .into_inner();
     assert!(
-        matches!(admitted.outcome, Some(v1::run_reply::Outcome::Accepted(_))),
+        matches!(
+            admitted.outcome,
+            Some(contracts::execution::RunReplyOutcome::Accepted(_))
+        ),
         "{:?}",
         admitted.outcome
     );
@@ -1266,13 +1351,15 @@ pub(crate) async fn run_cycle_targets() {
     let completed = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let cycle = execution
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: cycle_id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: cycle_id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status() == v1::CycleStatus::Completed {
+            if cycle.status == contracts::execution::CycleStatus::Completed {
                 break cycle;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -1284,10 +1371,12 @@ pub(crate) async fn run_cycle_targets() {
     assert_eq!(completed.execution_count, 2);
 
     let executions = execution
-        .list_executions(authenticated(v1::ListExecutionsRequest {
-            cycle_id: cycle_id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutions>(authenticated(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
@@ -1296,7 +1385,7 @@ pub(crate) async fn run_cycle_targets() {
     assert!(
         executions
             .iter()
-            .all(|entry| entry.status() == v1::ExecutionStatus::Passed),
+            .all(|entry| entry.status == contracts::execution::ExecutionStatus::Passed),
         "{executions:?}"
     );
 
@@ -1304,8 +1393,8 @@ pub(crate) async fn run_cycle_targets() {
     owner.shutdown().await.unwrap();
 }
 
-fn run(id: &str) -> v1::RunCycleRequest {
-    v1::RunCycleRequest {
+fn run(id: &str) -> contracts::execution::RunCycleRequest {
+    contracts::execution::RunCycleRequest {
         cycle_id: id.into(),
         ..Default::default()
     }

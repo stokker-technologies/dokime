@@ -11,24 +11,18 @@
 
 /* === External Imports === */
 
-import { create } from "@bufbuild/protobuf";
-
 /* === Local Imports === */
 
+import type { Wire } from "@/lib/rpc/canonical";
+import type { Row2 as GeneratedSuiteDefinition } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row3 as GeneratedSuiteIdentity } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row4 as GeneratedTemplateDefinition } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row7 as GeneratedParameterSchema } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row8 as GeneratedFileParameterDefinition } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row3 as GeneratedCursor } from "../../../.generated/dokime/v1/CatalogMessages/ListSuites/messages_pb";
+
 import * as rpc from "@/lib/rpc/generated/client";
-import type {
-  FileParameterDefinition,
-  ParameterSchema,
-  SuiteDefinition,
-  SuiteIdentity,
-  TemplateDefinition,
-} from "@/lib/rpc/generated/dokime/v1/catalog_pb";
-import type { Cursor } from "@/lib/rpc/generated/dokime/v1/common_pb";
-import {
-  type Value,
-  type ValueObject,
-  ValueObjectSchema,
-} from "@/lib/rpc/generated/dokime/v1/value_pb";
+
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   FileDefinition,
@@ -51,6 +45,13 @@ import {
   uniqueStrings,
   valueTypeName,
 } from "./native-values";
+
+type SuiteDefinition = Wire<GeneratedSuiteDefinition>;
+type SuiteIdentity = Wire<GeneratedSuiteIdentity>;
+type TemplateDefinition = Wire<GeneratedTemplateDefinition>;
+type ParameterSchema = Wire<GeneratedParameterSchema>;
+type FileParameterDefinition = Wire<GeneratedFileParameterDefinition>;
+type Cursor = Wire<GeneratedCursor>;
 
 /* === Catalog === */
 
@@ -162,9 +163,14 @@ export function mapParameter(parameter: ParameterSchema): ParameterDefinition {
     value_type: valueTypeName(parameter.valueType),
     choices,
     expansion:
-      parameter.expansion?.kind.case === "zip"
-        ? { kind: "zip", group: parameter.expansion.kind.value }
-        : { kind: parameter.expansion?.kind.case === "cartesian" ? "cartesian" : "single" },
+      parameter.expansion?.kind?.HarmosVariant.case === "Zip"
+        ? { kind: "zip", group: parameter.expansion.kind.HarmosVariant.value.field0 }
+        : {
+            kind:
+              parameter.expansion?.kind?.HarmosVariant.case === "Cartesian"
+                ? "cartesian"
+                : "single",
+          },
     list: mapParameterList(parameter.list),
     min: parameter.min ?? null,
     max: parameter.max ?? null,
@@ -209,57 +215,80 @@ function mapFile(file: FileParameterDefinition): FileDefinition {
 }
 
 function expressionValues(expression: NonNullable<ParameterSchema["expression"]>): unknown[] {
-  const kind = expression.kind;
-  switch (kind.case) {
-    case "literal":
-      return [nativeValueToJson(kind.value)];
-    case "array":
-      return kind.value.values.flatMap(expressionValues);
-    case "range": {
-      const { start, stop, step } = kind.value;
-      if (step === 0n || (step > 0n && start > stop) || (step < 0n && start < stop)) return [];
-      const values: unknown[] = [];
-      for (let current = start; step > 0n ? current <= stop : current >= stop; current += step) {
-        if (values.length >= NATIVE_CASE_LIMIT)
-          throw new NativeApiLimitError("Catalog.ParameterExpression", "more than 1000 values");
-        values.push(nativeValueToJson({ kind: { case: "integerValue", value: current } } as Value));
+  return read(0, 0);
+  function read(index: number, depth: number): unknown[] {
+    if (depth > 64) throw new Error("Native expression exceeds 64 levels.");
+    const kind = expression.nodes[index]?.kind?.HarmosVariant;
+    if (!kind?.case) throw new Error("Native expression node has no kind.");
+    function member(child: number): unknown[] {
+      if (child <= index || child >= expression.nodes.length)
+        throw new Error("Invalid expression member index.");
+      return read(child, depth + 1);
+    }
+    switch (kind.case) {
+      case "Literal":
+        return [nativeValueToJson(kind.value.field0)];
+      case "Array":
+        return kind.value.field0?.values.flatMap(member) ?? [];
+      case "Range": {
+        const { start, stop, step } =
+          kind.value.field0 ??
+          (() => {
+            throw new Error("Native expression payload is missing.");
+          })();
+        if (step === 0n || (step > 0n && start > stop) || (step < 0n && start < stop)) return [];
+        const values: unknown[] = [];
+        for (let current = start; step > 0n ? current <= stop : current >= stop; current += step) {
+          if (values.length >= NATIVE_CASE_LIMIT)
+            throw new NativeApiLimitError("Catalog.ParameterExpression", "more than 1000 values");
+          values.push(nativeValueToJson(jsonToNativeValue(current)));
+        }
+        return values;
       }
-      return values;
-    }
-    case "arange": {
-      const { start, stop, step } = kind.value;
-      if (step === 0 || (step > 0 && start >= stop) || (step < 0 && start <= stop)) return [];
-      const values: unknown[] = [];
-      for (let current = start; step > 0 ? current < stop : current > stop; current += step) {
-        if (values.length >= NATIVE_CASE_LIMIT)
-          throw new NativeApiLimitError("Catalog.ParameterExpression", "more than 1000 values");
-        values.push(Number(current.toFixed(12)));
+      case "Arange": {
+        const { start, stop, step } =
+          kind.value.field0 ??
+          (() => {
+            throw new Error("Native expression payload is missing.");
+          })();
+        if (step === 0 || (step > 0 && start >= stop) || (step < 0 && start <= stop)) return [];
+        const values: unknown[] = [];
+        for (let current = start; step > 0 ? current < stop : current > stop; current += step) {
+          if (values.length >= NATIVE_CASE_LIMIT)
+            throw new NativeApiLimitError("Catalog.ParameterExpression", "more than 1000 values");
+          values.push(Number(current.toFixed(12)));
+        }
+        return values;
       }
-      return values;
+      case "Linspace": {
+        const {
+          start,
+          stop,
+          count: rawCount,
+        } = kind.value.field0 ??
+        (() => {
+          throw new Error("Native expression payload is missing.");
+        })();
+        const count = safeNumber(rawCount, "linspace count");
+        if (count < 0 || count > NATIVE_CASE_LIMIT)
+          throw new NativeApiLimitError("Catalog.ParameterExpression", `linspace count ${count}`);
+        if (count === 0) return [];
+        if (count === 1) return [start];
+        const step = (stop - start) / (count - 1);
+        return Array.from({ length: count }, (_, index) =>
+          Number((start + step * index).toFixed(12)),
+        );
+      }
+      default:
+        // References and dynamic expressions require a runtime context and are
+        // intentionally left unevaluated in a catalog-only read.
+        return [];
     }
-    case "linspace": {
-      const { start, stop, count: rawCount } = kind.value;
-      const count = safeNumber(rawCount, "linspace count");
-      if (count < 0 || count > NATIVE_CASE_LIMIT)
-        throw new NativeApiLimitError("Catalog.ParameterExpression", `linspace count ${count}`);
-      if (count === 0) return [];
-      if (count === 1) return [start];
-      const step = (stop - start) / (count - 1);
-      return Array.from({ length: count }, (_, index) =>
-        Number((start + step * index).toFixed(12)),
-      );
-    }
-    default:
-      // References and dynamic expressions require a runtime context and are
-      // intentionally left unevaluated in a catalog-only read.
-      return [];
   }
 }
 
-export function valueObjectFromJson(values: Record<string, unknown>): ValueObject {
-  return create(ValueObjectSchema, {
-    fields: Object.fromEntries(
-      Object.entries(values).map(([name, value]) => [name, jsonToNativeValue(value)]),
-    ),
-  });
+export function valueObjectFromJson(
+  values: Record<string, unknown>,
+): ReturnType<typeof jsonToNativeValue> {
+  return jsonToNativeValue(values);
 }

@@ -17,11 +17,9 @@ version = { workspace = true }
 
 [dependencies]
 # Local
-dokime = { path = "../dokime", features = ["client"] }
-dokime-app = { path = "../dokime-app", features = ["fft"] }
+dokime-contract = { path = "../dokime-contract" }
+dokime-client = { path = "../dokime-client" }
 dokime-filesystem = { path = "../dokime-filesystem" }
-dokime-protocol = { path = "../dokime-protocol" }
-dokime-server = { path = "../dokime-server" }
 dokime-terminal = { path = "../dokime-terminal" }
 
 # Error Handling
@@ -29,14 +27,8 @@ thiserror = { workspace = true, default-features = true }
 
 # Logging
 tracing = { workspace = true, default-features = true }
-tracing-appender = { workspace = true, default-features = true }
-tracing-chrome = { workspace = true, default-features = true }
-tracing-error = { workspace = true, default-features = true }
-tracing-flame = { workspace = true, default-features = true }
-tracing-subscriber = { workspace = true, default-features = true }
 
 # Utilities
-sha2 = { workspace = true, default-features = true }
 zeroize = { workspace = true, default-features = true }
 
 # Serialization
@@ -45,7 +37,6 @@ serde_json = { workspace = true, default-features = true }
 
 # Configuration
 clap = { workspace = true, default-features = true }
-dotenv = { workspace = true, default-features = true }
 
 # Filesystem
 tempfile = { workspace = true, default-features = true }
@@ -54,6 +45,9 @@ tempfile = { workspace = true, default-features = true }
 tokio = { workspace = true, default-features = true }
 
 [dev-dependencies]
+# Networking
+tonic = { workspace = true }
+
 # Utilities
 time = { workspace = true, default-features = true }
 
@@ -67,8 +61,3 @@ criterion = { workspace = true, default-features = true }
 name = "dokime"
 path = "src/main.rs"
 doc = false
-
-[[bench]]
-name = "shutdown"
-path = "benches/commands/main.rs"
-harness = false

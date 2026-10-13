@@ -18,7 +18,10 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{
-    schema::{Cardinality, Field, Kind},
+    schema::{
+        Cardinality,
+        graph::{Field, Kind},
+    },
     storage::*,
 };
 
@@ -603,12 +606,12 @@ pub(crate) async fn large_native_limits() {
     .unwrap();
     backend.open().await.unwrap();
     let mut declared = schema();
-    declared.fields = vec![Field {
+    declared.schema = super::storage::graph(vec![Field {
         name: "value".into(),
         tag: 1,
         kind: Kind::Bytes,
         cardinality: Cardinality::Required,
-    }];
+    }]);
     backend
         .write(write_batch(&[StoragePart::Schemas(&[declared])]))
         .await
@@ -750,7 +753,7 @@ pub(crate) async fn rolled_back_schema() {
         .unwrap();
 
     let mut replacement = schema();
-    replacement.fields[0].kind = Kind::String;
+    replacement.schema.definitions[0][0].kind = Kind::String;
     let mut replacement_row = row;
     replacement_row.record.payload = vec![10, 1, b'x'];
     backend

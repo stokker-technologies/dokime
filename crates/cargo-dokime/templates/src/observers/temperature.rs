@@ -19,7 +19,7 @@
 
 // Local Imports
 use crate::{Bench, Plugin};
-use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
+use dokime::harmos::plugin::sidecar::{ObserverContext, PublishError, Publisher};
 
 /* === Constants === */
 

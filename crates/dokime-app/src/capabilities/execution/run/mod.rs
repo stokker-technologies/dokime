@@ -18,7 +18,11 @@ pub(crate) use host::Sessions;
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 // Third Party Imports
 use harmos::Message;
 use harmos::operations::OperationManager;
@@ -88,7 +92,7 @@ struct HostCapture {
 
 struct ExecutionCleanup {
     _publication_admission: crate::runtime::ExecutionPublicationAdmission,
-    _record_demand: Vec<harmos::sidecar::DemandLease>,
+    _record_demand: Vec<harmos::plugin::sidecar::DemandLease>,
     execution: TestExecution,
     session: Arc<Session>,
     _progress: ProgressCleanup,
@@ -344,11 +348,15 @@ impl ExecutionCleanup {
             }
             self.settled = true;
         }
+        let publication_started = Instant::now();
+        tracing::debug!(execution_id = %self.execution.test_execution_id, "execution publication flush started");
         context
             .runtime
             .flush_plugin_publications()
             .await
             .map_err(|error| failure("sidecar_telemetry", error.to_string()))?;
+        tracing::debug!(execution_id = %self.execution.test_execution_id,
+            elapsed_ms = publication_started.elapsed().as_millis() as u64, "execution publication flush settled");
         close_record_subscriptions(context, &self.execution).await?;
         self.session
             .prompts
@@ -356,8 +364,12 @@ impl ExecutionCleanup {
             .await
             .settle_on_cancel(context)
             .await;
+        let capture_started = Instant::now();
+        tracing::debug!(execution_id = %self.execution.test_execution_id, "execution capture release started");
         self.session.step_leases.release_all(context).await?;
         self.capture.release(context).await?;
+        tracing::debug!(execution_id = %self.execution.test_execution_id,
+            elapsed_ms = capture_started.elapsed().as_millis() as u64, "execution capture release settled");
         Ok(())
     }
 }
@@ -837,6 +849,8 @@ async fn execute_case(
         .execution_sessions
         .insert(&execution_token, Arc::clone(&session));
 
+    let provider_started = Instant::now();
+    tracing::debug!(execution_id = %execution.test_execution_id, "execution provider run started");
     let run = target.run(request);
     tokio::pin!(run);
     let mut cancelled = false;
@@ -864,6 +878,8 @@ async fn execute_case(
             session.refuse(error).await;
         }
     };
+    tracing::debug!(execution_id = %execution.test_execution_id, succeeded = answered.is_ok(),
+        elapsed_ms = provider_started.elapsed().as_millis() as u64, "execution provider run settled");
     context.runtime.execution_sessions.remove(&execution_token);
     let concluded = match answered {
         Ok(outcome) => {

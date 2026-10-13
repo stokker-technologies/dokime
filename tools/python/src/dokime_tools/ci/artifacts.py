@@ -28,7 +28,15 @@ from zipfile import ZipFile
 
 # Third Party Imports
 # Local Imports
-from dokime_tools.check.release import PLATFORMS, digest, inputs, verify_platform
+from dokime_tools.check.release import (
+    FIXTURE_BUNDLES,
+    PLATFORMS,
+    REPORT_TEMPLATE,
+    digest,
+    inputs,
+    required_suites,
+    verify_platform,
+)
 from dokime_tools.ci.policy import current_event, required_platforms
 
 # Type Checking Imports
@@ -93,11 +101,17 @@ def restore(root: Path, platform: str) -> None:
         if destination.exists():
             shutil.rmtree(destination)
         package.rename(destination)
+    fixtures = destination / FIXTURE_BUNDLES
+    if fixtures.is_dir():
+        target = root / "target/fixtures"
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(fixtures, target)
     report = root / "crates/dokime-app/dist-report/report.html"
     report.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=report.parent) as temporary:
         installed = Path(temporary) / report.name
-        shutil.copyfile(destination / "reports/report.html", installed)
+        shutil.copyfile(destination / REPORT_TEMPLATE, installed)
         installed.replace(report)
 
 
@@ -118,6 +132,20 @@ def catalog(root: Path) -> None:
         validation = manifest["validation"]
         if manifest["pipeline_id"] != run or validation["pipeline_id"] != run:
             raise ValueError("native jobs belong to different validation runs")
+        expected_lanes = set(required_suites(platform))
+        lanes = validation.get("lane_job_ids", {})
+        if set(lanes) != expected_lanes:
+            raise ValueError("native validation omits required split jobs")
+        for suite, reference in lanes.items():
+            if reference != job_id(
+                "test:" + suite.replace("-", ":"), platform, completed=True
+            ):
+                raise ValueError("native correctness job identity differs")
+        coverage_job = job_id("ci:coverage", platform, completed=True)
+        if validation.get("coverage_job_id") != coverage_job:
+            raise ValueError("required coverage job identity differs")
+        coverage_artifact = available[f"coverage-{platform}-{coverage_job}"]
+        _valid_artifact(coverage_artifact)
         original = available[f"validation-{platform}-{validation['test_job_id']}"]
         _valid_artifact(original)
         archive = root / "dist/downloads" / f"dokime-{platform}.zip"
@@ -126,6 +154,15 @@ def catalog(root: Path) -> None:
             "artifact_sha256": _checksum(original),
             "build_job_id": _job(manifest["build_job_id"]),
             "test_job_id": _job(validation["test_job_id"]),
+            "contract_job_id": _job(validation["contract_job_id"]),
+            "lane_job_ids": {
+                suite: _job(reference) for suite, reference in lanes.items()
+            },
+            "coverage": {
+                "job_id": coverage_job,
+                "artifact_id": _job(str(coverage_artifact["id"])),
+                "artifact_sha256": _checksum(coverage_artifact),
+            },
             "manifest_sha256": digest(package / "manifest.json"),
             "archive": {
                 "path": archive.relative_to(root).as_posix(),
@@ -255,6 +292,11 @@ def reuse(root: Path) -> None:
                 or record["validation"]["test_job_id"] != entry["test_job_id"]
                 or record["pipeline_id"] != run
                 or record["validation"]["pipeline_id"] != run
+                or record["validation"].get("contract_job_id")
+                != entry.get("contract_job_id")
+                or record["validation"].get("lane_job_ids") != entry.get("lane_job_ids")
+                or record["validation"].get("coverage_job_id")
+                != entry.get("coverage", {}).get("job_id")
             ):
                 raise ValueError(f"original {platform} job provenance mismatch")
         for platform in PLATFORMS:
@@ -301,7 +343,9 @@ def _inventory(run: str) -> dict[str, dict]:
     result = {}
     for artifact in response["artifacts"]:
         name = artifact["name"]
-        if not name.startswith("validation-"):
+        if not name.startswith(("validation-", "coverage-")) or name.startswith(
+            "coverage-diagnostics-"
+        ):
             continue
         if (
             name in result
@@ -338,7 +382,7 @@ def _request(endpoint: str) -> dict:
         raise ValueError("native metadata exceeds its budget")
     value = json.loads(contents)
     if not isinstance(value, dict):
-        raise ValueError("invalid native metadata")
+        raise TypeError("invalid native metadata")
     return value
 
 

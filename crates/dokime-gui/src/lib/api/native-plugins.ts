@@ -11,15 +11,9 @@
 
 /* === Local Imports === */
 
-import { create } from "@bufbuild/protobuf";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
 import * as rpc from "@/lib/rpc/generated/client";
-import {
-  type AdmittedPlugin,
-  type PluginInstallation,
-  PluginInstallationState,
-  StagePluginFrameSchema,
-} from "@/lib/rpc/generated/dokime/v1/plugins_pb";
+import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 import type { NativeContentSession } from "./native-content";
@@ -31,6 +25,14 @@ import {
   sha256Hex,
   timestampIso,
 } from "./native-values";
+
+/* === Types === */
+
+type PluginInstallation = Wire<Awaited<ReturnType<typeof rpc.pluginsGetInstallation>>>;
+type PluginInstallationState = PluginInstallation["state"];
+type AdmittedPlugin = Wire<
+  Awaited<ReturnType<typeof rpc.pluginsListAdmittedPlugins>>["plugins"][number]
+>;
 
 /* === Plugin installations === */
 
@@ -178,7 +180,12 @@ export async function stageNativePlugin(
     // forward an empty frame first, which the server rejects.
     stream = await withInvoke("opening", bounds.open, cancel, () =>
       rpc.pluginsStage(session, {
-        frame: { case: "header", value: { sizeBytes: BigInt(bytes.byteLength), sha256: digest } },
+        frame: {
+          HarmosVariant: {
+            case: "Header",
+            value: { field0: { sizeBytes: BigInt(bytes.byteLength), sha256: digest } },
+          },
+        },
       }),
     );
     release = session.own(() => void cancel().catch(() => undefined));
@@ -196,11 +203,11 @@ export async function stageNativePlugin(
       const label = `uploading chunk ${chunkIndex} of ${chunkCount} (${formatStagePluginBytes(offset)} of ${formatStagePluginBytes(total)})`;
       const openedStream = stream;
       await withInvoke(label, bounds.write, cancel, () =>
-        openedStream.write(
-          create(StagePluginFrameSchema, {
-            frame: { case: "chunk", value: { offset: BigInt(offset), data } },
-          }),
-        ),
+        openedStream.write({
+          frame: {
+            HarmosVariant: { case: "Chunk", value: { field0: { offset: BigInt(offset), data } } },
+          },
+        }),
       );
       chunkIndex += 1;
     }
@@ -372,14 +379,14 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
 }
 
 function mapPluginState(state: PluginInstallationState): PluginEntry["state"] {
-  switch (state) {
-    case PluginInstallationState.STAGED:
+  switch (state?.HarmosVariant.case) {
+    case "Staged":
       return "staged";
-    case PluginInstallationState.INSTALLED:
+    case "Installed":
       return "installed";
-    case PluginInstallationState.DISABLED:
+    case "Disabled":
       return "disabled";
-    case PluginInstallationState.REMOVAL_PENDING:
+    case "RemovalPending":
       return "removal_pending";
     default:
       throw new Error("Native plugin returned an unknown installation state.");
@@ -390,32 +397,38 @@ function mapPluginLastBoot(lastBoot: PluginInstallation["lastBoot"]): PluginEntr
   if (!lastBoot) return null;
   const at = timestampIso(lastBoot.at);
   if (!at) throw new Error("Native plugin returned a last-boot result without a timestamp.");
-  switch (lastBoot.result.case) {
-    case "loaded":
+  switch (lastBoot.result?.HarmosVariant.case) {
+    case "Loaded":
       return { state: "loaded", at };
-    case "error":
-      return { state: "failed", error: lastBoot.result.value, at };
+    case "Error":
+      return { state: "failed", error: lastBoot.result.HarmosVariant.value.field0, at };
     default:
       throw new Error("Native plugin returned a last-boot result without an outcome.");
   }
 }
 
 function mapAdmittedPlugin(artifact: AdmittedPlugin): RuntimeInstalledPluginRecord {
+  const owner = artifact.owner?.HarmosVariant;
+  let projectedOwner: RuntimeInstalledPluginRecord["owner"] = null;
+  if (owner?.case === "Host") projectedOwner = { kind: "host" };
+  if (owner?.case === "Bundle") {
+    const bundle = owner.value.field0;
+    if (!bundle) throw new Error("Admitted plugin omitted its bundle owner.");
+    projectedOwner = {
+      kind: "bundle",
+      package: bundle.package,
+      installation: bundle.installationId ?? null,
+      content_digest: bundle.contentDigest,
+    };
+  }
+  if (owner?.case === "Embedded") {
+    const embedded = owner.value.field0;
+    if (!embedded) throw new Error("Admitted plugin omitted its embedded owner.");
+    projectedOwner = { kind: "embedded", generation: embedded.generation };
+  }
   return {
     plugin_id: artifact.pluginId,
-    owner:
-      artifact.owner.case === "host"
-        ? { kind: "host" }
-        : artifact.owner.case === "bundle"
-          ? {
-              kind: "bundle",
-              package: artifact.owner.value.package,
-              installation: artifact.owner.value.installationId ?? null,
-              content_digest: artifact.owner.value.contentDigest,
-            }
-          : artifact.owner.case === "embedded"
-            ? { kind: "embedded", generation: artifact.owner.value.generation }
-            : null,
+    owner: projectedOwner,
     label: artifact.label,
     version: artifact.version,
     enabled: artifact.enabled,

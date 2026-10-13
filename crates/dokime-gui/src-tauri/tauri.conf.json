@@ -27,7 +27,8 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "externalBin": [
-      "binaries/dokime"
+      "binaries/dokime",
+      "binaries/dokime-server"
     ],
     "resources": [],
     "targets": [

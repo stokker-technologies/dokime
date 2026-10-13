@@ -20,7 +20,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 // Third Party Imports
-use harmos::plugin::{Bundle, Limits};
+use harmos::plugin::bundle::{Bundle, Limits};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -50,7 +50,7 @@ pub struct Args {
     build: build::Args,
     #[arg(
         long,
-        help = "Host override. Defaults to the installed Dokime executable."
+        help = "Server Override. Defaults To The Installed Dokime Server Executable."
     )]
     dokime: Option<PathBuf>,
     #[arg(
@@ -490,7 +490,6 @@ fn controls(shutdown_stdin: bool) -> Result<tokio::sync::mpsc::Receiver<Control>
 
 fn arguments(args: &Args, state: &Path, bundle: &Path) -> Vec<String> {
     let mut arguments = vec![
-        "serve".to_owned(),
         "--plugin".to_owned(),
         bundle.display().to_string(),
         "--application-root".to_owned(),
@@ -525,7 +524,7 @@ async fn readiness_line(
         return Ok(ReadinessLine::Phase);
     }
     if value["event"] != "ready"
-        || value["protocol"] != dokime_protocol::READINESS_PROTOCOL
+        || value["protocol"] != dokime_contract::READINESS_PROTOCOL
         || value["transport"] != "grpc"
     {
         return Err(Error::Invalid(

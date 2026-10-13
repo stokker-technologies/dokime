@@ -44,13 +44,15 @@ pub(crate) async fn inspection_separates_outputs() {
         gate,
         mut owner,
         server,
-        execution: mut client,
+        execution: client,
         cycle: id,
     } = Gated::open().await;
     let cycle = client
-        .get_cycle(authenticated(v1::GetCycleRequest {
-            cycle_id: id.clone(),
-        }))
+        .unary::<contracts::execution::GetCycle>(authenticated(
+            contracts::execution::GetCycleRequest {
+                cycle_id: id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -59,31 +61,37 @@ pub(crate) async fn inspection_separates_outputs() {
     assert!(cycle.started_at.is_none());
     assert!(cycle.result.is_none());
     let case = client
-        .list_cases(authenticated(v1::ListCasesRequest {
-            cycle_id: id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListCases>(authenticated(
+            contracts::execution::ListCasesRequest {
+                cycle_id: id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .cases
         .remove(0);
     let detail = client
-        .get_case(authenticated(v1::GetCaseRequest {
-            cycle_id: id.clone(),
-            case_id: case.case_id.clone(),
-        }))
+        .unary::<contracts::execution::GetCase>(authenticated(
+            contracts::execution::GetCaseRequest {
+                cycle_id: id.clone(),
+                case_id: case.case_id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(detail.summary.as_ref(), Some(&case));
     assert!(detail.parameter_count > 0);
     let planned = client
-        .list_case_parameters(authenticated(v1::ListCaseParametersRequest {
-            cycle_id: id.clone(),
-            case_id: case.case_id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListCaseParameters>(authenticated(
+            contracts::execution::ListCaseParametersRequest {
+                cycle_id: id.clone(),
+                case_id: case.case_id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -96,15 +104,18 @@ pub(crate) async fn inspection_separates_outputs() {
             .value
             .as_ref()
             .unwrap()
-            .kind,
-        Some(v1::value::Kind::TextValue("passed".into()))
+            .to_core()
+            .unwrap(),
+        Value::Text("passed".into())
     );
     assert_eq!(
         client
-            .get_case(authenticated(v1::GetCaseRequest {
-                cycle_id: id.clone(),
-                case_id: "missing".into()
-            }))
+            .unary::<contracts::execution::GetCase>(authenticated(
+                contracts::execution::GetCaseRequest {
+                    cycle_id: id.clone(),
+                    case_id: "missing".into()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -119,34 +130,38 @@ pub(crate) async fn inspection_separates_outputs() {
         .remove(0)
         .test_execution_id
         .to_string();
-    let refused = client
-        .run_execution(authenticated(v1::RunExecutionRequest {
-            mode: 99,
-            execution_id: selected.clone(),
-            idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
-            context: None,
-        }))
-        .await
-        .unwrap_err();
-    assert_eq!(refused.code(), Code::InvalidArgument);
-    assert_eq!(
-        owner
-            .handle()
-            .cycles()
+    for unknown_variant in [false, true] {
+        let refused = client
+            .invalid_enum::<contracts::execution::RunExecution, contracts::execution::ExecutionMode>(authenticated(contracts::execution::RunExecutionRequest {
+                mode: Default::default(),
+                execution_id: selected.clone(),
+                idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
+                context: None,
+            }), "mode", unknown_variant)
             .await
-            .remove(0)
-            .test_executions
-            .remove(0)
-            .started_at,
-        None
-    );
+            .unwrap_err();
+        assert_eq!(refused.code(), Code::InvalidArgument);
+        assert_eq!(
+            owner
+                .handle()
+                .cycles()
+                .await
+                .remove(0)
+                .test_executions
+                .remove(0)
+                .started_at,
+            None
+        );
+    }
     client
-        .run_execution(authenticated(v1::RunExecutionRequest {
-            mode: Default::default(),
-            execution_id: selected,
-            idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
-            context: None,
-        }))
+        .unary::<contracts::execution::RunExecution>(authenticated(
+            contracts::execution::RunExecutionRequest {
+                mode: Default::default(),
+                execution_id: selected,
+                idempotency_key: Some(uuid::Uuid::now_v7().to_string()),
+                context: None,
+            },
+        ))
         .await
         .unwrap();
     tokio::time::timeout(Duration::from_secs(5), gate.started.notified())
@@ -157,22 +172,26 @@ pub(crate) async fn inspection_separates_outputs() {
     let execution_id = native.test_execution_id.to_string();
     assert_eq!(
         client
-            .get_execution(v1::GetExecutionRequest {
-                execution_id: execution_id.clone()
-            })
+            .unary::<contracts::execution::GetExecution>(
+                contracts::execution::GetExecutionRequest {
+                    execution_id: execution_id.clone()
+                }
+            )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
-    let request = |set| v1::ListExecutionParametersRequest {
+    let request = |set| contracts::execution::ListExecutionParametersRequest {
         execution_id: execution_id.clone(),
         set,
-        ..Default::default()
+        limit: 0,
+        after_name: String::new(),
+        cursor: None,
     };
     let before = client
-        .list_execution_parameters(authenticated(request(
-            v1::ExecutionParameterSet::Inputs as i32,
+        .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
+            contracts::execution::ExecutionParameterSet::Inputs,
         )))
         .await
         .unwrap()
@@ -197,23 +216,25 @@ pub(crate) async fn inspection_separates_outputs() {
             .unwrap()
     );
     let after = client
-        .list_execution_parameters(authenticated(request(
-            v1::ExecutionParameterSet::Inputs as i32,
+        .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
+            contracts::execution::ExecutionParameterSet::Inputs,
         )))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(after.parameters, before.parameters);
-    let mut output_request = request(v1::ExecutionParameterSet::Outputs as i32);
+    let mut output_request = request(contracts::execution::ExecutionParameterSet::Outputs);
     output_request.limit = 1;
     let first = client
-        .list_execution_parameters(authenticated(output_request.clone()))
+        .unary::<contracts::execution::ListExecutionParameters>(authenticated(
+            output_request.clone(),
+        ))
         .await
         .unwrap()
         .into_inner();
     let current_outputs = client
-        .list_execution_parameters(authenticated(request(
-            v1::ExecutionParameterSet::Outputs as i32,
+        .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
+            contracts::execution::ExecutionParameterSet::Outputs,
         )))
         .await
         .unwrap()
@@ -225,36 +246,39 @@ pub(crate) async fn inspection_separates_outputs() {
         .find(|item| item.name == "counter")
         .unwrap();
     assert_eq!(
-        counter.value.as_ref().unwrap().kind,
-        Some(v1::value::Kind::IntegerValue(i64::MAX))
+        counter.value.as_ref().unwrap().to_core().unwrap(),
+        Value::Integer(i64::MAX)
     );
-    assert_eq!(counter.source(), v1::ParameterSource::Runtime);
+    assert_eq!(
+        counter.source,
+        contracts::execution::ParameterSource::Runtime
+    );
     // The shared name exists in both inputs and outputs: scope validation must
     // reject switching sets, not rely on an absent continuation marker.
-    let mismatch = v1::ListExecutionParametersRequest {
-        set: v1::ExecutionParameterSet::Inputs as i32,
+    let mismatch = contracts::execution::ListExecutionParametersRequest {
+        set: contracts::execution::ExecutionParameterSet::Inputs,
         after_name: "fixture.result".into(),
         cursor: first.cursor.clone(),
-        ..request(v1::ExecutionParameterSet::Inputs as i32)
+        ..request(contracts::execution::ExecutionParameterSet::Inputs)
     };
     assert_eq!(
         client
-            .list_execution_parameters(authenticated(mismatch))
+            .unary::<contracts::execution::ListExecutionParameters>(authenticated(mismatch))
             .await
             .unwrap_err()
             .code(),
         Code::InvalidArgument
     );
-    let malformed = v1::ListExecutionParametersRequest {
-        cursor: Some(v1::ParameterCursor {
+    let malformed = contracts::execution::ListExecutionParametersRequest {
+        cursor: Some(contracts::execution::ParameterCursor {
             observed: None,
             selection: first.cursor.as_ref().unwrap().selection.clone(),
         }),
-        ..request(v1::ExecutionParameterSet::Outputs as i32)
+        ..request(contracts::execution::ExecutionParameterSet::Outputs)
     };
     assert_eq!(
         client
-            .list_execution_parameters(authenticated(malformed))
+            .unary::<contracts::execution::ListExecutionParameters>(authenticated(malformed))
             .await
             .unwrap_err()
             .code(),
@@ -270,15 +294,15 @@ pub(crate) async fn inspection_separates_outputs() {
     );
     assert_eq!(
         client
-            .list_execution_parameters(authenticated(output_request))
+            .unary::<contracts::execution::ListExecutionParameters>(authenticated(output_request))
             .await
             .unwrap_err()
             .code(),
         Code::Aborted
     );
     let outputs = client
-        .list_execution_parameters(authenticated(request(
-            v1::ExecutionParameterSet::Outputs as i32,
+        .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
+            contracts::execution::ExecutionParameterSet::Outputs,
         )))
         .await
         .unwrap()
@@ -288,44 +312,53 @@ pub(crate) async fn inspection_separates_outputs() {
             .parameters
             .iter()
             .any(|entry| entry.name == "nullable"
-                && entry.value.as_ref().unwrap().kind == Some(v1::value::Kind::NullValue(0)))
+                && entry.value.as_ref().unwrap().to_core().unwrap() == Value::Null)
     );
     assert_eq!(
         client
-            .list_execution_parameters(authenticated(request(0)))
+            .unary::<contracts::execution::ListExecutionParameters>(authenticated(request(
+                contracts::execution::ExecutionParameterSet::Unspecified
+            )))
             .await
             .unwrap_err()
             .code(),
         Code::InvalidArgument
     );
-    assert_eq!(
-        client
-            .list_execution_parameters(authenticated(request(999)))
-            .await
-            .unwrap_err()
-            .code(),
-        Code::InvalidArgument
-    );
+    for unknown_variant in [false, true] {
+        assert_eq!(
+            client.invalid_enum::<contracts::execution::ListExecutionParameters, contracts::execution::ExecutionParameterSet>(
+                authenticated(request(contracts::execution::ExecutionParameterSet::Unspecified)),
+                "set", unknown_variant,
+            ).await.unwrap_err().code(),
+            Code::InvalidArgument,
+        );
+    }
     let admitted = client
-        .get_execution(authenticated(v1::GetExecutionRequest {
-            execution_id: execution_id.clone(),
-        }))
+        .unary::<contracts::execution::GetExecution>(authenticated(
+            contracts::execution::GetExecutionRequest {
+                execution_id: execution_id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     let controls = admitted.controls.as_ref().unwrap();
     assert!(controls.can_pause && controls.can_stop && !controls.can_resume);
     client
-        .pause_execution(authenticated(v1::ExecutionControlRequest {
-            execution_id: execution_id.clone(),
-            context: None,
-        }))
+        .unary::<contracts::execution::PauseExecution>(authenticated(
+            contracts::execution::ExecutionControlRequest {
+                execution_id: execution_id.clone(),
+                context: None,
+            },
+        ))
         .await
         .unwrap();
     let paused = client
-        .get_execution(authenticated(v1::GetExecutionRequest {
-            execution_id: execution_id.clone(),
-        }))
+        .unary::<contracts::execution::GetExecution>(authenticated(
+            contracts::execution::GetExecutionRequest {
+                execution_id: execution_id.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
@@ -334,10 +367,12 @@ pub(crate) async fn inspection_separates_outputs() {
     assert_eq!(paused.request_id, controls.request_id);
     assert!(paused.paused && paused.can_resume && !paused.can_pause);
     client
-        .resume_execution(authenticated(v1::ExecutionControlRequest {
-            execution_id: execution_id.clone(),
-            context: None,
-        }))
+        .unary::<contracts::execution::ResumeExecution>(authenticated(
+            contracts::execution::ExecutionControlRequest {
+                execution_id: execution_id.clone(),
+                context: None,
+            },
+        ))
         .await
         .unwrap();
     assert_eq!(
@@ -364,21 +399,23 @@ pub(crate) async fn inspection_separates_outputs() {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let final_detail = client
-                .get_execution(authenticated(v1::GetExecutionRequest {
-                    execution_id: execution_id.clone(),
-                }))
+                .unary::<contracts::execution::GetExecution>(authenticated(
+                    contracts::execution::GetExecutionRequest {
+                        execution_id: execution_id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
             if final_detail.finished_at.is_some() {
                 assert!(final_detail.controls.is_none());
                 assert_eq!(
-                    final_detail.summary.unwrap().status(),
-                    v1::ExecutionStatus::Passed
+                    final_detail.summary.unwrap().status,
+                    contracts::execution::ExecutionStatus::Passed
                 );
                 assert_eq!(
-                    final_detail.result.unwrap().status(),
-                    v1::ResultStatus::Passed
+                    final_detail.result.unwrap().status,
+                    contracts::execution::ResultStatus::Passed
                 );
                 break;
             }
@@ -414,9 +451,7 @@ pub(crate) async fn planned_params_limit() {
     let server = Server::start(owner.handle(), Config::local())
         .await
         .unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     // Native registered suites can exceed the transport's creation schema
     // bound. Inspection must still expose every existing planned parameter.
     let cycle_id = owner
@@ -442,7 +477,7 @@ pub(crate) async fn planned_params_limit() {
         .unwrap()
         .to_string();
     let case_id = client
-        .list_cases(v1::ListCasesRequest {
+        .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
@@ -453,7 +488,7 @@ pub(crate) async fn planned_params_limit() {
         .remove(0)
         .case_id;
     let detail = client
-        .get_case(v1::GetCaseRequest {
+        .unary::<contracts::execution::GetCase>(contracts::execution::GetCaseRequest {
             cycle_id: cycle_id.clone(),
             case_id: case_id.clone(),
         })
@@ -461,10 +496,12 @@ pub(crate) async fn planned_params_limit() {
         .unwrap()
         .into_inner();
     let execution_id = client
-        .list_executions(v1::ListExecutionsRequest {
-            cycle_id: cycle_id.clone(),
-            ..Default::default()
-        })
+        .unary::<contracts::execution::ListExecutions>(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            },
+        )
         .await
         .unwrap()
         .into_inner()
@@ -472,7 +509,7 @@ pub(crate) async fn planned_params_limit() {
         .remove(0)
         .execution_id;
     assert_eq!(detail.parameter_count, 257);
-    let mut request = v1::ListCaseParametersRequest {
+    let mut request = contracts::execution::ListCaseParametersRequest {
         cycle_id: cycle_id.clone(),
         case_id: case_id.clone(),
         limit: 73,
@@ -481,7 +518,7 @@ pub(crate) async fn planned_params_limit() {
     let mut all = Vec::new();
     loop {
         let page = client
-            .list_case_parameters(request.clone())
+            .unary::<contracts::execution::ListCaseParameters>(request.clone())
             .await
             .unwrap()
             .into_inner();
@@ -493,24 +530,35 @@ pub(crate) async fn planned_params_limit() {
             wrong.cursor = cursor.clone();
             wrong.after_name = "p000".into();
             assert_eq!(
-                client.list_case_parameters(wrong).await.unwrap_err().code(),
+                client
+                    .unary::<contracts::execution::ListCaseParameters>(wrong)
+                    .await
+                    .unwrap_err()
+                    .code(),
                 Code::InvalidArgument
             );
             let mut wrong = request.clone();
             wrong.case_id = "another-case".into();
             wrong.cursor = cursor.clone();
             assert_eq!(
-                client.list_case_parameters(wrong).await.unwrap_err().code(),
+                client
+                    .unary::<contracts::execution::ListCaseParameters>(wrong)
+                    .await
+                    .unwrap_err()
+                    .code(),
                 Code::InvalidArgument
             );
             assert_eq!(
                 client
-                    .list_execution_parameters(v1::ListExecutionParametersRequest {
-                        execution_id: execution_id.clone(),
-                        set: v1::ExecutionParameterSet::Inputs as i32,
-                        cursor: cursor.clone(),
-                        ..Default::default()
-                    })
+                    .unary::<contracts::execution::ListExecutionParameters>(
+                        contracts::execution::ListExecutionParametersRequest {
+                            execution_id: execution_id.clone(),
+                            set: contracts::execution::ExecutionParameterSet::Inputs,
+                            limit: 0,
+                            after_name: String::new(),
+                            cursor: cursor.clone(),
+                        }
+                    )
                     .await
                     .unwrap_err()
                     .code(),
@@ -521,7 +569,7 @@ pub(crate) async fn planned_params_limit() {
             unknown.after_name = "unknown".into();
             assert_eq!(
                 client
-                    .list_case_parameters(unknown)
+                    .unary::<contracts::execution::ListCaseParameters>(unknown)
                     .await
                     .unwrap_err()
                     .code(),
@@ -539,13 +587,15 @@ pub(crate) async fn planned_params_limit() {
     for (index, item) in all.iter().enumerate() {
         assert_eq!(item.name, format!("p{index:03}"));
         assert_eq!(
-            item.value.as_ref().unwrap().kind,
-            Some(v1::value::Kind::IntegerValue(index as i64))
+            item.value.as_ref().unwrap().to_core().unwrap(),
+            Value::Integer(index as i64)
         );
     }
     assert_eq!(
         client
-            .get_cycle(v1::GetCycleRequest { cycle_id })
+            .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
+                cycle_id
+            })
             .await
             .unwrap()
             .into_inner()

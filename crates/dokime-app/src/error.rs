@@ -84,7 +84,7 @@ pub enum Error {
     #[error("native runtime bootstrap failed: {source}")]
     RuntimeBoot {
         #[source]
-        source: Box<harmos::Incompatible>,
+        source: Box<harmos::runtime::Incompatible>,
     },
 
     #[error("runtime task failed")]
@@ -245,8 +245,8 @@ fn harmos_message(error: &harmos::Error) -> String {
     let mut message = error.to_string();
     if let harmos::Error::PluginLifecycle { source } = error {
         let failures = match source.as_ref() {
-            harmos::load::PluginFailure::Cleanup(failures)
-            | harmos::load::PluginFailure::Start {
+            harmos::plugin::PluginFailure::Cleanup(failures)
+            | harmos::plugin::PluginFailure::Start {
                 cleanup: failures, ..
             } => failures,
             _ => return message,

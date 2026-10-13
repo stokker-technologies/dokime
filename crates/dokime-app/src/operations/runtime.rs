@@ -70,11 +70,11 @@ impl Operation for ReadHealth {
         _: Self::Context<'a>,
         _: &mut dokime::operations::runtime::Request,
         _: &mut (),
-    ) -> Result<Health, Self::Error> {
+    ) -> Result<harmos::operations::Response<Health>, Self::Error> {
         let stopping = *self.resources.shutdown.borrow()
             || self.resources.state.borrow().state().shutting_down;
         let observed_at = time::OffsetDateTime::now_utc();
-        Ok(Health {
+        Ok((Health {
             backend_id: self.resources.identity.backend_id.clone(),
             epoch: self.resources.identity.epoch.clone(),
             readiness: if stopping {
@@ -91,6 +91,7 @@ impl Operation for ReadHealth {
             }
             .into(),
         })
+        .into())
     }
 }
 
@@ -110,8 +111,8 @@ impl Operation for ReadIdentity {
         _: Self::Context<'a>,
         _: &mut dokime::operations::runtime::Request,
         _: &mut (),
-    ) -> Result<Identity, Self::Error> {
-        Ok(self.resources.identity.clone())
+    ) -> Result<harmos::operations::Response<Identity>, Self::Error> {
+        Ok((self.resources.identity.clone()).into())
     }
 }
 
@@ -133,6 +134,13 @@ pub(crate) fn register(runtime: &RuntimeHandle) -> crate::Result<()> {
             "dokime",
             Lanes::Open,
             Arc::new(resources),
+        )?;
+    runtime
+        .operations
+        .register_wire_operation::<harmos::operations::discovery::Discovery>(
+            "dokime",
+            Lanes::Open,
+            Arc::new(()),
         )?;
     Ok(())
 }

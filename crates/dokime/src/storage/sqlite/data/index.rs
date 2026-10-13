@@ -113,21 +113,25 @@ pub(super) fn write(
                 error,
             ))
         };
-        let validation =
-            harmos::schema::validation_memory_bytes(&schema.fields).map_err(failure)?;
+        let settings = harmos::config::SchemaSettings::default();
+        let validation = schema
+            .schema
+            .validation_memory_bytes(&settings)
+            .map_err(failure)?;
         let validation = memory.reserve_owned(validation, usize::MAX)?;
-        harmos::schema::validate(&schema.fields).map_err(failure)?;
+        schema.schema.prepare(&settings).map_err(failure)?;
         drop(validation);
         // Scalar Browsing Needs Only The Supported Top-Level Descriptors.
         // The Complete Immutable Schema Remains In Its Original Schema Entry.
-        let slots = schema
-            .fields
+        let root = schema.schema.root().map_err(failure)?;
+        let slots = root
+            .fields()
             .len()
-            .checked_mul(std::mem::size_of::<&harmos::schema::Field>())
+            .checked_mul(std::mem::size_of::<&harmos::schema::graph::Field>())
             .ok_or(Error::Data("scalar descriptor slots overflow"))?;
         let _slots = memory.reserve_owned(slots, usize::MAX)?;
-        let selected = schema
-            .fields
+        let selected = root
+            .fields()
             .iter()
             .filter(|field| keys::supported(field))
             .collect::<Vec<_>>();
@@ -135,9 +139,9 @@ pub(super) fn write(
         let encoded = memory.reserve_owned(bytes, usize::MAX)?;
         let fields = entry::encode(&selected, maximum.get())?;
         drop(selected);
-        let bytes = keys::Decoder::construction_bytes(&schema.fields, schema.key.payload_encoding)?;
+        let bytes = keys::Decoder::construction_bytes(&schema.schema, schema.key.payload_encoding)?;
         let decoder_memory = memory.reserve_owned(bytes, usize::MAX)?;
-        let decoder = keys::Decoder::new(&schema.fields, schema.key.payload_encoding)?;
+        let decoder = keys::Decoder::new(&schema.schema, schema.key.payload_encoding)?;
         *cache = Some(IndexSchema {
             key: schema_key.clone(),
             schema,
@@ -170,9 +174,13 @@ pub(super) fn write(
         ));
     }
     schema.position.history.check(&cursor.history)?;
-    let scalar_bytes = keys::allocation_bytes(&schema.fields, payload.len(), &cached.decoder)?;
+    let root = schema
+        .schema
+        .root()
+        .map_err(|_| Error::Corrupt("invalid scalar schema root"))?;
+    let scalar_bytes = keys::allocation_bytes(root.fields(), payload.len(), &cached.decoder)?;
     let _scalars = memory.reserve_owned(scalar_bytes, usize::MAX)?;
-    let cells = keys::encode(&schema.fields, payload, &cached.decoder)?;
+    let cells = keys::encode(root.fields(), payload, &cached.decoder)?;
     connection.execute(
         "UPDATE storage_data_entries SET object_fields=?1 WHERE position=?2 AND kind='object'",
         params![cached.fields, position(entry.position)],

@@ -20,17 +20,23 @@ use std::{
     time::{Duration, Instant},
 };
 // Third Party Imports
+use harmos::{
+    MemorySize, Protobuf,
+    operations::{Context, Operation, Response, StreamInput, StreamItem},
+};
 use sha2::{Digest, Sha256};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore, watch};
-use tonic::{Request, Response, Status, Streaming};
+use std::num::NonZeroUsize;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tonic::Status;
 use uuid::Uuid;
 // Local Imports
 use super::value;
+use contract as v1;
 use dokime_app::{
     RuntimeHandle,
     plugins::{PluginError, PluginStore},
 };
-use dokime_protocol::v1::{self, plugins_server::Plugins};
+use dokime_contract::operations::plugins as contract;
 
 /* === Constants === */
 
@@ -39,10 +45,9 @@ use dokime_protocol::v1::{self, plugins_server::Plugins};
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct Service {
+struct Resources {
     pub runtime: RuntimeHandle,
     pub admission: Arc<Semaphore>,
-    pub stopping: watch::Receiver<bool>,
     pub max_message_bytes: usize,
 }
 
@@ -51,19 +56,13 @@ pub(super) struct Service {
 /* === Traits === */
 
 /* === Implementations === */
-impl Service {
+impl Resources {
     fn permit(&self) -> Result<OwnedSemaphorePermit, Status> {
-        if *self.stopping.borrow() {
-            return Err(Status::unavailable("backend is draining"));
-        }
         let permit = self
             .admission
             .clone()
             .try_acquire_owned()
             .map_err(|_| Status::resource_exhausted("plugin management is busy"))?;
-        if *self.stopping.borrow() {
-            return Err(Status::unavailable("backend is draining"));
-        }
         Ok(permit)
     }
     async fn blocking<T: Send + 'static>(
@@ -80,78 +79,154 @@ impl Service {
         .map_err(join)?
         .map_err(failure)
     }
+}
+
+impl Resources {
+    fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
+        &self,
+        required: usize,
+        build: impl FnOnce() -> Result<T, Status>,
+    ) -> Result<Response<T>, Status> {
+        if required > self.max_message_bytes {
+            return Err(Status::resource_exhausted(
+                "plugin response exceeds original allowance",
+            ));
+        }
+        let preparation = self
+            .runtime
+            .storage()
+            .prepare_production(
+                NonZeroUsize::new(required)
+                    .ok_or_else(|| Status::resource_exhausted("invalid plugin allowance"))?,
+            )
+            .map_err(memory_failure)?;
+        let output = build()?;
+        if output.encoded_len() > self.max_message_bytes {
+            return Err(Status::resource_exhausted(
+                "plugin response exceeds wire allowance",
+            ));
+        }
+        preparation
+            .finish(output)
+            .map_err(memory_failure)?
+            .try_into_value()
+            .map_err(memory_failure)?
+            .try_into_response()
+            .map_err(memory_failure)
+    }
     fn entry(
         &self,
         mut entry: dokime_app::plugins::PluginEntry,
-    ) -> Result<v1::PluginInstallation, Status> {
+    ) -> Result<Response<v1::PluginInstallation>, Status> {
         self.runtime.plugin_process_state(&mut entry);
-        wire::entry(entry, self.max_message_bytes)
+        wire::normalize(&mut entry, self.max_message_bytes)?;
+        self.produce(wire::memory(&entry)?, || {
+            wire::entry(entry, self.max_message_bytes)
+        })
     }
 }
-
-#[tonic::async_trait]
-impl Plugins for Service {
-    async fn list_installations(
-        &self,
-        request: Request<v1::ListInstallationsRequest>,
+struct ListInstallations {
+    resources: Arc<Resources>,
+}
+impl Operation for ListInstallations {
+    type Declaration = v1::ListInstallations;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::ListInstallationsRequest,
+        _: &mut Self::Endpoints,
     ) -> Result<Response<v1::InstallationPage>, Status> {
-        let request = request.into_inner();
         let size = page_size(request.page_size)?;
         let after = request
             .after
+            .take()
             .map(|cursor| Ok::<_, Status>((id(&cursor.after_install_id)?, cursor.manifest_sha256)))
             .transpose()?;
         let page = self
+            .resources
             .blocking(move |store| {
                 store.page(after.as_ref().map(|(id, hash)| (*id, hash.as_str())), size)
             })
             .await?;
-        let mut installations = Vec::new();
-        let mut bytes = 256usize;
-        for entry in page.entries {
-            let entry = self.entry(entry)?;
-            bytes = bytes
-                .saturating_add(prost::Message::encoded_len(&entry))
-                .saturating_add(8);
-            if bytes > self.max_message_bytes {
-                return Err(Status::resource_exhausted(
-                    "plugin page exceeds transport budget",
-                ));
-            }
-            installations.push(entry);
+        let mut page = page;
+        let mut required = std::mem::size_of::<v1::InstallationPage>() + 256;
+        for entry in &mut page.entries {
+            self.resources.runtime.plugin_process_state(entry);
+            wire::normalize(entry, self.resources.max_message_bytes)?;
+            required = required
+                .saturating_add(wire::memory(entry)?)
+                .saturating_add(3 * std::mem::size_of::<v1::PluginInstallation>());
         }
-        Ok(Response::new(v1::InstallationPage {
-            installations,
-            next: page.next.map(|id| v1::InstallationCursor {
-                manifest_sha256: page.manifest_sha256.clone(),
-                after_install_id: id.to_string(),
-            }),
-            total_count: page.total as u64,
-            manifest_sha256: page.manifest_sha256,
-        }))
+        self.resources.produce(required, || {
+            Ok(v1::InstallationPage {
+                installations: page
+                    .entries
+                    .into_iter()
+                    .map(|entry| wire::entry(entry, self.resources.max_message_bytes))
+                    .collect::<Result<_, Status>>()?,
+                next: page.next.map(|id| v1::InstallationCursor {
+                    manifest_sha256: page.manifest_sha256.clone(),
+                    after_install_id: id.to_string(),
+                }),
+                total_count: page.total as u64,
+                manifest_sha256: page.manifest_sha256,
+            })
+        })
     }
-    async fn get_installation(
-        &self,
-        request: Request<v1::GetInstallationRequest>,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
-        let id = id(&request.into_inner().install_id)?;
-        let entry = self.blocking(move |store| store.get(id)).await?;
-        Ok(Response::new(self.entry(entry)?))
+}
+struct GetInstallation {
+    resources: Arc<Resources>,
+}
+impl Operation for GetInstallation {
+    type Declaration = v1::GetInstallation;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
     }
-    async fn stage(
-        &self,
-        request: Request<Streaming<v1::StagePluginFrame>>,
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::GetInstallationRequest,
+        _: &mut Self::Endpoints,
     ) -> Result<Response<v1::PluginInstallation>, Status> {
-        let permit = self.permit().map_err(reject)?;
-        let mut input = request.into_inner();
-        let mut stopping = self.stopping.clone();
-        // `message` (and the `with_idle` deadline inside it) already warns
-        // and tags its own rejections; only the two checks below construct a
-        // new `Status` that still needs one.
-        let first = message(&mut input, &mut stopping)
+        let id = id(&request.install_id)?;
+        let entry = self.resources.blocking(move |store| store.get(id)).await?;
+        self.resources.entry(entry)
+    }
+}
+struct Stage {
+    resources: Arc<Resources>,
+}
+impl Operation for Stage {
+    type Declaration = v1::Stage;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = StreamInput<v1::StagePluginFrame>;
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        _request: &mut (),
+        input: &mut Self::Endpoints,
+    ) -> Result<Response<v1::PluginInstallation>, Status> {
+        let permit = self.resources.permit().map_err(reject)?;
+        let first = message(input)
             .await?
             .ok_or_else(|| reject(Status::invalid_argument("stage header is required")))?;
-        let Some(v1::stage_plugin_frame::Frame::Header(header)) = first.frame else {
+        let Some(v1::StagePluginFrameFrame::Header(header)) = &first.frame else {
             return Err(reject(Status::invalid_argument(
                 "first stage frame must be a header",
             )));
@@ -168,18 +243,32 @@ impl Plugins for Service {
             digest_prefix = &header.sha256[..8],
             "plugin stage header received",
         );
+        let size_bytes = header.size_bytes;
+        let expected_sha256 = header.sha256.clone();
+        let upload_preparation = self
+            .resources
+            .runtime
+            .storage()
+            .prepare_production(
+                NonZeroUsize::new(size_bytes as usize + std::mem::size_of::<Vec<u8>>())
+                    .ok_or_else(|| {
+                        reject(Status::resource_exhausted(
+                            "invalid plugin upload allowance",
+                        ))
+                    })?,
+            )
+            .map_err(memory_failure)?;
+        drop(first);
         let received_started = Instant::now();
         let mut bytes = Vec::new();
-        bytes
-            .try_reserve_exact(header.size_bytes as usize)
-            .map_err(|_| {
-                reject(Status::resource_exhausted(
-                    "plugin upload memory unavailable",
-                ))
-            })?;
+        bytes.try_reserve_exact(size_bytes as usize).map_err(|_| {
+            reject(Status::resource_exhausted(
+                "plugin upload memory unavailable",
+            ))
+        })?;
         let mut hash = Sha256::new();
-        while let Some(frame) = message(&mut input, &mut stopping).await? {
-            let Some(v1::stage_plugin_frame::Frame::Chunk(chunk)) = frame.frame else {
+        while let Some(frame) = message(input).await? {
+            let Some(v1::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else {
                 return Err(reject(Status::invalid_argument(
                     "only chunks may follow stage header",
                 )));
@@ -192,7 +281,7 @@ impl Plugins for Service {
                     "invalid stage chunk offset or size",
                 )));
             }
-            if chunk.data.len() as u64 > header.size_bytes.saturating_sub(bytes.len() as u64) {
+            if chunk.data.len() as u64 > size_bytes.saturating_sub(bytes.len() as u64) {
                 return Err(reject(Status::invalid_argument(
                     "stage exceeds declared size",
                 )));
@@ -200,27 +289,29 @@ impl Plugins for Service {
             hash.update(&chunk.data);
             bytes.extend_from_slice(&chunk.data);
         }
-        if bytes.len() as u64 != header.size_bytes
+        if bytes.len() as u64 != size_bytes
             || hash
                 .finalize()
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>()
-                != header.sha256
+                != expected_sha256
         {
             return Err(reject(Status::invalid_argument(
                 "stage size or digest mismatch",
             )));
-        }
-        if *stopping.borrow() {
-            return Err(reject(Status::unavailable("backend is draining")));
         }
         tracing::info!(
             received_bytes = bytes.len(),
             elapsed_ms = received_started.elapsed().as_millis(),
             "plugin stage upload completed",
         );
-        let store = self.runtime.plugin_store();
+        let bytes = upload_preparation
+            .finish(bytes)
+            .map_err(memory_failure)?
+            .try_into_value()
+            .map_err(memory_failure)?;
+        let store = self.resources.runtime.plugin_store();
         let inspect_started = Instant::now();
         let entry = match tokio::task::spawn_blocking(move || {
             let _permit = permit;
@@ -237,18 +328,33 @@ impl Plugins for Service {
             elapsed_ms = inspect_started.elapsed().as_millis(),
             "plugin stage inspection completed",
         );
-        Ok(Response::new(self.entry(entry)?))
+        self.resources.entry(entry)
     }
-    async fn consent(
-        &self,
-        request: Request<v1::ConsentPluginRequest>,
+}
+struct Consent {
+    resources: Arc<Resources>,
+}
+impl Operation for Consent {
+    type Declaration = v1::Consent;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::ConsentPluginRequest,
+        _: &mut Self::Endpoints,
     ) -> Result<Response<v1::PluginInstallation>, Status> {
-        let request = request.into_inner();
         let id = id(&request.install_id)?;
         digest(&request.expected_sha256)?;
-        let permit = self.permit()?;
-        let runtime = self.runtime.clone();
-        let max_message_bytes = self.max_message_bytes;
+        let permit = self.resources.permit()?;
+        let expected_sha256 = std::mem::take(&mut request.expected_sha256);
+        let runtime = self.resources.runtime.clone();
+        let max_message_bytes = self.resources.max_message_bytes;
         // Admission retains its permit after transport cancellation. Consent can
         // already have published; callers reconcile by UUID, never blindly retry.
         let entry = tokio::spawn(async move {
@@ -258,7 +364,7 @@ impl Plugins for Service {
                 .await
                 .map_err(join)?
                 .map_err(failure)?;
-            if current.installation.sha256 != request.expected_sha256 {
+            if current.installation.sha256 != expected_sha256 {
                 return Err(Status::failed_precondition(
                     "consent digest does not match staged installation",
                 ));
@@ -268,28 +374,60 @@ impl Plugins for Service {
         })
         .await
         .map_err(join)??;
-        Ok(Response::new(self.entry(entry)?))
+        self.resources.entry(entry)
     }
-    async fn set_enabled(
-        &self,
-        request: Request<v1::SetPluginEnabledRequest>,
+}
+struct SetEnabled {
+    resources: Arc<Resources>,
+}
+impl Operation for SetEnabled {
+    type Declaration = v1::SetEnabled;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::SetPluginEnabledRequest,
+        _: &mut Self::Endpoints,
     ) -> Result<Response<v1::PluginInstallation>, Status> {
-        let request = request.into_inner();
         let id = id(&request.install_id)?;
+        let enabled = request.enabled;
         let entry = self
+            .resources
             .blocking(move |store| {
-                store.set_enabled(id, request.enabled)?;
+                store.set_enabled(id, enabled)?;
                 store.get(id)
             })
             .await?;
-        Ok(Response::new(self.entry(entry)?))
+        self.resources.entry(entry)
     }
-    async fn remove(
-        &self,
-        request: Request<v1::RemovePluginRequest>,
+}
+struct Remove {
+    resources: Arc<Resources>,
+}
+impl Operation for Remove {
+    type Declaration = v1::Remove;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::RemovePluginRequest,
+        _: &mut Self::Endpoints,
     ) -> Result<Response<v1::RemovePluginReply>, Status> {
-        let id = id(&request.into_inner().install_id)?;
+        let id = id(&request.install_id)?;
         let entry = self
+            .resources
             .blocking(move |store| {
                 store.remove(id)?;
                 match store.get(id) {
@@ -299,47 +437,119 @@ impl Plugins for Service {
                 }
             })
             .await?;
-        Ok(Response::new(v1::RemovePluginReply {
-            installation: entry.map(|entry| self.entry(entry)).transpose()?,
-        }))
+        let mut entry = entry;
+        if let Some(entry) = &mut entry {
+            self.resources.runtime.plugin_process_state(entry);
+            wire::normalize(entry, self.resources.max_message_bytes)?;
+        }
+        let required = std::mem::size_of::<v1::RemovePluginReply>()
+            + entry.as_ref().map(wire::memory).transpose()?.unwrap_or(0);
+        self.resources.produce(required, || {
+            Ok(v1::RemovePluginReply {
+                installation: entry
+                    .map(|entry| wire::entry(entry, self.resources.max_message_bytes))
+                    .transpose()?,
+            })
+        })
     }
-    async fn list_admitted_plugins(
-        &self,
-        request: Request<v1::ListAdmittedPluginsRequest>,
+}
+struct ListAdmittedPlugins {
+    resources: Arc<Resources>,
+}
+impl Operation for ListAdmittedPlugins {
+    type Declaration = v1::ListAdmittedPlugins;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut v1::ListAdmittedPluginsRequest,
+        _: &mut Self::Endpoints,
     ) -> Result<Response<v1::AdmittedPluginPage>, Status> {
-        inventory::page(&self.runtime, request.into_inner(), self.max_message_bytes)
-            .map(Response::new)
+        inventory::page(
+            &self.resources.runtime,
+            request,
+            self.resources.max_message_bytes,
+        )
     }
 }
 
 /* === Public Functions === */
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        admission: Arc::new(Semaphore::new(1)),
+        max_message_bytes: maximum,
+    });
+    runtime
+        .operations()
+        .register_wire_operation::<ListInstallations>(
+            "dokime",
+            dokime_app::app::Lanes::Open,
+            resources.clone(),
+        )?;
+    runtime
+        .operations()
+        .register_wire_operation::<GetInstallation>(
+            "dokime",
+            dokime_app::app::Lanes::Open,
+            resources.clone(),
+        )?;
+    runtime.operations().register_wire_operation::<Stage>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        resources.clone(),
+    )?;
+    runtime.operations().register_wire_operation::<Consent>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        resources.clone(),
+    )?;
+    runtime.operations().register_wire_operation::<SetEnabled>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        resources.clone(),
+    )?;
+    runtime.operations().register_wire_operation::<Remove>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        resources.clone(),
+    )?;
+    runtime
+        .operations()
+        .register_wire_operation::<ListAdmittedPlugins>(
+            "dokime",
+            dokime_app::app::Lanes::Open,
+            resources.clone(),
+        )?;
+    Ok(())
+}
 
 /* === Private Functions === */
 async fn message(
-    input: &mut Streaming<v1::StagePluginFrame>,
-    stopping: &mut watch::Receiver<bool>,
-) -> Result<Option<v1::StagePluginFrame>, Status> {
-    if *stopping.borrow() {
-        return Err(reject(Status::unavailable("backend is draining")));
-    }
-    tokio::select! {
-        biased;
-        _ = stopping.changed() => Err(reject(Status::unavailable("backend is draining"))),
-        result = with_idle(input.message(), Duration::from_secs(30)) => result,
-    }
+    input: &mut StreamInput<v1::StagePluginFrame>,
+) -> Result<Option<StreamItem<v1::StagePluginFrame>>, Status> {
+    tokio::time::timeout(Duration::from_secs(30), input.recv())
+        .await
+        .map_err(|_| {
+            reject(Status::deadline_exceeded(
+                "plugin upload idle deadline exceeded",
+            ))
+        })
 }
-
-async fn with_idle<T>(
-    future: impl std::future::Future<Output = Result<Option<T>, Status>>,
-    duration: Duration,
-) -> Result<Option<T>, Status> {
-    tokio::time::timeout(duration, future).await.map_err(|_| {
-        reject(Status::deadline_exceeded(
-            "plugin upload idle deadline exceeded",
-        ))
-    })?
+fn memory_failure(error: harmos::Error) -> Status {
+    let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
+        Status::resource_exhausted("plugin admission failed")
+    } else {
+        Status::internal("plugin admission failed")
+    };
+    super::error::detailed(status, &error.into())
 }
-
 fn reject(status: Status) -> Status {
     tracing::warn!(code = ?status.code(), message = %status.message(), "plugin stage rejected");
     status

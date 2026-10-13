@@ -9,28 +9,25 @@
 
 /* === Modules === */
 mod codec;
-mod generated {
-    include!(concat!(env!("OUT_DIR"), "/dokime.v1.Query.rs"));
-}
 
 /* === Re-Exports === */
-pub(super) use generated::query_server::QueryServer;
 
 /* === Imports === */
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
-use tonic::{Request, Response, Status};
+use harmos::operations::{Context, Operation, Response};
+use tonic::Status;
 // Local Imports
 use super::error::detailed;
-use super::value::{self, Budget};
+use super::value::{self, Budget, canonical};
 use dokime_app::RuntimeHandle;
 use dokime_app::runtime::query::aggregate::{
     AggregateColumn, AggregateFilter, AggregateFunction, AggregateOperator, AggregateQuery,
     AggregateSource,
 };
-use dokime_protocol::v1;
-use generated::query_server::Query;
+use dokime_contract::operations::query as wire;
 
 /* === Constants === */
 
@@ -39,9 +36,13 @@ use generated::query_server::Query;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct Service {
+struct Resources {
     pub(super) runtime: RuntimeHandle,
     pub(super) max_message_bytes: usize,
+}
+
+struct Aggregate {
+    resources: Arc<Resources>,
 }
 
 /* === Enums === */
@@ -49,56 +50,77 @@ pub(super) struct Service {
 /* === Traits === */
 
 /* === Implementations === */
-#[tonic::async_trait]
-impl Query for Service {
-    async fn aggregate(
-        &self,
-        request: Request<v1::AggregateRequest>,
-    ) -> Result<Response<super::charged::Bytes>, Status> {
-        let query = decode(request.into_inner())?;
-        let reply = self
+impl Operation for Aggregate {
+    type Declaration = wire::Aggregate;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut wire::AggregateRequest,
+        _: &mut (),
+    ) -> Result<Response<wire::AggregateReply>, Status> {
+        let query = decode(request)?;
+        self.resources
             .runtime
             .aggregate_projected(query, |outcome, allowance| {
-                codec::encode(outcome, allowance, self.max_message_bytes)
+                codec::project(outcome, allowance, self.resources.max_message_bytes)
             })
             .await
-            .map_err(status)?;
-        Ok(Response::new(reply))
+            .map_err(status)?
+            .try_into_response()
+            .map_err(|error| status(error.into()))
     }
 }
 
 /* === Public Functions === */
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+    runtime.operations().register_wire_operation::<Aggregate>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
+        Arc::new(Resources {
+            runtime: runtime.clone(),
+            max_message_bytes: maximum,
+        }),
+    )?;
+    Ok(())
+}
 
 /* === Private Functions === */
-fn decode(request: v1::AggregateRequest) -> Result<AggregateQuery, Status> {
+fn decode(request: &mut wire::AggregateRequest) -> Result<AggregateQuery, Status> {
     let mut budget = Budget::new();
     value::collection(request.filters.len())?;
     value::collection(request.group_by.len())?;
     value::collection(request.aggregates.len())?;
-    let source = match v1::QuerySource::try_from(request.source) {
-        Ok(v1::QuerySource::Cycles) => AggregateSource::Cycles,
-        Ok(v1::QuerySource::Cases) => AggregateSource::Cases,
-        Ok(v1::QuerySource::Executions) => AggregateSource::Executions,
-        Ok(v1::QuerySource::Steps) => AggregateSource::Steps,
-        Ok(v1::QuerySource::Records) => AggregateSource::Records,
-        Ok(v1::QuerySource::Unspecified) | Err(_) => {
+    let source = match request.source {
+        wire::QuerySource::Cycles => AggregateSource::Cycles,
+        wire::QuerySource::Cases => AggregateSource::Cases,
+        wire::QuerySource::Executions => AggregateSource::Executions,
+        wire::QuerySource::Steps => AggregateSource::Steps,
+        wire::QuerySource::Records => AggregateSource::Records,
+        wire::QuerySource::Unspecified => {
             return Err(Status::invalid_argument("aggregate source is unspecified"));
         }
     };
     let mut filters = Vec::with_capacity(request.filters.len());
-    for filter in request.filters {
+    for filter in std::mem::take(&mut request.filters) {
         value::text(&filter.column)?;
         value::collection(filter.values.len())?;
-        let op = match v1::QueryFilterOperator::try_from(filter.op) {
-            Ok(v1::QueryFilterOperator::Eq) => AggregateOperator::Eq,
-            Ok(v1::QueryFilterOperator::Neq) => AggregateOperator::Neq,
-            Ok(v1::QueryFilterOperator::In) => AggregateOperator::In,
-            Ok(v1::QueryFilterOperator::Gt) => AggregateOperator::Gt,
-            Ok(v1::QueryFilterOperator::Gte) => AggregateOperator::Gte,
-            Ok(v1::QueryFilterOperator::Lt) => AggregateOperator::Lt,
-            Ok(v1::QueryFilterOperator::Lte) => AggregateOperator::Lte,
-            Ok(v1::QueryFilterOperator::IsNull) => AggregateOperator::IsNull,
-            Ok(v1::QueryFilterOperator::Unspecified) | Err(_) => {
+        let op = match filter.op {
+            wire::QueryFilterOperator::Eq => AggregateOperator::Eq,
+            wire::QueryFilterOperator::Neq => AggregateOperator::Neq,
+            wire::QueryFilterOperator::In => AggregateOperator::In,
+            wire::QueryFilterOperator::Gt => AggregateOperator::Gt,
+            wire::QueryFilterOperator::Gte => AggregateOperator::Gte,
+            wire::QueryFilterOperator::Lt => AggregateOperator::Lt,
+            wire::QueryFilterOperator::Lte => AggregateOperator::Lte,
+            wire::QueryFilterOperator::IsNull => AggregateOperator::IsNull,
+            wire::QueryFilterOperator::Unspecified => {
                 return Err(Status::invalid_argument(
                     "aggregate filter operator is unspecified",
                 ));
@@ -107,7 +129,7 @@ fn decode(request: v1::AggregateRequest) -> Result<AggregateQuery, Status> {
         let values = filter
             .values
             .into_iter()
-            .map(|value| value::decode(value, &mut budget, 0))
+            .map(|value| canonical::decode(value, &mut budget, 0))
             .collect::<Result<_, Status>>()?;
         filters.push(AggregateFilter {
             column: filter.column,
@@ -119,18 +141,18 @@ fn decode(request: v1::AggregateRequest) -> Result<AggregateQuery, Status> {
         value::text(column)?;
     }
     let mut aggregates = Vec::with_capacity(request.aggregates.len());
-    for aggregate in request.aggregates {
+    for aggregate in std::mem::take(&mut request.aggregates) {
         if !aggregate.column.is_empty() {
             value::text(&aggregate.column)?;
         }
         value::text(&aggregate.alias)?;
-        let function = match v1::AggregateFunction::try_from(aggregate.function) {
-            Ok(v1::AggregateFunction::Count) => AggregateFunction::Count,
-            Ok(v1::AggregateFunction::Sum) => AggregateFunction::Sum,
-            Ok(v1::AggregateFunction::Mean) => AggregateFunction::Mean,
-            Ok(v1::AggregateFunction::Min) => AggregateFunction::Min,
-            Ok(v1::AggregateFunction::Max) => AggregateFunction::Max,
-            Ok(v1::AggregateFunction::Unspecified) | Err(_) => {
+        let function = match aggregate.function {
+            wire::AggregateFunction::Count => AggregateFunction::Count,
+            wire::AggregateFunction::Sum => AggregateFunction::Sum,
+            wire::AggregateFunction::Mean => AggregateFunction::Mean,
+            wire::AggregateFunction::Min => AggregateFunction::Min,
+            wire::AggregateFunction::Max => AggregateFunction::Max,
+            wire::AggregateFunction::Unspecified => {
                 return Err(Status::invalid_argument(
                     "aggregate function is unspecified",
                 ));
@@ -146,7 +168,7 @@ fn decode(request: v1::AggregateRequest) -> Result<AggregateQuery, Status> {
     Ok(AggregateQuery {
         source,
         filters,
-        group_by: request.group_by,
+        group_by: std::mem::take(&mut request.group_by),
         aggregates,
         limit: request.limit as usize,
     })

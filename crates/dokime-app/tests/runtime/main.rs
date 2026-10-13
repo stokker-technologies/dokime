@@ -219,6 +219,15 @@ fn domain_contract() {
         run_scenario(query_records::live_reader_cursor, false, None, false);
     }
     {
+        eprintln!("Scenario: query_records::filtered_record_view_polling");
+        run_scenario(
+            query_records::filtered_record_view_polling,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: query_records::fixed_replay_append");
         run_scenario(query_records::fixed_replay_append, false, None, false);
     }

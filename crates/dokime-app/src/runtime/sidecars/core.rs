@@ -27,9 +27,9 @@ use crate::{InstalledSidecar, RuntimeHandle};
 /* === Macros === */
 
 /* === Type Aliases === */
-type NativePublication = harmos::sidecar::Publish<
+type NativePublication = harmos::plugin::sidecar::Publish<
     crate::Dokime,
-    harmos::sidecar::Executable,
+    harmos::plugin::sidecar::Executable,
     crate::SidecarNoticeHandler,
 >;
 
@@ -115,7 +115,7 @@ impl Operation for Invocation {
         context: Self::Context<'ctx>,
         request: &mut host::Publication,
         _: &mut (),
-    ) -> harmos::Result<()> {
+    ) -> harmos::Result<harmos::operations::Response<()>> {
         let scope = context.caller_scope().ok_or(harmos::Error::InvalidInput {
             field: "native publication",
             reason: "original plugin caller is required",
@@ -210,7 +210,7 @@ impl Operation for Filing {
         context: Self::Context<'ctx>,
         publication: &mut dokime::records::RecordPublication,
         _: &mut (),
-    ) -> harmos::Result<()> {
+    ) -> harmos::Result<harmos::operations::Response<()>> {
         let scope = context.caller_scope().ok_or(harmos::Error::InvalidInput {
             field: "record publication",
             reason: "the original plugin caller is required",
@@ -229,7 +229,7 @@ impl Operation for Filing {
         runtime
             .publish_sidecar_record_at(request, &owner, produced_at)
             .await
-            .map(|_| ())
+            .map(|_| ().into())
             .map_err(|rejection| {
                 tracing::warn!(
                     owner,

@@ -27,6 +27,7 @@ import {
   executionStatusLabel,
 } from "@/lib/api/native-checkpoints";
 import { downloadNativeCycleBundle } from "@/lib/api/native-content";
+import { mapStepStatus } from "@/lib/api/native-planning";
 import { timestampIso } from "@/lib/api/native-values";
 import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
 import { usePageChrome } from "@/shell/page-chrome";
@@ -380,7 +381,7 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
         (execution.steps ?? []).map((step) => (
           <div className="flex justify-between gap-3 border-t py-2 text-sm" key={step.stepId}>
             <span>{step.metadata?.label ?? step.stepId}</span>
-            <Badge variant="outline">{step.status}</Badge>
+            <Badge variant="outline">{mapStepStatus(step.status)}</Badge>
           </div>
         ))
       ) : (

@@ -176,7 +176,7 @@ fn installed_directories() -> Vec<PathBuf> {
 }
 
 fn backend_name() -> String {
-    format!("dokime{}", std::env::consts::EXE_SUFFIX)
+    format!("dokime-server{}", std::env::consts::EXE_SUFFIX)
 }
 
 fn gui_name() -> String {

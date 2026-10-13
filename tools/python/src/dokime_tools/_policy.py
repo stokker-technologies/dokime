@@ -86,8 +86,8 @@ def execute(directory: Path, arguments: Sequence[str], *, capture: bool = False)
         cwd=directory,
         check=False,
         text=True,
-        capture_output=capture,
         encoding="utf-8",
+        capture_output=capture,
     )
     if result.returncode:
         raise ToolError(

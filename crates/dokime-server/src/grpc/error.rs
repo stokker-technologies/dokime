@@ -21,7 +21,7 @@ use tonic::Status;
 // Local Imports
 use dokime_app::Error as HostError;
 use dokime_app::plugin::Diagnostic;
-use dokime_protocol::v1;
+use dokime_contract::operations::evidence as v1;
 
 /* === Constants === */
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";
@@ -49,7 +49,7 @@ pub(super) fn detailed(status: Status, error: &HostError) -> Status {
         message: message.clone(),
         details: vec![prost_types::Any {
             type_url: DETAIL_TYPE_URL.to_owned(),
-            value: captured(&diagnostic).encode_to_vec(),
+            value: harmos::Protobuf::encode_to_vec(&captured(&diagnostic)),
         }],
     };
 

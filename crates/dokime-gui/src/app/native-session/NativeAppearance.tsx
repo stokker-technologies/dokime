@@ -4,7 +4,6 @@ import { useApplicationSettings } from "@/lib/application-settings";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
-import { ThemeModePolicy } from "@/lib/rpc/generated/dokime/v1/appearance_pb";
 import { applyThemeStylesheet, applyThemeVariables, themeCornerRadiusVariables } from "@/lib/theme";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -21,9 +20,9 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
     const apply = () => {
       if (!active) return;
       const dark =
-        appearance.modePolicy === ThemeModePolicy.FORCE_DARK ||
-        (appearance.modePolicy !== ThemeModePolicy.FORCE_LIGHT &&
-          (appearance.modePolicy === ThemeModePolicy.FORCE_SYSTEM || preference === "system"
+        appearance.modePolicy?.HarmosVariant.case === "ForceDark" ||
+        (appearance.modePolicy?.HarmosVariant.case !== "ForceLight" &&
+          (appearance.modePolicy?.HarmosVariant.case === "ForceSystem" || preference === "system"
             ? media.matches
             : preference === "dark"));
       document.documentElement.classList.toggle("dark", dark);
@@ -39,8 +38,8 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
       const variant = dark ? family?.dark : family?.light;
       const radii = family?.cornerRadii;
       applyThemeVariables({
-        ...family?.variables,
-        ...variant?.variables,
+        ...Object.fromEntries((family?.variables ?? []).map(({ key, value }) => [key, value])),
+        ...Object.fromEntries((variant?.variables ?? []).map(({ key, value }) => [key, value])),
         ...themeCornerRadiusVariables(
           radii && { ...radii, "2xl": radii.twoXl, "3xl": radii.threeXl, "4xl": radii.fourXl },
         ),

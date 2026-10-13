@@ -29,9 +29,9 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::artifact::plugin::{Attachment, Declared};
+use dokime::harmos::plugin::contract::{Attachment, Declared};
 use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
-use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
+use dokime::harmos::plugin::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
 
 /* === Constants === */

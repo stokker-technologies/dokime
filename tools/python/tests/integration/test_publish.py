@@ -12,10 +12,10 @@
 # === Imports === #
 
 # Standard Library Imports
+import json
 from collections.abc import Callable
 from http.client import HTTPMessage
 from io import BytesIO
-import json
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request
@@ -23,9 +23,10 @@ from urllib.request import Request
 # Third Party Imports
 import pytest
 
+from dokime_tools.check.release import digest
+
 # Local Imports
 from dokime_tools.package import publish
-from dokime_tools.check.release import digest
 
 # Type Checking Imports
 

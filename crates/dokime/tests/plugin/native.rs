@@ -18,11 +18,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::load::{
+use harmos::plugin::sidecar::{Attach, Notice, Supervised};
+use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions,
     PluginLifecycle, PluginLifecycleAuthority, PluginManager, PluginTransition, Router,
 };
-use harmos::sidecar::{Attach, Notice, Supervised};
 
 // Local Imports
 use dokime::records::{PublishRecord, RecordPublication, RecordPublishRequest};
@@ -85,14 +85,14 @@ macro_rules! observer_controls {
 pub(super) use observer_controls;
 
 /* === Type Aliases === */
-type Notices = Arc<dyn Fn(&harmos::Service<Fixture>, Notice) + Send + Sync>;
+type Notices = Arc<dyn Fn(&harmos::services::Service<Fixture>, Notice) + Send + Sync>;
 
 /* === Structs === */
 pub(super) struct Fixture;
 
 pub(super) struct Native<A: Attach> {
     pub(super) runtime: harmos::Runtime<Fixture>,
-    pub(super) demands: harmos::sidecar::DemandSource,
+    pub(super) demands: harmos::plugin::sidecar::DemandSource,
     pub(super) host: Arc<HostLog>,
     plugins: PluginManager<(), Backend, ()>,
     lifecycle: Host<A>,
@@ -103,9 +103,9 @@ struct Host<A: Attach> {
     attach: A,
     notices: Notices,
     demand_keys: Vec<String>,
-    demands: Option<harmos::sidecar::DemandSource>,
+    demands: Option<harmos::plugin::sidecar::DemandSource>,
     services: harmos::services::ServiceManager<Fixture>,
-    operations: harmos::OperationManager,
+    operations: harmos::operations::OperationManager,
     publications: Arc<Publications>,
 }
 
@@ -148,7 +148,7 @@ enum Lanes {
 /* === Implementations === */
 impl harmos::Application for Fixture {
     type State = ();
-    type Transaction = harmos::Never;
+    type Transaction = harmos::state::Never;
     type Record = ();
     type Streams = ();
     type Resources = ();
@@ -159,7 +159,7 @@ impl<A: Attach> Native<A> {
         attach: A,
         version: &str,
         configuration: Vec<u8>,
-        notices: impl Fn(&harmos::Service<Fixture>, Notice) + Send + Sync + 'static,
+        notices: impl Fn(&harmos::services::Service<Fixture>, Notice) + Send + Sync + 'static,
         demand_keys: Vec<String>,
     ) -> Self {
         let contributions = PluginContributions {
@@ -192,7 +192,10 @@ impl<A: Attach> Native<A> {
         )
         .unwrap();
         let runtime = harmos::Runtime::<Fixture>::builder((), ())
-            .operation_preparation_bytes(NonZeroUsize::new(PREPARATION_BYTES).unwrap())
+            .operation_settings(harmos::operations::Settings {
+                preparation_bytes: Some(NonZeroUsize::new(PREPARATION_BYTES).unwrap()),
+                ..Default::default()
+            })
             .register(Lanes::catalog())
             .runtime()
             .await
@@ -263,7 +266,9 @@ impl<A: Attach> PluginLifecycle for Host<A> {
         let notices = Arc::clone(&self.notices);
         let resident = Supervised::new(
             self.attach.clone(),
-            move |service: &harmos::Service<Fixture>, notice: Notice| notices(service, notice),
+            move |service: &harmos::services::Service<Fixture>, notice: Notice| {
+                notices(service, notice)
+            },
         )
         .demand_keys(self.demand_keys.clone())
         .routed(router);
@@ -272,7 +277,7 @@ impl<A: Attach> PluginLifecycle for Host<A> {
         self.services.register(
             harmos::services::ServiceDefinition {
                 id: definition.id.clone(),
-                policy: harmos::ServicePolicy::default(),
+                policy: harmos::services::ServicePolicy::default(),
             },
             {
                 let resident = resident.clone();
@@ -398,7 +403,9 @@ where
         request: &'a mut harmos::operations::host::Publication,
     ) -> std::pin::Pin<Box<dyn Future<Output = harmos::Result<()>> + Send + 'a>> {
         Box::pin(async move {
-            harmos::operations::Operation::run(self, context, request, &mut ()).await
+            harmos::operations::Operation::run(self, context, request, &mut ())
+                .await
+                .map(|_| ())
         })
     }
 }
@@ -407,17 +414,17 @@ impl<App, S, H> PublicationResident for Supervised<App, S, H>
 where
     App: harmos::Application,
     S: Attach,
-    H: Fn(&harmos::Service<App>, Notice) + Send + Sync + 'static,
+    H: Fn(&harmos::services::Service<App>, Notice) + Send + Sync + 'static,
 {
     fn prepare(self: Arc<Self>) -> harmos::Result<Box<dyn PublicationCall>> {
         use harmos::operations::Operation;
-        let call = harmos::sidecar::Publish::<App, S, H>::new(self)?;
+        let call = harmos::plugin::sidecar::Publish::<App, S, H>::new(self)?;
         Ok(Box::new(call))
     }
 }
 
 impl Publications {
-    pub(super) fn register(operations: &harmos::OperationManager) -> Arc<Self> {
+    pub(super) fn register(operations: &harmos::operations::OperationManager) -> Arc<Self> {
         let owner = Arc::new(Self::default());
         operations
             .register_wire_operation::<PublicationInvocation>(
@@ -433,7 +440,7 @@ impl Publications {
     where
         App: harmos::Application,
         S: Attach,
-        H: Fn(&harmos::Service<App>, Notice) + Send + Sync + 'static,
+        H: Fn(&harmos::services::Service<App>, Notice) + Send + Sync + 'static,
     {
         assert!(
             self.residents
@@ -470,7 +477,7 @@ impl harmos::operations::Operation for PublicationInvocation {
         context: Self::Context<'ctx>,
         request: &mut harmos::operations::host::Publication,
         _: &mut (),
-    ) -> harmos::Result<()> {
+    ) -> harmos::Result<harmos::operations::Response<()>> {
         let scope = context.caller_scope().ok_or(harmos::Error::InvalidInput {
             field: "fixture publication",
             reason: "original caller is required",
@@ -489,12 +496,17 @@ impl harmos::operations::Operation for PublicationInvocation {
                 })?;
             self.call = Some(resident.prepare()?);
         }
-        self.call.as_mut().unwrap().run(context, request).await
+        self.call
+            .as_mut()
+            .unwrap()
+            .run(context, request)
+            .await
+            .map(harmos::operations::Response::new)
     }
 }
 
 impl HostLog {
-    fn register(operations: &harmos::OperationManager) -> Arc<Self> {
+    fn register(operations: &harmos::operations::OperationManager) -> Arc<Self> {
         let log = Arc::new(Self::default());
         operations
             .register_wire_operation::<Filing>(HOST, Lanes::Open, Arc::clone(&log))
@@ -540,7 +552,7 @@ impl harmos::operations::Operation for Filing {
         context: Self::Context<'ctx>,
         publication: &mut RecordPublication,
         _: &mut (),
-    ) -> harmos::Result<()> {
+    ) -> harmos::Result<harmos::operations::Response<()>> {
         let owner = context
             .caller_scope()
             .map(|scope| scope.owner().to_owned())
@@ -552,7 +564,7 @@ impl harmos::operations::Operation for Filing {
             }
         })?;
         self.0.records.lock().unwrap().push((owner, request));
-        Ok(())
+        Ok(harmos::operations::Response::new(()))
     }
 }
 
@@ -576,7 +588,7 @@ impl harmos::operations::Operation for Evidence {
         _: Self::Context<'ctx>,
         batch: &mut EvidenceBatch,
         _: &mut (),
-    ) -> harmos::Result<EvidenceReceipt> {
+    ) -> harmos::Result<harmos::operations::Response<EvidenceReceipt>> {
         let batch = std::mem::take(batch);
         let receipt = EvidenceReceipt {
             admitted: batch
@@ -595,7 +607,7 @@ impl harmos::operations::Operation for Evidence {
             settled: batch.record_subscriptions_settling,
         };
         self.0.evidence.lock().unwrap().push(batch);
-        Ok(receipt)
+        Ok(harmos::operations::Response::new(receipt))
     }
 }
 
@@ -619,7 +631,7 @@ impl harmos::operations::Operation for Question {
         _: Self::Context<'ctx>,
         _: &mut OperatorQuestion,
         _: &mut (),
-    ) -> harmos::Result<OperatorAnswer> {
+    ) -> harmos::Result<harmos::operations::Response<OperatorAnswer>> {
         Err(harmos::Error::InvalidInput {
             field: "operator question",
             reason: "the fixture host has no operator",
@@ -647,24 +659,25 @@ impl harmos::operations::Operation for Lease {
         _: Self::Context<'ctx>,
         _: &mut LeaseAsk,
         _: &mut (),
-    ) -> harmos::Result<LeaseResolution> {
-        Ok(LeaseResolution {
+    ) -> harmos::Result<harmos::operations::Response<LeaseResolution>> {
+        Ok(harmos::operations::Response::new(LeaseResolution {
             granted: false,
             message: "the fixture host measures no streams".into(),
-        })
+        }))
     }
 }
 
 /* === Public Functions === */
-pub(super) fn attach<P>() -> harmos::sidecar::PluginNative<P>
+pub(super) fn attach<P>() -> harmos::plugin::sidecar::PluginNative<P>
 where
-    P: harmos::Plugin<Context = harmos::sidecar::Supervisor> + harmos::artifact::plugin::Declared,
+    P: harmos::Plugin<Context = harmos::plugin::sidecar::Supervisor>
+        + harmos::plugin::contract::Declared,
 {
-    harmos::sidecar::PluginNative::<P>::new(NonZeroUsize::new(128).unwrap()).unwrap()
+    harmos::plugin::sidecar::PluginNative::<P>::new(NonZeroUsize::new(128).unwrap()).unwrap()
 }
 
 pub(super) async fn call_wire<O>(
-    operations: &harmos::OperationManager,
+    operations: &harmos::operations::OperationManager,
     request: O::Request,
 ) -> harmos::Result<O::Response>
 where

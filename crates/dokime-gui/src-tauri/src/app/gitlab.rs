@@ -655,15 +655,24 @@ fn distribution_managed_update<T>() -> Result<T, String> {
 }
 
 async fn exchange_code(config: &GitlabConfig, code: &str, verifier: &str) -> Result<String> {
-    let response = reqwest::Client::new()
-        .post(config.token_url())
-        .form(&[
+    // Encode The Token Exchange Form
+    let form = url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs([
             ("client_id", config.client_id.as_str()),
             ("code", code),
             ("code_verifier", verifier),
             ("grant_type", "authorization_code"),
             ("redirect_uri", config.redirect_uri.as_str()),
         ])
+        .finish();
+    // Exchange The Authorization Code
+    let response = reqwest::Client::new()
+        .post(config.token_url())
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .body(form)
         .send()
         .await
         .context("failed to exchange GitLab authorization code")?

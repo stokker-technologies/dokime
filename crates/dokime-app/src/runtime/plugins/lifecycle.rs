@@ -32,8 +32,9 @@ const FENCE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /* === Type Aliases === */
 pub(in crate::runtime) type Manager =
-    harmos::load::PluginManager<Infallible, Sidecar, crate::runtime::embedded::Instance>;
-type Backend = harmos::load::PluginBackend<Infallible, Sidecar, crate::runtime::embedded::Instance>;
+    harmos::plugin::PluginManager<Infallible, Sidecar, crate::runtime::embedded::Instance>;
+type Backend =
+    harmos::plugin::PluginBackend<Infallible, Sidecar, crate::runtime::embedded::Instance>;
 
 /* === Structs === */
 pub(in crate::runtime) struct Adapter<'a> {
@@ -49,13 +50,13 @@ pub(in crate::runtime) struct Sidecar {
     publications: PublicationIngest,
     program: Program,
     package: String,
-    definition: harmos::load::PluginDefinition,
+    definition: harmos::plugin::PluginDefinition,
     registered: bool,
     publication_core: Arc<crate::runtime::sidecars::core::Publications>,
     publication_registered: bool,
     lease: Option<harmos::services::ServiceLease<crate::Dokime>>,
     operations: Option<harmos::operations::PluginRegistration>,
-    scope: Option<harmos::load::PluginScope>,
+    scope: Option<harmos::plugin::PluginScope>,
     sdk: Option<harmos::operations::PluginSdkRegistration>,
     initializing: Option<harmos::operations::EncodedInvocation>,
     shutting_down: Option<harmos::operations::EncodedInvocation>,
@@ -70,23 +71,23 @@ pub(in crate::runtime) struct Sidecar {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::load::PluginLifecycle for Adapter<'_> {
+impl harmos::plugin::PluginLifecycle for Adapter<'_> {
     type Guest = Infallible;
     type Sidecar = Sidecar;
     type Embedded = crate::runtime::embedded::Instance;
 
-    fn preflight(&mut self, candidate: &harmos::load::PluginDefinitions) -> harmos::Result<()> {
+    fn preflight(&mut self, candidate: &harmos::plugin::PluginDefinitions) -> harmos::Result<()> {
         self.handle.operations.validate_requirements(candidate)
     }
 
-    fn prepare(&mut self, artifact: &harmos::load::PluginDefinition) -> harmos::Result<Backend> {
+    fn prepare(&mut self, artifact: &harmos::plugin::PluginDefinition) -> harmos::Result<Backend> {
         self.prepare_artifact(artifact).map_err(lifecycle_error)
     }
 
     async fn fence(
         &mut self,
-        transition: harmos::load::PluginTransition,
-        affected: &[harmos::load::PluginDefinition],
+        transition: harmos::plugin::PluginTransition,
+        affected: &[harmos::plugin::PluginDefinition],
     ) -> harmos::Result<()> {
         self.fence_work(transition, affected)
             .await
@@ -95,14 +96,14 @@ impl harmos::load::PluginLifecycle for Adapter<'_> {
 
     async fn start(
         &mut self,
-        artifact: &harmos::load::PluginDefinition,
-        router: &harmos::load::Router,
-        authority: &harmos::load::PluginLifecycleAuthority<'_>,
+        artifact: &harmos::plugin::PluginDefinition,
+        router: &harmos::plugin::Router,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
         backend: &mut Backend,
     ) -> harmos::Result<()> {
         if authority.owner() != artifact.id
             || authority.backend_kind() != artifact.kind()
-            || authority.phase() != harmos::load::PluginLifecyclePhase::Initialize
+            || authority.phase() != harmos::plugin::PluginLifecyclePhase::Initialize
         {
             return Err(lifecycle_error(operation(
                 "plugin initialization authority differs",
@@ -114,13 +115,13 @@ impl harmos::load::PluginLifecycle for Adapter<'_> {
     }
 
     async fn stop(
-        artifact: &harmos::load::PluginDefinition,
-        authority: &harmos::load::PluginLifecycleAuthority<'_>,
+        artifact: &harmos::plugin::PluginDefinition,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
         backend: &mut Backend,
     ) -> harmos::Result<()> {
         if authority.owner() != artifact.id
             || authority.backend_kind() != artifact.kind()
-            || authority.phase() != harmos::load::PluginLifecyclePhase::Shutdown
+            || authority.phase() != harmos::plugin::PluginLifecyclePhase::Shutdown
         {
             return Err(lifecycle_error(operation(
                 "plugin shutdown authority differs",
@@ -131,7 +132,7 @@ impl harmos::load::PluginLifecycle for Adapter<'_> {
                 !authority.matches_scope(
                     scope,
                     artifact.kind(),
-                    harmos::load::PluginLifecyclePhase::Shutdown,
+                    harmos::plugin::PluginLifecyclePhase::Shutdown,
                 )
             })
         {
@@ -159,8 +160,8 @@ impl harmos::load::PluginLifecycle for Adapter<'_> {
 impl Adapter<'_> {
     async fn fence_work(
         &mut self,
-        transition: harmos::load::PluginTransition,
-        affected: &[harmos::load::PluginDefinition],
+        transition: harmos::plugin::PluginTransition,
+        affected: &[harmos::plugin::PluginDefinition],
     ) -> Result<()> {
         let sources: BTreeSet<_> = affected
             .iter()
@@ -180,7 +181,7 @@ impl Adapter<'_> {
                 .iter()
                 .filter(|task| sources.contains(&task.source) && !task.task.is_finished())
                 .map(|task| {
-                    if transition == harmos::load::PluginTransition::Shutdown {
+                    if transition == harmos::plugin::PluginTransition::Shutdown {
                         task.cancel_queued();
                     }
                     task.cycle.clone()
@@ -188,7 +189,7 @@ impl Adapter<'_> {
                 .collect()
         };
         for cycle in cycles {
-            if transition != harmos::load::PluginTransition::Shutdown {
+            if transition != harmos::plugin::PluginTransition::Shutdown {
                 break;
             }
             let lifecycle = self.handle.cycle_lifecycle(&cycle).await;
@@ -283,7 +284,7 @@ impl Adapter<'_> {
         Ok(())
     }
 
-    fn prepare_artifact(&self, artifact: &harmos::load::PluginDefinition) -> Result<Backend> {
+    fn prepare_artifact(&self, artifact: &harmos::plugin::PluginDefinition) -> Result<Backend> {
         if let Some(provider) = self.embedded.get(&artifact.id) {
             return Ok(Backend::Embedded(
                 provider.instance(self.publications.clone()),
@@ -332,9 +333,9 @@ impl Adapter<'_> {
 
     async fn start_artifact(
         &mut self,
-        artifact: &harmos::load::PluginDefinition,
-        router: &harmos::load::Router,
-        authority: &harmos::load::PluginLifecycleAuthority<'_>,
+        artifact: &harmos::plugin::PluginDefinition,
+        router: &harmos::plugin::Router,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
         backend: &mut Backend,
     ) -> Result<()> {
         let sidecar = match backend {
@@ -365,8 +366,8 @@ impl Sidecar {
     async fn start(
         &mut self,
         handle: &RuntimeHandle,
-        router: &harmos::load::Router,
-        authority: &harmos::load::PluginLifecycleAuthority<'_>,
+        router: &harmos::plugin::Router,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let started = std::time::Instant::now();
         let source = self.program.executable.id().to_owned();
@@ -383,20 +384,22 @@ impl Sidecar {
     async fn start_attempt(
         &mut self,
         handle: &RuntimeHandle,
-        router: &harmos::load::Router,
-        authority: &harmos::load::PluginLifecycleAuthority<'_>,
+        router: &harmos::plugin::Router,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
     ) -> Result<()> {
         let program = &self.program;
         let executable = &program.executable.0;
         let source = program.executable.id().to_owned();
         let logged_by = source.clone();
-        let sidecar: InstalledSidecar = harmos::sidecar::Supervised::new(
+        let sidecar: InstalledSidecar = harmos::plugin::sidecar::Supervised::new(
             executable.clone(),
-            Box::new(move |_context: &harmos::Service<crate::Dokime>, value| {
-                if let harmos::sidecar::Notice::Logged { line } = &value {
-                    forward_plugin_line(&logged_by, line);
-                }
-            }) as crate::SidecarNoticeHandler,
+            Box::new(
+                move |_context: &harmos::services::Service<crate::Dokime>, value| {
+                    if let harmos::plugin::sidecar::Notice::Logged { line } = &value {
+                        forward_plugin_line(&logged_by, line);
+                    }
+                },
+            ) as crate::SidecarNoticeHandler,
         )
         .demand_keys(program.plugin.record_contracts.iter().map(|contract| {
             crate::runtime::sidecars::record_demand_key(contract.record_type.as_str())
@@ -417,7 +420,7 @@ impl Sidecar {
             .register(
                 harmos::services::ServiceDefinition {
                     id: source.clone(),
-                    policy: harmos::ServicePolicy {
+                    policy: harmos::services::ServicePolicy {
                         credit: usize::try_from(policy.credit).map_err(operation)?,
                         sustained_health: policy.sustained_health(),
                         backoff_base: policy.backoff_base(),
@@ -449,7 +452,7 @@ impl Sidecar {
         if !authority.matches_scope(
             scope,
             self.definition.kind(),
-            harmos::load::PluginLifecyclePhase::Initialize,
+            harmos::plugin::PluginLifecyclePhase::Initialize,
         ) {
             return Err(operation("native initialization generation differs"));
         }
@@ -476,7 +479,10 @@ impl Sidecar {
         Ok(())
     }
 
-    async fn stop(&mut self, authority: &harmos::load::PluginLifecycleAuthority<'_>) -> Result<()> {
+    async fn stop(
+        &mut self,
+        authority: &harmos::plugin::PluginLifecycleAuthority<'_>,
+    ) -> Result<()> {
         if let Some(sdk) = &self.sdk {
             sdk.settle().await?;
             if let Some(initializing) = &mut self.initializing {

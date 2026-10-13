@@ -15,19 +15,18 @@
 // Standard Library Imports
 use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
-use tonic::{Code, transport::Channel};
+use tonic::Code;
 // Local Imports
 use super::*;
 use dokime_app::{
     InstalledPlugin,
-    core::{Identifier, Metadata},
+    core::{Identifier, Metadata, Value},
     domains::{
         ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture,
         OptionProviderContribution, OptionProviderOption, OptionProviderSource, PluginEntrypoint,
     },
     settings::{SecretSetting, Settings, SettingsEntry, TextArea},
 };
-use dokime_protocol::v1::{self, settings_client::SettingsClient};
 
 /* === Constants === */
 const CONTROL_TOKEN: &str = "settings-control-token-012345678901234567890";
@@ -84,7 +83,7 @@ fn config() -> Config {
         .unwrap()
 }
 
-async fn fixture() -> (common::TestEnvironment, Server, SettingsClient<Channel>) {
+async fn fixture() -> (common::TestEnvironment, Server, WireClient) {
     let environment = common::TestEnvironment::with_installed_plugins_and_action_dispatcher(
         vec![fixture_module()],
         Identifier::new("fixture.settings").unwrap(),
@@ -94,17 +93,15 @@ async fn fixture() -> (common::TestEnvironment, Server, SettingsClient<Channel>)
     let server = Server::start(environment.runtime.clone(), config())
         .await
         .unwrap();
-    let client = SettingsClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     (environment, server, client)
 }
 
 pub(crate) async fn frame_readable_probe() {
-    let (_environment, server, mut client) = fixture().await;
+    let (_environment, server, client) = fixture().await;
     assert_eq!(
         client
-            .get_settings(v1::GetSettingsRequest {})
+            .unary::<contracts::settings::GetSettings>(contracts::settings::GetSettingsRequest {})
             .await
             .unwrap_err()
             .code(),
@@ -112,7 +109,10 @@ pub(crate) async fn frame_readable_probe() {
     );
 
     let frame = client
-        .get_settings(auth(v1::GetSettingsRequest {}, super::TOKEN))
+        .unary::<contracts::settings::GetSettings>(auth(
+            contracts::settings::GetSettingsRequest {},
+            super::TOKEN,
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -120,7 +120,7 @@ pub(crate) async fn frame_readable_probe() {
         section.section_id == "identity"
             && matches!(
                 section.owner.as_ref(),
-                Some(v1::settings_section::Owner::App(true))
+                Some(contracts::settings::SettingsSectionOwner::App(true))
             )
     }));
     let card = frame
@@ -129,23 +129,31 @@ pub(crate) async fn frame_readable_probe() {
         .find(|card| card.card_id == "fixture.settings")
         .expect("the artifact's own card carries the readiness probe");
     assert_eq!(card.plugin_id, "fixture.settings");
-    assert_eq!(card.state, v1::SettingsCardState::Disconnected as i32);
+    assert_eq!(
+        card.state,
+        contracts::settings::SettingsCardState::Disconnected
+    );
 
     server.shutdown().await.unwrap();
 }
 
 pub(crate) async fn storage_sources_admin() {
-    let (_environment, server, mut client) = fixture().await;
+    let (_environment, server, client) = fixture().await;
     assert_eq!(
         client
-            .list_storage_sources(v1::ListStorageSourcesRequest {})
+            .unary::<contracts::settings::ListStorageSources>(
+                contracts::settings::ListStorageSourcesRequest {}
+            )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
     let sources = client
-        .list_storage_sources(auth(v1::ListStorageSourcesRequest {}, super::TOKEN))
+        .unary::<contracts::settings::ListStorageSources>(auth(
+            contracts::settings::ListStorageSourcesRequest {},
+            super::TOKEN,
+        ))
         .await
         .unwrap()
         .into_inner()
@@ -156,8 +164,8 @@ pub(crate) async fn storage_sources_admin() {
     for token in [super::TOKEN, CONTROL_TOKEN] {
         assert_eq!(
             client
-                .reorder_storage_sources(auth(
-                    v1::ReorderStorageSourcesRequest {
+                .unary::<contracts::settings::ReorderStorageSources>(auth(
+                    contracts::settings::ReorderStorageSourcesRequest {
                         identifiers: vec!["local".into()],
                     },
                     token
@@ -169,8 +177,8 @@ pub(crate) async fn storage_sources_admin() {
         );
         assert_eq!(
             client
-                .set_storage_source_enabled(auth(
-                    v1::SetStorageSourceEnabledRequest {
+                .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
+                    contracts::settings::SetStorageSourceEnabledRequest {
                         identifier: "local".into(),
                         enabled: true,
                     },
@@ -190,8 +198,8 @@ pub(crate) async fn storage_sources_admin() {
     ] {
         assert_eq!(
             client
-                .reorder_storage_sources(auth(
-                    v1::ReorderStorageSourcesRequest { identifiers },
+                .unary::<contracts::settings::ReorderStorageSources>(auth(
+                    contracts::settings::ReorderStorageSourcesRequest { identifiers },
                     ADMIN_TOKEN
                 ))
                 .await
@@ -202,8 +210,8 @@ pub(crate) async fn storage_sources_admin() {
     }
     assert_eq!(
         client
-            .set_storage_source_enabled(auth(
-                v1::SetStorageSourceEnabledRequest {
+            .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
+                contracts::settings::SetStorageSourceEnabledRequest {
                     identifier: "local".into(),
                     enabled: false,
                 },
@@ -224,8 +232,8 @@ pub(crate) async fn storage_sources_admin() {
     ] {
         assert_eq!(
             client
-                .reorder_storage_sources(auth(
-                    v1::ReorderStorageSourcesRequest {
+                .unary::<contracts::settings::ReorderStorageSources>(auth(
+                    contracts::settings::ReorderStorageSourcesRequest {
                         identifiers: refused.clone()
                     },
                     ADMIN_TOKEN
@@ -239,8 +247,8 @@ pub(crate) async fn storage_sources_admin() {
         );
     }
     let reply = client
-        .reorder_storage_sources(auth(
-            v1::ReorderStorageSourcesRequest {
+        .unary::<contracts::settings::ReorderStorageSources>(auth(
+            contracts::settings::ReorderStorageSourcesRequest {
                 identifiers: vec!["local".into()],
             },
             ADMIN_TOKEN,
@@ -251,8 +259,8 @@ pub(crate) async fn storage_sources_admin() {
     assert_eq!(reply.sources, sources);
     assert_eq!(
         client
-            .set_storage_source_enabled(auth(
-                v1::SetStorageSourceEnabledRequest {
+            .unary::<contracts::settings::SetStorageSourceEnabled>(auth(
+                contracts::settings::SetStorageSourceEnabledRequest {
                     identifier: "local".into(),
                     enabled: true,
                 },
@@ -268,19 +276,19 @@ pub(crate) async fn storage_sources_admin() {
 }
 
 pub(crate) async fn plugin_settings_admin() {
-    let (_environment, server, mut client) = fixture().await;
-    let request = v1::GetPluginSettingsRequest {
+    let (_environment, server, client) = fixture().await;
+    let request = contracts::settings::GetPluginSettingsRequest {
         plugin_id: "fixture.settings".into(),
     };
     let initial = client
-        .get_plugin_settings(auth(request.clone(), super::TOKEN))
+        .unary::<contracts::settings::GetPluginSettings>(auth(request.clone(), super::TOKEN))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(
-        initial.values.as_ref().unwrap().fields["workspace"].kind,
-        Some(v1::value::Kind::TextValue("Lab".into()))
-    );
+    assert!(matches!(
+        initial.values.as_ref().unwrap().to_core().unwrap(),
+        Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Lab".into()))
+    ));
     assert_eq!(
         initial
             .credential_bindings
@@ -290,38 +298,33 @@ pub(crate) async fn plugin_settings_admin() {
         vec!["fixture.token"]
     );
 
-    let update = v1::UpdatePluginSettingsRequest {
+    let update = contracts::settings::UpdatePluginSettingsRequest {
         plugin_id: "fixture.settings".into(),
-        values: Some(v1::ValueObject {
-            fields: BTreeMap::from([(
-                "workspace".into(),
-                v1::Value {
-                    kind: Some(v1::value::Kind::TextValue("Production".into())),
-                },
-            )]),
-        }),
+        values: Some(contracts::value::Value::from(&Value::Object(
+            BTreeMap::from([("workspace".into(), Value::Text("Production".into()))]),
+        ))),
     };
     assert_eq!(
         client
-            .update_plugin_settings(auth(update.clone(), CONTROL_TOKEN))
+            .unary::<contracts::settings::UpdatePluginSettings>(auth(update.clone(), CONTROL_TOKEN))
             .await
             .unwrap_err()
             .code(),
         Code::PermissionDenied
     );
     let updated = client
-        .update_plugin_settings(auth(update, ADMIN_TOKEN))
+        .unary::<contracts::settings::UpdatePluginSettings>(auth(update, ADMIN_TOKEN))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(
-        updated.values.unwrap().fields["workspace"].kind,
-        Some(v1::value::Kind::TextValue("Production".into()))
-    );
+    assert!(matches!(
+        updated.values.unwrap().to_core().unwrap(),
+        Value::Object(fields) if fields.get("workspace") == Some(&Value::Text("Production".into()))
+    ));
 
     let updated = client
-        .update_plugin_credential(auth(
-            v1::UpdatePluginCredentialRequest {
+        .unary::<contracts::settings::UpdatePluginCredential>(auth(
+            contracts::settings::UpdatePluginCredentialRequest {
                 plugin_id: "fixture.settings".into(),
                 credential_id: "fixture.token".into(),
                 secret: "secret-material".into(),
@@ -334,7 +337,12 @@ pub(crate) async fn plugin_settings_admin() {
     let response_debug = format!("{updated:?}");
     let bindings = updated.credential_bindings.unwrap();
     assert!(bindings.missing_required.is_empty());
-    assert!(bindings.bindings["fixture.token"].configured);
+    let token = bindings
+        .bindings
+        .iter()
+        .find(|entry| entry.key == "fixture.token")
+        .expect("the updated credential is bound");
+    assert!(token.value.as_ref().unwrap().configured);
     assert!(!response_debug.contains("secret-material"));
 
     server.shutdown().await.unwrap();
@@ -406,23 +414,26 @@ fn metadata(identifier: &str, label: &str) -> Metadata {
 /* === Tests === */
 
 pub(crate) async fn backend_policy_revision() {
-    let (_environment, server, mut client) = fixture().await;
+    let (_environment, server, client) = fixture().await;
     let initial = client
-        .read_storage_policy(auth(v1::ReadStoragePolicyRequest {}, super::TOKEN))
+        .unary::<contracts::settings::ReadStoragePolicy>(auth(
+            contracts::settings::ReadStoragePolicyRequest {},
+            super::TOKEN,
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(initial.revision, 0);
     let mut policy = initial.configured.unwrap();
     policy.save_interval_ms = 1234;
-    let request = v1::UpdateStoragePolicyRequest {
+    let request = contracts::settings::UpdateStoragePolicyRequest {
         expected_revision: 0,
-        policy: Some(policy),
+        policy: Some(policy.clone()),
     };
     for token in [super::TOKEN, CONTROL_TOKEN] {
         assert_eq!(
             client
-                .update_storage_policy(auth(request, token))
+                .unary::<contracts::settings::UpdateStoragePolicy>(auth(request.clone(), token))
                 .await
                 .unwrap_err()
                 .code(),
@@ -430,7 +441,7 @@ pub(crate) async fn backend_policy_revision() {
         );
     }
     let saved = client
-        .update_storage_policy(auth(request, ADMIN_TOKEN))
+        .unary::<contracts::settings::UpdateStoragePolicy>(auth(request.clone(), ADMIN_TOKEN))
         .await
         .unwrap()
         .into_inner();
@@ -440,26 +451,29 @@ pub(crate) async fn backend_policy_revision() {
     assert!(saved.restart_required);
     assert_eq!(
         client
-            .update_storage_policy(auth(request, ADMIN_TOKEN))
+            .unary::<contracts::settings::UpdateStoragePolicy>(auth(request, ADMIN_TOKEN))
             .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition
     );
-    let invalid = v1::UpdateStoragePolicyRequest {
+    let invalid = contracts::settings::UpdateStoragePolicyRequest {
         expected_revision: 1,
-        policy: Some(v1::StoragePolicy::default()),
+        policy: Some(contracts::settings::StoragePolicy::default()),
     };
     assert_eq!(
         client
-            .update_storage_policy(auth(invalid, ADMIN_TOKEN))
+            .unary::<contracts::settings::UpdateStoragePolicy>(auth(invalid, ADMIN_TOKEN))
             .await
             .unwrap_err()
             .code(),
         Code::InvalidArgument
     );
     let read = client
-        .read_storage_policy(auth(v1::ReadStoragePolicyRequest {}, super::TOKEN))
+        .unary::<contracts::settings::ReadStoragePolicy>(auth(
+            contracts::settings::ReadStoragePolicyRequest {},
+            super::TOKEN,
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -468,64 +482,70 @@ pub(crate) async fn backend_policy_revision() {
 }
 
 pub(crate) async fn app_settings_role() {
-    let (environment, server, mut client) = fixture().await;
+    let (environment, server, client) = fixture().await;
     let initial = client
-        .read_application_settings(auth(v1::ReadApplicationSettingsRequest {}, super::TOKEN))
+        .unary::<contracts::settings::ReadApplicationSettings>(auth(
+            contracts::settings::ReadApplicationSettingsRequest {},
+            super::TOKEN,
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(initial.configured_data_root, None);
 
     // Appearance Needs Control; It Is Saved Without A Restart
-    let appearance = v1::UpdateAppearanceRequest {
-        appearance: Some(v1::AppearancePreference {
-            theme_mode: v1::ThemeMode::Dark as i32,
+    let appearance = contracts::settings::UpdateAppearanceRequest {
+        appearance: Some(contracts::settings::AppearancePreference {
+            theme_mode: contracts::settings::ThemeMode::Dark,
             theme_family: Some("brand.theme".into()),
-            density: v1::Density::Compact as i32,
+            density: contracts::settings::Density::Compact,
         }),
     };
     assert_eq!(
         client
-            .update_appearance(auth(appearance.clone(), super::TOKEN))
+            .unary::<contracts::settings::UpdateAppearance>(auth(appearance.clone(), super::TOKEN))
             .await
             .unwrap_err()
             .code(),
         Code::PermissionDenied
     );
     let saved = client
-        .update_appearance(auth(appearance, CONTROL_TOKEN))
+        .unary::<contracts::settings::UpdateAppearance>(auth(appearance, CONTROL_TOKEN))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(saved.appearance.unwrap().theme_mode(), v1::ThemeMode::Dark);
+    assert_eq!(
+        saved.appearance.unwrap().theme_mode,
+        contracts::settings::ThemeMode::Dark
+    );
     assert_eq!(saved.restart_required, initial.restart_required);
 
     // The Data Root Needs Admin And Applies On Restart
     let chosen = environment.root.path().join("chosen-data");
-    let data_root = v1::UpdateDataRootRequest {
+    let data_root = contracts::settings::UpdateDataRootRequest {
         data_root: Some(chosen.display().to_string()),
     };
     assert_eq!(
         client
-            .update_data_root(auth(data_root.clone(), CONTROL_TOKEN))
+            .unary::<contracts::settings::UpdateDataRoot>(auth(data_root.clone(), CONTROL_TOKEN))
             .await
             .unwrap_err()
             .code(),
         Code::PermissionDenied
     );
-    let relative = v1::UpdateDataRootRequest {
+    let relative = contracts::settings::UpdateDataRootRequest {
         data_root: Some("relative".into()),
     };
     assert_eq!(
         client
-            .update_data_root(auth(relative, ADMIN_TOKEN))
+            .unary::<contracts::settings::UpdateDataRoot>(auth(relative, ADMIN_TOKEN))
             .await
             .unwrap_err()
             .code(),
         Code::InvalidArgument
     );
     let saved = client
-        .update_data_root(auth(data_root, ADMIN_TOKEN))
+        .unary::<contracts::settings::UpdateDataRoot>(auth(data_root, ADMIN_TOKEN))
         .await
         .unwrap()
         .into_inner();

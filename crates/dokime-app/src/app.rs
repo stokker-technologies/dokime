@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{Application, Origin as HarmosOrigin};
+use harmos::{Application, state::Origin as HarmosOrigin};
 // Local Imports
 use crate::config::Config;
 use crate::records::Records;
@@ -35,9 +35,9 @@ pub(crate) type Builder = harmos::Builder<Dokime>;
 
 pub(crate) type HarmosRuntime = harmos::Runtime<Dokime>;
 
-pub(crate) type StateManager = harmos::StateManager<Dokime>;
+pub(crate) type StateManager = harmos::state::StateManager<Dokime>;
 
-pub(crate) type Streams = harmos::StreamManager<Dokime>;
+pub(crate) type Streams = harmos::streams::StreamManager<Dokime>;
 
 #[cfg(feature = "sim")]
 pub type Simulated = harmos::sim::SimulatedRuntime<Dokime>;
@@ -49,7 +49,7 @@ pub struct Dokime;
 
 /* === Enums === */
 #[harmos::lanes]
-pub(crate) enum Lanes {
+pub enum Lanes {
     #[default]
     Open,
     #[lane(serial)]
@@ -73,7 +73,10 @@ impl Application for Dokime {
 pub(crate) fn builder(origin: impl Into<Origin>, resources: ()) -> Builder {
     HarmosRuntime::builder(origin, resources)
         // Retain SDK Initialization While Admitting Its Nested Host Publications.
-        .operation_preparation_bytes(std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap())
+        .operation_settings(harmos::operations::Settings {
+            preparation_bytes: std::num::NonZeroUsize::new(8 * 1024 * 1024),
+            ..Default::default()
+        })
         .register(Transactions::catalog())
         .register(Records::catalog())
         .register(StreamCatalog::catalog())
@@ -106,7 +109,10 @@ pub async fn launch(config: Config) -> crate::Result<crate::Runtime> {
 
 #[cfg(feature = "sim")]
 #[tracing::instrument(level = "debug", skip_all, fields(seed))]
-pub fn simulate(origin: impl Into<Origin>, seed: u64) -> Result<Simulated, harmos::Incompatible> {
+pub fn simulate(
+    origin: impl Into<Origin>,
+    seed: u64,
+) -> Result<Simulated, harmos::runtime::Incompatible> {
     builder(origin, ()).entropy_seed(seed).simulate()
 }
 

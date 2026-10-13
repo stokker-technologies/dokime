@@ -152,7 +152,7 @@ pub(super) fn start<T: SidecarTemplate>(
             )
             .instrument(span)
             .with_current_subscriber();
-            match harmos::sidecar::__private::spawn_observer(name.clone(), async move {
+            match harmos::plugin::sidecar::__private::spawn_observer(name.clone(), async move {
                 work.await;
                 let _ = completed.send(());
             }) {
@@ -221,7 +221,9 @@ async fn watching<T: SidecarTemplate>(
             None => environment,
         };
         let mut transport = FrameTransport::new(Arc::clone(&scope.executions), scope.token.clone());
-        let mut ctx = environment.observing(&mut transport, tick, Arc::clone(&publisher));
+        let mut ctx = environment
+            .observing(&mut transport, tick, Arc::clone(&publisher))
+            .calling_stage(format!("observer/{}/{}", declared.identifier, tick.index()));
 
         // Construct the author future inside the caught future too: a manual
         // trait implementation can panic before returning its boxed future.

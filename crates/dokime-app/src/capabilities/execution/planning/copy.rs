@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Transaction;
+use harmos::state::Transaction;
 // Local Imports
 use crate::transactions::CopyCycle;
 use crate::{CommandContext, Error, RuntimeHandle, unavailable_rejection};

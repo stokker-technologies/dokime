@@ -11,8 +11,8 @@
 # === Imports === #
 
 # Standard Library Imports
-import subprocess
 import re
+import subprocess
 from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
@@ -93,7 +93,7 @@ def case_target_advancement(tmp_path: Path, monkeypatch, changed) -> None:
             gate.verify_tree(EVENT)
     else:
         gate.verify_tree(EVENT)
-    assert len(calls) == 3 * len(gate.required_platforms(EVENT))
+    assert len(calls) == len(gate.ROLES) * len(gate.required_platforms(EVENT))
     assert all(kwargs == {"completed": True} for _, _, kwargs in calls)
 
 
@@ -130,7 +130,11 @@ def case_native_roles(tmp_path: Path, monkeypatch, target: str) -> None:
     assert calls == [
         (role, platform, {"completed": True})
         for platform in platforms
-        for role in ("check", "build:release", "test")
+        for role in (
+            ("test:system:javascript",) + gate.ROLES
+            if platform == "windows"
+            else gate.ROLES
+        )
     ]
 
 
@@ -165,7 +169,7 @@ def case_workflow_policy(tmp_path: Path, monkeypatch) -> None:
     assert "native_windows" not in required
     assert "continue-on-error" not in advisory + platform
     assert "if: always()\n        uses: actions/upload-artifact@" in platform
-    for job in ("check", "test"):
+    for job in ("check_fast", "test"):
         block = re.split(
             r"\n  [a-z_]+:\n", platform.split(f"\n  {job}:\n", 1)[1], maxsplit=1
         )[0]
@@ -176,7 +180,9 @@ def case_workflow_policy(tmp_path: Path, monkeypatch) -> None:
         assert "&& 'stokker-local-linux-x64'" in route
         assert "self-hosted" not in route and "fromJSON" not in route
         assert "'ubuntu-24.04'" in route and "'windows-2022'" in route
-    build = platform.split("\n  build_release:\n", 1)[1].split("\n  test:\n", 1)[0]
+    build = platform.split("\n  build_release:\n", 1)[1].split(
+        "\n  test_integration_javascript:\n", 1
+    )[0]
     assert "stokker-local-linux-x64" not in build
 
 
@@ -218,12 +224,19 @@ def case_workflow_policy(tmp_path: Path, monkeypatch) -> None:
         pytest.param(case_merge_conflict, (), id="merge_conflict-13"),
         pytest.param(case_native_roles, ("dev",), id="native_roles-dev"),
         pytest.param(case_native_roles, ("main",), id="native_roles-main"),
-        pytest.param(case_platform_failure, ("linux", "check"), id="linux-check"),
+        pytest.param(case_platform_failure, ("linux", "check:fast"), id="linux-check"),
         pytest.param(
             case_platform_failure, ("linux", "build:release"), id="linux-build"
         ),
         pytest.param(case_platform_failure, ("linux", "test"), id="linux-test"),
-        pytest.param(case_platform_failure, ("windows", "check"), id="windows-check"),
+        pytest.param(
+            case_platform_failure, ("windows", "check:fast"), id="windows-check"
+        ),
+        pytest.param(
+            case_platform_failure,
+            ("windows", "test:system:javascript"),
+            id="windows-installed-desktop",
+        ),
         pytest.param(case_workflow_policy, (), id="workflow-policy"),
     ],
 )

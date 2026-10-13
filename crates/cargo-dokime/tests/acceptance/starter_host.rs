@@ -23,12 +23,7 @@ use std::{
 // Third Party Imports
 use serde_json::{Value, json};
 // Local Imports
-use dokime_protocol::v1::{
-    self, catalog_client::CatalogClient, content_client::ContentClient,
-    evidence_client::EvidenceClient, execution_client::ExecutionClient,
-    planning_client::PlanningClient, settings_client::SettingsClient,
-    telemetry_client::TelemetryClient,
-};
+use dokime_client::{Client, Target, contracts};
 
 /* === Constants === */
 const READY_TIMEOUT: Duration = Duration::from_secs(60);
@@ -76,7 +71,6 @@ impl Host {
             .current_dir(profile)
             .env_remove("DOKIME_BRANDING_DIR")
             .args([
-                "serve",
                 "--dev-control",
                 "--shutdown-stdin",
                 "--no-seed-validation-artifact",
@@ -119,7 +113,7 @@ impl Host {
                 if let Ok(value) = serde_json::from_str::<Value>(line)
                     && value["event"] == "ready"
                 {
-                    assert_eq!(value["protocol"], 3);
+                    assert_eq!(value["protocol"], dokime_contract::READINESS_PROTOCOL);
                     assert_eq!(value["transport"], "grpc");
                     return value["endpoint"].as_str().unwrap().to_owned();
                 }
@@ -377,17 +371,22 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
     let mut host = Host::spawn(executable, bundle);
     let endpoint = host.ready().await;
     host.reload(bundle, false).await;
-    let mut catalog = CatalogClient::connect(endpoint.clone()).await.unwrap();
-    let mut planning = PlanningClient::connect(endpoint.clone()).await.unwrap();
-    let mut execution = ExecutionClient::connect(endpoint.clone()).await.unwrap();
+    let catalog = Client::connect(Target::local(endpoint.clone()).unwrap(), None, None)
+        .await
+        .unwrap();
+    let planning = Client::connect(Target::local(endpoint.clone()).unwrap(), None, None)
+        .await
+        .unwrap();
+    let execution = Client::connect(Target::local(endpoint.clone()).unwrap(), None, None)
+        .await
+        .unwrap();
     let suite_id = format!("{package}.soak");
     let suite = catalog
-        .get_suite(v1::GetSuiteRequest {
+        .catalog_get_suite(contracts::catalog::GetSuiteRequest {
             suite_id: suite_id.clone(),
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let template = suite
         .templates
         .iter()
@@ -398,8 +397,8 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
                 .is_some_and(|metadata| metadata.identifier == format!("{package}.soak.hold"))
         })
         .unwrap();
-    let plan = v1::SelectionPlan {
-        selections: vec![v1::RegisteredSelection {
+    let plan = contracts::planning::SelectionPlan {
+        selections: vec![contracts::planning::RegisteredSelection {
             suite_id,
             template_id: template.template_id.clone(),
             ..Default::default()
@@ -407,17 +406,16 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
         ..Default::default()
     };
     let preview = planning
-        .preview_selection(v1::PreviewSelectionRequest {
+        .planning_preview_selection(contracts::planning::PreviewSelectionRequest {
             plan: Some(plan.clone()),
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert_eq!(preview.cases.len(), 1);
     let cycle_id = execution
-        .create_cycle(v1::CreateCycleRequest {
+        .execution_create_cycle(contracts::execution::CreateCycleRequest {
             plan: Some(plan),
-            metadata: Some(v1::Metadata {
+            metadata: Some(contracts::common::Metadata {
                 identifier: "starter.host.soak".into(),
                 label: "Starter soak".into(),
                 description: None,
@@ -427,59 +425,54 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
         })
         .await
         .unwrap()
-        .into_inner()
         .cycle_id;
     let before_cases = execution
-        .list_cases(v1::ListCasesRequest {
+        .execution_list_cases(contracts::execution::ListCasesRequest {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(before_cases.next_after_case_id.is_none());
     let run = execution
-        .run_cycle(v1::RunCycleRequest {
+        .execution_run_cycle(contracts::execution::RunCycleRequest {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(matches!(
         run.outcome,
-        Some(v1::run_reply::Outcome::Accepted(_))
+        Some(contracts::execution::RunReplyOutcome::Accepted(_))
     ));
-    wait_terminal(&mut execution, &cycle_id).await;
+    wait_terminal(&execution, &cycle_id).await;
     let attempts = execution
-        .list_executions(v1::ListExecutionsRequest {
+        .execution_list_executions(contracts::execution::ListExecutionsRequest {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(attempts.next_after_execution_id.is_none());
     assert_eq!(attempts.executions.len(), 1);
     let first_id = attempts.executions[0].execution_id.clone();
     let mut first = execution
-        .get_execution(v1::GetExecutionRequest {
+        .execution_get_execution(contracts::execution::GetExecutionRequest {
             execution_id: first_id.clone(),
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     first.observed_cursor = None;
     let expected_status = if expected == "passed" {
-        v1::ExecutionStatus::Passed
+        contracts::execution::ExecutionStatus::Passed
     } else {
-        v1::ExecutionStatus::Failed
+        contracts::execution::ExecutionStatus::Failed
     };
-    if first.summary.as_ref().unwrap().status() != expected_status {
-        let health = v1::health_client::HealthClient::connect(endpoint.clone())
+    if first.summary.as_ref().unwrap().status != expected_status {
+        let health = Client::connect(Target::local(endpoint.clone()).unwrap(), None, None)
             .await
             .unwrap()
-            .list_health(v1::ListAnnotationsRequest {
+            .health_list_health(contracts::notes::ListAnnotationsRequest {
                 limit: 100,
                 ..Default::default()
             })
@@ -490,38 +483,37 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
         );
     }
     assert_evidence(&endpoint, &first_id, package).await;
-    let input_request = v1::ListExecutionParametersRequest {
+    let input_request = contracts::execution::ListExecutionParametersRequest {
         execution_id: first_id.clone(),
-        set: v1::ExecutionParameterSet::Inputs as i32,
-        ..Default::default()
+        set: contracts::execution::ExecutionParameterSet::Inputs,
+        limit: 0,
+        after_name: String::new(),
+        cursor: None,
     };
     let inputs = execution
-        .list_execution_parameters(input_request.clone())
+        .execution_list_execution_parameters(input_request.clone())
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(inputs.next_after_name.is_none());
     let steps = execution
-        .list_execution_steps(v1::ListExecutionStepsRequest {
+        .execution_list_execution_steps(contracts::execution::ListExecutionStepsRequest {
             execution_id: first_id.clone(),
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(steps.next_cursor.is_none());
     let in_band = format!("{package}.soak.in_band");
     let mut decided = Vec::new();
     for step in steps.steps {
         let criteria = execution
-            .list_step_criteria(v1::ListStepEvidenceRequest {
+            .execution_list_step_criteria(contracts::execution::ListStepEvidenceRequest {
                 execution_id: first_id.clone(),
                 step_id: step.step_id,
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         assert!(criteria.next_cursor.is_none());
         decided.extend(criteria.criteria.into_iter().filter(|criterion| {
             criterion
@@ -532,26 +524,25 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
     }
     assert_eq!(decided.len(), 1);
     assert_eq!(
-        decided[0].status(),
+        decided[0].status,
         if expected == "passed" {
-            v1::CriterionStatus::Passed
+            contracts::execution::CriterionStatus::Passed
         } else {
-            v1::CriterionStatus::Failed
+            contracts::execution::CriterionStatus::Failed
         }
     );
     host.reload(bundle, true).await;
     let deadline = Instant::now() + EXECUTION_TIMEOUT;
     loop {
         let repeated = execution
-            .list_executions(v1::ListExecutionsRequest {
+            .execution_list_executions(contracts::execution::ListExecutionsRequest {
                 cycle_id: cycle_id.clone(),
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         assert!(repeated.next_after_execution_id.is_none());
-        if repeated.executions.len() == 2 && repeated.executions[1].status() == expected_status {
+        if repeated.executions.len() == 2 && repeated.executions[1].status == expected_status {
             break;
         }
         assert!(
@@ -560,39 +551,36 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
         );
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
-    wait_terminal(&mut execution, &cycle_id).await;
+    wait_terminal(&execution, &cycle_id).await;
     let mut retained = execution
-        .get_execution(v1::GetExecutionRequest {
+        .execution_get_execution(contracts::execution::GetExecutionRequest {
             execution_id: first_id,
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     retained.observed_cursor = None;
     assert_eq!(
         retained, first,
         "re-run changed historical execution metadata"
     );
     let retained_inputs = execution
-        .list_execution_parameters(input_request)
+        .execution_list_execution_parameters(input_request)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(retained_inputs.next_after_name.is_none());
     assert_eq!(
         retained_inputs.parameters, inputs.parameters,
         "re-run changed frozen inputs"
     );
     let after_cases = execution
-        .list_cases(v1::ListCasesRequest {
+        .execution_list_cases(contracts::execution::ListCasesRequest {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(after_cases.next_after_case_id.is_none());
-    let selected_cases = |cases: &[v1::CaseSummary]| {
+    let selected_cases = |cases: &[contracts::execution::CaseSummary]| {
         cases
             .iter()
             .map(|case| {
@@ -612,13 +600,13 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
     );
     for case in &after_cases.cases {
         assert_eq!(case.attempt_count, 2);
-        assert_eq!(case.latest_execution_status, Some(expected_status as i32));
+        assert_eq!(case.latest_execution_status, Some(expected_status));
         assert!(!case.rerun_scheduled);
     }
     host.shutdown().await;
     assert!(
         catalog
-            .get_suite(v1::GetSuiteRequest {
+            .catalog_get_suite(contracts::catalog::GetSuiteRequest {
                 suite_id: format!("{package}.soak")
             })
             .await
@@ -644,16 +632,19 @@ async fn assert_installed(executable: &Path, bundle: &Path, package: &str) {
 
     let mut host = Host::start(executable, profile.path(), None, "installed");
     let endpoint = host.ready().await;
-    let mut catalog = CatalogClient::connect(endpoint.clone()).await.unwrap();
-    let mut execution = ExecutionClient::connect(endpoint.clone()).await.unwrap();
+    let catalog = Client::connect(Target::local(endpoint.clone()).unwrap(), None, None)
+        .await
+        .unwrap();
+    let execution = Client::connect(Target::local(endpoint.clone()).unwrap(), None, None)
+        .await
+        .unwrap();
     let suite_id = format!("{package}.soak");
     let suite = catalog
-        .get_suite(v1::GetSuiteRequest {
+        .catalog_get_suite(contracts::catalog::GetSuiteRequest {
             suite_id: suite_id.clone(),
         })
         .await
-        .unwrap_or_else(|status| panic!("{status}: {}", host.diagnostics()))
-        .into_inner();
+        .unwrap_or_else(|status| panic!("{status}: {}", host.diagnostics()));
     let template = suite
         .templates
         .iter()
@@ -665,16 +656,16 @@ async fn assert_installed(executable: &Path, bundle: &Path, package: &str) {
         })
         .unwrap();
     let cycle_id = execution
-        .create_cycle(v1::CreateCycleRequest {
-            plan: Some(v1::SelectionPlan {
-                selections: vec![v1::RegisteredSelection {
+        .execution_create_cycle(contracts::execution::CreateCycleRequest {
+            plan: Some(contracts::planning::SelectionPlan {
+                selections: vec![contracts::planning::RegisteredSelection {
                     suite_id,
                     template_id: template.template_id.clone(),
                     ..Default::default()
                 }],
                 ..Default::default()
             }),
-            metadata: Some(v1::Metadata {
+            metadata: Some(contracts::common::Metadata {
                 identifier: "starter.installed.soak".into(),
                 label: "Installed soak".into(),
                 description: None,
@@ -684,29 +675,27 @@ async fn assert_installed(executable: &Path, bundle: &Path, package: &str) {
         })
         .await
         .unwrap()
-        .into_inner()
         .cycle_id;
     execution
-        .run_cycle(v1::RunCycleRequest {
+        .execution_run_cycle(contracts::execution::RunCycleRequest {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
         .await
         .unwrap();
-    wait_terminal(&mut execution, &cycle_id).await;
+    wait_terminal(&execution, &cycle_id).await;
     let attempts = execution
-        .list_executions(v1::ListExecutionsRequest {
+        .execution_list_executions(contracts::execution::ListExecutionsRequest {
             cycle_id,
             ..Default::default()
         })
         .await
         .unwrap()
-        .into_inner()
         .executions;
     assert_eq!(attempts.len(), 1);
     assert_eq!(
-        attempts[0].status(),
-        v1::ExecutionStatus::Passed,
+        attempts[0].status,
+        contracts::execution::ExecutionStatus::Passed,
         "{attempts:#?}: {}",
         host.diagnostics()
     );
@@ -715,21 +704,20 @@ async fn assert_installed(executable: &Path, bundle: &Path, package: &str) {
     // The sensor port is discovered rather than saved: the host asks the
     // plugin's discovery operation once the plugin is ready and keeps the
     // answer beside the saved values.
-    let mut settings = SettingsClient::connect(endpoint.clone()).await.unwrap();
+    let settings = Client::connect(Target::local(endpoint.clone()).unwrap(), None, None)
+        .await
+        .unwrap();
     let deadline = Instant::now() + EXECUTION_TIMEOUT;
     loop {
         let card = settings
-            .get_plugin_settings(v1::GetPluginSettingsRequest {
+            .settings_get_plugin_settings(contracts::settings::GetPluginSettingsRequest {
                 plugin_id: package.to_owned(),
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         if card.discovered.as_ref().is_some_and(|discovered| {
-            discovered
-                .fields
-                .keys()
-                .any(|id| id.ends_with("sensor_port"))
+            matches!(discovered.to_core().unwrap(), harmos::Value::Object(fields)
+                if fields.keys().any(|id| id.ends_with("sensor_port")))
         }) {
             break;
         }
@@ -744,15 +732,15 @@ async fn assert_installed(executable: &Path, bundle: &Path, package: &str) {
 }
 
 async fn assert_evidence(endpoint: &str, execution_id: &str, package: &str) {
-    let scope = v1::EvidenceScope {
+    let scope = contracts::common::EvidenceScope {
         execution_id: Some(execution_id.to_owned()),
         ..Default::default()
     };
-    let records = EvidenceClient::connect(endpoint.to_owned())
+    let records = Client::connect(Target::local(endpoint.to_owned()).unwrap(), None, None)
         .await
         .unwrap()
-        .list_records(v1::ListRecordsRequest {
-            selection: Some(v1::CapturedRecordSelection {
+        .evidence_list_records(contracts::evidence::ListRecordsRequest {
+            selection: Some(contracts::evidence::CapturedRecordSelection {
                 scope: Some(scope.clone()),
                 record_types: vec![format!("{package}.soak.held")],
                 ..Default::default()
@@ -760,22 +748,21 @@ async fn assert_evidence(endpoint: &str, execution_id: &str, package: &str) {
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert_eq!(records.records.len(), 1, "{records:#?}");
     let held = records.records[0].details.as_ref().unwrap();
     assert!(
         matches!(
-            held.fields["celsius"].kind,
-            Some(v1::value::Kind::NumberValue(_))
+            held.to_core().unwrap(),
+            harmos::Value::Object(fields) if matches!(fields.get("celsius"), Some(harmos::Value::Number(_)))
         ),
         "{held:#?}"
     );
 
-    let samples = TelemetryClient::connect(endpoint.to_owned())
+    let samples = Client::connect(Target::local(endpoint.to_owned()).unwrap(), None, None)
         .await
         .unwrap()
-        .list_samples(v1::ListTelemetrySamplesRequest {
+        .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
             streams: vec![format!("{package}.soak.samples")],
             scope: Some(scope),
             limit: 1000,
@@ -783,7 +770,6 @@ async fn assert_evidence(endpoint: &str, execution_id: &str, package: &str) {
         })
         .await
         .unwrap()
-        .into_inner()
         .samples;
     let holding = samples
         .iter()
@@ -791,23 +777,25 @@ async fn assert_evidence(endpoint: &str, execution_id: &str, package: &str) {
             sample
                 .values
                 .as_ref()
-                .and_then(|values| values.fields.get("holding"))
-                .is_some_and(|value| value.kind == Some(v1::value::Kind::BoolValue(true)))
+                .map(|values| values.to_core().unwrap())
+                .is_some_and(|value| {
+                    matches!(value, harmos::Value::Object(fields)
+                    if matches!(fields.get("holding"), Some(harmos::Value::Bool(true))))
+                })
         })
         .count();
     assert!(holding > 0, "no held rows were captured: {samples:#?}");
 
-    let files = ContentClient::connect(endpoint.to_owned())
+    let files = Client::connect(Target::local(endpoint.to_owned()).unwrap(), None, None)
         .await
         .unwrap()
-        .list_execution_files(v1::ListExecutionFilesRequest {
+        .content_list_execution_files(contracts::content::ListExecutionFilesRequest {
             execution_id: execution_id.to_owned(),
             limit: 100,
             ..Default::default()
         })
         .await
         .unwrap()
-        .into_inner()
         .files;
     for artifact in ["heater.log", "summary.json"] {
         assert!(
@@ -819,19 +807,20 @@ async fn assert_evidence(endpoint: &str, execution_id: &str, package: &str) {
     }
 }
 
-async fn wait_terminal(client: &mut ExecutionClient<tonic::transport::Channel>, cycle_id: &str) {
+async fn wait_terminal(client: &Client, cycle_id: &str) {
     let deadline = Instant::now() + EXECUTION_TIMEOUT;
     loop {
         let cycle = client
-            .get_cycle(v1::GetCycleRequest {
+            .execution_get_cycle(contracts::execution::GetCycleRequest {
                 cycle_id: cycle_id.into(),
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         if matches!(
-            cycle.status(),
-            v1::CycleStatus::Completed | v1::CycleStatus::Failed | v1::CycleStatus::Stopped
+            cycle.status,
+            contracts::execution::CycleStatus::Completed
+                | contracts::execution::CycleStatus::Failed
+                | contracts::execution::CycleStatus::Stopped
         ) {
             return;
         }

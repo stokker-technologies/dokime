@@ -12,16 +12,17 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-use super::*;
-use dokime_gui::rpc::*;
-use dokime_protocol::v1;
+// Standard Library Imports
 use std::time::Duration;
 
-// Standard Library Imports
-
 // Third Party Imports
+use harmos::{MemorySize, Protobuf};
+use sha2::{Digest, Sha256};
 
 // Local Imports
+use super::*;
+use dokime_contract::operations::content;
+use dokime_gui::uploads::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, artifact_upload_handler};
 
 /* === Constants === */
 
@@ -51,8 +52,8 @@ fn generation(session: &dokime_gui::connection::ConnectionSession) -> u64 {
         .expect("fixture generation is numeric")
 }
 
-fn header(size_bytes: u64, scope: Option<v1::ArtifactScope>) -> v1::UploadArtifactHeader {
-    v1::UploadArtifactHeader {
+fn header(size_bytes: u64, scope: Option<content::ArtifactScope>) -> content::UploadArtifactHeader {
+    content::UploadArtifactHeader {
         scope,
         filename: "upload-sink-fixture.bin".into(),
         content_type: Some("application/octet-stream".into()),
@@ -130,7 +131,7 @@ struct ScopedFixture {
     server: dokime_server::grpc::Server,
     runtime: dokime_app::Runtime,
     _root: tempfile::TempDir,
-    scope: v1::ArtifactScope,
+    scope: content::ArtifactScope,
     execution: std::sync::Arc<ActiveFixture>,
 }
 
@@ -253,7 +254,7 @@ impl ScopedFixture {
             server,
             runtime,
             _root: root,
-            scope: v1::ArtifactScope {
+            scope: content::ArtifactScope {
                 cycle_id: Some(cycle_id),
                 case_id: None,
                 execution_id: Some(execution_id),
@@ -272,7 +273,7 @@ impl ScopedFixture {
 
 fn request_bytes(generation: u64, payload: &[u8]) -> Vec<u8> {
     let mut bytes = generation.to_le_bytes().to_vec();
-    bytes.extend(Sha256::digest(dokime_protocol::FILE_DESCRIPTOR_SET));
+    bytes.extend(Sha256::digest(FILE_DESCRIPTOR_SET));
     bytes.extend_from_slice(payload);
     bytes
 }
@@ -322,7 +323,16 @@ pub(crate) async fn upload_sink_completion() {
     let tauri::ipc::InvokeResponseBody::Raw(metadata_bytes) = finished else {
         panic!("finish replies with raw metadata bytes");
     };
-    let metadata = v1::ArtifactMetadata::decode(&metadata_bytes[8..]).unwrap();
+    let payload = &metadata_bytes[8..];
+    assert!(
+        content::ArtifactMetadata::decoding_memory(payload).unwrap() <= MAX_FRAME_BYTES * 8,
+        "the metadata decoding budget stays within the native transfer bound"
+    );
+    let metadata = content::ArtifactMetadata::decode(payload).unwrap();
+    assert!(
+        metadata.memory_size() <= MAX_FRAME_BYTES * 8,
+        "the decoded metadata stays within the native transfer bound"
+    );
     assert_eq!(metadata.size_bytes, 6);
     assert_eq!(
         metadata.sha256,
@@ -331,7 +341,7 @@ pub(crate) async fn upload_sink_completion() {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>()
     );
-    assert_eq!(metadata.state(), v1::ArtifactState::Complete);
+    assert_eq!(metadata.state, content::ArtifactState::Complete);
 
     use tauri::Manager;
     app.state::<Bridge>().cancel_owner("main");

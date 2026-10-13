@@ -116,7 +116,7 @@ pub(super) fn verify(
                 }
                 let _fields = memory
                     .reserve_owned(Entry::fields_decoding_bytes(fields.len())?, usize::MAX)?;
-                let fields: Vec<harmos::schema::Field> = serde_json::from_slice(fields)?;
+                let fields: Vec<harmos::schema::graph::Field> = serde_json::from_slice(fields)?;
                 let (schema, _schema) = dependency(
                     connection,
                     &object.value.schema,
@@ -126,7 +126,10 @@ pub(super) fn verify(
                     maximum,
                 )?;
                 if !fields.iter().eq(schema
-                    .fields
+                    .schema
+                    .root()
+                    .map_err(|_| Error::Corrupt("invalid retained schema root"))?
+                    .fields()
                     .iter()
                     .filter(|field| super::index::keys::supported(field)))
                 {
@@ -173,9 +176,13 @@ fn validate(
             error,
         ))
     };
-    let bytes = harmos::schema::validation_memory_bytes(&schema.fields).map_err(failure)?;
+    let settings = harmos::config::SchemaSettings::default();
+    let bytes = schema
+        .schema
+        .validation_memory_bytes(&settings)
+        .map_err(failure)?;
     let _validation = memory.reserve_owned(bytes, usize::MAX)?;
-    harmos::schema::validate(&schema.fields).map_err(failure)?;
+    schema.schema.prepare(&settings).map_err(failure)?;
     Ok(())
 }
 

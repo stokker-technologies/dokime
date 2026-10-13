@@ -36,8 +36,8 @@ struct ReportReader;
 /* === Implementations === */
 impl harmos::Application for ReportReader {
     type State = ();
-    type Transaction = harmos::Never;
-    type Record = harmos::Never;
+    type Transaction = harmos::state::Never;
+    type Record = harmos::state::Never;
     type Streams = ();
     type Resources = ();
 }

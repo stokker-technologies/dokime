@@ -17,15 +17,14 @@
 // Third Party Imports
 use tonic::Status;
 // Local Imports
-use super::super::enums;
+use super::super::value::canonical;
 use super::{Budget, unit, unit_memory, value};
 use dokime_app::{
     core::ValidationMode,
     records::{RecordContract, RecordIconKey, RecordSeverity, RecordTone},
     telemetry::{TelemetryContract, TelemetryRole},
 };
-use dokime_protocol::v1;
-use value::projection;
+use dokime_contract::operations::{common, schema as wire, value as wire_value};
 
 /* === Constants === */
 
@@ -42,7 +41,7 @@ use value::projection;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn record(contract: &RecordContract) -> Result<v1::RecordSchema, Status> {
+pub(crate) fn record(contract: &RecordContract) -> Result<wire::RecordSchema, Status> {
     record_memory(contract)?;
     value::text(contract.record_type.as_str())?;
     if let Some(id) = &contract.template_id {
@@ -53,9 +52,9 @@ pub(crate) fn record(contract: &RecordContract) -> Result<v1::RecordSchema, Stat
     let fields = collect(contract.fields.iter().map(|field| {
         budget.node(0)?;
         value::collection(field.choices.len())?;
-        Ok(v1::RecordField {
+        Ok(wire::RecordField {
             metadata: Some(metadata(&field.metadata)?),
-            value_type: enums::value_type(&field.value_type) as i32,
+            value_type: canonical::value_type(&field.value_type),
             required: field.required,
             nullable: field.nullable,
             unit: field.unit.as_ref().map(unit).transpose()?,
@@ -70,10 +69,10 @@ pub(crate) fn record(contract: &RecordContract) -> Result<v1::RecordSchema, Stat
                 .as_ref()
                 .map(|default| project_value(default, &mut budget, 0))
                 .transpose()?,
-            format: value::optional_value_format(field.format.as_ref()),
+            format: field.format.as_ref().map(canonical::value_format),
         })
     }))?;
-    Ok(v1::RecordSchema {
+    Ok(wire::RecordSchema {
         record_type: contract.record_type.as_str().to_owned(),
         schema_version: contract.schema_version,
         metadata: Some(metadata(&contract.metadata)?),
@@ -83,25 +82,25 @@ pub(crate) fn record(contract: &RecordContract) -> Result<v1::RecordSchema, Stat
             .map(|id| id.as_str().to_owned()),
         owner_suite_id: contract.owner.as_ref().map(|id| id.as_str().to_owned()),
         default_severity: match contract.default_severity {
-            RecordSeverity::Debug => v1::Severity::Debug,
-            RecordSeverity::Info => v1::Severity::Info,
-            RecordSeverity::Warning => v1::Severity::Warn,
-            RecordSeverity::Error => v1::Severity::Error,
-        } as i32,
+            RecordSeverity::Debug => common::Severity::Debug,
+            RecordSeverity::Info => common::Severity::Info,
+            RecordSeverity::Warning => common::Severity::Warn,
+            RecordSeverity::Error => common::Severity::Error,
+        },
         fields,
         validation_mode: contract
             .validation_mode
             .as_ref()
-            .map(|mode| validation(mode) as i32),
+            .map(|mode| validation(mode)),
         allow_extra_fields: contract.allow_extra_fields,
-        display: Some(v1::RecordDisplay {
-            icon: icon(&contract.display.icon) as i32,
-            tone: tone(&contract.display.tone) as i32,
+        display: Some(wire::RecordDisplay {
+            icon: icon(&contract.display.icon),
+            tone: tone(&contract.display.tone),
         }),
     })
 }
 
-pub(crate) fn telemetry(contract: &TelemetryContract) -> Result<v1::TelemetrySchema, Status> {
+pub(crate) fn telemetry(contract: &TelemetryContract) -> Result<wire::TelemetrySchema, Status> {
     telemetry_memory(contract)?;
     value::collection(contract.columns.len())?;
     value::text(contract.stream.as_str())?;
@@ -117,10 +116,10 @@ pub(crate) fn telemetry(contract: &TelemetryContract) -> Result<v1::TelemetrySch
         if let Some(unit) = &column.display_unit {
             value::text(unit)?;
         }
-        Ok(v1::TelemetryColumn {
+        Ok(wire::TelemetryColumn {
             metadata: Some(metadata(&column.metadata)?),
-            value_type: enums::value_type(&column.value_type) as i32,
-            role: role(&column.role) as i32,
+            value_type: canonical::value_type(&column.value_type),
+            role: role(&column.role),
             unit: column.unit.as_ref().map(unit).transpose()?,
             display_unit: column.display_unit.clone(),
             required: column.required,
@@ -130,10 +129,10 @@ pub(crate) fn telemetry(contract: &TelemetryContract) -> Result<v1::TelemetrySch
                 .as_ref()
                 .map(|default| project_value(default, &mut budget, 0))
                 .transpose()?,
-            format: value::optional_value_format(column.format.as_ref()),
+            format: column.format.as_ref().map(canonical::value_format),
         })
     }))?;
-    Ok(v1::TelemetrySchema {
+    Ok(wire::TelemetrySchema {
         stream: contract.stream.as_str().to_owned(),
         schema_version: contract.schema_version,
         metadata: Some(metadata(&contract.metadata)?),
@@ -150,7 +149,7 @@ pub(crate) fn telemetry(contract: &TelemetryContract) -> Result<v1::TelemetrySch
         validation_mode: contract
             .validation_mode
             .as_ref()
-            .map(|mode| validation(mode) as i32),
+            .map(|mode| validation(mode)),
         foreign: contract.foreign,
     })
 }
@@ -161,7 +160,7 @@ pub(crate) fn record_memory(source: &RecordContract) -> Result<usize, Status> {
         value::text(id.as_str())?;
     }
     value::collection(source.fields.len())?;
-    let mut bytes = std::mem::size_of::<v1::RecordSchema>()
+    let mut bytes = std::mem::size_of::<wire::RecordSchema>()
         .saturating_add(source.record_type.as_str().len())
         .saturating_add(metadata_heap(&source.metadata)?)
         .saturating_add(
@@ -175,7 +174,7 @@ pub(crate) fn record_memory(source: &RecordContract) -> Result<usize, Status> {
             source
                 .fields
                 .len()
-                .saturating_mul(std::mem::size_of::<v1::RecordField>()),
+                .saturating_mul(std::mem::size_of::<wire::RecordField>()),
         );
     let mut budget = Budget::new();
     for field in &source.fields {
@@ -187,12 +186,12 @@ pub(crate) fn record_memory(source: &RecordContract) -> Result<usize, Status> {
                 field
                     .choices
                     .len()
-                    .saturating_mul(std::mem::size_of::<v1::Value>()),
+                    .saturating_mul(std::mem::size_of::<wire_value::Value>()),
             )
             .saturating_add(format_heap(field.format.as_ref()));
         if let Some(unit) = &field.unit {
             bytes = bytes.saturating_add(
-                unit_memory(unit).map_err(failure)? - std::mem::size_of::<v1::MeasurementUnit>(),
+                unit_memory(unit).map_err(failure)? - std::mem::size_of::<wire::MeasurementUnit>(),
             );
         }
         for choice in &field.choices {
@@ -214,7 +213,7 @@ pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Stat
     if let Some(x) = &source.default_x {
         value::text(x)?;
     }
-    let mut bytes = std::mem::size_of::<v1::TelemetrySchema>()
+    let mut bytes = std::mem::size_of::<wire::TelemetrySchema>()
         .saturating_add(source.stream.as_str().len())
         .saturating_add(metadata_heap(&source.metadata)?)
         .saturating_add(
@@ -229,7 +228,7 @@ pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Stat
             source
                 .columns
                 .len()
-                .saturating_mul(std::mem::size_of::<v1::TelemetryColumn>()),
+                .saturating_mul(std::mem::size_of::<wire::TelemetryColumn>()),
         );
     let mut budget = Budget::new();
     for column in &source.columns {
@@ -239,7 +238,7 @@ pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Stat
             .saturating_add(format_heap(column.format.as_ref()));
         if let Some(unit) = &column.unit {
             bytes = bytes.saturating_add(
-                unit_memory(unit).map_err(failure)? - std::mem::size_of::<v1::MeasurementUnit>(),
+                unit_memory(unit).map_err(failure)? - std::mem::size_of::<wire::MeasurementUnit>(),
             );
         }
         if let Some(unit) = &column.display_unit {
@@ -273,7 +272,7 @@ fn bounded(bytes: usize) -> Result<usize, Status> {
 }
 
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
-    let mut target = projection::slots(source.len()).map_err(failure)?;
+    let mut target = canonical::slots(source.len())?;
     for value in source {
         target.push(value?);
     }
@@ -281,29 +280,23 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
 }
 
 fn metadata_heap(source: &dokime_app::core::Metadata) -> Result<usize, Status> {
-    Ok(projection::metadata_count(source).map_err(failure)?.memory
-        - std::mem::size_of::<v1::Metadata>())
+    Ok(canonical::metadata_memory(source)? - std::mem::size_of::<common::Metadata>())
 }
 
-fn metadata(source: &dokime_app::core::Metadata) -> Result<v1::Metadata, Status> {
-    projection::metadata_count(source).map_err(failure)?;
-    projection::metadata(source).map_err(failure)
+fn metadata(source: &dokime_app::core::Metadata) -> Result<common::Metadata, Status> {
+    canonical::metadata(source)
 }
 
 fn value_heap(source: &dokime_app::core::Value, budget: &mut Budget) -> Result<usize, Status> {
-    Ok(projection::count(source, budget, 0)
-        .map_err(failure)?
-        .memory
-        - std::mem::size_of::<v1::Value>())
+    Ok(canonical::memory(source, budget, 0)? - std::mem::size_of::<wire_value::Value>())
 }
 
 fn project_value(
     source: &dokime_app::core::Value,
     budget: &mut Budget,
     depth: usize,
-) -> Result<v1::Value, Status> {
-    projection::count(source, &mut Budget::new(), depth).map_err(failure)?;
-    projection::project(source, budget, depth).map_err(failure)
+) -> Result<wire_value::Value, Status> {
+    canonical::encode(source, budget, depth)
 }
 
 fn format_heap(source: Option<&dokime_app::core::ValueFormat>) -> usize {
@@ -313,62 +306,62 @@ fn format_heap(source: Option<&dokime_app::core::ValueFormat>) -> usize {
     }
 }
 
-fn validation(value: &ValidationMode) -> v1::ValidationMode {
+fn validation(value: &ValidationMode) -> wire::ValidationMode {
     match value {
-        ValidationMode::Strict => v1::ValidationMode::Strict,
-        ValidationMode::Prototype => v1::ValidationMode::Prototype,
+        ValidationMode::Strict => wire::ValidationMode::Strict,
+        ValidationMode::Prototype => wire::ValidationMode::Prototype,
     }
 }
 
-fn icon(value: &RecordIconKey) -> v1::RecordIcon {
+fn icon(value: &RecordIconKey) -> wire::RecordIcon {
     match value {
-        RecordIconKey::Activity => v1::RecordIcon::Activity,
-        RecordIconKey::AlertTriangle => v1::RecordIcon::AlertTriangle,
-        RecordIconKey::Archive => v1::RecordIcon::Archive,
-        RecordIconKey::Bell => v1::RecordIcon::Bell,
-        RecordIconKey::CheckCircle => v1::RecordIcon::CheckCircle,
-        RecordIconKey::CircleDashed => v1::RecordIcon::CircleDashed,
-        RecordIconKey::ClipboardCheck => v1::RecordIcon::ClipboardCheck,
-        RecordIconKey::Cpu => v1::RecordIcon::Cpu,
-        RecordIconKey::FileText => v1::RecordIcon::FileText,
-        RecordIconKey::Flag => v1::RecordIcon::Flag,
-        RecordIconKey::Gauge => v1::RecordIcon::Gauge,
-        RecordIconKey::HeartPulse => v1::RecordIcon::HeartPulse,
-        RecordIconKey::HelpCircle => v1::RecordIcon::HelpCircle,
-        RecordIconKey::MessageSquareText => v1::RecordIcon::MessageSquareText,
-        RecordIconKey::Package => v1::RecordIcon::Package,
-        RecordIconKey::Plug => v1::RecordIcon::Plug,
-        RecordIconKey::RadioTower => v1::RecordIcon::RadioTower,
-        RecordIconKey::RotateCcw => v1::RecordIcon::RotateCcw,
-        RecordIconKey::ShieldAlert => v1::RecordIcon::ShieldAlert,
-        RecordIconKey::Target => v1::RecordIcon::Target,
-        RecordIconKey::TimerReset => v1::RecordIcon::TimerReset,
-        RecordIconKey::Wrench => v1::RecordIcon::Wrench,
-        RecordIconKey::Zap => v1::RecordIcon::Zap,
-        RecordIconKey::Clock => v1::RecordIcon::Clock,
+        RecordIconKey::Activity => wire::RecordIcon::Activity,
+        RecordIconKey::AlertTriangle => wire::RecordIcon::AlertTriangle,
+        RecordIconKey::Archive => wire::RecordIcon::Archive,
+        RecordIconKey::Bell => wire::RecordIcon::Bell,
+        RecordIconKey::CheckCircle => wire::RecordIcon::CheckCircle,
+        RecordIconKey::CircleDashed => wire::RecordIcon::CircleDashed,
+        RecordIconKey::ClipboardCheck => wire::RecordIcon::ClipboardCheck,
+        RecordIconKey::Cpu => wire::RecordIcon::Cpu,
+        RecordIconKey::FileText => wire::RecordIcon::FileText,
+        RecordIconKey::Flag => wire::RecordIcon::Flag,
+        RecordIconKey::Gauge => wire::RecordIcon::Gauge,
+        RecordIconKey::HeartPulse => wire::RecordIcon::HeartPulse,
+        RecordIconKey::HelpCircle => wire::RecordIcon::HelpCircle,
+        RecordIconKey::MessageSquareText => wire::RecordIcon::MessageSquareText,
+        RecordIconKey::Package => wire::RecordIcon::Package,
+        RecordIconKey::Plug => wire::RecordIcon::Plug,
+        RecordIconKey::RadioTower => wire::RecordIcon::RadioTower,
+        RecordIconKey::RotateCcw => wire::RecordIcon::RotateCcw,
+        RecordIconKey::ShieldAlert => wire::RecordIcon::ShieldAlert,
+        RecordIconKey::Target => wire::RecordIcon::Target,
+        RecordIconKey::TimerReset => wire::RecordIcon::TimerReset,
+        RecordIconKey::Wrench => wire::RecordIcon::Wrench,
+        RecordIconKey::Zap => wire::RecordIcon::Zap,
+        RecordIconKey::Clock => wire::RecordIcon::Clock,
     }
 }
 
-fn tone(value: &RecordTone) -> v1::RecordTone {
+fn tone(value: &RecordTone) -> wire::RecordTone {
     match value {
-        RecordTone::Info => v1::RecordTone::Info,
-        RecordTone::Success => v1::RecordTone::Success,
-        RecordTone::Warning => v1::RecordTone::Warning,
-        RecordTone::Danger => v1::RecordTone::Danger,
-        RecordTone::Accent => v1::RecordTone::Accent,
-        RecordTone::Muted => v1::RecordTone::Muted,
-        RecordTone::Neutral => v1::RecordTone::Neutral,
+        RecordTone::Info => wire::RecordTone::Info,
+        RecordTone::Success => wire::RecordTone::Success,
+        RecordTone::Warning => wire::RecordTone::Warning,
+        RecordTone::Danger => wire::RecordTone::Danger,
+        RecordTone::Accent => wire::RecordTone::Accent,
+        RecordTone::Muted => wire::RecordTone::Muted,
+        RecordTone::Neutral => wire::RecordTone::Neutral,
     }
 }
 
-fn role(value: &TelemetryRole) -> v1::TelemetryRole {
+fn role(value: &TelemetryRole) -> wire::TelemetryRole {
     match value {
-        TelemetryRole::Value => v1::TelemetryRole::Value,
-        TelemetryRole::Counter => v1::TelemetryRole::Counter,
-        TelemetryRole::State => v1::TelemetryRole::State,
-        TelemetryRole::Distance => v1::TelemetryRole::Distance,
-        TelemetryRole::Latency => v1::TelemetryRole::Latency,
-        TelemetryRole::Throughput => v1::TelemetryRole::Throughput,
+        TelemetryRole::Value => wire::TelemetryRole::Value,
+        TelemetryRole::Counter => wire::TelemetryRole::Counter,
+        TelemetryRole::State => wire::TelemetryRole::State,
+        TelemetryRole::Distance => wire::TelemetryRole::Distance,
+        TelemetryRole::Latency => wire::TelemetryRole::Latency,
+        TelemetryRole::Throughput => wire::TelemetryRole::Throughput,
     }
 }
 

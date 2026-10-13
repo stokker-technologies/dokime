@@ -23,7 +23,6 @@ use dokime_app::core::{RecordScope, TestCycleId};
 use dokime_app::execution::HealthSeverity;
 use dokime_app::runtime::command::CommandContext;
 use dokime_app::transactions::CycleDefinition;
-use dokime_protocol::v1::{health_client::HealthClient, notes_client::NotesClient};
 
 /* === Constants === */
 
@@ -59,10 +58,12 @@ async fn cycle(runtime: &dokime_app::RuntimeHandle) -> TestCycleId {
         .unwrap()
 }
 
-fn selection(cycle: &TestCycleId, context: bool) -> Option<v1::AnnotationSelection> {
-    Some(v1::AnnotationSelection {
-        owner: Some(v1::AnnotationOwner {
-            owner: Some(v1::annotation_owner::Owner::CycleId(cycle.to_string())),
+fn selection(cycle: &TestCycleId, context: bool) -> Option<contracts::notes::AnnotationSelection> {
+    Some(contracts::notes::AnnotationSelection {
+        owner: Some(contracts::notes::AnnotationOwner {
+            owner: Some(contracts::notes::AnnotationOwnerOwner::CycleId(
+                cycle.to_string(),
+            )),
         }),
         include_context: context,
     })
@@ -122,31 +123,33 @@ pub(crate) async fn scoped_annotation_workflow() {
         .connect()
         .await
         .unwrap();
-    let mut notes = NotesClient::new(stream.clone());
-    let mut health = HealthClient::new(stream);
+    let notes = WireClient::new(stream.clone());
+    let health = WireClient::new(stream);
     assert_eq!(
         notes
-            .list_notes(v1::ListAnnotationsRequest::default())
+            .unary::<contracts::notes::ListNotes>(
+                contracts::notes::ListAnnotationsRequest::default()
+            )
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
-    let create = v1::CreateNoteRequest {
+    let create = contracts::notes::CreateNoteRequest {
         epoch: epoch.clone(),
         mutation_id: uuid::Uuid::now_v7().to_string(),
         owner: selection(&first, false).unwrap().owner,
         message: "x".repeat(16 * 1024),
     };
     let receipt = notes
-        .create_note(authenticated(create.clone()))
+        .unary::<contracts::notes::CreateNote>(authenticated(create.clone()))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(receipt.epoch, epoch);
     assert_eq!(
-        receipt.publication(),
-        v1::NotePublication::NoExistingDatasets
+        receipt.publication,
+        contracts::notes::NotePublication::NoExistingDatasets
     );
     assert_eq!(
         receipt.note.as_ref().unwrap().author.as_deref(),
@@ -155,7 +158,7 @@ pub(crate) async fn scoped_annotation_workflow() {
     assert_eq!(
         receipt,
         notes
-            .create_note(authenticated(create.clone()))
+            .unary::<contracts::notes::CreateNote>(authenticated(create.clone()))
             .await
             .unwrap()
             .into_inner()
@@ -164,7 +167,7 @@ pub(crate) async fn scoped_annotation_workflow() {
     changed.message.replace_range(..1, "y");
     assert_eq!(
         notes
-            .create_note(authenticated(changed))
+            .unary::<contracts::notes::CreateNote>(authenticated(changed))
             .await
             .unwrap_err()
             .code(),
@@ -174,38 +177,44 @@ pub(crate) async fn scoped_annotation_workflow() {
     wrong_epoch.epoch = uuid::Uuid::now_v7().to_string();
     assert_eq!(
         notes
-            .create_note(authenticated(wrong_epoch))
+            .unary::<contracts::notes::CreateNote>(authenticated(wrong_epoch))
             .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition
     );
     let page = notes
-        .list_notes(authenticated(v1::ListAnnotationsRequest {
-            selection: selection(&first, false),
-            ..Default::default()
-        }))
+        .unary::<contracts::notes::ListNotes>(authenticated(
+            contracts::notes::ListAnnotationsRequest {
+                selection: selection(&first, false),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert_eq!(page.notes.len(), 1);
     let contextual = notes
-        .list_notes(authenticated(v1::ListAnnotationsRequest {
-            selection: selection(&first, true),
-            limit: 1,
-            ..Default::default()
-        }))
+        .unary::<contracts::notes::ListNotes>(authenticated(
+            contracts::notes::ListAnnotationsRequest {
+                selection: selection(&first, true),
+                limit: 1,
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
     assert!(!contextual.next_after_id.is_empty());
     let next = notes
-        .list_notes(authenticated(v1::ListAnnotationsRequest {
-            selection: selection(&first, true),
-            limit: 1,
-            after_id: contextual.next_after_id.clone(),
-            cursor: contextual.cursor.clone(),
-        }))
+        .unary::<contracts::notes::ListNotes>(authenticated(
+            contracts::notes::ListAnnotationsRequest {
+                selection: selection(&first, true),
+                limit: 1,
+                after_id: contextual.next_after_id.clone(),
+                cursor: contextual.cursor.clone(),
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -213,22 +222,26 @@ pub(crate) async fn scoped_annotation_workflow() {
     assert_ne!(next.notes[0].note_id, contextual.notes[0].note_id);
     assert_eq!(
         notes
-            .list_notes(authenticated(v1::ListAnnotationsRequest {
-                selection: selection(&second, true),
-                limit: 1,
-                after_id: contextual.next_after_id.clone(),
-                cursor: contextual.cursor.clone()
-            }))
+            .unary::<contracts::notes::ListNotes>(authenticated(
+                contracts::notes::ListAnnotationsRequest {
+                    selection: selection(&second, true),
+                    limit: 1,
+                    after_id: contextual.next_after_id.clone(),
+                    cursor: contextual.cursor.clone()
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition
     );
     let health = health
-        .list_health(authenticated(v1::ListAnnotationsRequest {
-            selection: selection(&first, false),
-            ..Default::default()
-        }))
+        .unary::<contracts::notes::ListHealth>(authenticated(
+            contracts::notes::ListAnnotationsRequest {
+                selection: selection(&first, false),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -244,7 +257,7 @@ pub(crate) async fn scoped_annotation_workflow() {
         .iter()
         .find(|item| item.message == "connector warning")
         .unwrap();
-    assert_eq!(warning.severity(), v1::Severity::Warn);
+    assert_eq!(warning.severity, contracts::common::Severity::Warn);
     assert_eq!(warning.detail.as_deref(), Some("inspect connector"));
     assert!(
         health
@@ -254,15 +267,20 @@ pub(crate) async fn scoped_annotation_workflow() {
     );
     let mut another = create.clone();
     another.mutation_id = uuid::Uuid::now_v7().to_string();
-    notes.create_note(authenticated(another)).await.unwrap();
+    notes
+        .unary::<contracts::notes::CreateNote>(authenticated(another))
+        .await
+        .unwrap();
     assert_eq!(
         notes
-            .list_notes(authenticated(v1::ListAnnotationsRequest {
-                selection: selection(&first, true),
-                limit: 1,
-                after_id: contextual.next_after_id,
-                cursor: contextual.cursor
-            }))
+            .unary::<contracts::notes::ListNotes>(authenticated(
+                contracts::notes::ListAnnotationsRequest {
+                    selection: selection(&first, true),
+                    limit: 1,
+                    after_id: contextual.next_after_id,
+                    cursor: contextual.cursor
+                }
+            ))
             .await
             .unwrap_err()
             .code(),
@@ -279,9 +297,9 @@ pub(crate) async fn scoped_annotation_workflow() {
         .unwrap()
         .test_case_id
         .to_string();
-    let case_owner = v1::AnnotationOwner {
-        owner: Some(v1::annotation_owner::Owner::PlannedCase(
-            v1::PlannedCaseNoteOwner {
+    let case_owner = contracts::notes::AnnotationOwner {
+        owner: Some(contracts::notes::AnnotationOwnerOwner::PlannedCase(
+            contracts::notes::PlannedCaseNoteOwner {
                 cycle_id: first.to_string(),
                 case_id: case_id.clone(),
             },
@@ -292,7 +310,7 @@ pub(crate) async fn scoped_annotation_workflow() {
     case_request.mutation_id = uuid::Uuid::now_v7().to_string();
     case_request.message = "planned case note".into();
     let case_receipt = notes
-        .create_note(authenticated(case_request))
+        .unary::<contracts::notes::CreateNote>(authenticated(case_request))
         .await
         .unwrap()
         .into_inner();
@@ -309,13 +327,15 @@ pub(crate) async fn scoped_annotation_workflow() {
         Some(case_id.as_str())
     );
     let case_notes = notes
-        .list_notes(authenticated(v1::ListAnnotationsRequest {
-            selection: Some(v1::AnnotationSelection {
-                owner: Some(case_owner),
-                include_context: false,
-            }),
-            ..Default::default()
-        }))
+        .unary::<contracts::notes::ListNotes>(authenticated(
+            contracts::notes::ListAnnotationsRequest {
+                selection: Some(contracts::notes::AnnotationSelection {
+                    owner: Some(case_owner),
+                    include_context: false,
+                }),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -325,7 +345,7 @@ pub(crate) async fn scoped_annotation_workflow() {
     oversized.message = "x".repeat(16 * 1024 + 1);
     assert_eq!(
         notes
-            .create_note(authenticated(oversized))
+            .unary::<contracts::notes::CreateNote>(authenticated(oversized))
             .await
             .unwrap_err()
             .code(),

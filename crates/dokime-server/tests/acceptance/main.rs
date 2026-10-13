@@ -8,24 +8,25 @@
  */
 
 /* === Modules === */
+mod host;
 
 /* === Re-Exports === */
 
 /* === Imports === */
 // Standard Library Imports
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     path::Path,
     time::{Duration, Instant},
 };
 // Third Party Imports
 use sha2::{Digest, Sha256};
 use tempfile::{TempDir, tempdir};
-use tonic::transport::{Channel, Endpoint};
 // Local Imports
 use dokime_app::capabilities::installed_plugins::load_brand;
+use dokime_app::core::Value;
 use dokime_app::{Runtime, RuntimeCredentialConfig, app, config};
-use dokime_protocol::v1::{self};
+use dokime_client::{Client, Target, contracts};
 use dokime_server::grpc::{Config as ServerConfig, Server};
 
 /* === Constants === */
@@ -67,7 +68,7 @@ struct NativeHub {
     _root: TempDir,
     runtime: Runtime,
     server: Server,
-    connection: Channel,
+    connection: Client,
 }
 
 struct HomedRow {
@@ -85,6 +86,14 @@ impl NativeHub {
     }
 
     async fn start_with_brand(brand: bool) -> Self {
+        Self::start_with_policy(brand, ServerConfig::local(), None).await
+    }
+
+    async fn start_with_policy(
+        brand: bool,
+        server_config: ServerConfig,
+        token: Option<&str>,
+    ) -> Self {
         if std::env::var_os("RUST_LOG").is_some() {
             let _ = tracing_subscriber::fmt()
                 .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -112,14 +121,13 @@ impl NativeHub {
             );
         }
         let runtime = app::launch(config).await.unwrap();
-        let server = Server::start(runtime.handle(), ServerConfig::local())
+        let server = Server::start(runtime.handle(), server_config)
             .await
             .unwrap();
-        let connection = Endpoint::from_shared(server.local_endpoint())
-            .unwrap()
-            .connect()
-            .await
-            .unwrap();
+        let connection =
+            Client::connect(Target::local(server.local_endpoint()).unwrap(), token, None)
+                .await
+                .unwrap();
         Self {
             _root: root,
             runtime,
@@ -130,6 +138,7 @@ impl NativeHub {
 
     async fn shutdown(mut self) {
         self.server.shutdown().await.unwrap();
+        self.connection.close_and_wait().await;
         self.runtime.shutdown().await.unwrap();
     }
 }
@@ -183,102 +192,89 @@ impl dokime_app::telemetry::TelemetryRow for HomedRow {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn field<'a>(sample: &'a v1::TelemetrySample, name: &str) -> &'a str {
-    match sample
-        .values
-        .as_ref()
-        .and_then(|values| values.fields.get(name))
-        .and_then(|value| value.kind.as_ref())
-    {
-        Some(v1::value::Kind::TextValue(text)) => text,
+fn field(sample: &contracts::telemetry::TelemetrySample, name: &str) -> String {
+    let Value::Object(mut fields) = sample.values.as_ref().unwrap().to_core().unwrap() else {
+        panic!("sample values must be an object");
+    };
+    match fields.remove(name) {
+        Some(Value::Text(text)) => text,
         other => panic!("sample field {name:?} is not text: {other:?}"),
     }
 }
 
-fn number(value: f64) -> v1::Value {
-    v1::Value {
-        kind: Some(v1::value::Kind::NumberValue(value)),
-    }
+fn number(value: f64) -> contracts::value::Value {
+    contracts::value::Value::from(&Value::Number(value))
 }
 
-fn text(value: &str) -> v1::Value {
-    v1::Value {
-        kind: Some(v1::value::Kind::TextValue(value.to_owned())),
-    }
+fn text(value: &str) -> contracts::value::Value {
+    contracts::value::Value::from(&Value::Text(value.to_owned()))
 }
 
-fn boolean(value: bool) -> v1::Value {
-    v1::Value {
-        kind: Some(v1::value::Kind::BoolValue(value)),
-    }
+fn boolean(value: bool) -> contracts::value::Value {
+    contracts::value::Value::from(&Value::Bool(value))
 }
 
 fn selection(
     suite_id: &str,
     template_id: &str,
-    parameters: impl IntoIterator<Item = (&'static str, v1::Value)>,
-) -> v1::SelectionPlan {
-    v1::SelectionPlan {
-        selections: vec![v1::RegisteredSelection {
+    parameters: impl IntoIterator<Item = (&'static str, contracts::value::Value)>,
+) -> contracts::planning::SelectionPlan {
+    contracts::planning::SelectionPlan {
+        selections: vec![contracts::planning::RegisteredSelection {
             suite_id: suite_id.to_owned(),
             template_id: template_id.to_owned(),
             parameters: parameters
                 .into_iter()
-                .map(|(name, value)| {
-                    (
-                        name.to_owned(),
-                        v1::SelectionValues {
+                .map(
+                    |(name, value)| contracts::planning::RegisteredSelectionParametersEntry {
+                        key: name.to_owned(),
+                        value: Some(contracts::planning::SelectionValues {
                             values: vec![value],
-                        },
-                    )
-                })
-                .collect::<HashMap<_, _>>(),
-            files: HashMap::new(),
+                        }),
+                    },
+                )
+                .collect(),
+            files: vec![],
         }],
         max_cases: 0,
         case_ids: vec![],
     }
 }
 
-fn scope(cycle_id: &str, execution_id: &str) -> v1::EvidenceScope {
-    v1::EvidenceScope {
+fn scope(cycle_id: &str, execution_id: &str) -> contracts::common::EvidenceScope {
+    contracts::common::EvidenceScope {
         cycle_id: Some(cycle_id.to_owned()),
         execution_id: Some(execution_id.to_owned()),
         ..Default::default()
     }
 }
 
-async fn suite(
-    catalog: &mut v1::catalog_client::CatalogClient<Channel>,
-    suite_id: &str,
-) -> v1::SuiteDefinition {
+async fn suite(catalog: &mut Client, suite_id: &str) -> contracts::catalog::SuiteDefinition {
     catalog
-        .get_suite(v1::GetSuiteRequest {
+        .catalog_get_suite(contracts::catalog::GetSuiteRequest {
             suite_id: suite_id.to_owned(),
         })
         .await
         .unwrap()
-        .into_inner()
 }
 
 async fn create_cycle(
-    planning: &mut v1::planning_client::PlanningClient<Channel>,
-    execution: &mut v1::execution_client::ExecutionClient<Channel>,
-    plan: v1::SelectionPlan,
+    planning: &mut Client,
+    execution: &mut Client,
+    plan: contracts::planning::SelectionPlan,
     identifier: &str,
 ) -> String {
     let preview = planning
-        .preview_selection(v1::PreviewSelectionRequest {
+        .planning_preview_selection(contracts::planning::PreviewSelectionRequest {
             plan: Some(plan.clone()),
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert_eq!(preview.cases.len(), 1);
     execution
-        .create_cycle(v1::CreateCycleRequest {
+        .execution_create_cycle(contracts::execution::CreateCycleRequest {
             plan: Some(plan),
-            metadata: Some(v1::Metadata {
+            metadata: Some(contracts::common::Metadata {
                 identifier: identifier.to_owned(),
                 label: identifier.to_owned(),
                 description: None,
@@ -288,39 +284,36 @@ async fn create_cycle(
         })
         .await
         .unwrap()
-        .into_inner()
         .cycle_id
 }
 
-async fn run_cycle(execution: &mut v1::execution_client::ExecutionClient<Channel>, cycle_id: &str) {
+async fn run_cycle(execution: &mut Client, cycle_id: &str) {
     let reply = execution
-        .run_cycle(v1::RunCycleRequest {
+        .execution_run_cycle(contracts::execution::RunCycleRequest {
             cycle_id: cycle_id.to_owned(),
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(matches!(
         reply.outcome,
-        Some(v1::run_reply::Outcome::Accepted(_))
+        Some(contracts::execution::RunReplyOutcome::Accepted(_))
     ));
 }
 
 async fn wait_prompt(
-    prompts: &mut v1::prompts_client::PromptsClient<Channel>,
+    prompts: &mut Client,
     cycle_id: &str,
-) -> v1::PendingPromptIdentity {
+) -> contracts::prompts::PendingPromptIdentity {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         let page = prompts
-            .list_pending(v1::ListPendingPromptsRequest {
+            .prompts_list_pending(contracts::prompts::ListPendingPromptsRequest {
                 cycle_id: Some(cycle_id.to_owned()),
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         if let Some(prompt) = page.prompts.into_iter().next() {
             return prompt;
         }
@@ -330,27 +323,28 @@ async fn wait_prompt(
 }
 
 async fn wait_completed(
-    execution: &mut v1::execution_client::ExecutionClient<Channel>,
+    execution: &mut Client,
     cycle_id: &str,
-) -> v1::CycleSummary {
+) -> contracts::execution::CycleSummary {
     let deadline = Instant::now() + Duration::from_secs(40);
     loop {
         let cycle = execution
-            .get_cycle(v1::GetCycleRequest {
+            .execution_get_cycle(contracts::execution::GetCycleRequest {
                 cycle_id: cycle_id.to_owned(),
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         if matches!(
-            cycle.status(),
-            v1::CycleStatus::Completed | v1::CycleStatus::Failed | v1::CycleStatus::Stopped
+            cycle.status,
+            contracts::execution::CycleStatus::Completed
+                | contracts::execution::CycleStatus::Failed
+                | contracts::execution::CycleStatus::Stopped
         ) {
             return cycle;
         }
         if Instant::now() >= deadline {
             let executions = execution
-                .list_executions(v1::ListExecutionsRequest {
+                .execution_list_executions(contracts::execution::ListExecutionsRequest {
                     cycle_id: cycle_id.to_owned(),
                     ..Default::default()
                 })
@@ -361,20 +355,16 @@ async fn wait_completed(
     }
 }
 
-async fn execution_id(
-    execution: &mut v1::execution_client::ExecutionClient<Channel>,
-    cycle_id: &str,
-) -> String {
+async fn execution_id(execution: &mut Client, cycle_id: &str) -> String {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let page = execution
-            .list_executions(v1::ListExecutionsRequest {
+            .execution_list_executions(contracts::execution::ListExecutionsRequest {
                 cycle_id: cycle_id.to_owned(),
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         if let Some(item) = page.executions.into_iter().next() {
             return item.execution_id;
         }
@@ -387,12 +377,12 @@ async fn execution_id(
 }
 
 async fn read_file(
-    content: &mut v1::content_client::ContentClient<Channel>,
+    content: &mut Client,
     execution_id: &str,
     relative_path: &str,
-) -> v1::ExecutionFileWindow {
+) -> contracts::content::ExecutionFileWindow {
     content
-        .read_execution_file(v1::ReadExecutionFileRequest {
+        .content_read_execution_file(contracts::content::ReadExecutionFileRequest {
             execution_id: execution_id.to_owned(),
             relative_path: relative_path.to_owned(),
             offset: 0,
@@ -400,40 +390,39 @@ async fn read_file(
         })
         .await
         .unwrap()
-        .into_inner()
 }
 
 async fn list_file(
-    content: &mut v1::content_client::ContentClient<Channel>,
+    content: &mut Client,
     execution_id: &str,
     relative_path: &str,
-) -> v1::ExecutionFileMetadata {
+) -> contracts::content::ExecutionFileMetadata {
     let page = content
-        .list_execution_files(v1::ListExecutionFilesRequest {
+        .content_list_execution_files(contracts::content::ListExecutionFilesRequest {
             execution_id: execution_id.to_owned(),
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     page.files
         .into_iter()
         .find(|file| file.relative_path == relative_path)
         .unwrap_or_else(|| panic!("execution file {relative_path} was not present"))
 }
 
-fn value_object(fields: impl IntoIterator<Item = (&'static str, v1::Value)>) -> v1::ValueObject {
-    v1::ValueObject {
-        fields: fields
-            .into_iter()
-            .map(|(key, value)| (key.to_owned(), value))
-            .collect(),
-    }
+fn value_object(
+    fields: impl IntoIterator<Item = (&'static str, contracts::value::Value)>,
+) -> contracts::value::Value {
+    let values = fields
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value.to_core().unwrap()))
+        .collect();
+    contracts::value::Value::from(&Value::Object(values))
 }
 
 async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
     let hub = NativeHub::start().await;
-    let mut catalog = v1::catalog_client::CatalogClient::new(hub.connection.clone());
+    let mut catalog = hub.connection.clone();
     let startup = suite(&mut catalog, STARTUP_SUITE).await;
     let template = startup
         .templates
@@ -445,7 +434,7 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
                 .is_some_and(|metadata| metadata.identifier == STARTUP_TEMPLATE)
         })
         .unwrap_or_else(|| panic!("startup template is registered: {:?}", startup.templates));
-    let mut planning = v1::planning_client::PlanningClient::new(hub.connection.clone());
+    let mut planning = hub.connection.clone();
     let plan = selection(
         STARTUP_SUITE,
         &template.template_id,
@@ -456,7 +445,7 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
             ("realtime", boolean(true)),
         ],
     );
-    let mut execution = v1::execution_client::ExecutionClient::new(hub.connection.clone());
+    let mut execution = hub.connection.clone();
     let cycle_id = create_cycle(
         &mut planning,
         &mut execution,
@@ -466,7 +455,7 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
     .await;
     run_cycle(&mut execution, &cycle_id).await;
 
-    let mut prompts = v1::prompts_client::PromptsClient::new(hub.connection.clone());
+    let mut prompts = hub.connection.clone();
     let pending = wait_prompt(&mut prompts, &cycle_id).await;
     assert_eq!(
         pending
@@ -479,11 +468,13 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
     let prompt_scope = pending.scope.expect("prompt scope");
     let execution_id = prompt_scope.execution_id.clone().expect("execution scope");
 
-    let mut content = v1::content_client::ContentClient::new(hub.connection.clone());
+    let mut content = hub.connection.clone();
     let running_log = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-            if file.state() == v1::ExecutionFileState::Streaming && file.size_bytes > 0 {
+            if file.state == contracts::content::ExecutionFileState::Streaming
+                && file.size_bytes > 0
+            {
                 let window = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
                 let text = String::from_utf8_lossy(&window.data).into_owned();
                 if text.contains("record=started") && text.contains("record=prompt_requested") {
@@ -499,7 +490,7 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
     assert!(running_log.contains("record=prompt_requested"));
 
     prompts
-        .respond(v1::RespondToPromptRequest {
+        .prompts_respond(contracts::prompts::RespondToPromptRequest {
             prompt_id: pending.prompt_id,
             action: "submit".into(),
             values: Some(value_object([
@@ -513,18 +504,17 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
         .unwrap();
 
     let cycle = wait_completed(&mut execution, &cycle_id).await;
-    assert_eq!(cycle.status(), v1::CycleStatus::Completed);
-    let mut telemetry = v1::telemetry_client::TelemetryClient::new(hub.connection.clone());
+    assert_eq!(cycle.status, contracts::execution::CycleStatus::Completed);
+    let telemetry = hub.connection.clone();
     let telemetry = telemetry
-        .list_samples(v1::ListTelemetrySamplesRequest {
+        .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
             streams: vec![STARTUP_SAMPLES.into()],
             scope: Some(scope(&cycle_id, &execution_id)),
             limit: 100,
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(telemetry.complete);
     assert_eq!(telemetry.samples.len() as u64, STARTUP_SAMPLE_COUNT);
     assert_eq!(
@@ -537,8 +527,11 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
     );
 
     let file = list_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
-    assert_eq!(file.kind(), v1::ExecutionFileKind::Text);
-    assert_eq!(file.state(), v1::ExecutionFileState::Finalized);
+    assert_eq!(file.kind, contracts::content::ExecutionFileKind::Text);
+    assert_eq!(
+        file.state,
+        contracts::content::ExecutionFileState::Finalized
+    );
     let final_log = read_file(&mut content, &execution_id, STARTUP_STREAM_LOG).await;
     let final_text = String::from_utf8_lossy(&final_log.data);
     assert!(final_text.contains("record=prompt_answered action=continue accepted=true"));
@@ -548,7 +541,7 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
 
 async fn sidecar_execution_streams_evidence_through_native_grpc() {
     let hub = NativeHub::start().await;
-    let mut catalog = v1::catalog_client::CatalogClient::new(hub.connection.clone());
+    let mut catalog = hub.connection.clone();
     let steady = suite(&mut catalog, STEADY_SUITE).await;
     let template = steady
         .templates
@@ -560,7 +553,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
                 .is_some_and(|metadata| metadata.identifier == STEADY_TEMPLATE)
         })
         .expect("steady template is registered");
-    let mut planning = v1::planning_client::PlanningClient::new(hub.connection.clone());
+    let mut planning = hub.connection.clone();
     let plan = selection(
         STEADY_SUITE,
         &template.template_id,
@@ -572,7 +565,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
             ("sample_interval_s", number(0.1)),
         ],
     );
-    let mut execution = v1::execution_client::ExecutionClient::new(hub.connection.clone());
+    let mut execution = hub.connection.clone();
     let cycle_id = create_cycle(&mut planning, &mut execution, plan, "native.charger.steady").await;
     run_cycle(&mut execution, &cycle_id).await;
     let execution_id = execution_id(&mut execution, &cycle_id).await;
@@ -581,11 +574,11 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     // The sidecar observer runs independently of the prompt step. A non-empty
     // execution-scoped page proves that evidence is visible while the run is
     // still live, before the prompt is answered or the report is finalized.
-    let mut telemetry = v1::telemetry_client::TelemetryClient::new(hub.connection.clone());
+    let telemetry = hub.connection.clone();
     let live_deadline = Instant::now() + Duration::from_secs(10);
     let live_samples = loop {
         let page = telemetry
-            .list_samples(v1::ListTelemetrySamplesRequest {
+            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
                 streams: vec![STEADY_SAMPLES.into()],
                 scope: Some(execution_scope.clone()),
                 // Headroom, not a count: the stream measures at its declared
@@ -595,8 +588,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         if !page.samples.is_empty() {
             break page;
         }
@@ -608,7 +600,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     };
     assert!(live_samples.samples.len() < STEADY_SAMPLE_COUNT as usize);
 
-    let mut prompts = v1::prompts_client::PromptsClient::new(hub.connection.clone());
+    let mut prompts = hub.connection.clone();
     let pending = wait_prompt(&mut prompts, &cycle_id).await;
     let definition = pending.definition.as_ref().expect("prompt definition");
     assert_eq!(definition.prompt_type, STEADY_PROMPT);
@@ -624,15 +616,14 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     let host_deadline = Instant::now() + Duration::from_secs(10);
     loop {
         let page = telemetry
-            .list_samples(v1::ListTelemetrySamplesRequest {
+            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
                 streams: vec![STEADY_HOST_SYSTEM.into()],
                 scope: Some(execution_scope.clone()),
                 limit: 10,
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         if page.samples.len() >= 2 {
             break;
         }
@@ -644,7 +635,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     }
 
     prompts
-        .respond(v1::RespondToPromptRequest {
+        .prompts_respond(contracts::prompts::RespondToPromptRequest {
             prompt_id: pending.prompt_id,
             action: "submit".into(),
             values: Some(value_object([
@@ -658,43 +649,43 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
         .unwrap();
 
     let cycle = wait_completed(&mut execution, &cycle_id).await;
-    assert_eq!(cycle.status(), v1::CycleStatus::Completed);
+    assert_eq!(cycle.status, contracts::execution::CycleStatus::Completed);
     let summary = execution
-        .list_executions(v1::ListExecutionsRequest {
+        .execution_list_executions(contracts::execution::ListExecutionsRequest {
             cycle_id: cycle_id.clone(),
             ..Default::default()
         })
         .await
         .unwrap()
-        .into_inner()
         .executions
         .into_iter()
         .next()
         .expect("steady execution summary");
     assert_eq!(summary.execution_id, execution_id);
-    assert_eq!(summary.status(), v1::ExecutionStatus::Passed);
+    assert_eq!(
+        summary.status,
+        contracts::execution::ExecutionStatus::Passed
+    );
 
     let steps = execution
-        .list_execution_steps(v1::ListExecutionStepsRequest {
+        .execution_list_execution_steps(contracts::execution::ListExecutionStepsRequest {
             execution_id: execution_id.clone(),
             ..Default::default()
         })
         .await
         .unwrap()
-        .into_inner()
         .steps;
     let mut criteria = Vec::new();
     for step in steps {
         criteria.extend(
             execution
-                .list_step_criteria(v1::ListStepEvidenceRequest {
+                .execution_list_step_criteria(contracts::execution::ListStepEvidenceRequest {
                     execution_id: execution_id.clone(),
                     step_id: step.step_id,
                     ..Default::default()
                 })
                 .await
                 .unwrap()
-                .into_inner()
                 .criteria,
         );
     }
@@ -707,19 +698,25 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
                 .is_some_and(|metadata| metadata.identifier == STEADY_ACCEPTANCE)
         })
         .expect("steady acceptance criterion is present");
-    assert_eq!(acceptance.status(), v1::CriterionStatus::Passed);
+    assert_eq!(
+        acceptance.status,
+        contracts::execution::CriterionStatus::Passed
+    );
     assert_eq!(
         acceptance
             .observed
             .as_ref()
-            .and_then(|value| value.kind.as_ref()),
-        Some(&v1::value::Kind::TextValue("passed".into()))
+            .map(|value| value.to_core().unwrap()),
+        Some(Value::Text("passed".into()))
     );
 
-    let mut content = v1::content_client::ContentClient::new(hub.connection.clone());
+    let mut content = hub.connection.clone();
     let stream_log = list_file(&mut content, &execution_id, STEADY_STREAM_LOG).await;
-    assert_eq!(stream_log.kind(), v1::ExecutionFileKind::Text);
-    assert_eq!(stream_log.state(), v1::ExecutionFileState::Finalized);
+    assert_eq!(stream_log.kind, contracts::content::ExecutionFileKind::Text);
+    assert_eq!(
+        stream_log.state,
+        contracts::content::ExecutionFileState::Finalized
+    );
     let log = read_file(&mut content, &execution_id, STEADY_STREAM_LOG).await;
     let log = String::from_utf8_lossy(&log.data);
     assert!(log.contains("record=sidecar_started"));
@@ -728,15 +725,14 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
 
     // What the template stated about the DUT before its first step, read back
     // through the typed query an operator's Traceability card reads.
-    let mut observation = v1::observation_client::ObservationClient::new(hub.connection.clone());
+    let observation = hub.connection.clone();
     let traceability = observation
-        .get_traceability(v1::GetTraceabilityRequest {
+        .observation_get_traceability(contracts::observation::GetTraceabilityRequest {
             scope: Some(execution_scope.clone()),
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let dut = traceability
         .snapshots
         .iter()
@@ -770,7 +766,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     );
 
     let final_samples = telemetry
-        .list_samples(v1::ListTelemetrySamplesRequest {
+        .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
             streams: vec![STEADY_SAMPLES.into()],
             scope: Some(execution_scope.clone()),
             // Headroom, not a count: the stream measures at its declared
@@ -780,8 +776,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(final_samples.complete);
     assert!(final_samples.samples.len() >= STEADY_SAMPLE_COUNT as usize);
     assert!(final_samples.samples.iter().all(|sample| {
@@ -795,15 +790,14 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     // The stream the measuring step pushes into: declared by its row type, with
     // nothing measuring it, and written by hand around the wait on the observer.
     let events = telemetry
-        .list_samples(v1::ListTelemetrySamplesRequest {
+        .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
             streams: vec![STEADY_EVENTS.into()],
             scope: Some(execution_scope.clone()),
             limit: 100,
             ..Default::default()
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert_eq!(
         events
             .samples
@@ -830,15 +824,14 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     let mut host_instants: BTreeMap<&str, Vec<_>> = BTreeMap::new();
     for stream in HOST_STREAMS {
         let page = telemetry
-            .list_samples(v1::ListTelemetrySamplesRequest {
+            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
                 streams: vec![(*stream).into()],
                 scope: Some(execution_scope.clone()),
                 limit: 500,
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_inner();
+            .unwrap();
         for sample in page.samples {
             host_instants
                 .entry(*stream)
@@ -854,7 +847,12 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     // CPU observations recur while other streams collect independently.
     let ticks = host_instants
         .get(HOST_FAST_STREAM)
-        .map(|instants| instants.iter().cloned().collect::<HashSet<_>>())
+        .map(|instants| {
+            instants
+                .iter()
+                .map(|at| (at.seconds, at.nanos))
+                .collect::<HashSet<_>>()
+        })
         .unwrap_or_default();
     assert!(
         ticks.len() >= 2,
@@ -871,7 +869,7 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     let started = cycle.started_at.as_ref().expect("cycle started");
     let finished = cycle.updated_at.as_ref().expect("cycle completed");
     // The lake stores microseconds while lifecycle timestamps retain nanoseconds.
-    let micros = |at: &prost_types::Timestamp| {
+    let micros = |at: &contracts::common::Timestamp| {
         i128::from(at.seconds) * 1_000_000 + i128::from(at.nanos) / 1_000
     };
     for (stream, instants) in &host_instants {
@@ -883,24 +881,23 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
         }
     }
 
-    let mut documents = v1::documents_client::DocumentsClient::new(hub.connection.clone());
-    let mut stream = documents
-        .capture_current_document(v1::CaptureCurrentDocumentRequest {
-            scope: Some(v1::DocumentScope {
+    let documents = hub.connection.clone();
+    let stream = documents
+        .documents_capture_current_document(contracts::documents::CaptureCurrentDocumentRequest {
+            scope: Some(contracts::documents::DocumentScope {
                 cycle_id: cycle_id.clone(),
                 execution_id: execution_id.clone(),
             }),
             document_id: "default".into(),
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let mut plot_found = false;
     let mut document_complete = false;
     while let Some(frame) = stream.message().await.unwrap() {
         match frame.frame {
-            Some(v1::document_frame::Frame::Card(card)) => {
-                if let Some(v1::document_card::Body::Owner(reference)) = card.body
+            Some(contracts::documents::DocumentFrameFrame::Card(card)) => {
+                if let Some(contracts::documents::DocumentCardBody::Owner(reference)) = card.body
                     && reference.plot_id.as_deref()
                         == Some("mini.charger.steady.measurement.execution.signals")
                 {
@@ -918,15 +915,17 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
                     assert!(request.y_expressions.iter().any(|expression| {
                         matches!(
                             expression.source,
-                            Some(v1::data_expression::Source::Telemetry(
-                                v1::TelemetryDataSource { ref stream, ref field }
+                            Some(contracts::plots::DataExpressionSource::Telemetry(
+                                contracts::plots::TelemetryDataSource { ref stream, ref field }
                             )) if stream == STEADY_SAMPLES && field == "voltage_v"
                         )
                     }));
                     plot_found = true;
                 }
             }
-            Some(v1::document_frame::Frame::Completion(_)) => document_complete = true,
+            Some(contracts::documents::DocumentFrameFrame::Completion(_)) => {
+                document_complete = true
+            }
             _ => {}
         }
     }
@@ -936,10 +935,10 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
     );
     assert!(document_complete, "document stream has a completion frame");
 
-    let mut evidence = v1::evidence_client::EvidenceClient::new(hub.connection.clone());
+    let evidence = hub.connection.clone();
     let records = evidence
-        .list_records(v1::ListRecordsRequest {
-            selection: Some(v1::CapturedRecordSelection {
+        .evidence_list_records(contracts::evidence::ListRecordsRequest {
+            selection: Some(contracts::evidence::CapturedRecordSelection {
                 scope: Some(execution_scope.clone()),
                 ..Default::default()
             }),
@@ -947,7 +946,6 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
         })
         .await
         .unwrap()
-        .into_inner()
         .records;
     for record_type in [
         "mini.charger.steady.started",
@@ -979,38 +977,38 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
         .clone()
         .expect("artifact.created carries its artifact ID");
     let details = artifact_created.details.as_ref().expect("artifact details");
-    assert_eq!(
-        details.fields["artifact_id"].kind,
-        Some(v1::value::Kind::TextValue(artifact_id.clone()))
-    );
-    assert_eq!(
-        details.fields["filename"].kind,
-        Some(v1::value::Kind::TextValue(STEADY_SUMMARY.into()))
-    );
+    let Value::Object(details) = details.to_core().unwrap() else {
+        panic!("artifact details must be an object");
+    };
+    assert_eq!(details["artifact_id"], Value::Text(artifact_id.clone()));
+    assert_eq!(details["filename"], Value::Text(STEADY_SUMMARY.into()));
 
-    let mut artifact_stream = content
-        .download_artifact(v1::DownloadArtifactRequest { artifact_id })
+    let artifact_stream = content
+        .content_download_artifact(contracts::content::DownloadArtifactRequest { artifact_id })
         .await
-        .unwrap()
-        .into_inner();
-    let Some(v1::artifact_frame::Payload::Metadata(metadata)) =
+        .unwrap();
+    let Some(contracts::content::ArtifactFramePayload::Metadata(metadata)) =
         artifact_stream.message().await.unwrap().unwrap().payload
     else {
         panic!("an artifact download opens with its metadata");
     };
     assert_eq!(metadata.filename, STEADY_SUMMARY);
     assert_eq!(metadata.content_type.as_deref(), Some("application/json"));
-    assert_eq!(metadata.state(), v1::ArtifactState::Complete);
+    assert_eq!(metadata.state, contracts::content::ArtifactState::Complete);
     let mut artifact_bytes = Vec::new();
     let mut artifact_complete = false;
     while let Some(frame) = artifact_stream.message().await.unwrap() {
         match frame.payload.unwrap() {
-            v1::artifact_frame::Payload::Chunk(chunk) => artifact_bytes.extend(chunk.data),
-            v1::artifact_frame::Payload::Complete(completion) => {
+            contracts::content::ArtifactFramePayload::Chunk(chunk) => {
+                artifact_bytes.extend(chunk.data)
+            }
+            contracts::content::ArtifactFramePayload::Complete(completion) => {
                 assert_eq!(completion.size_bytes, metadata.size_bytes);
                 artifact_complete = true;
             }
-            v1::artifact_frame::Payload::Metadata(_) => panic!("artifact metadata repeated"),
+            contracts::content::ArtifactFramePayload::Metadata(_) => {
+                panic!("artifact metadata repeated")
+            }
         }
     }
     assert!(artifact_complete);
@@ -1038,12 +1036,11 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
             .label;
     let hub = NativeHub::start_with_brand(true).await;
 
-    let mut plugins = v1::plugins_client::PluginsClient::new(hub.connection.clone());
+    let plugins = hub.connection.clone();
     let installed = plugins
-        .list_admitted_plugins(v1::ListAdmittedPluginsRequest::default())
+        .plugins_list_admitted_plugins(contracts::plugins::ListAdmittedPluginsRequest::default())
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert_eq!(installed.total_count, 3);
     let artifact_ids = installed
         .plugins
@@ -1056,12 +1053,11 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
     );
     assert!(installed.plugins.iter().all(|artifact| artifact.enabled));
 
-    let mut settings = v1::settings_client::SettingsClient::new(hub.connection.clone());
+    let settings = hub.connection.clone();
     let frame = settings
-        .get_settings(v1::GetSettingsRequest::default())
+        .settings_get_settings(contracts::settings::GetSettingsRequest::default())
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     for section_id in ["identity", "route-fixture"] {
         assert!(
             frame
@@ -1080,22 +1076,25 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
         .iter()
         .find(|card| card.plugin_id == artifact_id && card.card_id == card_id)
         .unwrap_or_else(|| panic!("settings card {card_id} is missing"));
-    assert_eq!(card.state(), v1::SettingsCardState::Disconnected);
+    assert_eq!(
+        card.state,
+        contracts::settings::SettingsCardState::Disconnected
+    );
     assert!(card.body.as_ref().is_some_and(|body| {
         body.blocks.iter().any(|block| {
             matches!(
                 block.kind,
-                Some(v1::host_card_block::Kind::Status(v1::HostCardStatus {
+                Some(contracts::settings::HostCardBlockKind::Status(contracts::settings::HostCardStatus {
                     ref label,
                     tone,
                     ..
-                })) if label == "Disconnected" && tone == v1::HostCardTone::Warning as i32
+                })) if label == "Disconnected" && tone == contracts::settings::HostCardTone::Warning
             )
         })
     }));
 
     settings
-        .update_plugin_credential(v1::UpdatePluginCredentialRequest {
+        .settings_update_plugin_credential(contracts::settings::UpdatePluginCredentialRequest {
             plugin_id: "route-fixture".into(),
             credential_id: "token".into(),
             secret: "native-fixture-token".into(),
@@ -1103,12 +1102,11 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
         .await
         .unwrap();
 
-    let mut appearance = v1::appearance_client::AppearanceClient::new(hub.connection.clone());
+    let appearance = hub.connection.clone();
     let appearance = appearance
-        .get_appearance(v1::GetAppearanceRequest::default())
+        .appearance_get_appearance(contracts::appearance::GetAppearanceRequest::default())
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert_eq!(appearance.app_name, "Dokime");
     assert_eq!(appearance.source_plugin_id.as_deref(), Some("brand"));
     assert_eq!(appearance.active_theme.as_deref(), Some("brand.theme"));
@@ -1124,29 +1122,30 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
     assert_eq!(logo_reference.asset_id, "brand.logo");
     assert!(!logo_reference.sha256.is_empty());
 
-    let mut content = v1::content_client::ContentClient::new(hub.connection.clone());
-    let mut logo_stream = content
-        .download_appearance_asset(v1::DownloadAppearanceAssetRequest {
+    let content = hub.connection.clone();
+    let logo_stream = content
+        .content_download_appearance_asset(contracts::content::DownloadAppearanceAssetRequest {
             reference: Some(logo_reference.clone()),
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     assert!(matches!(
         logo_stream.message().await.unwrap().unwrap().payload,
-        Some(v1::appearance_asset_frame::Payload::Metadata(_))
+        Some(contracts::content::AppearanceAssetFramePayload::Metadata(_))
     ));
     let mut logo_bytes = Vec::new();
     let mut logo_complete = false;
     while let Some(frame) = logo_stream.message().await.unwrap() {
         match frame.payload.unwrap() {
-            v1::appearance_asset_frame::Payload::Chunk(chunk) => logo_bytes.extend(chunk.data),
-            v1::appearance_asset_frame::Payload::Complete(completion) => {
+            contracts::content::AppearanceAssetFramePayload::Chunk(chunk) => {
+                logo_bytes.extend(chunk.data)
+            }
+            contracts::content::AppearanceAssetFramePayload::Complete(completion) => {
                 assert_eq!(completion.size_bytes, logo_metadata.size_bytes);
                 assert_eq!(completion.sha256, logo_reference.sha256);
                 logo_complete = true;
             }
-            v1::appearance_asset_frame::Payload::Metadata(_) => {
+            contracts::content::AppearanceAssetFramePayload::Metadata(_) => {
                 panic!("appearance metadata repeated")
             }
         }
@@ -1161,19 +1160,18 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
         logo_reference.sha256
     );
 
-    let mut backend = v1::backend_client::BackendClient::new(hub.connection.clone());
+    let backend = hub.connection.clone();
     let diagnostics = backend
-        .get_diagnostics(v1::GetDiagnosticsRequest::default())
+        .backend_get_diagnostics(contracts::backend::GetDiagnosticsRequest::default())
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let runtime = diagnostics.runtime.expect("runtime diagnostics");
     assert_eq!(
-        runtime.startup_doctor.expect("startup doctor").status(),
-        v1::DiagnosticCheckStatus::Ok
+        runtime.startup_doctor.expect("startup doctor").status,
+        contracts::backend::DiagnosticCheckStatus::Ok
     );
     assert!(runtime.path_conventions.iter().any(|path| {
-        path.key() == v1::DiagnosticPathKey::HubLog && path.absolute_path.is_some()
+        path.key == contracts::backend::DiagnosticPathKey::HubLog && path.absolute_path.is_some()
     }));
     assert_eq!(
         runtime
@@ -1188,7 +1186,7 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
 
 async fn plot_watch_pushes_live_deltas_near_ten_hz() {
     let hub = NativeHub::start().await;
-    let mut catalog = v1::catalog_client::CatalogClient::new(hub.connection.clone());
+    let mut catalog = hub.connection.clone();
     let startup = suite(&mut catalog, STARTUP_SUITE).await;
     let template = startup
         .templates
@@ -1200,7 +1198,7 @@ async fn plot_watch_pushes_live_deltas_near_ten_hz() {
                 .is_some_and(|metadata| metadata.identifier == STARTUP_TEMPLATE)
         })
         .expect("startup template is registered");
-    let mut planning = v1::planning_client::PlanningClient::new(hub.connection.clone());
+    let mut planning = hub.connection.clone();
     let plan = selection(
         STARTUP_SUITE,
         &template.template_id,
@@ -1211,7 +1209,7 @@ async fn plot_watch_pushes_live_deltas_near_ten_hz() {
             ("realtime", boolean(true)),
         ],
     );
-    let mut execution = v1::execution_client::ExecutionClient::new(hub.connection.clone());
+    let mut execution = hub.connection.clone();
     let cycle_id = create_cycle(
         &mut planning,
         &mut execution,
@@ -1225,10 +1223,10 @@ async fn plot_watch_pushes_live_deltas_near_ten_hz() {
     let prompt_channel = hub.connection.clone();
     let prompt_cycle = cycle_id.clone();
     let prompt_task = tokio::spawn(async move {
-        let mut prompts = v1::prompts_client::PromptsClient::new(prompt_channel);
+        let mut prompts = prompt_channel;
         let pending = wait_prompt(&mut prompts, &prompt_cycle).await;
         prompts
-            .respond(v1::RespondToPromptRequest {
+            .prompts_respond(contracts::prompts::RespondToPromptRequest {
                 prompt_id: pending.prompt_id,
                 action: "submit".into(),
                 values: Some(value_object([
@@ -1242,22 +1240,40 @@ async fn plot_watch_pushes_live_deltas_near_ten_hz() {
             .unwrap();
     });
 
-    let mut plots = v1::plots_client::PlotsClient::new(hub.connection.clone());
-    let mut stream = plots
-        .watch(v1::PlotWatchRequest {
-            requests: vec![v1::PlotRequest {
+    let plots = hub.connection.clone();
+    let stream = plots
+        .plots_watch(contracts::plots::PlotWatchRequest {
+            requests: vec![contracts::plots::PlotRequest {
                 plot_id: Some("mini.charger.primary".into()),
-                plot_type: v1::PlotType::TimeSeries as i32,
+                plot_type: contracts::plots::PlotType::TimeSeries,
+                x_scale: contracts::plots::AxisScale::Unspecified,
+                y_scale: contracts::plots::AxisScale::Unspecified,
                 stream: STARTUP_SAMPLES.into(),
                 y_keys: vec!["voltage_v".into()],
+                marker_record_types: vec![],
+                filters: vec![],
                 x_key: Some("timestamp".into()),
+                series_by: None,
+                x_expression: None,
+                y_expressions: vec![],
+                series_by_expression: None,
+                z_stream: None,
+                z_field: None,
+                unit: None,
+                max_points: None,
+                window_s: None,
                 scope: Some(scope(&cycle_id, &execution_id)),
-                ..Default::default()
+                cursor: None,
+                technique: contracts::plots::DownsampleTechnique::Unspecified,
+                z_expression: None,
+                fft: None,
+                interval: None,
+                histogram: None,
+                analysis: None,
             }],
         })
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
 
     let mut delta_times = Vec::new();
     let deadline = Instant::now() + Duration::from_secs(12);
@@ -1270,8 +1286,8 @@ async fn plot_watch_pushes_live_deltas_near_ten_hz() {
             break;
         };
         if matches!(
-            frame.kind(),
-            v1::PlotStreamKind::Append | v1::PlotStreamKind::Replace
+            frame.kind,
+            contracts::plots::PlotStreamKind::Append | contracts::plots::PlotStreamKind::Replace
         ) {
             delta_times.push(Instant::now());
         }
@@ -1279,7 +1295,7 @@ async fn plot_watch_pushes_live_deltas_near_ten_hz() {
     drop(stream);
     prompt_task.await.unwrap();
     let cycle = wait_completed(&mut execution, &cycle_id).await;
-    assert_eq!(cycle.status(), v1::CycleStatus::Completed);
+    assert_eq!(cycle.status, contracts::execution::CycleStatus::Completed);
 
     assert!(
         delta_times.len() >= 8,
@@ -1324,8 +1340,8 @@ async fn awaiting_startup(
     identifier: &str,
     budget_s: f64,
     connect: Option<&str>,
-) -> (String, v1::CycleSummary) {
-    let mut catalog = v1::catalog_client::CatalogClient::new(hub.connection.clone());
+) -> (String, contracts::execution::CycleSummary) {
+    let mut catalog = hub.connection.clone();
     let startup = suite(&mut catalog, STARTUP_SUITE).await;
     let template = startup
         .templates
@@ -1337,7 +1353,7 @@ async fn awaiting_startup(
                 .is_some_and(|metadata| metadata.identifier == STARTUP_TEMPLATE)
         })
         .expect("the startup template is registered");
-    let mut planning = v1::planning_client::PlanningClient::new(hub.connection.clone());
+    let mut planning = hub.connection.clone();
     let plan = selection(
         STARTUP_SUITE,
         &template.template_id,
@@ -1349,24 +1365,23 @@ async fn awaiting_startup(
             ("connection_budget_s", number(budget_s)),
         ],
     );
-    let mut execution = v1::execution_client::ExecutionClient::new(hub.connection.clone());
+    let mut execution = hub.connection.clone();
     let cycle_id = create_cycle(&mut planning, &mut execution, plan, identifier).await;
     run_cycle(&mut execution, &cycle_id).await;
     let execution_id = execution_id(&mut execution, &cycle_id).await;
 
     // The step logs what the bench already knew before it starts waiting, so
     // seeing that line is what says this execution is live and listening.
-    let mut content = v1::content_client::ContentClient::new(hub.connection.clone());
+    let mut content = hub.connection.clone();
     let observed = tokio::time::timeout(Duration::from_secs(20), async {
         loop {
             let present = content
-                .list_execution_files(v1::ListExecutionFilesRequest {
+                .content_list_execution_files(contracts::content::ListExecutionFilesRequest {
                     execution_id: execution_id.clone(),
                     ..Default::default()
                 })
                 .await
                 .unwrap()
-                .into_inner()
                 .files
                 .into_iter()
                 .any(|file| file.relative_path == STARTUP_STREAM_LOG && file.size_bytes > 0);
@@ -1392,10 +1407,10 @@ async fn awaiting_startup(
             .publish_record(connection(resource))
             .await
             .expect("the host publishes a builtin connection record");
-        let mut prompts = v1::prompts_client::PromptsClient::new(hub.connection.clone());
+        let mut prompts = hub.connection.clone();
         let pending = wait_prompt(&mut prompts, &cycle_id).await;
         prompts
-            .respond(v1::RespondToPromptRequest {
+            .prompts_respond(contracts::prompts::RespondToPromptRequest {
                 prompt_id: pending.prompt_id,
                 action: "submit".into(),
                 values: Some(value_object([
@@ -1422,7 +1437,11 @@ async fn step_awaits_record_listener_hears_one_from_another_execution() {
 
     // A step that waits proceeds when another party publishes what it waits for.
     let (first, cycle) = awaiting_startup(&hub, "native.records.await", 30.0, Some("unit-a")).await;
-    assert_eq!(cycle.status(), v1::CycleStatus::Completed, "{first}");
+    assert_eq!(
+        cycle.status,
+        contracts::execution::CycleStatus::Completed,
+        "{first}"
+    );
     assert!(
         first.contains("record=bench_connections count=0"),
         "the bench had been told about nothing before the first run: {first}"
@@ -1436,7 +1455,7 @@ async fn step_awaits_record_listener_hears_one_from_another_execution() {
     // the next run starts already knowing about the unit.
     let (second, cycle) =
         awaiting_startup(&hub, "native.records.listener", 30.0, Some("unit-b")).await;
-    assert_eq!(cycle.status(), v1::CycleStatus::Completed);
+    assert_eq!(cycle.status, contracts::execution::CycleStatus::Completed);
     assert!(
         second.contains("record=bench_connections count=1"),
         "a plugin listener fired for a record published during another execution: {second}"
@@ -1448,7 +1467,7 @@ async fn step_awaits_record_listener_hears_one_from_another_execution() {
 
     // And a record nobody publishes ends the step on its own budget.
     let (third, cycle) = awaiting_startup(&hub, "native.records.timeout", 0.25, None).await;
-    assert_eq!(cycle.status(), v1::CycleStatus::Failed);
+    assert_eq!(cycle.status, contracts::execution::CycleStatus::Failed);
     assert!(
         !third.contains("record=connected"),
         "no unit reported itself, so nothing was read: {third}"
@@ -1521,10 +1540,213 @@ async fn name_without_media_type_refused_row_lands_on_own_stream() {
     );
 }
 
+async fn independent_sidecar_modes() {
+    use dokime_client::dynamic::Event;
+    use dokime_server::grpc::access::{BearerGrant, OperationPermission, Role};
+
+    const OWNER: &str = "route-fixture";
+    const ALLOWED: &str = "sidecar-allowed-012345678901234567890123456789";
+    const DENIED: &str = "sidecar-unlisted-012345678901234567890123456789";
+    const CAPABILITY: &str = "sidecar-capability-012345678901234567890123456789";
+    let ids = [
+        "route-fixture.remote.unary",
+        "route-fixture.remote.download",
+        "route-fixture.remote.upload",
+        "route-fixture.remote.duplex",
+    ];
+    let permission = |id: &str| OperationPermission {
+        owner: OWNER.into(),
+        id: id.into(),
+        grants: vec![],
+    };
+    let mut conditional = permission(ids[0]);
+    conditional
+        .grants
+        .push(harmos::plugin::contract::Grant::Egress(
+            "fixture.remote.allowed".into(),
+        ));
+    let grants = vec![
+        BearerGrant::new("sidecar caller".into(), Role::Read, ALLOWED)
+            .unwrap()
+            .with_operations(ids.iter().map(|id| permission(id)).collect())
+            .unwrap(),
+        BearerGrant::new("unlisted admin".into(), Role::Admin, DENIED).unwrap(),
+        BearerGrant::new("explicit capability".into(), Role::Read, CAPABILITY)
+            .unwrap()
+            .with_operations(vec![conditional])
+            .unwrap(),
+    ];
+    let hub = NativeHub::start_with_policy(
+        false,
+        ServerConfig::local().with_bearer_auth(grants).unwrap(),
+        Some(ALLOWED),
+    )
+    .await;
+    let target = || Target::local(hub.server.local_endpoint()).unwrap();
+    let allowed = Client::connect(target(), Some(ALLOWED), None)
+        .await
+        .unwrap();
+    let denied = Client::connect(target(), Some(DENIED), None).await.unwrap();
+    let capability = Client::connect(target(), Some(CAPABILITY), None)
+        .await
+        .unwrap();
+    let catalog = allowed.operations().await.unwrap();
+    for id in ids {
+        assert!(
+            catalog.iter().any(|entry| entry.owner.as_str() == OWNER
+                && entry.contract.operation().id.as_str() == id)
+        );
+    }
+    assert!(
+        !denied
+            .operations()
+            .await
+            .unwrap()
+            .iter()
+            .any(|entry| entry.owner.as_str() == OWNER)
+    );
+    for id in ids {
+        assert!(
+            denied
+                .call_operation(id, Some(OWNER), b"{\"value\":10}", vec![])
+                .await
+                .is_err()
+        );
+    }
+    // Send A Different Protobuf Field Kind Through The Actual Listener.
+    #[harmos::message]
+    struct WrongRequest {
+        value: String,
+    }
+    #[harmos::message]
+    struct WireNumber {
+        value: u32,
+    }
+    let channel = tonic::transport::Endpoint::from_shared(hub.server.local_endpoint())
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    let mut direct = tonic::client::Grpc::new(channel);
+    direct.ready().await.unwrap();
+    let limit = std::num::NonZeroUsize::new(4096).unwrap();
+    let codec = harmos::grpc::Codec::<WireNumber, harmos::operations::Response<WrongRequest>>::new(
+        harmos::grpc::DecodeSettings {
+            message_bytes: limit,
+            retained_bytes: limit,
+        },
+        harmos::grpc::EncodeSettings {
+            message_bytes: limit,
+            buffer_bytes: limit,
+        },
+    )
+    .unwrap();
+    let mut wrong = tonic::Request::new(harmos::operations::Response::new(WrongRequest {
+        value: "wrong-schema".into(),
+    }));
+    wrong.metadata_mut().insert(
+        "authorization",
+        format!("Bearer {ALLOWED}").parse().unwrap(),
+    );
+    let refusal = direct
+        .unary(
+            wrong,
+            "/fixture.remote.v1.Provider/Unary".parse().unwrap(),
+            codec,
+        )
+        .await
+        .err()
+        .expect("independent sidecar refuses the wrong request shape");
+    assert_eq!(refusal.code(), tonic::Code::InvalidArgument);
+    // Read The Actual Sidecar Counter Through Its Unary Handler.
+    let counter = allowed
+        .call_operation(ids[0], Some(OWNER), b"{\"value\":0}", vec![])
+        .await
+        .unwrap();
+    assert!(
+        matches!(counter.message().await.unwrap(), Some(Event::Completion(value)) if value["value"] == 0)
+    );
+    assert!(counter.message().await.unwrap().is_none());
+    counter.close().await;
+    for (id, input, expected, completion) in [
+        (ids[0], false, vec![], 11),
+        (ids[1], false, vec![11, 12], 13),
+        (ids[2], true, vec![], 16),
+        (ids[3], true, vec![11, 13, 16], 16),
+    ] {
+        let inputs = if input {
+            [1, 2, 3]
+                .into_iter()
+                .map(|value| serde_json::to_vec(&serde_json::json!({"value": value})).unwrap())
+                .collect()
+        } else {
+            vec![]
+        };
+        let response = allowed
+            .call_operation(id, Some(OWNER), b"{\"value\":10}", inputs)
+            .await
+            .unwrap();
+        let mut items = Vec::new();
+        let mut finished = false;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while let Some(event) = response.message().await.unwrap() {
+                assert!(!finished, "sidecar completion is terminal");
+                match event {
+                    Event::Item(value) => items.push(value["value"].as_u64().unwrap()),
+                    Event::Completion(value) => {
+                        assert_eq!(value["value"], completion);
+                        finished = true;
+                    }
+                }
+            }
+        })
+        .await
+        .expect("independent sidecar settles within its existing policy");
+        assert_eq!(items, expected);
+        assert!(finished);
+        response.close().await;
+    }
+    assert!(
+        allowed
+            .call_operation(ids[0], Some(OWNER), b"{\"value\":20}", vec![])
+            .await
+            .is_err()
+    );
+    assert!(
+        capability
+            .call_operation(ids[0], Some(OWNER), b"{\"value\":21}", vec![])
+            .await
+            .is_err()
+    );
+    let counter = allowed
+        .call_operation(ids[0], Some(OWNER), b"{\"value\":0}", vec![])
+        .await
+        .unwrap();
+    assert!(
+        matches!(counter.message().await.unwrap(), Some(Event::Completion(value)) if value["value"] == 4)
+    );
+    assert!(counter.message().await.unwrap().is_none());
+    counter.close().await;
+    let matched = capability
+        .call_operation(ids[0], Some(OWNER), b"{\"value\":20}", vec![])
+        .await
+        .unwrap();
+    assert!(
+        matches!(matched.message().await.unwrap(), Some(Event::Completion(value)) if value["value"] == 21)
+    );
+    assert!(matched.message().await.unwrap().is_none());
+    matched.close().await;
+    allowed.close_and_wait().await;
+    denied.close_and_wait().await;
+    capability.close_and_wait().await;
+    hub.shutdown().await;
+}
+
 /* === Tests === */
 
 #[tokio::test]
 async fn native_grpc_contract() {
+    independent_sidecar_modes().await;
     charger_telemetry_query_uses_native_prompt_log_telemetry().await;
     sidecar_execution_streams_evidence_through_native_grpc().await;
     fixtures_expose_installed_settings_branding_and_diagnostics().await;

@@ -25,8 +25,8 @@ use std::{
 // Third Party Imports
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use cssparser::{
-    AtRuleParser, CowRcStr, DeclarationParser, Parser, ParserInput, ParserState,
-    QualifiedRuleParser, RuleBodyItemParser, RuleBodyParser, StyleSheetParser,
+    AtRuleParser, CowRcStr, DeclarationParser, Parser, ParserState, QualifiedRuleParser,
+    RuleBodyItemParser, RuleBodyParser, StyleSheetParser,
 };
 // Local Imports
 use dokime::domains::{ThemeCornerRadii, ThemeVariant};
@@ -132,11 +132,11 @@ impl<'i> AtRuleParser<'i> for StylesheetRuleParser {
     type AtRule = ParsedRule;
     type Error = String;
 
-    fn parse_prelude<'t>(
+    fn parse_prelude(
         &mut self,
         name: CowRcStr<'i>,
-        input: &mut Parser<'i, 't>,
-    ) -> Result<Self::Prelude, cssparser::ParseError<'i, Self::Error>> {
+        input: &mut Parser<'i>,
+    ) -> Result<Self::Prelude, cssparser::ParseError<Self::Error>> {
         while input.next_including_whitespace_and_comments().is_ok() {}
         Ok(name.eq_ignore_ascii_case("import"))
     }
@@ -153,12 +153,12 @@ impl<'i> AtRuleParser<'i> for StylesheetRuleParser {
         })
     }
 
-    fn parse_block<'t>(
+    fn parse_block(
         &mut self,
         is_import: Self::Prelude,
         _start: &ParserState,
-        input: &mut Parser<'i, 't>,
-    ) -> Result<Self::AtRule, cssparser::ParseError<'i, Self::Error>> {
+        input: &mut Parser<'i>,
+    ) -> Result<Self::AtRule, cssparser::ParseError<Self::Error>> {
         while input.next_including_whitespace_and_comments().is_ok() {}
         Ok(if is_import {
             ParsedRule::Import
@@ -173,34 +173,34 @@ impl<'i> QualifiedRuleParser<'i> for StylesheetRuleParser {
     type QualifiedRule = ParsedRule;
     type Error = String;
 
-    fn parse_prelude<'t>(
+    fn parse_prelude(
         &mut self,
-        input: &mut Parser<'i, 't>,
-    ) -> Result<Self::Prelude, cssparser::ParseError<'i, Self::Error>> {
+        input: &mut Parser<'i>,
+    ) -> Result<Self::Prelude, cssparser::ParseError<Self::Error>> {
         let start = input.position();
         while input.next_including_whitespace_and_comments().is_ok() {}
         Ok(input.slice_from(start).trim().to_owned())
     }
 
-    fn parse_block<'t>(
+    fn parse_block(
         &mut self,
         selector: Self::Prelude,
         _start: &ParserState,
-        input: &mut Parser<'i, 't>,
-    ) -> Result<Self::QualifiedRule, cssparser::ParseError<'i, Self::Error>> {
+        input: &mut Parser<'i>,
+    ) -> Result<Self::QualifiedRule, cssparser::ParseError<Self::Error>> {
         let mut declaration_parser = CustomPropertyParser;
         let mut variables = BTreeMap::new();
         for result in RuleBodyParser::new(input, &mut declaration_parser) {
             match result {
                 Ok(Some((name, value))) => {
                     if variables.insert(name.clone(), value).is_some() {
-                        return Err(
-                            input.new_custom_error(format!("duplicate custom property --{name}"))
-                        );
+                        return Err(cssparser::ParseError::custom(format!(
+                            "duplicate custom property --{name}"
+                        )));
                     }
                 }
                 Ok(None) => {}
-                Err((error, _)) => return Err(error),
+                Err((error, _, _)) => return Err(error),
             }
         }
         Ok(ParsedRule::Style {
@@ -214,12 +214,12 @@ impl<'i> DeclarationParser<'i> for CustomPropertyParser {
     type Declaration = Option<(String, String)>;
     type Error = String;
 
-    fn parse_value<'t>(
+    fn parse_value(
         &mut self,
         name: CowRcStr<'i>,
-        input: &mut Parser<'i, 't>,
+        input: &mut Parser<'i>,
         _start: &ParserState,
-    ) -> Result<Self::Declaration, cssparser::ParseError<'i, Self::Error>> {
+    ) -> Result<Self::Declaration, cssparser::ParseError<Self::Error>> {
         let start = input.position();
         while input.next_including_whitespace_and_comments().is_ok() {}
         let value = input.slice_from(start).trim().to_owned();
@@ -228,7 +228,9 @@ impl<'i> DeclarationParser<'i> for CustomPropertyParser {
         }
         let name = name.trim_start_matches("--").to_owned();
         if value.is_empty() || value.to_ascii_lowercase().ends_with("!important") {
-            return Err(input.new_custom_error(format!("invalid custom property --{name}")));
+            return Err(cssparser::ParseError::custom(format!(
+                "invalid custom property --{name}"
+            )));
         }
         Ok(Some((name, value)))
     }
@@ -512,12 +514,11 @@ fn render_corner_radii(output: &mut String, radii: &ThemeCornerRadii) {
 }
 
 fn parse_stylesheet(file: &'static str, source: &str) -> Result<Vec<ParsedRule>, Error> {
-    let mut input = ParserInput::new(source);
-    let mut parser = Parser::new(&mut input);
+    let mut parser = Parser::new(source);
     let mut rule_parser = StylesheetRuleParser;
     StyleSheetParser::new(&mut parser, &mut rule_parser)
         .map(|result| {
-            result.map_err(|(error, near)| Error::Parse {
+            result.map_err(|(error, near, _)| Error::Parse {
                 file,
                 near: near.chars().take(120).collect(),
                 message: error.to_string(),

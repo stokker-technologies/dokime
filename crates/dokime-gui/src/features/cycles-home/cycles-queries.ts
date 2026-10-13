@@ -19,12 +19,11 @@ import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
 import { listNativeCycles, type NativeCycleSelection } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
-import {
-  CycleOrderKey,
-  CycleStatus,
-  type CycleSummary,
-} from "@/lib/rpc/generated/dokime/v1/execution_pb";
+import type { Wire } from "@/lib/rpc/canonical";
+import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import type { PromptRequest } from "@/lib/types";
+
+type CycleSummary = Wire<GeneratedCycleSummary>;
 
 /* === Types === */
 
@@ -62,16 +61,16 @@ export const cyclesHomeQueryKeys = {
  * naming the other ten. UNSPECIFIED is not among them: it is not a lifecycle
  * a cycle can be in.
  */
-const UNCLEARED_STATUSES = [
-  CycleStatus.PREVIEWED,
-  CycleStatus.READY,
-  CycleStatus.RUNNING,
-  CycleStatus.PAUSED,
-  CycleStatus.STOPPING,
-  CycleStatus.COMPLETED,
-  CycleStatus.FAILED,
-  CycleStatus.BLOCKED,
-  CycleStatus.STOPPED,
+const UNCLEARED_STATUSES: NonNullable<NativeCycleSelection["filter"]>["statuses"] = [
+  { HarmosVariant: { case: "Previewed", value: {} } },
+  { HarmosVariant: { case: "Ready", value: {} } },
+  { HarmosVariant: { case: "Running", value: {} } },
+  { HarmosVariant: { case: "Paused", value: {} } },
+  { HarmosVariant: { case: "Stopping", value: {} } },
+  { HarmosVariant: { case: "Completed", value: {} } },
+  { HarmosVariant: { case: "Failed", value: {} } },
+  { HarmosVariant: { case: "Blocked", value: {} } },
+  { HarmosVariant: { case: "Stopped", value: {} } },
 ];
 
 /* === Public Functions === */
@@ -89,7 +88,7 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
       statuses: selection.includeCleared === false ? UNCLEARED_STATUSES : [],
       suiteIds: [],
     },
-    order: { key: CycleOrderKey.UPDATED_AT, descending: true },
+    order: { key: { HarmosVariant: { case: "UpdatedAt", value: {} } }, descending: true },
   };
 }
 

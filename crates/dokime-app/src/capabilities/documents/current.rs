@@ -248,10 +248,12 @@ impl PreparedCurrentDocument {
             process_epoch: self.snapshot.state().process_epoch().to_string(),
             state_revision: self.snapshot.revision(),
             telemetry_cut: acquired.telemetry_cut.map(|cut| match cut {
-                harmos::ReadCut::Window { delivered } => CurrentDocumentTelemetryCut::Window {
-                    delivered: delivered.0,
-                },
-                harmos::ReadCut::Series {
+                harmos::streams::ReadCut::Window { delivered } => {
+                    CurrentDocumentTelemetryCut::Window {
+                        delivered: delivered.0,
+                    }
+                }
+                harmos::streams::ReadCut::Series {
                     epoch,
                     delivered,
                     ordinal,

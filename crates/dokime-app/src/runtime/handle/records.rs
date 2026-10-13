@@ -55,7 +55,7 @@ impl RecordSubscription {
     pub(crate) fn new(
         source: &Arc<Source>,
         state_manager: &crate::app::StateManager,
-        after: harmos::Position,
+        after: harmos::state::Position,
     ) -> Self {
         Self {
             source: source.clone(),

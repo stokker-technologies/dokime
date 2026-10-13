@@ -13,7 +13,7 @@ version = { workspace = true }
 dokime-terminal = { path = "../dokime-terminal" }
 
 # Git
-harmos = { workspace = true, features = ["runtime", "derive", "plugin", "sidecar", "artifact"] }
+harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
 
 # Error Handling
 thiserror = { workspace = true, default-features = true }

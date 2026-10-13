@@ -28,6 +28,18 @@ from dokime_tools.ci.route import verify as verify_route
 
 # === Constants === #
 REPOSITORY = "stokker-technologies/dokime"
+ROLES = (
+    "check:fast",
+    "contracts:prepare:release",
+    "build:release",
+    "test:integration:rust",
+    "test:integration:python",
+    "test:integration:javascript",
+    "test:acceptance:rust",
+    "test:acceptance:python",
+    "ci:coverage",
+    "test",
+)
 
 # === Types === #
 
@@ -46,8 +58,10 @@ def verify(event: dict, needs: dict) -> None:
 
 
 def verify_tree(event: dict) -> None:
-    roles = ("check", "build:release", "test")
+    roles = ROLES
     for platform in required_platforms(event):
+        if platform == "windows":
+            job_id("test:system:javascript", platform, completed=True)
         for role in roles:
             job_id(role, platform, completed=True)
     if "pull_request" not in event:

@@ -31,8 +31,13 @@ jobs:
     with:
       os: ${{ matrix.os }}
       authorization: release
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
   ci_artifacts_catalog:
     name: Ci Artifacts Catalog
+    env:
+      DOKIME_CI_ROLE: catalog
     needs: native
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -42,24 +47,34 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - &tools_restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: native-linux-${{ hashFiles('mise.lock', 'Cargo.lock', 'uv.lock') }}
+          key: tools-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('mise.lock', 'mise.toml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            tools-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('mise.lock', 'mise.toml') }}-
+          path: .cache/mise/
+      - &sources_restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('Cargo.lock', 'uv.lock', 'pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('Cargo.lock', 'uv.lock', 'pnpm-lock.yaml') }}-
           path: |
-            .cache/mise/
-            .cache/cargo/registry/
-            .cache/cargo/git/
+            .cache/cargo/registry/cache/
+            .cache/cargo/registry/index/
+            .cache/cargo/git/db/
             .cache/uv/
       - name: Prepare Linux
         run: . tools/ci/install.sh
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: validation-[lw]*
           merge-multiple: true
           path: dist/downloads/
       - id: catalog
-        run: mise run ci:artifacts:catalog
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        run: mise run --skip-tools ci:artifacts:catalog
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.catalog.outputs.artifact_name }}
           path: dist/validation/catalog.json
@@ -84,26 +99,29 @@ jobs:
       CARGO_HOME: ${{ github.workspace }}/.cache/cargo
       UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
       GITHUB_TOKEN: ${{ github.token }}
+      DOKIME_CI_ROLE: publish
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - *tools_restore
+      - *sources_restore
       - name: Prepare Linux
         run: . tools/ci/install.sh
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: validation-[lw]*
           merge-multiple: true
           path: dist/downloads/
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: validation-catalog-*
           merge-multiple: true
           path: dist/validation/
-      - run: mise run release:publish
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - run: mise run --skip-tools release:publish
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: release-receipts-${{ github.run_id }}-${{ github.run_attempt }}

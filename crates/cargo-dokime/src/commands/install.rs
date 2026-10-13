@@ -20,13 +20,13 @@ use std::{
     path::PathBuf,
 };
 // Third Party Imports
-use harmos::artifact::inventory::CarrierSection;
-use harmos::plugin::{Bundle, Limits};
+use harmos::plugin::bundle::{Bundle, Limits};
+use harmos::plugin::inventory::CarrierSection;
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::environment::{EnvironmentReference, requested_environment_references};
 use crate::error::Error;
-use dokime_protocol::v1;
+use dokime_client::contracts::plugins;
 use dokime_terminal::Terminal;
 
 /* === Constants === */
@@ -160,7 +160,7 @@ fn disclose_environment_references(
 }
 
 fn validate_staged(
-    entry: &v1::PluginInstallation,
+    entry: &plugins::PluginInstallation,
     bundle: &Bundle,
     owners: &BTreeSet<String>,
     environment_references: &BTreeSet<EnvironmentReference>,
@@ -185,7 +185,7 @@ fn validate_staged(
                 .collect::<BTreeSet<_>>()
                 == *environment_references
     });
-    if entry.state != v1::PluginInstallationState::Staged as i32
+    if entry.state != plugins::PluginInstallationState::Staged
         || entry.sha256 != digest
         || entry.error.is_some()
         || !verified
@@ -215,7 +215,7 @@ async fn complete(
         Ok(accepted)
             if accepted.install_id == id
                 && accepted.sha256 == digest
-                && accepted.state == v1::PluginInstallationState::Installed as i32 =>
+                && accepted.state == plugins::PluginInstallationState::Installed =>
         {
             Terminal::default().success(format!(
                 "Authorized installation {id}; restart the host to activate it."

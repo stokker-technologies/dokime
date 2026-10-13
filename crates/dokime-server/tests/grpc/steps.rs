@@ -70,45 +70,48 @@ pub(crate) async fn step_pages_selections() {
     )
     .await
     .unwrap();
-    let mut client = ExecutionClient::connect(server.local_endpoint())
-        .await
-        .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = client
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap()
         .into_inner()
         .cycle_id;
-    client.run_cycle(authenticated(run(&id))).await.unwrap();
+    client
+        .unary::<contracts::execution::RunCycle>(authenticated(run(&id)))
+        .await
+        .unwrap();
     tokio::time::timeout(Duration::from_secs(10), gate.started.notified())
         .await
         .unwrap();
     let execution_id = client
-        .list_executions(authenticated(v1::ListExecutionsRequest {
-            cycle_id: id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutions>(authenticated(
+            contracts::execution::ListExecutionsRequest {
+                cycle_id: id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner()
         .executions[0]
         .execution_id
         .clone();
-    let mut request = v1::ListExecutionStepsRequest {
+    let mut request = contracts::execution::ListExecutionStepsRequest {
         execution_id: execution_id.clone(),
         limit: 31,
         cursor: None,
     };
     assert_eq!(
         client
-            .list_execution_steps(request.clone())
+            .unary::<contracts::execution::ListExecutionSteps>(request.clone())
             .await
             .unwrap_err()
             .code(),
         Code::Unauthenticated
     );
     let first = client
-        .list_execution_steps(authenticated(request.clone()))
+        .unary::<contracts::execution::ListExecutionSteps>(authenticated(request.clone()))
         .await
         .unwrap()
         .into_inner();
@@ -117,7 +120,7 @@ pub(crate) async fn step_pages_selections() {
     request.cursor = first.next_cursor;
     while request.cursor.is_some() {
         let page = client
-            .list_execution_steps(authenticated(request.clone()))
+            .unary::<contracts::execution::ListExecutionSteps>(authenticated(request.clone()))
             .await
             .unwrap()
             .into_inner();
@@ -136,14 +139,14 @@ pub(crate) async fn step_pages_selections() {
     }
     let last = steps.last().unwrap();
     assert_eq!(last.criterion_count, 103);
-    let mut evidence = v1::ListStepEvidenceRequest {
+    let mut evidence = contracts::execution::ListStepEvidenceRequest {
         execution_id: execution_id.clone(),
         step_id: last.step_id.clone(),
         limit: 37,
         cursor: None,
     };
     let first_criteria = client
-        .list_step_criteria(authenticated(evidence.clone()))
+        .unary::<contracts::execution::ListStepCriteria>(authenticated(evidence.clone()))
         .await
         .unwrap()
         .into_inner();
@@ -153,16 +156,16 @@ pub(crate) async fn step_pages_selections() {
             .criteria
             .iter()
             .all(
-                |criterion| criterion.status() == v1::CriterionStatus::Pending
+                |criterion| criterion.status == contracts::execution::CriterionStatus::Pending
                     && criterion.observed.is_none()
             )
     );
     evidence.cursor = first_criteria.next_cursor;
     let mut wrong_kind = evidence.clone();
-    wrong_kind.cursor.as_mut().unwrap().kind = v1::StepPageKind::Steps as i32;
+    wrong_kind.cursor.as_mut().unwrap().kind = contracts::execution::StepPageKind::Steps;
     assert_eq!(
         client
-            .list_step_criteria(authenticated(wrong_kind))
+            .unary::<contracts::execution::ListStepCriteria>(authenticated(wrong_kind))
             .await
             .unwrap_err()
             .code(),
@@ -172,7 +175,7 @@ pub(crate) async fn step_pages_selections() {
     wrong_step.step_id = steps[0].step_id.clone();
     assert_eq!(
         client
-            .list_step_criteria(authenticated(wrong_step))
+            .unary::<contracts::execution::ListStepCriteria>(authenticated(wrong_step))
             .await
             .unwrap_err()
             .code(),
@@ -181,7 +184,7 @@ pub(crate) async fn step_pages_selections() {
     let mut criteria = first_criteria.criteria;
     while evidence.cursor.is_some() {
         let page = client
-            .list_step_criteria(authenticated(evidence.clone()))
+            .unary::<contracts::execution::ListStepCriteria>(authenticated(evidence.clone()))
             .await
             .unwrap()
             .into_inner();
@@ -195,7 +198,7 @@ pub(crate) async fn step_pages_selections() {
     evidence.step_id = "missing".into();
     assert_eq!(
         client
-            .list_step_criteria(authenticated(evidence))
+            .unary::<contracts::execution::ListStepCriteria>(authenticated(evidence))
             .await
             .unwrap_err()
             .code(),
@@ -204,7 +207,7 @@ pub(crate) async fn step_pages_selections() {
     request.limit = 101;
     assert_eq!(
         client
-            .list_execution_steps(authenticated(request.clone()))
+            .unary::<contracts::execution::ListExecutionSteps>(authenticated(request.clone()))
             .await
             .unwrap_err()
             .code(),
@@ -212,13 +215,13 @@ pub(crate) async fn step_pages_selections() {
     );
     request.limit = 31;
     client
-        .create_cycle(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
         .await
         .unwrap();
     request.cursor = initial_cursor;
     assert_eq!(
         client
-            .list_execution_steps(authenticated(request))
+            .unary::<contracts::execution::ListExecutionSteps>(authenticated(request))
             .await
             .unwrap_err()
             .code(),
@@ -228,13 +231,15 @@ pub(crate) async fn step_pages_selections() {
     tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let cycle = client
-                .get_cycle(authenticated(v1::GetCycleRequest {
-                    cycle_id: id.clone(),
-                }))
+                .unary::<contracts::execution::GetCycle>(authenticated(
+                    contracts::execution::GetCycleRequest {
+                        cycle_id: id.clone(),
+                    },
+                ))
                 .await
                 .unwrap()
                 .into_inner();
-            if cycle.status() == v1::CycleStatus::Completed {
+            if cycle.status == contracts::execution::CycleStatus::Completed {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -245,10 +250,12 @@ pub(crate) async fn step_pages_selections() {
     // The fixture reports no phase/criterion outcomes. Native finalization keeps
     // the admitted steps and distinguishes unreported evaluations as indeterminate.
     let first = client
-        .list_execution_steps(authenticated(v1::ListExecutionStepsRequest {
-            execution_id: execution_id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListExecutionSteps>(authenticated(
+            contracts::execution::ListExecutionStepsRequest {
+                execution_id: execution_id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -258,11 +265,13 @@ pub(crate) async fn step_pages_selections() {
         .find(|step| step.criterion_count > 0)
         .unwrap();
     let terminal = client
-        .list_step_criteria(authenticated(v1::ListStepEvidenceRequest {
-            execution_id,
-            step_id: with_criteria.step_id.clone(),
-            ..Default::default()
-        }))
+        .unary::<contracts::execution::ListStepCriteria>(authenticated(
+            contracts::execution::ListStepEvidenceRequest {
+                execution_id,
+                step_id: with_criteria.step_id.clone(),
+                ..Default::default()
+            },
+        ))
         .await
         .unwrap()
         .into_inner();
@@ -270,7 +279,8 @@ pub(crate) async fn step_pages_selections() {
         terminal
             .criteria
             .iter()
-            .all(|criterion| criterion.status() == v1::CriterionStatus::Indeterminate)
+            .all(|criterion| criterion.status
+                == contracts::execution::CriterionStatus::Indeterminate)
     );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

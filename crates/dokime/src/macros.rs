@@ -57,12 +57,16 @@ macro_rules! json_message {
         }
 
         impl harmos::schema::Described for $message {
+            const NAME: &'static str = concat!(module_path!(), "::", stringify!($message));
             const FIELDS: &'static [harmos::schema::Field] = &[harmos::schema::Field {
                 name: std::borrow::Cow::Borrowed("json"),
                 tag: 1,
                 kind: harmos::schema::Kind::String,
                 cardinality: harmos::schema::Cardinality::Required,
             }];
+            const MARKER: &'static [u8] = &harmos::schema::declaration::encode::<
+                { harmos::schema::declaration::encoded_len(Self::NAME, Self::FIELDS) },
+            >(Self::NAME, Self::FIELDS);
         }
 
         impl prost::Message for $message {
