@@ -296,20 +296,21 @@ impl State {
                 if previous.checked_add(1) != Some(at) { return Err(Error::Corrupt("durable recovery range has a gap")); }
                 let payload = blob(row,1)?;
                 if payload.len() > entry_bytes.get() { return Err(Error::Corrupt("stored recovery entry exceeds its byte bound")); }
-                let next_bytes = bytes.checked_add(payload.len()).filter(|bytes| *bytes <= limits.bytes.get());
+                check_digest(payload,blob(row,2)?)?;
+                let entry = RecoveryEntry { position: RecoveryPosition { history: through.history.clone(),sequence: at },payload: payload.to_vec() };
+                let next_bytes = bytes.checked_add(encoded_bytes(&entry)?).filter(|bytes| *bytes <= limits.bytes.get());
                 let Some(next_bytes) = next_bytes else {
                     if entries.is_empty() { return Err(Error::Data("recovery entry exceeds page byte bound")); }
                     break;
                 };
-                check_digest(payload,blob(row,2)?)?;
-                entries.push(RecoveryEntry { position: RecoveryPosition { history: through.history.clone(),sequence: at },payload: payload.to_vec() });
+                entries.push(entry);
                 bytes = next_bytes;
                 previous = at;
             }
             if entries.is_empty() && previous < through.sequence { return Err(Error::Corrupt("missing durable recovery tail")); }
             let next = (previous < through.sequence).then(|| RecoveryPosition { history: through.history.clone(), sequence: previous });
             let page = RecoveryPage { entries,next };
-            page.check(&after,&through,limits,|entry| entry.payload.len())?;
+            page.check(&after,&through,limits,|entry| encoded_bytes(entry).unwrap_or(usize::MAX))?;
             Ok(page)
         })())).await?
     }
@@ -356,6 +357,28 @@ fn head(connection: &Connection) -> Result<Head, Error> {
         return Err(Error::Corrupt("invalid recovery snapshot frontier"));
     }
     Ok(head)
+}
+
+// Harmos bounds recovery pages by each entry's serde_json size, where the byte payload encodes as
+// a decimal array of up to four bytes per payload byte. Packing by raw blob length let a page of
+// JSON transaction groups pass here at 1.2 MB and fail Harmos's replay check at 4.4 MB.
+fn encoded_bytes(entry: &RecoveryEntry) -> Result<usize, Error> {
+    struct Count(usize);
+    impl std::io::Write for Count {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 = self
+                .0
+                .checked_add(bytes.len())
+                .ok_or_else(|| std::io::Error::other("recovery entry size overflow"))?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut count = Count(0);
+    serde_json::to_writer(&mut count, entry)?;
+    Ok(count.0)
 }
 
 fn gap(requested: u64, base: u64) -> Error {

@@ -480,6 +480,15 @@ fn recovery_contract() {
         run_scenario(sqlite::managed::replay_tail_saving, false, None, false);
     }
     {
+        eprintln!("Scenario: sqlite::managed::replays_dense_journal_pages");
+        run_scenario(
+            sqlite::managed::replays_dense_journal_pages,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: sqlite::managed::managed_producer_restart");
         run_scenario(
             sqlite::managed::managed_producer_restart,
@@ -842,6 +851,10 @@ fn rows_contract() {
             None,
             false,
         );
+    }
+    {
+        eprintln!("Scenario: sqlite::reads::interleaved_scope_pages");
+        run_scenario(sqlite::reads::interleaved_scope_pages, false, None, false);
     }
     {
         eprintln!("Scenario: sqlite::reads::saved_views_payloads");

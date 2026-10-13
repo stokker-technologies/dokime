@@ -42,6 +42,13 @@ use dokime::storage::sqlite::{Backend, Limits as BackendLimits, RecoveryLimits};
 struct Bench;
 struct Charger;
 struct Capture;
+struct Logbook;
+
+#[harmos::transaction(id = "charger.note", version = 1, irreversible)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct Note {
+    text: String,
+}
 
 #[harmos::record(id = "charger.selected", version = 1)]
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -72,6 +79,12 @@ enum Transactions {
 #[derive(Clone)]
 enum Records {
     Selected(Selected),
+}
+
+#[harmos::transactions(state = u32, error = String)]
+#[derive(Clone)]
+enum Notes {
+    Note(Note),
 }
 
 /* === Traits === */
@@ -127,6 +140,24 @@ impl RecordProjection for Capture {
                 .await
         })
     }
+}
+
+impl harmos::state::Transaction<u32> for Note {
+    type Error = String;
+    fn check(&self, _: &u32) -> Result<(), String> {
+        Ok(())
+    }
+    fn apply(&self, state: &mut u32) {
+        *state += 1;
+    }
+}
+
+impl Application for Logbook {
+    type State = u32;
+    type Transaction = Notes;
+    type Record = ();
+    type Streams = ();
+    type Resources = ();
 }
 
 impl Application for Bench {
@@ -1150,6 +1181,52 @@ pub(crate) async fn managed_producer_restart() {
                 staged
             );
             assert!(storage.follow_file(&staged, 0).await.is_err());
+        }
+        runtime.stop().await.unwrap();
+    }
+}
+
+pub(crate) async fn replays_dense_journal_pages() {
+    let root = tempfile::tempdir().unwrap();
+    let page = limits(256);
+    let notes = 6u32;
+    let text = "x".repeat(9 * 1024);
+    // The journal spells each payload byte "x" as "120," inside Harmos's encoded page measure:
+    // these groups fit one page by raw length but need several by the measure replay checks.
+    assert!(notes as usize * text.len() < page.bytes.get());
+    assert!(2 * 4 * text.len() > page.bytes.get());
+    for pass in 0..2 {
+        let data = Arc::new(
+            Backend::<()>::primary(root.path().join("data"), BackendLimits::default())
+                .await
+                .unwrap(),
+        );
+        let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+        let storage = StorageManager::new(
+            StorageBackends {
+                primary: data,
+                recovery,
+                replicas: vec![],
+            },
+            policy(),
+        )
+        .unwrap();
+        let runtime = Runtime::<Logbook>::builder(0, ())
+            .register(Notes::catalog())
+            .managed_state(page)
+            .runtime_with_storage(&storage)
+            .await
+            .unwrap();
+        let replayed = runtime.state.state().read(|state| *state).await.unwrap();
+        assert_eq!(replayed.value, pass * notes);
+        if pass == 0 {
+            for _ in 0..notes {
+                runtime
+                    .state
+                    .commit(Note { text: text.clone() })
+                    .await
+                    .unwrap();
+            }
         }
         runtime.stop().await.unwrap();
     }
