@@ -356,7 +356,7 @@ export async function uploadNativeArtifact(
   options: NativeArtifactUploadOptions,
 ): Promise<ArtifactRecord> {
   const scope = uploadScope(options.scope);
-  const filename = options.filename.trim();
+  const filename = operatorUploadName(options.filename);
   if (!filename || new TextEncoder().encode(filename).byteLength > 255) {
     throw new Error("Native artifact filename must contain 1–255 bytes.");
   }
@@ -506,6 +506,12 @@ function mapArtifactMetadata(
     created_at: timestampIso(metadata.createdAt) ?? nowIso(),
     scope: overrides?.scope ?? scope,
   };
+}
+
+/** A bare operator filename lands in the `upload/` folder; a relative path keeps its own. */
+function operatorUploadName(filename: string): string {
+  const name = filename.trim();
+  return name.includes("/") ? name : `upload/${name}`;
 }
 
 function nativeArtifactFilename(

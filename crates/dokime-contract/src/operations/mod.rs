@@ -19,6 +19,7 @@ pub mod documents;
 pub mod evidence;
 pub mod execution;
 pub mod history;
+pub mod media;
 pub mod notes;
 pub mod observation;
 pub mod planning;
@@ -114,6 +115,8 @@ pub enum Operations {
     Execution(execution::Operations),
     #[nested]
     History(history::Operations),
+    #[nested]
+    Media(media::Operations),
     #[nested]
     Notes(notes::Operations),
     #[nested]

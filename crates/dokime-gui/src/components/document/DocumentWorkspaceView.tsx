@@ -235,6 +235,7 @@ function documentCardContentProps(
   return {
     ...shared,
     boxSummarySection: props.boxSummarySections.find((item) => item.key === card.card_id),
+    captureScope: props.scope?.test_cycle_id && props.scope.test_execution_id ? props.scope : null,
     histogramSection: props.histogramSections.find((item) => item.key === card.card_id),
     livePlotStates,
     plotContextTelemetry: props.plotContextTelemetry,

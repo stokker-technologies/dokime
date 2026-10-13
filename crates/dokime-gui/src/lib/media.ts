@@ -9,7 +9,7 @@
 
 /* === Types === */
 
-export type MediaArtifactKind = "image" | "video";
+export type MediaArtifactKind = "image" | "video" | "audio";
 
 export type MediaArtifactCandidate = {
   label?: string | null;
@@ -33,6 +33,17 @@ const IMAGE_EXTENSIONS = new Set([
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".mov", ".avi", ".mkv", ".m4v"]);
 
+const AUDIO_EXTENSIONS = new Set([
+  ".wav",
+  ".mp3",
+  ".ogg",
+  ".oga",
+  ".opus",
+  ".flac",
+  ".m4a",
+  ".aac",
+]);
+
 /* === Public Functions === */
 
 export function mediaArtifactKind(
@@ -51,6 +62,9 @@ export function mediaArtifactKind(
   if (VIDEO_EXTENSIONS.has(extension)) {
     return "video";
   }
+  if (AUDIO_EXTENSIONS.has(extension)) {
+    return "audio";
+  }
 
   const normalizedType =
     (typeof artifactOrPath === "string" ? mediaType : (artifactOrPath.media_type ?? mediaType))
@@ -61,6 +75,9 @@ export function mediaArtifactKind(
   }
   if (normalizedType.startsWith("video/")) {
     return "video";
+  }
+  if (normalizedType.startsWith("audio/")) {
+    return "audio";
   }
 
   return null;

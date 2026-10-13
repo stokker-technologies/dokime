@@ -1,0 +1,97 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+// Camera stills through nokhwa: V4L2, Media Foundation or AVFoundation.
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
+use crate::Result;
+
+/* === Constants === */
+// Frames discarded while the sensor settles its exposure and white balance.
+#[cfg(feature = "media-native")]
+const WARMUP_FRAMES: usize = 10;
+
+#[cfg(feature = "media-native")]
+const JPEG_QUALITY: u8 = 90;
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+
+/* === Public Functions === */
+// Captures one settled frame of the indexed camera as JPEG bytes.
+#[cfg(feature = "media-native")]
+pub(super) fn capture_jpeg(camera: Option<u32>) -> Result<Vec<u8>> {
+    use super::unavailable;
+    use nokhwa::{
+        Camera,
+        pixel_format::RgbFormat,
+        utils::{CameraIndex, RequestedFormat, RequestedFormatType},
+    };
+
+    // Open The Highest Resolution Stream
+    let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestResolution);
+    let index = CameraIndex::Index(camera.unwrap_or(0));
+    let mut device = Camera::new(index, format)
+        .map_err(|source| unavailable(format!("no camera is available: {source}")))?;
+    device
+        .open_stream()
+        .map_err(|source| unavailable(format!("camera stream failed: {source}")))?;
+
+    // Settle, Then Keep One Frame
+    let mut frame = None;
+    for _ in 0..=WARMUP_FRAMES {
+        frame = Some(
+            device
+                .frame()
+                .map_err(|source| unavailable(format!("camera frame failed: {source}")))?,
+        );
+    }
+    if let Err(source) = device.stop_stream() {
+        tracing::warn!(error = %source, "camera stream did not stop cleanly");
+    }
+    let image = frame
+        .expect("at least one camera frame")
+        .decode_image::<RgbFormat>()
+        .map_err(|source| unavailable(format!("camera frame decoding failed: {source}")))?;
+
+    // Encode JPEG
+    let mut bytes = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, JPEG_QUALITY)
+        .encode_image(&image)
+        .map_err(|source| crate::Error::Operation(format!("photo encoding: {source}")))?;
+    Ok(bytes)
+}
+
+#[cfg(not(feature = "media-native"))]
+pub(super) fn capture_jpeg(_camera: Option<u32>) -> Result<Vec<u8>> {
+    Err(super::not_compiled())
+}
+
+/* === Private Functions === */
+
+/* === Tests === */

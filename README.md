@@ -42,7 +42,8 @@ happened, with the inputs, measurements, and decisions that explain the result.
 - **Operator Interaction**
 
   Combine automation with confirmations, forms, and manual checkpoints.
-  Retain operator responses with the execution they belong to.
+  Retain operator responses with the execution they belong to, along with
+  screenshots, camera photos, and audio recordings captured on the testbench.
 
 - **Traceability**
 

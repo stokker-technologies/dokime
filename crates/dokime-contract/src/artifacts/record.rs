@@ -54,6 +54,7 @@ pub struct ArtifactUploadInput {
 pub enum MediaKind {
     Image,
     Video,
+    Audio,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -131,10 +132,17 @@ pub fn media_kind_for(filename: &str, content_type: Option<&str>) -> Option<Medi
     ) {
         return Some(MediaKind::Video);
     }
+    if matches!(
+        extension,
+        Some("wav" | "mp3" | "ogg" | "oga" | "opus" | "flac" | "m4a" | "aac")
+    ) {
+        return Some(MediaKind::Audio);
+    }
 
     match content_type.map(str::trim) {
         Some(content_type) if content_type.starts_with("image/") => Some(MediaKind::Image),
         Some(content_type) if content_type.starts_with("video/") => Some(MediaKind::Video),
+        Some(content_type) if content_type.starts_with("audio/") => Some(MediaKind::Audio),
         _ => None,
     }
 }

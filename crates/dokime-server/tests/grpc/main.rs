@@ -36,6 +36,9 @@ pub(crate) mod planning;
 #[path = "appearance.rs"]
 pub(crate) mod appearance;
 
+#[path = "media.rs"]
+pub(crate) mod media;
+
 #[path = "notes.rs"]
 pub(crate) mod notes;
 
@@ -957,6 +960,10 @@ fn evidence_contract() {
         run_scenario(content::artifact_upload_completion, false, None, false);
     }
     {
+        eprintln!("Scenario: media::media_capture_artifacts");
+        run_scenario(media::media_capture_artifacts, false, None, false);
+    }
+    {
         eprintln!("Scenario: content::cycle_evidence_settled");
         run_scenario(content::cycle_evidence_settled, false, None, false);
     }
@@ -1115,6 +1122,10 @@ fn protocol_contract() {
     {
         eprintln!("Scenario: authorization::table_covers_serves");
         authorization::table_covers_serves();
+    }
+    {
+        eprintln!("Scenario: authorization::remote_refuses_local");
+        run_scenario(authorization::remote_refuses_local, false, None, false);
     }
     {
         eprintln!("Scenario: authorization::permission_matrix_enforcement");

@@ -53,6 +53,12 @@ GUI_PACKAGES = (
     "libsoup-3.0-dev",
     "libjavascriptcoregtk-4.1-dev",
     "librsvg2-dev",
+    # Native Media Capture (dokime-app `media-native`): ALSA for audio input,
+    # V4L2 kernel headers for cameras, and libclang for the bindings V4L2
+    # generates at build time. Screenshots use the desktop portal over D-Bus.
+    "libasound2-dev",
+    "linux-libc-dev",
+    "libclang-dev",
 )
 VC_TOOLSET_COMPONENT = "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
 VSWHERE_RELATIVE_PATH = Path("Microsoft Visual Studio/Installer/vswhere.exe")

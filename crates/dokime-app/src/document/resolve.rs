@@ -18,7 +18,7 @@ use std::{borrow::Cow, cmp::Ordering, collections::BTreeMap};
 
 // Local Imports
 use super::binding::{self, Evidence, Row, row as expression_value};
-use crate::artifacts::{MediaKind, media_kind_for};
+use crate::artifacts::media_kind_for;
 use crate::core::{Identifier, Metadata, Value};
 use crate::document::capture::{
     Capture, CardBinding, CardBindingResult, RepeatInstance, SectionBinding,
@@ -329,13 +329,11 @@ impl DocumentMaterializer<'_> {
                         .iter()
                         .filter(|artifact| {
                             scope_matches(Some(&artifact.scope), self.selection)
-                                && matches!(
-                                    media_kind_for(
-                                        &artifact.filename,
-                                        artifact.content_type.as_deref()
-                                    ),
-                                    Some(MediaKind::Image | MediaKind::Video)
+                                && media_kind_for(
+                                    &artifact.filename,
+                                    artifact.content_type.as_deref(),
                                 )
+                                .is_some()
                         })
                         .map(|artifact| artifact.status.clone()),
                 );

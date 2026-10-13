@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod name;
 pub mod record;
 
 /* === Re-Exports === */

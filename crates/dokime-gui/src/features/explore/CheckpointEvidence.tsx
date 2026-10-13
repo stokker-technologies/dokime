@@ -277,7 +277,8 @@ function Download({ checkpoint, session, id, name }: SessionProps & { id: string
       const artifact = await downloadNativeCheckpointArtifact(session, checkpoint, id);
       await saveNativeDocument(session, {
         kind: "artifact",
-        filename: name || artifact.metadata.filename,
+        // Artifact names may carry folders; the saved file takes the last segment.
+        filename: (name || artifact.metadata.filename).split("/").at(-1) ?? name,
         bytes: artifact.bytes,
       });
     } catch (error) {

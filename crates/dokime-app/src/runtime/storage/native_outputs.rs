@@ -691,6 +691,8 @@ impl ExecutionStorage {
         self: &Arc<Self>,
         execution: &TestExecutionId,
     ) -> Result<()> {
+        // Running Captures Seal Into The Execution While It Still Admits Artifacts
+        self.captures.close(execution).await;
         let storage = self.clone();
         let execution = execution.clone();
         tokio::spawn(async move {

@@ -24,6 +24,7 @@ mod evidence;
 mod execution;
 mod history;
 mod logs;
+mod media;
 mod notes;
 mod observation;
 mod planning;

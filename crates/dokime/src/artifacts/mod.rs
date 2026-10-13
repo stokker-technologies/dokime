@@ -12,10 +12,10 @@ mod directory;
 pub mod stream;
 
 /* === Re-Exports === */
-pub use dokime_contract::artifacts::record;
 pub use dokime_contract::artifacts::{
     ArtifactRecord, ArtifactStatus, ArtifactUploadInput, MediaKind, media_kind_for,
 };
+pub use dokime_contract::artifacts::{name, record};
 pub use stream::{ArtifactSink, ArtifactWriter, Artifacts};
 
 /* === Imports === */

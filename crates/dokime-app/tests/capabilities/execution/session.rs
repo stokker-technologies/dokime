@@ -299,6 +299,128 @@ pub(crate) async fn abandoned_transfer_log() {
     runtime.shutdown().await.unwrap();
 }
 
+pub(crate) async fn live_stream_log_follow() {
+    use dokime_contract::operations::content as wire;
+
+    // === Start A Run That Logs And Keeps Producing === //
+
+    let root = tempdir().unwrap();
+    let mut runtime = fixture_runtime(root.path()).await;
+    let handle = runtime.handle();
+    let suite = fixture_suite(&handle, &["stream_log"]).await;
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite: suite.clone(),
+                metadata: metadata("cycle.sidecar.stream_log", "Sidecar Stream Log Cycle"),
+                cases: materialize_cases("fixture.sidecar", &suite),
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let receipt = handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted);
+    wait_started(&handle).await;
+    let execution_id = handle
+        .cycles()
+        .await
+        .into_iter()
+        .find(|cycle| cycle.test_cycle_id == cycle_id)
+        .unwrap()
+        .test_executions[0]
+        .test_execution_id
+        .clone();
+    let path = "fixture.sidecar/stream.log";
+    let listed = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(size) = handle
+                .execution_files(&execution_id)
+                .await
+                .unwrap()
+                .iter()
+                .find(|file| file.relative_path == path && file.size_bytes > 0)
+                .map(|file| file.size_bytes)
+            {
+                return size;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the producing run lists its stream log");
+
+    // === Follow The Producing Log From Its Start === //
+
+    let maximum = std::num::NonZeroUsize::new(64 * 1024).unwrap();
+    let mut follower = tokio::time::timeout(
+        Duration::from_secs(5),
+        handle.follow_execution_file(&execution_id, path, None, 0),
+    )
+    .await
+    .expect("follow admission settles while the run produces")
+    .unwrap()
+    .expect("the producing stream log is followable");
+    let metadata = follower.metadata().clone();
+    assert_eq!(metadata.phase, wire::ExecutionFilePhase::Producing);
+    assert_eq!(metadata.available_length, listed);
+    let mut retained = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while (retained.len() as u64) < listed {
+            let frame = follower.next_frame(maximum).await.unwrap().unwrap();
+            let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+                panic!("existing bytes arrive as chunks before any terminal frame");
+            };
+            assert_eq!(chunk.offset, retained.len() as u64);
+            retained.extend_from_slice(&chunk.data);
+        }
+    })
+    .await
+    .expect("the already persisted log bytes reach the follower");
+    assert_eq!(
+        without_timestamps(&String::from_utf8(retained.clone()).unwrap()),
+        "[INFO] streamed before release\n"
+    );
+
+    // === Settle The Run And Close The Follow === //
+
+    handle
+        .operations()
+        .call_encoded("fixture-sidecar.release", Vec::new())
+        .await
+        .unwrap();
+    let terminal = tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let frame = follower.next_frame(maximum).await.unwrap().unwrap();
+            match &frame.payload {
+                Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
+                    assert_eq!(chunk.offset, retained.len() as u64);
+                    retained.extend_from_slice(&chunk.data);
+                }
+                Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) => {
+                    return terminal.clone();
+                }
+                _ => panic!("a follow sends metadata only first"),
+            }
+        }
+    })
+    .await
+    .expect("the follow ends when the run settles");
+    assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
+    assert_eq!(terminal.length, retained.len() as u64);
+    assert_eq!(
+        without_timestamps(&String::from_utf8(retained).unwrap()),
+        "[INFO] streamed before release\n[INFO] streamed after release\n"
+    );
+    drop(follower);
+    wait_for_cycle(&handle, &cycle_id, CycleStatus::Completed).await;
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
 pub(crate) async fn stopping_cycle_execution() {
     for settle_mode in [
         CancelSettlement::Complete,

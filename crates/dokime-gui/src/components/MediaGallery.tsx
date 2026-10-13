@@ -10,7 +10,14 @@
 /* === External Imports === */
 
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Download, ExternalLink, Image as ImageIcon, Search, Video } from "lucide-react";
+import {
+  AudioLines,
+  Download,
+  ExternalLink,
+  Image as ImageIcon,
+  Search,
+  Video,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
@@ -107,6 +114,14 @@ const SAFE_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 const SAFE_VIDEO_TYPES = new Set(["video/mp4", "video/mpeg", "video/ogg", "video/webm"]);
+const SAFE_AUDIO_TYPES = new Set([
+  "audio/flac",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/ogg",
+  "audio/wav",
+  "audio/webm",
+]);
 
 function useNativeMediaUrls(
   artifacts: MediaArtifactCandidate[],
@@ -438,11 +453,15 @@ function mediaBlobType(artifact: MediaGalleryArtifact): string | null {
   if (extension === ".webm") return "video/webm";
   if (extension === ".ogg") return "video/ogg";
   if (extension === ".mpeg" || extension === ".mpg") return "video/mpeg";
+  if (extension === ".wav") return "audio/wav";
+  if (extension === ".mp3") return "audio/mpeg";
+  if (extension === ".flac") return "audio/flac";
+  if (extension === ".m4a") return "audio/mp4";
   return null;
 }
 
 function safeMediaType(value: string): boolean {
-  return SAFE_IMAGE_TYPES.has(value) || SAFE_VIDEO_TYPES.has(value);
+  return SAFE_IMAGE_TYPES.has(value) || SAFE_VIDEO_TYPES.has(value) || SAFE_AUDIO_TYPES.has(value);
 }
 
 function isNativeArtifactSource(artifact: MediaGalleryArtifact): boolean {
@@ -632,6 +651,14 @@ export function MediaGallery({ artifacts, emptyMessage, runDir }: MediaGalleryPr
                       className="max-h-[70vh] w-full object-contain"
                       src={selectedArtifact.href}
                     />
+                  ) : selectedArtifact.kind === "audio" ? (
+                    // biome-ignore lint/a11y/useMediaCaption: operator audio recordings have no caption sidecars.
+                    <audio
+                      className="w-full"
+                      controls
+                      preload="metadata"
+                      src={selectedArtifact.href}
+                    />
                   ) : (
                     // biome-ignore lint/a11y/useMediaCaption: artifact videos do not have caption sidecars in the current media contract.
                     <video
@@ -811,11 +838,7 @@ function MediaGalleryCard({
         <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/50" />
         {!showImagePreview ? (
           <span className="relative z-10 flex max-w-full flex-col items-center gap-2 px-3 text-center">
-            {artifact.kind === "image" ? (
-              <ImageIcon className="text-muted-foreground" size={18} />
-            ) : (
-              <Video className="text-muted-foreground" size={18} />
-            )}
+            <MediaKindIcon className="text-muted-foreground" kind={artifact.kind} size={18} />
             <span className="line-clamp-2 text-xs font-semibold text-foreground">{title}</span>
           </span>
         ) : null}
@@ -828,11 +851,7 @@ function MediaGalleryCard({
       </button>
       <div className="grid min-w-0 gap-1 px-2 py-2">
         <div className="flex min-w-0 items-start gap-1.5">
-          {artifact.kind === "image" ? (
-            <ImageIcon className="mt-0.5 shrink-0" size={14} />
-          ) : (
-            <Video className="mt-0.5 shrink-0" size={14} />
-          )}
+          <MediaKindIcon className="mt-0.5 shrink-0" kind={artifact.kind} size={14} />
           <div className="min-w-0">
             <h3 className="line-clamp-2 break-all text-xs font-semibold" title={title}>
               {title}
@@ -908,6 +927,20 @@ function MediaGalleryCard({
       </div>
     </article>
   );
+}
+
+function MediaKindIcon({
+  className,
+  kind,
+  size,
+}: {
+  className: string;
+  kind: MediaArtifactKind;
+  size: number;
+}) {
+  if (kind === "image") return <ImageIcon className={className} size={size} />;
+  if (kind === "audio") return <AudioLines className={className} size={size} />;
+  return <Video className={className} size={size} />;
 }
 
 function mediaArtifactTitle(

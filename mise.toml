@@ -499,7 +499,7 @@ run = [
 [tasks."build:server:release"]
 description = "Build The Release Server"
 depends = ["prepare:report"]
-run = "cargo build --timings --locked --release -p dokime-server --bin dokime-server"
+run = "cargo build --timings --locked --release -p dokime-server --bin dokime-server --features media-native"
 
 [tasks."build:desktop:release"]
 description = "Build Release Desktop Installers"

@@ -182,6 +182,11 @@ matrix! {
     "/dokime.v1.History/ListCheckpointRecords", unary, contracts::history::ListCheckpointRecords;
     "/dokime.v1.History/ListCheckpointTelemetry", unary, contracts::history::ListCheckpointTelemetry;
     "/dokime.v1.History/ReadCheckpointOutput", unary, contracts::history::ReadCheckpointOutput;
+    "/dokime.v1.Media/AudioRecording", download, contracts::media::AudioRecording;
+    "/dokime.v1.Media/CameraRecording", download, contracts::media::CameraRecording;
+    "/dokime.v1.Media/Photo", unary, contracts::media::Photo;
+    "/dokime.v1.Media/ScreenRecording", download, contracts::media::ScreenRecording;
+    "/dokime.v1.Media/Screenshot", unary, contracts::media::Screenshot;
     "/dokime.v1.Notes/CreateNote", unary, contracts::notes::CreateNote;
     "/dokime.v1.Notes/ListNotes", unary, contracts::notes::ListNotes;
     "/dokime.v1.Observation/GetRuntimeShell", unary, contracts::observation::GetRuntimeShell;
@@ -390,6 +395,59 @@ pub(crate) async fn permission_matrix_enforcement() {
             );
         }
     }
+
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+// A remote listener refuses every local-only operation even to Control.
+pub(crate) async fn remote_refuses_local() {
+    // A throwaway localhost identity generated for this run; nothing is committed.
+    let generated = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    let certificate = generated.cert.pem().into_bytes();
+    let key = generated.signing_key.serialize_pem().into_bytes();
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = runtime(root.path()).await;
+    let config = Config::remote(
+        "127.0.0.1:0".parse().unwrap(),
+        TlsIdentity::from_pem(certificate.clone(), key),
+        vec![grant(Role::Control)],
+    )
+    .unwrap();
+    let server = Server::start(owner.handle(), config).await.unwrap();
+    let channel = Endpoint::from_shared(server.local_endpoint())
+        .unwrap()
+        .tls_config(
+            ClientTlsConfig::new()
+                .domain_name("localhost")
+                .ca_certificate(Certificate::from_pem(&certificate)),
+        )
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+
+    // Media Capture And Host Paths Stay On The Loopback Listener
+    let local_only = [
+        "/dokime.v1.Media/Screenshot",
+        "/dokime.v1.Media/Photo",
+        "/dokime.v1.Media/AudioRecording",
+        "/dokime.v1.Media/ScreenRecording",
+        "/dokime.v1.Media/CameraRecording",
+        "/dokime.v1.Content/GetCycleFolderPath",
+    ];
+    for case in cases().filter(|case| local_only.contains(&case.path)) {
+        let refusal = (case.call)(channel.clone(), Some(TOKEN))
+            .await
+            .unwrap_or_else(|| panic!("{} admitted a remote Control caller", case.path));
+        assert_eq!(refusal.code(), Code::PermissionDenied, "{}", case.path);
+    }
+    assert_eq!(
+        cases()
+            .filter(|case| local_only.contains(&case.path))
+            .count(),
+        local_only.len()
+    );
 
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();

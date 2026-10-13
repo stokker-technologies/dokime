@@ -19,6 +19,7 @@ mod upload;
 pub(super) mod window;
 
 /* === Re-Exports === */
+pub(super) use upload::{artifact_scope, content_failure};
 
 /* === Imports === */
 // Standard Library Imports

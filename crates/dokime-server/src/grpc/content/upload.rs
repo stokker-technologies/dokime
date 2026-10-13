@@ -214,11 +214,8 @@ fn upload_header(
 ) -> Result<(RecordScope, String, Option<String>, Option<String>), Status> {
     let scope = artifact_scope(header.scope.as_ref())?;
     let filename = header.filename.trim();
-    if filename.is_empty() || filename.len() > 255 {
-        return Err(Status::invalid_argument(
-            "artifact filename must contain 1–255 bytes",
-        ));
-    }
+    dokime_app::artifacts::name::validate(filename)
+        .map_err(|source| Status::invalid_argument(source.to_string()))?;
     let content_type = header
         .content_type
         .as_deref()
@@ -247,7 +244,9 @@ fn upload_header(
     ))
 }
 
-fn artifact_scope(scope: Option<&wire::ArtifactScope>) -> Result<RecordScope, Status> {
+pub(in crate::grpc) fn artifact_scope(
+    scope: Option<&wire::ArtifactScope>,
+) -> Result<RecordScope, Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("artifact scope is required"))?;
     let cycle_id = scope
         .cycle_id
@@ -346,7 +345,7 @@ async fn receive_artifact(
     Ok(None)
 }
 
-fn content_failure(error: dokime_app::Error) -> Status {
+pub(in crate::grpc) fn content_failure(error: dokime_app::Error) -> Status {
     use dokime_app::Error;
     let status = match &error {
         Error::ExportStorage {

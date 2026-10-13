@@ -15,6 +15,12 @@ license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
+[features]
+default = []
+# Host screenshot, camera and audio capture, enabled by the release server build;
+# see dokime-app for the system packages it links.
+media-native = ["dokime-app/media-native"]
+
 [dependencies]
 # Local
 dokime = { path = "../dokime" }

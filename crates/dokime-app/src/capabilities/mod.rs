@@ -14,6 +14,7 @@ pub mod evidence;
 pub mod execution;
 pub mod exports;
 pub mod installed_plugins;
+pub mod media;
 pub mod parameters;
 pub mod prompts;
 pub mod settings;

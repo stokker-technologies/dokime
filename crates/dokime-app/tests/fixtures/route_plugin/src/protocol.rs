@@ -208,6 +208,7 @@ modes!(
     CancelSignalIgnored, CancelSignalIgnoredRun, CancelSignalIgnoredSignal => "cancel_signal_ignored",
     ScopeError, ScopeErrorRun, ScopeErrorSignal => "scope_error",
     Capture, CaptureRun, CaptureSignal => "capture",
+    StreamLog, StreamLogRun, StreamLogSignal => "stream_log",
 );
 
 operation!(
@@ -465,6 +466,32 @@ impl Resources {
                 .await
                 .map_err(|error| Refusal::of(error.to_string()))
         };
+        if mode == "stream_log" {
+            // A log line the host persists while the run is still producing,
+            // so a viewer can follow it before the step settles.
+            use dokime::execution::log::{Entry, Level};
+            push(EvidenceBatch {
+                phase: "stream".into(),
+                diagnostics: vec![Entry::new(Level::Info, "streamed before release")],
+                ..Default::default()
+            })
+            .await?;
+            while !self.lock().released {
+                tokio::time::sleep(POLL).await;
+            }
+            push(EvidenceBatch {
+                diagnostics: vec![Entry::new(Level::Info, "streamed after release")],
+                ..Default::default()
+            })
+            .await?;
+            return Ok(SidecarExecutionOutcome {
+                passed: true,
+                message: Some("stream log released".into()),
+                criteria: Vec::new(),
+                detail_json: None,
+                failed_in: None,
+            });
+        }
         if mode == "abandon" {
             let opened = ArtifactChunk {
                 transfer_id: "given-up".into(),
@@ -674,6 +701,7 @@ fn suite() -> TestSuite {
             "cancel_signal_ignored",
             "scope_error",
             "capture",
+            "stream_log",
         ]
         .into_iter()
         .map(|mode| TestCaseTemplate {

@@ -24,6 +24,23 @@ mise install --locked
 mise run sync
 ```
 
+Development and test builds leave host media capture out, so its operations
+refuse with "capture not available in this build". The release server
+(`mise run build:server:release`) enables the `media-native` feature to capture
+screenshots, camera photos and audio. On Linux it links the system ALSA library
+and generates V4L2 camera bindings with Clang; screenshots go through the
+desktop portal and need no further libraries. Install the build packages first:
+
+```sh
+# Debian and Ubuntu
+sudo apt install libasound2-dev linux-libc-dev libclang-dev
+# Fedora
+sudo dnf install alsa-lib-devel kernel-headers clang
+```
+
+The installed server then needs only `libasound.so.2` at runtime, plus a
+running `xdg-desktop-portal` for screenshots.
+
 Start the desktop application with `mise dev`. The repository layout and other
 entry points are described in [`README.md`](README.md).
 

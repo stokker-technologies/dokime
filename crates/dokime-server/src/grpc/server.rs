@@ -62,6 +62,7 @@ impl Service {
         history::register(&runtime, config.max_message_bytes())?;
         reports::register(&runtime, config.max_message_bytes())?;
         content::register(&runtime, config.max_message_bytes(), config.local_only())?;
+        super::media::register(&runtime, config.max_message_bytes())?;
         super::notes::register(&runtime, config.max_message_bytes())?;
         super::prompts::register(&runtime, config.max_message_bytes())?;
         super::telemetry::register(&runtime, config.max_message_bytes())?;

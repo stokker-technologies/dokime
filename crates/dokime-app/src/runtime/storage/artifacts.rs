@@ -212,19 +212,16 @@ impl ArtifactUpload {
 }
 
 impl RuntimeHandle {
+    // Stores a finished local file as the artifact `name`, a relative path.
     pub async fn upload_artifact_file(
         &self,
         scope: dokime::core::RecordScope,
         path: impl AsRef<std::path::Path>,
+        filename: String,
         content_type: Option<String>,
     ) -> Result<ArtifactRecord> {
         use tokio::io::AsyncReadExt;
         let path = path.as_ref();
-        let filename = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or_else(|| error("artifact path must have a UTF-8 filename"))?
-            .to_owned();
         let mut file = tokio::fs::File::open(path).await.map_err(error)?;
         let size_bytes = file.metadata().await.map_err(error)?.len();
         let upload = self
@@ -383,7 +380,7 @@ impl ExecutionStorage {
         }
         let id = ArtifactId::new();
         let owner = Arc::new(());
-        let filename = crate::exports::storage::paths::safe_artifact_filename(&input.filename);
+        let filename = crate::exports::storage::paths::safe_artifact_path(&input.filename);
         let metadata = {
             let mut metadata = Metadata::definition(
                 Identifier::new(id.as_str()).map_err(error)?,
@@ -768,15 +765,15 @@ async fn save(acquisition: &mut Acquisition, id: &ArtifactId) -> Result<()> {
 }
 
 fn validate_input(input: &ArtifactUploadInput) -> Result<()> {
-    if input.filename.trim().is_empty()
-        || input.filename.len() > 255
-        || input
-            .content_type
-            .as_ref()
-            .is_some_and(|value| value.is_empty() || value.len() > 255)
+    dokime::artifacts::name::validate(&input.filename)
+        .map_err(|source| error(format!("invalid artifact name: {source}")))?;
+    if input
+        .content_type
+        .as_ref()
+        .is_some_and(|value| value.is_empty() || value.len() > 255)
         || input.size_bytes > i64::MAX as u64
     {
-        return Err(error("invalid artifact filename, media type or size"));
+        return Err(error("invalid artifact media type or size"));
     }
     if let Some(digest) = &input.sha256 {
         validate_digest(digest)?;

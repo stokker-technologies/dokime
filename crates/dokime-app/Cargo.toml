@@ -26,6 +26,18 @@ include = [
 [features]
 default = []
 fft = ["harmos-signal/fft"]
+# Captures screenshots, camera stills and audio on the host. Linux builds need the
+# ALSA development package, V4L2 kernel headers and libclang; Linux screenshots go
+# through the desktop portal.
+media-native = [
+  "dep:ashpd",
+  "dep:cpal",
+  "dep:hound",
+  "dep:image",
+  "dep:nokhwa",
+  "dep:url",
+  "dep:xcap",
+]
 # Deterministic whole-runtime simulation, forwarded to the library that owns it.
 sim = ["harmos/simulation"]
 
@@ -60,6 +72,8 @@ arrow-array = { workspace = true, default-features = true }
 arrow-schema = { workspace = true, default-features = true }
 arrow-select = { workspace = true, default-features = true }
 base64 = { workspace = true, default-features = true }
+hound = { workspace = true, optional = true }
+image = { workspace = true, optional = true, features = ["jpeg", "png"] }
 prost = { workspace = true, default-features = true }
 serde = { workspace = true, default-features = true }
 serde_arrow = { workspace = true }
@@ -80,6 +94,21 @@ tokio = { workspace = true, default-features = true }
 tokio-util = { workspace = true, default-features = true, features = ["io"] }
 
 # Storage
+
+# UI
+cpal = { workspace = true, optional = true }
+nokhwa = { workspace = true, optional = true, features = ["decoding", "input-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Networking
+url = { workspace = true, optional = true, features = ["std"] }
+
+# UI
+ashpd = { workspace = true, optional = true, features = ["screenshot", "tokio"] }
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+# UI
+xcap = { workspace = true, optional = true }
 
 [dev-dependencies]
 

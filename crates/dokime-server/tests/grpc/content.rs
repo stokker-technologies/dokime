@@ -43,9 +43,9 @@ struct Artifacts {
 }
 
 #[derive(Default)]
-struct UploadGate {
-    started: Notify,
-    release: Notify,
+pub(super) struct UploadGate {
+    pub(super) started: Notify,
+    pub(super) release: Notify,
 }
 
 struct LargeArtifact;
@@ -712,6 +712,47 @@ pub(crate) async fn artifact_upload_owned() {
     assert_eq!(uploaded.filename, "native.bin");
     assert_eq!(uploaded.state, contracts::content::ArtifactState::Complete);
     assert_eq!(uploaded.sha256, digest);
+
+    // Operator Uploads Land Under Their Folder; Escaping Names Are Refused
+    let upload_named = |filename: &str| {
+        tokio_stream::iter(vec![
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Header(
+                    contracts::content::UploadArtifactHeader {
+                        scope: Some(scope()),
+                        filename: filename.into(),
+                        content_type: Some("text/plain".into()),
+                        size_bytes: 5,
+                        sha256: None,
+                    },
+                )),
+            },
+            contracts::content::UploadArtifactFrame {
+                payload: Some(contracts::content::UploadArtifactFramePayload::Chunk(
+                    contracts::content::ArtifactChunk {
+                        offset: 0,
+                        data: b"notes".to_vec(),
+                    },
+                )),
+            },
+        ])
+    };
+    let foldered = content
+        .upload::<contracts::content::UploadArtifact>(authenticated(upload_named(
+            "upload/operator-notes.txt",
+        )))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(foldered.filename, "upload/operator-notes.txt");
+    assert_eq!(foldered.state, contracts::content::ArtifactState::Complete);
+    for escaping in ["../escape.txt", "/absolute.txt", "upload//empty.txt"] {
+        let refused = content
+            .upload::<contracts::content::UploadArtifact>(authenticated(upload_named(escaping)))
+            .await
+            .unwrap_err();
+        assert_eq!(refused.code(), Code::InvalidArgument, "{escaping}");
+    }
 
     let native = dokime_client::Client::connect(
         dokime_client::Target::local(server.local_endpoint()).unwrap(),

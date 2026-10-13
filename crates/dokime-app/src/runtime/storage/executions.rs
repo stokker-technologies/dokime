@@ -78,6 +78,7 @@ pub(crate) struct ExecutionStorage {
     pub(super) active: Mutex<BTreeMap<TestExecutionId, Arc<Mutex<Acquisition>>>>,
     pub(super) artifact_admission: Arc<tokio::sync::Semaphore>,
     pub(crate) tail_stops: Mutex<BTreeMap<String, Arc<TailStop>>>,
+    pub(crate) captures: crate::capabilities::media::Captures,
 }
 
 pub(super) struct Acquisition {
@@ -362,6 +363,7 @@ impl ExecutionStorage {
             active: Mutex::new(BTreeMap::new()),
             artifact_admission: Arc::new(tokio::sync::Semaphore::new(4)),
             tail_stops: Mutex::new(BTreeMap::new()),
+            captures: Default::default(),
         })
     }
 

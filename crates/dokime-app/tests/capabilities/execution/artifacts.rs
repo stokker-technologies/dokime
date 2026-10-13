@@ -34,7 +34,8 @@ const ARTIFACT_EVIDENCE_ROWS: usize = 262_144;
 const ABANDONED_ARTIFACT_COUNT: usize = 17;
 const SETTLED_ARTIFACT_CONTENT: &str = "produced after the abandoned transfers\n";
 
-const WATCHED_FILE: &str = "chamber.log";
+// The watched directory's folder is kept in the stored artifact name.
+const WATCHED_FILE: &str = "capture/chamber.log";
 const WATCHED_CONTENT: &str = "the chamber log, rewritten in place\n";
 
 /* === Macros === */
@@ -143,11 +144,8 @@ pub(crate) async fn steps_streamed_media() {
     let execution = &completed.test_executions[0];
     assert_eq!(execution.status, ExecutionStatus::Passed);
 
-    // `capabilities::exports::storage::names::safe_artifact_filename` sanitizes
-    // every stored artifact's name down to a safe basename, so the streamed
-    // relative name (`evidence/pulse.csv`) is not what lands in the durable
-    // `ArtifactRecord`; only the wire name carries it, and
-    // `test::workflow::tests` covers that directly against `FrameTransport`.
+    // Artifact names are relative paths: the step's own folder (`evidence/`)
+    // is kept in the durable `ArtifactRecord`, never flattened to a basename.
     let expected = artifact_evidence();
     assert!(
         expected.len() > dokime::transport::MAX_ARTIFACT_CHUNK_BYTES * 3,
@@ -158,7 +156,7 @@ pub(crate) async fn steps_streamed_media() {
         .await
         .expect("artifact query succeeds")
         .iter()
-        .find(|record| record.filename == "pulse.csv")
+        .find(|record| record.filename == "evidence/pulse.csv")
         .cloned()
         .expect("the step's streamed artifact is stored against the completed execution");
     assert_eq!(record.status, dokime::artifacts::ArtifactStatus::Complete);
@@ -290,7 +288,7 @@ pub(crate) async fn abandoned_artifacts_execution() {
             .iter()
             .map(|record| record.filename.clone())
             .collect::<Vec<_>>(),
-        ["settled.txt"],
+        ["evidence/settled.txt"],
         "the abandoned transfers are dropped and the finished one is stored"
     );
     let content = handle

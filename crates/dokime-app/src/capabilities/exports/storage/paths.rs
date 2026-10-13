@@ -33,7 +33,16 @@ use std::path::Path;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(crate) fn safe_artifact_filename(filename: &str) -> String {
+// Sanitizes each folder and file segment of a validated relative artifact name.
+pub(crate) fn safe_artifact_path(name: &str) -> String {
+    name.split('/')
+        .map(safe_artifact_filename)
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/* === Private Functions === */
+fn safe_artifact_filename(filename: &str) -> String {
     let name = Path::new(filename)
         .file_name()
         .and_then(|name| name.to_str())
@@ -69,7 +78,6 @@ pub(crate) fn safe_artifact_filename(filename: &str) -> String {
     )
 }
 
-/* === Private Functions === */
 fn slugify(value: &str) -> String {
     let mut output = String::new();
     let mut previous_dash = false;

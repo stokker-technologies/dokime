@@ -16,7 +16,7 @@ pub use dokime_contract::execution::{ExecutionCheckpoint, SavedEvidenceError};
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeSet, path::Path};
+use std::collections::BTreeSet;
 // Third Party Imports
 use harmos::storage::{FileReference, ObjectVersionToken, StorageCursor};
 use serde::{Deserialize, Serialize};
@@ -474,28 +474,7 @@ pub fn validate_output_path(path: &str) -> Result<()> {
 }
 
 pub fn validate_relative_output_path(relative_path: &str) -> Result<()> {
-    let path = Path::new(relative_path);
-    if relative_path.is_empty()
-        || relative_path.len() > 1024
-        || relative_path.chars().any(char::is_control)
-        || relative_path
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..")
-        || path.is_absolute()
-        || path.components().any(|component| {
-            matches!(
-                component,
-                std::path::Component::ParentDir
-                    | std::path::Component::RootDir
-                    | std::path::Component::Prefix(_)
-            )
-        })
-        || relative_path.contains('\\')
-        || relative_path
-            .split('/')
-            .next()
-            .is_some_and(|first| first.len() == 2 && first.ends_with(':'))
-    {
+    if !crate::artifacts::name::is_relative_path(relative_path) {
         return Err(SavedEvidenceError::Invalid("invalid execution output path"));
     }
     Ok(())

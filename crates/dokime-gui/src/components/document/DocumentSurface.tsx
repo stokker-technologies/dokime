@@ -27,6 +27,7 @@ import { LivePlotGroupGrid, type PlotSettingsChange } from "@/components/documen
 import { RecordTimeline } from "@/components/document/RecordTimeline";
 import { StepRecordList } from "@/components/document/StepRecordsCard";
 import { MarkdownText } from "@/components/MarkdownText";
+import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery, type MediaGalleryArtifact } from "@/components/MediaGallery";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ import type {
   HubRecord,
   OperatorNote,
   PlotPayload,
+  RecordScope,
   StepExecutionRecord,
   TelemetryStream,
   TraceabilitySnapshot,
@@ -122,6 +124,8 @@ type DocumentSurfaceSharedProps = {
 
 type LiveDocumentSurfaceProps = DocumentSurfaceSharedProps & {
   boxSummarySection?: BoxSummarySectionSpec;
+  /** The execution scope host captures attach to; absent hides the controls. */
+  captureScope?: RecordScope | null;
   histogramSection?: HistogramSectionSpec;
   livePlotStates: LivePlotStateMap;
   onPlotSettingsChange?: PlotSettingsChange;
@@ -249,12 +253,16 @@ export function DocumentCardContent(props: DocumentCardContentProps) {
   }
 
   if (props.card.kind === "media") {
+    const captureScope = isReportDocumentSurface(props) ? null : props.captureScope;
     return (
-      <MediaGallery
-        artifacts={props.mediaArtifacts}
-        emptyMessage="No media recorded."
-        runDir={props.runDir}
-      />
+      <div className="grid gap-3">
+        {captureScope ? <MediaCaptureControls scope={captureScope} /> : null}
+        <MediaGallery
+          artifacts={props.mediaArtifacts}
+          emptyMessage="No media recorded."
+          runDir={props.runDir}
+        />
+      </div>
     );
   }
 
