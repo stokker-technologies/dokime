@@ -124,6 +124,8 @@ impl Transaction<RuntimeState> for CopyCycle {
             .replace_cycle(cycle)
             .expect("cycle projection has valid ownership");
         records.apply(state);
+        // The Copy Starts A New Working Cycle: Retire Its Sealed Predecessors
+        state.retire_sealed_cycles();
     }
 }
 

@@ -191,6 +191,8 @@ pub(crate) async fn provider_lane_run() {
     };
     register_python_suite(&runtime, repeated.clone()).await;
     let repeated_id = start_cycle(&runtime, repeated, false).await;
+    // Starting It Retires The First Sealed Cycle And Its Live Record Visibility.
+    let baseline = tracking(&runtime.evidence_snapshot().await.unwrap());
     let queued = cycle_snapshot(&runtime, &repeated_id).await;
     assert_eq!(queued.cases().count(), 2);
 
@@ -215,8 +217,8 @@ pub(crate) async fn provider_lane_run() {
             .all(|execution| execution.status == ExecutionStatus::Passed)
     );
     let (samples, warnings) = tracking(&after);
-    assert_eq!(samples - 2, 4);
-    assert_eq!(warnings - 1, 2);
+    assert_eq!(samples - baseline.0, 4);
+    assert_eq!(warnings - baseline.1, 2);
 }
 
 pub(crate) async fn failing_panicking_failed() {

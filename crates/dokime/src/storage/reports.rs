@@ -178,121 +178,6 @@ impl Owner<'_> {
 }
 
 impl Publication {
-    pub fn execution_seal_memory(&self) -> Result<usize> {
-        let seal = self
-            .execution
-            .as_ref()
-            .ok_or(Error::Invalid("report has no execution seal"))?;
-        Ok(seal
-            .memory_size()
-            .saturating_add(seal.projection_memory()?)
-            .saturating_add(72))
-    }
-
-    pub fn execution_seal(
-        &self,
-        allowance: NonZeroUsize,
-    ) -> Result<crate::execution::saved::ExecutionSeal> {
-        let bytes = self.execution_seal_memory()?;
-        if bytes == usize::MAX || bytes > allowance.get() {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "report execution seal projection",
-            }
-            .into());
-        }
-        self.check()?;
-        self.execution
-            .as_ref()
-            .expect("checked execution seal")
-            .clone()
-            .try_into()
-    }
-
-    pub fn final_cycle_memory(&self, node: &crate::core::NodeId) -> Result<usize> {
-        let cycle = self
-            .cycle
-            .as_ref()
-            .ok_or(Error::Invalid("report has no cycle header"))?;
-        let sources = self.executions.iter().try_fold(0usize, |bytes, source| {
-            Ok::<_, Error>(bytes.saturating_add(source.projection_memory()?))
-        })?;
-        let scratch = self
-            .executions
-            .iter()
-            .map(MemorySize::memory_size)
-            .max()
-            .unwrap_or(0);
-        Ok(cycle
-            .memory_size()
-            .saturating_add(cycle.projection_memory()?)
-            .saturating_add(sources)
-            .saturating_add(scratch)
-            .saturating_add(self.file()?.memory_size())
-            .saturating_add(
-                self.evidence_through
-                    .as_ref()
-                    .map_or(0, MemorySize::memory_size),
-            )
-            .saturating_add(
-                self.dependencies_saved
-                    .as_ref()
-                    .map_or(0, MemorySize::memory_size),
-            )
-            .saturating_add(node.memory_size())
-            .saturating_add(std::mem::size_of::<crate::execution::saved::CycleSeal>())
-            .saturating_add(std::mem::size_of::<Timestamp>())
-            .saturating_add(self.generated_at.len())
-            .saturating_add(36))
-    }
-
-    pub fn final_cycle(
-        &self,
-        node: &crate::core::NodeId,
-        allowance: NonZeroUsize,
-    ) -> Result<crate::execution::TestCycle> {
-        let bytes = self.final_cycle_memory(node)?;
-        if bytes == usize::MAX || bytes > allowance.get() {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "report final cycle projection",
-            }
-            .into());
-        }
-        self.check()?;
-        if !self.final_report {
-            return Err(Error::Invalid(
-                "generated report cannot restore a final seal",
-            ));
-        }
-        let mut cycle = self
-            .cycle
-            .as_ref()
-            .expect("checked cycle header")
-            .restore()?;
-        let mut executions = Vec::with_capacity(self.executions.len());
-        for source in &self.executions {
-            executions.push(ExecutionRevision::try_from(source.clone())?);
-        }
-        let seal = crate::execution::saved::CycleSeal {
-            owner_node_id: node.clone(),
-            evidence_through: self
-                .evidence_through
-                .as_ref()
-                .expect("checked evidence")
-                .clone(),
-            executions,
-            report: self.file()?.clone(),
-            dependencies_saved: self
-                .dependencies_saved
-                .as_ref()
-                .expect("checked dependencies")
-                .clone(),
-            sealed_at: Timestamp::new(&self.generated_at),
-        };
-        seal.validate(&cycle)?;
-        cycle.saved = Some(seal);
-        Ok(cycle)
-    }
-
     pub fn from_record(record: &harmos::storage::StoredRecord<Self>) -> Result<&Self> {
         let publication = &record.payload;
         publication.check()?;
@@ -378,19 +263,9 @@ impl Publication {
     pub fn owner(&self) -> &str {
         &self.owner
     }
-    pub fn generated_at(&self) -> &str {
-        &self.generated_at
-    }
-    pub fn is_final(&self) -> bool {
-        self.final_report
-    }
 
     pub fn cycle(&self) -> Option<&Cycle> {
         self.cycle.as_ref()
-    }
-
-    pub fn inputs(&self) -> &[FileReference] {
-        &self.inputs
     }
 
     fn check(&self) -> Result<()> {

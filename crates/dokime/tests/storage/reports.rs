@@ -169,30 +169,6 @@ pub(crate) async fn report_publication_reopens() {
         let publication = reports::Publication::from_record(&page[0]).unwrap();
         assert_eq!(publication.file().unwrap(), &file);
         assert_eq!(publication.cycle().unwrap().restore().unwrap(), cycle);
-        let node = dokime::core::NodeId::from_seed("report-node");
-        let memory = publication.final_cycle_memory(&node).unwrap();
-        let restored = page
-            .try_project(memory.try_into().unwrap(), |rows, allowance| {
-                rows[0]
-                    .payload
-                    .final_cycle(&node, allowance)
-                    .map_err(|source| {
-                        harmos::Error::backend(
-                            "restore report cycle",
-                            harmos::BackendFailure::Corrupt,
-                            source,
-                        )
-                    })
-            })
-            .unwrap();
-        assert_eq!(restored.test_cycle_id, owner);
-        restored
-            .saved
-            .as_ref()
-            .unwrap()
-            .validate(&restored)
-            .unwrap();
-        drop(restored);
         assert_eq!(page[0].item, file.metadata.id);
         drop(page);
         assert!(history.next_page().await.unwrap().is_none());

@@ -326,6 +326,15 @@ fn domain_contract() {
         run_scenario(storage::records::managed_records_spool, false, None, false);
     }
     {
+        eprintln!("Scenario: storage::recovery::cycle_survives_skipped_snapshot");
+        run_scenario(
+            storage::recovery::cycle_survives_skipped_snapshot,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: storage::requests::receipt_initialize_storage");
         run_scenario(
             storage::requests::receipt_initialize_storage,

@@ -21,7 +21,7 @@
 use crate::support::prelude::*;
 use dokime::Message;
 use dokime::core::Value;
-use dokime_app::capabilities::evidence::{ScopeSelection, TelemetrySelection};
+use dokime_app::capabilities::evidence::TelemetrySelection;
 use dokime_app::execution::CycleView;
 
 /* === Constants === */
@@ -331,16 +331,14 @@ pub(crate) async fn native_capture_contexts() {
         5,
         "foreign, revoked and paused contexts never become global evidence"
     );
-    let scoped = handle
-        .collect_telemetry(&TelemetrySelection {
-            streams: vec![Identifier::new(STREAM).unwrap()],
-            scope: ScopeSelection {
-                test_execution_id: Some(execution.test_execution_id.clone()),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .await;
+    // Starting The Paused Cycle Retired The Stopped One; Its Saved History Answers.
+    let checkpoint =
+        crate::support::native::checkpoint(&handle, &execution.test_execution_id).await;
+    let scoped: Vec<_> = crate::support::native::samples(&handle, &checkpoint)
+        .await
+        .into_iter()
+        .filter(|sample| sample.stream.as_str() == STREAM)
+        .collect();
     assert_eq!(scoped.len(), 4);
     assert_eq!(
         scoped

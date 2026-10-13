@@ -50,6 +50,10 @@ pub(crate) async fn build(
     crate::app::builder(fresh, ())
         .managed_state(group_limits)
         .store_records(group_limits, projection)
+        // The snapshot cap bounds state; Harmos also embeds the recent journal
+        // tail, which the journal itself retains anyway. A short tail keeps one
+        // wide cycle's entries from crowding state out of the snapshot.
+        .tail(64)
         .managed_snapshots(harmos::state::SnapshotPolicy {
             schema: harmos::storage::SchemaKey {
                 payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1,
@@ -71,10 +75,6 @@ pub(crate) async fn build(
             records.begin(state_manager.applied());
             records.initialize().await.map_err(reconciliation_error)?;
             super::telemetry::initialize(&native)
-                .await
-                .map_err(reconciliation_error)?;
-
-            super::reconciliation::reconcile(&state_manager, &native)
                 .await
                 .map_err(reconciliation_error)?;
 

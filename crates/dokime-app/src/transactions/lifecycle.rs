@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use crate::execution::{CycleStatus, ExecutionStatus, StepRecord, StepStatus, TestExecution};
 use crate::state::RuntimeState;
 use crate::transactions::provider::request::RunPhase;
-use dokime::core::{DokimeNodeIdentity, SessionId, TestCycleId, Timestamp};
+use dokime::core::{DokimeNodeIdentity, SessionId, Timestamp};
 
 /* === Constants === */
 
@@ -35,13 +35,6 @@ use dokime::core::{DokimeNodeIdentity, SessionId, TestCycleId, Timestamp};
 pub struct MarkRuntimeStarted {
     pub session_id: SessionId,
     pub record_namespace: SessionId,
-}
-
-#[harmos::transaction(id = "dokime.runtime.cycle.reconcile", version = 1, irreversible)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ReconcileStoredCycle {
-    pub cycle_id: TestCycleId,
-    pub cycle: Option<crate::execution::CycleView>,
 }
 
 #[harmos::transaction(id = "dokime.runtime.identity.establish", version = 1, irreversible)]
@@ -65,75 +58,6 @@ pub struct RecoverInterruptedCycles {
 /* === Traits === */
 
 /* === Implementations === */
-impl Transaction<RuntimeState> for ReconcileStoredCycle {
-    type Error = String;
-
-    fn check(&self, state: &RuntimeState) -> std::result::Result<(), Self::Error> {
-        if self
-            .cycle
-            .as_ref()
-            .is_some_and(|cycle| cycle.test_cycle_id != self.cycle_id)
-        {
-            return Err("reconciled cycle identity differs from its key".into());
-        }
-        if let Some(cycle) = &self.cycle {
-            state.validate_cycle_view(cycle)?;
-            if cycle.saved.is_some() {
-                let current = state
-                    .cycles
-                    .get(&self.cycle_id)
-                    .ok_or("cycle changed after saved finalization")?;
-                if current.updated_at != cycle.updated_at
-                    || current.lifecycle != cycle.lifecycle
-                    || current.execution_ids.len() != cycle.test_executions.len()
-                    || current
-                        .execution_ids
-                        .iter()
-                        .zip(&cycle.test_executions)
-                        .any(|(id, execution)| id != &execution.test_execution_id)
-                {
-                    return Err("cycle changed after saved finalization".into());
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn apply(&self, state: &mut RuntimeState) {
-        let removed: std::collections::BTreeSet<_> = state
-            .cycles
-            .get(&self.cycle_id)
-            .into_iter()
-            .flat_map(|cycle| &cycle.execution_ids)
-            .filter(|id| {
-                !self.cycle.as_ref().is_some_and(|cycle| {
-                    cycle
-                        .test_executions
-                        .iter()
-                        .any(|next| &next.test_execution_id == *id)
-                })
-            })
-            .cloned()
-            .collect();
-        state.records.record_visibility.retain(|record| {
-            !record.scope.as_ref().is_some_and(|scope| {
-                (self.cycle.is_none() && scope.test_cycle_id.as_ref() == Some(&self.cycle_id))
-                    || scope
-                        .test_execution_id
-                        .as_ref()
-                        .is_some_and(|id| removed.contains(id))
-            })
-        });
-        if let Some(cycle) = &self.cycle {
-            state
-                .replace_cycle(cycle.clone())
-                .expect("cycle projection has valid ownership");
-        } else {
-            state.remove_cycle(&self.cycle_id);
-        }
-    }
-}
-
 impl Transaction<RuntimeState> for MarkRuntimeStarted {
     type Error = String;
 
@@ -205,6 +129,8 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
             request.failure = Some("runtime restarted before request completion".into());
         }
 
+        // Sealed Cycles Are Served From Native History After A Restart
+        state.retire_sealed_cycles();
         for cycle in state.cycles.values_mut() {
             let mut changed = matches!(
                 cycle.lifecycle,

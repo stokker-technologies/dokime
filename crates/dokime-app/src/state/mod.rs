@@ -193,12 +193,29 @@ impl RuntimeState {
         })
     }
 
-    pub fn remove_cycle(&mut self, id: &TestCycleId) -> Option<crate::execution::TestCycle> {
-        let cycle = self.cycles.remove(id)?;
-        for id in &cycle.execution_ids {
-            self.executions.remove(id);
+    // Retire Sealed Cycles From Live State; Their Saved Closure Stays In Native History
+    pub fn retire_sealed_cycles(&mut self) {
+        let sealed: Vec<_> = self
+            .cycles
+            .values()
+            .filter(|cycle| cycle.saved.is_some())
+            .map(|cycle| cycle.test_cycle_id.clone())
+            .collect();
+        for id in sealed {
+            let cycle = self.cycles.remove(&id).expect("selected sealed cycle");
+            for execution_id in &cycle.execution_ids {
+                self.executions.remove(execution_id);
+            }
+            self.records.record_visibility.retain(|record| {
+                !record.scope.as_ref().is_some_and(|scope| {
+                    scope.test_cycle_id.as_ref() == Some(&id)
+                        || scope
+                            .test_execution_id
+                            .as_ref()
+                            .is_some_and(|execution| cycle.execution_ids.contains(execution))
+                })
+            });
         }
-        Some(cycle)
     }
 
     pub fn validate_cycle_view(&self, view: &crate::execution::CycleView) -> Result<(), String> {

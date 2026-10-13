@@ -38,8 +38,7 @@ pub use execution_control::ControlExecution;
 pub use installation::{InstallPlugin, RemovePlugin};
 pub use invalidation::InvalidateExecutions;
 pub use lifecycle::{
-    EstablishNodeIdentity, MarkRuntimeStarted, ReconcileStoredCycle, RecoverInterruptedCycles,
-    StartShutdown,
+    EstablishNodeIdentity, MarkRuntimeStarted, RecoverInterruptedCycles, StartShutdown,
 };
 pub use notes::{AddOperatorNote, CreateOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
@@ -110,7 +109,6 @@ pub enum Transactions {
     AddOperatorNote(AddOperatorNote),
     CreateOperatorNote(CreateOperatorNote),
     MarkRuntimeStarted(MarkRuntimeStarted),
-    ReconcileStoredCycle(ReconcileStoredCycle),
     RecoverInterruptedCycles(RecoverInterruptedCycles),
     EstablishNodeIdentity(EstablishNodeIdentity),
     StartShutdown(StartShutdown),

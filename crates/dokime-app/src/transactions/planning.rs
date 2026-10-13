@@ -180,6 +180,10 @@ fn apply_create_cycle(
         .suites
         .register_cases(cycle.cases())
         .map_err(conflict)?;
+    // Starting A Cycle Keeps At Most One Sealed Cycle: Retire The Previous One
+    if matches!(create.mode, CreateCycleMode::Start) {
+        state.retire_sealed_cycles();
+    }
     state
         .replace_cycle(cycle)
         .expect("cycle projection has valid ownership");

@@ -12,6 +12,7 @@ pub(crate) mod aggregate;
 pub(crate) mod artifacts;
 pub(crate) mod operations;
 pub(crate) mod records;
+pub(crate) mod recovery;
 pub(crate) mod requests;
 
 /* === Re-Exports === */

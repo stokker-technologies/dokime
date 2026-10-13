@@ -650,7 +650,10 @@ pub(crate) fn append_checks_execution() {
     assert_eq!(added.test_case_id, original.test_case_id);
     assert_eq!(added.status, ExecutionStatus::Skipped);
     assert!(added.started_at.is_none() && added.finished_at.is_none());
-    state.remove_cycle(&cycle_id);
+    let removed = state.cycles.remove(&cycle_id).unwrap();
+    for id in &removed.execution_ids {
+        state.executions.remove(id);
+    }
     assert!(append.check(&state).is_err());
 }
 
@@ -1485,7 +1488,7 @@ pub(crate) fn copied_cycle_reusing() {
         state.executions.remove(&id);
     }
     assert!(retry.check(&state).unwrap_err().contains("executions"));
-    state.remove_cycle(&source_id);
+    state.cycles.remove(&source_id);
     assert!(retry.check(&state).unwrap_err().contains("not found"));
 }
 
