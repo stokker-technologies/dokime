@@ -17,7 +17,9 @@ import { normalizeRpcError } from "./errors";
 import type { NativeStream, SessionIdentity } from "./transport";
 
 /* === Constants === */
-const connections = new WeakMap<SessionIdentity, Connection>();
+// Keyed by connection generation: callers legitimately pass derived session
+// objects that carry the same generation, so object identity is not the key.
+const connections = new Map<string, Connection>();
 const maxFrameBytes = 4 * 1024 * 1024;
 const text = new TextDecoder("utf-8", { fatal: true });
 
@@ -32,11 +34,14 @@ export function bindConnection(session: SessionIdentity, access: BrowserAccess):
   current(session);
   if (access.generation !== session.generation) fail("superseded");
   const cancellation = new AbortController();
-  connections.set(session, { access, cancellation });
+  const connection = { access, cancellation };
+  connections.set(session.generation, connection);
   return () => {
     cancellation.abort();
     access.authorization = null;
-    connections.delete(session);
+    if (connections.get(session.generation) === connection) {
+      connections.delete(session.generation);
+    }
   };
 }
 
@@ -73,7 +78,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
 ): Promise<NativeStream<MessageShape<O>>> {
   if (isReportBuild()) throw new Error("A frozen report cannot connect to a backend.");
   current(session);
-  const connection = connections.get(session);
+  const connection = connections.get(session.generation);
   if (!connection) fail("not_connected");
   if (!/^\/[A-Za-z0-9_.]+\/[A-Za-z0-9_]+$/.test(path)) throw new Error("Invalid gRPC method path.");
   if (!connection.access.methods.includes(path)) {
