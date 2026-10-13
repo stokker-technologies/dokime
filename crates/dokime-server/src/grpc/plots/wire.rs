@@ -345,11 +345,7 @@ fn plot_presentation(
     input: &PlotInput,
 ) -> Result<dokime_contract::operations::documents::PlotPresentation, Status> {
     let (x_axis, x_axis_unit) = enums::plot_axis(input.x_axis.as_ref());
-    // PlotInput is materialized after layout normalization and intentionally
-    // carries no authored group. The document layout remains the grouping
-    // authority; an empty group lets clients apply that parent section.
     Ok(dokime_contract::operations::documents::PlotPresentation {
-        group: String::new(),
         style: enums::plot_style(&input.style),
         fft: Some(plot_fft_wire(&input.fft)?),
         interval: Some(plot_interval_wire(&input.interval)?),

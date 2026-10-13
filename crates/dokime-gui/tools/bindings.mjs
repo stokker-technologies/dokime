@@ -131,7 +131,7 @@ for (const file of set.file)
         `export const ${name} = (session: SessionIdentity, request: Parameters<typeof ${call}<typeof ${requestSchema}, typeof ${responseSchema}>>[4]) => ${call}(${JSON.stringify(transportPath)}, ${requestSchema}, ${responseSchema}, session, request${method.clientStreaming ? "" : envelope ? `, ${name}Envelope, ${deadlines.get(path)}` : `, ${deadlines.get(path)}`});`,
       );
     }
-emit(resolve(gui, "src/lib/rpc/generated/client.ts"), lines.join("\n") + "\n");
+emit(resolve(gui, "src/lib/rpc/generated/client.ts"), `${lines.join("\n")}\n`);
 emit(
   resolve(gui, "src/lib/rpc/generated/identity.ts"),
   `// Generated From Canonical Harmos Descriptors. Do Not Edit.\nexport const descriptorSha256 = "${createHash("sha256").update(descriptor).digest("hex")}";\n`,

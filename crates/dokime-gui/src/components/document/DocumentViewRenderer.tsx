@@ -26,6 +26,7 @@ import type {
   DocumentViewNode,
   DocumentViewPayload,
   DocumentViewSection,
+  Metadata,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -33,9 +34,12 @@ import { cn } from "@/lib/utils";
 
 /* === Types === */
 
+/** Renders one card; `section` is the enclosing section, absent at the top level. */
+export type DocumentCardRenderer = (card: DocumentViewCard, section: Metadata | null) => ReactNode;
+
 type DocumentViewRendererProps = {
   document: DocumentViewPayload | null | undefined;
-  renderCard: (card: DocumentViewCard) => ReactNode;
+  renderCard: DocumentCardRenderer;
   cardFilter?: (card: DocumentViewCard) => boolean;
   cardChrome?: (card: DocumentViewCard) => DocumentBlockChrome;
   emptyMessage?: ReactNode;
@@ -94,6 +98,7 @@ export function DocumentViewRenderer({
             node={node}
             renderCard={renderCard}
             resolvedCardChrome={resolvedCardChrome}
+            section={null}
           />
         ))
       ) : (
@@ -113,13 +118,15 @@ function DocumentLayoutNodeBlock({
   node,
   renderCard,
   resolvedCardChrome,
+  section: parent,
 }: {
   cardFilter: (card: DocumentViewCard) => boolean;
   cardMap: Map<string, DocumentViewCard>;
   chrome: DocumentSectionChrome;
   node: DocumentViewNode;
-  renderCard: (card: DocumentViewCard) => ReactNode;
+  renderCard: DocumentCardRenderer;
   resolvedCardChrome: (card: DocumentViewCard) => DocumentBlockChrome;
+  section: Metadata | null;
 }) {
   if (node.type === "card") {
     const card = documentCardForPlacement(cardMap, node);
@@ -129,7 +136,7 @@ function DocumentLayoutNodeBlock({
 
     return (
       <DocumentViewBlock card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
-        {renderCard(card)}
+        {renderCard(card, parent)}
       </DocumentViewBlock>
     );
   }
@@ -142,7 +149,7 @@ function DocumentLayoutNodeBlock({
     if (card && sameLabel(node.metadata.label, card.title)) {
       return cardFilter(card) ? (
         <DocumentViewBlock card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
-          {renderCard(card)}
+          {renderCard(card, node.metadata)}
         </DocumentViewBlock>
       ) : null;
     }
@@ -159,6 +166,7 @@ function DocumentLayoutNodeBlock({
         node={child}
         renderCard={renderCard}
         resolvedCardChrome={resolvedCardChrome}
+        section={node.metadata}
       />
     ));
   if (!renderedChildren.length && !node.unavailable) {

@@ -24,9 +24,6 @@ pub use sequence::{Samples, Startup};
 pub const STARTUP_SUITE: &str = "mini.charger.startup";
 pub const STARTUP_TEMPLATE: &str = "mini.charger.startup.sequence";
 const STARTUP_TEMPLATE_ID: &str = "0197f000-0000-7000-8000-000000000001";
-const CHARGER_TIMELINE_GROUP: &str = "Charger Input";
-const INPUT_DISTRIBUTION_GROUP: &str = "Signal Distributions";
-const INPUT_PHASE_GROUP: &str = "Phase Breakdown";
 
 /* === Macros === */
 

@@ -264,7 +264,6 @@ function mapNativeCard(
   ) {
     if (!result.value.field0) invalid("plot binding is missing");
     const plot = mapNativePlot(result.value.field0, id);
-    plot.group = document.header.metadata?.label || document.header.documentId;
     return documentCard(metadata, "plots", { plots: [plot] });
   }
   if (result.case !== "Literal" || !result.value.field0 || body.case === "Summary")
@@ -492,7 +491,6 @@ function mapNativePlot(
     x: request.xKey,
     series_by: request.seriesBy,
     unit: request.unit ?? null,
-    group: presentation?.group,
     description: metadata?.description ?? null,
     marker_record_types: [...request.markerRecordTypes],
     filters: request.filters.map(mapNativeFilter),

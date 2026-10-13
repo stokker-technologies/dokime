@@ -114,6 +114,8 @@ type DocumentSurfaceSharedProps = {
   notes: OperatorNote[];
   plotParameterContext?: Record<string, unknown> | null;
   runDir?: string | null;
+  /** The enclosing section's label, or the card's own title at the top level. */
+  sectionTitle: string;
   stepRecords: StepExecutionRecord[];
   traceability: TraceabilitySnapshot | null | undefined;
 };
@@ -180,12 +182,12 @@ export function DocumentCardContent(props: DocumentCardContentProps) {
         <PlotInteractionProvider zoom>
           <LivePlotGroupGrid
             documentPlots={props.card.plots}
-            hideWhenEmpty
             liveStates={reportPlotStates(props.card.plots, props.reportPlots)}
             parameters={props.plotParameterContext}
             resetKey="All"
             showGroupHeaders={false}
             telemetry={props.reportTelemetry}
+            title={props.sectionTitle}
             viewportMode="fit"
           />
         </PlotInteractionProvider>
@@ -194,13 +196,13 @@ export function DocumentCardContent(props: DocumentCardContentProps) {
       <div className="plot-grid grid gap-3">
         <LivePlotGroupGrid
           documentPlots={props.card.plots}
-          hideWhenEmpty
           liveStates={props.livePlotStates}
           onPlotSettingsChange={props.onPlotSettingsChange}
           parameters={props.plotParameterContext}
           resetKey={props.plotResetKey}
           showGroupHeaders={false}
           telemetry={props.plotContextTelemetry}
+          title={props.sectionTitle}
         />
       </div>
     );

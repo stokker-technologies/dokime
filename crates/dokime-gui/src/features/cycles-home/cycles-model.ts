@@ -62,17 +62,17 @@ const ACTIVE_STATUSES = ["Running", "Paused", "Stopping"];
 const SEALED_STATUSES = ["Completed", "Failed", "Stopped", "Cleared"];
 
 const STATUS_LABELS: Record<CycleRow["status"], string> = {
-  ["Unspecified"]: "Unknown",
-  ["Previewed"]: "Previewed",
-  ["Ready"]: "Ready",
-  ["Running"]: "Running",
-  ["Paused"]: "Paused",
-  ["Stopping"]: "Stopping",
-  ["Completed"]: "Completed",
-  ["Failed"]: "Failed",
-  ["Blocked"]: "Blocked",
-  ["Stopped"]: "Stopped",
-  ["Cleared"]: "Cleared",
+  Unspecified: "Unknown",
+  Previewed: "Previewed",
+  Ready: "Ready",
+  Running: "Running",
+  Paused: "Paused",
+  Stopping: "Stopping",
+  Completed: "Completed",
+  Failed: "Failed",
+  Blocked: "Blocked",
+  Stopped: "Stopped",
+  Cleared: "Cleared",
 };
 
 /* === Public Functions === */

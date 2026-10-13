@@ -13,10 +13,13 @@ import { memo, type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
-import { buildDocumentPlotGroups, type PlotTopicGroup } from "@/lib/document-plots";
+import {
+  documentPlotGroupDescription,
+  documentPlotSpec,
+  type PlotCardSpec,
+} from "@/lib/document-plots";
 import type { DocumentViewPlot, JsonObject, TelemetryStream } from "@/lib/types";
 import { AnalysisResult } from "@/plots/AnalysisResult";
-import { elapsedColumnUnit } from "@/plots/axis";
 import { BarPlot } from "@/plots/catalog/BarPlot";
 import { BoxSummarySeriesPlot } from "@/plots/catalog/BoxSummaryPlot";
 import { FrequencySeriesPlot } from "@/plots/catalog/FrequencySeriesPlot";
@@ -35,13 +38,6 @@ import { usePlotPalette } from "@/plots/use-plot-palette";
 
 /* === Types === */
 
-type PlotGroupGridProps = {
-  groups: PlotTopicGroup[];
-  hideWhenEmpty?: boolean;
-  resetKey?: string;
-  showGroupHeaders?: boolean;
-};
-
 export type PlotSettingsChange = (plotId: string, settings: PlotDisplaySettings) => Promise<void>;
 
 type LivePlotGroupGridProps = {
@@ -52,93 +48,28 @@ type LivePlotGroupGridProps = {
   parameters?: JsonObject | null;
   telemetry?: Record<string, TelemetryStream> | null;
   resetKey?: string;
-  hideWhenEmpty?: boolean;
   showGroupHeaders?: boolean;
+  /** The enclosing section's label: the card's group title and colour seed. */
+  title: string;
   viewportMode?: PlotViewportMode;
 };
 
 /* === Public Functions === */
 
-export const PlotGroupGrid = memo(function PlotGroupGrid({
-  groups,
-  hideWhenEmpty = false,
-  resetKey,
-  showGroupHeaders = true,
-}: PlotGroupGridProps) {
-  const resolvedGroups = visibleGroups(groups);
-  if (!resolvedGroups.length) {
-    if (hideWhenEmpty) {
-      return null;
-    }
-    return (
-      <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 text-center text-muted-foreground">
-        <strong>Document plots are loading</strong>
-        <span>The selected case document has not provided plot metadata yet.</span>
-      </div>
-    );
-  }
-
-  if (!showGroupHeaders) {
-    return (
-      <>
-        {resolvedGroups.flatMap((group) =>
-          group.plots.map((plot) => <PlotCard key={plot.key} plot={plot} resetKey={resetKey} />),
-        )}
-      </>
-    );
-  }
-
-  return (
-    <>
-      {resolvedGroups.map((group) => (
-        <section className="grid gap-2" key={group.title}>
-          <div>
-            <h3 className="text-base font-semibold">{group.title}</h3>
-            <p className="text-sm text-muted-foreground">{group.description}</p>
-          </div>
-          <div className="grid gap-2">
-            {group.plots.map((plot) => (
-              <PlotCard key={plot.key} plot={plot} resetKey={resetKey} />
-            ))}
-          </div>
-        </section>
-      ))}
-    </>
-  );
-});
-
+/** One plots card: its plots form one group titled by the enclosing section. */
 export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   documentPlots,
-  hideWhenEmpty = false,
   liveStates = EMPTY_LIVE_PLOT_STATES,
   onPlotSettingsChange,
   parameters,
   resetKey,
   showGroupHeaders = true,
   telemetry,
+  title,
   viewportMode = "live",
 }: LivePlotGroupGridProps) {
   const plotPalette = usePlotPalette();
-  const groups = useMemo(
-    () =>
-      buildDocumentPlotGroups({
-        documentPlots,
-        parameters,
-        plotPalette,
-        plots: {},
-        telemetry,
-      }),
-    [documentPlots, parameters, plotPalette, telemetry],
-  );
-  const descriptors = useMemo(
-    () => new Map(documentPlots.map((plot) => [plot.plot_id, plot])),
-    [documentPlots],
-  );
-  const resolvedGroups = visibleGroups(groups);
-  if (!resolvedGroups.length) {
-    if (hideWhenEmpty && documentPlots.length > 0) {
-      return null;
-    }
+  if (!documentPlots.length) {
     return (
       <div className="plot-empty col-span-full grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 text-center text-muted-foreground">
         <strong>Document plots are loading</strong>
@@ -147,71 +78,37 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
     );
   }
 
+  const cards = documentPlots.map((descriptor, position) => (
+    <LivePlotCard
+      descriptor={descriptor}
+      key={descriptor.plot_id}
+      onPlotSettingsChange={onPlotSettingsChange}
+      parameters={parameters}
+      plotPalette={plotPalette}
+      position={position}
+      resetKey={resetKey}
+      state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
+      telemetry={telemetry}
+      title={title}
+      viewportMode={viewportMode}
+    />
+  ));
   if (!showGroupHeaders) {
-    return (
-      <>
-        {resolvedGroups.flatMap((group) =>
-          group.plots.map((plot) => {
-            const descriptor = descriptors.get(plot.key);
-            return descriptor ? (
-              <LivePlotCard
-                descriptor={descriptor}
-                key={plot.key}
-                onPlotSettingsChange={onPlotSettingsChange}
-                resetKey={resetKey}
-                state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
-                parameters={parameters}
-                plotPalette={plotPalette}
-                telemetry={telemetry}
-                viewportMode={viewportMode}
-              />
-            ) : null;
-          }),
-        )}
-      </>
-    );
+    return <>{cards}</>;
   }
 
+  const description =
+    documentPlots.find((plot) => plot.description)?.description ??
+    documentPlotGroupDescription(title);
   return (
-    <>
-      {resolvedGroups.map((group) => (
-        <section className="grid gap-2" key={group.title}>
-          <div>
-            <h3 className="text-base font-semibold">{group.title}</h3>
-            <p className="text-sm text-muted-foreground">{group.description}</p>
-          </div>
-          <div className="grid gap-2">
-            {group.plots.map((plot) => {
-              const descriptor = descriptors.get(plot.key);
-              return descriptor ? (
-                <LivePlotCard
-                  descriptor={descriptor}
-                  key={plot.key}
-                  onPlotSettingsChange={onPlotSettingsChange}
-                  resetKey={resetKey}
-                  state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
-                  parameters={parameters}
-                  plotPalette={plotPalette}
-                  telemetry={telemetry}
-                  viewportMode={viewportMode}
-                />
-              ) : null;
-            })}
-          </div>
-        </section>
-      ))}
-    </>
+    <section className="grid gap-2">
+      <div>
+        <h3 className="text-base font-semibold">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="grid gap-2">{cards}</div>
+    </section>
   );
-});
-
-const PlotCard = memo(function PlotCard({
-  plot,
-  resetKey,
-}: {
-  plot: PlotTopicGroup["plots"][number];
-  resetKey?: string;
-}) {
-  return <div className={plotCardClassName(plot)}>{plotElement(plot, resetKey)}</div>;
 });
 
 const EMPTY_LIVE_PLOT_STATES: LivePlotStateMap = {};
@@ -222,18 +119,22 @@ const LivePlotCard = memo(function LivePlotCard({
   onPlotSettingsChange,
   parameters,
   plotPalette,
+  position,
   resetKey,
   state,
   telemetry,
+  title,
   viewportMode,
 }: {
   descriptor: DocumentViewPlot;
   onPlotSettingsChange?: PlotSettingsChange;
   parameters?: JsonObject | null;
   plotPalette: readonly string[];
+  position: number;
   resetKey?: string;
   state: LivePlotState;
   telemetry?: Record<string, TelemetryStream> | null;
+  title: string;
   viewportMode: PlotViewportMode;
 }) {
   const plot = useMemo(
@@ -242,10 +143,12 @@ const LivePlotCard = memo(function LivePlotCard({
         descriptor,
         parameters,
         plotPalette,
+        position,
         state,
         telemetry,
+        title,
       }),
-    [descriptor, parameters, plotPalette, state, telemetry],
+    [descriptor, parameters, plotPalette, position, state, telemetry, title],
   );
   const actions = onPlotSettingsChange ? (
     <PlotSettingsButton
@@ -265,7 +168,7 @@ const LivePlotCard = memo(function LivePlotCard({
   );
 });
 
-function plotCardClassName(plot: PlotTopicGroup["plots"][number]): string {
+function plotCardClassName(plot: PlotCardSpec): string {
   const baseClassName = "min-w-0 max-w-full overflow-hidden";
   if (plot.plotType === "wifi_channel_occupancy") {
     return `${baseClassName} min-h-0`;
@@ -279,7 +182,7 @@ function plotCardClassName(plot: PlotTopicGroup["plots"][number]): string {
 }
 
 function plotElement(
-  plot: PlotTopicGroup["plots"][number],
+  plot: PlotCardSpec,
   resetKey?: string,
   viewportMode: PlotViewportMode = "fit",
   actions?: ReactNode,
@@ -373,32 +276,28 @@ function livePlotSpec({
   descriptor,
   parameters,
   plotPalette,
+  position,
   state,
   telemetry,
+  title,
 }: {
   descriptor: DocumentViewPlot;
   parameters?: JsonObject | null;
   plotPalette: readonly string[];
+  position: number;
   state: LivePlotState;
   telemetry?: Record<string, TelemetryStream> | null;
-}): PlotTopicGroup["plots"][number] {
-  const plots = state.payload ? { [descriptor.plot_id]: state.payload } : {};
-  const spec =
-    buildDocumentPlotGroups({
-      documentPlots: [descriptor],
-      parameters,
-      plotPalette,
-      plots,
-      telemetry,
-    })[0]?.plots[0] ??
-    buildDocumentPlotGroups({
-      documentPlots: [descriptor],
-      parameters,
-      plotPalette,
-      plots: {},
-      telemetry,
-    })[0]?.plots[0] ??
-    placeholderPlotSpec(descriptor);
+  title: string;
+}): PlotCardSpec {
+  const spec = documentPlotSpec({
+    parameters,
+    payload: state.payload,
+    plot: descriptor,
+    plotPalette,
+    position,
+    telemetry,
+    title,
+  });
 
   const label =
     state.status === "loading"
@@ -409,7 +308,7 @@ function livePlotSpec({
           ? "Reconnecting"
           : state.status === "error"
             ? "Stream Error"
-            : spec?.stateLabel;
+            : spec.stateLabel;
   const detail =
     state.status === "reconnecting"
       ? "The last samples remain visible while the plot stream reopens."
@@ -418,7 +317,7 @@ function livePlotSpec({
           ? "Waiting for the first plot payload."
           : state.status === "stale"
             ? "The last samples remain visible while the plot stream reconnects."
-            : spec?.stateDetail));
+            : spec.stateDetail));
   const diagnostics = state.diagnostics
     ? `${state.diagnostics.point_count} delta points`
     : undefined;
@@ -428,48 +327,10 @@ function livePlotSpec({
     stateLabel: label,
     stateDetail: detail,
     contextSummary: compactPlotContext([
-      spec?.contextSummary,
+      spec.contextSummary,
       state.status === "live" ? diagnostics : undefined,
       state.droppedBatches ? `${state.droppedBatches} compacted batches` : undefined,
     ]),
-  };
-}
-
-function placeholderPlotSpec(descriptor: DocumentViewPlot): PlotTopicGroup["plots"][number] {
-  return {
-    key: descriptor.plot_id,
-    stream: descriptor.stream,
-    title: descriptor.title,
-    description: descriptor.description,
-    series: descriptor.y.map((key) => ({
-      key,
-      label: key,
-      points: [],
-      raw_points: 0,
-      downsampled: false,
-    })),
-    cartesian: null,
-    markers: [],
-    plotType: descriptor.plot_type,
-    style: descriptor.style ?? "line",
-    xScale: descriptor.x_scale ?? "linear",
-    yScale: descriptor.y_scale ?? "linear",
-    fft: descriptor.fft,
-    histogram: descriptor.histogram,
-    timeAxis: false,
-    unit: descriptor.unit,
-    colors: [],
-    referenceLines: descriptor.reference_lines ?? [],
-    referenceBands: descriptor.reference_bands ?? [],
-    stateLabel: "Loading Plot",
-    stateDetail: "Waiting for the first plot payload.",
-    liveWindowS: descriptor.live_window_s ?? null,
-    xFormat: descriptor.x_format ?? null,
-    xElapsedUnit:
-      descriptor.plot_type === "time_series" && !descriptor.x_format
-        ? elapsedColumnUnit(descriptor.x)
-        : null,
-    yFormat: descriptor.y_format ?? null,
   };
 }
 
@@ -478,11 +339,7 @@ function compactPlotContext(parts: Array<string | undefined>): string | undefine
   return values.length ? values.join(" - ") : undefined;
 }
 
-function visibleGroups(groups: PlotTopicGroup[]): PlotTopicGroup[] {
-  return groups.filter((group) => group.plots.length > 0);
-}
-
-function plotHasNumericSamples(plot: PlotTopicGroup["plots"][number]): boolean {
+function plotHasNumericSamples(plot: PlotCardSpec): boolean {
   return plot.series.some((series) =>
     series.points.some(
       (point) =>
@@ -494,7 +351,7 @@ function plotHasNumericSamples(plot: PlotTopicGroup["plots"][number]): boolean {
   );
 }
 
-function isChartLikePlot(plot: PlotTopicGroup["plots"][number]): boolean {
+function isChartLikePlot(plot: PlotCardSpec): boolean {
   return (
     plot.plotType === "time_series" ||
     plot.plotType === "xy_scatter" ||

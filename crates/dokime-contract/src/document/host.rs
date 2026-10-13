@@ -42,7 +42,6 @@ struct HostPlotSpec<'a> {
     stream: &'a str,
     x: Option<&'a str>,
     y: &'a [&'a str],
-    group: &'a str,
     unit: Option<&'a str>,
     style: PlotStyle,
 }
@@ -82,7 +81,6 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
             stream: HOST_WIFI_LATENCY,
             x: Some("timestamp"),
             y: &["wifi_latency_ms"],
-            group: "Network / WiFi",
             unit: Some("ms"),
             style: PlotStyle::Line,
         })));
@@ -96,7 +94,6 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
             stream: HOST_WIFI_CHANNEL_OCCUPANCY,
             x: Some("timestamp"),
             y: &["active_wifi_channel"],
-            group: "Network / WiFi",
             unit: Some("stream"),
             style: PlotStyle::Line,
         })));
@@ -109,7 +106,6 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
             stream: HOST_WIFI,
             x: Some("timestamp"),
             y: &["wifi_channel"],
-            group: "Network / WiFi",
             unit: Some("stream"),
             style: PlotStyle::Line,
         })));
@@ -124,7 +120,6 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
                 stream: HOST_WIFI,
                 x: Some("timestamp"),
                 y: &["wifi_signal_percent"],
-                group: "Network / WiFi",
                 unit: Some("%"),
                 style: PlotStyle::Line,
             })),
@@ -136,7 +131,6 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
                 stream: HOST_WIFI,
                 x: Some("timestamp"),
                 y: &["wifi_rx_phy_mbps", "wifi_tx_phy_mbps"],
-                group: "Network / WiFi",
                 unit: Some("Mbps"),
                 style: PlotStyle::Line,
             })),
@@ -148,7 +142,6 @@ fn wifi_section(streams: &BTreeSet<&str>) -> DocumentSection {
                 stream: HOST_WIFI,
                 x: Some("timestamp"),
                 y: &["wifi_rx_mbps", "wifi_tx_mbps"],
-                group: "Network / WiFi",
                 unit: Some("Mbps"),
                 style: PlotStyle::Line,
             })),
@@ -169,7 +162,6 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
             stream: HOST_WIFI_CHANNEL_OCCUPANCY,
             x: Some("timestamp"),
             y: &["wifi_network_congestion_score"],
-            group: "Network / WiFi Congestion",
             unit: Some("%"),
             style: PlotStyle::Line,
         })));
@@ -180,7 +172,6 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
         occupancy.metadata.description = Some(
             "Full WLAN scans count nearby networks per stream across WiFi bands. This scan is intentionally slower than PHY, throughput, and latency sampling.".to_owned(),
         );
-        occupancy.group = "Network / WiFi Congestion".to_owned();
         cards.push(plot_card(occupancy));
     }
     if tracking_requested && streams.contains(HOST_WIFI) {
@@ -192,7 +183,6 @@ fn wifi_congestion_section(streams: &BTreeSet<&str>, tracking_requested: bool) -
             stream: "tracking",
             x: Some("position_x_m"),
             y: &["position_y_m"],
-            group: "Network / WiFi Congestion",
             unit: Some("%"),
             style: PlotStyle::Points,
         });
@@ -224,7 +214,6 @@ fn bluetooth_section() -> DocumentSection {
                 "bluetooth_connected_device_count",
                 "bluetooth_present_device_count",
             ],
-            group: "Network / Bluetooth",
             unit: None,
             style: PlotStyle::Line,
         }))],
@@ -247,7 +236,6 @@ fn system_section() -> DocumentSection {
                 "memory_pressure_percent",
                 "battery_percent",
             ],
-            group: "System Performance",
             unit: Some("%"),
             style: PlotStyle::Line,
         }))],
@@ -289,7 +277,6 @@ fn plot(spec: HostPlotSpec<'_>) -> PlotDefinition {
         z_expression: None,
         series_by_expression: None,
         filters: Vec::new(),
-        group: spec.group.to_owned(),
         unit: spec.unit.map(ToOwned::to_owned),
         style: spec.style,
         x_scale: Default::default(),

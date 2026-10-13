@@ -61,10 +61,4 @@ export type PlotCardSpec = {
   cycleStartedAt?: number | null;
 };
 
-export type PlotTopicGroup = {
-  title: string;
-  description: string;
-  plots: PlotCardSpec[];
-};
-
 export type PlotViewportMode = "fit" | "live";

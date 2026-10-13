@@ -214,14 +214,15 @@ export function reviveNativeValues(value: unknown): unknown {
 /** Convert a protobuf value to the JSON-shaped values used by the old UI. */
 export function nativeValueToJson(value?: Value): unknown {
   if (!value) return undefined;
-  if (!value.nodes.length) throw new Error("Native value has no root node.");
+  const { nodes } = value;
+  if (!nodes.length) throw new Error("Native value has no root node.");
   const members = new Set<number>();
   function rebuild(index: number, depth: number): unknown {
     if (depth > 64) throw new Error("Native value exceeds 64 levels.");
-    const kind = value!.nodes[index]?.kind?.HarmosVariant;
+    const kind = nodes[index]?.kind?.HarmosVariant;
     if (!kind?.case) throw new Error(`Native value node ${index} has no kind.`);
     function child(member: number): unknown {
-      if (!Number.isInteger(member) || member <= index || member >= value!.nodes.length)
+      if (!Number.isInteger(member) || member <= index || member >= nodes.length)
         throw new Error("Native value member index is out of order or range.");
       if (members.has(member)) throw new Error("Native value node has multiple owners.");
       members.add(member);

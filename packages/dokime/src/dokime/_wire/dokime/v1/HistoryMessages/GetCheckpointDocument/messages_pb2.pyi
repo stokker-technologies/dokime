@@ -1675,8 +1675,7 @@ class Row204(_message.Message):
     def __init__(self, plot_id: _Optional[str] = ..., plot_type: _Optional[_Union[Row239, _Mapping]] = ..., x_scale: _Optional[_Union[Row240, _Mapping]] = ..., y_scale: _Optional[_Union[Row240, _Mapping]] = ..., stream: _Optional[str] = ..., y_keys: _Optional[_Iterable[str]] = ..., marker_record_types: _Optional[_Iterable[str]] = ..., filters: _Optional[_Iterable[_Union[Row215, _Mapping]]] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., x_expression: _Optional[_Union[Row136, _Mapping]] = ..., y_expressions: _Optional[_Iterable[_Union[Row136, _Mapping]]] = ..., series_by_expression: _Optional[_Union[Row136, _Mapping]] = ..., z_stream: _Optional[str] = ..., z_field: _Optional[str] = ..., unit: _Optional[str] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., scope: _Optional[_Union[Row11, _Mapping]] = ..., cursor: _Optional[_Union[Row241, _Mapping]] = ..., technique: _Optional[_Union[Row242, _Mapping]] = ..., z_expression: _Optional[_Union[Row136, _Mapping]] = ..., fft: _Optional[_Union[Row243, _Mapping]] = ..., interval: _Optional[_Union[Row244, _Mapping]] = ..., histogram: _Optional[_Union[Row245, _Mapping]] = ..., analysis: _Optional[_Union[Row246, _Mapping]] = ...) -> None: ...
 
 class Row205(_message.Message):
-    __slots__ = ("group", "style", "fft", "interval", "histogram", "reference_lines", "reference_bands", "live_window_s", "x_format", "y_format", "x_axis", "x_axis_unit")
-    GROUP_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("style", "fft", "interval", "histogram", "reference_lines", "reference_bands", "live_window_s", "x_format", "y_format", "x_axis", "x_axis_unit")
     STYLE_FIELD_NUMBER: _ClassVar[int]
     FFT_FIELD_NUMBER: _ClassVar[int]
     INTERVAL_FIELD_NUMBER: _ClassVar[int]
@@ -1688,7 +1687,6 @@ class Row205(_message.Message):
     Y_FORMAT_FIELD_NUMBER: _ClassVar[int]
     X_AXIS_FIELD_NUMBER: _ClassVar[int]
     X_AXIS_UNIT_FIELD_NUMBER: _ClassVar[int]
-    group: str
     style: Row247
     fft: Row243
     interval: Row244
@@ -1700,7 +1698,7 @@ class Row205(_message.Message):
     y_format: Row250
     x_axis: Row251
     x_axis_unit: str
-    def __init__(self, group: _Optional[str] = ..., style: _Optional[_Union[Row247, _Mapping]] = ..., fft: _Optional[_Union[Row243, _Mapping]] = ..., interval: _Optional[_Union[Row244, _Mapping]] = ..., histogram: _Optional[_Union[Row245, _Mapping]] = ..., reference_lines: _Optional[_Iterable[_Union[Row248, _Mapping]]] = ..., reference_bands: _Optional[_Iterable[_Union[Row249, _Mapping]]] = ..., live_window_s: _Optional[float] = ..., x_format: _Optional[_Union[Row250, _Mapping]] = ..., y_format: _Optional[_Union[Row250, _Mapping]] = ..., x_axis: _Optional[_Union[Row251, _Mapping]] = ..., x_axis_unit: _Optional[str] = ...) -> None: ...
+    def __init__(self, style: _Optional[_Union[Row247, _Mapping]] = ..., fft: _Optional[_Union[Row243, _Mapping]] = ..., interval: _Optional[_Union[Row244, _Mapping]] = ..., histogram: _Optional[_Union[Row245, _Mapping]] = ..., reference_lines: _Optional[_Iterable[_Union[Row248, _Mapping]]] = ..., reference_bands: _Optional[_Iterable[_Union[Row249, _Mapping]]] = ..., live_window_s: _Optional[float] = ..., x_format: _Optional[_Union[Row250, _Mapping]] = ..., y_format: _Optional[_Union[Row250, _Mapping]] = ..., x_axis: _Optional[_Union[Row251, _Mapping]] = ..., x_axis_unit: _Optional[str] = ...) -> None: ...
 
 class Row206(_message.Message):
     __slots__ = ("Unspecified", "Text", "TelemetrySummary", "Plot", "Table", "Steps", "Criteria", "Traceability", "Notes", "Records", "Artifacts", "Media", "Health", "TelemetryContext")

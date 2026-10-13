@@ -40,6 +40,7 @@ import type { Row2 as GeneratedNativeExecutionBrowsePage } from "../../../.gener
 import * as rpc from "@/lib/rpc/generated/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type {
+  CheckpointCursor,
   ExecutionBrowseEntry,
   ExecutionBrowsePage,
   ExecutionCheckpoint,
@@ -97,12 +98,14 @@ export function checkpointKey(checkpoint: CheckpointReference | NativeExecutionC
   ) {
     throw new Error("Invalid checkpoint identity or revision token.");
   }
-  const position = cursorKey(checkpoint.position);
-  const evidence = cursorKey(checkpoint.evidenceThrough);
+  const positionCursor = checkpointCursor(checkpoint.position);
+  const evidenceCursor = checkpointCursor(checkpoint.evidenceThrough);
+  const position = cursorKey(positionCursor);
+  const evidence = cursorKey(evidenceCursor);
   if (
     position[0] !== evidence[0] ||
     position[1] !== evidence[1] ||
-    checkpoint.evidenceThrough!.sequence > checkpoint.position!.sequence
+    evidenceCursor.sequence > positionCursor.sequence
   ) {
     throw new Error("Checkpoint evidence differs from inspected history.");
   }
@@ -112,7 +115,10 @@ export function checkpointKey(checkpoint: CheckpointReference | NativeExecutionC
   return JSON.stringify([checkpoint.executionIdentifier, position, version, evidence]);
 }
 
-function cursorKey(cursor: CheckpointReference["position"] | NativeStorageCursor | undefined) {
+/** The cursor narrowed to its validated fields; throws when it is absent or out of bounds. */
+function checkpointCursor(
+  cursor: CheckpointReference["position"] | NativeStorageCursor | undefined,
+): CheckpointCursor {
   if (
     !cursor?.history?.store ||
     !cursor.history.epoch ||
@@ -124,6 +130,13 @@ function cursorKey(cursor: CheckpointReference["position"] | NativeStorageCursor
   ) {
     throw new Error("Invalid checkpoint storage cursor.");
   }
+  return {
+    history: { store: cursor.history.store, epoch: cursor.history.epoch },
+    sequence: cursor.sequence,
+  };
+}
+
+function cursorKey(cursor: CheckpointCursor) {
   return [cursor.history.store, cursor.history.epoch, cursor.sequence.toString()] as const;
 }
 
@@ -274,17 +287,9 @@ function mapCheckpoint(checkpoint: NativeExecutionCheckpoint): ExecutionCheckpoi
   checkpointKey(checkpoint);
   return {
     executionIdentifier: checkpoint.executionIdentifier,
-    position: mapCursor(checkpoint.position),
+    position: checkpointCursor(checkpoint.position),
     version: checkpoint.version.slice(),
-    evidenceThrough: mapCursor(checkpoint.evidenceThrough),
-  };
-}
-
-function mapCursor(cursor: NativeStorageCursor | undefined): ExecutionCheckpoint["position"] {
-  cursorKey(cursor);
-  return {
-    history: { store: cursor!.history!.store, epoch: cursor!.history!.epoch },
-    sequence: cursor!.sequence,
+    evidenceThrough: checkpointCursor(checkpoint.evidenceThrough),
   };
 }
 

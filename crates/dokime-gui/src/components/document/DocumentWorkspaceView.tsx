@@ -33,6 +33,7 @@ import type {
   DocumentViewSection,
   HealthItem,
   HubRecord,
+  Metadata,
   OperatorNote,
   PlotPayload,
   RecordScope,
@@ -185,9 +186,9 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
       emptyMessage={props.emptyMessage}
       prependSections={props.prependSections}
       sectionChrome={props.sectionChrome}
-      renderCard={(card) => (
+      renderCard={(card, section) => (
         <DocumentCardContent
-          {...documentCardContentProps(props, card, livePlotStates)}
+          {...documentCardContentProps(props, card, section, livePlotStates)}
           {...(props.renderMode === "live" && cycleId ? { onPlotSettingsChange } : {})}
         />
       )}
@@ -200,11 +201,13 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
 function documentCardContentProps(
   props: DocumentWorkspaceViewProps,
   card: DocumentViewCard,
+  section: Metadata | null,
   livePlotStates: LivePlotStateMap,
 ): DocumentCardContentProps {
   const shared = {
     artifacts: props.artifacts,
     card,
+    sectionTitle: section?.label ?? card.title,
     streams: props.streams,
     criterionRecords: props.criterionRecords,
     documentId: props.document?.document_id,

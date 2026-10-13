@@ -26,7 +26,7 @@ import {
   documentTableRows,
   documentText,
 } from "./document-presentation";
-import type { DocumentPlotType, DocumentViewCard, DocumentViewPayload, Metadata } from "./types";
+import type { DocumentPlotType, DocumentViewCard, DocumentViewPayload } from "./types";
 
 export type { DocumentCapture_Serialize as DocumentCapturePayload } from "./document-contracts";
 
@@ -64,7 +64,7 @@ export function mapDocumentCapture(document: DocumentCapturePayload): DocumentVi
         throw new Error(`Captured card binding has an invalid source: ${binding.source_id}`);
       return {
         source_id: binding.source_id,
-        card: mapCardBinding(document.definition.metadata, source, binding),
+        card: mapCardBinding(source, binding),
       };
     }),
     nodes: nodes(document.definition.layout.nodes),
@@ -76,7 +76,6 @@ export function mapDocumentCapture(document: DocumentCapturePayload): DocumentVi
 /* === Private Functions === */
 
 function mapCardBinding(
-  documentMetadata: Metadata,
   card: DocumentCardDefinition_Serialize,
   binding: CardBinding,
 ): DocumentViewCard {
@@ -138,7 +137,6 @@ function mapCardBinding(
       x_format: input.x_format,
       y_format: input.y_format,
       x_axis: input.x_axis,
-      group: documentMetadata.label,
       description: descriptor.metadata.description,
       marker_record_types: input.marker_record_types,
       filters: input.filters?.map((filter) => ({

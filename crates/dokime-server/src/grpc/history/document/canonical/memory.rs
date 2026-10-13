@@ -240,7 +240,6 @@ fn plot_heap(source: &PlotDefinition, scope: &RecordScope) -> harmos::Result<usi
         .saturating_add(optional(&source.series_by))
         .saturating_add(optional(&source.unit))
         .saturating_add(scope_heap(scope))
-        .saturating_add(source.group.len())
         .saturating_add(optional(&source.histogram.unit)) // Request Histogram.
         .saturating_add(optional(&source.histogram.unit)) // Presentation Histogram.
         .saturating_add(format_heap(source.x_format.as_ref()))

@@ -379,7 +379,6 @@ pub(in crate::grpc) fn historical_plot(
     for item in &value.marker_record_types {
         value::text(item)?;
     }
-    value::text(&value.group)?;
     if let Some(window) = value.live_window_s {
         finite(window, "live_window_s")?;
     }
@@ -429,7 +428,6 @@ pub(in crate::grpc) fn historical_plot(
     };
     let (x_axis, x_axis_unit) = enums::plot_axis(value.x_axis.as_ref());
     let presentation = documents::PlotPresentation {
-        group: value.group.clone(),
         style: enums::plot_style(&value.style),
         fft: Some(fft_options(&value.fft)?),
         interval: Some(interval_options(&value.interval)?),

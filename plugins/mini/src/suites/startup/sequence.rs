@@ -422,7 +422,6 @@ fn signal(field: &str) -> dokime::expressions::DataExpression {
 fn voltage_distribution(identifier: &str) -> PlotDefinition {
     let mut plot = Plot::histogram("Voltage Distribution");
     plot.id(identifier);
-    plot.group(INPUT_DISTRIBUTION_GROUP);
     plot.unit("V");
     plot.y(signal("voltage_v"));
 
@@ -432,7 +431,6 @@ fn voltage_distribution(identifier: &str) -> PlotDefinition {
 fn current_distribution(identifier: &str) -> PlotDefinition {
     let mut plot = Plot::histogram("Current Distribution");
     plot.id(identifier);
-    plot.group(INPUT_DISTRIBUTION_GROUP);
     plot.unit("A");
     plot.y(signal("current_a"));
 
@@ -442,7 +440,6 @@ fn current_distribution(identifier: &str) -> PlotDefinition {
 fn voltage_by_phase(identifier: &str) -> PlotDefinition {
     let mut plot = Plot::box_summary("Voltage By Phase");
     plot.id(identifier);
-    plot.group(INPUT_DISTRIBUTION_GROUP);
     plot.unit("V");
     plot.series_by(signal("phase"));
     plot.y(signal("voltage_v"));
@@ -453,7 +450,6 @@ fn voltage_by_phase(identifier: &str) -> PlotDefinition {
 fn mean_signal_by_phase(identifier: &str) -> PlotDefinition {
     let mut plot = Plot::bar("Mean Signal By Phase");
     plot.id(identifier);
-    plot.group(INPUT_PHASE_GROUP);
     plot.unit("V");
     plot.x(signal("phase"));
     plot.y(signal("voltage_v").mean());
@@ -465,7 +461,6 @@ fn mean_signal_by_phase(identifier: &str) -> PlotDefinition {
 fn sample_count_by_phase(identifier: &str) -> PlotDefinition {
     let mut plot = Plot::bar("Sample Count By Phase");
     plot.id(identifier);
-    plot.group(INPUT_PHASE_GROUP);
     plot.unit("samples");
     plot.x(signal("phase"));
     plot.y(signal("sample_index").count());
@@ -476,7 +471,6 @@ fn sample_count_by_phase(identifier: &str) -> PlotDefinition {
 fn signal_correlation(identifier: &str) -> PlotDefinition {
     let mut plot = Plot::xy_scatter("Signal Correlation");
     plot.id(identifier);
-    plot.group(INPUT_PHASE_GROUP);
     plot.style(PlotStyle::Points);
     plot.x(signal("voltage_v"));
     plot.y(signal("current_a"));
@@ -492,7 +486,6 @@ fn startup_document() -> Document {
 
     let mut voltage = Plot::time_series("AC Voltage");
     voltage.id("mini.charger.startup.sequence.signals");
-    voltage.group(CHARGER_TIMELINE_GROUP);
     voltage.unit("V");
     voltage.style(PlotStyle::LinePoints);
     voltage.y(signal("voltage_v"));
@@ -555,12 +548,6 @@ fn startup_document() -> Document {
     ac_current.plot(current);
     document.section(ac_current);
 
-    // Fold in the host's standard telemetry document sections so the
-    // host telemetry this run streams (system, network, WiFi, Bluetooth) renders
-    // in the telemetry view alongside the charger signals.
-    for section in document::host::sections(false) {
-        document.section(section);
-    }
     document.section(system::section(STARTUP_TEMPLATE));
 
     document

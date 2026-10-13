@@ -183,7 +183,6 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     z_stream: input.z_stream ?? null,
     z_field: input.z_field ?? null,
     unit: input.unit ?? null,
-    group: nonEmptyString(input.group) ?? "Plots",
     description: input.description ?? null,
     marker_record_types: input.marker_record_types ?? [],
     filters: input.filters ?? [],

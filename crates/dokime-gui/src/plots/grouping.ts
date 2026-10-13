@@ -19,106 +19,82 @@ import type {
 import { isRecord } from "@/lib/utils";
 import { elapsedColumnUnit } from "@/plots/axis";
 import { plotColor } from "@/plots/colors";
-import type { PlotTopicGroup } from "@/plots/types";
+import type { PlotCardSpec } from "@/plots/types";
 
 /* === Public Functions === */
 
-export function buildDocumentPlotGroups({
-  documentPlots,
+/** The card spec of the plot at `position` within the card titled `title`. */
+export function documentPlotSpec({
   parameters,
+  payload,
+  plot,
   plotPalette,
-  plots,
+  position,
   telemetry,
+  title,
 }: {
-  documentPlots: DocumentViewPlot[];
   parameters?: Record<string, unknown> | null;
+  payload: PlotPayload | null | undefined;
+  plot: DocumentViewPlot;
   plotPalette?: readonly string[] | null;
-  plots: Record<string, PlotPayload>;
+  position: number;
   telemetry?: Record<string, TelemetryStream> | null;
-}): PlotTopicGroup[] {
-  const groups = new Map<string, PlotTopicGroup>();
-  const groupOrder: string[] = [];
-
-  documentPlots.forEach((plot) => {
-    const payload = plots[plot.plot_id];
-    const series = labelSeries({
-      plot,
-      series: payload?.series.length ? payload.series : placeholderSeries(plot.y, plot),
-    });
-    const state = payload?.computed
-      ? {}
-      : plotState({
-          stream: plot.stream,
-          plotType: plot.plot_type,
-          series,
-          telemetry,
-        });
-
-    const title = plot.group || "Other";
-    let group = groups.get(title);
-    if (!group) {
-      group = {
-        title,
-        description: plot.description ?? documentPlotGroupDescription(title),
-        plots: [],
-      };
-      groups.set(title, group);
-      groupOrder.push(title);
-    } else if (!group.description && plot.description) {
-      group.description = plot.description;
-    }
-
-    // The payload carries the resolved winner of the format precedence chain
-    // (§2.3); the document plot's own declaration is the placeholder value
-    // before a payload has arrived, so a plot never renders unformatted while
-    // it waits for its first frame.
-    const xFormat = payload?.x_format ?? plot.x_format ?? null;
-
-    group.plots.push({
-      key: plot.plot_id,
-      stream: plot.stream,
-      title: plot.title,
-      description: plot.description,
-      series,
-      cartesian: payload?.cartesian ?? null,
-      analysis: payload?.analysis ?? null,
-      computed: payload?.computed ?? null,
-      markers: payload?.markers ?? [],
-      plotType: plot.plot_type,
-      style: plot.style ?? "line",
-      xScale: plot.x_scale ?? "linear",
-      yScale: plot.y_scale ?? "linear",
-      fft: plot.fft,
-      histogram: plot.histogram,
-      timeAxis: plot.plot_type === "time_series",
-      unit: plot.unit ?? commonUnit(series),
-      colors: series.map((_, index) => plotColor(title, group.plots.length + index, plotPalette)),
-      referenceLines: resolveReferenceLines(
-        plot.reference_lines ?? [],
-        plot,
-        telemetry,
-        parameters,
-      ),
-      referenceBands: plot.reference_bands ?? [],
-      stateLabel: state.label,
-      stateDetail: state.detail,
-      contextSummary: plotContextSummary({ stream: plot.stream, telemetry }),
-      context: {
-        ...(payload?.context ?? {}),
-        ...(plotContext({ stream: plot.stream, telemetry }) ?? {}),
-      },
-      liveWindowS: payload ? (payload.window_s ?? null) : (plot.live_window_s ?? null),
-      xFormat,
-      xElapsedUnit: resolvedElapsedUnit(plot, xFormat),
-      yFormat: plot.y_format ?? series[0]?.format ?? null,
-      runStartedAt: epochSecondsOf(payload?.run_started_at),
-      cycleStartedAt: epochSecondsOf(payload?.cycle_started_at),
-    });
+  title: string;
+}): PlotCardSpec {
+  const series = labelSeries({
+    plot,
+    series: payload?.series.length ? payload.series : placeholderSeries(plot.y, plot),
   });
+  const state = payload?.computed
+    ? {}
+    : plotState({
+        stream: plot.stream,
+        plotType: plot.plot_type,
+        series,
+        telemetry,
+      });
 
-  return groupOrder
-    .map((title) => groups.get(title))
-    .filter((group): group is PlotTopicGroup => Boolean(group));
+  // The payload carries the resolved winner of the format precedence chain
+  // (§2.3); the document plot's own declaration is the placeholder value
+  // before a payload has arrived, so a plot never renders unformatted while
+  // it waits for its first frame.
+  const xFormat = payload?.x_format ?? plot.x_format ?? null;
+
+  return {
+    key: plot.plot_id,
+    stream: plot.stream,
+    title: plot.title,
+    description: plot.description,
+    series,
+    cartesian: payload?.cartesian ?? null,
+    analysis: payload?.analysis ?? null,
+    computed: payload?.computed ?? null,
+    markers: payload?.markers ?? [],
+    plotType: plot.plot_type,
+    style: plot.style ?? "line",
+    xScale: plot.x_scale ?? "linear",
+    yScale: plot.y_scale ?? "linear",
+    fft: plot.fft,
+    histogram: plot.histogram,
+    timeAxis: plot.plot_type === "time_series",
+    unit: plot.unit ?? commonUnit(series),
+    colors: series.map((_, index) => plotColor(title, position + index, plotPalette)),
+    referenceLines: resolveReferenceLines(plot.reference_lines ?? [], plot, telemetry, parameters),
+    referenceBands: plot.reference_bands ?? [],
+    stateLabel: state.label,
+    stateDetail: state.detail,
+    contextSummary: plotContextSummary({ stream: plot.stream, telemetry }),
+    context: {
+      ...(payload?.context ?? {}),
+      ...(plotContext({ stream: plot.stream, telemetry }) ?? {}),
+    },
+    liveWindowS: payload ? (payload.window_s ?? null) : (plot.live_window_s ?? null),
+    xFormat,
+    xElapsedUnit: resolvedElapsedUnit(plot, xFormat),
+    yFormat: plot.y_format ?? series[0]?.format ?? null,
+    runStartedAt: epochSecondsOf(payload?.run_started_at),
+    cycleStartedAt: epochSecondsOf(payload?.cycle_started_at),
+  };
 }
 
 /**
@@ -147,7 +123,6 @@ export function documentPlotsKey(plots: DocumentViewPlot[]): string {
       [
         plot.plot_id,
         plot.title,
-        plot.group,
         plot.stream,
         plot.plot_type,
         plot.style,

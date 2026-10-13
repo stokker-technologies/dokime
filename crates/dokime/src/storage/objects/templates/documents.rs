@@ -301,8 +301,6 @@ pub(super) struct Plot {
     #[serde(default)]
     filters: Vec<Filter>,
     #[serde(default)]
-    group: String,
-    #[serde(default)]
     unit: Option<String>,
     #[serde(default)]
     style: String,
@@ -835,7 +833,6 @@ impl Plot {
             style_name(&value.style).len(),
             scale_name(&value.x_scale).len(),
             scale_name(&value.y_scale).len(),
-            value.group.len(),
             fft.saturating_sub(std::mem::size_of::<Fft>()),
             histogram.saturating_sub(std::mem::size_of::<Histogram>()),
             value.y.len().saturating_mul(std::mem::size_of::<String>()),
@@ -939,7 +936,6 @@ impl Plot {
                 std::mem::size_of::<crate::document::PlotDefinition>(),
                 |bytes, value| bytes.saturating_add(value.as_ref().map_or(0, String::capacity)),
             )
-            .saturating_add(self.group.capacity())
             .saturating_add(metadata);
         let y = self.y.memory_size();
         let markers = self.marker_record_types.memory_size();
@@ -1043,7 +1039,6 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
                 .map(Data::try_from)
                 .transpose()?,
             filters,
-            group: value.group.as_str().to_owned(),
             unit: value.unit.as_deref().map(str::to_owned),
             style: style_name(&value.style).to_owned(),
             x_scale: scale_name(&value.x_scale).to_owned(),
@@ -1125,7 +1120,6 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
                 .map(TryInto::try_into)
                 .transpose()?,
             filters,
-            group: row.group,
             unit: row.unit,
             style: plot_style(&row.style)?,
             x_scale: axis_scale(&row.x_scale)?,

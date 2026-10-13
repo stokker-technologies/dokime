@@ -92,8 +92,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
       const failed = unavailableReason(failedSection?.unavailable);
       if (failed) {
         if (
-          !failedSection ||
-          !failedSection.metadata ||
+          !failedSection?.metadata ||
           !node.repeat ||
           instances.length !== 0 ||
           usedSections.has(id)
@@ -127,8 +126,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
         if (children.length === 0) continue;
         const section = capture.sections.get(instance.node_id);
         if (
-          !section ||
-          !section.metadata ||
+          !section?.metadata ||
           unavailableReason(section.unavailable) ||
           usedSections.has(instance.node_id)
         )

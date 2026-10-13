@@ -121,7 +121,6 @@ export type DocumentViewPlot = {
   x?: string | null;
   series_by?: string | null;
   unit?: string | null;
-  group: string;
   description?: string | null;
   marker_record_types?: string[];
   filters?: DocumentFilter[];

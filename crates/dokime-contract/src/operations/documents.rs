@@ -190,7 +190,6 @@ pub struct DocumentPlotDefinition {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotPresentation {
-    pub group: String,
     pub style: PlotStyle,
     pub fft: Option<PlotFftOptions>,
     pub interval: Option<PlotIntervalOptions>,

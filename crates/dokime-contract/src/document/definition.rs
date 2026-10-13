@@ -206,8 +206,6 @@ pub struct PlotDefinition {
     pub series_by_expression: Option<DataExpression>,
     #[serde(default)]
     pub filters: Vec<DocumentFilter>,
-    #[serde(default = "default_group")]
-    pub group: String,
     #[serde(default)]
     pub unit: Option<String>,
     #[serde(default)]
@@ -993,10 +991,6 @@ impl harmos::MemorySize for PlotDefinition {
             (
                 harmos::MemorySize::memory_size(&self.filters),
                 std::mem::size_of_val(&self.filters),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.group),
-                std::mem::size_of_val(&self.group),
             ),
             (
                 harmos::MemorySize::memory_size(&self.unit),
@@ -1831,7 +1825,6 @@ impl PlotDefinition {
             z_expression: None,
             series_by_expression: None,
             filters: Vec::new(),
-            group: default_group(),
             unit: None,
             style: PlotStyle::Line,
             x_scale: AxisScale::Linear,
@@ -1880,10 +1873,6 @@ impl PlotDefinition {
         self.automatic_id = false;
         self.metadata.identifier = Identifier::new(identifier.as_ref())
             .unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
-    }
-
-    pub fn group(&mut self, group: impl Into<String>) {
-        self.group = group.into();
     }
 
     pub fn unit(&mut self, unit: impl Into<String>) {
@@ -2616,10 +2605,6 @@ fn default_base_span() -> u8 {
 
 fn default_row_span() -> u8 {
     1
-}
-
-fn default_group() -> String {
-    "Other".to_owned()
 }
 
 fn default_live_window_s() -> Option<f64> {
