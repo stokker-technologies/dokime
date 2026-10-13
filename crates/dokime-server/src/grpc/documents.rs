@@ -27,7 +27,7 @@ use tonic::Status;
 use super::value;
 use dokime_app::{
     RuntimeHandle,
-    core::{DocumentId, TestCycleId, TestExecutionId},
+    core::{DocumentId, Identifier, TestCycleId, TestExecutionId},
 };
 use dokime_contract::operations::documents as contract;
 
@@ -45,6 +45,9 @@ struct Resources {
     admission: Arc<Semaphore>,
 }
 struct Capture {
+    resources: Arc<Resources>,
+}
+struct UpdatePlotSettings {
     resources: Arc<Resources>,
 }
 struct FrameBuffer {
@@ -153,21 +156,77 @@ impl Operation for Capture {
             }));
             output.send_owned(frame).await.map_err(failure)?;
         }
-        Ok((()).into())
+        Ok(().into())
+    }
+}
+
+impl Operation for UpdatePlotSettings {
+    type Declaration = contract::UpdatePlotSettings;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut contract::UpdatePlotSettingsRequest,
+        _: &mut (),
+    ) -> Result<Response<()>, Status> {
+        let (cycle, execution) = scope(request.scope.take())?;
+        value::text(&request.document_id)?;
+        value::text(&request.plot_id)?;
+        let document = DocumentId::from_identifier(&request.document_id)
+            .map_err(|_| Status::invalid_argument("invalid document ID"))?;
+        let plot = Identifier::new(&request.plot_id)
+            .map_err(|_| Status::invalid_argument("invalid plot ID"))?;
+        if request
+            .display_points
+            .is_some_and(|points| points > 100_000)
+        {
+            return Err(Status::invalid_argument(
+                "display_points must not exceed 100000",
+            ));
+        }
+        self.resources
+            .runtime
+            .update_plot_settings(
+                &cycle,
+                &execution,
+                &document,
+                &plot,
+                request.display_points,
+                request.downsample,
+            )
+            .await
+            .map_err(super::execution::status)?;
+        Ok(().into())
     }
 }
 
 /* === Public Functions === */
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+    let resources = Arc::new(Resources {
+        runtime: runtime.clone(),
+        maximum,
+        admission: Arc::new(Semaphore::new(1)),
+    });
     runtime.operations().register_wire_operation::<Capture>(
         "dokime",
         dokime_app::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-            maximum,
-            admission: Arc::new(Semaphore::new(1)),
-        }),
+        resources.clone(),
     )?;
+    runtime
+        .operations()
+        .register_wire_operation::<UpdatePlotSettings>(
+            "dokime",
+            dokime_app::app::Lanes::Open,
+            resources,
+        )?;
     Ok(())
 }
 

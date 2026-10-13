@@ -46,7 +46,7 @@ use dokime::telemetry::{TelemetryColumn, TelemetrySample};
 use harmos::storage::reduce::Agg;
 
 /* === Constants === */
-pub(crate) const DEFAULT_PLOT_MAX_POINTS: usize = 2_500;
+pub(crate) use dokime::document::DEFAULT_PLOT_MAX_POINTS;
 const MARKER_COLORS: [&str; 8] = [
     "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899",
 ];
@@ -440,11 +440,14 @@ pub fn plot_payload_request_for_descriptor(
         unit: descriptor.input.unit.clone(),
         x_format: descriptor.input.x_format.clone(),
         y_format: descriptor.input.y_format.clone(),
-        max_points,
+        max_points: max_points.or(descriptor
+            .input
+            .display_points
+            .map(|points| points as usize)),
         window_s,
         scope,
         cursor,
-        technique: DownsampleTechnique::default(),
+        technique: descriptor.input.downsample,
     };
     normalize_analysis_fields(&mut request);
     request
@@ -647,9 +650,22 @@ pub(crate) fn downsample_points(
     if max_points == 1 {
         return stride_downsample(points, max_points);
     }
+    let technique = match technique {
+        DownsampleTechnique::Auto | DownsampleTechnique::Unspecified => {
+            if points.len() <= max_points.saturating_mul(4) {
+                DownsampleTechnique::Lttb
+            } else {
+                DownsampleTechnique::MinMax
+            }
+        }
+        technique => technique,
+    };
     match technique {
         DownsampleTechnique::Raw => stride_downsample(points, max_points),
-        DownsampleTechnique::MinMax | DownsampleTechnique::Lttb => {
+        DownsampleTechnique::Auto
+        | DownsampleTechnique::Unspecified
+        | DownsampleTechnique::MinMax
+        | DownsampleTechnique::Lttb => {
             // The numeric techniques need a clean `(index, y)` scalar series; fall
             // back to stride for any series they can't model (a missing `y`, a
             // degenerate axis, an LTTB threshold below three).
@@ -1362,7 +1378,9 @@ fn numeric_downsample(
             }
             harmos_signal::lttb(&x, &values, max_points)
         }
-        DownsampleTechnique::Raw => return None,
+        DownsampleTechnique::Raw | DownsampleTechnique::Auto | DownsampleTechnique::Unspecified => {
+            return None;
+        }
     };
 
     // The algorithms emit coordinates in ascending order, but min/max within a

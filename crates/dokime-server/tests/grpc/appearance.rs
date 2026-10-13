@@ -175,6 +175,10 @@ pub(crate) async fn appearance_asset_bound() {
                 },
             ))
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err(),
         Code::NotFound,
         contracts::appearance::AppearanceFailureKind::AssetMissing,
@@ -222,6 +226,10 @@ pub(crate) async fn appearance_asset_bound() {
         content
             .download::<contracts::content::DownloadAppearanceAsset>(request())
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err(),
         Code::FailedPrecondition,
         contracts::appearance::AppearanceFailureKind::AssetChanged,
@@ -230,6 +238,10 @@ pub(crate) async fn appearance_asset_bound() {
     failure(
         content
             .download::<contracts::content::DownloadAppearanceAsset>(request())
+            .await
+            .unwrap()
+            .into_inner()
+            .message()
             .await
             .unwrap_err(),
         Code::NotFound,
@@ -245,6 +257,10 @@ pub(crate) async fn appearance_asset_bound() {
                     }),
                 },
             ))
+            .await
+            .unwrap()
+            .into_inner()
+            .message()
             .await
             .unwrap_err(),
         Code::InvalidArgument,

@@ -27,7 +27,7 @@
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
 //   g. report       Write Report, then the written file loaded in this WebView
-//   h. touch        the same surfaces at touch density: collapsed rail, Cases sheet
+//   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
 // Windows Requires An Interactive Disposable Account, WebView2 And A Version-
 // Matched Microsoft Edge Driver. DOKIME_E2E_INSTALLER Selects The Native NSIS
@@ -57,10 +57,8 @@
 import assert from "node:assert/strict";
 
 import { execFile, spawn } from "node:child_process";
-
-import { once } from "node:events";
-
 import { createHash } from "node:crypto";
+import { once } from "node:events";
 
 import { createReadStream, existsSync } from "node:fs";
 
@@ -1526,86 +1524,120 @@ async function cycleJourney(session, cycleId) {
     await session.execute("return globalThis.__dokimeStreams"),
   );
 
-  /* Selecting a case puts the case and its latest attempt in the URL. */
-  await session.execute(`
-    const rows = [
-      ...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]'),
-    ].filter((row) => /Passed|Failed|Blocked/.test(row.innerText));
-    if (!rows.length) throw new Error('No case row has a terminal status');
-    rows[0].querySelector('button').click();
+  /* Each execution row selects its own evidence directly. */
+  const executionRowsBefore = await session.execute(`
+    const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')];
+    const terminal = rows.find(row => /Passed|Failed|Blocked/.test(row.innerText));
+    if (!terminal) throw new Error('No execution row has a terminal status');
+    terminal.querySelector('button').click();
+    return { count: rows.length, selectedIndex: rows.indexOf(terminal) };
   `);
   const selection = await until(
-    "case selected in the URL",
+    "execution selected in the URL",
     async () => {
       const location = await session.location();
-      const caseId = location.searchParams.get("caseId");
-      return caseId ? { caseId, executionId: location.searchParams.get("executionId") } : null;
+      const executionId = location.searchParams.get("executionId");
+      return executionId ? { executionId, caseId: location.searchParams.get("caseId") } : null;
     },
     30000,
   );
-  assert.ok(selection.executionId, "Selecting a case must select its latest attempt");
-  /* The evidence toolbar sets the attempt label in small caps, so what
-     `innerText` reports is the rendered "ATTEMPT 1 OF 1". The copy is what
-     matters here, not the type treatment. */
+  assert.equal(selection.caseId, null, "Execution rows must select solely by executionId");
   const evidence = await until(
-    "attempt evidence",
+    "execution evidence",
     async () => {
       const text = await session.text();
-      return /Attempt \d+ Of \d+/i.test(normalize(text)) ? text : null;
+      return /Execution \d+/i.test(normalize(text)) ? text : null;
     },
     60000,
   );
-  assert.match(normalize(evidence), /Attempt \d+ Of \d+/i);
+  assert.match(normalize(evidence), /Execution \d+/i);
   assert.ok(
-    await session.exists("button", "Choose Attempt"),
-    "An attempt must be choosable from the toolbar",
+    !(await session.exists("button", "Choose Attempt")),
+    "Execution selection belongs to the list",
   );
 
-  /* Discovery And Computation Cross The Real Native Plot Routes. */
-  const analysisSummary = await until("analysis controls", () =>
-    session.find("xpath", "//summary[normalize-space(.)='Evidence Analysis']"),
+  /* A Re-Run Appends A New Row And Preserves The Earlier Evidence. */
+  await session.clickNamed("button", "Re-Run Case");
+  const rerunId = await until(
+    "new re-run execution selected",
+    async () => {
+      const location = await session.location();
+      const id = location.searchParams.get("executionId");
+      const count = await session.execute(
+        "return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;",
+      );
+      return id && id !== selection.executionId && count === executionRowsBefore.count + 1
+        ? id
+        : null;
+    },
+    60000,
   );
-  await session.click(analysisSummary);
-  await until("native mean analysis discovery", () =>
-    session.execute(`
-    const label = [...document.querySelectorAll('label')].find(node => node.textContent === 'Analysis');
-    const select = label && document.getElementById(label.htmlFor);
-    return select && !select.disabled && [...select.options].some(option => option.value === 'dokime.analysis.mean');
-  `),
+  assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
+  assert.match(
+    await sidebarText(session),
+    /Re-Run Of #\d+/,
+    "The new row must name its previous execution",
   );
-  await session.execute(`
-    const label = [...document.querySelectorAll('label')].find(node => node.textContent === 'Analysis');
-    const select = document.getElementById(label.htmlFor);
-    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'dokime.analysis.mean');
-    select.dispatchEvent(new Event('change', {bubbles: true}));
-  `);
-  await session.clickNamed("button", "Apply Analysis");
-  const computed = await until(
-    "native scalar analysis result",
-    () =>
-      session.execute(`
-    const heading = [...document.querySelectorAll('h3')].find(node => node.textContent.includes(' · Mean'));
-    const result = heading?.closest('section');
-    const value = result?.querySelector('dd')?.textContent;
-    const provenance = result?.textContent.match(/([0-9]+) source samples · Version 1/);
-    return value && provenance ? {value: parseFloat(value), samples: Number(provenance[1])} : null;
-  `),
+  /* Plot Settings Persist In The Native Frozen Document. */
+  const settingsTrigger = await until(
+    "per-plot settings",
+    () => session.find("css selector", "button[aria-label^='Plot settings for ']"),
     30000,
   );
-  assert.ok(Number.isFinite(computed.value), "The native mean must render a finite scalar");
-  assert.ok(computed.samples > 0, "The analysis must identify its original evidence count");
-  await session.execute(`
-    const heading = [...document.querySelectorAll('h3')].find(node => node.textContent.includes(' · Mean'));
-    heading.closest('section').scrollIntoView({block: 'center'});
-  `);
-  await session.screenshot("analysis-result");
-  await session.execute(`
-    const label = [...document.querySelectorAll('label')].find(node => node.textContent === 'Analysis');
-    const select = document.getElementById(label.htmlFor);
-    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, '');
-    select.dispatchEvent(new Event('change', {bubbles: true}));
-  `);
-  await session.clickNamed("button", "Use Original Plot");
+  await session.click(settingsTrigger);
+  const settingsDialog = await until(
+    "plot settings dialog",
+    () => session.find("css selector", "[role=dialog]"),
+    15000,
+  );
+  assert.match(await session.textOf(settingsDialog), /Display Points|Reduction/);
+  const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
+  await session.type(pointsInput, "2500");
+  await session.clickNamed("button", "Apply");
+  await until(
+    "plot settings accepted by backend",
+    async () => !(await session.find("css selector", "[role=dialog][data-state=open]")),
+    30000,
+  );
+  await session.goto("/cycles");
+  await session.goto(`/cycles/${cycleId}?executionId=${rerunId}`);
+  const persistedTrigger = await until(
+    "persisted plot settings",
+    () => session.find("css selector", "button[aria-label^='Plot settings for ']"),
+    30000,
+  );
+  await session.click(persistedTrigger);
+  const persistedPoints = await until(
+    "persisted display point budget",
+    () =>
+      session.execute("return document.querySelector('[role=dialog] input[type=number]')?.value;"),
+    15000,
+  );
+  assert.equal(persistedPoints, "2500", "The backend must retain the plot budget after remounting");
+  await session.clickNamed("button", "Cancel");
+
+  await runUntil(
+    session,
+    "the re-run to settle",
+    async () => {
+      const text = await sidebarText(session);
+      return !/\b(Running|Waiting|Finalizing|Queued)\b/.test(text);
+    },
+    300000,
+  );
+  await session.execute(
+    `
+    const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')];
+    rows[arguments[0]].querySelector('button').click();
+  `,
+    [executionRowsBefore.selectedIndex],
+  );
+  await until(
+    "original execution remains selectable",
+    async () =>
+      (await session.location()).searchParams.get("executionId") === selection.executionId,
+    30000,
+  );
 
   /* Focus is a URL flag, so it survives a reload and can be linked. The router
      serializes the flag as `focus=true`; `focusSearchSchema` also accepts the
@@ -2237,7 +2269,7 @@ async function reportJourney(session, cycleId) {
  * Touch density: the same surfaces, driven through the real Appearance switch.
  *
  * At touch the sidebar is a rail, so the cycle's cases are only reachable
- * through the header's Cases sheet, and the template dialog becomes a
+ * through the header's Executions sheet, and the template dialog becomes a
  * full-width sheet. Those three are what this pass is for.
  */
 async function touchJourney(session, cycleId) {
@@ -2266,15 +2298,15 @@ async function touchJourney(session, cycleId) {
   );
   assert.equal(railChildren, 0, "A collapsed rail must hide its children");
 
-  await session.clickNamed("button", "Cases");
+  await session.clickNamed("button", "Executions");
   const sheet = await until("cases sheet", () =>
     session.find("css selector", "[data-slot=sheet-content]"),
   );
   const sheetText = await session.textOf(sheet);
-  assert.ok(hasText(sheetText, "Cases"), "The Cases sheet must name itself");
+  assert.ok(hasText(sheetText, "Executions"), "The Executions sheet must name itself");
   assert.ok(
     hasText(sheetText, PROTECTION_TEMPLATE) || hasText(sheetText, STARTUP_TEMPLATE),
-    "The Cases sheet must hold the cycle's case rows",
+    "The Executions sheet must hold the cycle's execution rows",
   );
   await session.key("Escape");
   await delay(500);

@@ -111,6 +111,10 @@ impl sdk::Plugin for Duplicated {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn main() {}
+fn main() {
+    // Schema markers link only through a reachable `markers()` call, as the
+    // sidecar runtime makes; inspection resolves contracts against them.
+    let _ = <Duplicated as sdk::harmos::plugin::contract::Declared>::markers();
+}
 
 /* === Tests === */

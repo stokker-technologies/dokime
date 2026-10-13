@@ -299,6 +299,9 @@ class ContractExportTests(unittest.TestCase):
             source.mkdir()
             generated = {
                 Path("__init__.py"): b"import sys\nimport os\n\n" + exports,
+                Path(
+                    "__init__.pyi"
+                ): b"import os\nfrom typing import Any\n\nvalue: Any\n",
                 Path("dynamic.py"): b"VALUE={'a':1}\n",
                 Path("descriptors.bin"): b"\x00\xffdescriptor",
                 Path("_wire/_pool.py"): b"wire-owned bytes",
@@ -308,6 +311,9 @@ class ContractExportTests(unittest.TestCase):
             _normalize(generated, source, root)
             normalized = generated.copy()
             self.assertIn(exports, generated[Path("__init__.py")])
+            self.assertIn(b"import os", generated[Path("__init__.py")])
+            self.assertNotIn(b"import os", generated[Path("__init__.pyi")])
+            self.assertIn(b"from typing import Any", generated[Path("__init__.pyi")])
             self.assertEqual(generated[Path("descriptors.bin")], opaque)
             self.assertEqual(generated[Path("_wire/_pool.py")], wire)
             self.assertFalse((source / "descriptors.bin").exists())

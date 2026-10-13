@@ -170,6 +170,22 @@ pub(crate) async fn json_files_connection() {
         vec!["cycle", "request", "invalid"],
         vec!["cycle", "stop", "invalid"],
         vec!["cycle", "rerun", "invalid", "case", "--key", "rerun-1"],
+        vec![
+            "cycle",
+            "rerun",
+            "98184567-8924-4fb0-b4e2-667347e097a1",
+            "invalid",
+            "--key",
+            "rerun-1",
+        ],
+        vec![
+            "cycle",
+            "rerun",
+            "98184567-8924-4fb0-b4e2-667347e097a1",
+            "a13ae695-1f02-4464-9f7b-0b14ecffcb41",
+            "--key",
+            " ",
+        ],
         vec!["execution", "stop", "invalid"],
         vec!["plan", "preview", "--case-id", "invalid"],
         vec![
@@ -198,6 +214,12 @@ pub(crate) async fn json_files_connection() {
         // when it does not name a suite and one lowercase segment.
         vec!["plan", "preview", "--template", "probe"],
         vec!["plan", "preview", "--template", "checks.Probe"],
+        vec![
+            "plan",
+            "preview",
+            "--selection-json",
+            "{\"suite_id\":\"foreign\",\"template_id\":\"checks.probe\",\"parameters\":[],\"files\":[]}",
+        ],
         vec![
             "plan",
             "register",
@@ -255,6 +277,24 @@ pub(crate) async fn json_files_connection() {
         )
         .unwrap();
         assert!(matches!(args.run().await, Err(Error::Input(_))));
+    }
+
+    for arguments in [
+        vec!["plan", "preview", "--template", "checks.probe"],
+        vec![
+            "plan",
+            "preview",
+            "--selection-json",
+            "{\"suite_id\":\"bench.checks\",\"template_id\":\"bench.checks.probe_2\",\"parameters\":[],\"files\":[]}",
+        ],
+    ] {
+        let args = Cli::try_parse_from(
+            std::iter::once("dokime")
+                .chain(arguments)
+                .chain(["--endpoint", "invalid-endpoint"]),
+        )
+        .unwrap();
+        assert!(matches!(args.run().await, Err(Error::Client(_))));
     }
 }
 
@@ -345,6 +385,20 @@ pub(crate) async fn offline_backend_profiles() {
 }
 
 pub(crate) async fn authentication_inputs_precede_external_operations() {
+    for option in ["--ca", "--expected-backend"] {
+        assert!(Cli::try_parse_from(["dokime", "status", option, "value"]).is_err());
+        assert!(
+            Cli::try_parse_from([
+                "dokime",
+                "status",
+                "--endpoint",
+                "https://host:8765",
+                option,
+                "value",
+            ])
+            .is_ok()
+        );
+    }
     assert!(
         Cli::try_parse_from([
             "dokime",

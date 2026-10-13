@@ -119,6 +119,10 @@ pub(crate) async fn current_document_rows() {
             },
         ))
         .await
+        .unwrap()
+        .into_inner()
+        .message()
+        .await
         .unwrap_err();
     assert_eq!(missing_execution.code(), Code::InvalidArgument);
     let epoch = handle.process_epoch().to_string();
@@ -177,6 +181,10 @@ pub(crate) async fn current_document_rows() {
                 document_id: "missing".into(),
             },
         ))
+        .await
+        .unwrap()
+        .into_inner()
+        .message()
         .await
         .unwrap_err();
     assert_eq!(unknown.code(), Code::NotFound);

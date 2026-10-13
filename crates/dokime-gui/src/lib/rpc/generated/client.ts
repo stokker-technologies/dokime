@@ -23,6 +23,10 @@ import { Row1Schema as backendWatchLogsRequest } from "../../../../.generated/do
 import { Row3Schema as backendWatchLogsResponse } from "../../../../.generated/dokime/v1/BackendMessages/WatchLogs/messages_pb.js";
 import { BackendWatchLogsOutputSchema as backendWatchLogsEnvelope } from "../../../../.generated/dokime/v1/Backend_pb.js";
 export const backendWatchLogs = (session: SessionIdentity, request: Parameters<typeof openStream<typeof backendWatchLogsRequest, typeof backendWatchLogsResponse>>[4]) => openStream("/dokime.v1.Backend/WatchLogs", backendWatchLogsRequest, backendWatchLogsResponse, session, request, backendWatchLogsEnvelope, 86400000);
+import { Row1Schema as backendWatchTraceRequest } from "../../../../.generated/dokime/v1/BackendMessages/WatchTrace/messages_pb.js";
+import { Row3Schema as backendWatchTraceResponse } from "../../../../.generated/dokime/v1/BackendMessages/WatchTrace/messages_pb.js";
+import { BackendWatchTraceOutputSchema as backendWatchTraceEnvelope } from "../../../../.generated/dokime/v1/Backend_pb.js";
+export const backendWatchTrace = (session: SessionIdentity, request: Parameters<typeof openStream<typeof backendWatchTraceRequest, typeof backendWatchTraceResponse>>[4]) => openStream("/dokime.v1.Backend/WatchTrace", backendWatchTraceRequest, backendWatchTraceResponse, session, request, backendWatchTraceEnvelope, 86400000);
 import { Row1Schema as catalogGetRecordSchemaRequest } from "../../../../.generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb.js";
 import { Row2Schema as catalogGetRecordSchemaResponse } from "../../../../.generated/dokime/v1/CatalogMessages/GetRecordSchema/messages_pb.js";
 export const catalogGetRecordSchema = (session: SessionIdentity, request: Parameters<typeof unary<typeof catalogGetRecordSchemaRequest, typeof catalogGetRecordSchemaResponse>>[4]) => unary("/dokime.v1.Catalog/GetRecordSchema", catalogGetRecordSchemaRequest, catalogGetRecordSchemaResponse, session, request, 10000);
@@ -77,6 +81,9 @@ import { Row1Schema as documentsCaptureCurrentDocumentRequest } from "../../../.
 import { Row3Schema as documentsCaptureCurrentDocumentResponse } from "../../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb.js";
 import { DocumentsCaptureCurrentDocumentOutputSchema as documentsCaptureCurrentDocumentEnvelope } from "../../../../.generated/dokime/v1/Documents_pb.js";
 export const documentsCaptureCurrentDocument = (session: SessionIdentity, request: Parameters<typeof openStream<typeof documentsCaptureCurrentDocumentRequest, typeof documentsCaptureCurrentDocumentResponse>>[4]) => openStream("/dokime.v1.Documents/CaptureCurrentDocument", documentsCaptureCurrentDocumentRequest, documentsCaptureCurrentDocumentResponse, session, request, documentsCaptureCurrentDocumentEnvelope, 300000);
+import { Row1Schema as documentsUpdatePlotSettingsRequest } from "../../../../.generated/dokime/v1/DocumentsMessages/UpdatePlotSettings/messages_pb.js";
+import { Row2Schema as documentsUpdatePlotSettingsResponse } from "../../../../.generated/dokime/v1/DocumentsMessages/UpdatePlotSettings/messages_pb.js";
+export const documentsUpdatePlotSettings = (session: SessionIdentity, request: Parameters<typeof unary<typeof documentsUpdatePlotSettingsRequest, typeof documentsUpdatePlotSettingsResponse>>[4]) => unary("/dokime.v1.Documents/UpdatePlotSettings", documentsUpdatePlotSettingsRequest, documentsUpdatePlotSettingsResponse, session, request, 10000);
 import { Row1Schema as evidenceGetCapturedRecordSchemaRequest } from "../../../../.generated/dokime/v1/EvidenceMessages/GetCapturedRecordSchema/messages_pb.js";
 import { Row2Schema as evidenceGetCapturedRecordSchemaResponse } from "../../../../.generated/dokime/v1/EvidenceMessages/GetCapturedRecordSchema/messages_pb.js";
 export const evidenceGetCapturedRecordSchema = (session: SessionIdentity, request: Parameters<typeof unary<typeof evidenceGetCapturedRecordSchemaRequest, typeof evidenceGetCapturedRecordSchemaResponse>>[4]) => unary("/dokime.v1.Evidence/GetCapturedRecordSchema", evidenceGetCapturedRecordSchemaRequest, evidenceGetCapturedRecordSchemaResponse, session, request, 10000);

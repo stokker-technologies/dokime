@@ -497,7 +497,7 @@ async fn get_record_schema(
         .find(|c| c.record_type.as_str() == request.record_type)
         .ok_or_else(|| Status::not_found("registered record schema not found"))?;
     check(resources, schemas::record_memory(contract)?)?;
-    Ok(schemas::record(contract)?)
+    schemas::record(contract)
 }
 
 async fn list_telemetry_schemas(
@@ -569,7 +569,7 @@ async fn get_telemetry_schema(
         .find(|c| c.stream.as_str() == request.stream)
         .ok_or_else(|| Status::not_found("registered telemetry schema not found"))?;
     check(resources, schemas::telemetry_memory(contract)?)?;
-    Ok(schemas::telemetry(contract)?)
+    schemas::telemetry(contract)
 }
 
 fn identity(

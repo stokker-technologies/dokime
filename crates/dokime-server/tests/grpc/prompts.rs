@@ -45,6 +45,7 @@ use dokime_app::{
 /* === Private Functions === */
 
 pub(crate) async fn prompt_answers_identity() {
+    const READ_TOKEN: &str = "prompt-read-token-012345678901234567890123456789";
     let root = tempfile::tempdir().unwrap();
     let mut definition = FormPrompt::<BTreeMap<String, i64>>::new("fixture.answer", "Exact answer")
         .field(PromptField {
@@ -79,7 +80,10 @@ pub(crate) async fn prompt_answers_identity() {
     let server = Server::start(
         handle.clone(),
         Config::local()
-            .with_bearer_auth(vec![grant(Role::Control)])
+            .with_bearer_auth(vec![
+                grant(Role::Control),
+                BearerGrant::new("prompt-reader".into(), Role::Read, READ_TOKEN).unwrap(),
+            ])
             .unwrap(),
     )
     .await
@@ -247,25 +251,17 @@ pub(crate) async fn prompt_answers_identity() {
             .len(),
         1
     );
-    server.shutdown().await.unwrap();
-    let server = Server::start(
-        handle.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Read)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
     let read = WireClient::connect(server.local_endpoint()).await.unwrap();
-    read.unary::<contracts::prompts::GetPrompt>(authenticated(
+    read.unary::<contracts::prompts::GetPrompt>(auth(
         contracts::prompts::GetPromptRequest {
             prompt_id: ids[0].to_string(),
         },
+        READ_TOKEN,
     ))
     .await
     .unwrap();
     assert_eq!(
-        read.unary::<contracts::prompts::Respond>(authenticated(answer(i64::MAX)))
+        read.unary::<contracts::prompts::Respond>(auth(answer(i64::MAX), READ_TOKEN))
             .await
             .unwrap_err()
             .code(),

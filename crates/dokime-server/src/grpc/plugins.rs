@@ -49,6 +49,7 @@ struct Resources {
     pub runtime: RuntimeHandle,
     pub admission: Arc<Semaphore>,
     pub max_message_bytes: usize,
+    pub local_only: bool,
 }
 
 /* === Enums === */
@@ -475,16 +476,22 @@ impl Operation for ListAdmittedPlugins {
             &self.resources.runtime,
             request,
             self.resources.max_message_bytes,
+            self.resources.local_only,
         )
     }
 }
 
 /* === Public Functions === */
-pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
+pub(super) fn register(
+    runtime: &RuntimeHandle,
+    maximum: usize,
+    local_only: bool,
+) -> Result<(), super::Error> {
     let resources = Arc::new(Resources {
         runtime: runtime.clone(),
         admission: Arc::new(Semaphore::new(1)),
         max_message_bytes: maximum,
+        local_only,
     });
     runtime
         .operations()

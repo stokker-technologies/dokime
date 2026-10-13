@@ -22,7 +22,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nJdokime/_wire/dokime/v1/ExecutionMessages/AppendPlannedCases/messages.proto\x12.dokime.v1.ExecutionMessages.AppendPlannedCases\"\xc6\x01\n\x04Row1\x12\x1d\n\x08\x63ycle_id\x18\xaf\xab\xd7\xb9\x01 \x01(\tR\x07\x63ycleId\x12L\n\x04plan\x18\x88\xbd\xaf\xbe\x01 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row3R\x04plan\x12Q\n\x07\x63ontext\x18\x89\xc8\x9c\x64 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row4R\x07\x63ontext\"i\n\x04Row2\x12\x61\n\x0fobserved_cursor\x18\xfe\xac\xba\xf7\x01 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row5R\x0eobservedCursor\"\x9f\x01\n\x04Row3\x12X\n\nselections\x18\xb6\x84\xdb\xee\x01 \x03(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row6R\nselections\x12\x1f\n\tmax_cases\x18\xdb\xc9\xda\xb2\x01 \x01(\rR\x08maxCases\x12\x1c\n\x08\x63\x61se_ids\x18\xf7\xe1\x9c@ \x03(\tR\x07\x63\x61seIds\"T\n\x04Row4\x12.\n\x0e\x63orrelation_id\x18\x8c\xfe\xdc\xb0\x01 \x01(\tH\x00R\rcorrelationId\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_370622220\"\\\n\x04Row5\x12\x18\n\x05\x65poch\x18\xc5\x92\xed\xca\x01 \x01(\tR\x05\x65poch\x12\x1a\n\x06stream\x18\xa0\xf2\xbd\xfb\x01 \x01(\tR\x06stream\x12\x1e\n\x08position\x18\x97\xc3\xbd\x9a\x01 \x01(\x04R\x08position\"\xf2\x01\n\x04Row6\x12\x1c\n\x08suite_id\x18\xa5\xf1\xfeG \x01(\tR\x07suiteId\x12#\n\x0btemplate_id\x18\xf9\xfa\xb9\xfd\x01 \x01(\tR\ntemplateId\x12W\n\nparameters\x18\x94\xf5\x94\x45 \x03(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row7R\nparameters\x12N\n\x05\x66iles\x18\xe2\x90\x9d\xf7\x01 \x03(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row8R\x05\x66iles\"j\n\x04Row7\x12\x13\n\x03key\x18\x90\xb0\xd7@ \x01(\tR\x03key\x12M\n\x05value\x18\x85\xbf\xfb\x12 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row9R\x05value\"k\n\x04Row8\x12\x13\n\x03key\x18\x90\xb0\xd7@ \x01(\tR\x03key\x12N\n\x05value\x18\x85\xbf\xfb\x12 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row10R\x05value\"Y\n\x04Row9\x12Q\n\x06values\x18\x8d\xa8\x9d\xa2\x01 \x03(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row11R\x06values\"V\n\x05Row10\x12M\n\x04kind\x18\xa2\xfb\xcf\xc8\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row12R\x04kind\"X\n\x05Row11\x12O\n\x05nodes\x18\x95\xb8\xba\x8a\x01 \x03(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row13R\x05nodes\"\xbf\x01\n\x05Row12\x12Q\n\x05Value\x18\xc9\xa9\xa0\x8a\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row14H\x00R\x05Value\x12P\n\x05\x43lear\x18\xab\x87\x96% \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row15H\x00R\x05\x43learB\x11\n\x0f_harmos_variant\"V\n\x05Row13\x12M\n\x04kind\x18\xa2\xfb\xcf\xc8\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row16R\x04kind\"$\n\x05Row14\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\tR\x06\x66ield0\"\x07\n\x05Row15\"\x8f\x06\n\x05Row16\x12O\n\x04Null\x18\x8c\xee\xce\xb9\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row17H\x00R\x04Null\x12N\n\x04\x42ool\x18\xaf\xe8\xd0{ \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row18H\x00R\x04\x42ool\x12U\n\x07Integer\x18\xc4\xde\xa5\xcd\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row19H\x00R\x07Integer\x12V\n\x08Unsigned\x18\x8e\x99\xeb\x66 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row20H\x00R\x08Unsigned\x12R\n\x06Number\x18\xe4\xf4\xa7\x0f \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row21H\x00R\x06Number\x12O\n\x04Text\x18\xb0\xea\xd0\xf0\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row22H\x00R\x04Text\x12W\n\x08\x44\x61tetime\x18\x99\x89\xe3\xe0\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row23H\x00R\x08\x44\x61tetime\x12Q\n\x05\x41rray\x18\xaf\x81\xa4\xb6\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row24H\x00R\x05\x41rray\x12R\n\x06Object\x18\xa2\x88\xba, \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row25H\x00R\x06ObjectB\x11\n\x0f_harmos_variant\"\x07\n\x05Row17\"$\n\x05Row18\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x08R\x06\x66ield0\"$\n\x05Row19\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x03R\x06\x66ield0\"$\n\x05Row20\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x04R\x06\x66ield0\"$\n\x05Row21\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x01R\x06\x66ield0\"$\n\x05Row22\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\tR\x06\x66ield0\"[\n\x05Row23\x12R\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row26R\x06\x66ield0\"[\n\x05Row24\x12R\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row27R\x06\x66ield0\"[\n\x05Row25\x12R\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row28R\x06\x66ield0\"=\n\x05Row26\x12\x1b\n\x07seconds\x18\x8e\xbb\xdb\x35 \x01(\x03R\x07seconds\x12\x17\n\x05nanos\x18\x98\xac\xb2\x1e \x01(\x05R\x05nanos\"!\n\x05Row27\x12\x18\n\x05items\x18\xe1\xf6\xe4\xd3\x01 \x03(\rR\x05items\"Y\n\x05Row28\x12P\n\x06\x66ields\x18\xe5\xd2\x81\x32 \x03(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row29R\x06\x66ields\"5\n\x05Row29\x12\x13\n\x03key\x18\x90\xb0\xd7@ \x01(\tR\x03key\x12\x17\n\x05value\x18\x85\xbf\xfb\x12 \x01(\rR\x05value\"\xa8\x01\n\x04Row0\x12N\n\x07request\x18\x01 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row1R\x07request\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nJdokime/_wire/dokime/v1/ExecutionMessages/AppendPlannedCases/messages.proto\x12.dokime.v1.ExecutionMessages.AppendPlannedCases\"\xc6\x01\n\x04Row1\x12\x1d\n\x08\x63ycle_id\x18\xaf\xab\xd7\xb9\x01 \x01(\tR\x07\x63ycleId\x12L\n\x04plan\x18\x88\xbd\xaf\xbe\x01 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row3R\x04plan\x12Q\n\x07\x63ontext\x18\x89\xc8\x9c\x64 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row4R\x07\x63ontext\"i\n\x04Row2\x12\x61\n\x0fobserved_cursor\x18\xfe\xac\xba\xf7\x01 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row5R\x0eobservedCursor\"\x9f\x01\n\x04Row3\x12X\n\nselections\x18\xb6\x84\xdb\xee\x01 \x03(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row6R\nselections\x12\x1f\n\tmax_cases\x18\xdb\xc9\xda\xb2\x01 \x01(\rR\x08maxCases\x12\x1c\n\x08\x63\x61se_ids\x18\xf7\xe1\x9c@ \x03(\tR\x07\x63\x61seIds\"T\n\x04Row4\x12.\n\x0e\x63orrelation_id\x18\x8c\xfe\xdc\xb0\x01 \x01(\tH\x00R\rcorrelationId\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_370622220\"\\\n\x04Row5\x12\x18\n\x05\x65poch\x18\xc5\x92\xed\xca\x01 \x01(\tR\x05\x65poch\x12\x1a\n\x06stream\x18\xa0\xf2\xbd\xfb\x01 \x01(\tR\x06stream\x12\x1e\n\x08position\x18\x97\xc3\xbd\x9a\x01 \x01(\x04R\x08position\"\xf2\x01\n\x04Row6\x12\x1c\n\x08suite_id\x18\xa5\xf1\xfeG \x01(\tR\x07suiteId\x12#\n\x0btemplate_id\x18\xf9\xfa\xb9\xfd\x01 \x01(\tR\ntemplateId\x12W\n\nparameters\x18\x94\xf5\x94\x45 \x03(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row7R\nparameters\x12N\n\x05\x66iles\x18\xe2\x90\x9d\xf7\x01 \x03(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row8R\x05\x66iles\"j\n\x04Row7\x12\x13\n\x03key\x18\x90\xb0\xd7@ \x01(\tR\x03key\x12M\n\x05value\x18\x85\xbf\xfb\x12 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row9R\x05value\"k\n\x04Row8\x12\x13\n\x03key\x18\x90\xb0\xd7@ \x01(\tR\x03key\x12N\n\x05value\x18\x85\xbf\xfb\x12 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row10R\x05value\"Y\n\x04Row9\x12Q\n\x06values\x18\x8d\xa8\x9d\xa2\x01 \x03(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row11R\x06values\"V\n\x05Row10\x12M\n\x04kind\x18\xa2\xfb\xcf\xc8\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row12R\x04kind\"X\n\x05Row11\x12O\n\x05nodes\x18\x95\xb8\xba\x8a\x01 \x03(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row13R\x05nodes\"\xc0\x01\n\x05Row12\x12Q\n\x05Value\x18\xc9\xa9\xa0\x8a\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row14H\x00R\x05Value\x12Q\n\x06\x43lear_\x18\xab\x87\x96% \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row15H\x00R\x05\x43learB\x11\n\x0f_harmos_variant\"V\n\x05Row13\x12M\n\x04kind\x18\xa2\xfb\xcf\xc8\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row16R\x04kind\"$\n\x05Row14\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\tR\x06\x66ield0\"\x07\n\x05Row15\"\x8f\x06\n\x05Row16\x12O\n\x04Null\x18\x8c\xee\xce\xb9\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row17H\x00R\x04Null\x12N\n\x04\x42ool\x18\xaf\xe8\xd0{ \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row18H\x00R\x04\x42ool\x12U\n\x07Integer\x18\xc4\xde\xa5\xcd\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row19H\x00R\x07Integer\x12V\n\x08Unsigned\x18\x8e\x99\xeb\x66 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row20H\x00R\x08Unsigned\x12R\n\x06Number\x18\xe4\xf4\xa7\x0f \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row21H\x00R\x06Number\x12O\n\x04Text\x18\xb0\xea\xd0\xf0\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row22H\x00R\x04Text\x12W\n\x08\x44\x61tetime\x18\x99\x89\xe3\xe0\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row23H\x00R\x08\x44\x61tetime\x12Q\n\x05\x41rray\x18\xaf\x81\xa4\xb6\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row24H\x00R\x05\x41rray\x12R\n\x06Object\x18\xa2\x88\xba, \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row25H\x00R\x06ObjectB\x11\n\x0f_harmos_variant\"\x07\n\x05Row17\"$\n\x05Row18\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x08R\x06\x66ield0\"$\n\x05Row19\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x03R\x06\x66ield0\"$\n\x05Row20\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x04R\x06\x66ield0\"$\n\x05Row21\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x01R\x06\x66ield0\"$\n\x05Row22\x12\x1b\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\tR\x06\x66ield0\"[\n\x05Row23\x12R\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row26R\x06\x66ield0\"[\n\x05Row24\x12R\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row27R\x06\x66ield0\"[\n\x05Row25\x12R\n\x07\x66ield_0\x18\xd5\xe6\xe3\xdd\x01 \x01(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row28R\x06\x66ield0\"=\n\x05Row26\x12\x1b\n\x07seconds\x18\x8e\xbb\xdb\x35 \x01(\x03R\x07seconds\x12\x17\n\x05nanos\x18\x98\xac\xb2\x1e \x01(\x05R\x05nanos\"!\n\x05Row27\x12\x18\n\x05items\x18\xe1\xf6\xe4\xd3\x01 \x03(\rR\x05items\"Y\n\x05Row28\x12P\n\x06\x66ields\x18\xe5\xd2\x81\x32 \x03(\x0b\x32\x35.dokime.v1.ExecutionMessages.AppendPlannedCases.Row29R\x06\x66ields\"5\n\x05Row29\x12\x13\n\x03key\x18\x90\xb0\xd7@ \x01(\tR\x03key\x12\x17\n\x05value\x18\x85\xbf\xfb\x12 \x01(\rR\x05value\"\xa8\x01\n\x04Row0\x12N\n\x07request\x18\x01 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row1R\x07request\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x34.dokime.v1.ExecutionMessages.AppendPlannedCases.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -52,41 +52,41 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ROW11']._serialized_start=1417
   _globals['_ROW11']._serialized_end=1505
   _globals['_ROW12']._serialized_start=1508
-  _globals['_ROW12']._serialized_end=1699
-  _globals['_ROW13']._serialized_start=1701
-  _globals['_ROW13']._serialized_end=1787
-  _globals['_ROW14']._serialized_start=1789
-  _globals['_ROW14']._serialized_end=1825
-  _globals['_ROW15']._serialized_start=1827
-  _globals['_ROW15']._serialized_end=1834
-  _globals['_ROW16']._serialized_start=1837
-  _globals['_ROW16']._serialized_end=2620
-  _globals['_ROW17']._serialized_start=2622
-  _globals['_ROW17']._serialized_end=2629
-  _globals['_ROW18']._serialized_start=2631
-  _globals['_ROW18']._serialized_end=2667
-  _globals['_ROW19']._serialized_start=2669
-  _globals['_ROW19']._serialized_end=2705
-  _globals['_ROW20']._serialized_start=2707
-  _globals['_ROW20']._serialized_end=2743
-  _globals['_ROW21']._serialized_start=2745
-  _globals['_ROW21']._serialized_end=2781
-  _globals['_ROW22']._serialized_start=2783
-  _globals['_ROW22']._serialized_end=2819
-  _globals['_ROW23']._serialized_start=2821
-  _globals['_ROW23']._serialized_end=2912
-  _globals['_ROW24']._serialized_start=2914
-  _globals['_ROW24']._serialized_end=3005
-  _globals['_ROW25']._serialized_start=3007
-  _globals['_ROW25']._serialized_end=3098
-  _globals['_ROW26']._serialized_start=3100
-  _globals['_ROW26']._serialized_end=3161
-  _globals['_ROW27']._serialized_start=3163
-  _globals['_ROW27']._serialized_end=3196
-  _globals['_ROW28']._serialized_start=3198
-  _globals['_ROW28']._serialized_end=3287
-  _globals['_ROW29']._serialized_start=3289
-  _globals['_ROW29']._serialized_end=3342
-  _globals['_ROW0']._serialized_start=3345
-  _globals['_ROW0']._serialized_end=3513
+  _globals['_ROW12']._serialized_end=1700
+  _globals['_ROW13']._serialized_start=1702
+  _globals['_ROW13']._serialized_end=1788
+  _globals['_ROW14']._serialized_start=1790
+  _globals['_ROW14']._serialized_end=1826
+  _globals['_ROW15']._serialized_start=1828
+  _globals['_ROW15']._serialized_end=1835
+  _globals['_ROW16']._serialized_start=1838
+  _globals['_ROW16']._serialized_end=2621
+  _globals['_ROW17']._serialized_start=2623
+  _globals['_ROW17']._serialized_end=2630
+  _globals['_ROW18']._serialized_start=2632
+  _globals['_ROW18']._serialized_end=2668
+  _globals['_ROW19']._serialized_start=2670
+  _globals['_ROW19']._serialized_end=2706
+  _globals['_ROW20']._serialized_start=2708
+  _globals['_ROW20']._serialized_end=2744
+  _globals['_ROW21']._serialized_start=2746
+  _globals['_ROW21']._serialized_end=2782
+  _globals['_ROW22']._serialized_start=2784
+  _globals['_ROW22']._serialized_end=2820
+  _globals['_ROW23']._serialized_start=2822
+  _globals['_ROW23']._serialized_end=2913
+  _globals['_ROW24']._serialized_start=2915
+  _globals['_ROW24']._serialized_end=3006
+  _globals['_ROW25']._serialized_start=3008
+  _globals['_ROW25']._serialized_end=3099
+  _globals['_ROW26']._serialized_start=3101
+  _globals['_ROW26']._serialized_end=3162
+  _globals['_ROW27']._serialized_start=3164
+  _globals['_ROW27']._serialized_end=3197
+  _globals['_ROW28']._serialized_start=3199
+  _globals['_ROW28']._serialized_end=3288
+  _globals['_ROW29']._serialized_start=3290
+  _globals['_ROW29']._serialized_end=3343
+  _globals['_ROW0']._serialized_start=3346
+  _globals['_ROW0']._serialized_end=3514
 # @@protoc_insertion_point(module_scope)

@@ -29,6 +29,7 @@ use super::{InstalledPlugin, RuntimeState};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleCatalog {
     pub package: String,
+    pub path: String,
     pub installation: Option<String>,
     #[serde(default)]
     pub content_digest: String,
@@ -46,6 +47,7 @@ pub enum PluginOwner {
     },
     Bundle {
         package: String,
+        path: String,
         installation: Option<String>,
         #[serde(default)]
         content_digest: String,
@@ -119,6 +121,7 @@ impl ProviderCatalog {
         match self {
             Self::Bundle(bundle) => PluginOwner::Bundle {
                 package: bundle.package.clone(),
+                path: bundle.path.clone(),
                 installation: bundle.installation.clone(),
                 content_digest: bundle.content_digest.clone(),
             },

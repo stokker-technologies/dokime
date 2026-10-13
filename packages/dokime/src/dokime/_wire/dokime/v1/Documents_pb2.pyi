@@ -1,4 +1,5 @@
 from dokime._wire.dokime.v1.DocumentsMessages.CaptureCurrentDocument import messages_pb2 as _messages_pb2
+from dokime._wire.dokime.v1.DocumentsMessages.UpdatePlotSettings import messages_pb2 as _messages_pb2_1
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Mapping as _Mapping

@@ -210,21 +210,21 @@ pub(crate) fn view_filter(
         }
     }
     let mut overrides = Vec::new();
-    if selected.is_some() {
-        if let Some(captured) = captured {
-            if captured.subscribed_records().len() > 64 {
-                return Err(filter_capacity());
-            }
-            for (id, override_scope) in captured.subscribed_records() {
-                // An Override Replaces Native Scope, Even When It Does Not Match.
-                native.push(Predicate::Compare {
-                    expr: Expr::Col(10),
-                    compare: Compare::Ne,
-                    value: ScalarValue::Text(id.as_str().to_owned()),
-                });
-                if selected.is_none_or(|scope| scope_visible_in(Some(override_scope), scope)) {
-                    overrides.push(id);
-                }
+    if selected.is_some()
+        && let Some(captured) = captured
+    {
+        if captured.subscribed_records().len() > 64 {
+            return Err(filter_capacity());
+        }
+        for (id, override_scope) in captured.subscribed_records() {
+            // An Override Replaces Native Scope, Even When It Does Not Match.
+            native.push(Predicate::Compare {
+                expr: Expr::Col(10),
+                compare: Compare::Ne,
+                value: ScalarValue::Text(id.as_str().to_owned()),
+            });
+            if selected.is_none_or(|scope| scope_visible_in(Some(override_scope), scope)) {
+                overrides.push(id);
             }
         }
     }

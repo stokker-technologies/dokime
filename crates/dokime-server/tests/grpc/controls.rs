@@ -42,6 +42,7 @@ pub(crate) async fn cycle_edits_state() {
         root: _root,
         gate,
         mut owner,
+        service: _service,
         server,
         execution: mut client,
         cycle: id,

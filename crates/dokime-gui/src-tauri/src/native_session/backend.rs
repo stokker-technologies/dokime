@@ -218,13 +218,13 @@ pub async fn start(
     no_console(&mut command);
     let mut child = command.spawn().map_err(|error| Error::Startup {
         message: format!("Dokime backend {executable} could not be started: {error}"),
-        diagnostics: Some(BackendDiagnostics {
+        diagnostics: Some(Box::new(BackendDiagnostics {
             executable: executable.clone(),
             exit_code: None,
             exit_status: None,
             tail: String::new(),
             log: None,
-        }),
+        })),
     })?;
     let events = BufReader::new(child.stdout.take().expect("piped readiness output"));
     let stderr = child.stderr.take().expect("piped diagnostic output");
@@ -252,13 +252,13 @@ pub async fn start(
     let (tail, log) = process.diagnostics.settle().await;
     Err(Error::Startup {
         message,
-        diagnostics: Some(BackendDiagnostics {
+        diagnostics: Some(Box::new(BackendDiagnostics {
             executable,
             exit_code: status.and_then(|status| status.code()),
             exit_status: status.map(|status| status.to_string()),
             tail,
             log: log.map(|path| path.display().to_string()),
-        }),
+        })),
     })
 }
 

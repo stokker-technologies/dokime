@@ -32,6 +32,13 @@ use dokime_app::RuntimeHandle;
 /* === Type Aliases === */
 
 /* === Structs === */
+/// Configured operations and immutable listener policy for one runtime.
+pub struct Service {
+    runtime: RuntimeHandle,
+    settings: harmos::grpc::Settings,
+    tls: bool,
+}
+
 pub struct Server {
     address: SocketAddr,
     tls: bool,
@@ -43,8 +50,8 @@ pub struct Server {
 /* === Traits === */
 
 /* === Implementations === */
-impl Server {
-    pub async fn start(runtime: RuntimeHandle, config: Config) -> Result<Self, Error> {
+impl Service {
+    pub async fn new(runtime: RuntimeHandle, config: Config) -> Result<Self, Error> {
         config.validate()?;
         let tls = config.tls.is_some();
         appearance::register(&runtime, config.max_message_bytes())?;
@@ -59,22 +66,36 @@ impl Server {
         super::prompts::register(&runtime, config.max_message_bytes())?;
         super::telemetry::register(&runtime, config.max_message_bytes())?;
         super::query::register(&runtime, config.max_message_bytes())?;
-        super::plugins::register(&runtime, config.max_message_bytes())?;
+        super::plugins::register(&runtime, config.max_message_bytes(), config.local_only())?;
         super::evidence::register(&runtime, config.max_message_bytes())?;
         super::plots::register(&runtime, config.max_message_bytes())?;
         super::documents::register(&runtime, config.max_message_bytes())?;
         super::settings::register(&runtime, config.max_message_bytes())?;
         super::backend::register(&runtime, config.max_message_bytes()).await?;
+        super::trace::register(&runtime, config.max_message_bytes())?;
         authorization::register(&runtime, &config)?;
-        let attachment = runtime
-            .grpc()
-            .attach(config.into_listener_settings()?)
-            .await?;
+        let settings = config.into_listener_settings()?;
         Ok(Self {
-            address: attachment.local_addr(),
+            runtime,
+            settings,
             tls,
+        })
+    }
+
+    /// Attach or reattach this configured service without registering it again.
+    pub async fn listen(&self) -> Result<Server, Error> {
+        let attachment = self.runtime.grpc().attach(self.settings.clone()).await?;
+        Ok(Server {
+            address: attachment.local_addr(),
+            tls: self.tls,
             attachment: Some(attachment),
         })
+    }
+}
+
+impl Server {
+    pub async fn start(runtime: RuntimeHandle, config: Config) -> Result<Self, Error> {
+        Service::new(runtime, config).await?.listen().await
     }
 
     pub fn address(&self) -> SocketAddr {

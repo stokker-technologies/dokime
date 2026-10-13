@@ -428,6 +428,17 @@ pub(crate) async fn planning_refuses_inputs() {
     }
     assert!(owner.handle().cycles().await.is_empty());
     server.shutdown().await.unwrap();
+    // Authentication Is A Construction Setting Of The Runtime Service.
+    owner.shutdown().await.unwrap();
+    let mut owner = runtime(root.path()).await;
+    owner
+        .handle()
+        .set_suites(
+            "provider:fixture",
+            SuiteSet::new([common::fixture_registration(first.clone())]),
+        )
+        .await
+        .unwrap();
     let read = Server::start(
         owner.handle(),
         Config::local()

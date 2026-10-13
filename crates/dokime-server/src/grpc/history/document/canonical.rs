@@ -421,11 +421,11 @@ pub(in crate::grpc) fn historical_plot(
         z_stream: value.z_stream.clone(),
         z_field: value.z_field.clone(),
         unit: value.unit.clone(),
-        max_points: None,
+        max_points: value.display_points.map(u64::from),
         window_s: value.live_window_s,
         scope: Some(canonical::scope(scope)?),
         cursor: None,
-        technique: plots::DownsampleTechnique::Unspecified,
+        technique: enums::downsample_technique(&value.downsample),
     };
     let (x_axis, x_axis_unit) = enums::plot_axis(value.x_axis.as_ref());
     let presentation = documents::PlotPresentation {
@@ -650,7 +650,7 @@ fn owner_body(
 ) -> Result<history::HistoricalDocumentCardBody, Status> {
     Ok(history::HistoricalDocumentCardBody::Owner(
         documents::DocumentOwnerReference {
-            kind: kind,
+            kind,
             plot_id,
             plot: None,
         },
@@ -670,13 +670,13 @@ fn layout_nodes_for_node(
             output.push(documents::DocumentLayoutNode {
                 ordinal: current,
                 parent_ordinal: parent,
-                node: Some(documents::DocumentLayoutNodeNode::Section(
+                node: Some(documents::DocumentLayoutNodeNode::Section(Box::new(
                     documents::DocumentSection {
                         node_id: section.node_id.as_str().to_owned(),
                         metadata: Some(metadata(&section.metadata)?),
                         repeat: section.repeat.as_ref().map(repeat).transpose()?,
                     },
-                )),
+                ))),
             });
             *ordinal += 1;
             for child in &section.children {

@@ -100,6 +100,7 @@ struct ExecutionCleanup {
     session: Arc<Session>,
     _progress: ProgressCleanup,
     settled: bool,
+    stop_deadline: Option<tokio::time::Instant>,
     capture: HostCapture,
 }
 
@@ -267,8 +268,9 @@ impl PromptBridge {
     }
 
     async fn settle_on_cancel(&mut self, context: &ExecutionFixtureContext) {
-        for (prompt_id, _) in std::mem::take(&mut self.outstanding) {
+        for prompt_id in self.outstanding.keys().cloned().collect::<Vec<_>>() {
             if context.runtime.prompt_response(&prompt_id).await.is_some() {
+                self.outstanding.remove(&prompt_id);
                 continue;
             }
             // Not accepted: nobody agreed to anything, the run was stopped.
@@ -282,6 +284,7 @@ impl PromptBridge {
                     false,
                 )
                 .await;
+            self.outstanding.remove(&prompt_id);
             if let Err(detail) = settled
                 && detail.code() != Some("prompt_already_answered")
             {
@@ -304,6 +307,12 @@ impl Finalization {
         let mut active = self.active.lock().await;
         assert!(active.is_none(), "previous execution cleanup remains owned");
         *active = Some(cleanup);
+    }
+
+    async fn cancelling(&self, deadline: tokio::time::Instant) {
+        if let Some(cleanup) = self.active.lock().await.as_mut() {
+            cleanup.stop_deadline = Some(deadline);
+        }
     }
 
     async fn settled(&self) {
@@ -337,17 +346,22 @@ impl ExecutionCleanup {
                 .await
                 .settle_on_cancel(context)
                 .await;
-            if let Err(error) = self
-                .session
-                .target
-                .signal(ExecutionSignal {
-                    execution_token: self.execution.test_execution_id.to_string(),
-                    cancel: true,
-                    ..ExecutionSignal::default()
-                })
-                .await
-            {
-                tracing::debug!(detail = %error.message, "an unsettled run did not take its cancellation");
+            let deadline = *self
+                .stop_deadline
+                .get_or_insert_with(|| tokio::time::Instant::now() + STOP_SETTLEMENT);
+            let signal = self.session.target.signal(ExecutionSignal {
+                execution_token: self.execution.test_execution_id.to_string(),
+                cancel: true,
+                ..ExecutionSignal::default()
+            });
+            match tokio::time::timeout_at(deadline, signal).await {
+                Ok(Ok(_)) => {}
+                Ok(Err(error)) => {
+                    tracing::debug!(detail = %error.message, "an unsettled run did not take its cancellation");
+                }
+                Err(_) => {
+                    tracing::debug!("an unsettled run exhausted its cancellation budget");
+                }
             }
             self.settled = true;
         }
@@ -559,6 +573,7 @@ impl StreamLog {
                     tracing::event!(target: "sidecar", $level,
                         plugin_id = source,
                         execution_id = %execution.test_execution_id,
+                        cycle_id = %execution.test_cycle_id,
                         line = %entry.message,
                         timestamp = %entry.timestamp,
                         "sidecar execution log"
@@ -574,6 +589,7 @@ impl StreamLog {
                 Err(_) => tracing::warn!(
                     plugin_id = source,
                     execution_id = %execution.test_execution_id,
+                    cycle_id = %execution.test_cycle_id,
                     level = entry.level,
                     line = %entry.message,
                     "sidecar execution diagnostic has unknown severity"
@@ -845,6 +861,7 @@ async fn execute_case(
                 execution: execution.test_execution_id.clone(),
             },
             settled: false,
+            stop_deadline: None,
         })
         .await;
     context
@@ -853,17 +870,17 @@ async fn execute_case(
         .insert(&execution_token, Arc::clone(&session));
 
     let provider_started = Instant::now();
-    tracing::debug!(execution_id = %execution.test_execution_id, "execution provider run started");
+    tracing::debug!(execution_id = %execution.test_execution_id, cycle_id = %cycle.test_cycle_id, "execution provider run started");
     let run = target.run(request);
     tokio::pin!(run);
     let mut cancelled = false;
-    let mut cancelled_at = None;
+    let mut stop_deadline = None;
     let answered = loop {
         tokio::select! {
             answered = &mut run => break Some(answered),
             () = tokio::time::sleep(WATCH_INTERVAL) => {}
         }
-        if cancelled_at.is_some_and(|at: Instant| at.elapsed() >= STOP_SETTLEMENT) {
+        if stop_deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
             break None;
         }
         if !cancelled
@@ -872,25 +889,36 @@ async fn execute_case(
                 || context.execution_stop_requested(&execution.test_execution_id))
         {
             cancelled = true;
-            cancelled_at = Some(Instant::now());
-            session.cancel().await;
-            // A step waiting on the operator must not outlive the stop: its
-            // pending questions are settled as cancelled now, not after the
-            // run has already returned.
-            session.prompts.lock().await.settle_on_cancel(context).await;
-            if let Err(error) = target
-                .signal(ExecutionSignal {
-                    execution_token: execution_token.clone(),
-                    cancel: true,
-                    ..ExecutionSignal::default()
-                })
-                .await
-            {
-                session.refuse(error).await;
+            let deadline = tokio::time::Instant::now() + STOP_SETTLEMENT;
+            stop_deadline = Some(deadline);
+            context.finalization.cancelling(deadline).await;
+            let cancel = async {
+                // Cancel the pending operator questions before signalling the run.
+                session.cancel().await;
+                if let Err(error) = target
+                    .signal(ExecutionSignal {
+                        execution_token: execution_token.clone(),
+                        cancel: true,
+                        ..ExecutionSignal::default()
+                    })
+                    .await
+                {
+                    session.refuse(error).await;
+                }
+            };
+            if tokio::time::timeout_at(deadline, cancel).await.is_err() {
+                break None;
             }
         }
-        if let Err(error) = commands::reconcile(context, &target, execution, false, cancelled).await
-        {
+        let reconcile = commands::reconcile(context, &target, execution, false, cancelled);
+        let reconciled = match stop_deadline {
+            Some(deadline) => match tokio::time::timeout_at(deadline, reconcile).await {
+                Ok(result) => result,
+                Err(_) => break None,
+            },
+            None => reconcile.await,
+        };
+        if let Err(error) = reconciled {
             session.refuse(error).await;
         }
     };
@@ -908,6 +936,11 @@ async fn execute_case(
         session
             .narrate_refusal(&failure("stop_settlement", message.clone()))
             .await;
+        // A late run may close its own step first; cleanup still owns release.
+        if let Err(error) = close_stopped_attempt(context, execution).await {
+            tracing::warn!(execution_id = %execution.test_execution_id,
+                detail = %error.message, "host could not close the stopped step attempt");
+        }
         context.finalization.finish(context).await?;
         return Ok(CaseResult {
             execution: execution_outcome(
@@ -1593,6 +1626,45 @@ fn sidecar_failure(stage: &'static str, error: harmos::Error) -> ProviderExecuti
 
 fn failure(stage: impl Into<String>, message: impl Into<String>) -> ProviderExecutionFailure {
     ProviderExecutionFailure::new(stage, message)
+}
+
+/// Ends the step a host-settled stop left open as cancelled by the operator.
+///
+/// Interrupted is reserved for recovery that never resumed the run; an
+/// explicit stop the host settled keeps its stop outcome.
+async fn close_stopped_attempt(
+    context: &ExecutionFixtureContext,
+    execution: &TestExecution,
+) -> Result<(), ProviderExecutionFailure> {
+    let execution_id = execution.test_execution_id.clone();
+    let active = context
+        .runtime
+        .state_manager
+        .state()
+        .read(move |state| {
+            state
+                .executions
+                .get(&execution_id)
+                .and_then(|execution| execution.active_step_attempt.clone())
+        })
+        .await
+        .map_err(|error| failure("stop_settlement", error.to_string()))?
+        .value;
+    let Some(start) = active else {
+        return Ok(());
+    };
+    let attempt = crate::execution::TestStepAttempt {
+        attempt_id: start.attempt_id,
+        step_id: start.step_id,
+        started_at: start.started_at,
+        finished_at: Some(dokime::core::Timestamp::now_utc()),
+        termination: dokime::execution::TerminationReason::Cancelled,
+        detail: None,
+    };
+    context
+        .record_step_attempt(execution.scope.clone(), attempt)
+        .await
+        .map_err(|error| failure("stop_settlement", error.to_string()))
 }
 
 async fn replay_sample_inputs(

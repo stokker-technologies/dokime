@@ -37,13 +37,13 @@ import { StatusBar } from "@/shell/StatusBar";
  * states when the file was written instead of what the backend is doing.
  */
 export type FrozenShell = {
-  caseId: string | undefined;
+  selection: { caseId?: string; executionId?: string };
   cycleId: string;
   status: CycleLifecycle;
   /** ISO timestamp the report was generated at. */
   generatedAt: string | null;
   title: string;
-  onSelectCase: (caseId: string | undefined) => void;
+  onSelect: (selection: { caseId?: string; executionId?: string }) => void;
 };
 
 export type AppShellProps =
@@ -121,10 +121,10 @@ function AppFrame({ children, frozen }: { children: ReactNode; frozen: FrozenShe
       <div className="flex min-h-0 min-w-0">
         {frozen ? (
           <Sidebar
-            caseId={frozen.caseId}
+            selection={frozen.selection}
             cycleId={frozen.cycleId}
             live={false}
-            onSelectCase={frozen.onSelectCase}
+            onSelect={frozen.onSelect}
           />
         ) : (
           <Sidebar />

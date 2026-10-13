@@ -72,7 +72,7 @@ pub enum DesktopSessionError {
     Superseded,
     Startup {
         message: String,
-        diagnostics: Option<BackendDiagnostics>,
+        diagnostics: Option<Box<BackendDiagnostics>>,
     },
     Shutdown {
         message: String,

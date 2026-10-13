@@ -577,14 +577,29 @@ pub(crate) async fn execution_scope_calls() {
     assert_eq!(run[0], run[1], "same-stage calls retain their stable key");
     assert_ne!(run[1], run[2], "the step has its own scope");
     assert_ne!(run[2], run[3], "cleanup has its own scope");
-    assert!(run[0].as_deref().unwrap().starts_with("keyed/initialize/"));
-    assert!(run[2].as_deref().unwrap().starts_with("keyed/step/"));
-    assert!(run[3].as_deref().unwrap().starts_with("keyed/cleanup/"));
+    let mut stages = Vec::new();
     for key in run {
         let key = key.as_deref().expect("a call inside a run carries a key");
-        assert!(key.starts_with("keyed/"), "{key}");
-        assert!(key.ends_with("/resource-owner.get_device"), "{key}");
+        let mut remaining = key;
+        let mut parts = Vec::new();
+        for _ in 0..3 {
+            let (length, value) = remaining
+                .split_once(':')
+                .expect("length-prefixed key component");
+            let length = length.parse::<usize>().expect("component byte length");
+            let (component, rest) = value.split_at(length);
+            parts.push(component);
+            remaining = rest;
+        }
+        assert!(remaining.is_empty(), "{key}");
+        assert_eq!(parts[0], "keyed", "{key}");
+        assert_eq!(parts[2], "resource-owner.get_device", "{key}");
+        stages.push(parts[1]);
     }
+    assert_eq!(stages[0], "initialize");
+    assert_eq!(stages[1], "initialize");
+    assert!(stages[2].starts_with("step/"), "{}", stages[2]);
+    assert_eq!(stages[3], "cleanup");
     native.shutdown().await;
 }
 

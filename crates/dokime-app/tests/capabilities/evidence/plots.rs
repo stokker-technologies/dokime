@@ -62,6 +62,42 @@ pub(crate) async fn snapshot_query_samples() {
     assert_eq!(envelopes[0].payload.series[0].raw_points, 30);
     assert_eq!(envelopes[0].payload.series[0].points.len(), 5);
     assert!(envelopes[0].payload.series[0].downsampled);
+
+    for (budget, expected) in [
+        (10, DownsampleTechnique::Lttb),
+        (5, DownsampleTechnique::MinMax),
+    ] {
+        let mut automatic = wifi_request(None, Some(budget), None);
+        automatic.technique = DownsampleTechnique::Auto;
+        let mut explicit = automatic.clone();
+        explicit.technique = expected;
+        let automatic = runtime
+            .query_plot_payloads(vec![automatic], RuntimePlotQueryMode::Snapshot)
+            .await
+            .unwrap();
+        let explicit = runtime
+            .query_plot_payloads(vec![explicit], RuntimePlotQueryMode::Snapshot)
+            .await
+            .unwrap();
+        assert_eq!(automatic[0].payload.series, explicit[0].payload.series);
+    }
+    let raw = runtime
+        .query_plot_payloads(
+            vec![wifi_request(None, Some(0), None)],
+            RuntimePlotQueryMode::Snapshot,
+        )
+        .await
+        .unwrap();
+    assert_eq!(raw[0].payload.series[0].points.len(), 30);
+    assert!(!raw[0].payload.series[0].downsampled);
+    let default = runtime
+        .query_plot_payloads(
+            vec![wifi_request(None, None, None)],
+            RuntimePlotQueryMode::Snapshot,
+        )
+        .await
+        .unwrap();
+    assert_eq!(default[0].payload.max_points, 1500);
 }
 
 pub(crate) async fn batch_request_cursors() {
@@ -125,7 +161,16 @@ pub(crate) async fn execution_plots_samples() {
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
     register_plot_suite(&runtime).await;
-    let suite = fixture_suite(&["passed"]);
+    let mut suite = fixture_suite(&["passed"]);
+    let mut document = dokime::document::DocumentDefinition::new("default", "Plot Settings");
+    let mut section = dokime::document::DocumentSection::new("settings", "Settings");
+    let mut plot = dokime::document::Plot::time_series("Captured Plot");
+    plot.id("captured.plot");
+    plot.stream = Some("host.wifi.channel_occupancy".into());
+    plot.y = vec!["network_count".into()];
+    section.plot(plot);
+    document.section(section);
+    suite.test_case_templates[0].document = Some(document);
     register_python_suite(&runtime, suite.clone()).await;
     let cycle = start_cycle(&runtime, suite, false).await;
     runtime
@@ -134,6 +179,44 @@ pub(crate) async fn execution_plots_samples() {
     executor.wait_until_entered().await;
     let running = wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Running).await;
     let execution = running.test_executions[0].scope.clone();
+    let execution_id = execution.test_execution_id.as_ref().unwrap().clone();
+    let document_id = dokime::core::DocumentId::from_identifier("default").unwrap();
+    let plot_id = Identifier::new("captured.plot").unwrap();
+    runtime
+        .update_plot_settings(
+            &cycle,
+            &execution_id,
+            &document_id,
+            &plot_id,
+            Some(25),
+            DownsampleTechnique::MinMax,
+        )
+        .await
+        .unwrap();
+    let snapshot = runtime.watch_state().latest();
+    let definition = &snapshot.state().executions[&execution_id].documents[&document_id];
+    let saved_plot = definition
+        .cards
+        .iter()
+        .map(|card| &card.body)
+        .chain(
+            definition
+                .sections
+                .iter()
+                .flat_map(|section| section.cards.iter().map(|card| &card.body)),
+        )
+        .find_map(|body| match body {
+            dokime::document::DocumentCardBody::Plot { plot }
+                if plot.metadata.identifier == plot_id =>
+            {
+                Some(plot)
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(saved_plot.display_points, Some(25));
+    assert_eq!(saved_plot.downsample, DownsampleTechnique::MinMax);
+    drop(snapshot);
     for (scope, count) in [
         (None, 7),
         (Some(RecordScope::default().with_cycle(cycle.clone())), 5),
@@ -159,6 +242,18 @@ pub(crate) async fn execution_plots_samples() {
     assert_eq!(envelopes[0].payload.series[0].points.len(), 2);
     executor.release();
     wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Completed).await;
+    let error = runtime
+        .update_plot_settings(
+            &cycle,
+            &execution_id,
+            &document_id,
+            &plot_id,
+            Some(50),
+            DownsampleTechnique::Auto,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code(), Some("document_closed"));
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

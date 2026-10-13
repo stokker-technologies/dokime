@@ -8,6 +8,8 @@
  */
 
 /* === Modules === */
+#[path = "content/bundle.rs"]
+mod bundle;
 
 /* === Re-Exports === */
 
@@ -165,6 +167,11 @@ impl ExecutionFixture for LargeArtifact {
 /* === Private Functions === */
 
 pub(crate) async fn artifact_transfer_listener() {
+    artifact_transfer_budget(4096).await;
+    artifact_transfer_budget(1024 * 1024).await;
+}
+
+async fn artifact_transfer_budget(message_bytes: usize) {
     // Ordinary debug runs enforce responsiveness; coverage has its own cost.
     let multiplier = if std::env::var("STKR_COVERAGE").as_deref() == Ok("1") {
         5
@@ -188,7 +195,7 @@ pub(crate) async fn artifact_transfer_listener() {
         Config::local()
             .with_bearer_auth(vec![grant(Role::Control)])
             .unwrap()
-            .with_max_message_bytes(4096),
+            .with_max_message_bytes(message_bytes),
     )
     .await
     .unwrap();
@@ -236,7 +243,7 @@ pub(crate) async fn artifact_transfer_listener() {
         .unwrap();
     let records = artifacts.records.lock().unwrap().clone();
     assert_eq!(records.len(), 4);
-    let content = WireClient::new(stream).max_decoding_message_size(4096);
+    let content = WireClient::new(stream).max_decoding_message_size(message_bytes);
     let first_page = content
         .unary::<contracts::content::ListArtifacts>(authenticated(
             contracts::content::ListArtifactsRequest {
@@ -300,6 +307,10 @@ pub(crate) async fn artifact_transfer_listener() {
                 }
             ))
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err()
             .code(),
         Code::InvalidArgument
@@ -312,110 +323,137 @@ pub(crate) async fn artifact_transfer_listener() {
                 }
             ))
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err()
             .code(),
         Code::NotFound
     );
 
-    // Shared Native Verification And Publication
-    let native = dokime_client::Client::connect(
-        dokime_client::Target::local(server.local_endpoint()).unwrap(),
-        Some(TOKEN),
-        None,
-    )
-    .await
-    .unwrap();
-    let destination = root.path().join("verified.bin");
-    let request = contracts::content::DownloadArtifactRequest {
-        artifact_id: first_id.clone(),
-    };
-    let verified = native
-        .download_artifact(request.clone(), destination.clone())
-        .await
-        .unwrap();
-    assert_eq!(verified.metadata.artifact_id, first_id);
-    assert_eq!(std::fs::read(&destination).unwrap(), records[0].1);
-    assert_eq!(verified.size_bytes, records[0].1.len() as u64);
-    assert!(!root.path().join("verified.bin.part").exists());
-    // Invoke The Live Catalog's Streaming Operation.
-    let request_json = serde_json::to_vec(&serde_json::json!({"artifactId": first_id})).unwrap();
-    let dynamic = native
-        .call_operation(
-            <contracts::content::DownloadArtifact as harmos::operations::OperationDeclaration>::ID,
+    if message_bytes >= 1024 * 1024 {
+        // Shared Native Verification And Publication
+        let native = dokime_client::Client::connect(
+            dokime_client::Target::local(server.local_endpoint()).unwrap(),
+            Some(TOKEN),
             None,
-            &request_json,
-            vec![],
         )
         .await
         .unwrap();
-    let mut item_count = 0;
-    let mut completed = false;
-    tokio::time::timeout(transfer_budget, async {
-        while let Some(event) = dynamic.message().await.unwrap() {
-            assert!(!completed, "dynamic completion must be the final event");
-            match event {
-                dokime_client::dynamic::Event::Item(value) => {
-                    assert!(value.as_object().is_some_and(|fields| !fields.is_empty()));
-                    item_count += 1;
-                }
-                dokime_client::dynamic::Event::Completion(_) => {
-                    assert!(
-                        item_count >= 3,
-                        "metadata, content and artifact completion precede operation completion"
-                    );
-                    completed = true;
-                }
-            }
-        }
-    })
-    .await
-    .expect("dynamic artifact stream exceeds the transfer budget");
-    assert!(
-        completed,
-        "dynamic stream must report completion after final OK status"
-    );
-    dynamic.close().await;
-
-    artifacts.release.notify_one();
-    common::wait_for_cycle_lifecycle(
-        &owner.handle(),
-        records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-        dokime_app::execution::CycleStatus::Completed,
-    )
-    .await;
-    // A sealed execution cannot acquire another mutable artifact producer.
-    assert!(
-        native
-            .upload_artifact_file(
-                &destination,
-                contracts::content::UploadArtifactHeader {
-                    scope: verified.metadata.scope.clone(),
-                    filename: "native-upload.bin".into(),
-                    content_type: verified.metadata.content_type.clone(),
-                    size_bytes: 0,
-                    sha256: None,
-                },
+        let destination = root.path().join("verified.bin");
+        let request = contracts::content::DownloadArtifactRequest {
+            artifact_id: first_id.clone(),
+        };
+        let verified = native
+            .download_artifact(request.clone(), destination.clone())
+            .await
+            .unwrap();
+        assert_eq!(verified.metadata.artifact_id, first_id);
+        assert_eq!(std::fs::read(&destination).unwrap(), records[0].1);
+        assert_eq!(verified.size_bytes, records[0].1.len() as u64);
+        assert!(!root.path().join("verified.bin.part").exists());
+        // Invoke The Live Catalog's Streaming Operation.
+        let request_json =
+            serde_json::to_vec(&serde_json::json!({"artifactId": first_id})).unwrap();
+        let dynamic = native
+            .call_operation(
+                <contracts::content::DownloadArtifact as harmos::operations::OperationDeclaration>::ID,
+                None,
+                &request_json,
+                vec![],
             )
             .await
-            .is_err()
-    );
+            .unwrap();
+        let mut item_count = 0;
+        let mut completed = false;
+        tokio::time::timeout(transfer_budget, async {
+            while let Some(event) = dynamic.message().await.unwrap() {
+                assert!(!completed, "dynamic completion must be the final event");
+                match event {
+                    dokime_client::dynamic::Event::Item(value) => {
+                        assert!(value.as_object().is_some_and(|fields| !fields.is_empty()));
+                        item_count += 1;
+                    }
+                    dokime_client::dynamic::Event::Completion(_) => {
+                        assert!(
+                            item_count >= 3,
+                            "metadata, content and artifact completion precede operation completion"
+                        );
+                        completed = true;
+                    }
+                }
+            }
+        })
+        .await
+        .expect("dynamic artifact stream exceeds the transfer budget");
+        assert!(
+            completed,
+            "dynamic stream must report completion after final OK status"
+        );
+        dynamic.close().await;
 
-    let directory = root.path().join("publication-directory");
-    std::fs::create_dir(&directory).unwrap();
-    assert!(matches!(
-        native.download_artifact(request.clone(), directory).await,
-        Err(dokime_client::DownloadError::Publication(_))
-    ));
-    assert!(root.path().join("publication-directory.part").exists());
+        artifacts.release.notify_one();
+        common::wait_for_cycle_lifecycle(
+            &owner.handle(),
+            records[0].0.scope.test_cycle_id.as_ref().unwrap(),
+            dokime_app::execution::CycleStatus::Completed,
+        )
+        .await;
+        // A sealed execution cannot acquire another mutable artifact producer.
+        assert!(
+            native
+                .upload_artifact_file(
+                    &destination,
+                    contracts::content::UploadArtifactHeader {
+                        scope: verified.metadata.scope.clone(),
+                        filename: "native-upload.bin".into(),
+                        content_type: verified.metadata.content_type.clone(),
+                        size_bytes: 0,
+                        sha256: None,
+                    },
+                )
+                .await
+                .is_err()
+        );
 
-    let partial = root.path().join("verified.bin.part");
-    std::fs::write(&partial, b"another owner").unwrap();
-    assert!(matches!(
-        native.download_artifact(request, destination).await,
-        Err(dokime_client::DownloadError::Io(_))
-    ));
-    assert_eq!(std::fs::read(&partial).unwrap(), b"another owner");
-    native.close_and_wait().await;
+        let directory = root.path().join("publication-directory");
+        std::fs::create_dir(&directory).unwrap();
+        assert!(matches!(
+            native.download_artifact(request.clone(), directory).await,
+            Err(dokime_client::DownloadError::Publication(_))
+        ));
+        assert!(root.path().join("publication-directory.part").exists());
+
+        let partial = root.path().join("verified.bin.part");
+        std::fs::write(&partial, b"another owner").unwrap();
+        assert!(matches!(
+            native.download_artifact(request, destination).await,
+            Err(dokime_client::DownloadError::Io(_))
+        ));
+        assert_eq!(std::fs::read(&partial).unwrap(), b"another owner");
+        native.close_and_wait().await;
+    } else {
+        let failure = dokime_client::Client::connect(
+            dokime_client::Target::local(server.local_endpoint()).unwrap(),
+            Some(TOKEN),
+            None,
+        )
+        .await
+        .err()
+        .expect("the full capability inventory exceeds the small message budget");
+        assert!(matches!(
+            failure,
+            dokime_client::Error::Rpc(status) if status.code() == Code::ResourceExhausted
+        ));
+        artifacts.release.notify_one();
+        common::wait_for_cycle_lifecycle(
+            &owner.handle(),
+            records[0].0.scope.test_cycle_id.as_ref().unwrap(),
+            dokime_app::execution::CycleStatus::Completed,
+        )
+        .await;
+    }
 
     let transfer_started = std::time::Instant::now();
     tokio::time::timeout(transfer_budget, async {
@@ -457,7 +495,7 @@ pub(crate) async fn artifact_transfer_listener() {
                     contracts::content::ArtifactFramePayload::Chunk(chunk) => {
                         assert_eq!(chunk.offset, actual.len() as u64);
                         assert!(!chunk.data.is_empty());
-                        assert!(chunk.data.len() <= 4096 - 32);
+                        assert!(chunk.data.len() <= message_bytes - 32);
                         actual.extend(chunk.data);
                     }
                     contracts::content::ArtifactFramePayload::Complete(done) => {
@@ -477,22 +515,14 @@ pub(crate) async fn artifact_transfer_listener() {
             assert!(complete);
             assert_eq!(&actual, expected);
         }
-        assert_eq!(
-            content
-                .download::<contracts::content::DownloadCycleBundle>(authenticated(
-                    contracts::content::DownloadCycleBundleRequest {
-                        cycle_id: cycle_id.clone(),
-                    }
-                ))
-                .await
-                .unwrap_err()
-                .code(),
-            Code::Unimplemented
-        );
     })
     .await
     .expect("artifact downloads exceed the transfer budget");
     eprintln!("artifact transfer: {:?}", transfer_started.elapsed());
+    let archive = tokio::time::timeout(transfer_budget, bundle::download(&content, &cycle_id))
+        .await
+        .expect("cycle bundle download exceeds the transfer budget");
+    bundle::verify(&archive, &cycle_id);
     assert_eq!(
         content
             .unary::<contracts::content::GetCycleFolderPath>(authenticated(
@@ -585,7 +615,10 @@ pub(crate) async fn artifact_upload_owned() {
         Config::local()
             .with_bearer_auth(vec![grant(Role::Control)])
             .unwrap()
-            .with_max_message_bytes(4096),
+            // The native client needs the full capability inventory, which is charged
+            // about 14 KiB for 109 gRPC paths and cannot fit a 4 KiB budget (see
+            // `artifact_transfer_budget`).
+            .with_max_message_bytes(1024 * 1024),
     )
     .await
     .unwrap();
@@ -647,8 +680,9 @@ pub(crate) async fn artifact_upload_owned() {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
+    // Upload frames stay small; listings are paged to the larger server budget.
     let content = WireClient::new(stream)
-        .max_decoding_message_size(4096)
+        .max_decoding_message_size(1024 * 1024)
         .max_encoding_message_size(4096);
     let uploaded = content
         .upload::<contracts::content::UploadArtifact>(authenticated(tokio_stream::iter(vec![
@@ -1193,6 +1227,10 @@ pub(crate) async fn cycle_evidence_settled() {
             },
         ))
         .await
+        .unwrap()
+        .into_inner()
+        .message()
+        .await
         .unwrap_err();
     assert_eq!(bundle.code(), Code::FailedPrecondition);
     assert_eq!(
@@ -1207,6 +1245,10 @@ pub(crate) async fn cycle_evidence_settled() {
             },
         ))
         .await
+        .unwrap()
+        .into_inner()
+        .message()
+        .await
         .unwrap_err();
     assert_eq!(report.code(), Code::FailedPrecondition);
     assert_eq!(
@@ -1214,7 +1256,7 @@ pub(crate) async fn cycle_evidence_settled() {
         "The final report becomes available when the cycle is terminal; this cycle is still running."
     );
 
-    // Terminal: The Refusal Lifts And Each Product Answers As It Did Before
+    // Terminal: Verify The Complete Archive And Exact Sealed Report Bytes
     gate.release.notify_one();
     wait_for_watched_lifecycle(
         &owner,
@@ -1222,16 +1264,14 @@ pub(crate) async fn cycle_evidence_settled() {
         dokime_app::execution::CycleStatus::Completed,
     )
     .await;
-    let bundle = execution
-        .download::<contracts::content::DownloadCycleBundle>(authenticated(
-            contracts::content::DownloadCycleBundleRequest {
-                cycle_id: cycle_id.clone(),
-            },
-        ))
-        .await
-        .unwrap_err();
-    assert_eq!(bundle.code(), Code::Unimplemented);
-    if let Err(report) = execution
+    let first = bundle::download(&execution, &cycle_id).await;
+    let second = bundle::download(&execution, &cycle_id).await;
+    assert_eq!(
+        first, second,
+        "the same sealed cycle must yield identical ZIP bytes"
+    );
+    let final_report = bundle::verify(&first, &cycle_id);
+    let mut report = execution
         .download::<contracts::reports::DownloadCycleReport>(authenticated(
             contracts::reports::DownloadCycleReportRequest {
                 cycle_id: cycle_id.clone(),
@@ -1239,14 +1279,19 @@ pub(crate) async fn cycle_evidence_settled() {
             },
         ))
         .await
-    {
-        assert!(
-            !report
-                .message()
-                .contains("becomes available when the cycle is terminal"),
-            "a terminal cycle must not be refused as running: {report:?}"
-        );
+        .unwrap()
+        .into_inner();
+    let mut report_bytes = Vec::new();
+    while let Some(frame) = report.message().await.unwrap() {
+        if let Some(contracts::reports::ReportHtmlFramePayload::Chunk(chunk)) = frame.payload {
+            assert_eq!(chunk.offset, report_bytes.len() as u64);
+            report_bytes.extend_from_slice(&chunk.data);
+        }
     }
+    assert_eq!(
+        final_report, report_bytes,
+        "bundle must retain the sealed HTML bytes"
+    );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }

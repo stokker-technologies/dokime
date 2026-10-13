@@ -42,6 +42,7 @@ pub(crate) async fn live_file_rewrites() {
         root: _root,
         gate,
         mut owner,
+        service,
         server,
         execution,
         cycle,
@@ -257,6 +258,10 @@ pub(crate) async fn live_file_rewrites() {
                 }
             ))
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err()
             .code(),
         Code::NotFound
@@ -269,6 +274,10 @@ pub(crate) async fn live_file_rewrites() {
                     relative_path: first.absolute_path.clone(),
                 }
             ))
+            .await
+            .unwrap()
+            .into_inner()
+            .message()
             .await
             .unwrap_err()
             .code(),
@@ -288,20 +297,17 @@ pub(crate) async fn live_file_rewrites() {
                 }
             ))
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err()
             .code(),
         Code::ResourceExhausted
     );
     oversize.set_len(bytes.len() as u64).unwrap();
-    let cancel_server = Server::start(
-        runtime.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Read)])
-            .unwrap()
-            .with_max_message_bytes(4096),
-    )
-    .await
-    .unwrap();
+    server.shutdown().await.unwrap();
+    let cancel_server = service.listen().await.unwrap();
     let stream = Endpoint::from_shared(cancel_server.local_endpoint())
         .unwrap()
         .initial_connection_window_size(1)
@@ -320,22 +326,30 @@ pub(crate) async fn live_file_rewrites() {
         .await
         .unwrap()
         .into_inner();
+    assert!(matches!(
+        canceled.message().await.unwrap().unwrap().payload,
+        Some(contracts::content::ExecutionFileDownloadFramePayload::Metadata(_))
+    ));
     cancel_server.shutdown().await.unwrap();
-    let mut saw_completion = false;
     tokio::time::timeout(Duration::from_secs(2), async {
-        while let Ok(Some(frame)) = canceled.message().await {
-            saw_completion |= matches!(
-                frame.payload,
-                Some(contracts::content::ExecutionFileDownloadFramePayload::Complete(_))
-            );
+        loop {
+            match canceled.message().await {
+                Ok(Some(frame)) => assert!(
+                    !matches!(
+                        frame.payload,
+                        Some(contracts::content::ExecutionFileDownloadFramePayload::Complete(_))
+                    ),
+                    "listener shutdown must stop before completion"
+                ),
+                Ok(None) => panic!("listener shutdown must not report successful EOF"),
+                Err(_) => break,
+            }
         }
     })
     .await
     .unwrap();
-    assert!(
-        !saw_completion,
-        "listener shutdown must stop before completion"
-    );
+    let server = service.listen().await.unwrap();
+    let content = WireClient::connect(server.local_endpoint()).await.unwrap();
     let end = content
         .unary::<contracts::content::ReadExecutionFile>(authenticated(read(
             "files/a.bin",
@@ -485,6 +499,10 @@ pub(crate) async fn live_file_rewrites() {
                 None, committed
             )))
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err()
             .code(),
         Code::InvalidArgument,
@@ -497,6 +515,10 @@ pub(crate) async fn live_file_rewrites() {
                 Some(remapped),
                 committed
             )))
+            .await
+            .unwrap()
+            .into_inner()
+            .message()
             .await
             .unwrap_err()
             .code(),
@@ -511,6 +533,10 @@ pub(crate) async fn live_file_rewrites() {
                 committed
             )))
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition,
@@ -521,6 +547,10 @@ pub(crate) async fn live_file_rewrites() {
                 Some(identity.clone()),
                 14
             )))
+            .await
+            .unwrap()
+            .into_inner()
+            .message()
             .await
             .unwrap_err()
             .code(),
@@ -669,6 +699,7 @@ async fn live_follow_refusal(change: &str) {
         root: _root,
         gate,
         mut owner,
+        service,
         server,
         execution,
         cycle,
@@ -729,14 +760,7 @@ async fn live_follow_refusal(change: &str) {
     server.shutdown().await.unwrap();
 
     // A New Listener Must Reuse The Runtime's Original Production.
-    let server = Server::start(
-        runtime.clone(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Read)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = service.listen().await.unwrap();
     let content = WireClient::connect(server.local_endpoint()).await.unwrap();
     let mut resumed = content
         .download::<contracts::content::FollowExecutionFile>(authenticated(request(
@@ -783,6 +807,10 @@ async fn live_follow_refusal(change: &str) {
             8,
         )))
         .await
+        .unwrap()
+        .into_inner()
+        .message()
+        .await
         .unwrap_err();
     assert_eq!(
         refusal.code(),
@@ -792,16 +820,24 @@ async fn live_follow_refusal(change: &str) {
     gate.release.notify_one();
 
     // Failed Capture Retains Its Original Bytes Without Claiming A Finished Seal.
-    let mut abandoned = tokio::time::timeout(Duration::from_secs(10), async {
+    let (mut abandoned, metadata) = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
-            match content
+            let mut stream = content
                 .download::<contracts::content::FollowExecutionFile>(authenticated(request(
                     Some(identity.clone()),
                     0,
                 )))
                 .await
-            {
-                Ok(stream) => break stream.into_inner(),
+                .unwrap()
+                .into_inner();
+            match stream.message().await {
+                Ok(Some(frame)) => {
+                    let Frame::Metadata(metadata) = frame.payload.unwrap() else {
+                        panic!("abandoned follow starts with metadata");
+                    };
+                    break (stream, metadata);
+                }
+                Ok(None) => panic!("abandoned follow requires metadata"),
                 Err(error) => {
                     assert_eq!(error.code(), Code::FailedPrecondition, "{change}: {error}");
                     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -811,10 +847,6 @@ async fn live_follow_refusal(change: &str) {
     })
     .await
     .expect("failed source is captured as an interrupted original output");
-    let Frame::Metadata(metadata) = abandoned.message().await.unwrap().unwrap().payload.unwrap()
-    else {
-        panic!("abandoned follow starts with metadata");
-    };
     assert_eq!(metadata.identity.as_ref(), Some(&identity));
     assert_eq!(metadata.phase, ExecutionFilePhase::Abandoned);
     let mut retained = Vec::new();
@@ -839,7 +871,21 @@ async fn live_follow_refusal(change: &str) {
     assert!(abandoned.message().await.unwrap().is_none());
     server.shutdown().await.unwrap();
     drop(runtime);
-    owner.shutdown().await.unwrap();
+    let failure = owner.shutdown().await.unwrap_err();
+    let dokime_app::Error::Harmos(shutdown) = &failure else {
+        panic!("{change}: expected retained service failure, got {failure:?}");
+    };
+    let mut cause: &(dyn std::error::Error + Send + Sync + 'static) = shutdown;
+    while let Some(harmos::Error::TaskFailed { source, .. }) = cause.downcast_ref::<harmos::Error>()
+    {
+        cause = source.as_ref();
+    }
+    let Some(harmos::services::Fault::Application(dokime_app::Error::Operation(reason))) =
+        cause.downcast_ref::<harmos::services::Fault<dokime_app::Error>>()
+    else {
+        panic!("{change}: shutdown must retain the injected capture failure: {failure:?}");
+    };
+    assert_eq!(reason, refusal.message(), "{change}: {failure}");
 }
 
 pub(crate) async fn execution_file_buffer() {
@@ -857,6 +903,7 @@ pub(crate) async fn execution_file_buffer() {
         root: _root,
         gate,
         mut owner,
+        service: _service,
         server,
         execution,
         cycle,

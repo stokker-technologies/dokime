@@ -201,10 +201,21 @@ impl Operation for Watch {
             decode_plot_requests(std::mem::take(&mut request.requests), &epoch)?;
         // Subscribe Before Reading So A Racing Commit Advances The Same Native Watches.
         let mut states = runtime.watch_state();
-        let watches = runtime
-            .watch_plot_telemetry(&requests)
-            .await
-            .map_err(|error| Status::unavailable(format!("plot watch unavailable: {error}")))?;
+        let mut watches = Vec::new();
+        for current in &requests {
+            match runtime
+                .watch_plot_telemetry(std::slice::from_ref(current))
+                .await
+            {
+                Ok(current_watches) => watches.extend(current_watches),
+                Err(error) => {
+                    let response = self
+                        .resources
+                        .produce(|| Ok(plot_error_frame(current, error.to_string())))?;
+                    output.send_owned(response).await.map_err(failure)?;
+                }
+            }
+        }
         let mut telemetry_watches = stream::select_all(watches);
         let initial = requests
             .iter()
@@ -212,26 +223,43 @@ impl Operation for Watch {
             .cloned()
             .collect::<Vec<_>>();
         if !initial.is_empty() {
-            let native = runtime
-                .query_plot_payloads(initial, RuntimePlotQueryMode::Snapshot)
-                .await
-                .map_err(|error| {
-                    Status::unavailable(format!("plot snapshot unavailable: {error}"))
-                })?;
-            for value in native {
-                let selection = selection_for_plot(&requests, &selections, &value.plot_id)
-                    .ok_or_else(|| Status::internal("plot response does not match a request"))?
-                    .to_owned();
-                merge_plot_payload_cursor(&mut requests, &value);
-                let response = self.resources.produce(|| {
-                    stream_frame(
-                        dokime_app::runtime::query::PlotPayloadStreamKind::Snapshot,
-                        value,
-                        &epoch,
-                        &selection,
-                    )
-                })?;
-                output.send_owned(response).await.map_err(failure)?;
+            for current in initial {
+                let native = match runtime
+                    .query_plot_payloads(vec![current.clone()], RuntimePlotQueryMode::Snapshot)
+                    .await
+                {
+                    Ok(native) => native,
+                    Err(error) => {
+                        let response = self
+                            .resources
+                            .produce(|| Ok(plot_error_frame(&current, error.to_string())))?;
+                        output.send_owned(response).await.map_err(failure)?;
+                        continue;
+                    }
+                };
+                for value in native {
+                    let selection = selection_for_plot(&requests, &selections, &value.plot_id)
+                        .ok_or_else(|| Status::internal("plot response does not match a request"))?
+                        .to_owned();
+                    merge_plot_payload_cursor(&mut requests, &value);
+                    let response = self
+                        .resources
+                        .produce(|| {
+                            let frame = stream_frame(
+                                dokime_app::runtime::query::PlotPayloadStreamKind::Snapshot,
+                                value,
+                                &epoch,
+                                &selection,
+                            )
+                            .unwrap_or_else(|error| plot_error_frame(&current, error.to_string()));
+                            Ok(frame)
+                        })
+                        .or_else(|error| {
+                            self.resources
+                                .produce(|| Ok(plot_error_frame(&current, error.to_string())))
+                        })?;
+                    output.send_owned(response).await.map_err(failure)?;
+                }
             }
         }
         let mut last_flush = Instant::now() - PLOT_STREAM_THROTTLE;
@@ -239,21 +267,41 @@ impl Operation for Watch {
         loop {
             tokio::select! {
                 biased;
-                changed = states.next() => { if changed.is_none() { return Ok((()).into()); } if next_flush.is_none() { next_flush = Some(last_flush + PLOT_STREAM_THROTTLE); } }
+                changed = states.next() => {
+                    if changed.is_none() {
+                        return Ok(().into());
+                    }
+                    if next_flush.is_none() {
+                        next_flush = Some(last_flush + PLOT_STREAM_THROTTLE);
+                    }
+                }
                 advanced = telemetry_watches.next(), if !telemetry_watches.is_empty() => {
-                    if advanced.is_some() && next_flush.is_none() { next_flush = Some(last_flush + PLOT_STREAM_THROTTLE); }
+                    if advanced.is_some() && next_flush.is_none() {
+                        next_flush = Some(last_flush + PLOT_STREAM_THROTTLE);
+                    }
                 }
                 _ = tokio::time::sleep_until(next_flush.unwrap_or_else(Instant::now)), if next_flush.is_some() => {
-                    next_flush = None; last_flush = Instant::now();
-                    let batches = runtime.query_plot_stream_batches(&requests).await.map_err(|error| Status::unavailable(format!("plot watch unavailable: {error}")))?;
-                    for batch in batches {
+                    next_flush = None;
+                    last_flush = Instant::now();
+                    for current in requests.clone() {
+                        let batches = match runtime.query_plot_stream_batches(std::slice::from_ref(&current)).await {
+                            Ok(batches) => batches,
+                            Err(error) => {
+                                let response = self.resources.produce(|| Ok(plot_error_frame(&current, error.to_string())))?;
+                                output.send_owned(response).await.map_err(failure)?;
+                                continue;
+                            }
+                        };
+                        for batch in batches {
                         let mode = batch.mode; let value = batch.envelope;
-                        let Some(current) = matching_plot_payload_request(&requests, &value.plot_id) else { continue; };
-                        if !plot_payload_stream_envelope_visible(mode, &value, current) { continue; }
+                        let Some(current) = matching_plot_payload_request(&requests, &value.plot_id).cloned() else { continue; };
+                        if !plot_payload_stream_envelope_visible(mode, &value, &current) { continue; }
                         let selection = selection_for_plot(&requests, &selections, &value.plot_id).ok_or_else(|| Status::internal("plot response does not match a request"))?.to_owned();
                         merge_plot_payload_cursor(&mut requests, &value);
-                        let response = self.resources.produce(|| stream_frame(plot_payload_stream_kind(mode), value, &epoch, &selection))?;
+                        let response = self.resources.produce(|| stream_frame(plot_payload_stream_kind(mode), value, &epoch, &selection))
+                            .or_else(|error| self.resources.produce(|| Ok(plot_error_frame(&current, error.to_string()))))?;
                         output.send_owned(response).await.map_err(failure)?;
+                        }
                     }
                 }
             }
@@ -286,6 +334,26 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+fn plot_error_frame(
+    request: &dokime_app::runtime::query::PlotPayloadRequest,
+    message: String,
+) -> contract::PlotStreamFrame {
+    contract::PlotStreamFrame {
+        kind: contract::PlotStreamKind::Error,
+        envelope: Some(contract::PlotEnvelope {
+            plot_id: request
+                .plot_id
+                .clone()
+                .unwrap_or_else(|| request.stream.clone()),
+            revision: 0,
+            cursor: None,
+            payload: None,
+            diagnostics: None,
+            warnings: vec![message],
+        }),
+    }
+}
+
 fn failure(error: harmos::Error) -> Status {
     let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
         Status::resource_exhausted("plot admission failed")

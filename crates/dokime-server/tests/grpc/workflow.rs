@@ -66,6 +66,7 @@ struct Gated {
     root: tempfile::TempDir,
     gate: Arc<Gate>,
     owner: Runtime,
+    service: dokime_server::grpc::Service,
     server: Server,
     execution: WireClient,
     cycle: String,
@@ -124,7 +125,10 @@ impl Gated {
         if let Some(bytes) = max_message_bytes {
             config = config.with_max_message_bytes(bytes);
         }
-        let server = Server::start(owner.handle(), config).await.unwrap();
+        let service = dokime_server::grpc::Service::new(owner.handle(), config)
+            .await
+            .unwrap();
+        let server = service.listen().await.unwrap();
         let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
         let cycle = execution
             .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
@@ -136,6 +140,7 @@ impl Gated {
             root,
             gate,
             owner,
+            service,
             server,
             execution,
             cycle,
@@ -399,7 +404,16 @@ pub(crate) async fn registered_create_definitions() {
         .unwrap()
         .unwrap();
     tokio::time::timeout(Duration::from_secs(2), async {
-        while stream.message().await.unwrap().is_some() {}
+        loop {
+            match stream.message().await {
+                Ok(Some(_)) => {}
+                Err(status) => {
+                    assert_eq!(status.code(), Code::Unavailable);
+                    break;
+                }
+                Ok(None) => panic!("listener shutdown must not report successful completion"),
+            }
+        }
     })
     .await
     .unwrap();
@@ -1102,6 +1116,8 @@ pub(crate) async fn read_role_admit() {
         .await
         .unwrap();
     read.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+    let mut owner = fixture(root.path(), Arc::new(Gate::default())).await;
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
@@ -1194,6 +1210,10 @@ pub(crate) async fn read_role_admit() {
                 }
             )
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition
@@ -1206,9 +1226,10 @@ pub(crate) async fn stalled_stream_execution() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(Gate::default());
     let mut owner = fixture(root.path(), gate.clone()).await;
-    let server = Server::start(owner.handle(), Config::default())
+    let service = dokime_server::grpc::Service::new(owner.handle(), Config::default())
         .await
         .unwrap();
+    let server = service.listen().await.unwrap();
     let address = server.address();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
     let id = execution
@@ -1257,9 +1278,7 @@ pub(crate) async fn stalled_stream_execution() {
     .await
     .unwrap();
     gate.release.notify_one();
-    let next = Server::start(owner.handle(), Config::default())
-        .await
-        .unwrap();
+    let next = service.listen().await.unwrap();
     let client = WireClient::connect(next.local_endpoint()).await.unwrap();
     tokio::time::timeout(Duration::from_secs(8), async {
         loop {

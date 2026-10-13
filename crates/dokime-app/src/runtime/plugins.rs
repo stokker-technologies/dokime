@@ -1199,10 +1199,12 @@ async fn prepare(
         PluginProvenance::Configured => None,
         PluginProvenance::Installed { install_id, .. } => Some(install_id.to_string()),
     };
+    let path = input.path.to_string_lossy().into_owned();
     Ok(Package {
         input,
         catalog: BundleCatalog {
             package: metadata.identity.name,
+            path,
             content_digest,
             installation,
             plugins,

@@ -238,7 +238,11 @@ impl harmos::grpc::authentication::Authenticator for Policy {
                     .iter()
                     .map(|value| value.to_str().ok()),
             )
-            .map_err(|_| harmos::Error::Unauthenticated)
+            // Carry the authored status so the served error keeps its message.
+            .map_err(|status| harmos::Error::OperationFailed {
+                operation: call.path().to_owned(),
+                source: Arc::new(status),
+            })
         })
     }
 }

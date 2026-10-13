@@ -92,6 +92,11 @@ pub struct WatchLogsRequest {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchTraceRequest {
+    // Required when resuming a nonzero sequence; obtained from the prior batch.
+    #[row(
+        description = "Required when resuming a nonzero sequence; obtained from the prior batch."
+    )]
+    pub epoch: Option<String>,
     // Absent means Instance: every captured event of this backend process.
     #[row(description = "Absent means Instance: every captured event of this backend process.")]
     pub scope: Option<TraceScope>,
@@ -125,6 +130,7 @@ pub struct WatchTraceRequest {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TraceBatch {
+    pub epoch: String,
     pub events: Vec<TraceEvent>,
     // Events of this scope, of any level, evicted before this stream read them.
     // Cumulative for the stream; it never rewinds.

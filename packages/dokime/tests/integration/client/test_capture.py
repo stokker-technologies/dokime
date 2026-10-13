@@ -797,13 +797,16 @@ def case_prompt_level(tmp_path: Path) -> None:
             # === Read It Back === #
 
             cycle = await client.cycle(CYCLE_ID)
-            (prompt,) = [item async for item in cycle.pending_prompts()]
-
-            # === Compare === #
-
-            assert prompt.id == PROMPT_ID
-            assert prompt.title == "Inspect Charging State"
-            assert prompt.level == "warn"
+            for declared, expected in (
+                ("Warn", "warn"),
+                ("Info", "info"),
+                ("Unspecified", "info"),
+            ):
+                backend.pending[0]["definition"]["level"] = {declared: {}}
+                (prompt,) = [item async for item in cycle.pending_prompts()]
+                assert prompt.id == PROMPT_ID
+                assert prompt.title == "Inspect Charging State"
+                assert prompt.level == expected
 
     asyncio.run(scenario())
 

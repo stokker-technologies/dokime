@@ -43,6 +43,7 @@ pub(crate) async fn running_execution_owners() {
         root: _root,
         gate,
         mut owner,
+        service: _service,
         server,
         execution,
         cycle,

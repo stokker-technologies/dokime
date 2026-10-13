@@ -362,12 +362,13 @@ pub(crate) async fn level_filter_stream() {
     assert_eq!(frame.dropped, 0);
     assert!(frame.time.is_some());
     server.shutdown().await.unwrap();
-    assert!(
+    assert_eq!(
         tokio::time::timeout(Duration::from_secs(5), stream.message())
             .await
             .unwrap()
-            .unwrap()
-            .is_none()
+            .unwrap_err()
+            .code(),
+        Code::Unavailable
     );
     drop(environment);
 }

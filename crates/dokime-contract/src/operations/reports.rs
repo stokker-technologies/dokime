@@ -102,7 +102,7 @@ pub struct ReportHtmlCompletion {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReportHtmlFramePayload {
-    Report(ReportMetadata),
+    Report(Box<ReportMetadata>),
     Chunk(ReportHtmlChunk),
     Complete(ReportHtmlCompletion),
 }

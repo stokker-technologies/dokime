@@ -27,9 +27,9 @@ pub use dokime_contract::definition::{
     ParameterBinaryOp, ParameterDefinition, ParameterExpansion, ParameterExpr, ParameterGroup,
     ParameterGroupId, ParameterList, ParameterResolverError, ParameterSelection, ParameterSource,
     ParameterUnaryOp, ResolvedParameterSpace, Subscription, TemplateIdentifierRefusal, TestCase,
-    TestCaseTemplate, TestSuite, coerce_definition_value, coerce_list_value, coerce_parameter_value,
-    materialize_template_cases, materialized_parameter, parameter_name, resolve_parameter_spaces,
-    template_identifier,
+    TestCaseTemplate, TestSuite, coerce_definition_value, coerce_list_value,
+    coerce_parameter_value, materialize_template_cases, materialized_parameter, parameter_name,
+    resolve_parameter_spaces, template_identifier,
 };
 pub use dokime_contract::definition::{case_materialization, parameters, suite};
 

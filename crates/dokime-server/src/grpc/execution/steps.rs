@@ -216,7 +216,7 @@ fn page(
             revision: Some(observed.clone()),
             execution_id: execution_id.into(),
             step_id: step_id.into(),
-            kind: kind,
+            kind,
             next_ordinal: end as u64,
         }),
         observed,

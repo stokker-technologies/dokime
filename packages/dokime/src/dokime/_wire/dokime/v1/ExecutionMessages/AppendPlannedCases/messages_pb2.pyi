@@ -95,12 +95,12 @@ class Row11(_message.Message):
     def __init__(self, nodes: _Optional[_Iterable[_Union[Row13, _Mapping]]] = ...) -> None: ...
 
 class Row12(_message.Message):
-    __slots__ = ("Value", "Clear")
+    __slots__ = ("Value", "Clear_")
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    CLEAR_FIELD_NUMBER: _ClassVar[int]
+    CLEAR__FIELD_NUMBER: _ClassVar[int]
     Value: Row14
-    Clear: Row15
-    def __init__(self, Value: _Optional[_Union[Row14, _Mapping]] = ..., Clear: _Optional[_Union[Row15, _Mapping]] = ...) -> None: ...
+    Clear_: Row15
+    def __init__(self, Value: _Optional[_Union[Row14, _Mapping]] = ..., Clear_: _Optional[_Union[Row15, _Mapping]] = ...) -> None: ...
 
 class Row13(_message.Message):
     __slots__ = ("kind",)

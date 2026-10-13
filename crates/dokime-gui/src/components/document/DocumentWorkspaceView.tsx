@@ -13,6 +13,7 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
+import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import {
   type BoxSummarySectionSpec,
   DocumentCardContent,
@@ -21,10 +22,9 @@ import {
 } from "@/components/document/DocumentSurface";
 import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import type { MediaGalleryArtifact } from "@/components/MediaGallery";
-import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { updatePlotSettings } from "@/lib/api/native-documents";
+import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
 import type {
@@ -124,13 +124,17 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
   );
   const nativeSession = useNativeSessionOptional();
   const cycleId = props.renderMode === "live" ? (props.scope?.test_cycle_id ?? null) : null;
+  const executionId = props.renderMode === "live" ? (props.scope?.test_execution_id ?? null) : null;
+  const documentId = props.renderMode === "live" ? props.document?.document_id : null;
   const onPlotSettingsChange = useCallback(
     async (plotId: string, settings: PlotDisplaySettings) => {
-      if (!nativeSession || !cycleId) {
+      if (!nativeSession || !cycleId || !executionId || !documentId) {
         throw new Error("A running cycle on a connected backend is required.");
       }
       await updatePlotSettings(nativeSession.identity, {
         cycleId,
+        executionId,
+        documentId,
         plotId,
         displayPoints: settings.display_points,
         downsample: settings.downsample,
@@ -143,7 +147,7 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
         },
       }));
     },
-    [cycleId, nativeSession, scopeKey],
+    [cycleId, documentId, executionId, nativeSession, scopeKey],
   );
   const document = useMemo(
     () =>

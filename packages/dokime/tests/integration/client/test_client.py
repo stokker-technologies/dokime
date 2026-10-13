@@ -101,6 +101,7 @@ class BackendFixture:
         self.samples: list[Any] = []
         self.sample_page_size = 5000
         self.changed = asyncio.Event()
+        self.finish_gate: asyncio.Event | None = None
         self.terminal = asyncio.Event()
         self.sealed = asyncio.Event()
         self.seal_automatically = True
@@ -763,7 +764,10 @@ class BackendFixture:
 
     async def produce(self) -> None:
         self.publish("started")
-        await asyncio.sleep(0.12)
+        if self.finish_gate is None:
+            await asyncio.sleep(0.12)
+        else:
+            await self.finish_gate.wait()
         self.publish("finished")
         self.phase = {"Completed": {}}
         self.terminal.set()
@@ -1082,13 +1086,15 @@ def case_replay_pages() -> None:
 
 def case_stop_evidence() -> None:
     async def scenario() -> None:
-        async with fixture() as (_, client):
+        async with fixture() as (server, client):
+            server.finish_gate = asyncio.Event()
             run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             run = await run_cycle.run(request_key="lab-order")
             records_task = asyncio.create_task(collect(run_cycle.records(until=run)))
             control = await client.execution(EXECUTION_ID)
             await control.stop()
             status = await run.wait(poll_interval=0.01)
+            assert server.stop_calls == 1
             assert status.phase is RunPhase.STOPPED
             assert (await records_task)[-1].type == "fixture.stopped"
 

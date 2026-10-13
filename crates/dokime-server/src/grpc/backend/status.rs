@@ -23,6 +23,8 @@ use tonic::Status;
 use dokime_app::RuntimeHandle;
 use dokime_contract::operations::{backend as wire, common::Timestamp, runtime as native};
 /* === Constants === */
+const DISCOVERY_PAGE_BYTES: u32 = 4 * 1024 * 1024;
+const DISCOVERY_WORK_BYTES: usize = 16 * 1024 * 1024;
 /* === Macros === */
 /* === Type Aliases === */
 /* === Structs === */
@@ -149,23 +151,17 @@ impl Operation for Capabilities {
         let mut required = std::mem::size_of::<wire::BackendCapabilities>()
             .saturating_add(self.resources.identity.backend_id.len())
             .saturating_add(self.resources.identity.epoch.len());
-        let page_bytes = maximum.min(64 * 1024).min(u32::MAX as usize) as u32;
-        if page_bytes < 2 {
-            return Err(Status::resource_exhausted(
-                "capability discovery budget is too small",
-            ));
-        }
         loop {
             let page = context
                 .call::<Operations>(OperationsRequest {
                     after: after.clone(),
                     rows: Some(64),
-                    bytes: Some(page_bytes),
+                    bytes: Some(DISCOVERY_PAGE_BYTES),
                 })
                 .await
                 .map_err(discovery_failure)?;
             read_bytes = read_bytes.saturating_add(page.catalog.len());
-            if read_bytes > maximum {
+            if read_bytes > DISCOVERY_WORK_BYTES {
                 return Err(Status::resource_exhausted(
                     "capability discovery exceeds configured work budget",
                 ));

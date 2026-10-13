@@ -9,9 +9,11 @@
 
 /* === Modules === */
 mod capture_current_document;
+mod update_plot_settings;
 
 /* === Re-Exports === */
 pub use capture_current_document::CaptureCurrentDocument;
+pub use update_plot_settings::UpdatePlotSettings;
 
 /* === Imports === */
 
@@ -29,7 +31,7 @@ use super::plots::*;
 #[allow(unused_imports)]
 use super::schema::*;
 use super::value::Value;
-use super::{Access, Endpoint, TRANSFER};
+use super::{Access, Endpoint, ORDINARY, TRANSFER};
 
 /* === Constants === */
 
@@ -50,6 +52,16 @@ pub struct DocumentScope {
 pub struct CaptureCurrentDocumentRequest {
     pub scope: Option<DocumentScope>,
     pub document_id: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdatePlotSettingsRequest {
+    pub scope: Option<DocumentScope>,
+    pub document_id: String,
+    pub plot_id: String,
+    pub display_points: Option<u32>,
+    pub downsample: DownsampleTechnique,
 }
 
 // Sources are captured separately; this is not an atomic latest/durable snapshot.
@@ -486,7 +498,7 @@ pub enum DocumentTelemetryCutSource {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DocumentLayoutNodeNode {
-    Section(DocumentSection),
+    Section(Box<DocumentSection>),
     Placement(DocumentPlacement),
 }
 
@@ -496,7 +508,7 @@ pub enum DocumentCardBody {
     Markdown(String),
     Table(DocumentTable),
     Summary(DocumentSummary),
-    Owner(DocumentOwnerReference),
+    Owner(Box<DocumentOwnerReference>),
 }
 
 #[harmos::message]
@@ -504,7 +516,7 @@ pub enum DocumentCardBody {
 pub enum DocumentBindingResult {
     Literal(bool),
     Summary(DocumentSummary),
-    Plot(DocumentPlotDefinition),
+    Plot(Box<DocumentPlotDefinition>),
 }
 
 #[harmos::message]
@@ -529,6 +541,7 @@ pub enum DocumentFrameFrame {
 #[harmos::catalog]
 pub enum Operations {
     CaptureCurrentDocument(CaptureCurrentDocument),
+    UpdatePlotSettings(UpdatePlotSettings),
 }
 
 /* === Traits === */
@@ -537,6 +550,11 @@ pub enum Operations {
 impl Endpoint for CaptureCurrentDocument {
     const PATH: &'static str = "/dokime.v1.Documents/CaptureCurrentDocument";
     const ACCESS: Access = Access::Read;
+}
+
+impl Endpoint for UpdatePlotSettings {
+    const PATH: &'static str = "/dokime.v1.Documents/UpdatePlotSettings";
+    const ACCESS: Access = Access::Control;
 }
 
 /* === Public Functions === */

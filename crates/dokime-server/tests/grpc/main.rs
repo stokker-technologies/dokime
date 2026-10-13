@@ -60,6 +60,9 @@ pub(crate) mod settings;
 #[path = "telemetry.rs"]
 pub(crate) mod telemetry;
 
+#[path = "trace.rs"]
+pub(crate) mod trace;
+
 #[path = "traceability.rs"]
 pub(crate) mod traceability;
 
@@ -67,6 +70,7 @@ pub(crate) mod traceability;
 
 /* === Imports === */
 // Standard Library Imports
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 // Third Party Imports
 use tokio::sync::Notify;
@@ -117,6 +121,7 @@ struct WireStream<T> {
 struct Gate {
     started: Notify,
     release: Notify,
+    returned: AtomicBool,
     outcome: fn(&CycleView) -> ProviderCycleOutcome,
 }
 
@@ -422,6 +427,7 @@ impl Gate {
         Self {
             started: Notify::new(),
             release: Notify::new(),
+            returned: AtomicBool::new(false),
             outcome,
         }
     }
@@ -450,7 +456,9 @@ impl ExecutionFixture for Gate {
                     _ = tokio::time::sleep(Duration::from_millis(10)) => {},
                 }
             }
-            Ok((self.outcome)(cycle))
+            let outcome = (self.outcome)(cycle);
+            self.returned.store(true, Ordering::Release);
+            Ok(outcome)
         })
     }
 }
@@ -541,9 +549,10 @@ pub(crate) async fn discovery_shares_independently() {
     let handle = owner.handle();
     let node_id = handle.identity().node.node_id.to_string();
     let epoch = handle.process_epoch().to_string();
-    let server = Server::start(handle.clone(), Config::default())
+    let service = dokime_server::grpc::Service::new(handle.clone(), Config::default())
         .await
         .unwrap();
+    let server = service.listen().await.unwrap();
     let address = server.address();
     let client = connect(&server).await;
     let identity = client
@@ -653,7 +662,7 @@ pub(crate) async fn discovery_shares_independently() {
     drop(client);
     assert!(tokio::net::TcpStream::connect(address).await.is_err());
     assert!(!handle.is_shutting_down());
-    let second = Server::start(handle, Config::default()).await.unwrap();
+    let second = service.listen().await.unwrap();
     assert_eq!(
         connect(&second)
             .await

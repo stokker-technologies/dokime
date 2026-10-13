@@ -139,7 +139,7 @@ impl Materialization<'_> {
             ));
             let metadata = Metadata::new(
                 template.metadata.identifier.clone(),
-                case_label(&template.metadata.label, &parameters),
+                case_label(&template.metadata.label, current),
                 template.metadata.description.clone(),
             );
 

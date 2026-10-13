@@ -45,6 +45,7 @@ fn plugin_state(declarations: &[(&str, &str)]) -> dokime_app::state::RuntimeStat
         .iter()
         .map(|(source, record_type)| dokime_app::state::BundleCatalog {
             package: (*source).to_owned(),
+            path: "fixture.dokime".into(),
             installation: None,
             content_digest: "fixture-digest".to_owned(),
             plugins: vec![dokime_app::InstalledPlugin {

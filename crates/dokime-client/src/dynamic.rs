@@ -85,7 +85,6 @@ impl Client {
         let limit = NonZeroUsize::new(self.request_limit().min(self.response_limit()))
             .ok_or(super::Error::IncompatibleApi)?;
         let operation = Operation::new(&provider.contract, limit).map_err(super::Error::Rpc)?;
-        self.require(operation.path())?;
         if !operation.client_streaming() && !inputs.is_empty() {
             return Err(Error::InputStream(identifier.into()));
         }

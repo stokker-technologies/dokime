@@ -25,7 +25,7 @@
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
@@ -56,13 +56,15 @@ import {
   useCycleRuntimeShellQuery,
 } from "./cycle-queries";
 import {
-  buildCycleCaseRows,
+  buildCycleCases,
+  buildCycleExecutionRows,
   cycleRunRefusal,
   finishedCaseCount,
   isActiveExecutionStatus,
   progressStepLabel,
   runControlAvailability,
   runControlVisibility,
+  selectedCycleRow,
   startableCaseCount,
 } from "./cycle-workspace-model";
 
@@ -99,63 +101,42 @@ export function CycleWorkspace({
   const setSelectionState = useSelectionStore((state) => state.setSelectionState);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm>(null);
-  const autoResolvedCase = useRef<string | null>(null);
 
   const plan = detailQuery.data?.plan ?? null;
   const executions = useMemo(() => detailQuery.data?.executions ?? [], [detailQuery.data]);
-  const rows = useMemo(() => buildCycleCaseRows(plan, executions), [executions, plan]);
-  const selectedRow = rows.find((row) => row.caseId === caseId) ?? null;
-  const finished = finishedCaseCount(rows);
-  const startable = startableCaseCount(rows);
-  const refusal = cycleRunRefusal(rows);
+  const cases = useMemo(() => buildCycleCases(plan), [plan]);
+  const rows = useMemo(() => buildCycleExecutionRows(cases, executions), [cases, executions]);
+  const selectedRow = selectedCycleRow(rows, { caseId, executionId });
+  const finished = finishedCaseCount(cases);
+  const startable = startableCaseCount(cases);
+  const refusal = cycleRunRefusal(cases);
   const status = plan?.test_cycle.status ?? "planned";
   const availability = runControlAvailability(status, startable);
   const visibility = runControlVisibility(status, startable, refusal !== null);
   const activeExecutionId =
     plan?.test_cycle.current_test_execution_id ??
-    rows.find((row) => row.status === "running")?.latest?.test_execution_id ??
+    executions.find((execution) => execution.status === "running")?.test_execution_id ??
     null;
   const progress = useExecutionProgress(activeExecutionId);
   const activity = useMemo(() => {
     const activeRow = rows.find(
-      (row) => row.latest?.test_execution_id === progress?.testExecutionId,
+      (row) => row.execution?.test_execution_id === progress?.testExecutionId,
     );
     if (!progress || !activeRow) return null;
     const step = progressStepLabel(progress.stepId, progress.phase);
-    return `${activeRow.label} · ${step} ${progress.completed}/${progress.total}`;
+    return `${activeRow.case.label} · ${step} ${progress.completed}/${progress.total}`;
   }, [progress, rows]);
 
-  /* Selection resolves to the newest attempt only when the operator picks a
-     different case. A refresh that adds an attempt must never move them. */
+  /* Follow Active selects the execution the runtime names; refreshes preserve
+     the operator's selection while following is disabled. */
   useEffect(() => {
-    if (!caseId || !selectedRow) return;
-    const known = selectedRow.browsable.some(
-      (attempt) => attempt.test_execution_id === executionId,
+    if (!live || !followActive || !activeExecutionId || activeExecutionId === executionId) return;
+    const active = executions.find(
+      (execution) => execution.test_execution_id === activeExecutionId,
     );
-    if (known) {
-      autoResolvedCase.current = caseId;
-      return;
-    }
-    if (executionId && autoResolvedCase.current === caseId) return;
-    if (selectedRow.browsable.length === 0) return;
-    autoResolvedCase.current = caseId;
-    onSelectionChange({
-      caseId,
-      executionId: selectedRow.browsable.at(-1)?.test_execution_id,
-    });
-  }, [caseId, executionId, onSelectionChange, selectedRow]);
-
-  /* Follow Active, and only Follow Active, moves the operator to an attempt
-     they did not choose: the newest one, while it is still running. With the
-     flag off a new attempt arriving leaves the shown evidence alone. */
-  useEffect(() => {
-    if (!followActive || !caseId || !selectedRow) return;
-    const latest = selectedRow.latest;
-    if (!latest || latest.test_execution_id === executionId) return;
-    if (!isActiveExecutionStatus(latest.status)) return;
-    autoResolvedCase.current = caseId;
-    onSelectionChange({ caseId, executionId: latest.test_execution_id });
-  }, [caseId, executionId, followActive, onSelectionChange, selectedRow]);
+    if (!active || !isActiveExecutionStatus(active.status)) return;
+    onSelectionChange({ executionId: activeExecutionId });
+  }, [activeExecutionId, executionId, executions, followActive, live, onSelectionChange]);
 
   /* A command reports what happened, not what was attempted: the operator
      needs the outcome and, when it failed, what the backend said. */
@@ -208,8 +189,8 @@ export function CycleWorkspace({
           run: commands.runQueued.isPending,
           stop: commands.stopCycle.isPending,
         }}
-        caseTotal={rows.length}
-        caseId={caseId}
+        caseTotal={cases.length}
+        selection={{ caseId, executionId }}
         cycleId={cycleId}
         finishedCases={finished}
         label={plan.test_cycle.title}
@@ -272,13 +253,9 @@ export function CycleWorkspace({
 
       <CycleEvidencePane
         cycleId={cycleId}
-        executionId={executionId}
         live={live}
         focused={focus.focused}
-        onSelectAttempt={(next) => {
-          autoResolvedCase.current = caseId ?? null;
-          onSelectionChange({ caseId, executionId: next });
-        }}
+        onSelectExecution={(next) => onSelectionChange({ executionId: next })}
         onToggleFocus={() => focus.setFocused(!focus.focused)}
         plan={plan}
         row={selectedRow}
@@ -306,9 +283,9 @@ export function CycleWorkspace({
             <DialogTitle>{confirm?.kind === "stop" ? "Stop Cycle" : "Clear Cycle"}</DialogTitle>
             <DialogDescription>
               {confirm?.kind === "stop"
-                ? `Stopping the cycle stops every running and queued execution of its ${rows.length} cases. To stop only one execution, open it and use Stop Execution.`
+                ? `Stopping the cycle stops every running and queued execution of its ${cases.length} cases. To stop only one execution, open it and use Stop Execution.`
                 : confirm?.kind === "clear"
-                  ? `Clearing stops this cycle and removes its ${rows.length} cases, every attempt, and the evidence they produced from the loaded runtime. Saved bundles and written reports are not affected.`
+                  ? `Clearing stops this cycle and removes its ${cases.length} cases, every attempt, and the evidence they produced from the loaded runtime. Saved bundles and written reports are not affected.`
                   : ""}
             </DialogDescription>
           </DialogHeader>

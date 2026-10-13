@@ -12,7 +12,9 @@ version = { workspace = true }
 dokime = { path = "../../../../dokime" }
 
 # Git
-harmos = { workspace = true }
+# The remote operation implements the gRPC visitor, which the standalone
+# package build must enable itself rather than inherit from dokime-app.
+harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
 thiserror = { workspace = true, default-features = true }

@@ -52,11 +52,18 @@ struct NativeCapture {
     source: LiveOutput,
 }
 
+// The Served Position Of A Followed File: Its Phase, Known Length And Resume Offset.
+struct Position {
+    phase: wire::ExecutionFilePhase,
+    length: u64,
+    offset: u64,
+}
+
 /* === Enums === */
 enum Source {
     Live(LiveOutput),
     Saved(Box<SavedOutputFile>),
-    Captured(QueryValue<FileReference>, bool),
+    Captured(Box<QueryValue<FileReference>>, bool),
 }
 
 /* === Traits === */
@@ -137,9 +144,11 @@ impl RuntimeHandle {
                     execution,
                     path,
                     &output.file.metadata.media_type,
-                    phase,
-                    output.file.length,
-                    offset,
+                    Position {
+                        phase,
+                        length: output.file.length,
+                        offset,
+                    },
                     allowance,
                 )
             })?;
@@ -180,15 +189,17 @@ impl RuntimeHandle {
                     execution,
                     path,
                     &reference.metadata.media_type,
-                    phase,
-                    reference.length,
-                    offset,
+                    Position {
+                        phase,
+                        length: reference.length,
+                        offset,
+                    },
                     allowance,
                 )
             })?;
             return Ok(Some(ExecutionFileFollower {
                 reader,
-                source: Source::Captured(reference, interrupted),
+                source: Source::Captured(Box::new(reference), interrupted),
                 metadata,
                 finished: false,
             }));
@@ -210,9 +221,11 @@ impl RuntimeHandle {
                 execution,
                 path,
                 media,
-                phase(progress.phase),
-                progress.length,
-                offset,
+                Position {
+                    phase: phase(progress.phase),
+                    length: progress.length,
+                    offset,
+                },
                 allowance,
             )
         })?;
@@ -478,11 +491,14 @@ fn metadata(
     execution: &TestExecutionId,
     path: &str,
     media: &str,
-    phase: wire::ExecutionFilePhase,
-    length: u64,
-    offset: u64,
+    position: Position,
     allowance: NonZeroUsize,
 ) -> harmos::Result<wire::ExecutionFileFollowMetadata> {
+    let Position {
+        phase,
+        length,
+        offset,
+    } = position;
     let required = std::mem::size_of::<wire::ExecutionFileFollowMetadata>()
         + staged.history.store.as_str().len()
         + staged.history.epoch.as_str().len()

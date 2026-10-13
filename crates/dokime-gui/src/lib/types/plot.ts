@@ -86,8 +86,8 @@ export type DocumentPlotStyle = "line" | "points" | "line_points" | "step";
 
 export type DocumentAxisScale = "linear" | "log";
 
-/** How a plot is reduced to its display budget; the host default is `lttb`. */
-export type DocumentDownsampleTechnique = "lttb" | "min_max" | "raw";
+/** How a plot is reduced to its display budget; the host default is `auto`. */
+export type DocumentDownsampleTechnique = "auto" | "lttb" | "min_max" | "raw";
 
 export type DocumentFrequencyLevelUnit = "linear" | "dB" | "dBu" | "dBm";
 

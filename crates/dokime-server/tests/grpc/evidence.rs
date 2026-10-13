@@ -43,6 +43,10 @@ use dokime_server::grpc::{Config, Server};
 
 /* === Private Functions === */
 async fn start(root: &std::path::Path) -> (Runtime, Server, WireClient) {
+    start_bounded(root, 1024 * 1024).await
+}
+
+async fn start_bounded(root: &std::path::Path, maximum: usize) -> (Runtime, Server, WireClient) {
     let config = RuntimeConfig::new(
         root,
         Metadata::new(
@@ -51,14 +55,17 @@ async fn start(root: &std::path::Path) -> (Runtime, Server, WireClient) {
             None,
         ),
     );
-    start_config(config).await
+    start_config(config, maximum).await
 }
 
-async fn start_config(config: RuntimeConfig) -> (Runtime, Server, WireClient) {
+async fn start_config(config: RuntimeConfig, maximum: usize) -> (Runtime, Server, WireClient) {
     let owner = Runtime::start(config).await.unwrap();
-    let server = Server::start(owner.handle(), Config::default())
-        .await
-        .unwrap();
+    let server = Server::start(
+        owner.handle(),
+        Config::default().with_max_message_bytes(maximum),
+    )
+    .await
+    .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     (owner, server, client)
 }
@@ -221,6 +228,10 @@ pub(crate) async fn filtered_scans_resync() {
                 },
             )
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err();
         assert_eq!(error.code(), Code::FailedPrecondition);
     }
@@ -270,7 +281,7 @@ pub(crate) async fn capture_cursors_restarts() {
         ),
     );
     let session_id = config.session_id.to_string();
-    let (mut owner, server, client) = start_config(config.clone()).await;
+    let (mut owner, server, client) = start_config(config.clone(), 1024 * 1024).await;
     let identity = WireClient::connect(server.local_endpoint())
         .await
         .unwrap()
@@ -319,7 +330,7 @@ pub(crate) async fn capture_cursors_restarts() {
     owner.shutdown().await.unwrap();
 
     // The identical configuration intentionally reuses the same SessionId.
-    let (mut owner, server, client) = start_config(config).await;
+    let (mut owner, server, client) = start_config(config, 1024 * 1024).await;
     let fresh_identity = WireClient::connect(server.local_endpoint())
         .await
         .unwrap()
@@ -380,6 +391,10 @@ pub(crate) async fn capture_cursors_restarts() {
                 }
             )
             .await
+            .unwrap()
+            .into_inner()
+            .message()
+            .await
             .unwrap_err()
             .code(),
         Code::FailedPrecondition,
@@ -426,8 +441,13 @@ pub(crate) async fn capture_cursors_restarts() {
 
 pub(crate) async fn oversized_delivery_evidence() {
     let root = tempfile::tempdir().unwrap();
-    let (mut owner, normal, client) = start(root.path()).await;
+    let config = RuntimeConfig::new(
+        root.path(),
+        super::common::metadata("evidence.fixture", "Evidence fixture"),
+    );
+    let (mut owner, bounded, limited) = start_config(config.clone(), 1024).await;
     let handle = owner.handle();
+    let before = handle.captured_records().frontier();
     let mut draft = ProductCalibrationDetails::new(
         "fixture-device",
         ProductCalibrationKind::Field,
@@ -435,14 +455,7 @@ pub(crate) async fn oversized_delivery_evidence() {
     )
     .into_draft("fixture.product");
     draft.message = Some("x".repeat(2000));
-    handle.publish_product_record(draft).await.unwrap();
-    let bounded = Server::start(
-        handle.clone(),
-        Config::default().with_max_message_bytes(1024),
-    )
-    .await
-    .unwrap();
-    let limited = WireClient::connect(bounded.local_endpoint()).await.unwrap();
+    handle.publish_product_record(draft.clone()).await.unwrap();
     assert_eq!(
         limited
             .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
@@ -454,8 +467,23 @@ pub(crate) async fn oversized_delivery_evidence() {
             .code(),
         Code::ResourceExhausted
     );
+    // A Rejected Delivery Must Leave The Original Captured Record Readable
+    {
+        let captured = handle.captured_records();
+        let retained = captured
+            .next(before, captured.frontier())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(retained.message.as_deref(), draft.message.as_deref());
+    }
+    drop(handle);
     drop(limited);
     bounded.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+    let (mut owner, normal, client) = start_config(config.clone(), 1024 * 1024).await;
+    let handle = owner.handle();
+    handle.publish_product_record(draft.clone()).await.unwrap();
     publish(&handle).await;
     let page = client
         .unary::<contracts::evidence::ListRecords>(contracts::evidence::ListRecordsRequest {
@@ -468,7 +496,7 @@ pub(crate) async fn oversized_delivery_evidence() {
     assert_eq!(page.records.len(), 2);
     assert_eq!(page.records[0].message.as_ref().unwrap().len(), 2000);
     assert!(page.records[1].sequence > page.records[0].sequence);
-    let schema_request = contracts::evidence::GetCapturedRecordSchemaRequest {
+    let mut schema_request = contracts::evidence::GetCapturedRecordSchemaRequest {
         record_type: page.records[0].record_type.clone(),
         schema_version: page.records[0].schema_version,
         epoch: page.scanned.as_ref().unwrap().epoch.clone(),
@@ -479,15 +507,13 @@ pub(crate) async fn oversized_delivery_evidence() {
         .unwrap()
         .into_inner();
     let schema_limit = harmos::Protobuf::encoded_len(&schema) - 1;
-    let schema_server = Server::start(
-        handle.clone(),
-        Config::default().with_max_message_bytes(schema_limit),
-    )
-    .await
-    .unwrap();
-    let schema_client = WireClient::connect(schema_server.local_endpoint())
-        .await
-        .unwrap();
+    drop(client);
+    normal.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+    let (mut owner, schema_server, schema_client) = start_config(config, schema_limit).await;
+    owner.handle().publish_product_record(draft).await.unwrap();
+    schema_request.epoch = owner.handle().process_epoch().to_string();
     assert_eq!(
         schema_client
             .unary::<contracts::evidence::GetCapturedRecordSchema>(schema_request)
@@ -498,9 +524,6 @@ pub(crate) async fn oversized_delivery_evidence() {
     );
     drop(schema_client);
     schema_server.shutdown().await.unwrap();
-    drop(client);
-    drop(handle);
-    normal.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
 

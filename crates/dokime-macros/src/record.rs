@@ -88,7 +88,7 @@ pub(crate) fn implementation(
     };
     let described = crate::arguments::description(arguments.value("description"), &input.attrs)
         .map(|text| quote!(.described(#text)));
-    let fields = declarations(&input)?;
+    let fields = declarations(input)?;
     let name = &input.ident;
     let (generics, types, predicates) = input.generics.split_for_impl();
     let contract_fields = fields.iter().map(contract_field);

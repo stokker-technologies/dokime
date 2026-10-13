@@ -19,7 +19,7 @@ import { createInterface } from "node:readline";
 import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
+import { transformWithOxc } from "vite";
 
 // Third Party Imports
 
@@ -35,11 +35,7 @@ import { createRequire } from "node:module";
 
 /* === Public Functions === */
 
-export function openHarness() {
-  const require = createRequire(
-    new URL("../../../../package.json", import.meta.url),
-  );
-  const ts = require("typescript");
+export async function openHarness() {
   const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
   const cache = resolve(gui, "node_modules/.cache");
   mkdirSync(cache, { recursive: true });
@@ -70,32 +66,32 @@ export function openHarness() {
       return `${prefix}${specifier}${extension}${suffix}`;
     });
   }
-  function compile(source, destination) {
+  async function transpile(source, path) {
+    const result = await transformWithOxc(source, path, { target: "es2022", lang: "ts" });
+    return result.code;
+  }
+  async function compile(source, destination) {
     mkdirSync(destination, { recursive: true });
     for (const entry of readdirSync(source, { withFileTypes: true })) {
       if (entry.isDirectory()) {
-        compile(resolve(source, entry.name), resolve(destination, entry.name));
+        await compile(resolve(source, entry.name), resolve(destination, entry.name));
         continue;
       }
       if (!entry.name.endsWith(".ts") || entry.name.endsWith(".test.ts") || entry.name.endsWith(".d.ts")) continue;
       const input = resolve(source, entry.name);
       const outputPath = resolve(destination, entry.name.replace(/\.ts$/, ".js"));
       const text = readFileSync(input, "utf8");
-      const output = ts.transpileModule(text, {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-      }).outputText;
+      const output = await transpile(text, input);
       writeFileSync(outputPath, resolvableSpecifiers(output, outputPath));
     }
   }
   const rpc = resolve(temporary, "src/lib/rpc");
   const canonical = resolve(temporary, ".generated");
-  compile(resolve(gui, "src/lib/rpc"), rpc);
-  compile(resolve(gui, ".generated"), canonical);
+  await compile(resolve(gui, "src/lib/rpc"), rpc);
+  await compile(resolve(gui, ".generated"), canonical);
   const uiMode = resolve(temporary, "src/lib/ui-mode.js");
-  const uiSource = readFileSync(resolve(gui, "src/lib/ui-mode.ts"), "utf8");
-  const uiOutput = ts.transpileModule(uiSource, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-  }).outputText;
+  const uiInput = resolve(gui, "src/lib/ui-mode.ts");
+  const uiOutput = await transpile(readFileSync(uiInput, "utf8"), uiInput);
   writeFileSync(uiMode, resolvableSpecifiers(uiOutput, uiMode));
   return {
     invoke,

@@ -24,7 +24,7 @@ Closing a local-owned desktop must drain client, listener, then runtime. Closing
 
 - Exercise changed controls and adjacent mounted workflow states: loading, empty, failed, permission denied, running, completed, and disconnected.
 - Check desktop and narrow widths, keyboard labels/focus, text overflow and stable controls during updates.
-- Inspect WebView errors and network resources; desktop domain operations must use generated RPC IPC, never `/api` fetches or WebSockets.
+- Inspect WebView errors and network resources; desktop domain operations must use authenticated direct gRPC-web. Native IPC owns session lifecycle and the approved file-transfer adapter; do not use `/api` fetches or WebSockets.
 - Capture screenshots when useful, keep temporary evidence outside committed source, and stop only the validation processes you own.
 - Do not repeatedly create runs to diagnose a stale view; inspect its authoritative native state and generation first.
 - Keep performance assertions scoped to measured phases and actual optimized/debug profiles.

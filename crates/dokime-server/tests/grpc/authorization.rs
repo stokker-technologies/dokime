@@ -91,6 +91,15 @@ matrix! {
         min_level: contracts::backend::LogLevel::Unspecified,
         replay_lines: 0,
     };
+    "/dokime.v1.Backend/WatchTrace", download, contracts::backend::WatchTrace = contracts::backend::WatchTraceRequest {
+        epoch: None,
+        scope: None,
+        min_level: contracts::backend::LogLevel::Unspecified,
+        after_sequence: 0,
+        max_events: 0,
+        max_bytes: 0,
+        follow: false,
+    };
     "/dokime.v1.Catalog/GetRecordSchema", unary, contracts::catalog::GetRecordSchema;
     "/dokime.v1.Catalog/GetSuite", unary, contracts::catalog::GetSuite;
     "/dokime.v1.Catalog/GetTelemetrySchema", unary, contracts::catalog::GetTelemetrySchema;
@@ -106,6 +115,13 @@ matrix! {
     "/dokime.v1.Content/ListExecutionFiles", unary, contracts::content::ListExecutionFiles;
     "/dokime.v1.Content/ReadExecutionFile", unary, contracts::content::ReadExecutionFile;
     "/dokime.v1.Documents/CaptureCurrentDocument", download, contracts::documents::CaptureCurrentDocument;
+    "/dokime.v1.Documents/UpdatePlotSettings", unary, contracts::documents::UpdatePlotSettings = contracts::documents::UpdatePlotSettingsRequest {
+        scope: None,
+        document_id: String::new(),
+        plot_id: String::new(),
+        display_points: None,
+        downsample: Default::default(),
+    };
     "/dokime.v1.Evidence/GetCapturedRecordSchema", unary, contracts::evidence::GetCapturedRecordSchema;
     "/dokime.v1.Evidence/ListRecords", unary, contracts::evidence::ListRecords;
     "/dokime.v1.Evidence/WatchRecords", download, contracts::evidence::WatchRecords;

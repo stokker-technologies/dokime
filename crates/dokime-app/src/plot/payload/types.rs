@@ -10,6 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+pub use dokime::document::DownsampleTechnique;
 
 /* === Imports === */
 // Standard Library Imports
@@ -235,15 +236,6 @@ pub struct PlotMarker {
 }
 
 /* === Enums === */
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DownsampleTechnique {
-    #[default]
-    Raw,
-    MinMax,
-    Lttb,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlotPayloadStreamKind {

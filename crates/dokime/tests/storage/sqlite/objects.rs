@@ -408,10 +408,16 @@ pub(crate) async fn stream_frames_charge() {
             .unwrap();
             assert_eq!(encoded.schema, schema);
             let source_time = if index < 2 {
-                std::time::UNIX_EPOCH - Duration::from_nanos(1)
+                std::time::UNIX_EPOCH - Duration::from_nanos(100)
             } else {
-                std::time::UNIX_EPOCH + Duration::from_nanos(1)
+                std::time::UNIX_EPOCH + Duration::from_nanos(100)
             };
+            let represented = if index < 2 {
+                std::time::UNIX_EPOCH.duration_since(source_time).unwrap()
+            } else {
+                source_time.duration_since(std::time::UNIX_EPOCH).unwrap()
+            };
+            assert_eq!(represented, Duration::from_nanos(100));
             storage
                 .write_stream(&[StreamWrite {
                     stream: &stream,
@@ -431,10 +437,25 @@ pub(crate) async fn stream_frames_charge() {
         storage.flush().await.unwrap();
         let mut selection = ReadSelection::new(ReadKind::Stream);
         selection.schema = Some(schema);
-        selection.source_time = Some(SourceTimeRange {
-            start: std::time::UNIX_EPOCH - Duration::from_nanos(10),
-            end: std::time::UNIX_EPOCH + Duration::from_nanos(10),
-        });
+        let source_range = SourceTimeRange {
+            start: std::time::UNIX_EPOCH - Duration::from_nanos(1000),
+            end: std::time::UNIX_EPOCH + Duration::from_nanos(1000),
+        };
+        assert_eq!(
+            std::time::UNIX_EPOCH
+                .duration_since(source_range.start)
+                .unwrap(),
+            Duration::from_nanos(1000),
+        );
+        assert_eq!(
+            source_range
+                .end
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap(),
+            Duration::from_nanos(1000),
+        );
+        assert!(source_range.start < source_range.end);
+        selection.source_time = Some(source_range);
         let mut frame = Frame::new(NonZeroUsize::new(16).unwrap(), NonZeroUsize::MIN);
         let scan = frame.scan(
             selection,

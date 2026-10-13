@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { openHarness } from "./rpc-harness.mjs";
 const require = createRequire(new URL("../../../../package.json", import.meta.url));
 const { create, fromBinary, toBinary } = require("@bufbuild/protobuf");
-const harness = openHarness();
+const harness = await openHarness();
 const { invoke, load } = harness;
 try {
   const api = await load("generated/client.js");

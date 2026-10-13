@@ -31,6 +31,7 @@ from dokime.client import (
 )
 
 from .test_capture import fixture
+from .test_client import SUITE_ID, TEMPLATE
 
 # Type Checking Imports
 
@@ -50,7 +51,7 @@ from .test_capture import fixture
 def test_handles_progress() -> None:
     async def scenario() -> None:
         async with fixture() as (backend, client):
-            cycle = await client.new_cycle(suite="suite", template="template")
+            cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             request = await cycle.run(request_key="handle-test")
             assert isinstance(request, RunRequest)
             assert not hasattr(request, "cycle")
@@ -79,7 +80,7 @@ def test_capture_progress(tmp_path: Path, capsys: Any) -> None:
     async def scenario() -> None:
         async with fixture() as (backend, client):
             capture = await Capture.prepare(
-                client, output=tmp_path / "capture", suite="suite", template="template"
+                client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
             )
             assert backend.created == 1 and backend.run_calls == 0
             backend.fail_admission = True
@@ -113,7 +114,7 @@ def case_failed_retried(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with fixture() as (backend, client):
             capture = await Capture.prepare(
-                client, output=tmp_path / "capture", suite="suite", template="template"
+                client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
             )
             request = await capture.start()
             backend.bad_report = "hash"
@@ -141,7 +142,7 @@ def case_cancellation_identity(
         async with fixture() as (backend, client):
             hold_acquisition(backend)
             capture = await Capture.prepare(
-                client, output=tmp_path / "capture", suite="suite", template="template"
+                client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
             )
             request = await capture.start()
             updates = asyncio.create_task(drain(capture.updates()))
@@ -175,7 +176,7 @@ def case_capture_request(tmp_path: Path) -> None:
         async with fixture() as (backend, client):
             hold_acquisition(backend)
             capture = await Capture.prepare(
-                client, output=tmp_path / "capture", suite="suite", template="template"
+                client, output=tmp_path / "capture", suite=SUITE_ID, template=TEMPLATE
             )
             request = await capture.start()
             other = await Capture.open(client, output=capture.output)
@@ -207,8 +208,8 @@ def case_capture_mutation(tmp_path: Path) -> None:
                 await Capture.prepare(
                     client,
                     output=tmp_path / "invalid",
-                    suite="suite",
-                    template="template",
+                    suite=SUITE_ID,
+                    template=TEMPLATE,
                     parameters={"bad": float("nan")},
                 )
             assert not (tmp_path / "invalid").exists()
@@ -216,7 +217,7 @@ def case_capture_mutation(tmp_path: Path) -> None:
             existing.mkdir()
             with pytest.raises(FileExistsError):
                 await Capture.prepare(
-                    client, output=existing, suite="suite", template="template"
+                    client, output=existing, suite=SUITE_ID, template=TEMPLATE
                 )
             assert backend.created == 0
             (existing / "capture.json").write_text(

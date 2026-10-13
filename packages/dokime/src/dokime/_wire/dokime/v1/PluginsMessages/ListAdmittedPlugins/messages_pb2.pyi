@@ -81,14 +81,16 @@ class Row8(_message.Message):
     def __init__(self, field_0: _Optional[_Union[Row10, _Mapping]] = ...) -> None: ...
 
 class Row9(_message.Message):
-    __slots__ = ("package", "installation_id", "content_digest")
+    __slots__ = ("package", "path", "installation_id", "content_digest")
     PACKAGE_FIELD_NUMBER: _ClassVar[int]
+    PATH_FIELD_NUMBER: _ClassVar[int]
     INSTALLATION_ID_FIELD_NUMBER: _ClassVar[int]
     CONTENT_DIGEST_FIELD_NUMBER: _ClassVar[int]
     package: str
+    path: str
     installation_id: str
     content_digest: str
-    def __init__(self, package: _Optional[str] = ..., installation_id: _Optional[str] = ..., content_digest: _Optional[str] = ...) -> None: ...
+    def __init__(self, package: _Optional[str] = ..., path: _Optional[str] = ..., installation_id: _Optional[str] = ..., content_digest: _Optional[str] = ...) -> None: ...
 
 class Row10(_message.Message):
     __slots__ = ("generation",)

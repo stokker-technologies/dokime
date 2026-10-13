@@ -303,6 +303,9 @@ class Cycle:
                     raise ProtocolError("prompt view differs from listed request")
                 if view.HasField("response"):
                     continue
+                level = _wire.enum_name(item.definition.level)
+                if level == "unspecified":
+                    level = "info"
                 yield Prompt(
                     item.prompt_id,
                     item.definition.prompt_type,
@@ -315,7 +318,7 @@ class Cycle:
                         field.metadata.identifier for field in item.definition.fields
                     ),
                     _wire.fields(item.values),
-                    level=_wire.enum_name(item.definition.level),
+                    level=level,
                 )
             if not page.HasField("next_after_prompt_id"):
                 return

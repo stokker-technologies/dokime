@@ -80,25 +80,21 @@ impl Client {
         let frames = stream::unfold(Some(incoming), |state| async move {
             let mut incoming = state?;
             match incoming.next().await {
-                Some(Err(status)) => return Some((Err(status), None)),
-                None => {
-                    return Some((
-                        Err(tonic::Status::data_loss(
-                            "operation stream has no completion",
-                        )),
-                        None,
-                    ));
-                }
+                Some(Err(status)) => Some((Err(status), None)),
+                None => Some((
+                    Err(tonic::Status::data_loss(
+                        "operation stream has no completion",
+                    )),
+                    None,
+                )),
                 Some(Ok(frame)) => match OutputEnvelope::project(frame) {
-                    Err(error) => {
-                        return Some((Err(tonic::Status::data_loss(error.to_string())), None));
-                    }
+                    Err(error) => Some((Err(tonic::Status::data_loss(error.to_string())), None)),
                     Ok(OutputEnvelope::Item(item)) => {
-                        return Some((value(item).map_err(status), Some(incoming)));
+                        Some((value(item).map_err(status), Some(incoming)))
                     }
                     Ok(OutputEnvelope::Response(_)) => {
                         // Final Status Must Be Observed Before Reporting End Of Stream.
-                        return match incoming.next().await {
+                        match incoming.next().await {
                             Some(Err(status)) => Some((Err(status), None)),
                             Some(Ok(_)) => Some((
                                 Err(tonic::Status::data_loss(
@@ -107,7 +103,7 @@ impl Client {
                                 None,
                             )),
                             None => None,
-                        };
+                        }
                     }
                 },
             }

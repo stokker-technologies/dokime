@@ -325,6 +325,10 @@ pub(super) struct Plot {
     #[serde(default)]
     live_window_s: Option<f64>,
     #[serde(default)]
+    display_points: Option<u32>,
+    #[serde(default)]
+    downsample: crate::document::DownsampleTechnique,
+    #[serde(default)]
     x_format: Option<Format>,
     #[serde(default)]
     y_format: Option<Format>,
@@ -1056,6 +1060,8 @@ impl TryFrom<&crate::document::PlotDefinition> for Plot {
             reference_lines,
             reference_bands,
             live_window_s: value.live_window_s,
+            display_points: value.display_points,
+            downsample: value.downsample,
             x_format: value.x_format.as_ref().map(Format::try_from).transpose()?,
             y_format: value.y_format.as_ref().map(Format::try_from).transpose()?,
             x_axis: value.x_axis.as_ref().map(Axis::try_from).transpose()?,
@@ -1132,6 +1138,8 @@ impl TryFrom<Plot> for crate::document::PlotDefinition {
             reference_lines,
             reference_bands,
             live_window_s: row.live_window_s,
+            display_points: row.display_points,
+            downsample: row.downsample,
             x_format: row.x_format.map(TryInto::try_into).transpose()?,
             y_format: row.y_format.map(TryInto::try_into).transpose()?,
             x_axis: row.x_axis.map(TryInto::try_into).transpose()?,

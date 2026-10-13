@@ -51,12 +51,14 @@ pub(crate) struct Args {
     #[arg(
         long,
         requires = "endpoint",
+        conflicts_with = "backend",
         help = "Read An Additional PEM CA Certificate From This Local File."
     )]
     ca: Option<PathBuf>,
     #[arg(
         long,
         requires = "endpoint",
+        conflicts_with = "backend",
         help = "Require This Backend Identity During Connection."
     )]
     expected_backend: Option<String>,

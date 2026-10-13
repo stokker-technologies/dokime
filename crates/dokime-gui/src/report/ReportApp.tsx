@@ -38,11 +38,7 @@ import { useMemo, useState } from "react";
 /* === Local Imports === */
 
 import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
-import {
-  CycleSnapshotProvider,
-  type CycleSnapshotSource,
-  useCycleSnapshotSource,
-} from "@/features/cycle/snapshot-source";
+import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import type { ReportPayload } from "@/lib/report-types";
 import { AppShell } from "@/shell/AppShell";
 import { cycleSnapshotSource } from "./report-snapshot";
@@ -96,11 +92,10 @@ function ReportSurface() {
   return (
     <AppShell
       frozen={{
-        caseId: selection.caseId,
+        selection,
         cycleId,
         generatedAt: source.generatedAt,
-        onSelectCase: (caseId) =>
-          setSelection({ caseId, executionId: latestAttempt(source, caseId) }),
+        onSelect: setSelection,
         status: plan?.test_cycle.status ?? "planned",
         title,
       }}
@@ -118,17 +113,3 @@ function ReportSurface() {
 }
 
 /* === Private Functions === */
-
-/** The newest attempt of `caseId`, which is what selecting a case shows. */
-function latestAttempt(
-  source: CycleSnapshotSource,
-  caseId: string | undefined,
-): string | undefined {
-  if (!caseId) return undefined;
-  /* Attempts are ordered by their index, not by their place in the payload:
-     the newest attempt is the highest index, whatever order it was written. */
-  return [...source.executions]
-    .filter((execution) => execution.case_id === caseId)
-    .sort((left, right) => left.attempt_index - right.attempt_index)
-    .at(-1)?.test_execution_id;
-}

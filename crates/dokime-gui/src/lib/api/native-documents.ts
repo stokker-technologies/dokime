@@ -15,20 +15,19 @@ import { toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
+import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
 import {
   documentCard,
   documentCardLayout,
   documentPlot,
   documentSummaryTile,
-  validateSummaryResult,
-  unavailableReason,
   documentTableRows,
   documentText,
+  unavailableReason,
+  validateSummaryResult,
 } from "@/lib/document-presentation";
-import { assembleCapture, type DeclaredNode } from "@/lib/document-assembly";
-import * as rpc from "@/lib/rpc/generated/client";
-import * as documentWire from "../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   DocumentDataExpression,
@@ -37,11 +36,13 @@ import type {
   DocumentViewPayload,
   Metadata,
 } from "@/lib/types";
+import * as documentWire from "../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
 import {
   enumTail,
   mapNativeValueFormat,
   nativeValueObjectToJson,
   nativeValueToJson,
+  safeNumber,
 } from "./native-values";
 
 /* === Canonical Types === */
@@ -70,9 +71,9 @@ type NativePlotAxisKind = Wire<documentWire.Row184>;
 type PlotStyle = Wire<documentWire.Row180>;
 type AxisScale = Wire<documentWire.Row173>;
 type DataExpression = Wire<documentWire.Row45>;
-type FftWindow = Wire<documentWire.Row213>;
-type FftDetrend = Wire<documentWire.Row214>;
-type FrequencyLevelUnit = Wire<documentWire.Row215>;
+type FftWindow = NonNullable<NonNullable<PlotRequest["fft"]>["window"]>;
+type FftDetrend = NonNullable<NonNullable<PlotRequest["fft"]>["detrend"]>;
+type FrequencyLevelUnit = NonNullable<NonNullable<PlotRequest["fft"]>["levelUnit"]>;
 type PlotRequest = Wire<documentWire.Row142>;
 type PlotType = Wire<documentWire.Row172>;
 type FilterOperator = Wire<documentWire.Row54>;
@@ -123,6 +124,8 @@ export interface NativeDocumentSession extends SessionIdentity {
 /** One operator edit of a plot's display settings on a running cycle's frozen document. */
 export interface PlotSettingsUpdate {
   cycleId: string;
+  executionId: string;
+  documentId: string;
   plotId: string;
   /** `null` restores the host default; `0` keeps every sample. */
   displayPoints: number | null;
@@ -133,19 +136,24 @@ export interface PlotSettingsUpdate {
  * Persist a plot's display settings into the execution's frozen document, so
  * the live view and the sealed report render the same reduction.
  *
- * The generated client does not carry `Documents.UpdatePlotSettings` yet: the
- * host RPC lands with the Rust contract, after which this calls
- * `rpc.documentsUpdatePlotSettings(session, { cycleId, plotId, displayPoints,
- * downsample })`. Until then the edit is refused with a plain message rather
- * than pretending it was saved.
  */
 export async function updatePlotSettings(
   session: SessionIdentity,
   update: PlotSettingsUpdate,
 ): Promise<void> {
   if (!session.isCurrent()) throw new Error("The backend connection was replaced.");
-  if (!update.cycleId || !update.plotId) throw new Error("A cycle and a plot are required.");
-  throw new Error("Plot settings persistence is not yet available in this build.");
+  if (!update.cycleId || !update.executionId || !update.documentId || !update.plotId) {
+    throw new Error("An execution document and a plot are required.");
+  }
+  const variants = { auto: "Auto", raw: "Raw", min_max: "MinMax", lttb: "Lttb" } as const;
+  await rpc.documentsUpdatePlotSettings(session, {
+    scope: { cycleId: update.cycleId, executionId: update.executionId },
+    documentId: update.documentId,
+    plotId: update.plotId,
+    displayPoints: update.displayPoints ?? undefined,
+    downsample: { HarmosVariant: { case: variants[update.downsample], value: {} } },
+  });
+  if (!session.isCurrent()) throw new Error("The backend connection was replaced.");
 }
 
 /** Open one generation-owned document stream and assemble it after clean EOF. */
@@ -509,7 +517,8 @@ function mapNativePlot(
     x_format: mapNativeValueFormat(presentation?.xFormat),
     y_format: mapNativeValueFormat(presentation?.yFormat),
     x_axis: mapNativePlotAxis(presentation?.xAxis, presentation?.xAxisUnit),
-    display_points: request.maxPoints === undefined ? null : Number(request.maxPoints),
+    display_points:
+      request.maxPoints === undefined ? null : safeNumber(request.maxPoints, "plot display points"),
     downsample: mapDownsampleTechnique(request.technique),
   });
 }
@@ -524,6 +533,7 @@ function mapDownsampleTechnique(
   value: NativeDownsampleTechnique | undefined,
 ): DocumentDownsampleTechnique | null {
   const techniques: Record<string, DocumentDownsampleTechnique> = {
+    Auto: "auto",
     Raw: "raw",
     MinMax: "min_max",
     Lttb: "lttb",

@@ -188,7 +188,6 @@ impl Source {
                 "filtered record cut is not saved in its original history",
             ));
         }
-        let computation = view.begin_computation()?;
         let mut query = self.record_query(None, 0);
         query.options.through = Some(cut.sequence);
         query.filter = Some(filter);
@@ -199,7 +198,8 @@ impl Source {
             .next_page_projected(self.reads.decoded_bytes, project_saved_records)
             .await?
         {
-            computation.check()?;
+            // The Reader Charges Its Own Work To This Same Saved View.
+            let computation = view.begin_computation()?;
             pages.try_reserve(1).map_err(|_| exhausted())?;
             if pages
                 .capacity()
@@ -210,8 +210,9 @@ impl Source {
             }
             // Retained Page Claims Stay Charged Until The View Frame Is Built.
             pages.push(page);
+            computation.check()?;
         }
-        computation.check()?;
+        let computation = view.begin_computation()?;
         let output = project(&pages, self.reads.decoded_bytes)?;
         if output.memory_size() > self.reads.decoded_bytes.get() {
             return Err(exhausted().into());

@@ -26,7 +26,7 @@ export const RAW_RING_FACTOR = 20;
 
 /* === Types === */
 
-export type ReduceTechnique = "lttb" | "min_max" | "raw";
+export type ReduceTechnique = "auto" | "lttb" | "min_max" | "raw";
 
 export type ReduceOptions = {
   /** Display budget; `null` keeps every retained sample. */
@@ -69,7 +69,12 @@ export function reduceIndices(
   if (options.budget === null || options.technique === "raw" || length <= options.budget) {
     return null;
   }
-  if (options.technique === "min_max") return minMaxIndices(y, options.budget);
+  if (
+    options.technique === "min_max" ||
+    (options.technique === "auto" && length > 4 * options.budget)
+  ) {
+    return minMaxIndices(y, options.budget);
+  }
   return lttbIndices(x, y, options.budget);
 }
 

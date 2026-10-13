@@ -17,22 +17,12 @@
  *
  * With `live={false}` the same selections render from the snapshot the hooks
  * consult: the toolbar states the scope and the plot window as a sentence
- * instead of offering a slider, the attempt selector becomes the list of
- * attempts, and the attempt's records follow the document as a static console.
+ * instead of offering a slider. The execution list owns selection.
  */
 
 /* === External Imports === */
 
-import {
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  Pause,
-  Play,
-  RotateCcw,
-  Square,
-} from "lucide-react";
+import { Maximize2, Minimize2, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -41,22 +31,10 @@ import { toast } from "sonner";
 import { CaseParameterGrid } from "@/components/CaseParameterGrid";
 import { MarkdownText } from "@/components/MarkdownText";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import type { HubLiveState, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
-import { useCycleCommands } from "./cycle-queries";
-import {
-  attemptIndexOf,
-  attemptLabel,
-  type CycleCaseRow,
-  executionStatusLabel,
-} from "./cycle-workspace-model";
+import { useCycleCommands, useRerunCase } from "./cycle-queries";
+import { type CycleExecutionRow, isPlannedExecution } from "./cycle-workspace-model";
 import { DocumentView, documentHasWindowedCards, documentWindowElapsedUnit } from "./DocumentView";
 import {
   DEFAULT_PLOT_WINDOW_INDEX,
@@ -68,7 +46,7 @@ import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-sta
 
 /* === Constants === */
 
-const TERMINAL_ATTEMPT_STATUSES: readonly TestExecution["status"][] = [
+const TERMINAL_EXECUTION_STATUSES: readonly TestExecution["status"][] = [
   "passed",
   "failed",
   "stopped",
@@ -80,15 +58,14 @@ const TERMINAL_ATTEMPT_STATUSES: readonly TestExecution["status"][] = [
 
 export type CycleEvidencePaneProps = {
   cycleId: string;
-  executionId: string | undefined;
   plan: TestCyclePlan | null;
-  row: CycleCaseRow | null;
+  row: CycleExecutionRow | null;
   snapshot: HubLiveState | null;
   /** True while the shell has given the evidence the whole window. */
   focused: boolean;
   /** False in the frozen report: no slider, no focus, no live plot window. */
   live?: boolean;
-  onSelectAttempt: (executionId: string) => void;
+  onSelectExecution: (executionId: string) => void;
   onToggleFocus: () => void;
 };
 
@@ -96,43 +73,39 @@ export type CycleEvidencePaneProps = {
 
 export function CycleEvidencePane({
   cycleId,
-  executionId,
   focused,
   live = true,
   plan,
   row,
   snapshot,
-  onSelectAttempt,
+  onSelectExecution,
   onToggleFocus,
 }: CycleEvidencePaneProps) {
   const commands = useCycleCommands(cycleId);
   const [plotWindowIndex, setPlotWindowIndex] = useState(DEFAULT_PLOT_WINDOW_INDEX);
   const [plotWindowOverridden, setPlotWindowOverridden] = useState(false);
-  /* Only the attempts with evidence behind them: a planned placeholder is the
-     case's parameters, not an attempt, and browsing to it would open a
-     document that does not exist. */
-  const attempts = row?.browsable ?? [];
-  // While the route catches up with a freshly selected case, show its newest
-  // attempt until its execution document is available.
-  const attemptIndex = attemptIndexOf(attempts, executionId);
-  const attempt = attemptIndex >= 0 ? (attempts[attemptIndex] ?? null) : null;
-  const scopeAttemptIndex = attemptIndex >= 0 ? attemptIndex : attempts.length - 1;
+  const rerunCase = useRerunCase(cycleId);
+  const selectedExecution =
+    row?.execution && !isPlannedExecution(row.execution.status) ? row.execution : null;
   const scope = useMemo<RecordScope>(
     () =>
-      attempt
+      selectedExecution
         ? {
             test_cycle_id: cycleId,
-            test_execution_id: attempt.test_execution_id,
-            test_case_id: attempt.case_id,
+            test_execution_id: selectedExecution.test_execution_id,
+            test_case_id: selectedExecution.case_id,
           }
         : row
-          ? { test_cycle_id: cycleId, test_case_id: row.caseId }
+          ? { test_cycle_id: cycleId, test_case_id: row.case.caseId }
           : { test_cycle_id: cycleId },
-    [attempt, cycleId, row],
+    [selectedExecution, cycleId, row],
   );
 
-  const detailQuery = useExecutionDetailQuery(attempt?.test_execution_id ?? null, Boolean(attempt));
-  const execution: TestExecution | null = detailQuery.data ?? attempt ?? null;
+  const detailQuery = useExecutionDetailQuery(
+    selectedExecution?.test_execution_id ?? null,
+    Boolean(selectedExecution),
+  );
+  const execution: TestExecution | null = detailQuery.data ?? selectedExecution ?? null;
   const controls = execution?.controls;
   const control = (action: "pause" | "resume" | "stop") => {
     if (!execution) return;
@@ -157,16 +130,21 @@ export function CycleEvidencePane({
       });
   };
 
-  /* A settled attempt is never run again in place: Re-Run creates the case's
-     next attempt through the same scheduling and run admission the Cases
-     panel uses, and this attempt's evidence stays as it is. */
+  /* Re-Run appends a new execution through the case scheduling owner and
+     preserves this execution's captured evidence. */
   const rerunnable =
-    live && execution !== null && TERMINAL_ATTEMPT_STATUSES.includes(execution.status) && !controls;
+    live &&
+    execution !== null &&
+    TERMINAL_EXECUTION_STATUSES.includes(execution.status) &&
+    !controls;
   const rerun = () => {
     if (!execution) return;
-    void commands.scheduleRerun
-      .mutateAsync(execution.case_id)
-      .then(() => toast.success("Case Re-Run Started"))
+    void rerunCase
+      .rerun(execution.case_id)
+      .then((created) => {
+        if (created) onSelectExecution(created);
+        toast.success("Case Re-Run Started");
+      })
       .catch((error: unknown) => {
         toast.error("Case Re-Run Failed", {
           description: error instanceof Error ? error.message : String(error),
@@ -175,15 +153,16 @@ export function CycleEvidencePane({
   };
 
   const executionDocumentQuery = useExecutionDocumentQuery({
-    cycleId: attempt ? cycleId : null,
-    executionId: attempt?.test_execution_id ?? null,
+    cycleId: selectedExecution ? cycleId : null,
+    executionId: selectedExecution?.test_execution_id ?? null,
   });
-  const document = attempt ? (executionDocumentQuery.data ?? null) : null;
+  const document = selectedExecution ? (executionDocumentQuery.data ?? null) : null;
   const documentQuery = executionDocumentQuery;
 
   const plotWindow =
     PLOT_WINDOW_OPTIONS[plotWindowIndex] ?? PLOT_WINDOW_OPTIONS[DEFAULT_PLOT_WINDOW_INDEX];
-  const template = plan?.templates.find((item) => item.template_id === row?.templateId) ?? null;
+  const template =
+    plan?.templates.find((item) => item.template_id === row?.case.templateId) ?? null;
 
   const sections = useMemo(() => orderedDocumentSections(document), [document]);
   const documentError = documentQuery.error;
@@ -197,20 +176,8 @@ export function CycleEvidencePane({
       <div className="grid min-h-[var(--page-bar-height)] grid-cols-[minmax(0,1fr)_auto] items-center gap-[var(--bar-gap)] border-b px-4 py-[var(--bar-pad-y)]">
         <div className="grid min-w-0 grid-cols-[auto_minmax(0,auto)] items-center justify-start gap-2">
           <h2 className="min-w-0 truncate font-heading text-sm leading-6 font-semibold tracking-wide uppercase">
-            {row
-              ? attempts.length > 0
-                ? attemptLabel(scopeAttemptIndex, attempts.length)
-                : "No Attempts Yet"
-              : "Cycle"}
+            {row ? (selectedExecution ? `Execution ${row.ordinal}` : "Not Run Yet") : "Cycle"}
           </h2>
-          {row && attempts.length > 0 ? (
-            <AttemptSelector
-              attempts={attempts}
-              index={attemptIndex}
-              live={live}
-              onSelect={onSelectAttempt}
-            />
-          ) : null}
         </div>
         <div className="flex items-center justify-end gap-[var(--bar-gap)] [&_[data-slot=button]:not([class*='h-['])]:h-[var(--bar-control-height)]">
           {rerunnable ? (
@@ -309,15 +276,15 @@ export function CycleEvidencePane({
             }
             title="Evidence Unavailable"
           />
-        ) : row && attempts.length === 0 ? (
+        ) : row && !selectedExecution ? (
           <div className="grid gap-4">
             <p className="text-sm text-muted-foreground">
               This case has not run yet. These are the parameters the next attempt will use.
             </p>
             {template?.description ? <MarkdownText text={template.description} /> : null}
-            {row.testCase ? <CaseParameterGrid testCase={row.testCase} /> : null}
+            {row.case.testCase ? <CaseParameterGrid testCase={row.case.testCase} /> : null}
           </div>
-        ) : !attempt ? (
+        ) : !selectedExecution ? (
           <PaneNotice
             message="Select an execution to read its document and evidence."
             title="Select Execution"
@@ -332,8 +299,13 @@ export function CycleEvidencePane({
               live={live}
               snapshot={snapshot}
               scope={scope}
-              parameters={{ case: row?.testCase?.parameters, execution: execution?.parameters }}
-              noteElapsedStart={attempt?.started_at ?? plan?.test_cycle.started_at ?? null}
+              parameters={{
+                case: row?.case.testCase?.parameters,
+                execution: execution?.parameters,
+              }}
+              noteElapsedStart={
+                selectedExecution?.started_at ?? plan?.test_cycle.started_at ?? null
+              }
               plotWindow={plotWindow}
               plotWindowOverridden={plotWindowOverridden}
             />
@@ -345,88 +317,6 @@ export function CycleEvidencePane({
 }
 
 /* === Private Components === */
-
-function AttemptSelector({
-  attempts,
-  index,
-  live,
-  onSelect,
-}: {
-  attempts: TestExecution[];
-  index: number;
-  live: boolean;
-  onSelect: (executionId: string) => void;
-}) {
-  const current = index >= 0 ? index : attempts.length - 1;
-
-  /* A frozen file offers the attempts it contains as a list, not a select: the
-     reader is navigating an outline, not choosing what the backend shows. */
-  if (!live) {
-    if (attempts.length < 2) return null;
-    return (
-      <div className="flex flex-wrap items-center gap-1">
-        {attempts.map((attempt, position) => (
-          <Button
-            key={attempt.test_execution_id}
-            onClick={() => onSelect(attempt.test_execution_id)}
-            size="sm"
-            variant={position === current ? "secondary" : "ghost"}
-          >
-            {attemptLabel(position, attempts.length)}
-          </Button>
-        ))}
-      </div>
-    );
-  }
-
-  const previous = attempts[current - 1];
-  const next = attempts[current + 1];
-
-  return (
-    <div className="grid grid-cols-[auto_auto_auto] items-center gap-1">
-      <Button
-        aria-label="Previous Attempt"
-        disabled={!previous}
-        onClick={() => previous && onSelect(previous.test_execution_id)}
-        size="icon-sm"
-        variant="outline"
-      >
-        <ChevronLeft />
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button aria-label="Choose Attempt" size="sm" variant="outline">
-            All Attempts
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuRadioGroup
-            onValueChange={onSelect}
-            value={attempts[current]?.test_execution_id ?? ""}
-          >
-            {attempts.map((attempt, position) => (
-              <DropdownMenuRadioItem
-                key={attempt.test_execution_id}
-                value={attempt.test_execution_id}
-              >
-                {attemptLabel(position, attempts.length)} — {executionStatusLabel(attempt.status)}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Button
-        aria-label="Next Attempt"
-        disabled={!next}
-        onClick={() => next && onSelect(next.test_execution_id)}
-        size="icon-sm"
-        variant="outline"
-      >
-        <ChevronRight />
-      </Button>
-    </div>
-  );
-}
 
 function PaneNotice({
   action,

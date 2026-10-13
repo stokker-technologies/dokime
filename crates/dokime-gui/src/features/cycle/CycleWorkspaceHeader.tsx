@@ -100,7 +100,7 @@ export type CycleWorkspaceHeaderProps = {
   activity: string | null;
   caseTotal: number;
   /** The selected case, so the Cases sheet opens on the operator's place. */
-  caseId?: string | undefined;
+  selection: { caseId?: string; executionId?: string };
   /** The open cycle. Required for the Cases sheet a collapsed sidebar needs. */
   cycleId?: string;
   finishedCases: number;
@@ -139,7 +139,7 @@ export function CycleWorkspaceHeader({
   activity,
   live = true,
   caseTotal,
-  caseId,
+  selection,
   cycleId,
   finishedCases,
   followActive,
@@ -193,7 +193,7 @@ export function CycleWorkspaceHeader({
       {/* Collapsed, the sidebar's case rows are behind a rail the operator has
           to restore to reach. At touch that is the only route to a case, so
           the header offers the same rows in a sheet instead. */}
-      {live && cycleId ? <CasesSheet caseId={caseId} cycleId={cycleId} /> : null}
+      {live && cycleId ? <ExecutionsSheet selection={selection} cycleId={cycleId} /> : null}
 
       <div className="hidden grid-flow-col items-center gap-3 text-xs leading-6 text-muted-foreground sm:grid">
         <span className="tabular-nums">
@@ -355,13 +355,19 @@ export function CycleWorkspaceHeader({
 /* === Private Components === */
 
 /**
- * The cycle's cases, reachable while the sidebar is a rail.
+ * The cycle's executions, reachable while the sidebar is a rail.
  *
  * The sheet holds the sidebar's own rows — the same component, the same
- * selection, the same pills — so there is one list of a cycle's cases and this
+ * selection, the same pills — so there is one list of a cycle's executions and this
  * is a second door to it, not a second copy of it.
  */
-function CasesSheet({ caseId, cycleId }: { caseId: string | undefined; cycleId: string }) {
+function ExecutionsSheet({
+  selection,
+  cycleId,
+}: {
+  selection: { caseId?: string; executionId?: string };
+  cycleId: string;
+}) {
   const { collapsed } = useSidebarState();
   if (!collapsed) return null;
 
@@ -370,16 +376,16 @@ function CasesSheet({ caseId, cycleId }: { caseId: string | undefined; cycleId: 
       <SheetTrigger asChild>
         <Button className={CONTROL_CLASS} size="lg" variant="outline">
           <ListChecks data-icon="inline-start" />
-          Cases
+          Executions
         </Button>
       </SheetTrigger>
       <SheetContent className="w-[22rem] max-w-full" side="left">
         <SheetHeader>
-          <SheetTitle>Cases</SheetTitle>
-          <SheetDescription>Select a case to show its evidence.</SheetDescription>
+          <SheetTitle>Executions</SheetTitle>
+          <SheetDescription>Select an execution to show its evidence.</SheetDescription>
         </SheetHeader>
         <ul className="grid min-h-0 content-start gap-0.5 overflow-y-auto px-2 pb-4">
-          <CycleSidebarCases caseId={caseId} cycleId={cycleId} />
+          <CycleSidebarCases selection={selection} cycleId={cycleId} />
         </ul>
       </SheetContent>
     </Sheet>

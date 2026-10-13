@@ -50,11 +50,41 @@ pub(super) fn register(
     local_only: bool,
 ) -> Result<(), crate::grpc::Error> {
     artifacts::register(runtime, maximum)?;
-    local::register(runtime, local_only)
+    local::register(runtime, maximum, local_only)
 }
 
 pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
-    MAX_TRANSFER_CHUNK_BYTES.min(max_message_bytes.saturating_sub(32))
+    use dokime_contract::operations::content as wire;
+    // Reserve Both The Wire Envelope And The Retained Stream Frame.
+    let chunk = wire::ArtifactChunk {
+        offset: u64::MAX,
+        data: Vec::new(),
+    };
+    let overhead = [
+        transfer_frame_memory(wire::ArtifactFrame {
+            payload: Some(wire::ArtifactFramePayload::Chunk(chunk.clone())),
+        }),
+        transfer_frame_memory(wire::UploadArtifactFrame {
+            payload: Some(wire::UploadArtifactFramePayload::Chunk(chunk.clone())),
+        }),
+        transfer_frame_memory(wire::CycleBundleFrame {
+            payload: Some(wire::CycleBundleFramePayload::Chunk(chunk.clone())),
+        }),
+        transfer_frame_memory(wire::ExecutionFileDownloadFrame {
+            payload: Some(wire::ExecutionFileDownloadFramePayload::Chunk(
+                chunk.clone(),
+            )),
+        }),
+        transfer_frame_memory(wire::ExecutionFileFollowFrame {
+            payload: Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk.clone())),
+        }),
+        transfer_frame_memory(wire::AppearanceAssetFrame {
+            payload: Some(wire::AppearanceAssetFramePayload::Chunk(chunk.clone())),
+        }),
+    ]
+    .into_iter()
+    .fold(32, usize::max);
+    MAX_TRANSFER_CHUNK_BYTES.min(max_message_bytes.saturating_sub(overhead))
 }
 
 pub(super) fn metadata_memory(record: &ArtifactRecord) -> Result<usize, Status> {
@@ -145,6 +175,15 @@ pub(super) fn metadata(
 }
 
 /* === Private Functions === */
+fn transfer_frame_memory<T: harmos::Protobuf>(frame: T) -> usize {
+    let retained = std::mem::size_of::<T>()
+        .saturating_add(std::mem::size_of::<harmos::operations::StreamItem<T>>());
+    let decoded = T::decoding_memory(&frame.encode_to_vec())
+        .unwrap_or(usize::MAX)
+        .saturating_add(std::mem::size_of::<harmos::grpc::InputEnvelope<T, T>>());
+    retained.max(decoded)
+}
+
 fn artifact_digest(record: &ArtifactRecord) -> Result<&str, Status> {
     record
         .sha256

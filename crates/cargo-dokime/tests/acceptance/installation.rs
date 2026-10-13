@@ -129,8 +129,8 @@ fn explicit_backend_paths_search_hits_and_missing_paths() {
     let installed = installation();
     let backend = installed
         .path()
-        .join(format!("dokime{}", std::env::consts::EXE_SUFFIX));
-    for selected in [&backend, Path::new("dokime")] {
+        .join(format!("dokime-server{}", std::env::consts::EXE_SUFFIX));
+    for selected in [&backend, Path::new("dokime-server")] {
         let output = cargo_dokime(installed.path())
             .env("PATH", installed.path())
             .args(["version", "--json", "--dokime"])

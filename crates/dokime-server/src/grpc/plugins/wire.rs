@@ -122,7 +122,7 @@ pub(super) fn disclosure(entry: &PluginEntry, limit: usize) -> Result<(), Status
 }
 
 pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Status> {
-    if entry.metadata.is_some() && disclosure(&entry, limit).is_err() {
+    if entry.metadata.is_some() && disclosure(entry, limit).is_err() {
         entry.metadata = None;
         entry.error = Some("Verified permission metadata exceeds response budget; consent is unavailable. Installation identity and state remain accessible.".into());
     }

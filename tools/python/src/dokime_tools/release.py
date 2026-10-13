@@ -18,7 +18,9 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import time
+from functools import cache
 from pathlib import Path
 
 # Third Party Imports
@@ -60,6 +62,7 @@ def inputs(directory: Path) -> dict:
     if output(["git", "status", "--porcelain", "--untracked-files=normal"]).strip():
         tree = None
     graph = []
+    overrides = []
     if (directory / "Cargo.toml").is_file():
         metadata = json.loads(
             output(
@@ -71,11 +74,14 @@ def inputs(directory: Path) -> dict:
             source = package["source"]
             if source is None:
                 manifest = Path(package["manifest_path"]).resolve()
-                if not manifest.is_relative_to(directory.resolve()):
-                    raise _policy.ToolError(
-                        f"unpublished local dependency override: {package['name']}"
+                if manifest.is_relative_to(directory.resolve()):
+                    relative = manifest.relative_to(directory.resolve()).as_posix()
+                    source = "path:" + relative
+                else:
+                    overrides.append(
+                        {"package": package["name"], "manifest": manifest.as_posix()}
                     )
-                source = "path:" + manifest.relative_to(directory.resolve()).as_posix()
+                    source = "local:" + manifest.as_posix()
             identities[package["id"]] = (
                 f"{package['name']}@{package['version']}|{source}"
             )
@@ -106,12 +112,32 @@ def inputs(directory: Path) -> dict:
         name: os.environ.get(name)
         for name in ("RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS", "CARGO_BUILD_TARGET")
     }
-    return {
+    identity = {
         "source_tree": tree,
         "graph": sorted(graph, key=lambda node: node["package"]),
         "locks": locks,
         "build_environment": environment,
     }
+
+    # Local Overrides Mark The Identity Unpublishable; CI Refuses Them Outright.
+    if overrides:
+        overrides.sort(key=lambda override: (override["package"], override["manifest"]))
+        if continuous_integration():
+            names = ", ".join(override["package"] for override in overrides)
+            raise _policy.ToolError(f"unpublished local dependency override: {names}")
+        _warn_overrides(
+            tuple((item["package"], item["manifest"]) for item in overrides)
+        )
+        identity["local_overrides"] = overrides
+    return identity
+
+
+def continuous_integration() -> bool:
+    """Whether a CI runner executes this process."""
+    return any(
+        os.environ.get(name, "").lower() in {"1", "true"}
+        for name in ("CI", "GITHUB_ACTIONS", "GITLAB_CI")
+    )
 
 
 def tag_version(tag: str) -> str:
@@ -523,6 +549,18 @@ def run(directory: Path, verb: str) -> None:
 
 
 # === Private Functions === #
+
+
+@cache
+def _warn_overrides(overrides: tuple[tuple[str, str], ...]) -> None:
+    """Warn once per process that local overrides make evidence unpublishable."""
+    listing = "\n".join(f"  {package}: {manifest}" for package, manifest in overrides)
+    print(
+        "warning: unpublished local dependency overrides; local evidence is not "
+        f"publishable and CI refuses this tree:\n{listing}",
+        file=sys.stderr,
+    )
+
 
 # === Entry Point === #
 

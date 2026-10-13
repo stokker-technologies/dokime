@@ -81,6 +81,22 @@ struct Fields {
     fields: Vec<(String, String)>,
 }
 
+struct BoundedText(String);
+
+impl std::fmt::Write for BoundedText {
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        let remaining = MAX_MESSAGE_BYTES.saturating_sub(self.0.len());
+        if text.len() <= remaining {
+            self.0.push_str(text);
+            return Ok(());
+        }
+        if remaining >= TRUNCATED.len() {
+            self.0.push_str(&truncated(text, remaining));
+        }
+        Err(std::fmt::Error)
+    }
+}
+
 /* === Enums === */
 enum Role {
     Message,
@@ -123,7 +139,7 @@ where
         values.record(&mut fields);
         let mut extensions = span.extensions_mut();
         match extensions.get_mut::<SpanScope>() {
-            Some(scope) => scope.merge(fields.scope),
+            Some(scope) => scope.update(fields.scope),
             None => extensions.insert(fields.scope),
         }
     }
@@ -151,7 +167,7 @@ where
         self.journal.record(Event {
             time: fields.time.unwrap_or_else(OffsetDateTime::now_utc),
             level: *metadata.level(),
-            target: metadata.target().to_owned(),
+            target: truncated(&scrubbed(metadata.target()), MAX_VALUE_BYTES),
             message: truncated(&scrubbed(&message), MAX_MESSAGE_BYTES),
             plugin: fields.scope.plugin,
             cycle: fields.scope.cycle,
@@ -162,6 +178,18 @@ where
 }
 
 impl SpanScope {
+    fn update(&mut self, other: SpanScope) {
+        if other.plugin.is_some() {
+            self.plugin = other.plugin;
+        }
+        if other.cycle.is_some() {
+            self.cycle = other.cycle;
+        }
+        if other.execution.is_some() {
+            self.execution = other.execution;
+        }
+    }
+
     /// Keeps every id already known and takes the rest from `other`.
     fn merge(&mut self, other: SpanScope) {
         self.plugin = self.plugin.take().or(other.plugin);
@@ -176,16 +204,18 @@ impl Fields {
         match Role::of(name) {
             Role::Message => self.message = Some(value),
             Role::Line => self.line = Some(value),
-            Role::Timestamp => match OffsetDateTime::parse(
-                &value,
-                &time::format_description::well_known::Rfc3339,
-            ) {
-                Ok(time) => self.time = Some(time),
-                Err(_) => self.other(name, value),
-            },
-            Role::Plugin => self.scope.plugin = Some(value),
-            Role::Cycle => self.scope.cycle = Some(value),
-            Role::Execution => self.scope.execution = Some(value),
+            Role::Timestamp => {
+                match OffsetDateTime::parse(&value, &time::format_description::well_known::Rfc3339)
+                {
+                    Ok(time) => self.time = Some(time),
+                    Err(_) => self.other(name, value),
+                }
+            }
+            Role::Plugin => self.scope.plugin = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES)),
+            Role::Cycle => self.scope.cycle = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES)),
+            Role::Execution => {
+                self.scope.execution = Some(truncated(&scrubbed(&value), MAX_VALUE_BYTES))
+            }
             Role::Other => self.other(name, value),
         }
     }
@@ -199,14 +229,13 @@ impl Fields {
         } else {
             truncated(&scrubbed(&value), MAX_VALUE_BYTES)
         };
-        self.fields
-            .push((truncated(name, MAX_NAME_BYTES), value));
+        self.fields.push((truncated(name, MAX_NAME_BYTES), value));
     }
 }
 
 impl Visit for Fields {
     fn record_str(&mut self, field: &Field, value: &str) {
-        self.put(field, value.to_owned());
+        self.put(field, truncated(value, MAX_MESSAGE_BYTES));
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
@@ -226,11 +255,14 @@ impl Visit for Fields {
     }
 
     fn record_error(&mut self, field: &Field, value: &(dyn std::error::Error + 'static)) {
-        self.put(field, value.to_string());
+        self.record_debug(field, &format_args!("{value}"));
     }
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-        self.put(field, format!("{value:?}"));
+        use std::fmt::Write as _;
+        let mut value_text = BoundedText(String::new());
+        let _ = write!(value_text, "{value:?}");
+        self.put(field, value_text.0);
     }
 }
 
@@ -258,7 +290,9 @@ pub fn scrubbed(text: &str) -> String {
     while let Some(found) = folded[search..].find(BEARER) {
         let start = search + found + BEARER.len();
         let end = text[start..]
-            .find(|character: char| character.is_whitespace() || matches!(character, '"' | '\'' | ',' | ';'))
+            .find(|character: char| {
+                character.is_whitespace() || matches!(character, '"' | '\'' | ',' | ';')
+            })
             .map_or(text.len(), |offset| start + offset);
         if end > start {
             result.push_str(&text[copied..start]);
@@ -268,10 +302,59 @@ pub fn scrubbed(text: &str) -> String {
         search = end.max(start);
     }
     result.push_str(&text[copied..]);
-    result
+    redaction::text(&secret_assignments(&result))
 }
 
 /* === Private Functions === */
+fn secret_assignments(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut copied = 0;
+    for (delimiter, character) in text.char_indices() {
+        if delimiter < copied || !matches!(character, ':' | '=') {
+            continue;
+        }
+        let key_end = text[..delimiter].trim_end_matches(['\"', '\'']).len();
+        let key_start = text[..key_end]
+            .rfind(|character: char| {
+                !character.is_ascii_alphanumeric() && !matches!(character, '_' | '-')
+            })
+            .map_or(0, |position| {
+                position + text[position..].chars().next().map_or(0, char::len_utf8)
+            });
+        if !redaction::is_secret_name(&text[key_start..key_end]) {
+            continue;
+        }
+        let value = &text[delimiter + 1..];
+        let trimmed = value.trim_start();
+        let start = text.len() - trimmed.len();
+        let (start, end) = match trimmed.chars().next() {
+            Some(quote @ ('\"' | '\'')) => {
+                let start = start + 1;
+                let end = text[start..]
+                    .find(quote)
+                    .map_or(text.len(), |offset| start + offset);
+                (start, end)
+            }
+            _ => {
+                let end = trimmed
+                    .find(|character: char| {
+                        character.is_whitespace()
+                            || matches!(character, ',' | ';' | '&' | '}' | ']')
+                    })
+                    .map_or(text.len(), |offset| start + offset);
+                (start, end)
+            }
+        };
+        if end > start {
+            result.push_str(&text[copied..start]);
+            result.push_str(redaction::REDACTED);
+            copied = end;
+        }
+    }
+    result.push_str(&text[copied..]);
+    result
+}
+
 fn truncated(text: &str, limit: usize) -> String {
     if text.len() <= limit {
         return text.to_owned();

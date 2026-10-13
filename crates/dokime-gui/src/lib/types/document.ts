@@ -134,7 +134,7 @@ export type DocumentViewPlot = {
   x_axis?: DocumentPlotAxisKind | null;
   /** Displayed points; absent or `null` is the host default, `0` keeps every sample. */
   display_points?: number | null;
-  /** Reduction technique; absent is the host default (`lttb`). */
+  /** Reduction technique; absent is the host default (`auto`). */
   downsample?: DocumentDownsampleTechnique | null;
 };
 

@@ -50,7 +50,7 @@ import { recordClockLabel, recordLevelVariant } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type ConsoleLevel, type ConsoleScope, useUiStore } from "@/stores/ui-store";
-import { useConsoleRecords, useInstanceLogs } from "./console-records";
+import { useConsoleRecords } from "./console-records";
 
 /* === Types === */
 
@@ -99,9 +99,6 @@ const SCOPE_LABEL: Record<ConsoleScope, string> = {
   execution: "Execution",
   instance: "Instance",
 };
-
-/** Instance logs need a backend stream this backend does not serve. */
-const INSTANCE_UNAVAILABLE = "Instance logs are not available on this backend.";
 
 const MIN_HEIGHT = 120;
 const MAX_HEIGHT = 900;
@@ -159,23 +156,26 @@ function LiveConsole({
   const drawer = useUiStore((state) => state.console);
   const setConsoleState = useUiStore((state) => state.setConsoleState);
   const [filter, setFilter] = useState("");
-  const [clearedBefore, setClearedBefore] = useState(0);
 
   const scope = resolvedScope(drawer.scope, cycleId, executionId);
   const streamed = useConsoleRecords({
     cycleId: scope === "instance" ? null : cycleId,
-    enabled: drawer.open && scope !== "instance",
+    enabled: drawer.open,
     executionId: scope === "execution" ? executionId : null,
-  });
-  /* Instance scope is a different subscription, not a different filter: the
-     backend's own log arrives through `Backend.WatchLogs` with the level as
-     the stream's threshold. */
-  const instance = useInstanceLogs({
-    enabled: drawer.open && scope === "instance",
     level: drawer.level,
   });
-  const streamedRows = scope === "instance" ? instance.records : streamed;
-  const records = useMemo(() => streamedRows.slice(clearedBefore), [clearedBefore, streamedRows]);
+  const [clearedThrough, setClearedThrough] = useState<string | null>(null);
+  const records = useMemo(() => {
+    if (!clearedThrough) return streamed.records;
+    const sequence = BigInt(clearedThrough.slice("trace-".length));
+    return streamed.records.filter(
+      (record) => BigInt(record.record_id.slice("trace-".length)) > sequence,
+    );
+  }, [clearedThrough, streamed.records]);
+
+  useEffect(() => {
+    if (streamed.records.length === 0) setClearedThrough(null);
+  }, [streamed.records]);
   const rows = useMemo(
     () => visibleConsoleRecords(records, drawer.level, filter),
     [drawer.level, filter, records],
@@ -257,9 +257,9 @@ function LiveConsole({
         </span>
 
         <Button
-          onClick={() => setClearedBefore(streamedRows.length)}
+          onClick={() => setClearedThrough(streamed.records.at(-1)?.record_id ?? null)}
           size="sm"
-          title="Clear the rows shown here; the backend keeps its records."
+          title="Clear the rows shown here; the backend retains its trace history."
           variant="outline"
         >
           <Eraser data-icon="inline-start" />
@@ -271,23 +271,22 @@ function LiveConsole({
         </Button>
       </div>
 
-      {scope === "instance" && !instance.supported ? (
-        <p className="px-[var(--shell-inset)] py-4 text-sm text-muted-foreground">
-          {INSTANCE_UNAVAILABLE}
-        </p>
-      ) : (
-        <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-          {/* What the replay window did not reach is stated, not hidden. */}
-          {scope === "instance" && instance.dropped > 0 ? (
-            <p className="px-[var(--shell-inset)] py-1 font-mono text-xs text-muted-foreground">
-              {instance.dropped} older {instance.dropped === 1 ? "line" : "lines"} dropped
+      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
+        <div>
+          {streamed.error ? (
+            <p role="status" className="px-[var(--shell-inset)] py-1 text-xs text-muted-foreground">
+              {streamed.error}
             </p>
-          ) : (
-            <span />
-          )}
-          <RecordWindow follow={drawer.follow} rows={rows} />
+          ) : null}
+          {streamed.dropped > 0n ? (
+            <p className="px-[var(--shell-inset)] py-1 font-mono text-xs text-muted-foreground">
+              {streamed.dropped.toString()} older {streamed.dropped === 1n ? "event" : "events"}{" "}
+              dropped
+            </p>
+          ) : null}
         </div>
-      )}
+        <RecordWindow follow={drawer.follow} rows={rows} />
+      </div>
     </section>
   );
 }
@@ -344,20 +343,23 @@ function RecordWindow({ follow, rows }: { follow: boolean; rows: HubRecord[] }) 
   const viewport = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(0);
+  const populated = rows.length > 0;
+  const tail = rows.at(-1)?.record_id;
 
   useLayoutEffect(() => {
+    if (!populated) return undefined;
     const node = viewport.current;
     if (!node) return undefined;
     const observer = new ResizeObserver(() => setHeight(node.clientHeight));
     observer.observe(node);
     setHeight(node.clientHeight);
     return () => observer.disconnect();
-  }, []);
+  }, [populated]);
 
   useLayoutEffect(() => {
     const node = viewport.current;
-    if (node && follow) node.scrollTop = node.scrollHeight;
-  }, [follow]);
+    if (node && follow && tail) node.scrollTop = node.scrollHeight;
+  }, [follow, tail]);
 
   const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
   const last = Math.min(rows.length, Math.ceil((scrollTop + height) / ROW_HEIGHT) + OVERSCAN);
@@ -394,6 +396,10 @@ function RecordWindow({ follow, rows }: { follow: boolean; rows: HubRecord[] }) 
 function ConsoleRow({ record }: { record: HubRecord }) {
   const [expanded, setExpanded] = useState(false);
   const level = record.level;
+  const label =
+    typeof record.details.trace_level === "string"
+      ? record.details.trace_level
+      : LEVEL_LABEL[level];
 
   return (
     <button
@@ -410,7 +416,7 @@ function ConsoleRow({ record }: { record: HubRecord }) {
         className="h-4 justify-self-start px-1 text-[0.65rem]"
         variant={recordLevelVariant(level)}
       >
-        {LEVEL_LABEL[level]}
+        {label}
       </Badge>
       <span className="truncate text-muted-foreground">{record.source}</span>
       <span className={cn("min-w-0", expanded ? "break-words whitespace-pre-wrap" : "truncate")}>
@@ -477,7 +483,7 @@ function scopeDisabled(
   cycleId: string | null,
   executionId: string | null,
 ): boolean {
-  if (scope === "instance") return true;
+  if (scope === "instance") return false;
   if (scope === "cycle") return !cycleId;
   return !executionId;
 }

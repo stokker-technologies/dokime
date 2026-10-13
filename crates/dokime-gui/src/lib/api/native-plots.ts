@@ -15,10 +15,8 @@ import { create } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 
-import * as rpc from "@/lib/rpc/generated/client";
-import * as plotWire from "../../../.generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
-import type { Row3 as WatchFrame } from "../../../.generated/dokime/v1/PlotsMessages/Watch/messages_pb";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   DocumentAxisScale,
@@ -45,6 +43,8 @@ import type {
   RecordScope,
   TelemetrySampleRecord,
 } from "@/lib/types";
+import * as plotWire from "../../../.generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
+import type { Row3 as WatchFrame } from "../../../.generated/dokime/v1/PlotsMessages/Watch/messages_pb";
 import { mapParameter } from "./native-catalog";
 import {
   jsonToNativeValue,
@@ -60,39 +60,34 @@ import {
 
 /* === Canonical Types === */
 
-type DataExpression = Wire<plotWire.Row8>;
-type DataTransform = Wire<plotWire.Row43>;
-type NativeAnalysisComputation = Wire<plotWire.Row58>;
-type NativeAnalysisDefinition = Wire<plotWire.Row93>;
-type NativePlotAnalysis = Wire<plotWire.Row57>;
-type NativePlotCartesianFrame = Wire<plotWire.Row54>;
-type NativePlotMarker = Wire<plotWire.Row55>;
-type NativePlotPayload = Wire<plotWire.Row16>;
-type NativePlotPayloadDiagnostics = Wire<plotWire.Row17>;
-type NativePlotPoint = Wire<plotWire.Row87>;
-type NativePlotSeries = Wire<plotWire.Row53>;
-type PlotCursor = Wire<plotWire.Row10>;
-type PlotEnvelope = Wire<plotWire.Row4>;
 type PlotRequest = Wire<plotWire.Row3>;
-type PlotType = Wire<plotWire.Row5>;
-type AxisScale = Wire<plotWire.Row6>;
-type DownsampleTechnique = Wire<plotWire.Row11>;
-type FilterOperator = Wire<plotWire.Row40>;
-type PlotCartesianMode = Wire<plotWire.Row88>;
+type PlotEnvelope = Wire<Awaited<ReturnType<typeof rpc.plotsQuerySnapshots>>>["envelopes"][number];
+type DataExpression = NonNullable<PlotRequest["xExpression"]>;
+type DataTransform = DataExpression["transforms"][number];
+type NativePlotPayload = NonNullable<PlotEnvelope["payload"]>;
+type NativeAnalysisComputation = NonNullable<NativePlotPayload["computed"]>;
+type NativeAnalysisDefinition = NonNullable<NativeAnalysisComputation["definition"]>;
+type NativePlotAnalysis = NonNullable<NativePlotPayload["analysis"]>;
+type NativePlotCartesianFrame = NonNullable<NativePlotPayload["cartesian"]>;
+type NativePlotMarker = NativePlotPayload["markers"][number];
+type NativePlotPayloadDiagnostics = NonNullable<PlotEnvelope["diagnostics"]>;
+type NativePlotSeries = NativePlotPayload["series"][number];
+type NativePlotPoint = NativePlotSeries["points"][number];
+type PlotCursor = NonNullable<PlotEnvelope["cursor"]>;
+type PlotType = NonNullable<PlotRequest["plotType"]>;
+type AxisScale = NonNullable<PlotRequest["xScale"]>;
+type DownsampleTechnique = NonNullable<PlotRequest["technique"]>;
+type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
+type PlotCartesianMode = NonNullable<NativePlotCartesianFrame["mode"]>;
 const AnalysisSelectionSchema = plotWire.Row15Schema;
-const ArtifactDataSourceSchema = plotWire.Row101Schema;
 const DataExpressionSchema = plotWire.Row8Schema;
 const DataTransformSchema = plotWire.Row43Schema;
-const DimensionDataSourceSchema = plotWire.Row99Schema;
-const ParameterDataSourceSchema = plotWire.Row98Schema;
 const PlotCursorSchema = plotWire.Row10Schema;
 const PlotFftOptionsSchema = plotWire.Row12Schema;
 const PlotFilterSchema = plotWire.Row7Schema;
 const PlotHistogramOptionsSchema = plotWire.Row14Schema;
 const PlotIntervalOptionsSchema = plotWire.Row13Schema;
 const PlotRequestSchema = plotWire.Row3Schema;
-const RecordDataSourceSchema = plotWire.Row100Schema;
-const TelemetryDataSourceSchema = plotWire.Row97Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamKind = PlotStreamFrame["kind"];
 type NativeTelemetrySample = Wire<
@@ -132,7 +127,7 @@ export type PlotPayloadRequestInput = {
   zField?: string | null;
   unit?: string | null;
   maxPoints?: number;
-  /** Absent is the host default (`lttb`). */
+  /** Absent is the host default (`auto`). */
   technique?: DocumentDownsampleTechnique | null;
   windowS?: number | null;
   scope?: RecordScope | null;
@@ -515,46 +510,46 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
         return {
           case: "Telemetry",
           value: {
-            field0: create(TelemetryDataSourceSchema, {
+            field0: {
               stream: requiredText(source.stream, "telemetry expression stream"),
               field: requiredText(source.field, "telemetry expression field"),
-            }),
+            },
           },
         };
       case "parameter":
         return {
           case: "Parameter",
           value: {
-            field0: create(ParameterDataSourceSchema, {
+            field0: {
               name: requiredText(source.name, "parameter name"),
-            }),
+            },
           },
         };
       case "dimension":
         return {
           case: "Dimension",
           value: {
-            field0: create(DimensionDataSourceSchema, {
+            field0: {
               name: requiredText(source.name, "dimension name"),
-            }),
+            },
           },
         };
       case "record":
         return {
           case: "Record",
           value: {
-            field0: create(RecordDataSourceSchema, {
+            field0: {
               recordType: requiredText(source.record_type, "record type"),
-            }),
+            },
           },
         };
       case "artifact":
         return {
           case: "Artifact",
           value: {
-            field0: create(ArtifactDataSourceSchema, {
+            field0: {
               artifact: requiredText(source.artifact, "artifact"),
-            }),
+            },
           },
         };
       default:
@@ -704,8 +699,10 @@ function downsampleTechnique(value?: DocumentDownsampleTechnique | null): Downsa
       return { HarmosVariant: { case: "Raw" as const, value: {} } };
     case "min_max":
       return { HarmosVariant: { case: "MinMax" as const, value: {} } };
-    default:
+    case "lttb":
       return { HarmosVariant: { case: "Lttb" as const, value: {} } };
+    default:
+      return { HarmosVariant: { case: "Auto" as const, value: {} } };
   }
 }
 

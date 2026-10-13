@@ -31,6 +31,11 @@ command = [
   "--test-timeout={timeout_ms}",
   "crates/dokime-gui/src-tauri/tests/rpc/fixtures/generator.test.mjs",
   "crates/dokime-gui/tests/execution-file-paging.test.mjs",
+  "crates/dokime-gui/src-tauri/tests/plots/reduce.test.mjs",
+  "crates/dokime-gui/src-tauri/tests/plots/viewport.test.mjs",
+  "crates/dokime-gui/tests/prompt-banner.test.mjs",
+  "crates/dokime-gui/tests/plot-auto.test.mjs",
+  "crates/dokime-gui/tests/execution-list.test.mjs",
 ]
 
 [testing.javascript.system]

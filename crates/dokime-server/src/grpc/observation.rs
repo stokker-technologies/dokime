@@ -188,7 +188,7 @@ impl Operation for Runtime {
                 .await
                 .map_err(stream_failure)?;
             let Some(next) = watch.next().await else {
-                return Ok((()).into());
+                return Ok(().into());
             };
             snapshot = next;
             resynchronized = false;
@@ -230,7 +230,7 @@ impl Operation for Progress {
                 previous = current.cloned();
             }
             let Some(next) = watch.next().await else {
-                return Ok((()).into());
+                return Ok(().into());
             };
             snapshot = next;
             resynchronized = false;

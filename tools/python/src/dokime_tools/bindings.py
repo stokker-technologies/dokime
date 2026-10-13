@@ -184,6 +184,24 @@ def _normalize(generated: dict[Path, bytes], source: Path, root: Path) -> None:
         cwd=root,
         check=True,
     )
+    stubs = [str(source / path) for path in selected if path.suffix == ".pyi"]
+    if stubs:
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "ruff",
+                "check",
+                "--select",
+                "F401",
+                "--fix",
+                "--config",
+                configuration,
+                *stubs,
+            ],
+            cwd=root,
+            check=True,
+        )
     subprocess.run(
         [sys.executable, "-m", "ruff", "format", "--config", configuration, *paths],
         cwd=root,

@@ -176,15 +176,15 @@ pub(super) fn frames(
                 } else {
                     None
                 };
-                Wire::Owner(
+                Wire::Owner(Box::new(
                     dokime_contract::operations::documents::DocumentOwnerReference {
-                        kind: kind,
+                        kind,
                         plot_id: plot
                             .as_ref()
                             .and_then(|plot| plot.request.as_ref()?.plot_id.clone()),
                         plot,
                     },
-                )
+                ))
             }
         };
         output.push(Frame::Card(
@@ -286,9 +286,9 @@ pub(super) fn frames(
                 )
             }
             CardBindingResult::Plot { descriptor } => {
-                dokime_contract::operations::documents::DocumentBindingResult::Plot(
+                dokime_contract::operations::documents::DocumentBindingResult::Plot(Box::new(
                     plots::document_plot_definition(descriptor)?,
-                )
+                ))
             }
         };
         output.push(Frame::Binding(
@@ -435,7 +435,7 @@ fn layout_nodes(
         *ordinal += 1;
         let (node, children) = match node {
             native::DocumentNode::Section(section) => (
-                dokime_contract::operations::documents::DocumentLayoutNodeNode::Section(
+                dokime_contract::operations::documents::DocumentLayoutNodeNode::Section(Box::new(
                     dokime_contract::operations::documents::DocumentSection {
                         node_id: section.node_id.to_string(),
                         metadata: Some(canonical::metadata(&section.metadata)?),
@@ -445,7 +445,7 @@ fn layout_nodes(
                             .map(super::super::history::document::canonical::repeat)
                             .transpose()?,
                     },
-                ),
+                )),
                 section.children,
             ),
             native::DocumentNode::Card(card) => (

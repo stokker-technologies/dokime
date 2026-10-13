@@ -465,7 +465,9 @@ can also add parameter-based reference bands; the
 a target-temperature band and event markers.
 
 Export the captured result as a **self-contained report** to share the plots,
-verdicts, and context without requiring access to the testbench.
+verdicts, and context without requiring access to the testbench. Completed cycles also
+export a ZIP containing the sealed reports, frozen documents, notes, records,
+samples, and output files, with a SHA-256 manifest for the included evidence.
 
 ## Cargo Features
 

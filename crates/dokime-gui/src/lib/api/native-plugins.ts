@@ -12,8 +12,8 @@
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 import type { NativeContentSession } from "./native-content";
@@ -417,6 +417,7 @@ function mapAdmittedPlugin(artifact: AdmittedPlugin): RuntimeInstalledPluginReco
     projectedOwner = {
       kind: "bundle",
       package: bundle.package,
+      path: bundle.path ?? null,
       installation: bundle.installationId ?? null,
       content_digest: bundle.contentDigest,
     };

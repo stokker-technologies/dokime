@@ -41,7 +41,7 @@ const watchdog = setTimeout(() => {
   console.error("execution matrix timed out");
   process.exit(1);
 }, 35000);
-const harness = openHarness();
+const harness = await openHarness();
 let releaseConnection;
 try {
   const contract = JSON.parse(readFileSync(process.argv[2], "utf8"));

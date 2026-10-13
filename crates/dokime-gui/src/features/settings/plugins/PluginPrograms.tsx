@@ -45,7 +45,7 @@ export function programSource(program: RuntimeInstalledPluginRecord): string {
     owner?.kind === "host"
       ? "Dokime Host"
       : owner?.kind === "bundle"
-        ? owner.package
+        ? (owner.path ?? owner.package)
         : owner?.kind === "embedded"
           ? "Embedded"
           : "Unclassified";

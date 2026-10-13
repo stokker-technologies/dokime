@@ -7,30 +7,13 @@
  * ***
  */
 
-/* The hub's own log, as console rows.
- *
- * `Backend.WatchLogs(min_level, replay_lines)` replays a bounded tail and then
- * follows it. The level the operator picked is the stream's `min_level`, so a
- * threshold is a narrower subscription rather than a client-side filter over
- * everything the backend could have sent; changing it re-opens the stream.
- * `dropped` is cumulative and counts the matching lines the client fell behind
- * on, which the drawer states rather than hides.
- *
- * `trace` has no `Severity` of its own — the projections the GUI draws start
- * at `debug` — so a trace frame arrives as the debug row it reads as, while
- * the subscription itself still asks for trace and below.
- */
-
 /* === Local Imports === */
-
-import { NativeApiUnsupportedError } from "@/lib/api/native-values";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { HubRecord, Severity } from "@/lib/types";
 
 /* === Constants === */
-
-const MIN_LEVEL: Record<InstanceLogLevel, LogLevel> = {
+const MIN_LEVEL: Record<TraceLevel, LogLevel> = {
   debug: { HarmosVariant: { case: "Debug", value: {} } },
   error: { HarmosVariant: { case: "Error", value: {} } },
   info: { HarmosVariant: { case: "Info", value: {} } },
@@ -39,60 +22,63 @@ const MIN_LEVEL: Record<InstanceLogLevel, LogLevel> = {
 };
 
 /* === Types === */
-
-type LogLevel = Parameters<typeof rpc.backendWatchLogs>[1]["minLevel"];
-
-/* === Types === */
-
-/** The levels the console offers, which is one more than a record carries. */
-export type InstanceLogLevel = "trace" | Severity;
-
-export type InstanceLogFrame = {
-  /** RFC3339. */
-  time: string;
-  level: Severity;
-  /** The emitting module, which reads as the row's source. */
-  target: string;
-  message: string;
-  fields: Record<string, string>;
-  /** Cumulative count of matching lines the client fell behind on. */
-  dropped: number;
+type Request = Parameters<typeof rpc.backendWatchTrace>[1];
+type LogLevel = Request["minLevel"];
+export type TraceLevel = "trace" | Severity;
+export type TraceSelection = { cycleId: string | null; executionId: string | null };
+export type TracePage = {
+  epoch: string;
+  records: HubRecord[];
+  dropped: bigint;
+  nextSequence: bigint;
 };
 
 /* === Public Functions === */
-
-/** Whether this client can subscribe to the backend's own log at all. */
-export function instanceLogsSupported(): boolean {
-  return typeof rpc.backendWatchLogs === "function";
-}
-
-export async function openInstanceLogStream(
+export async function openTraceStream(
   session: SessionIdentity,
-  request: { minLevel: InstanceLogLevel; replayLines?: number },
-): Promise<AsyncIterable<InstanceLogFrame> & { cancel: () => Promise<void> }> {
-  if (!instanceLogsSupported()) {
-    throw new NativeApiUnsupportedError(
-      "Watch instance logs",
-      "Backend.WatchLogs (not available on this backend)",
-    );
-  }
-  const reader = await rpc.backendWatchLogs(session, {
+  request: TraceSelection & { minLevel: TraceLevel; afterSequence: bigint; epoch?: string },
+): Promise<AsyncIterable<TracePage> & { cancel: () => Promise<void> }> {
+  const scope: Request["scope"] = request.executionId
+    ? { HarmosVariant: { case: "Execution", value: { field0: request.executionId } } }
+    : request.cycleId
+      ? { HarmosVariant: { case: "Cycle", value: { field0: request.cycleId } } }
+      : { HarmosVariant: { case: "Instance", value: {} } };
+  const reader = await rpc.backendWatchTrace(session, {
+    scope,
+    epoch: request.epoch,
     minLevel: MIN_LEVEL[request.minLevel],
-    ...(request.replayLines === undefined ? {} : { replayLines: request.replayLines }),
+    afterSequence: request.afterSequence,
+    maxEvents: 256,
+    maxBytes: 256 * 1024,
+    follow: true,
   });
   return {
     async *[Symbol.asyncIterator]() {
-      // One frame is consumed before the next is pulled: the stream reader
-      // acknowledges as it iterates, so there is never more than one
-      // outstanding pull.
-      for await (const frame of reader) {
+      // The Transport Checks Final Status And Pulls One Bounded Batch At A Time.
+      for await (const batch of reader) {
         yield {
-          dropped: Number(frame.dropped),
-          fields: Object.fromEntries(frame.fields.map(({ key, value }) => [key, value])),
-          level: logSeverity(frame.level),
-          message: frame.message,
-          target: frame.target,
-          time: frame.time ? timestampIso(frame.time) : "",
+          epoch: batch.epoch,
+          dropped: batch.dropped,
+          nextSequence: batch.nextSequence,
+          records: batch.events.map((event) => {
+            const level = logSeverity(event.level);
+            return {
+              details: {
+                ...Object.fromEntries(event.fields.map(({ key, value }) => [key, value])),
+                ...(event.pluginId ? { plugin: event.pluginId } : {}),
+                ...(event.cycleId ? { cycle: event.cycleId } : {}),
+                ...(event.executionId ? { execution: event.executionId } : {}),
+                trace_level: event.level?.HarmosVariant?.case ?? "Info",
+              },
+              display: { icon: "clock", tone: "neutral" },
+              level,
+              message: event.message,
+              record_id: `trace-${event.sequence}`,
+              record_type: "log",
+              source: event.target,
+              timestamp: event.time ? timestampIso(event.time) : "",
+            } as HubRecord;
+          }),
         };
       }
     },
@@ -100,23 +86,7 @@ export async function openInstanceLogStream(
   };
 }
 
-/** One log frame as the console row the drawer already draws. */
-export function instanceLogRecord(frame: InstanceLogFrame, sequence: number): HubRecord {
-  return {
-    details: frame.fields,
-    display: { icon: "activity", label: frame.level, tone: "neutral" },
-    level: frame.level,
-    message: frame.message,
-    record_id: `instance-log-${sequence}`,
-    record_type: "log",
-    source: frame.target,
-    timestamp: frame.time,
-  } as HubRecord;
-}
-
 /* === Private Functions === */
-
-/** Trace has no projection of its own; it reads as the debug row it is. */
 function logSeverity(level: LogLevel): Severity {
   switch (level?.HarmosVariant?.case) {
     case "Error":

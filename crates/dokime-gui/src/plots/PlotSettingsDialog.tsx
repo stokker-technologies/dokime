@@ -53,6 +53,7 @@ const MIN_DISPLAY_POINTS = 50;
 const DISPLAY_POINTS_STEP = 50;
 
 const TECHNIQUE_OPTIONS: Array<{ value: DocumentDownsampleTechnique; label: string }> = [
+  { value: "auto", label: "Auto" },
   { value: "lttb", label: "Largest Triangle (LTTB)" },
   { value: "min_max", label: "Min / Max Buckets" },
   { value: "raw", label: "Raw Samples" },
@@ -107,7 +108,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
     plot.display_points == null ? "" : String(plot.display_points),
   );
   const [technique, setTechnique] = useState<DocumentDownsampleTechnique>(
-    plot.downsample ?? "lttb",
+    plot.downsample ?? "auto",
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,7 +149,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             id={`${id}-points`}
             inputMode="numeric"
             max={NATIVE_PLOT_MAX_POINTS}
-            min={MIN_DISPLAY_POINTS}
+            min={0}
             onChange={(event) => setPointsRaw(event.target.value)}
             placeholder={`Default (${DEFAULT_PLOT_MAX_POINTS.toLocaleString()})`}
             step={DISPLAY_POINTS_STEP}
@@ -175,8 +176,8 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
 
         <p className="text-xs text-muted-foreground">
           {invalid
-            ? `Enter between ${MIN_DISPLAY_POINTS} and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, or leave empty for the default.`
-            : "Leave the points empty for the host default. Raw samples keep every retained point."}
+            ? `Enter between ${MIN_DISPLAY_POINTS} and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, use 0 for every sample, or leave empty for the default.`
+            : "Leave the points empty for the host default, or use 0 for every retained sample."}
         </p>
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -207,6 +208,7 @@ function parseDisplayPoints(raw: string): number | null | undefined {
   if (!text) return null;
   const value = Number(text);
   if (!Number.isSafeInteger(value)) return undefined;
-  if (value < MIN_DISPLAY_POINTS || value > NATIVE_PLOT_MAX_POINTS) return undefined;
+  if (value !== 0 && (value < MIN_DISPLAY_POINTS || value > NATIVE_PLOT_MAX_POINTS))
+    return undefined;
   return value;
 }

@@ -280,7 +280,7 @@ impl Operation for Watch {
                     .map_err(capture_error)?
                 {
                     Some(through) => reader.through = through,
-                    None => return Ok((()).into()),
+                    None => return Ok(().into()),
                 }
             }
             output

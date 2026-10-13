@@ -79,6 +79,8 @@ encode!(
 
 encode!(
     downsample_technique: DownsampleTechnique -> plots::DownsampleTechnique {
+        Unspecified,
+        Auto,
         Raw,
         MinMax,
         Lttb,
@@ -190,7 +192,8 @@ pub(in crate::grpc) fn downsample_technique_from_wire(
     value: plots::DownsampleTechnique,
 ) -> Result<Option<DownsampleTechnique>, tonic::Status> {
     Ok(match value {
-        plots::DownsampleTechnique::Unspecified => None,
+        plots::DownsampleTechnique::Unspecified => Some(DownsampleTechnique::Auto),
+        plots::DownsampleTechnique::Auto => Some(DownsampleTechnique::Auto),
         plots::DownsampleTechnique::Raw => Some(DownsampleTechnique::Raw),
         plots::DownsampleTechnique::MinMax => Some(DownsampleTechnique::MinMax),
         plots::DownsampleTechnique::Lttb => Some(DownsampleTechnique::Lttb),

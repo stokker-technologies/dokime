@@ -310,12 +310,18 @@ pub(crate) async fn stopping_cycle_execution() {
 }
 
 pub(crate) async fn stopping_ignored_run_settles() {
+    for mode in ["cancel_ignored", "cancel_signal_ignored"] {
+        check_ignored_stop(mode).await;
+    }
+}
+
+async fn check_ignored_stop(mode: &str) {
     // === Start A Run That Never Answers Its Stop === //
 
     let root = tempdir().unwrap();
     let mut runtime = fixture_runtime(root.path()).await;
     let handle = runtime.handle();
-    let suite = fixture_suite(&handle, &["cancel_ignored"]).await;
+    let suite = fixture_suite(&handle, &[mode]).await;
     let cycle_id = handle
         .start_cycle(
             CycleDefinition {
@@ -332,10 +338,21 @@ pub(crate) async fn stopping_ignored_run_settles() {
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
     wait_started(&handle).await;
+    let original = handle
+        .cycles()
+        .await
+        .into_iter()
+        .find(|cycle| cycle.test_cycle_id == cycle_id)
+        .unwrap()
+        .test_executions
+        .into_iter()
+        .next()
+        .unwrap();
 
     // === Stop And Wait Out The Settlement Budget === //
 
-    let stopped = tokio::time::timeout(Duration::from_secs(90), async {
+    let cancellation_started = std::time::Instant::now();
+    let stopped = tokio::time::timeout(Duration::from_secs(35), async {
         handle
             .stop_cycle(cycle_id.clone(), CommandContext::default())
             .await
@@ -350,7 +367,25 @@ pub(crate) async fn stopping_ignored_run_settles() {
         }
     })
     .await
-    .expect("a run that ignores its stop still settles within the host budget");
+    .expect("a run or signal that ignores its stop settles within the host budget");
+    assert!(cancellation_started.elapsed() >= Duration::from_secs(30));
+    assert!(cancellation_started.elapsed() < Duration::from_secs(35));
+    let settled = &stopped.test_executions[0];
+    assert_eq!(settled.test_execution_id, original.test_execution_id);
+    assert_eq!(settled.scope, original.scope);
+    assert_eq!(settled.snapshot, original.snapshot);
+    assert_eq!(settled.steps[0].step_id, original.steps[0].step_id);
+    let execution_id = &settled.test_execution_id;
+    let log = handle
+        .execution_file_content(execution_id, "fixture.sidecar/stream.log".into(), 0, 4_096)
+        .await
+        .unwrap()
+        .expect("host settlement preserves the original execution log");
+    let content = String::from_utf8(log.bytes.clone()).unwrap();
+    assert!(
+        content.contains("the run did not answer its stop within 30 seconds"),
+        "{content}"
+    );
     handle
         .operations()
         .call_encoded("fixture-sidecar.release", Vec::new())

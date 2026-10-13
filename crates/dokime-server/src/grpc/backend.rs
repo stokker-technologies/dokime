@@ -93,7 +93,7 @@ impl Collector<'_> {
         };
 
         let mut parts = vec![
-            bundle::Part::json("backend/identity.json", identity_json(&self.identity)),
+            bundle::Part::json("backend/identity.json", identity_json(self.identity)),
             bundle::Part::json("backend/health.json", health_json(&self.health().await?)),
             bundle::Part::json(
                 "diagnostics/snapshot.json",

@@ -368,7 +368,7 @@ async fn verify_plugins(
             let admitted = frame.installed_plugins.iter().any(|artifact| {
                 artifact.enabled && artifact.plugin_id.as_str() == owner
                     && matches!(&artifact.owner,
-                        Some(dokime_app::state::PluginOwner::Bundle { package, content_digest, installation: None })
+                        Some(dokime_app::state::PluginOwner::Bundle { package, content_digest, installation: None, .. })
                         if package == &plugin.package && content_digest == &plugin.digest)
             });
             if !admitted {

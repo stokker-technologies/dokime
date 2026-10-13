@@ -261,6 +261,18 @@ impl Journal {
         max_events: usize,
         max_bytes: usize,
     ) -> Result<Page, Stale> {
+        self.read_until(scope, after, accept, max_events, max_bytes, u64::MAX)
+    }
+
+    pub fn read_until(
+        &self,
+        scope: &Scope,
+        after: u64,
+        accept: impl Fn(&Event) -> bool,
+        max_events: usize,
+        max_bytes: usize,
+        through: u64,
+    ) -> Result<Page, Stale> {
         let state = self.lock();
         if after > state.sequence {
             return Err(Stale {
@@ -269,6 +281,9 @@ impl Journal {
             });
         }
         let Some(ring) = state.ring(scope) else {
+            if after != 0 {
+                return Err(Stale { after, head: 0 });
+            }
             return Ok(Page {
                 events: Vec::new(),
                 missed: 0,
@@ -276,15 +291,24 @@ impl Journal {
             });
         };
 
+        let tail = ring.end().saturating_sub(1);
+        if after > tail
+            || (after != 0 && after < ring.base)
+            || (through != 0 && through < ring.base)
+        {
+            return Err(Stale { after, head: tail });
+        }
+
         // Count What Eviction Took Ahead Of The Cursor
         let wanted = after.max(ring.base) + 1;
-        let missed = ring.front.saturating_sub(wanted);
-        let mut sequence = wanted.max(ring.front);
+        let end = ring.end().min(through.saturating_add(1));
+        let missed = ring.front.min(end).saturating_sub(wanted);
+        let mut sequence = wanted.max(ring.front).min(end).max(after + 1);
 
         // Scan Forward Within The Page Bounds
         let mut events = Vec::new();
         let mut bytes = 0_usize;
-        while sequence < ring.end() && events.len() < max_events {
+        while sequence < end && events.len() < max_events {
             let event = &ring.entries[(sequence - ring.front) as usize];
             if accept(event) {
                 let size = event.bytes();
@@ -352,6 +376,13 @@ impl Ring {
 
     fn push(&mut self, event: &Arc<Event>, written: u64, events: usize, bytes: usize) {
         let size = event.bytes();
+        if events == 0 || size > bytes {
+            self.front = self.end() + 1;
+            self.entries.clear();
+            self.bytes = 0;
+            self.written = written;
+            return;
+        }
         while !self.entries.is_empty()
             && (self.entries.len() >= events || self.bytes.saturating_add(size) > bytes)
         {

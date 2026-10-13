@@ -423,7 +423,7 @@ export function plotRequestForDocumentPlot(
     // full-range window ship every retained raw sample (slow payload, slow
     // render) instead of a server-downsampled frame.
     maxPoints: displayPointBudget(plot.display_points),
-    technique: plot.downsample ?? "lttb",
+    technique: plot.downsample ?? "auto",
     windowS: options.windowS === undefined ? plot.live_window_s : options.windowS,
     scope: options.scope,
   };
@@ -608,12 +608,17 @@ function applyPlotStreamMessagesById(
         latestRevisionRef.current[plotId] = value;
       },
     } as MutableRefObject<number>;
-    next[plotId] = applyPlotStreamMessages(
-      next[plotId] ?? emptyLivePlotState(),
-      plotMessages,
-      latestForPlot,
-      techniques[plotId] ?? "lttb",
-    );
+    const previous = next[plotId] ?? emptyLivePlotState();
+    try {
+      next[plotId] = applyPlotStreamMessages(
+        previous,
+        plotMessages,
+        latestForPlot,
+        techniques[plotId] ?? "auto",
+      );
+    } catch (failure) {
+      next[plotId] = { ...previous, status: "error", error: errorMessage(failure) };
+    }
   });
 
   return next;
@@ -690,6 +695,11 @@ function retainCartesianSeries(
   rawCap: number,
 ): PlotCartesianFrame["series"][number] {
   const start = retainedStart(series.x, windowS, rawCap);
+  if (series.x.length - start > NATIVE_PLOT_MAX_POINTS) {
+    throw new Error(
+      "Raw plot exceeds the retained point limit; select a display budget or shorter window.",
+    );
+  }
   return start === 0 ? series : { x: series.x.slice(start), y: series.y.slice(start) };
 }
 
@@ -703,6 +713,11 @@ function retainPlotPoints(
     windowS,
     rawCap,
   );
+  if (points.length - start > NATIVE_PLOT_MAX_POINTS) {
+    throw new Error(
+      "Raw plot exceeds the retained point limit; select a display budget or shorter window.",
+    );
+  }
   return start === 0 ? points : points.slice(start);
 }
 
@@ -743,11 +758,11 @@ function plotPointBudget(...candidates: Array<number | null | undefined>): numbe
 
 /** Raw samples kept behind a budget; an unbudgeted plot keeps the host's own cap. */
 function rawRingCap(budget: number | null): number {
-  return budget === null ? NATIVE_PLOT_MAX_POINTS : budget * RAW_RING_FACTOR;
+  return budget === null ? 0 : Math.min(NATIVE_PLOT_MAX_POINTS, budget * RAW_RING_FACTOR);
 }
 
 function reduceTechnique(value: DocumentDownsampleTechnique | null | undefined): ReduceTechnique {
-  return value ?? "lttb";
+  return value ?? "auto";
 }
 
 function trimPlotMarkers(markers: PlotMarker[], windowS: number | null): PlotMarker[] {

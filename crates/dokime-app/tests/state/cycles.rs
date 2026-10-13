@@ -162,6 +162,7 @@ fn admitted() -> (RuntimeState, TestCycleId) {
     state.plugin_owners.insert(
         "fixture.plugin".into(),
         dokime_app::state::PluginOwner::Bundle {
+            path: "fixture.dokime".into(),
             package: "fixture".into(),
             installation: None,
             content_digest: "old".into(),
@@ -1958,11 +1959,65 @@ pub(crate) fn execution_controls_requests() {
         action: dokime_app::transactions::CycleControlAction::Stop,
         occurred_at: Timestamp::now_utc(),
     };
+    let mut sibling = state.executions[&id].clone();
+    sibling.test_execution_id = dokime::core::TestExecutionId::new();
+    sibling.scope = sibling
+        .scope
+        .with_test_execution(sibling.test_execution_id.clone());
+    let sibling_id = sibling.test_execution_id.clone();
+    state.executions.insert(sibling_id.clone(), sibling.clone());
+    state
+        .cycles
+        .get_mut(&cycle_id)
+        .unwrap()
+        .execution_ids
+        .push(sibling_id.clone());
+    state
+        .run_requests
+        .get_mut(&request_id)
+        .unwrap()
+        .pending
+        .push_back(sibling_id.clone());
+    let request_before = state.run_requests[&request_id].clone();
+    let lifecycle = state.cycles[&cycle_id].lifecycle;
+
+    control.check(&state).unwrap();
+    let projected = dokime_app::runtime::query::execution_controls(&state, &id).unwrap();
+    assert!(projected.can_stop);
+    assert!(!projected.can_pause && !projected.can_resume);
+    control.apply(&mut state);
+    let request = &state.run_requests[&request_id];
+    assert_eq!(request.stopped_execution_ids, vec![id.clone()]);
+    assert_eq!(request.summary, request_before.summary);
+    assert_eq!(request.pending, request_before.pending);
+    assert_eq!(state.cycles[&cycle_id].lifecycle, lifecycle);
+    assert_eq!(state.executions[&sibling_id], sibling);
     assert!(
         control.check(&state).is_err(),
-        "aggregate request cannot be redirected"
+        "a member cannot be stopped twice"
     );
-    assert!(dokime_app::runtime::query::execution_controls(&state, &id).is_none());
+    let stopped = dokime_app::runtime::query::execution_controls(&state, &id).unwrap();
+    assert!(stopped.stop_requested && !stopped.can_stop);
+    let sibling_controls =
+        dokime_app::runtime::query::execution_controls(&state, &sibling_id).unwrap();
+    assert!(sibling_controls.can_stop && !sibling_controls.stop_requested);
+    for action in [
+        dokime_app::transactions::CycleControlAction::Pause,
+        dokime_app::transactions::CycleControlAction::Resume,
+    ] {
+        control.action = action;
+        assert!(
+            control.check(&state).is_err(),
+            "aggregate pause and resume stay cycle-level"
+        );
+    }
+    control.action = dokime_app::transactions::CycleControlAction::Stop;
+    state
+        .run_requests
+        .get_mut(&request_id)
+        .unwrap()
+        .stopped_execution_ids
+        .clear();
     state
         .run_requests
         .get_mut(&request_id)

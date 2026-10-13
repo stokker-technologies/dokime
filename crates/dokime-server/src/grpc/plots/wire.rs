@@ -541,6 +541,31 @@ fn plot_cursor_wire(
 fn plot_payload(
     value: dokime_app::runtime::query::PlotPayload,
 ) -> Result<dokime_contract::operations::plots::PlotPayload, Status> {
+    let maximum = super::cursor::MAX_PLOT_POINTS as usize;
+    if value
+        .series
+        .iter()
+        .any(|series| series.points.len() > maximum)
+        || value.cartesian.as_ref().is_some_and(|frame| {
+            frame
+                .series
+                .iter()
+                .any(|series| series.x.len().max(series.y.len()) > maximum)
+        })
+        || value.computed.as_ref().is_some_and(|computed| {
+            computed.series.iter().any(|series| {
+                series
+                    .output
+                    .outputs
+                    .iter()
+                    .any(|output| output.axis.len().max(output.values.len()) > maximum)
+            })
+        })
+    {
+        return Err(Status::resource_exhausted(
+            "plot exceeds retained point limit",
+        ));
+    }
     let context = values(&value.context)?;
     let cartesian = value.cartesian.map(plot_cartesian).transpose()?;
     Ok(dokime_contract::operations::plots::PlotPayload {

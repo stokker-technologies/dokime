@@ -43,6 +43,7 @@ pub(crate) async fn inspection_separates_outputs() {
         root: _root,
         gate,
         mut owner,
+        service: _service,
         server,
         execution: client,
         cycle: id,

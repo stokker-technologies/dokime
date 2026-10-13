@@ -139,12 +139,12 @@ class Row15(_message.Message):
     def __init__(self, kind: _Optional[_Union[Row17, _Mapping]] = ...) -> None: ...
 
 class Row16(_message.Message):
-    __slots__ = ("Value", "Clear")
+    __slots__ = ("Value", "Clear_")
     VALUE_FIELD_NUMBER: _ClassVar[int]
-    CLEAR_FIELD_NUMBER: _ClassVar[int]
+    CLEAR__FIELD_NUMBER: _ClassVar[int]
     Value: Row18
-    Clear: Row19
-    def __init__(self, Value: _Optional[_Union[Row18, _Mapping]] = ..., Clear: _Optional[_Union[Row19, _Mapping]] = ...) -> None: ...
+    Clear_: Row19
+    def __init__(self, Value: _Optional[_Union[Row18, _Mapping]] = ..., Clear_: _Optional[_Union[Row19, _Mapping]] = ...) -> None: ...
 
 class Row17(_message.Message):
     __slots__ = ("Null", "Bool", "Integer", "Unsigned", "Number", "Text", "Datetime", "Array", "Object")

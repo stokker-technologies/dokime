@@ -715,19 +715,30 @@ pub(crate) async fn template_record_on() {
                     let mut owner = scope.clone();
                     owner.step_id = None;
                     owner.criterion_id = None;
-                    // The observer starts on the demand the run holds from
-                    // initialization, but its record travels on its own call:
-                    // it is filed in whichever pre-step phase is current when
-                    // it lands, never under a step.
-                    assert!(
-                        matches!(
-                            owner.origin,
-                            dokime::core::EvidenceOrigin::Initialization
-                                | dokime::core::EvidenceOrigin::Default
-                        ),
-                        "{:?}",
-                        owner.origin
-                    );
+                    // Subscription Delivery Uses The Execution Phase At Capture Time.
+                    assert!(scope.criterion_id.is_none());
+                    match &scope.origin {
+                        dokime::core::EvidenceOrigin::Step { attempt_id } => {
+                            let snapshot = handle.watch_state().latest();
+                            let current =
+                                &snapshot.state().executions[&execution.test_execution_id];
+                            let step_id = current
+                                .active_step_attempt
+                                .as_ref()
+                                .filter(|attempt| &attempt.attempt_id == attempt_id)
+                                .map(|attempt| &attempt.step_id)
+                                .or_else(|| {
+                                    current
+                                        .step_attempts
+                                        .iter()
+                                        .find(|attempt| &attempt.attempt_id == attempt_id)
+                                        .map(|attempt| &attempt.step_id)
+                                })
+                                .expect("captured origin names an actual execution attempt");
+                            assert_eq!(scope.step_id.as_ref(), Some(step_id));
+                        }
+                        _ => assert!(scope.step_id.is_none()),
+                    }
                     owner.origin = execution.scope.origin.clone();
                     assert_eq!(owner, execution.scope);
                     break (execution.test_execution_id.clone(), captured.clone());

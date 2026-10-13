@@ -648,7 +648,7 @@ fn discovery_refuses_precedence() {
     let path = fixture.path().join("path");
     std::fs::create_dir_all(&home).unwrap();
     std::fs::create_dir_all(&path).unwrap();
-    let name = format!("dokime{}", std::env::consts::EXE_SUFFIX);
+    let name = format!("dokime-server{}", std::env::consts::EXE_SUFFIX);
     let bundled = fixture.path().join(&name);
     let in_home = home.join(&name);
     let on_path = path.join(&name);

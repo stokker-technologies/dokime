@@ -32,7 +32,7 @@ pub mod traceability;
 pub use cycle::{
     ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy,
 };
-pub use documents::AddExecutionDocumentParts;
+pub use documents::{AddExecutionDocumentParts, UpdatePlotSettings};
 pub use evidence::{CloseRecordSubscriptions, PublishRecord, RecordHealth};
 pub use execution_control::ControlExecution;
 pub use installation::{InstallPlugin, RemovePlugin};
@@ -96,6 +96,7 @@ pub enum Transactions {
     ControlExecution(ControlExecution),
     RecordExecutionTraceability(RecordExecutionTraceability),
     AddExecutionDocumentParts(AddExecutionDocumentParts),
+    UpdatePlotSettings(UpdatePlotSettings),
     RecordHealth(RecordHealth),
     PublishRecord(PublishRecord),
     CloseRecordSubscriptions(CloseRecordSubscriptions),

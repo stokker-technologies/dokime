@@ -60,10 +60,10 @@ import { useSidebarState } from "@/shell/use-sidebar-state";
 export type SidebarProps =
   | { live?: true }
   | {
-      caseId: string | undefined;
+      selection: { caseId?: string; executionId?: string };
       cycleId: string;
       live: false;
-      onSelectCase: (caseId: string | undefined) => void;
+      onSelect: (selection: { caseId?: string; executionId?: string }) => void;
     };
 
 type Destination = {
@@ -126,10 +126,10 @@ export function Sidebar(props: SidebarProps) {
       {frozen ? (
         <ul className="grid min-h-0 content-start gap-0.5 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
           <CycleSidebarCases
-            caseId={frozen.caseId}
+            selection={frozen.selection}
             cycleId={frozen.cycleId}
             live={false}
-            onSelectCase={frozen.onSelectCase}
+            onSelect={frozen.onSelect}
           />
         </ul>
       ) : (
@@ -145,9 +145,9 @@ export function Sidebar(props: SidebarProps) {
 function DestinationTree() {
   const navigate = useNavigate();
   const { collapsed } = useSidebarState();
-  const { caseId, pathname } = useRouterState({
+  const { selection, pathname } = useRouterState({
     select: (state) => ({
-      caseId: (state.location.search as { caseId?: string }).caseId,
+      selection: state.location.search as { caseId?: string; executionId?: string },
       pathname: state.location.pathname,
     }),
   });
@@ -237,7 +237,7 @@ function DestinationTree() {
       />
     ));
   } else if (!collapsed && active?.to === "/cycles" && cycleId) {
-    children = <CycleSidebarCases caseId={caseId} cycleId={cycleId} />;
+    children = <CycleSidebarCases selection={selection} cycleId={cycleId} />;
   }
 
   return (

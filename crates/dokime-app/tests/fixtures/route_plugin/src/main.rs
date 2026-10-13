@@ -16,11 +16,14 @@ mod settings;
 
 /* === Imports === */
 // Standard Library Imports
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::time::Duration;
 // Third Party Imports
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::operations::{
+    OperationPolicy, RetryPolicy, ServingError, StreamSettings, WireStreamLimits, WireTable,
+};
 // Local Imports
 use dokime::{Refusal, Supervisor};
 use error::Error;
@@ -28,6 +31,12 @@ use settings::RoutePluginSettings;
 
 /* === Constants === */
 const HOME_VARIABLE: &str = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+
+// The remote streaming routes exchange a handful of small numbers per call.
+const STREAM: StreamSettings = StreamSettings {
+    items: NonZeroUsize::new(4).unwrap(),
+    bytes: NonZeroUsize::new(4096).unwrap(),
+};
 
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
@@ -111,7 +120,11 @@ impl dokime::Plugin for RoutePlugin {
     }
 
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<operations::Operations, _>(self.resources())
+        let limits = WireStreamLimits {
+            input: STREAM,
+            output: STREAM,
+        };
+        table.bind_streaming_operations::<operations::Operations, _>(self.resources(), limits)
     }
 
     async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {

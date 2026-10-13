@@ -235,7 +235,7 @@ impl Client {
                         if metadata.test_cycle_id != id {
                             return Err(Error::Invalid("report belongs to another cycle"));
                         }
-                        Frame::Header(metadata, None)
+                        Frame::Header(*metadata, None)
                     }
                     Payload::Chunk(chunk) => Frame::Chunk(chunk.offset, chunk.data),
                     Payload::Complete(done) => Frame::Complete(done.size_bytes, done.sha256),

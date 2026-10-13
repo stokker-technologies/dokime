@@ -313,7 +313,9 @@ impl sdk::Plugin for Renamed {
 
 /* === Private Functions === */
 #[cfg(not(test))]
-fn main() {}
+fn main() {
+    let _ = <Renamed as Declared>::markers();
+}
 
 #[cfg(test)]
 fn sdk_artifact() -> &'static SdkArtifact {
@@ -611,6 +613,7 @@ impl Second {
 
 fn main() {
     assert_eq!(<Shared as Declared>::STREAMS.len(), 1);
+    let _ = <Shared as Declared>::markers();
 }
 "#
     .replace("STREAM_MEMBERS", streams)

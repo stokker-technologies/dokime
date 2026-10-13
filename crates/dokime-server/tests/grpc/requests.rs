@@ -396,6 +396,7 @@ pub(crate) async fn keyed_runs_restart() {
         2 // Both cycles own a planned execution; conflicting admission starts neither again.
     );
     gate.release.notify_one();
+    let mut latest_receipt = Some(running);
     let completed = tokio::time::timeout(Duration::from_secs(10), async {
         loop {
             let receipt = lookup(&mut client, &admission.command_id, READER)
@@ -404,11 +405,64 @@ pub(crate) async fn keyed_runs_restart() {
             if receipt.phase == contracts::execution::RunRequestPhase::Completed {
                 break receipt;
             }
+            latest_receipt = Some(receipt);
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
-    .await
-    .unwrap();
+    .await;
+    if completed.is_err() {
+        eprintln!(
+            "Keyed Completion Timeout: provider_outcome_ready={}",
+            gate.returned.load(Ordering::Acquire),
+        );
+        if let Some(receipt) = latest_receipt {
+            eprintln!(
+                "Last Receipt: phase={:?} planned={} prepared={} claimed={} finished={} failed={}",
+                receipt.phase,
+                receipt.planned_count,
+                receipt.prepared_count,
+                receipt.claimed_count,
+                receipt.finished_count,
+                receipt.failed_count,
+            );
+        }
+        let snapshot = owner.handle().watch_state().latest();
+        if let Some(cycle) = snapshot
+            .state()
+            .cycle_views()
+            .find(|cycle| cycle.test_cycle_id.as_str() == cycle_id)
+        {
+            eprintln!("Cycle State: {:?}", cycle.lifecycle);
+            for execution in cycle.test_executions.iter().take(16) {
+                eprintln!(
+                    "Execution State: id={} status={:?}",
+                    execution.test_execution_id, execution.status,
+                );
+            }
+        }
+        drop(snapshot);
+
+        // Teardown Evidence Does Not Extend The Failed Completion Deadline.
+        let teardown = tokio::time::timeout(Duration::from_secs(5), owner.shutdown()).await;
+        match teardown {
+            Ok(Err(error)) => {
+                let label = if matches!(&error, dokime_app::Error::ProviderCompletion { .. }) {
+                    "Post-Failure Teardown Provider Completion"
+                } else {
+                    "Post-Failure Teardown Error (Inconclusive)"
+                };
+                let message: String = error.to_string().chars().take(4096).collect();
+                eprintln!("{label}: {message}");
+            }
+            Ok(Ok(_)) => {
+                eprintln!("Post-Failure Teardown: Completed; Timeout Cause Remains Unresolved",)
+            }
+            Err(_) => eprintln!(
+                "Post-Failure Teardown: Diagnostic Cap Expired; Timeout Cause Remains Unresolved",
+            ),
+        }
+    }
+    let completed = completed.unwrap();
     assert_eq!(completed.finished_count, 1);
     assert_eq!(completed.failed_count, 0);
     assert!(completed.finished_at.is_some());

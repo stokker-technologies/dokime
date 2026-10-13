@@ -180,16 +180,17 @@ impl Document {
 impl Profile {
     pub fn selection(&self) -> Result<Selection, Error> {
         validate_name(&self.name)?;
-        if let Some(identity) = &self.expected_backend_id {
-            if identity.is_empty() || identity.len() > 256 || identity.chars().any(char::is_control)
-            {
-                return Err(invalid("invalid expected backend identity"));
-            }
+        if let Some(identity) = &self.expected_backend_id
+            && (identity.is_empty()
+                || identity.len() > 256
+                || identity.chars().any(char::is_control))
+        {
+            return Err(invalid("invalid expected backend identity"));
         }
-        if let Some(ca) = &self.ca_certificate_pem {
-            if ca.is_empty() || ca.len() > MAX_BYTES || ca.contains('\0') {
-                return Err(invalid("invalid CA certificate"));
-            }
+        if let Some(ca) = &self.ca_certificate_pem
+            && (ca.is_empty() || ca.len() > MAX_BYTES || ca.contains('\0'))
+        {
+            return Err(invalid("invalid CA certificate"));
         }
         let target = Target::new(&self.endpoint, self.ca_certificate_pem.clone())
             .map_err(|_| invalid("invalid endpoint or CA certificate association"))?;

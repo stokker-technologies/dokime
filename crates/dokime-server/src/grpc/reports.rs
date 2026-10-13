@@ -117,7 +117,9 @@ impl Operation for Download {
             .read_file(&seal.report)
             .await
             .map_err(|error| report_failure(error.into()))?;
+        // The boxed report payload owns its heap pointee beside the inline frame.
         let required = std::mem::size_of::<wire::ReportHtmlFrame>()
+            .saturating_add(std::mem::size_of::<wire::ReportMetadata>())
             .saturating_add(cycle.as_str().len())
             .saturating_add(identifier.as_str().len())
             .saturating_add(canonical::metadata_memory(&selected.value.metadata)?);
@@ -137,15 +139,20 @@ impl Operation for Download {
             .try_project(allowance, |selected, _| {
                 let metadata = &selected.value.metadata;
                 let frame = wire::ReportHtmlFrame {
-                    payload: Some(wire::ReportHtmlFramePayload::Report(wire::ReportMetadata {
-                        test_cycle_id: cycle.to_string(),
-                        identifier: identifier.to_string(),
-                        metadata: Some(canonical::metadata(metadata).map_err(projection_failure)?),
-                        generated_at: Some(
-                            canonical::timestamp(&seal.sealed_at).map_err(projection_failure)?,
-                        ),
-                        warnings: Vec::new(),
-                    })),
+                    payload: Some(wire::ReportHtmlFramePayload::Report(Box::new(
+                        wire::ReportMetadata {
+                            test_cycle_id: cycle.to_string(),
+                            identifier: identifier.to_string(),
+                            metadata: Some(
+                                canonical::metadata(metadata).map_err(projection_failure)?,
+                            ),
+                            generated_at: Some(
+                                canonical::timestamp(&seal.sealed_at)
+                                    .map_err(projection_failure)?,
+                            ),
+                            warnings: Vec::new(),
+                        },
+                    ))),
                 };
                 if frame.encoded_len() > self.resources.max_message_bytes {
                     return Err(harmos::Error::ResourceExhausted {

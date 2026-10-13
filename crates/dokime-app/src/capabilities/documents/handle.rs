@@ -58,6 +58,31 @@ enum ExecutionWindow {
 
 /* === Implementations === */
 impl RuntimeHandle {
+    pub async fn update_plot_settings(
+        &self,
+        cycle_id: &TestCycleId,
+        execution_id: &TestExecutionId,
+        document_id: &dokime::core::DocumentId,
+        plot_id: &dokime::core::Identifier,
+        display_points: Option<u32>,
+        downsample: dokime::document::DownsampleTechnique,
+    ) -> Result<()> {
+        let update = crate::transactions::UpdatePlotSettings {
+            cycle_id: cycle_id.clone(),
+            execution_id: execution_id.clone(),
+            document_id: document_id.clone(),
+            plot_id: plot_id.clone(),
+            display_points,
+            downsample,
+            occurred_at: dokime::core::Timestamp::now_utc(),
+        };
+        update.validate(&self.state_read())?;
+        self.commit(update)
+            .await
+            .map_err(|error| crate::Error::conflict("plot_settings_rejected", error.to_string()))?;
+        Ok(())
+    }
+
     pub async fn resolve_cycle_document(
         &self,
         test_cycle_id: &TestCycleId,

@@ -115,7 +115,7 @@ impl Operation for ListDefinitions {
                 )
             },
         )?;
-        return self.resources.produce(required, || {
+        self.resources.produce(required, || {
             let definitions: Vec<_> = selected.into_iter().map(canonical::identity).collect();
             let next_after_prompt_type = entries
                 .next()
@@ -126,7 +126,7 @@ impl Operation for ListDefinitions {
                 next_after_prompt_type,
                 cursor: Some(values::cursor(&snapshot)),
             })
-        });
+        })
     }
 }
 impl Operation for GetDefinition {
@@ -253,7 +253,7 @@ impl Operation for ListPending {
                 )
             },
         )?;
-        return self.resources.produce(required, || {
+        self.resources.produce(required, || {
             let prompts: Vec<_> = selected
                 .into_iter()
                 .map(|prompt| {
@@ -276,7 +276,7 @@ impl Operation for ListPending {
                 next_after_prompt_id,
                 cursor: Some(cursor),
             })
-        });
+        })
     }
 }
 impl Operation for GetPrompt {
@@ -309,14 +309,14 @@ impl Operation for GetPrompt {
                 .map(canonical::response_memory)
                 .transpose()?
                 .unwrap_or(0);
-        return self.resources.produce(required, || {
+        self.resources.produce(required, || {
             let response = response.map(canonical::response).transpose()?;
             Ok(wire::PromptView {
                 prompt: Some(canonical::instance(prompt)?),
                 response,
                 observed_cursor: Some(values::cursor(&snapshot)),
             })
-        });
+        })
     }
 }
 impl Operation for Respond {

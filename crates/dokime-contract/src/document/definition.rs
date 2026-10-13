@@ -25,6 +25,7 @@ use crate::expressions::{DataExpression, DataSource, RecordMarker};
 use crate::telemetry::{TelemetryColumn, TelemetryContract};
 
 /* === Constants === */
+pub const DEFAULT_PLOT_MAX_POINTS: usize = 1_500;
 pub const DURATION_UNIT_SYMBOLS: &[&str] = &["s", "ms", "us", "\u{b5}s", "min", "h"];
 
 /* === Macros === */
@@ -237,6 +238,10 @@ pub struct PlotDefinition {
     pub y_format: Option<ValueFormat>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub x_axis: Option<PlotAxisKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_points: Option<u32>,
+    #[serde(default)]
+    pub downsample: DownsampleTechnique,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -380,6 +385,10 @@ pub struct PlotInput {
     pub x_axis: Option<PlotAxisKind>,
     pub available_streams: Vec<Identifier>,
     pub marker_count: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_points: Option<u32>,
+    #[serde(default)]
+    pub downsample: DownsampleTechnique,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -404,6 +413,18 @@ pub struct DocumentDatasetWarning {
 pub struct Plot;
 
 /* === Enums === */
+#[harmos::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DownsampleTechnique {
+    Unspecified,
+    Raw,
+    MinMax,
+    Lttb,
+    #[default]
+    Auto,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum DocumentNode {
@@ -1826,6 +1847,8 @@ impl PlotDefinition {
             x_format: None,
             y_format: None,
             x_axis: None,
+            display_points: None,
+            downsample: DownsampleTechnique::Auto,
         }
     }
 
@@ -2157,6 +2180,10 @@ pub fn resolve_document_plot_axes(
 }
 
 pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
+    if plot.display_points.is_some_and(|points| points > 100_000) {
+        return Err("plot display points must not exceed 100000".to_owned());
+    }
+
     if matches!(
         plot.plot_type,
         PlotType::GroupedBar

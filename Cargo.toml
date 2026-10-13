@@ -40,9 +40,9 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "1915b4b0c16f07d68b6acac7750c7134147922ba", default-features = false }
-harmos-contract = { git = "https://github.com/stokker-technologies/harmos.git", rev = "1915b4b0c16f07d68b6acac7750c7134147922ba", default-features = false }
-harmos-signal = { git = "https://github.com/stokker-technologies/harmos.git", rev = "1915b4b0c16f07d68b6acac7750c7134147922ba", default-features = false }
+harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "a7dbbfecf707b4e9ef307aadc74cf6f4acddfed3", default-features = false }
+harmos-contract = { git = "https://github.com/stokker-technologies/harmos.git", rev = "a7dbbfecf707b4e9ef307aadc74cf6f4acddfed3", default-features = false }
+harmos-signal = { git = "https://github.com/stokker-technologies/harmos.git", rev = "a7dbbfecf707b4e9ef307aadc74cf6f4acddfed3", default-features = false }
 
 # Error Handling
 anyhow = { version = "1.0.104", default-features = false }
@@ -68,7 +68,7 @@ process-wrap = { version = "10.0.1", default-features = false }
 rand = { version = "0.10.3", default-features = false }
 regex = { version = "1.13.1", default-features = false }
 semver = { version = "1.0.28", default-features = false }
-sha2 = { version = "0.11.0", default-features = false }
+sha2 = { version = "0.11.1", default-features = false }
 starship-battery = { version = "0.12.0", default-features = false }
 subtle = { version = "=2.6.1", default-features = false }
 sysinfo = { version = "0.39.6", default-features = false, features = [
@@ -190,3 +190,13 @@ opt-level = 2
 # Match installed-tool hash throughput without optimizing authored plugin code.
 [profile.dev.package.sha2]
 opt-level = 3
+
+# TEMPORARY fast-dev override: local Harmos worktree instead of the published pin.
+# Remove before publication; sync:harmos re-pins the git revision.
+[patch."https://github.com/stokker-technologies/harmos.git"]
+harmos = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos" }
+harmos-bundle = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-bundle" }
+harmos-contract = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-contract" }
+harmos-macros = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-macros" }
+harmos-sidecar = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-sidecar" }
+harmos-signal = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-signal" }

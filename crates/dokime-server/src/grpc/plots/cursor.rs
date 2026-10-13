@@ -33,7 +33,7 @@ use dokime_app::{
 
 /* === Constants === */
 const MAX_PLOT_REQUESTS: usize = 32;
-const MAX_PLOT_POINTS: u64 = 100_000;
+pub(super) const MAX_PLOT_POINTS: u64 = 100_000;
 const MAX_PLOT_TRANSFORMS: usize = 32;
 
 /* === Macros === */
@@ -146,7 +146,7 @@ fn plot_request(
     let x_scale = enums::axis_scale_from_wire(request.x_scale)?.unwrap_or(AxisScale::Linear);
     let y_scale = enums::axis_scale_from_wire(request.y_scale)?.unwrap_or(AxisScale::Linear);
     let technique = enums::downsample_technique_from_wire(request.technique)?
-        .unwrap_or(DownsampleTechnique::Raw);
+        .unwrap_or(DownsampleTechnique::Auto);
     let max_points = request
         .max_points
         .map(|value| {

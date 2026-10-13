@@ -13,6 +13,7 @@ mod query_snapshots;
 mod watch;
 
 /* === Re-Exports === */
+pub use crate::document::DownsampleTechnique;
 pub use list_analyses::ListAnalyses;
 pub use query_snapshots::QuerySnapshots;
 pub use watch::Watch;
@@ -576,15 +577,6 @@ pub enum AxisScale {
     Unspecified,
     Linear,
     Log,
-}
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DownsampleTechnique {
-    Unspecified,
-    Raw,
-    MinMax,
-    Lttb,
 }
 
 #[harmos::message]

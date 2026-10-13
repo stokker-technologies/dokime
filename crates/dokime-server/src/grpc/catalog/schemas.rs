@@ -88,10 +88,7 @@ pub(crate) fn record(contract: &RecordContract) -> Result<wire::RecordSchema, St
             RecordSeverity::Error => common::Severity::Error,
         },
         fields,
-        validation_mode: contract
-            .validation_mode
-            .as_ref()
-            .map(|mode| validation(mode)),
+        validation_mode: contract.validation_mode.as_ref().map(validation),
         allow_extra_fields: contract.allow_extra_fields,
         display: Some(wire::RecordDisplay {
             icon: icon(&contract.display.icon),
@@ -146,10 +143,7 @@ pub(crate) fn telemetry(contract: &TelemetryContract) -> Result<wire::TelemetryS
         plot_window_ms: contract.plot_window.map(|window| window.0),
         allow_extra_fields: contract.allow_extra_fields,
         scalar: contract.scalar,
-        validation_mode: contract
-            .validation_mode
-            .as_ref()
-            .map(|mode| validation(mode)),
+        validation_mode: contract.validation_mode.as_ref().map(validation),
         foreign: contract.foreign,
     })
 }

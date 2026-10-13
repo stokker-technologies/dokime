@@ -986,6 +986,8 @@ pub(crate) async fn invalid_uploads_mutate() {
     .await
     .unwrap();
     server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+    let mut owner = fixture(root.path()).await;
     let server = Server::start(
         owner.handle(),
         Config::local()
@@ -1035,7 +1037,7 @@ pub(crate) async fn invalid_uploads_mutate() {
 pub(crate) async fn listener_shutdown_admission() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = fixture(root.path()).await;
-    let server = Server::start(
+    let service = dokime_server::grpc::Service::new(
         owner.handle(),
         Config::local()
             .with_bearer_auth(vec![grant(Role::Admin)])
@@ -1043,6 +1045,7 @@ pub(crate) async fn listener_shutdown_admission() {
     )
     .await
     .unwrap();
+    let server = service.listen().await.unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
     let (sender, upload) = open_upload(&mut client).await;
     tokio::time::timeout(Duration::from_secs(2), server.shutdown())
@@ -1056,14 +1059,7 @@ pub(crate) async fn listener_shutdown_admission() {
         .unwrap_err();
     assert_eq!(error.code(), Code::Unavailable);
     drop(sender);
-    let server = Server::start(
-        owner.handle(),
-        Config::local()
-            .with_bearer_auth(vec![grant(Role::Admin)])
-            .unwrap(),
-    )
-    .await
-    .unwrap();
+    let server = service.listen().await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     assert_eq!(
         client

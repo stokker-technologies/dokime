@@ -112,6 +112,7 @@ macro_rules! modes {
                 const MODE: &'static str = $mode;
                 const RUN: &'static str = concat!("fixture.sidecar.", $mode, ".run");
                 const SIGNAL: &'static str = concat!("fixture.sidecar.", $mode, ".signal");
+                const SIGNAL_TIMEOUT: Duration = signal_timeout($mode);
             }
         )*
 
@@ -190,6 +191,7 @@ trait Mode: Send + Sync + 'static {
     const MODE: &'static str;
     const RUN: &'static str;
     const SIGNAL: &'static str;
+    const SIGNAL_TIMEOUT: Duration;
 }
 
 /* === Implementations === */
@@ -203,6 +205,7 @@ modes!(
     CancelDelayed, CancelDelayedRun, CancelDelayedSignal => "cancel_delayed",
     CancelRefused, CancelRefusedRun, CancelRefusedSignal => "cancel_refused",
     CancelIgnored, CancelIgnoredRun, CancelIgnoredSignal => "cancel_ignored",
+    CancelSignalIgnored, CancelSignalIgnoredRun, CancelSignalIgnoredSignal => "cancel_signal_ignored",
     ScopeError, ScopeErrorRun, ScopeErrorSignal => "scope_error",
     Capture, CaptureRun, CaptureSignal => "capture",
 );
@@ -268,8 +271,8 @@ impl<M: Mode> OperationDeclaration for Signal<M> {
     type Response = SignalReply;
     const ID: &'static str = M::SIGNAL;
     const POLICY: OperationPolicy = OperationPolicy {
-        timeout: SIGNAL_BOUND,
-        attempt_timeout: SIGNAL_BOUND,
+        timeout: M::SIGNAL_TIMEOUT,
+        attempt_timeout: M::SIGNAL_TIMEOUT,
         retries: RetryPolicy::Never,
     };
     const VISIBILITY: Visibility = Visibility::Host;
@@ -334,9 +337,14 @@ impl<M: Mode> dokime::harmos::operations::Operation for Signalling<M> {
         signal: &mut ExecutionSignal,
         _: &mut (),
     ) -> Result<Response<SignalReply>, Refusal> {
-        self.resources
-            .signal(std::mem::take(signal))
-            .map(Response::new)
+        let cancel = signal.cancel;
+        let reply = self.resources.signal(std::mem::take(signal))?;
+        if cancel && M::MODE == "cancel_signal_ignored" {
+            while !self.resources.lock().released {
+                tokio::time::sleep(POLL).await;
+            }
+        }
+        Ok(Response::new(reply))
     }
 }
 
@@ -559,7 +567,7 @@ impl Resources {
         // A run that never answers its stop, the way a step blocked on an
         // operator question does: only the host's settlement budget ends it.
         // The test releases it afterwards so shutdown has nothing left to wait on.
-        if mode == "cancel_ignored" {
+        if matches!(mode, "cancel_ignored" | "cancel_signal_ignored") {
             while !self.lock().released {
                 tokio::time::sleep(POLL).await;
             }
@@ -637,6 +645,13 @@ impl Resources {
 /* === Public Functions === */
 
 /* === Private Functions === */
+const fn signal_timeout(mode: &str) -> Duration {
+    match mode.as_bytes() {
+        b"cancel_signal_ignored" => RUN_BOUND,
+        _ => SIGNAL_BOUND,
+    }
+}
+
 fn metadata(id: &str, label: &str) -> Metadata {
     Metadata::new(Identifier::new(id).unwrap(), label, None)
 }
@@ -656,6 +671,7 @@ fn suite() -> TestSuite {
             "cancel_delayed",
             "cancel_refused",
             "cancel_ignored",
+            "cancel_signal_ignored",
             "scope_error",
             "capture",
         ]

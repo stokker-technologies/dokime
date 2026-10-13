@@ -19,8 +19,8 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{Error, state::RuntimeState};
-use dokime::core::{DocumentId, RecordScope, Timestamp};
-use dokime::document::DocumentAddition;
+use dokime::core::{DocumentId, Identifier, RecordScope, TestCycleId, TestExecutionId, Timestamp};
+use dokime::document::{DocumentAddition, DocumentCardBody, DownsampleTechnique};
 
 /* === Constants === */
 
@@ -34,6 +34,18 @@ use dokime::document::DocumentAddition;
 pub struct AddExecutionDocumentParts {
     pub scope: RecordScope,
     pub additions: Vec<DocumentAddition>,
+    pub occurred_at: Timestamp,
+}
+
+#[harmos::transaction(id = "dokime.documents.plot.settings", version = 1, irreversible)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UpdatePlotSettings {
+    pub cycle_id: TestCycleId,
+    pub execution_id: TestExecutionId,
+    pub document_id: DocumentId,
+    pub plot_id: Identifier,
+    pub display_points: Option<u32>,
+    pub downsample: DownsampleTechnique,
     pub occurred_at: Timestamp,
 }
 
@@ -56,6 +68,106 @@ impl Transaction<RuntimeState> for AddExecutionDocumentParts {
     fn apply(&self, state: &mut RuntimeState) {
         add_execution_document_parts(state, self.clone())
             .expect("Harmos checked the document additions before applying it");
+    }
+}
+
+impl Transaction<RuntimeState> for UpdatePlotSettings {
+    type Error = String;
+
+    fn check(&self, state: &RuntimeState) -> Result<(), String> {
+        self.validate(state).map_err(|error| error.to_string())
+    }
+
+    fn apply(&self, state: &mut RuntimeState) {
+        let execution = state
+            .executions
+            .get_mut(&self.execution_id)
+            .expect("checked execution");
+        let document = execution
+            .documents
+            .values_mut()
+            .find(|document| document.document_id == self.document_id)
+            .expect("checked document");
+        let plots = document
+            .cards
+            .iter_mut()
+            .map(|card| &mut card.body)
+            .chain(
+                document
+                    .sections
+                    .iter_mut()
+                    .flat_map(|section| section.cards.iter_mut().map(|card| &mut card.body)),
+            )
+            .filter_map(|body| match body {
+                DocumentCardBody::Plot { plot } if plot.metadata.identifier == self.plot_id => {
+                    Some(plot)
+                }
+                _ => None,
+            });
+        for plot in plots {
+            plot.display_points = self.display_points;
+            plot.downsample = match self.downsample {
+                DownsampleTechnique::Unspecified => DownsampleTechnique::Auto,
+                technique => technique,
+            };
+        }
+        state
+            .cycles
+            .get_mut(&self.cycle_id)
+            .expect("checked cycle")
+            .touch_at(self.occurred_at.clone());
+    }
+}
+
+impl UpdatePlotSettings {
+    pub(crate) fn validate(&self, state: &RuntimeState) -> Result<(), Error> {
+        if state.shutting_down {
+            return Err(Error::conflict(
+                "document_closed",
+                "runtime is shutting down",
+            ));
+        }
+        if self.display_points.is_some_and(|points| points > 100_000) {
+            return Err(Error::Operation(
+                "display_points must not exceed 100000".into(),
+            ));
+        }
+        let execution = state
+            .executions
+            .get(&self.execution_id)
+            .filter(|execution| execution.test_cycle_id == self.cycle_id)
+            .ok_or_else(|| not_found("execution not found"))?;
+        let settling = state.run_requests.values().any(|request| {
+            request.summary.cycle_id == self.cycle_id
+                && request.completion_at.is_some()
+                && (request.test_execution_id.as_ref() == Some(&self.execution_id)
+                    || request.settled_execution_ids.contains(&self.execution_id))
+        });
+        if execution.saved.is_some()
+            || settling
+            || !matches!(
+                execution.status,
+                crate::execution::ExecutionStatus::Pending
+                    | crate::execution::ExecutionStatus::Running
+            )
+        {
+            return Err(Error::conflict(
+                "document_closed",
+                "plot settings cannot change after execution settlement",
+            ));
+        }
+        let document = execution
+            .documents
+            .values()
+            .find(|document| document.document_id == self.document_id)
+            .ok_or_else(|| not_found("execution document not found"))?;
+        let exists = document.cards.iter().map(|card| &card.body)
+            .chain(document.sections.iter().flat_map(|section| section.cards.iter().map(|card| &card.body)))
+            .any(|body| matches!(body, DocumentCardBody::Plot { plot } if plot.metadata.identifier == self.plot_id));
+        if !exists {
+            return Err(not_found("document plot not found"));
+        }
+        Ok(())
     }
 }
 

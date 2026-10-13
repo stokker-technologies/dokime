@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+mod bundle;
 
 /* === Re-Exports === */
 
@@ -30,6 +31,7 @@ use dokime_contract::operations::content as wire;
 struct Resources {
     runtime: RuntimeHandle,
     local_only: bool,
+    maximum: usize,
 }
 struct Bundle {
     resources: Arc<Resources>,
@@ -55,13 +57,18 @@ impl Operation for Bundle {
         &mut self,
         _: Self::Context<'a>,
         request: &mut wire::DownloadCycleBundleRequest,
-        _: &mut Self::Endpoints,
+        output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let cycle = cycle_id(&request.cycle_id)?;
         require_settled(&self.resources.runtime, &cycle, "evidence bundle")?;
-        Err(Status::unimplemented(format!(
-            "cycle bundle export is not supported for {cycle}"
-        )))
+        bundle::download(
+            &self.resources.runtime,
+            &cycle,
+            self.resources.maximum,
+            output,
+        )
+        .await?;
+        Ok(().into())
     }
 }
 impl Operation for Folder {
@@ -98,11 +105,13 @@ impl Operation for Folder {
 /* === Public Functions === */
 pub(super) fn register(
     runtime: &RuntimeHandle,
+    maximum: usize,
     local_only: bool,
 ) -> Result<(), crate::grpc::Error> {
     let resources = Arc::new(Resources {
         runtime: runtime.clone(),
         local_only,
+        maximum,
     });
     runtime.operations().register_wire_operation::<Bundle>(
         "dokime",

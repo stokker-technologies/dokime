@@ -210,6 +210,8 @@ pub struct AdmittedPluginPage {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AdmittedBundleOwner {
     pub package: String,
+    // Host paths are available only through a local listener.
+    pub path: Option<String>,
     pub installation_id: Option<String>,
     pub content_digest: String,
 }

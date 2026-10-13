@@ -36,12 +36,13 @@ mod reports;
 mod server;
 mod settings;
 mod telemetry;
+mod trace;
 mod value;
 
 /* === Re-Exports === */
 pub use config::{Config, TlsIdentity};
 pub use error::Error;
-pub use server::Server;
+pub use server::{Server, Service};
 
 /* === Imports === */
 // Standard Library Imports

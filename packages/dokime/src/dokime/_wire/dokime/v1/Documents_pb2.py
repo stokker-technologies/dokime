@@ -21,17 +21,18 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 from dokime._wire.dokime.v1.DocumentsMessages.CaptureCurrentDocument import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_DocumentsMessages_dot_CaptureCurrentDocument_dot_messages__pb2
+from dokime._wire.dokime.v1.DocumentsMessages.UpdatePlotSettings import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_DocumentsMessages_dot_UpdatePlotSettings_dot_messages__pb2
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n&dokime/_wire/dokime/v1/Documents.proto\x12\tdokime.v1\x1aNdokime/_wire/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages.proto\"\xd8\x01\n%DocumentsCaptureCurrentDocumentOutput\x12N\n\x04item\x18\x01 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row3H\x00R\x04item\x12V\n\x08response\x18\x02 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row2H\x00R\x08responseB\x07\n\x05value2\x94\x01\n\tDocuments\x12\x86\x01\n\x16\x43\x61ptureCurrentDocument\x12\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row1\x1a\x30.dokime.v1.DocumentsCaptureCurrentDocumentOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n&dokime/_wire/dokime/v1/Documents.proto\x12\tdokime.v1\x1aNdokime/_wire/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages.proto\x1aJdokime/_wire/dokime/v1/DocumentsMessages/UpdatePlotSettings/messages.proto\"\xd8\x01\n%DocumentsCaptureCurrentDocumentOutput\x12N\n\x04item\x18\x01 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row3H\x00R\x04item\x12V\n\x08response\x18\x02 \x01(\x0b\x32\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row2H\x00R\x08responseB\x07\n\x05value2\x97\x02\n\tDocuments\x12\x86\x01\n\x16\x43\x61ptureCurrentDocument\x12\x38.dokime.v1.DocumentsMessages.CaptureCurrentDocument.Row1\x1a\x30.dokime.v1.DocumentsCaptureCurrentDocumentOutput0\x01\x12\x80\x01\n\x12UpdatePlotSettings\x12\x34.dokime.v1.DocumentsMessages.UpdatePlotSettings.Row1\x1a\x34.dokime.v1.DocumentsMessages.UpdatePlotSettings.Row2b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime._wire.dokime.v1.Documents_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTOUTPUT']._serialized_start=134
-  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTOUTPUT']._serialized_end=350
-  _globals['_DOCUMENTS']._serialized_start=353
-  _globals['_DOCUMENTS']._serialized_end=501
+  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTOUTPUT']._serialized_start=210
+  _globals['_DOCUMENTSCAPTURECURRENTDOCUMENTOUTPUT']._serialized_end=426
+  _globals['_DOCUMENTS']._serialized_start=429
+  _globals['_DOCUMENTS']._serialized_end=708
 # @@protoc_insertion_point(module_scope)
