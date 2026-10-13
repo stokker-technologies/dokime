@@ -73,7 +73,11 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            terminal.failure(dokime::plugin::Diagnostic::capture(&error));
+            // A Refused Data Root Is An Operator Remedy, Not A Defect Report
+            match &error {
+                Error::IncompatibleStorage { .. } => terminal.failure(&error),
+                _ => terminal.failure(dokime::plugin::Diagnostic::capture(&error)),
+            }
             error.exit_code()
         }
     }

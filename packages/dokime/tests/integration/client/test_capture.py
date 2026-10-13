@@ -35,13 +35,22 @@ from dokime.client import (
 )
 
 from .canonical import _message, _value, register
-from .test_client import CASE_ID, CYCLE_ID, EXECUTION_ID, BackendFixture
+from .test_client import (
+    CASE_ID,
+    CYCLE_ID,
+    EXECUTION_ID,
+    SUITE_ID,
+    TEMPLATE,
+    BackendFixture,
+)
 
 # Type Checking Imports
 
 # === Public Exports === #
 
 # === Constants === #
+
+PROMPT_ID = "0199d6a4-6f1e-7c3a-9a51-2b7c4e8f1d20"
 
 # Native V1 Golden Cursors Verified By The Rust Saved-Evidence Unit Tests.
 RECORD_CURSORS = (
@@ -73,7 +82,8 @@ class CaptureBackend(BackendFixture):
             "DownloadCheckpointArtifact",
         ]
         self.methods["Reports"] = ["DownloadCycleReport"]
-        self.methods["Prompts"] = ["ListPending"]
+        self.methods["Prompts"] = ["ListPending", "GetPrompt"]
+        self.pending: list[dict[str, Any]] = []
         self.bad_report = ""
         self.prompt_stream = "prompts.pending:c4e98c8f616061bebf0d5119b0b549f764f8207d9a4660c207dcff2523da467b"
         self.report_stalled = asyncio.Event()
@@ -101,6 +111,18 @@ class CaptureBackend(BackendFixture):
             "ListPending",
             direction="response",
             path="",
+            prompts=[
+                {
+                    "prompt_id": prompt["prompt_id"],
+                    "definition": {
+                        key: prompt["definition"][key]
+                        for key in ("prompt_type", "schema_version", "title")
+                    },
+                    "scope": prompt["scope"],
+                    "created_at": prompt["created_at"],
+                }
+                for prompt in self.pending
+            ],
             cursor=_message(
                 "Evidence",
                 "ListRecords",
@@ -110,6 +132,23 @@ class CaptureBackend(BackendFixture):
                 stream=self.prompt_stream,
                 position=1,
             ),
+        )
+
+    async def GetPrompt(self, request: Any, context: Any) -> Any:
+        (prompt,) = [
+            item for item in self.pending if item["prompt_id"] == request.prompt_id
+        ]
+        return _message(
+            "Prompts",
+            "GetPrompt",
+            direction="response",
+            path="",
+            prompt=prompt,
+            observed_cursor={
+                "epoch": self.epoch,
+                "stream": self.prompt_stream,
+                "position": 1,
+            },
         )
 
     async def ListExecutions(self, request: Any, context: Any) -> Any:
@@ -526,8 +565,8 @@ def test_capture_execution(tmp_path: Path) -> None:
             capture = await Capture.prepare(
                 client,
                 output=root,
-                suite="suite",
-                template="template",
+                suite=SUITE_ID,
+                template=TEMPLATE,
                 parameters=json.loads(parameters.read_text(encoding="utf-8")),
             )
             request = await capture.start()
@@ -598,7 +637,7 @@ def test_capture_execution(tmp_path: Path) -> None:
 def case_download_partial(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with fixture() as (_, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             await run_cycle.run(request_key="key")
             path = tmp_path / "report.html"
             partial = tmp_path / "report.html.part"
@@ -617,7 +656,7 @@ def case_cancelled_reader(
 ) -> None:
     async def scenario() -> None:
         async with fixture() as (backend, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             await run_cycle.run(request_key="key")
             backend.bad_report = "stall"
             path = tmp_path / "report.html"
@@ -642,7 +681,7 @@ def case_cancelled_reader(
 def test_download_transfer(tmp_path: Path, failure: str) -> None:
     async def scenario() -> None:
         async with fixture() as (backend, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             await run_cycle.run(request_key="key")
             backend.bad_report = failure
             path = tmp_path / "report.html"
@@ -664,8 +703,8 @@ def test_params_mutation(tmp_path: Path, payload: Any) -> None:
                 await Capture.prepare(
                     client,
                     output=output,
-                    suite="suite",
-                    template="template",
+                    suite=SUITE_ID,
+                    template=TEMPLATE,
                     parameters=payload,
                 )
             assert backend.created == backend.run_calls == 0
@@ -677,7 +716,7 @@ def test_params_mutation(tmp_path: Path, payload: Any) -> None:
 def case_history_fail(tmp_path: Path) -> None:
     async def scenario() -> None:
         async with fixture() as (backend, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             run = await run_cycle.run(request_key="key")
             await run.wait()
             (handle,) = run_cycle.executions
@@ -732,6 +771,43 @@ def case_prompt_selection(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def case_prompt_level(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with fixture() as (backend, client):
+            # === Declare A Warning Prompt === #
+
+            backend.pending.append(
+                {
+                    "prompt_id": PROMPT_ID,
+                    "kind": {"Form": {}},
+                    "definition": {
+                        "prompt_type": "mini.charger.steady.check",
+                        "schema_version": 1,
+                        "archetype": {"Form": {}},
+                        "title": "Inspect Charging State",
+                        "message": "Check that the charger status indicator is steady.",
+                        "level": {"Warn": {}},
+                    },
+                    "values": _wire.encode({}),
+                    "scope": {"cycle_id": CYCLE_ID},
+                    "created_at": {"seconds": 1_760_000_000, "nanos": 0},
+                }
+            )
+
+            # === Read It Back === #
+
+            cycle = await client.cycle(CYCLE_ID)
+            (prompt,) = [item async for item in cycle.pending_prompts()]
+
+            # === Compare === #
+
+            assert prompt.id == PROMPT_ID
+            assert prompt.title == "Inspect Charging State"
+            assert prompt.level == "warn"
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize(
     "scenario",
     [
@@ -739,6 +815,7 @@ def case_prompt_selection(tmp_path: Path) -> None:
         pytest.param(case_cancelled_reader, id="cancelled_reader"),
         pytest.param(case_history_fail, id="history_fail"),
         pytest.param(case_prompt_selection, id="prompt_selection"),
+        pytest.param(case_prompt_level, id="prompt_level"),
     ],
 )
 def test_contract(scenario: Callable[..., None], tmp_path: Path) -> None:

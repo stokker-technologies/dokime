@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type uPlot from "uplot";
 
 /* === Local Imports === */
@@ -30,6 +30,7 @@ import { formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
 import type { PlotViewportMode } from "@/plots/types";
+import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Constants === */
 
@@ -84,6 +85,8 @@ type CartesianPlotProps = {
   cycleStartedAt?: number | null;
   resetKey?: string;
   lockYZoom?: boolean;
+  /** Per-plot controls the host places beside the follow button. */
+  actions?: ReactNode;
   badge?: string;
   stateLabel?: string;
   stateDetail?: string;
@@ -140,6 +143,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   runStartedAt = null,
   cycleStartedAt = null,
   resetKey,
+  actions,
   badge,
   stateLabel,
   stateDetail,
@@ -149,7 +153,7 @@ export const CartesianPlot = memo(function CartesianPlot({
 }: CartesianPlotProps) {
   const { zoom } = usePlotInteraction();
   const [following, setFollowing] = useState(true);
-  const heldRangeRef = useRef<{ x: PlotViewportRange; y: PlotViewportRange } | null>(null);
+  const heldRangeRef = useRef<HeldViewport | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const plotRef = useRef<uPlot | null>(null);
   const markersRef = useRef<PlotMarker[]>(markers);
@@ -326,19 +330,13 @@ export const CartesianPlot = memo(function CartesianPlot({
       hooks: {
         setSelect: [
           (plot) => {
-            if (plot.select.width <= 0 || plot.select.height <= 0) return;
-            const x = [
-              plot.posToVal(plot.select.left, "x"),
-              plot.posToVal(plot.select.left + plot.select.width, "x"),
-            ];
-            const y = [
-              plot.posToVal(plot.select.top, "y"),
-              plot.posToVal(plot.select.top + plot.select.height, "y"),
-            ];
-            heldRangeRef.current = {
-              x: { min: Math.min(...x), max: Math.max(...x) },
-              y: { min: Math.min(...y), max: Math.max(...y) },
-            };
+            const held = heldViewport(
+              plot.select,
+              { width: plot.over.clientWidth, height: plot.over.clientHeight },
+              (position, axis) => plot.posToVal(position, axis),
+            );
+            if (!held) return;
+            heldRangeRef.current = held;
             setFollowing(false);
           },
         ],
@@ -359,9 +357,11 @@ export const CartesianPlot = memo(function CartesianPlot({
           },
         ],
       },
-      // A selected box becomes a held viewport while data continues arriving.
+      // A dragged box is drawn as the selection and becomes a held viewport
+      // while data continues arriving; a mostly horizontal or vertical drag
+      // zooms that axis alone, a double click returns to the full view.
       cursor: {
-        drag: { x: true, y: true, setScale: true },
+        drag: { ...PLOT_DRAG_OPTIONS },
         focus: { prox: -1 },
       },
       select: { show: true, left: 0, top: 0, width: 0, height: 0 },
@@ -467,8 +467,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       setFollowing(true);
     }
     if (heldRangeRef.current) {
-      plot.setScale("x", heldRangeRef.current.x);
-      plot.setScale("y", heldRangeRef.current.y);
+      applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () =>
+        setLiveXScale(plot, liveXRange, xScale, timeAxis),
+      );
     }
     plotRef.current = plot;
     dataSignatureRef.current = dataSignature;
@@ -499,6 +500,8 @@ export const CartesianPlot = memo(function CartesianPlot({
     const observer = new ResizeObserver(scheduleResize);
     observer.observe(root);
     window.addEventListener("resize", scheduleResize);
+    /* uPlot's own double click already auto-scaled both axes; the hold is
+       dropped so the next frame follows the run again instead of re-pinning. */
     const resume = () => {
       heldRangeRef.current = null;
       setFollowing(true);
@@ -584,9 +587,9 @@ export const CartesianPlot = memo(function CartesianPlot({
       const viewportModeChanged = viewportModeRef.current !== viewportMode;
       try {
         if (heldRangeRef.current && !resetChanged && !viewportModeChanged) {
-          plot.setData(chartFrame.data, false);
-          plot.setScale("x", heldRangeRef.current.x);
-          plot.setScale("y", heldRangeRef.current.y);
+          applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () => {
+            if (viewportMode === "live") setLiveXScale(plot, liveXRange, xScale, timeAxis);
+          });
           dataSignatureRef.current = dataSignature;
           return;
         }
@@ -614,7 +617,8 @@ export const CartesianPlot = memo(function CartesianPlot({
 
   if (displayError || !hasData) {
     return (
-      <div className="plot-empty grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 p-4 text-center text-muted-foreground">
+      <div className="plot-empty relative grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 p-4 text-center text-muted-foreground">
+        {actions ? <div className="absolute top-2 right-2">{actions}</div> : null}
         <strong>{title}</strong>
         {description ? <span className="text-xs">{description}</span> : null}
         <span>
@@ -646,6 +650,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           ) : null}
         </div>
         <div className="flex items-center gap-2">
+          {actions}
           <button
             type="button"
             aria-pressed={following}
@@ -902,6 +907,23 @@ function setLiveXScale(
     return;
   }
   plot.setScale("x", range);
+}
+
+/**
+ * Re-pins a held viewport over fresh data: the axes are auto-ranged first so
+ * an axis the drag left alone keeps ranging with the data, then each held
+ * axis is set back, and an unheld x axis follows the run on a live surface.
+ */
+function applyHeldViewport(
+  plot: uPlot,
+  held: HeldViewport,
+  data: uPlot.AlignedData,
+  followX: () => void,
+): void {
+  plot.setData(data, true);
+  if (held.x) plot.setScale("x", held.x);
+  else followX();
+  if (held.y) plot.setScale("y", held.y);
 }
 
 /** Whether `[min, max]` is finite and wider than float noise around its bounds. */

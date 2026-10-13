@@ -9,25 +9,17 @@
 
 /* === Local Imports === */
 
-import type { ArtifactRecord, ExecutionFileTextRead } from "@/lib/types";
+import type { ArtifactRecord } from "@/lib/types";
 
 /* === Constants === */
 
-export const TEXT_FILE_PREVIEW_MAX_BYTES = 256 * 1024;
+/** Total bytes a non-following preview retains, read in contract-bounded pages. */
+export const TEXT_FILE_PREVIEW_BUDGET_BYTES = 256 * 1024;
+/** How far back from the live end a follow starts when the file is larger. */
 export const TEXT_FILE_FOLLOW_TAIL_BYTES = 64 * 1024;
-export const TEXT_FILE_FOLLOW_POLL_MS = 1_000;
 export const TEXT_FILE_BUFFER_MAX_CHARS = 1_000_000;
 
 /* === Types === */
-
-export type TextFileBuffer = {
-  text: string;
-  startOffset: number;
-  nextOffset: number;
-  sizeBytes: number;
-  truncated: boolean;
-  rotated: boolean;
-};
 
 export type TextArtifactLanguage = "json" | "log" | "text";
 
@@ -49,40 +41,12 @@ export type TextHighlightToken = {
 
 /* === Public Functions === */
 
-export function emptyTextFileBuffer(): TextFileBuffer {
-  return {
-    text: "",
-    startOffset: 0,
-    nextOffset: 0,
-    sizeBytes: 0,
-    truncated: false,
-    rotated: false,
-  };
-}
-
-export function applyExecutionFileRead(
-  current: TextFileBuffer,
-  read: ExecutionFileTextRead,
-): TextFileBuffer {
-  const reset = read.rotated || read.offset < current.nextOffset;
-  const gap = read.offset > current.nextOffset;
-  const text =
-    reset || read.offset > current.nextOffset ? read.text : `${current.text}${read.text}`;
-  const trimmedText =
-    text.length > TEXT_FILE_BUFFER_MAX_CHARS
-      ? text.slice(text.length - TEXT_FILE_BUFFER_MAX_CHARS)
-      : text;
-  const startOffset = reset || gap ? read.offset : current.startOffset;
-  const trimmed = trimmedText.length < text.length;
-
-  return {
-    text: trimmedText,
-    startOffset,
-    nextOffset: read.nextOffset,
-    sizeBytes: read.sizeBytes,
-    truncated: read.truncated || startOffset > 0 || read.nextOffset < read.sizeBytes || trimmed,
-    rotated: read.rotated || reset,
-  };
+/** Append decoded text, keeping only the newest `TEXT_FILE_BUFFER_MAX_CHARS`. */
+export function appendBoundedText(current: string, addition: string): string {
+  const text = `${current}${addition}`;
+  return text.length > TEXT_FILE_BUFFER_MAX_CHARS
+    ? text.slice(text.length - TEXT_FILE_BUFFER_MAX_CHARS)
+    : text;
 }
 
 export function shouldFollowArtifact(

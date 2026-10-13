@@ -1,4 +1,6 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
+import type { BackendDiagnostics } from "@/lib/desktop/session";
+
 /** Never stringify arbitrary request objects: they may contain credentials. */
 export function connectionError(error: unknown): string {
   if (typeof error === "string") return error;
@@ -32,4 +34,14 @@ export function connectionError(error: unknown): string {
     default:
       return "The backend could not be reached. Check the endpoint and credentials.";
   }
+}
+
+/** The diagnostics a failed owned-backend start carries, or `null` for every
+ * other error. */
+export function startupDiagnostics(error: unknown): BackendDiagnostics | null {
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "startup")
+    return null;
+  if (!("diagnostics" in error) || !error.diagnostics || typeof error.diagnostics !== "object")
+    return null;
+  return error.diagnostics as BackendDiagnostics;
 }

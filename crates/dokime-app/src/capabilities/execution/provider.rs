@@ -126,6 +126,19 @@ impl ExecutionFixtureContext {
         }
     }
 
+    /// True once an operator stopped this one execution of a cycle run. The
+    /// provider cancels it cooperatively and keeps running its siblings.
+    pub fn execution_stop_requested(&self, test_execution_id: &TestExecutionId) -> bool {
+        let Some(request_id) = &self.request_id else {
+            return false;
+        };
+        self.runtime
+            .state_read()
+            .run_requests
+            .get(request_id)
+            .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
+    }
+
     pub async fn cycle_lifecycle(&self, test_cycle_id: &TestCycleId) -> Option<CycleStatus> {
         self.runtime.cycle_lifecycle(test_cycle_id).await
     }

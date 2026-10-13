@@ -23,6 +23,7 @@
 /* === External Imports === */
 
 import {
+  BellRing,
   Copy,
   Download,
   Ellipsis,
@@ -36,6 +37,7 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
+import { useId } from "react";
 
 /* === Local Imports === */
 
@@ -46,6 +48,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -58,16 +61,21 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { recordLevelVariant } from "@/lib/record-display";
+import type { PromptRequest } from "@/lib/types";
 import { useSidebarState } from "@/shell/use-sidebar-state";
 import { CycleSidebarCases } from "./CycleSidebarCases";
 import {
   type CycleLifecycle,
   cycleStatusLabel,
   cycleStatusVariant,
+  isCycleInFlight,
   type RunControlAvailability,
   type RunControlVisibility,
+  SEALED_EVIDENCE_PENDING,
   STATUS_PILL_CLASS,
 } from "./cycle-workspace-model";
+import { highestPromptLevel, pendingPromptCountLabel } from "./prompt-banner-model";
 
 /* === Constants === */
 
@@ -80,7 +88,7 @@ const CONTROL_CLASS = "h-9 w-full [[data-density=touch]_&]:h-14";
  * The slots keep their width so the title, the progress and the overflow menu
  * do not shift sideways the moment a cycle starts or finishes.
  */
-const SLOT_CLASS = "w-32 [[data-density=touch]_&]:w-44";
+const SLOT_CLASS = "w-36 [[data-density=touch]_&]:w-48";
 
 /* === Types === */
 
@@ -99,6 +107,8 @@ export type CycleWorkspaceHeaderProps = {
   /** When on, a new attempt of the selected case becomes the shown evidence. */
   followActive: boolean;
   label: string;
+  /** The prompts this cycle is waiting on; counted beside the status. */
+  pendingPrompts?: readonly PromptRequest[];
   /** Each control waits only on its own command, so Stop never waits on another. */
   pending: RunControlAvailability;
   /** Why the runtime refuses every queued case, when it does. */
@@ -135,6 +145,7 @@ export function CycleWorkspaceHeader({
   followActive,
   label,
   pending,
+  pendingPrompts = [],
   runRefusal,
   showOpenFolder,
   status,
@@ -152,15 +163,31 @@ export function CycleWorkspaceHeader({
   onToggleFollowActive,
   onWriteReport,
 }: CycleWorkspaceHeaderProps) {
+  /* A disabled menu item takes no pointer, so a hover title alone would never
+     show; the reason is set as visible text the two items point at. */
+  const evidencePending = isCycleInFlight(status);
+  const evidencePendingId = useId();
+  const promptLevel = highestPromptLevel(pendingPrompts);
+
   return (
     <header className="grid min-h-16 min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-4 border-b bg-background px-[var(--shell-inset)] py-2 [[data-density=touch]_&]:min-h-20">
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3">
         <h1 className="truncate font-heading text-lg leading-6 font-semibold" title={label}>
           {label}
         </h1>
         <Badge className={STATUS_PILL_CLASS} variant={cycleStatusVariant(status)}>
           {cycleStatusLabel(status)}
         </Badge>
+        {promptLevel ? (
+          <Badge
+            className={STATUS_PILL_CLASS}
+            data-testid="cycle-prompt-count"
+            variant={recordLevelVariant(promptLevel)}
+          >
+            <BellRing data-icon="inline-start" />
+            {pendingPromptCountLabel(pendingPrompts.length)}
+          </Badge>
+        ) : null}
       </div>
 
       {/* Collapsed, the sidebar's case rows are behind a rail the operator has
@@ -235,7 +262,7 @@ export function CycleWorkspaceHeader({
                 variant="danger"
               >
                 <Square data-icon="inline-start" />
-                {status === "stopping" ? "Stopping" : "Stop"}
+                {status === "stopping" ? "Stopping Cycle" : "Stop Cycle"}
               </Button>
             ) : null}
           </div>
@@ -287,14 +314,29 @@ export function CycleWorkspaceHeader({
                   Open Folder
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem onSelect={onDownloadBundle}>
+              <DropdownMenuItem
+                aria-describedby={evidencePending ? evidencePendingId : undefined}
+                disabled={evidencePending}
+                onSelect={onDownloadBundle}
+                title={evidencePending ? SEALED_EVIDENCE_PENDING : undefined}
+              >
                 <Download />
                 Download Bundle
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onWriteReport}>
+              <DropdownMenuItem
+                aria-describedby={evidencePending ? evidencePendingId : undefined}
+                disabled={evidencePending}
+                onSelect={onWriteReport}
+                title={evidencePending ? SEALED_EVIDENCE_PENDING : undefined}
+              >
                 <FileText />
                 Write Report
               </DropdownMenuItem>
+              {evidencePending ? (
+                <DropdownMenuLabel className="font-normal" id={evidencePendingId}>
+                  {SEALED_EVIDENCE_PENDING}
+                </DropdownMenuLabel>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={onClearCycle} variant="destructive">
                 <Trash2 />

@@ -117,6 +117,13 @@ pub enum Subscription {
     Record(Identifier),
 }
 
+// Why a template identifier is not its suite's public reference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TemplateIdentifierRefusal {
+    OutsideSuite,
+    InvalidSegment,
+}
+
 /* === Traits === */
 
 /* === Implementations === */
@@ -335,8 +342,65 @@ impl Subscription {
     }
 }
 
+impl TemplateIdentifierRefusal {
+    pub const fn reason(self) -> &'static str {
+        match self {
+            Self::OutsideSuite => "a template id is its suite's id followed by `.` and one segment",
+            Self::InvalidSegment => {
+                "a template id's last segment is lowercase ASCII letters, digits, and underscores, starting with a letter"
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for TemplateIdentifierRefusal {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.reason())
+    }
+}
+
+impl std::error::Error for TemplateIdentifierRefusal {}
+
 /* === Public Functions === */
 
+// The public template reference is `<suite id>.<segment>`: the suite owns the
+// prefix and the segment is `[a-z][a-z0-9_]*`. Const so the SDK refuses a
+// foreign or malformed id while the plugin compiles.
+pub const fn template_identifier(
+    suite: &str,
+    template: &str,
+) -> Result<(), TemplateIdentifierRefusal> {
+    let (suite, template) = (suite.as_bytes(), template.as_bytes());
+    if suite.is_empty() || template.len() <= suite.len() + 1 || template[suite.len()] != b'.' {
+        return Err(TemplateIdentifierRefusal::OutsideSuite);
+    }
+    let mut index = 0;
+    while index < suite.len() {
+        if suite[index] != template[index] {
+            return Err(TemplateIdentifierRefusal::OutsideSuite);
+        }
+        index += 1;
+    }
+    template_segment(template, suite.len() + 1)
+}
+
 /* === Private Functions === */
+const fn template_segment(
+    identifier: &[u8],
+    start: usize,
+) -> Result<(), TemplateIdentifierRefusal> {
+    if start >= identifier.len() || !identifier[start].is_ascii_lowercase() {
+        return Err(TemplateIdentifierRefusal::InvalidSegment);
+    }
+    let mut index = start;
+    while index < identifier.len() {
+        let byte = identifier[index];
+        if !(byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_') {
+            return Err(TemplateIdentifierRefusal::InvalidSegment);
+        }
+        index += 1;
+    }
+    Ok(())
+}
 
 /* === Tests === */

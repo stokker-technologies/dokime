@@ -50,6 +50,7 @@ import {
 import { fetchNativeRuntimeShell } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import { downloadNativeCycleReport, downloadNativeReport } from "@/lib/api/native-reports";
+import { createdExecutionId } from "./cycle-workspace-model";
 import { invalidateWorkflowResourceQueries, workflowQueryKeys } from "./server-state";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
@@ -213,3 +214,27 @@ export function useCycleCommands(cycleId: string) {
 }
 
 export type CycleCommands = ReturnType<typeof useCycleCommands>;
+
+/**
+ * Re-run a case and hand back the execution the re-run created.
+ *
+ * Neither scheduling nor run admission names the new execution, so the
+ * executions known before the request are remembered and the first execution
+ * of the case outside them, once the detail is read again, is the re-run.
+ * `null` means the refreshed detail did not show it yet.
+ */
+export function useRerunCase(cycleId: string) {
+  const commands = useCycleCommands(cycleId);
+  const detailQuery = useCycleDetailQuery(cycleId);
+  return {
+    pending: commands.scheduleRerun.isPending,
+    rerun: async (caseId: string): Promise<string | null> => {
+      const known = new Set(
+        (detailQuery.data?.executions ?? []).map((execution) => execution.test_execution_id),
+      );
+      await commands.scheduleRerun.mutateAsync(caseId);
+      const refreshed = await detailQuery.refetch();
+      return createdExecutionId(refreshed?.data?.executions ?? [], caseId, known);
+    },
+  };
+}

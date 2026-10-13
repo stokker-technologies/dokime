@@ -25,8 +25,14 @@ import { useCycleLabelQuery, useTestSuitesQuery } from "@/components/suite-picke
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  CatalogIdentifier,
+  pluginSearchText,
+  SuiteProvenance,
+} from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { TemplateStepTimeline } from "@/features/library/TemplateStepTimeline";
+import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import { usePageChrome } from "@/shell/page-chrome";
 
@@ -45,9 +51,15 @@ type OpenTemplate = {
 /* === Constants === */
 
 /* Suite and template rows share one grid so the count pill, the tag column and
-   the action sit on the same verticals down the whole list. */
+   the action sit on the same verticals down the whole list. A row's second
+   line puts the identifier under the label and the plugin provenance under the
+   tags, on those same columns. */
 const ROW_COLUMNS =
-  "grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-[var(--shell-gap)]";
+  "grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-x-[var(--shell-gap)] gap-y-0.5";
+
+/* The suite label sits after the chevron (size-4 + gap-2); its identifier
+   starts on the label's text edge, not under the chevron. */
+const SUITE_IDENTIFIER_INSET = "pl-6";
 
 /* === Components === */
 
@@ -61,6 +73,11 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const suitesQuery = useTestSuitesQuery();
   const cycleLabelQuery = useCycleLabelQuery(appendTo);
   const suites = suitesQuery.data ?? null;
+  const pluginsQuery = useInstalledPluginsQuery();
+  const plugins = useMemo(
+    () => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])),
+    [pluginsQuery.data],
+  );
 
   const [suiteSearch, setSuiteSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -84,8 +101,11 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   usePageChrome({ actions, title: "Library" });
 
   const suiteRows = useMemo(
-    () => filterTestSuites(suites ?? [], suiteSearch),
-    [suiteSearch, suites],
+    () =>
+      filterTestSuites(suites ?? [], suiteSearch, (suite) =>
+        pluginSearchText(plugins.get(suite.source)),
+      ),
+    [plugins, suiteSearch, suites],
   );
   const hasSearch = suiteSearch.trim().length > 0;
 
@@ -112,7 +132,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
               aria-label="Filter Templates"
               className="h-[var(--bar-control-height)] pl-8"
               onChange={(event) => setSuiteSearch(event.target.value)}
-              placeholder="Filter Templates"
+              placeholder="Filter by name, identifier, or plugin"
               value={suiteSearch}
             />
           </div>
@@ -126,7 +146,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
           <p className="text-muted-foreground">Loading suites…</p>
         ) : suiteRows.length === 0 ? (
           <p className="text-muted-foreground">
-            No suite matches this filter. Search by path, tag, suite, template, or id.
+            No suite matches this filter. Search by name, tag, identifier, or plugin.
           </p>
         ) : (
           <ul className="grid gap-4">
@@ -134,8 +154,8 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
               const isExpanded = expanded.has(suite.suite_id) || hasSearch;
               return (
                 <li className="grid gap-2" key={suite.suite_id}>
-                  {/* One crisp row on shared columns: label, template count,
-                      tags. The identifier stays in the accessible name. */}
+                  {/* Two lines on shared columns: label, template count, tags;
+                      then identifier and plugin provenance beneath them. */}
                   <div className={ROW_COLUMNS}>
                     <button
                       className="flex min-h-[var(--control-height)] min-w-0 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -162,6 +182,16 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                     </Badge>
                     <SuiteTags tags={suite.tags} />
                     <span />
+                    <CatalogIdentifier
+                      className={`col-start-1 ${SUITE_IDENTIFIER_INSET}`}
+                      subject="suite"
+                      value={suite.suite_id}
+                    />
+                    <SuiteProvenance
+                      className="col-start-3"
+                      plugin={plugins.get(suite.source)}
+                      source={suite.source}
+                    />
                   </div>
 
                   {isExpanded ? (
@@ -178,7 +208,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                             <button
                               className="min-h-[var(--control-height)] min-w-0 truncate text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               onClick={() => setOpenTemplate({ suite, template })}
-                              title={templateSelectionId(template)}
+                              title={template.identifier ?? undefined}
                               type="button"
                             >
                               {template.name}
@@ -194,6 +224,13 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                             >
                               Configure
                             </Button>
+                            {template.identifier ? (
+                              <CatalogIdentifier
+                                className="col-start-1"
+                                subject="template"
+                                value={template.identifier}
+                              />
+                            ) : null}
                           </div>
                           {/* One paragraph, then the full-width timeline. */}
                           {template.description ? (

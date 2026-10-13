@@ -76,7 +76,7 @@ enum ChecksTemplates {
 #[sdk::suite(label = "Checks", templates = ChecksTemplates)]
 impl Checks {}
 
-#[sdk::template(label = "Probe")]
+#[sdk::template(id = "Checks.probe", label = "Probe")]
 impl Probe {
     async fn initialize(_: &mut sdk::execution::InitializationContext<'_>) -> Result<Self, Error> {
         Ok(Self)
@@ -130,11 +130,14 @@ pub(crate) fn item_names_identities() {
     let suite = Checks::definition();
     assert_eq!(suite.suite_id, "Checks");
     assert_eq!(suite.workflow.as_deref(), Some("Checks"));
+    // A template names its suite: its public reference is the suite's id and
+    // one segment, and its stored identity is seeded from that reference.
     let template = Probe::declaration();
-    assert_eq!(template.metadata.identifier.as_str(), "Probe");
+    assert_eq!(template.metadata.identifier.as_str(), "Checks.probe");
+    assert_eq!(<Probe as DeclaredTemplate>::IDENTIFIER, "Checks.probe");
     assert_eq!(
         Probe::template_id(),
-        sdk::core::TemplateId::from_seed("Probe")
+        sdk::core::TemplateId::from_seed("Checks.probe")
     );
     assert_eq!(
         template

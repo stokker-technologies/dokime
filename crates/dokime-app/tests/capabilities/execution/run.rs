@@ -371,6 +371,118 @@ pub(crate) async fn stop_holds_unwind() {
             .iter()
             .any(|record| record.record_type.as_str() == "test.execution.stopped")
     );
+    // A stop is terminal: the cycle and its execution seal their final
+    // reports exactly as completion does, labelled stopped.
+    for report in [
+        &cycle
+            .saved
+            .as_ref()
+            .expect("a stopped cycle seals its final report")
+            .report,
+        &cycle.test_executions[0]
+            .saved
+            .as_ref()
+            .expect("a stopped execution seals its final report")
+            .report,
+    ] {
+        let payload = crate::support::reports::payload(runtime.storage(), report).await;
+        assert_eq!(payload["test_executions"][0]["status"], "stopped");
+    }
+}
+
+pub(crate) async fn execution_stop_spares_sibling() {
+    // === Start A Two-Case Cycle === //
+
+    let root = tempdir().unwrap();
+    let executor = Arc::new(MemberStopExecutor::default());
+    let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let mut suite = plt400_suite();
+    suite.test_case_templates[0].parameters[0].expansion =
+        dokime::definition::ParameterExpansion::Cartesian;
+    suite.test_case_templates[0].parameters[0].expression = ParameterExpr::Array {
+        values: vec![
+            ParameterExpr::Literal {
+                value: Value::from("passed"),
+            },
+            ParameterExpr::Literal {
+                value: Value::from("alternate"),
+            },
+        ],
+    };
+    register_python_suite(&runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    runtime
+        .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
+        .await;
+    executor.wait_until_entered().await;
+    let running = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
+    let stopped_id = running
+        .test_executions
+        .iter()
+        .find(|execution| execution.status == ExecutionStatus::Running)
+        .expect("first execution is running")
+        .test_execution_id
+        .clone();
+
+    // === Stop One Execution === //
+
+    let stop = runtime
+        .stop_execution(stopped_id.clone(), CommandContext::default())
+        .await;
+    let during = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let repeated = runtime
+        .stop_execution(stopped_id.clone(), CommandContext::default())
+        .await;
+
+    // === Settle And Read The Sealed Reports === //
+
+    let cycle = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopped).await;
+    let stopped = cycle
+        .test_executions
+        .iter()
+        .find(|execution| execution.test_execution_id == stopped_id)
+        .unwrap();
+    let sibling = cycle
+        .test_executions
+        .iter()
+        .find(|execution| execution.test_execution_id != stopped_id)
+        .unwrap();
+    let cycle_report = crate::support::reports::payload(
+        runtime.storage(),
+        &cycle
+            .saved
+            .as_ref()
+            .expect("a cycle with a stopped execution seals its final report")
+            .report,
+    )
+    .await;
+    let execution_report = crate::support::reports::payload(
+        runtime.storage(),
+        &stopped
+            .saved
+            .as_ref()
+            .expect("a stopped execution seals its final report")
+            .report,
+    )
+    .await;
+
+    assert!(stop.is_ok(), "{stop:?}");
+    assert!(
+        repeated.is_err(),
+        "a second stop of the same execution is refused"
+    );
+    assert_eq!(during.lifecycle, CycleStatus::Running);
+    assert_eq!(cycle.test_executions.len(), 2);
+    assert_eq!(stopped.status, ExecutionStatus::Cancelled);
+    assert_eq!(sibling.status, ExecutionStatus::Passed);
+    assert_eq!(execution_report["test_executions"][0]["status"], "stopped");
+    let statuses = cycle_report["test_executions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|execution| execution["status"].as_str().unwrap().to_owned())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(statuses, ["passed".to_owned(), "stopped".to_owned()].into());
 }
 
 pub(crate) async fn cycle_spanning_group() {

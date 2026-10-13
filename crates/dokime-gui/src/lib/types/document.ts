@@ -17,6 +17,7 @@ import type {
 import type { ValueFormat } from "./format";
 import type {
   DocumentAxisScale,
+  DocumentDownsampleTechnique,
   DocumentFftOptions,
   DocumentHistogramOptions,
   DocumentPlotAxisKind,
@@ -131,6 +132,10 @@ export type DocumentViewPlot = {
   y_format?: ValueFormat | null;
   /** Absent for a payload written before the axis was declared on the wire. */
   x_axis?: DocumentPlotAxisKind | null;
+  /** Displayed points; absent or `null` is the host default, `0` keeps every sample. */
+  display_points?: number | null;
+  /** Reduction technique; absent is the host default (`lttb`). */
+  downsample?: DocumentDownsampleTechnique | null;
 };
 
 export type DocumentViewHistogram = {

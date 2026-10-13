@@ -34,6 +34,9 @@ from dokime_tools.package import publish
 
 # === Constants === #
 
+WHEEL = "dokime-1.2.3-py3-none-any.whl"
+SDIST = "dokime-1.2.3.tar.gz"
+
 # === Types === #
 
 
@@ -67,7 +70,7 @@ def test_publication_reuploading(tmp_path: Path):
     registry.interrupt = True
     with pytest.raises(OSError):
         publish.reconcile(expected, registry, "1.2.3")
-    assert registry.uploaded == ["linux.whl"]
+    assert registry.uploaded == [WHEEL]
     registry.interrupt = False
     publish.reconcile(expected, registry, "1.2.3")
     assert registry.uploaded == list(expected)
@@ -79,8 +82,8 @@ def test_publication_reuploading(tmp_path: Path):
 def test_registry_upload(tmp_path: Path, conflict: str):
     expected = _artifacts(tmp_path)
     registry = FakeRegistry()
-    artifact = expected["linux.whl"]
-    registry.remote["unexpected.whl" if conflict == "extra" else "linux.whl"] = (
+    artifact = expected[WHEEL]
+    registry.remote["unexpected.whl" if conflict == "extra" else WHEEL] = (
         "0" * 64 if conflict == "checksum" else artifact.sha256,
         artifact.size + 1 if conflict == "size" else artifact.size,
     )
@@ -101,7 +104,7 @@ def test_artifact_refused(tmp_path, monkeypatch, when):
     expected = _artifacts(tmp_path)
     registry = FakeRegistry()
     if when == "before":
-        expected["linux.whl"].path.write_bytes(b"tampered")
+        expected[WHEEL].path.write_bytes(b"tampered")
     elif when == "during":
         original = registry.upload
 
@@ -116,7 +119,8 @@ def test_artifact_refused(tmp_path, monkeypatch, when):
         def files(version):
             nonlocal count
             count += 1
-            return {} if count == 5 else dict(registry.remote)
+            # The last inventory read follows one initial read and one per upload.
+            return {} if count == 2 + len(expected) else dict(registry.remote)
 
         monkeypatch.setattr(registry, "files", files)
     with pytest.raises(ValueError, match="changed|incomplete"):
@@ -150,7 +154,7 @@ def test_registry_metadata(monkeypatch, case):
         "https://api.github.com", "stokker-technologies/dokime", "secret"
     )
     asset = {
-        "name": "linux.whl",
+        "name": WHEEL,
         "digest": "sha256:" + "a" * 64,
         "size": 3,
         "state": "uploaded",
@@ -223,17 +227,17 @@ def test_upload_credentials(tmp_path, monkeypatch, timeout):
         assert request.method == "POST"
         assert (
             request.full_url
-            == "https://uploads.github.com/repos/stokker-technologies/dokime/releases/1/assets?name=linux.whl"
+            == f"https://uploads.github.com/repos/stokker-technologies/dokime/releases/1/assets?name={WHEEL}"
         )
         assert request.get_header("Authorization") == "Bearer secret"
         assert "secret" not in request.full_url
-        assert request.data.read() == (tmp_path / "linux.whl").read_bytes()
+        assert request.data.read() == (tmp_path / WHEEL).read_bytes()
         if timeout:
             raise TimeoutError("unknown outcome")
         return BytesIO(b"{}")
 
     monkeypatch.setattr(registry._opener, "open", open_request)
-    registry.upload("linux.whl", _artifacts(tmp_path)["linux.whl"])
+    registry.upload(WHEEL, _artifacts(tmp_path)[WHEEL])
 
 
 def case_main_network(tmp_path, monkeypatch):
@@ -281,8 +285,8 @@ def test_main_validation(tmp_path, monkeypatch, changed):
     directory = tmp_path / "dist/build"
     manifests = []
     for platform, names in [
-        ("linux", ["linux.whl", "dokime.tar.gz"]),
-        ("windows", ["windows.whl"]),
+        ("linux", [WHEEL, SDIST]),
+        ("windows", [WHEEL, SDIST]),
     ]:
         (directory / platform).mkdir(parents=True)
         entries = []
@@ -322,7 +326,7 @@ def test_main_validation(tmp_path, monkeypatch, changed):
         result = json.loads(receipt.read_text())
         assert result["commit"] == "a" * 40
         assert set(result["files"]) == set(registry.uploaded)
-        assert len(result["files"]) == 3
+        assert len(result["files"]) == 2
 
 
 @pytest.mark.parametrize(
@@ -394,7 +398,7 @@ def test_source_checkout(tmp_path, monkeypatch, case):
 # === Private Functions === #
 def _artifacts(root):
     result = {}
-    for name in ("linux.whl", "windows.whl", "dokime.tar.gz"):
+    for name in (WHEEL, SDIST):
         path = root / name
         path.write_bytes(name.encode())
         result[name] = publish.Artifact(path, digest(path), path.stat().st_size)

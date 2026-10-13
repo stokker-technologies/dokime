@@ -55,6 +55,13 @@ pub struct BlockingErrorExecutor {
     release_signal: tokio::sync::Notify,
 }
 
+/// Runs every case of a cycle and holds the first one open until an operator
+/// stops that execution alone; the siblings then run to completion.
+#[derive(Default)]
+pub struct MemberStopExecutor {
+    entered: AtomicBool,
+}
+
 pub struct PanickingExecutor;
 
 pub struct PublishingExecutor;
@@ -136,6 +143,19 @@ impl BlockingErrorExecutor {
     }
 }
 
+impl MemberStopExecutor {
+    pub async fn wait_until_entered(&self) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+        while tokio::time::Instant::now() < deadline {
+            if self.entered.load(Ordering::SeqCst) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("member stop executor did not enter within timeout");
+    }
+}
+
 impl ExecutionFixture for FakePythonExecutor {
     fn run_cycle<'a>(
         &'a self,
@@ -206,6 +226,54 @@ impl ExecutionFixture for BlockingErrorExecutor {
                 "worker",
                 "worker was cancelled",
             ))
+        })
+    }
+}
+
+impl ExecutionFixture for MemberStopExecutor {
+    fn run_cycle<'a>(
+        &'a self,
+        context: ExecutionFixtureContext,
+        cycle: &'a dokime_app::execution::CycleView,
+        _target: &'a ExecutionProviderTarget,
+    ) -> ExecutionFixtureFuture<'a> {
+        Box::pin(async move {
+            // === Hold The First Execution Until It Alone Is Stopped === //
+
+            let first = runnable_executions(cycle)
+                .next()
+                .expect("cycle has a runnable execution")
+                .clone();
+            activate_fixture_execution(&context, &first).await;
+            self.entered.store(true, Ordering::SeqCst);
+            while !context.execution_stop_requested(&first.test_execution_id) {
+                if context.is_cancelled() {
+                    return Err(ProviderExecutionFailure::new("cancel", "fixture cancelled"));
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+
+            // === Run The Siblings To Completion === //
+
+            for execution in runnable_executions(cycle).skip(1) {
+                assert!(
+                    !context.execution_stop_requested(&execution.test_execution_id),
+                    "stopping one execution must not mark its siblings"
+                );
+                activate_fixture_execution(&context, execution).await;
+            }
+            let mut outcome = python_outcome(cycle, "passed", false);
+            let stopped = outcome
+                .executions
+                .iter_mut()
+                .find(|execution| execution.test_execution_id == first.test_execution_id.as_str())
+                .expect("stopped execution has an outcome");
+            stopped.status = "cancelled".to_owned();
+            stopped.criteria.clear();
+            for phase in &mut stopped.phases {
+                phase.status = "cancelled".to_owned();
+            }
+            Ok(outcome)
         })
     }
 }

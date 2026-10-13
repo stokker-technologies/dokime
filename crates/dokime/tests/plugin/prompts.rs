@@ -19,7 +19,8 @@
 // Local Imports
 use dokime::execution::{CriterionContext, InitializationContext, StepContext};
 use dokime::plugin::testing::Harness;
-use dokime::prompts::DeclaredPrompt;
+use dokime::prompts::{DeclaredPrompt, FormPrompt, PromptDefinition};
+use dokime::records::RecordSeverity;
 
 /* === Constants === */
 const SUITE: &str = "prompts.checks";
@@ -34,6 +35,7 @@ const TEMPLATE: &str = "prompts.checks.ask";
     id = "prompts.checks.signoff",
     label = "Sign off",
     submit = "Sign off",
+    level = warning,
     description = "The form: its fields are the question's fields and the answer's fields.\nRecord what you saw."
 )]
 #[derive(Debug)]
@@ -257,4 +259,39 @@ pub(crate) fn declaration_what_registers() {
             "slow"
         )]))
     );
+}
+
+pub(crate) fn prompt_level_round_trips() {
+    // === Declared And Built Levels === //
+
+    let declared = SignOff::definition();
+    let unraised = Go::definition();
+    let built = dokime::prompts::Prompt::definition(
+        &FormPrompt::<std::collections::BTreeMap<String, String>>::new(
+            "prompts.checks.built",
+            "Built",
+        )
+        .level(RecordSeverity::Error),
+    );
+
+    // === Encode And Decode === //
+
+    let encoded = serde_json::to_value(&declared).expect("a prompt definition encodes");
+    let decoded: PromptDefinition =
+        serde_json::from_value(encoded.clone()).expect("a prompt definition decodes");
+    let mut baseline = encoded;
+    baseline
+        .as_object_mut()
+        .expect("a prompt definition encodes as an object")
+        .remove("level");
+    let defaulted: PromptDefinition =
+        serde_json::from_value(baseline).expect("a definition without a level decodes");
+
+    // === Compare === //
+
+    assert_eq!(declared.level, RecordSeverity::Warning);
+    assert_eq!(unraised.level, RecordSeverity::Info);
+    assert_eq!(built.level, RecordSeverity::Error);
+    assert_eq!(decoded, declared);
+    assert_eq!(defaulted.level, RecordSeverity::Info);
 }

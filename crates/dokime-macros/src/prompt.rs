@@ -24,7 +24,7 @@ use syn::{Data, DeriveInput, Error, Expr, Fields, Ident, LitStr, Type};
 use crate::arguments::Arguments;
 
 /* === Constants === */
-const ARGUMENTS: &[&str] = &["id", "label", "description", "submit", "cancel"];
+const ARGUMENTS: &[&str] = &["id", "label", "description", "submit", "cancel", "level"];
 
 const FIELD_ARGUMENTS: &[&str] = &[
     "label",
@@ -114,6 +114,11 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
                     ::core::option::Option::Some(::std::string::String::from(#text));
             )
         });
+    let level = arguments
+        .value("level")
+        .map(|written| crate::record::declared_severity(written, "a prompt is asked"))
+        .transpose()?
+        .map(|level| quote!(declared.level = #level;));
     let Data::Struct(structure) = &input.data else {
         return Err(Error::new(
             input.ident.span(),
@@ -161,6 +166,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
                 fn definition() -> #sdk::prompts::PromptDefinition {
                     let mut declared = #sdk::prompts::declared_confirmation(#identifier, #label);
                     #description
+                    #level
                     declared
                 }
 
@@ -207,6 +213,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
             fn definition() -> #sdk::prompts::PromptDefinition {
                 let mut declared = #sdk::prompts::declared_form(#identifier, #label);
                 #description
+                #level
                 #submit
                 #cancel
                 declared.fields = ::std::vec![#(#declared_fields),*];

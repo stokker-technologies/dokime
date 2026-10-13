@@ -232,7 +232,7 @@ impl GetBehaviour {
 #[dokime::suite(id = "fixture.checks", label = "Fixture Checks", templates = ChecksTemplates)]
 impl Checks {}
 
-#[dokime::template(id = "fixture.smoke", label = "Fixture Smoke", requires = SmokeRequires)]
+#[dokime::template(id = "fixture.checks.smoke", label = "Fixture Smoke", requires = SmokeRequires)]
 impl Smoke {
     async fn initialize(
         ctx: &mut dokime::execution::InitializationContext<'_>,

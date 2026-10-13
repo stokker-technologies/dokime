@@ -150,7 +150,7 @@ class DokimeClient:
         await self.close()
 
     async def suites(self) -> AsyncIterator[Suite]:
-        """List registered IDs. A concurrent catalog revision can abort paging."""
+        """List suites by ID. A concurrent catalog revision can abort paging."""
         async for identity in self._suite_identities():
             item = await self._suite_by_id(identity.suite_id)
             if not _wire.equal(item.identity, identity):
@@ -172,10 +172,8 @@ class DokimeClient:
                 raise ProtocolError("suite page exceeds its limit")
             previous = request.after_suite_id
             for identity in page.suites:
-                try:
-                    _identity(identity.suite_id)
-                except ValueError as error:
-                    raise ProtocolError("suite identity is invalid") from error
+                if not _readable(identity.suite_id):
+                    raise ProtocolError("suite identity is invalid")
                 if identity.suite_id <= previous:
                     raise ProtocolError("suite identities do not advance")
                 previous = identity.suite_id
@@ -218,7 +216,7 @@ class DokimeClient:
             if item.metadata.identifier == identifier
         ]
         if len(matches) > 1:
-            raise ValueError("suite identifier is ambiguous; use its registered ID")
+            raise ValueError("suite identifier is ambiguous")
         if not matches:
             raise RpcError("NOT_FOUND", "suite not found")
         item = await self._suite_by_id(matches[0])
@@ -227,7 +225,7 @@ class DokimeClient:
         return item
 
     async def suite(self, suite_id: str) -> Suite:
-        """Resolve a registered UUID or a unique authored suite identifier."""
+        """Resolve a suite by its ID, as the catalog lists it."""
         return _suite(await self._suite_definition(suite_id))
 
     async def create_cycle(
@@ -238,17 +236,19 @@ class DokimeClient:
         parameters: Mapping[str, Value] | None = None,
         label: str | None = None,
     ) -> str:
-        """Create one planned case using registered IDs or authored identifiers.
+        """Create one planned case for a suite and template named by their IDs.
 
         This RPC has no idempotency key. An ambiguous failure must not be
         blindly retried. Omitted parameters use the registered defaults.
         """
         backend = await self.connect()
         definition = await self._suite_definition(suite)
+        # A template is named by its readable ID; the registered UUID stays on
+        # the wire between this client and the backend.
         matches = [
             item
             for item in definition.templates
-            if item.template_id == template or item.metadata.identifier == template
+            if item.metadata.identifier == template
         ]
         if len(matches) != 1:
             raise ValueError("template must identify exactly one registered template")
@@ -344,6 +344,17 @@ class DokimeClient:
 # === Private Functions === #
 
 
+def _readable(value: str) -> bool:
+    # A suite ID is a readable identifier: ASCII letters, digits, `.`, `_` and
+    # `-`, starting with a letter, digit or underscore.
+    return (
+        value.isascii()
+        and bool(value)
+        and (value[0].isalnum() or value[0] == "_")
+        and all(character.isalnum() or character in "._-" for character in value)
+    )
+
+
 def _suite(item: Message) -> Suite:
     return Suite(
         item.identity.suite_id,
@@ -351,7 +362,6 @@ def _suite(item: Message) -> Suite:
         item.identity.metadata.label,
         tuple(
             Template(
-                t.template_id,
                 t.metadata.identifier,
                 t.metadata.label,
                 tuple(p.parameter_id for p in t.parameters),

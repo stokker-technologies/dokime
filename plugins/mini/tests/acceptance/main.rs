@@ -31,12 +31,12 @@ use dokime::transport::{
     LeaseResolution, LeaseStream, OperatorAnswer, OperatorQuestion, PushEvidence,
     RunExecutionRequest, SidecarExecutionOutcome, StepAdmission,
 };
-use harmos::load::{
+use harmos::operations::{Context, Operation};
+use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions,
     PluginLifecycle, PluginLifecycleAuthority, PluginLifecyclePhase, PluginManager, PluginScope,
     PluginTransition, Router,
 };
-use harmos::operations::{Context, Operation};
 use mini_sidecar::MiniSidecar;
 
 /* === Constants === */
@@ -46,7 +46,7 @@ const EXECUTABLE: &str = env!("CARGO_BIN_EXE_mini-sidecar");
 
 /* === Type Aliases === */
 type NoticeHandler =
-    Box<dyn Fn(&harmos::Service<Fixture>, harmos::plugin::sidecar::Notice) + Send + Sync>;
+    Box<dyn Fn(&harmos::services::Service<Fixture>, harmos::plugin::sidecar::Notice) + Send + Sync>;
 type Resident = harmos::plugin::sidecar::Supervised<
     Fixture,
     harmos::plugin::sidecar::Executable,
@@ -70,13 +70,16 @@ struct Backend {
 #[derive(Default)]
 struct Captures {
     scopes: BTreeMap<String, dokime::core::RecordScope>,
-    publications: Vec<(harmos::ManagedPublication, dokime::core::RecordScope)>,
+    publications: Vec<(
+        harmos::streams::ManagedPublication,
+        dokime::core::RecordScope,
+    )>,
 }
 
 struct Hosting {
     captures: Arc<Mutex<Captures>>,
     pages: Mutex<BTreeMap<String, Vec<EvidenceBatch>>>,
-    operations: OnceLock<harmos::OperationManager>,
+    operations: OnceLock<harmos::operations::OperationManager>,
     resident: OnceLock<Resident>,
 }
 
@@ -84,7 +87,7 @@ struct Host {
     resident: Option<Resident>,
     hosting: Arc<Hosting>,
     services: harmos::services::ServiceManager<Fixture>,
-    operations: harmos::OperationManager,
+    operations: harmos::operations::OperationManager,
 }
 
 struct Bench {
@@ -119,7 +122,7 @@ enum Lanes {
 /* === Implementations === */
 impl dokime::__harmos::Application for Fixture {
     type State = ();
-    type Transaction = dokime::__harmos::Never;
+    type Transaction = dokime::__harmos::state::Never;
     type Record = ();
     type Streams = ();
     type Resources = ();
@@ -213,7 +216,7 @@ impl Operation for Evidence {
         context: Self::Context<'ctx>,
         batch: &mut EvidenceBatch,
         _: &mut (),
-    ) -> harmos::Result<EvidenceReceipt> {
+    ) -> harmos::Result<harmos::operations::Response<EvidenceReceipt>> {
         let token = Hosting::scope_of(&context)?;
         let batch = std::mem::take(batch);
         let mut admitted = Vec::new();
@@ -244,7 +247,10 @@ impl Operation for Evidence {
             .entry(token)
             .or_default()
             .push(batch);
-        Ok(EvidenceReceipt { admitted, settled })
+        Ok(harmos::operations::Response::new(EvidenceReceipt {
+            admitted,
+            settled,
+        }))
     }
 }
 
@@ -268,7 +274,7 @@ impl Operation for Question {
         _: Self::Context<'ctx>,
         _: &mut OperatorQuestion,
         _: &mut (),
-    ) -> harmos::Result<OperatorAnswer> {
+    ) -> harmos::Result<harmos::operations::Response<OperatorAnswer>> {
         Err(harmos::Error::InvalidInput {
             field: "operator question",
             reason: "the mini checks never ask the operator",
@@ -296,8 +302,8 @@ impl Operation for Filing {
         _: Self::Context<'ctx>,
         _: &mut dokime::records::RecordPublication,
         _: &mut (),
-    ) -> harmos::Result<()> {
-        Ok(())
+    ) -> harmos::Result<harmos::operations::Response<()>> {
+        Ok(harmos::operations::Response::new(()))
     }
 }
 
@@ -321,11 +327,11 @@ impl Operation for Lease {
         _: Self::Context<'ctx>,
         _: &mut LeaseAsk,
         _: &mut (),
-    ) -> harmos::Result<LeaseResolution> {
-        Ok(LeaseResolution {
+    ) -> harmos::Result<harmos::operations::Response<LeaseResolution>> {
+        Ok(harmos::operations::Response::new(LeaseResolution {
             granted: false,
             message: "the test host leases nothing".into(),
-        })
+        }))
     }
 }
 
@@ -352,7 +358,7 @@ impl Operation for Publishing {
         context: Self::Context<'ctx>,
         request: &mut harmos::operations::host::Publication,
         _: &mut (),
-    ) -> harmos::Result<()> {
+    ) -> harmos::Result<harmos::operations::Response<()>> {
         if self.native.is_none() {
             let resident =
                 self.hosting
@@ -370,6 +376,7 @@ impl Operation for Publishing {
             .expect("native publication initialized")
             .run(context, request, &mut ())
             .await
+            .map(|_| harmos::operations::Response::new(()))
     }
 
     async fn stop(&mut self) -> harmos::Result<()> {
@@ -499,7 +506,7 @@ impl PluginLifecycle for Host {
             .restart()
             .expect("mini declares its restart policy")
             .bounded();
-        let policy = harmos::ServicePolicy {
+        let policy = harmos::services::ServicePolicy {
             credit: usize::try_from(restart.credit).unwrap(),
             sustained_health: Duration::from_millis(restart.sustained_health_ms),
             backoff_base: Duration::from_millis(restart.backoff_base_ms),
@@ -650,7 +657,10 @@ impl Bench {
         let definitions = PluginDefinitions::new([definition], []).unwrap();
         let runtime = harmos::Runtime::<Fixture>::builder((), ())
             .register(Lanes::catalog())
-            .operation_preparation_bytes(NonZeroUsize::new(4 * 1024 * 1024).unwrap())
+            .operation_settings(harmos::operations::Settings {
+                preparation_bytes: Some(NonZeroUsize::new(4 * 1024 * 1024).unwrap()),
+                ..Default::default()
+            })
             .runtime()
             .await
             .unwrap();
@@ -734,7 +744,11 @@ impl Bench {
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn dispatch(operations: &harmos::OperationManager, method: &str, request: Vec<u8>) {
+async fn dispatch(
+    operations: &harmos::operations::OperationManager,
+    method: &str,
+    request: Vec<u8>,
+) {
     let response = operations.call_encoded(method, request).await;
     match response {
         Ok(_) => {}
@@ -837,7 +851,11 @@ async fn the_inert_mini_inventory_matches_live_dispatch() {
     })
     .await
     .expect("the demanded host observer publishes consecutive ticks");
-    let decoder = harmos::schema::Validator::new(system.definition().fields().unwrap()).unwrap();
+    let decoder = harmos::schema::Validator::from_schema(
+        system.definition().schema().unwrap(),
+        &harmos::config::SchemaSettings::default(),
+    )
+    .unwrap();
     for row in rows {
         let mut used = None;
         decoder
@@ -957,8 +975,12 @@ async fn samples_use_native_streams_and_keep_execution_context() {
 
     let stream = bench.runtime.streams.publication("mini.pulse", 1).unwrap();
     assert_eq!(
-        stream.definition().fields().unwrap(),
-        <mini_sidecar::suites::checks::pulse::PulseRow as harmos::schema::Described>::FIELDS
+        stream.definition().schema().unwrap(),
+        &harmos::schema::graph::Schema::from_declaration(
+            <mini_sidecar::suites::checks::pulse::PulseRow as harmos::schema::Described>::DEFINITION,
+            &harmos::config::SchemaSettings::default(),
+        )
+        .unwrap()
     );
     let mut samples: BTreeMap<String, Vec<i64>> = BTreeMap::new();
     for row in stream.query(..).await.unwrap() {

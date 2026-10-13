@@ -214,19 +214,24 @@ item per line; output emits item and completion events. Ctrl+C closes the local
 call. The [Remote Operations Example](crates/dokime-client/examples/remote_operations/main.rs)
 uses the same live contract discovery and shared Harmos codec from Rust.
 
-Browse the registered suite catalog and request an explicit backend stop:
+Browse the registered suite catalog, stop work explicitly and re-run a case:
 
 ```sh
 dokime catalog list --backend lab --json
 dokime catalog show REGISTERED_SUITE_ID --backend lab --json
+dokime execution stop EXECUTION_UUID --backend lab --json
 dokime cycle stop CYCLE_UUID --backend lab --json
+dokime cycle rerun CYCLE_UUID CASE_UUID --key rerun-1 --backend lab --json
 ```
 
 Replace the identifiers with those returned by the backend. `catalog list
 --json` emits one complete suite definition per line; a later read failure
-returns a nonzero exit status after any earlier lines. `cycle stop` requests
-backend work to stop and returns its observed cursor. It does not wait for a
-sealed report. Cancelling a local request wait leaves backend work running;
+returns a nonzero exit status after any earlier lines. `execution stop` stops
+one execution while the rest of its cycle keeps running; `cycle stop` stops
+every execution of the cycle. Both return the observed cursor and do not wait
+for a sealed report. `cycle rerun` appends the case's next attempt as a new
+execution, leaving earlier attempts and their evidence untouched, and admits it
+once under the given key. Cancelling a local request wait leaves backend work running;
 query the durable request again to observe settlement.
 
 Selection uses explicit `--backend` or `--endpoint`, then `DOKIME_BACKEND`, then
@@ -279,11 +284,12 @@ location and accepts an explicit `path` override.
 
 ## Planning And Creating Cycles
 
-Use exact registered suite and template IDs from the catalog:
+Name a template by its readable ID, `<suite id>.<segment>`, as `dokime catalog
+show` lists it:
 
 ```sh
-dokime plan preview --suite-id SUITE_ID --template-id TEMPLATE_ID --backend lab --json
-dokime plan register --suite-id SUITE_ID --template-id TEMPLATE_ID --request-key campaign-1 --backend lab --json
+dokime plan preview --template mini.charger.steady.measurement --backend lab --json
+dokime plan register --template mini.charger.steady.measurement --request-key campaign-1 --backend lab --json
 dokime cycle create --case-id CASE_ID --identifier campaign.1 --label "Campaign 1" --backend lab --json
 ```
 

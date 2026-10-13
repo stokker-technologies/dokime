@@ -57,7 +57,7 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-#[sdk::template(label = "Probe")]
+#[sdk::template(id = "aliased.checks.probe", label = "Probe")]
 impl Probe {
     async fn initialize(
         _ctx: &mut sdk::execution::InitializationContext<'_>,

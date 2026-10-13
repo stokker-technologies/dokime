@@ -494,9 +494,13 @@
     opacity: 0.3;
   }
 
+  /* The box-zoom selection: an accent wash with a crisp edge, readable on a
+     light and a dark canvas alike. */
   .u-select {
     position: absolute;
-    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 80%, transparent);
+    box-sizing: border-box;
     pointer-events: none;
   }
 

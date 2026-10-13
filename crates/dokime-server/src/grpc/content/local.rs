@@ -18,7 +18,7 @@ use std::sync::Arc;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 // Local Imports
-use crate::grpc::value;
+use crate::grpc::{reports::require_settled, value};
 use dokime_app::{RuntimeHandle, core::TestCycleId};
 use dokime_contract::operations::content as wire;
 
@@ -31,7 +31,9 @@ struct Resources {
     runtime: RuntimeHandle,
     local_only: bool,
 }
-struct Bundle;
+struct Bundle {
+    resources: Arc<Resources>,
+}
 struct Folder {
     resources: Arc<Resources>,
 }
@@ -42,12 +44,12 @@ struct Folder {
 /* === Implementations === */
 impl Operation for Bundle {
     type Declaration = wire::DownloadCycleBundle;
-    type Resources = ();
+    type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<wire::CycleBundleFrame>;
-    fn new(_: Arc<()>) -> Result<Self, Status> {
-        Ok(Self)
+    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+        Ok(Self { resources })
     }
     async fn run<'a>(
         &mut self,
@@ -56,6 +58,7 @@ impl Operation for Bundle {
         _: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
         let cycle = cycle_id(&request.cycle_id)?;
+        require_settled(&self.resources.runtime, &cycle, "evidence bundle")?;
         Err(Status::unimplemented(format!(
             "cycle bundle export is not supported for {cycle}"
         )))
@@ -104,7 +107,7 @@ pub(super) fn register(
     runtime.operations().register_wire_operation::<Bundle>(
         "dokime",
         dokime_app::app::Lanes::Open,
-        Arc::new(()),
+        resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<Folder>(
         "dokime",

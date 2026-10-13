@@ -23,7 +23,16 @@
 
 /* === External Imports === */
 
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Pause, Play, Square } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  Pause,
+  Play,
+  RotateCcw,
+  Square,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -56,6 +65,16 @@ import {
   plotWindowValueLabel,
 } from "./PlotWindowSlider";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
+
+/* === Constants === */
+
+const TERMINAL_ATTEMPT_STATUSES: readonly TestExecution["status"][] = [
+  "passed",
+  "failed",
+  "stopped",
+  "interrupted",
+  "disconnected",
+];
 
 /* === Types === */
 
@@ -138,6 +157,23 @@ export function CycleEvidencePane({
       });
   };
 
+  /* A settled attempt is never run again in place: Re-Run creates the case's
+     next attempt through the same scheduling and run admission the Cases
+     panel uses, and this attempt's evidence stays as it is. */
+  const rerunnable =
+    live && execution !== null && TERMINAL_ATTEMPT_STATUSES.includes(execution.status) && !controls;
+  const rerun = () => {
+    if (!execution) return;
+    void commands.scheduleRerun
+      .mutateAsync(execution.case_id)
+      .then(() => toast.success("Case Re-Run Started"))
+      .catch((error: unknown) => {
+        toast.error("Case Re-Run Failed", {
+          description: error instanceof Error ? error.message : String(error),
+        });
+      });
+  };
+
   const executionDocumentQuery = useExecutionDocumentQuery({
     cycleId: attempt ? cycleId : null,
     executionId: attempt?.test_execution_id ?? null,
@@ -177,9 +213,22 @@ export function CycleEvidencePane({
           ) : null}
         </div>
         <div className="flex items-center justify-end gap-[var(--bar-gap)] [&_[data-slot=button]:not([class*='h-['])]:h-[var(--bar-control-height)]">
+          {rerunnable ? (
+            <Button
+              disabled={commands.scheduleRerun.isPending}
+              onClick={rerun}
+              size="sm"
+              variant="outline"
+            >
+              <RotateCcw data-icon="inline-start" />
+              Re-Run Case
+            </Button>
+          ) : null}
           {live && controls && (controls.canPause || controls.canResume || controls.canStop) ? (
             <fieldset aria-label="Selected Execution Controls" className="flex items-center gap-1">
-              {controls.paused ? (
+              {/* A member of a cycle run pauses with its cycle; only an
+                  execution-addressed run offers its own Pause and Resume. */}
+              {!controls.canPause && !controls.canResume ? null : controls.paused ? (
                 <Button
                   disabled={!controls.canResume || commands.resumeExecution.isPending}
                   onClick={() => control("resume")}

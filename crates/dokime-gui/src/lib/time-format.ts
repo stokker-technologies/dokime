@@ -56,6 +56,27 @@ export function compactAgeLabel(timestamp: string | null | undefined, now: numbe
   return compactDurationLabel(then, now);
 }
 
+/** How long ago `timestamp` was, as prose: "4 s ago", "2 min ago", "3 h ago", "2 d ago". */
+export function relativeAgeLabel(timestamp: string | null | undefined, now: number): string {
+  const then = parseTimestampMs(timestamp);
+  if (then === null) {
+    return "-";
+  }
+  const seconds = Math.max(0, Math.floor((now - then) / 1000));
+  if (seconds < 60) {
+    return `${seconds} s ago`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} h ago`;
+  }
+  return `${Math.floor(hours / 24)} d ago`;
+}
+
 export function elapsedLabel(
   startedAt: string | null | undefined,
   now: number,

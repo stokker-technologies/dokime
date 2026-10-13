@@ -31,7 +31,7 @@ mod plots;
 mod plugins;
 mod prompts;
 mod query;
-mod redaction;
+pub(crate) mod redaction;
 mod reports;
 mod server;
 mod settings;

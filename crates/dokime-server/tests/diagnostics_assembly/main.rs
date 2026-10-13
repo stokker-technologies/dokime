@@ -73,6 +73,63 @@ pub(crate) async fn assembles_counts_runtime() {
 
     // The startup-doctor passes on a healthy, present storage root.
     assert_eq!(diagnostics.startup_doctor.status, DiagnosticCheckStatus::Ok);
+    let baseline = diagnostics
+        .startup_doctor
+        .checks
+        .iter()
+        .find(|check| check.message == "storage baseline is compatible")
+        .expect("an existing root reports its baseline");
+    assert_eq!(baseline.status, DiagnosticCheckStatus::Ok);
+    assert_eq!(
+        baseline.detail.as_deref(),
+        Some("schema version 1; data format dokime.sqlite.storage.v1")
+    );
+
+    // A root from another baseline fails the doctor and names the mismatch.
+    let foreign = tempdir().unwrap();
+    dokime::storage::sqlite::initialize_sqlite().unwrap();
+    dokime::storage::sqlite::rusqlite::Connection::open(foreign.path().join("local.sqlite"))
+        .unwrap()
+        .execute_batch("PRAGMA user_version=7; CREATE TABLE foreign_evidence(payload BLOB);")
+        .unwrap();
+    let refused = DiagnosticsSnapshot::from_runtime(
+        runtime.runtime_overview().await.unwrap(),
+        foreign.path(),
+        &runtime.application_root(),
+    );
+    assert_eq!(refused.startup_doctor.status, DiagnosticCheckStatus::Failed);
+    let baseline = refused
+        .startup_doctor
+        .checks
+        .iter()
+        .find(|check| check.status == DiagnosticCheckStatus::Failed)
+        .expect("the incompatible baseline is reported");
+    assert_eq!(
+        baseline.message,
+        "storage baseline is incompatible with this build"
+    );
+    assert!(
+        baseline
+            .detail
+            .as_deref()
+            .is_some_and(|detail| detail.contains("schema version 7")),
+        "{:?}",
+        baseline.detail
+    );
+
+    // An absent root has no baseline row to report.
+    let absent = DiagnosticsSnapshot::from_runtime(
+        runtime.runtime_overview().await.unwrap(),
+        &foreign.path().join("absent"),
+        &runtime.application_root(),
+    );
+    assert!(
+        absent
+            .startup_doctor
+            .checks
+            .iter()
+            .all(|check| !check.message.starts_with("storage baseline"))
+    );
 
     // The bundle carries the runtime's storage-layout contract.
     assert_eq!(

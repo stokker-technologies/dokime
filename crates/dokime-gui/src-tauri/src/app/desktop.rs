@@ -38,7 +38,7 @@ use tauri_plugin_opener::OpenerExt;
 //
 
 // ***
-use crate::app::content;
+use crate::app::content::{self, DeliveryError, DeliveryStage};
 use crate::connection::ConnectionSession;
 
 /* === Constants === */
@@ -238,29 +238,39 @@ pub async fn desktop_artifact_deliver(
     app: AppHandle,
     generation: String,
     request: ArtifactDeliveryRequest,
-) -> Result<bool, String> {
-    ensure_main_window(&window)?;
-    ensure_generation_token(&generation)?;
-    ensure_picker_kind(request.kind)?;
+) -> Result<bool, DeliveryError> {
+    let prepare = |message: String| DeliveryError::local(DeliveryStage::Prepare, message);
+
+    // Prepare: Owning Window, Session Lease, Filename And Private Staging Cache
+    ensure_main_window(&window).map_err(prepare)?;
+    ensure_generation_token(&generation).map_err(prepare)?;
+    ensure_picker_kind(request.kind).map_err(prepare)?;
     let session = state.inner().clone();
     let lease = session.lease(&generation).map_err(|error| {
-        format!("Native artifact delivery lost its owning connection: {error:?}")
+        prepare(format!(
+            "Native artifact delivery lost its owning connection: {error:?}"
+        ))
     })?;
-    let filename = sanitize_filename(&request.filename, request.kind)?;
+    let filename = sanitize_filename(&request.filename, request.kind).map_err(prepare)?;
     let cache = app
         .path()
         .app_cache_dir()
-        .map_err(|error| error.to_string())?
+        .map_err(|error| prepare(error.to_string()))?
         .join("documents");
     tauri::async_runtime::spawn_blocking({
         let cache = cache.clone();
         move || ensure_private_directory(&cache)
     })
     .await
-    .map_err(|error| error.to_string())??;
+    .map_err(|error| prepare(error.to_string()))?
+    .map_err(prepare)?;
+
+    // Request, Stream, Write: The Shared Client Pulls And Verifies Into The Cache
     let staged = cache.join(format!("{generation}-{}-{filename}", random::<u64>()));
     let verified = content::fetch_verified(&lease, &request.source, &staged).await?;
-    ensure_document_session(&session, &generation)?;
+    ensure_document_session(&session, &generation).map_err(prepare)?;
+
+    // Rename Or Open: Hand The Verified File To Its Destination
     match request.action {
         DeliveryAction::Save => {
             let kind = request.kind;
@@ -272,22 +282,26 @@ pub async fn desktop_artifact_deliver(
                     .map(|path| path.into_path().map_err(|error| error.to_string()))
             })
             .await
-            .map_err(|error| error.to_string())?;
-            let Some(destination) = selected.transpose()? else {
+            .map_err(|error| prepare(error.to_string()))?;
+            let Some(destination) = selected.transpose().map_err(prepare)? else {
                 let _ = tokio::fs::remove_file(&verified.path).await;
                 return Ok(false);
             };
-            let destination = ensure_selected_extension(destination, kind)?;
-            ensure_document_session(&session, &generation)?;
-            move_verified_file(verified.path, destination).await?;
+            let destination = ensure_selected_extension(destination, kind).map_err(prepare)?;
+            ensure_document_session(&session, &generation).map_err(prepare)?;
+            move_verified_file(verified.path, destination)
+                .await
+                .map_err(|message| DeliveryError::local(DeliveryStage::Rename, message))?;
             Ok(true)
         }
         DeliveryAction::Open => {
+            let open = |message: String| DeliveryError::local(DeliveryStage::Open, message);
             let path = verified.path.clone();
             tauri::async_runtime::spawn_blocking(move || set_private_file(&path))
                 .await
-                .map_err(|error| error.to_string())??;
-            ensure_document_session(&session, &generation)?;
+                .map_err(|error| open(error.to_string()))?
+                .map_err(open)?;
+            ensure_document_session(&session, &generation).map_err(prepare)?;
             // The opener call itself forks/execs a launcher process; run it
             // on the blocking pool so it never occupies a Tokio worker
             // thread other in-flight async commands need.
@@ -298,7 +312,8 @@ pub async fn desktop_artifact_deliver(
                     .map_err(|error| error.to_string())
             })
             .await
-            .map_err(|error| error.to_string())??;
+            .map_err(|error| open(error.to_string()))?
+            .map_err(open)?;
             Ok(true)
         }
     }

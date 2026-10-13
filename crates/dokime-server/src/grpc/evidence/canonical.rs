@@ -154,7 +154,7 @@ pub(crate) fn record(entry: &RecordEntry) -> Result<wire::CapturedRecord, Status
 }
 
 /* === Private Functions === */
-pub(super) fn severity(value: RecordSeverity) -> Severity {
+pub(crate) fn severity(value: RecordSeverity) -> Severity {
     match value {
         RecordSeverity::Debug => Severity::Debug,
         RecordSeverity::Info => Severity::Info,

@@ -202,6 +202,7 @@ modes!(
     CancelComplete, CancelCompleteRun, CancelCompleteSignal => "cancel_complete",
     CancelDelayed, CancelDelayedRun, CancelDelayedSignal => "cancel_delayed",
     CancelRefused, CancelRefusedRun, CancelRefusedSignal => "cancel_refused",
+    CancelIgnored, CancelIgnoredRun, CancelIgnoredSignal => "cancel_ignored",
     ScopeError, ScopeErrorRun, ScopeErrorSignal => "scope_error",
     Capture, CaptureRun, CaptureSignal => "capture",
 );
@@ -555,6 +556,15 @@ impl Resources {
         if mode == "cancel_delayed" {
             tokio::time::sleep(SETTLE_DELAY.saturating_sub(cancelled_at.elapsed())).await;
         }
+        // A run that never answers its stop, the way a step blocked on an
+        // operator question does: only the host's settlement budget ends it.
+        // The test releases it afterwards so shutdown has nothing left to wait on.
+        if mode == "cancel_ignored" {
+            while !self.lock().released {
+                tokio::time::sleep(POLL).await;
+            }
+            return Err(Refusal::of("run released after the host settled it"));
+        }
         let ended = serde_json::to_string(&TestStepAttempt {
             attempt_id: start.attempt_id,
             step_id: start.step_id,
@@ -645,6 +655,7 @@ fn suite() -> TestSuite {
             "cancel_complete",
             "cancel_delayed",
             "cancel_refused",
+            "cancel_ignored",
             "scope_error",
             "capture",
         ]

@@ -13,12 +13,20 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::process::ExitCode;
+use std::{path::PathBuf, process::ExitCode};
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
+// Process Exit Codes
+// 0 Clean stop.
+// 2 Invalid input: arguments, environment file, plugin bundles, development commands.
+// 3 Any other failure: I/O, runtime, transport, cleanup.
+// 4 The data root holds storage this build cannot open; moving it aside lets the next launch start fresh.
+const EXIT_INPUT: u8 = 2;
+const EXIT_FAILURE: u8 = 3;
+const EXIT_INCOMPATIBLE_STORAGE: u8 = 4;
 
 /* === Macros === */
 
@@ -34,6 +42,13 @@ pub enum Error {
     Input(String),
     #[error("{0}")]
     Setup(String),
+    #[error(
+        "Dokime cannot open the data root {}.\n\
+         The stored data is not usable by this build: {reason}.\n\
+         Move or delete that directory, or point DOKIME_OUTPUT_ROOT or the settings.json data_root at a fresh directory.",
+        .root.display()
+    )]
+    IncompatibleStorage { root: PathBuf, reason: String },
     #[error("I/O failed: {0}")]
     Io(#[source] std::io::Error),
     #[error("JSON output failed: {0}")]
@@ -70,10 +85,32 @@ impl From<dokime_filesystem::Error> for Error {
 
 impl Error {
     pub fn exit_code(&self) -> ExitCode {
-        match self {
-            Self::Input(_) => ExitCode::from(2),
-            _ => ExitCode::from(3),
-        }
+        ExitCode::from(match self {
+            Self::Input(_) => EXIT_INPUT,
+            Self::IncompatibleStorage { .. } => EXIT_INCOMPATIBLE_STORAGE,
+            _ => EXIT_FAILURE,
+        })
+    }
+
+    /// Classifies a failed launch on `root`.
+    ///
+    /// Only refusals that name the stored data's own shape become
+    /// `IncompatibleStorage`; lease contention, I/O and replay failures stay
+    /// runtime failures so the remedy never suggests discarding usable data.
+    pub fn launch(error: dokime_app::Error, root: PathBuf) -> Self {
+        // Prefer The Baseline The Root Declares, Then A Typed Storage Refusal
+        let declared = dokime::storage::sqlite::inspect(&root)
+            .ok()
+            .flatten()
+            .and_then(|baseline| baseline.mismatch());
+        let reason = match declared {
+            Some(reason) => reason,
+            None => match storage_refusal(&error) {
+                Some(refusal) => refusal.to_string(),
+                None => return Self::Runtime(error),
+            },
+        };
+        Self::IncompatibleStorage { root, reason }
     }
     pub(crate) fn startup(server: crate::grpc::Error, cleanup: dokime_app::Result<()>) -> Self {
         match cleanup {
@@ -103,5 +140,27 @@ impl Error {
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn storage_refusal(error: &dokime_app::Error) -> Option<&dokime::storage::sqlite::Error> {
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(cause) = source {
+        if let Some(storage) = cause.downcast_ref::<dokime::storage::sqlite::Error>() {
+            return incompatible(storage).then_some(storage);
+        }
+        source = cause.source();
+    }
+    None
+}
+
+fn incompatible(error: &dokime::storage::sqlite::Error) -> bool {
+    use dokime::storage::sqlite::{Error, rusqlite::ErrorCode};
+    match error {
+        Error::Schema(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
+        Error::Sqlite(error) => matches!(
+            error.sqlite_error_code(),
+            Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt)
+        ),
+        _ => false,
+    }
+}
 
 /* === Tests === */

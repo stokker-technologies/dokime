@@ -52,7 +52,7 @@ impl ApplicationOptions {
             .application_root
             .or_else(|| ambient(APPLICATION_ROOT_ENV))
         {
-            Some(root) => absolute(root)?,
+            Some(root) => std::path::absolute(root)?,
             None => {
                 ApplicationPaths::resolve(
                     brand
@@ -66,17 +66,20 @@ impl ApplicationOptions {
 
         // Compose The Launch
         let data = match self.storage_root.or_else(|| ambient(DATA_ROOT_ENV)) {
-            Some(data) => absolute(data)?,
+            Some(data) => std::path::absolute(data)?,
             None => settings.data_root(),
         };
-        let mut config = Config::local(data.canonicalize().unwrap_or(data));
+        // Keep The Root In The Form It Was Configured: Canonicalizing Only
+        // Once It Exists Gave Windows A Verbatim `\\?\` Root From The Second
+        // Launch On, So The Same Root Changed Identity Across Restarts.
+        let mut config = Config::local(data);
         config.title = brand
             .as_ref()
             .map_or_else(|| "Dokime".to_owned(), |brand| brand.identity.label.clone());
         config.plugin_lookup = self
             .plugins_root
             .or_else(|| ambient(PLUGIN_LOOKUP_ENV))
-            .map(absolute)
+            .map(std::path::absolute)
             .transpose()?;
         config.application_root = Some(root);
         config.brand = brand;
@@ -91,14 +94,6 @@ fn environment_path(name: &str) -> Option<PathBuf> {
     env::var_os(name)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-}
-
-fn absolute(path: PathBuf) -> io::Result<PathBuf> {
-    Ok(if path.is_absolute() {
-        path
-    } else {
-        env::current_dir()?.join(path)
-    })
 }
 
 /* === Tests === */

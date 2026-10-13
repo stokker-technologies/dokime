@@ -71,7 +71,7 @@ impl ReadVoltage {
     }
 }
 
-#[sdk::template(label = "Probe", requires = ProbeRequired)]
+#[sdk::template(id = "mismatched.checks.probe", label = "Probe", requires = ProbeRequired)]
 impl Probe {
     async fn initialize(
         _: &mut sdk::execution::InitializationContext<'_>,
@@ -90,7 +90,7 @@ impl Probe {
     }
 }
 
-#[sdk::suite(label = "Checks", templates = ChecksTemplates)]
+#[sdk::suite(id = "mismatched.checks", label = "Checks", templates = ChecksTemplates)]
 impl Checks {}
 
 impl sdk::harmos::operations::lifecycle::Policy for Plugin {

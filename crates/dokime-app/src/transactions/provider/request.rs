@@ -46,6 +46,10 @@ pub struct RunRequest {
     pub groups: VecDeque<RunGroup>,
     #[serde(default)]
     pub settled_execution_ids: Vec<TestExecutionId>,
+    // Members an operator stopped one at a time. The request, its cycle and
+    // every sibling keep running; only these attempts are cancelled.
+    #[serde(default)]
+    pub stopped_execution_ids: Vec<TestExecutionId>,
     pub conclusion: Option<CycleStatus>,
     pub failure: Option<String>,
     pub completion_at: Option<Timestamp>,
@@ -351,6 +355,7 @@ pub(super) fn queue(
             pending: current.pending,
             groups,
             settled_execution_ids: Vec::new(),
+            stopped_execution_ids: Vec::new(),
             conclusion: None,
             failure: None,
             completion_at: None,

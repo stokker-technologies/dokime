@@ -196,6 +196,7 @@ fn definition_with_budget(
                 .iter()
                 .map(|values| object(values, budget, 0)),
         )?,
+        level: crate::grpc::evidence::canonical::severity(value.level),
     })
 }
 

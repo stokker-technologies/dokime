@@ -31,6 +31,9 @@ from dokime_tools.package import assets, publish
 
 # === Constants === #
 
+WHEEL = "dokime-1.2.3-py3-none-any.whl"
+SDIST = "dokime-1.2.3.tar.gz"
+
 # === Types === #
 
 
@@ -221,8 +224,8 @@ def _release(root: Path):
     directory = root / "dist/build"
     manifests = []
     for platform, names in [
-        ("linux", ["dokime-linux.whl", "dokime.tar.gz", "audit.json"]),
-        ("windows", ["dokime-windows.whl", "audit.json", "setup.exe"]),
+        ("linux", [WHEEL, SDIST, "audit.json"]),
+        ("windows", [WHEEL, SDIST, "audit.json", "setup.exe"]),
     ]:
         path = directory / platform
         path.mkdir(parents=True)

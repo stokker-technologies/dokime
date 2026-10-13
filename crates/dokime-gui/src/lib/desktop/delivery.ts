@@ -10,6 +10,10 @@
 /* Native delivery payloads for verified documents, mirroring the types beside
    the delivery commands in `src-tauri/src/app/desktop.rs`. */
 
+/* === Local Imports === */
+
+import type { RpcError } from "./rpc";
+
 /* === Types === */
 
 /**
@@ -59,4 +63,17 @@ export type ArtifactDeliveryRequest = {
   kind: DesktopSaveKind;
   filename: string;
   action: DeliveryAction;
+};
+
+/** Where a native delivery failed, mirroring `DeliveryStage` in `src-tauri/src/app/content.rs`. */
+export type DeliveryStage = "prepare" | "request" | "stream" | "write" | "rename" | "open";
+
+/**
+ * How `desktopArtifactDeliver` rejects: the stage that failed and either the
+ * backend's own RPC failure or a local message when the backend was never
+ * reached.
+ */
+export type ArtifactDeliveryError = {
+  stage: DeliveryStage;
+  failure: { kind: "rpc"; detail: RpcError } | { kind: "local"; detail: string };
 };

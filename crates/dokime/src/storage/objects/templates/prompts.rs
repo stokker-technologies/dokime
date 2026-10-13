@@ -22,6 +22,7 @@ use crate::prompts::{
     FieldValidation, PromptAction, PromptActionEmphasis, PromptArchetype, PromptDefinition,
     PromptField, PromptFieldKind, Rule as PromptRule,
 };
+use crate::records::RecordSeverity;
 use crate::storage::objects::metadata;
 use crate::storage::{Error, Result};
 
@@ -60,6 +61,9 @@ pub struct Prompt {
     template_identifier: Option<String>,
     #[serde(default)]
     examples: Vec<Map>,
+    // Empty reads as Info, the level a prompt has unless its author raised it.
+    #[serde(default)]
+    level: String,
 }
 
 #[harmos::message]
@@ -147,6 +151,7 @@ impl Prompt {
         let fields = [
             value.prompt_type.as_str().len(),
             archetype_name(&value.archetype).len(),
+            level_name(value.level).len(),
             value.title.len(),
             value.message.as_deref().map_or(0, str::len),
             value.owner.as_ref().map_or(0, |id| id.as_str().len()),
@@ -176,6 +181,7 @@ impl Prompt {
 
     pub fn projection_memory(&self) -> Result<usize> {
         archetype(&self.archetype)?;
+        level(&self.level)?;
         let mut bytes = std::mem::size_of::<PromptDefinition>()
             .saturating_add(self.prompt_type.capacity())
             .saturating_add(self.title.capacity())
@@ -260,6 +266,7 @@ impl TryFrom<&PromptDefinition> for Prompt {
                 .as_ref()
                 .map(|id| id.as_str().to_owned()),
             examples,
+            level: level_name(value.level).to_owned(),
         })
     }
 }
@@ -315,6 +322,7 @@ impl TryFrom<Prompt> for PromptDefinition {
                 .map(crate::core::Identifier::new)
                 .transpose()?,
             examples,
+            level: level(&row.level)?,
         })
     }
 }
@@ -651,6 +659,15 @@ fn emphasis_name(value: &PromptActionEmphasis) -> &'static str {
     }
 }
 
+fn level_name(value: RecordSeverity) -> &'static str {
+    match value {
+        RecordSeverity::Debug => "debug",
+        RecordSeverity::Info => "info",
+        RecordSeverity::Warning => "warning",
+        RecordSeverity::Error => "error",
+    }
+}
+
 fn length(value: u64) -> Result<usize> {
     usize::try_from(value).map_err(|_| Error::Invalid("prompt validation length overflows"))
 }
@@ -662,6 +679,16 @@ fn archetype(value: &str) -> Result<PromptArchetype> {
         "ChoicePrompt" => Ok(PromptArchetype::ChoicePrompt),
         "StatusPrompt" => Ok(PromptArchetype::StatusPrompt),
         _ => Err(Error::Invalid("invalid prompt archetype")),
+    }
+}
+
+fn level(value: &str) -> Result<RecordSeverity> {
+    match value {
+        "debug" => Ok(RecordSeverity::Debug),
+        "" | "info" => Ok(RecordSeverity::Info),
+        "warning" => Ok(RecordSeverity::Warning),
+        "error" => Ok(RecordSeverity::Error),
+        _ => Err(Error::Invalid("invalid prompt level")),
     }
 }
 

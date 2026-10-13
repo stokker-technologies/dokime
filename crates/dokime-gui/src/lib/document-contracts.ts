@@ -211,6 +211,8 @@ export type PlotDefinition = {
   x_format?: ValueFormat | null;
   y_format?: ValueFormat | null;
   x_axis?: PlotAxisKind | null;
+  display_points?: number | null;
+  downsample?: DownsampleTechnique | null;
 };
 
 export type PlotDescriptor = {
@@ -252,9 +254,13 @@ export type PlotInput = {
   x_format?: ValueFormat | null;
   y_format?: ValueFormat | null;
   x_axis?: PlotAxisKind | null;
+  display_points?: number | null;
+  downsample?: DownsampleTechnique | null;
 };
 
 export type PlotStyle = "line" | "points" | "line_points" | "step";
+
+export type DownsampleTechnique = "lttb" | "min_max" | "raw";
 
 export type PlotType =
   | "time_series"

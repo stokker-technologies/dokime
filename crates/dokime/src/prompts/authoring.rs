@@ -25,6 +25,7 @@ use serde::de::DeserializeOwned;
 // Local Imports
 use super::*;
 use crate::core::{Identifier, Metadata, PromptId, RecordScope, Value, ValueType};
+use crate::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -144,6 +145,11 @@ impl<T> FormPrompt<T> {
     pub fn labels(mut self, submit: impl Into<String>, cancel: impl Into<String>) -> Self {
         self.definition.actions[0].label = submit.into();
         self.definition.actions[1].label = cancel.into();
+        self
+    }
+
+    pub fn level(mut self, level: RecordSeverity) -> Self {
+        self.definition.level = level;
         self
     }
 }
@@ -289,6 +295,10 @@ impl ConfirmationPrompt {
         self.definition.message = Some(description.into());
         self
     }
+    pub fn level(mut self, level: RecordSeverity) -> Self {
+        self.definition.level = level;
+        self
+    }
     pub fn field(self) -> PromptField {
         field(
             self.definition.prompt_type.as_str(),
@@ -418,6 +428,7 @@ pub(super) fn definition(id: &str, label: String, archetype: PromptArchetype) ->
         owner: None,
         template_identifier: None,
         examples: Vec::new(),
+        level: RecordSeverity::Info,
     }
 }
 

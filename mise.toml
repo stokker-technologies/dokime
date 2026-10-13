@@ -342,7 +342,7 @@ run = [
 ]
 
 [tasks."test:integration:rust"]
-env.STKR_TEST_ARCHIVES = "{{config_root}}/dist/build/{% if os() == 'windows' %}windows{% else %}linux{% endif %}/validation/test-archives"
+env.STKR_TEST_ARCHIVES = "{{config_root}}/target/test-archives"
 description = "Test Rust Runtime And Persistence Workflows"
 depends = ["prepare:python"]
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
@@ -368,7 +368,7 @@ description = "Test Built Interfaces And Installed Distributions"
 run = [{ task = "test:acceptance:rust" }, { task = "test:acceptance:python" }]
 
 [tasks."test:acceptance:rust"]
-env.STKR_TEST_ARCHIVES = "{{config_root}}/dist/build/{% if os() == 'windows' %}windows{% else %}linux{% endif %}/validation/test-archives"
+env.STKR_TEST_ARCHIVES = "{{config_root}}/target/test-archives"
 description = "Test CLI, Plugin, And Cross-Language Workflows"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 env.TOKIO_WORKER_THREADS = "2"
@@ -398,7 +398,7 @@ description = "Test Explicit Desktop And Hardware Prerequisites"
 depends = ["test:system:rust", "test:system:javascript"]
 
 [tasks."test:system:rust"]
-env.STKR_TEST_ARCHIVES = "{{config_root}}/dist/build/{% if os() == 'windows' %}windows{% else %}linux{% endif %}/validation/test-archives"
+env.STKR_TEST_ARCHIVES = "{{config_root}}/target/test-archives"
 description = "Test Explicit Native Hardware Prerequisites"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run system rust"
@@ -647,6 +647,11 @@ run = "uv run --no-sync python -m dokime_tools.package.artifacts collect"
 depends = ["prepare:tools"]
 description = "Verify Exact Native Build Outputs"
 run = "uv run --no-sync python -m dokime_tools.package.artifacts verify"
+
+[tasks."ci:artifacts:archives"]
+depends = ["prepare:tools"]
+description = "Verify Downloaded Nextest Archives Against The Restored Package Manifest"
+run = "uv run --no-sync python -m dokime_tools.package.artifacts verify-archives"
 
 [tasks."ci:artifacts:validate"]
 depends = ["prepare:tools"]

@@ -19,7 +19,7 @@ use serde_json::Value;
 // Local Imports
 
 /* === Constants === */
-pub(super) const REDACTED: &str = "<redacted>";
+pub(crate) const REDACTED: &str = "<redacted>";
 
 const SECRET_FRAGMENTS: &[&str] = &[
     "secret",
@@ -46,7 +46,7 @@ const SECRET_FRAGMENTS: &[&str] = &[
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn is_secret_name(name: &str) -> bool {
+pub(crate) fn is_secret_name(name: &str) -> bool {
     let folded: String = name
         .chars()
         .filter(|character| character.is_alphanumeric())
@@ -73,7 +73,7 @@ pub(super) fn scrub(value: &mut Value) {
     }
 }
 
-pub(super) fn text(value: &str) -> String {
+pub(crate) fn text(value: &str) -> String {
     dokime_app::plugin::redacted(value)
 }
 

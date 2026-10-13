@@ -144,7 +144,12 @@ pub fn init(root: &Path, ansi: bool) -> Result<LoggingGuards> {
     let (file_layer, file_appender_guard) = file_fmt_layer(root)?;
     let (hub_log_layer, hub_log_appender_guard) = super::hub_log::hub_log_layer(root)?;
     #[cfg_attr(not(debug_assertions), allow(unused_mut))]
-    let mut layers: Vec<BoxedLayer> = vec![layer, file_layer, hub_log_layer];
+    let mut layers: Vec<BoxedLayer> = vec![
+        layer,
+        file_layer,
+        hub_log_layer,
+        crate::trace::layer(crate::trace::Journal::global().clone()),
+    ];
 
     #[cfg(debug_assertions)]
     let profile = match super::profiles::dev_profile_layers(root)? {

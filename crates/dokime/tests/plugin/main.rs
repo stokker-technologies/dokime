@@ -93,6 +93,10 @@ fn declarations_contract() {
         authoring::suite_declaration_contracts();
     }
     {
+        eprintln!("Scenario: authoring::template_reference_is_suite_scoped");
+        authoring::template_reference_is_suite_scoped();
+    }
+    {
         eprintln!("Scenario: authoring::one_step_phases");
         authoring::one_step_phases();
     }
@@ -191,6 +195,10 @@ fn declarations_contract() {
     {
         eprintln!("Scenario: prompts::declaration_what_registers");
         prompts::declaration_what_registers();
+    }
+    {
+        eprintln!("Scenario: prompts::prompt_level_round_trips");
+        prompts::prompt_level_round_trips();
     }
 }
 

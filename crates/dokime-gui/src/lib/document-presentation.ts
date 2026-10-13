@@ -202,6 +202,8 @@ export function documentPlot(input: PlotDeclaration): DocumentViewPlot {
     x_format: input.x_format ?? null,
     y_format: input.y_format ?? null,
     x_axis: input.x_axis ?? null,
+    display_points: input.display_points ?? null,
+    downsample: input.downsample ?? null,
   };
 }
 

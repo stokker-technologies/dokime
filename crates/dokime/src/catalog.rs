@@ -64,6 +64,9 @@ pub struct Subscriptions;
 #[cfg(feature = "native")]
 pub struct Templates;
 
+#[cfg(feature = "native")]
+pub struct TemplateIdentifiers;
+
 pub struct Suites;
 
 #[cfg(feature = "native")]
@@ -177,6 +180,16 @@ impl<T: DeclaredTemplate + SidecarTemplate> Member<T> for Templates {
         records: <T as DeclaredTemplate>::record_contracts,
         streams: <T as DeclaredTemplate>::stream_contracts,
     };
+}
+
+#[cfg(feature = "native")]
+impl Visitor for TemplateIdentifiers {
+    type Entry = &'static str;
+}
+
+#[cfg(feature = "native")]
+impl<T: DeclaredTemplate> Member<T> for TemplateIdentifiers {
+    const ENTRY: Self::Entry = T::IDENTIFIER;
 }
 
 #[cfg(feature = "native")]

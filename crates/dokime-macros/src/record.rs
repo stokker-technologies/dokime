@@ -83,7 +83,7 @@ pub(crate) fn implementation(
         .required("label", "an operator reads the record by its label")?
         .clone();
     let severity = match arguments.value("severity") {
-        Some(written) => declared_severity(written)?,
+        Some(written) => declared_severity(written, "a record is filed")?,
         None => quote!(#sdk::records::RecordSeverity::Info),
     };
     let described = crate::arguments::description(arguments.value("description"), &input.attrs)
@@ -190,8 +190,8 @@ pub(crate) fn implementation(
     })
 }
 
-/* === Private Functions === */
-fn declared_severity(value: &Expr) -> Result<TokenStream, Error> {
+// A prompt's level reads on the same scale, so it is parsed here once.
+pub(crate) fn declared_severity(value: &Expr, subject: &str) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
     let written = match value {
         Expr::Path(path) => path
@@ -209,7 +209,7 @@ fn declared_severity(value: &Expr) -> Result<TokenStream, Error> {
         return Err(Error::new(
             value.span(),
             format!(
-                "a record is filed at one of {}",
+                "{subject} at one of {}",
                 SEVERITIES
                     .iter()
                     .map(|(name, _)| *name)
@@ -223,6 +223,7 @@ fn declared_severity(value: &Expr) -> Result<TokenStream, Error> {
     Ok(quote!(#sdk::records::RecordSeverity::#variant))
 }
 
+/* === Private Functions === */
 fn handles(fields: &[RecordFieldDeclaration], identifier: &Expr) -> TokenStream {
     let sdk = crate::facade::root();
     let accessors = fields.iter().map(|field| {

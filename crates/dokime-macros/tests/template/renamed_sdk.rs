@@ -782,6 +782,55 @@ fn plugin_identity_that_could_not_travel_is_refused() {
 }
 
 #[cfg(test)]
+fn template_id_that_names_no_suite_is_refused() {
+    let (built, _) = compile("fixtures/template_identity.rs");
+    assert!(!built.status.success());
+    let diagnostics = String::from_utf8_lossy(&built.stderr);
+    // An omitted id cannot be derived, because the item name never spells the
+    // suite; a written literal is read on its own line.
+    assert!(
+        diagnostics
+            .contains("`id = …` is required: a template is referenced as `<suite id>.<segment>`"),
+        "{diagnostics}"
+    );
+    for refused in [
+        "`checks.Probe` is not a template id",
+        "`probe` is not a template id",
+    ] {
+        assert!(diagnostics.contains(refused), "{diagnostics}");
+    }
+    assert!(
+        diagnostics.contains("aborting due to 3 previous errors"),
+        "{diagnostics}"
+    );
+    assert!(
+        !diagnostics.contains("proc macro panicked"),
+        "{diagnostics}"
+    );
+}
+
+#[cfg(test)]
+fn suite_refuses_foreign_and_repeated_template_ids() {
+    let (built, _) = compile("fixtures/suite_templates.rs");
+    assert!(!built.status.success());
+    let diagnostics = String::from_utf8_lossy(&built.stderr);
+    // The suite owns the prefix, so it is the suite that refuses a template id
+    // outside it and two templates answering to one reference.
+    assert!(
+        diagnostics.contains("a template id is its suite's id followed by `.` and one segment"),
+        "{diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("two templates of one suite declare the same id"),
+        "{diagnostics}"
+    );
+    assert!(
+        !diagnostics.contains("proc macro panicked"),
+        "{diagnostics}"
+    );
+}
+
+#[cfg(test)]
 fn operations_under_one_id_are_refused_when_inspected() {
     let (built, output) = compile("fixtures/duplicate_operations.rs");
     assert!(
@@ -964,6 +1013,12 @@ pub(crate) fn compiled_authoring_contracts() {
 
     eprintln!("compile contract: plugin_identity_that_could_not_travel_is_refused");
     plugin_identity_that_could_not_travel_is_refused();
+
+    eprintln!("compile contract: template_id_that_names_no_suite_is_refused");
+    template_id_that_names_no_suite_is_refused();
+
+    eprintln!("compile contract: suite_refuses_foreign_and_repeated_template_ids");
+    suite_refuses_foreign_and_repeated_template_ids();
 
     eprintln!("compile contract: operations_under_one_id_are_refused_when_inspected");
     operations_under_one_id_are_refused_when_inspected();

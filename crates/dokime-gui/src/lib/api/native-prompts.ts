@@ -13,8 +13,8 @@
 
 /* === Local Imports === */
 
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CommandReceipt, PromptRequest } from "@/lib/types";
 import { numericValue } from "@/lib/utils";
@@ -22,6 +22,7 @@ import {
   enumTail,
   jsonToNativeValue,
   mapBounded,
+  mapNativeSeverity,
   NATIVE_MAX_PAGES,
   NATIVE_PAGE_SIZE,
   NativeApiLimitError,
@@ -142,6 +143,7 @@ function mapNativePrompt(prompt: PromptInstance, response?: NativePromptResponse
     prompt_type: definition.promptType,
     schema_version: definition.schemaVersion,
     kind: mapPromptKind(prompt.kind),
+    level: mapNativeSeverity(definition.level),
     title: definition.title,
     message: definition.message ?? null,
     fields: definition.fields.map(mapPromptField),

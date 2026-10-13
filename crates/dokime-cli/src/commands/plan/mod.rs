@@ -10,7 +10,7 @@
 // Preview And Register Canonical Selection Plans
 
 /* === Modules === */
-mod input;
+pub(crate) mod input;
 mod preview;
 mod register;
 

@@ -113,7 +113,7 @@ native_commands! {
     // native destination.
     async desktop_artifact_deliver
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<bool, String>
+        (generation: String, request: crate::app::desktop::ArtifactDeliveryRequest) -> Result<bool, crate::app::content::DeliveryError>
         => crate::app::desktop::desktop_artifact_deliver;
 
     // Materialize one verified artifact in the private media cache and return its preview URL path.

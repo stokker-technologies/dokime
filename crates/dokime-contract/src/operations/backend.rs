@@ -14,6 +14,7 @@ mod get_diagnostics;
 mod get_health;
 mod get_identity;
 mod watch_logs;
+mod watch_trace;
 
 /* === Re-Exports === */
 pub use collect_diagnostics::CollectDiagnostics;
@@ -22,6 +23,7 @@ pub use get_diagnostics::GetDiagnostics;
 pub use get_health::GetHealth;
 pub use get_identity::GetIdentity;
 pub use watch_logs::WatchLogs;
+pub use watch_trace::WatchTrace;
 
 /* === Imports === */
 
@@ -85,6 +87,77 @@ pub struct WatchLogsRequest {
         description = "Matching lines replayed from the end of the hub log before following it. Zero uses 500; larger values are clamped to 5000."
     )]
     pub replay_lines: u32,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct WatchTraceRequest {
+    // Absent means Instance: every captured event of this backend process.
+    #[row(description = "Absent means Instance: every captured event of this backend process.")]
+    pub scope: Option<TraceScope>,
+    // Events below this level are never delivered. Unspecified means TRACE.
+    #[row(description = "Events below this level are never delivered. Unspecified means TRACE.")]
+    pub min_level: LogLevel,
+    // Resume after this scope sequence. Zero starts at the oldest retained event;
+    // a sequence this backend process never issued is refused as out of range.
+    #[row(
+        description = "Resume after this scope sequence. Zero starts at the oldest retained event; a sequence this backend process never issued is refused as out of range."
+    )]
+    pub after_sequence: u64,
+    // Events per batch. Zero uses 256; larger values are clamped to 1024.
+    #[row(description = "Events per batch. Zero uses 256; larger values are clamped to 1024.")]
+    pub max_events: u32,
+    // Encoded bytes per batch. Zero uses 256 KiB; values are clamped between
+    // 32 KiB and the backend's message budget.
+    #[row(
+        description = "Encoded bytes per batch. Zero uses 256 KiB; values are clamped between 32 KiB and the backend's message budget."
+    )]
+    pub max_bytes: u32,
+    // False ends the stream once the events retained at admission are
+    // delivered; true keeps following until the caller cancels.
+    #[row(
+        description = "False ends the stream once the events retained at admission are delivered; true keeps following until the caller cancels."
+    )]
+    pub follow: bool,
+}
+
+// One page of captured tracing events, oldest first.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct TraceBatch {
+    pub events: Vec<TraceEvent>,
+    // Events of this scope, of any level, evicted before this stream read them.
+    // Cumulative for the stream; it never rewinds.
+    #[row(
+        description = "Events of this scope, of any level, evicted before this stream read them. Cumulative for the stream; it never rewinds."
+    )]
+    pub dropped: u64,
+    // The scope sequence to pass as after_sequence when resuming; it covers
+    // events scanned but selected out by min_level.
+    #[row(
+        description = "The scope sequence to pass as after_sequence when resuming; it covers events scanned but selected out by min_level."
+    )]
+    pub next_sequence: u64,
+}
+
+// One tracing event. Secret-looking field names carry a redaction marker
+// instead of their value, and host paths are redacted from text.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct TraceEvent {
+    // Position within the requested scope; strictly increasing per scope.
+    #[row(description = "Position within the requested scope; strictly increasing per scope.")]
+    pub sequence: u64,
+    pub time: Option<Timestamp>,
+    pub level: LogLevel,
+    pub target: String,
+    pub message: String,
+    // The plugin that emitted or forwarded the line, when known.
+    #[row(description = "The plugin that emitted or forwarded the line, when known.")]
+    pub plugin_id: Option<String>,
+    pub cycle_id: Option<String>,
+    pub execution_id: Option<String>,
+    pub fields: Vec<LogFrameFieldsEntry>,
 }
 
 #[harmos::message]
@@ -463,6 +536,16 @@ pub enum LogLevel {
     Error,
 }
 
+// Which captured events a trace watch reads. Cycle and Execution carry the
+// canonical UUID of that cycle or execution.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub enum TraceScope {
+    Instance,
+    Cycle(String),
+    Execution(String),
+}
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DiagnosticsBundleFramePayload {
@@ -479,6 +562,7 @@ pub enum Operations {
     GetDiagnostics(GetDiagnostics),
     CollectDiagnostics(CollectDiagnostics),
     WatchLogs(WatchLogs),
+    WatchTrace(WatchTrace),
 }
 
 /* === Traits === */
@@ -510,6 +594,12 @@ impl Endpoint for CollectDiagnostics {
 
 impl Endpoint for WatchLogs {
     const PATH: &'static str = "/dokime.v1.Backend/WatchLogs";
+    const ACCESS: Access = Access::Read;
+}
+
+// Read, Like WatchLogs: The Same Redacted Process Output, Scoped Or Not.
+impl Endpoint for WatchTrace {
+    const PATH: &'static str = "/dokime.v1.Backend/WatchTrace";
     const ACCESS: Access = Access::Read;
 }
 

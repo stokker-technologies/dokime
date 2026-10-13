@@ -136,6 +136,10 @@ pub trait RustTemplate {
 }
 
 pub trait DeclaredTemplate {
+    // The public reference, `<suite id>.<segment>`; its suite checks the
+    // prefix and uniqueness while the plugin compiles.
+    const IDENTIFIER: &'static str;
+
     fn template_id() -> TemplateId;
 
     fn declaration() -> TestCaseTemplate;
@@ -776,7 +780,49 @@ pub fn format(value: ValueFormat) -> ValueFormat {
     value
 }
 
+// Evaluated as a constant by `#[dokime::suite]`, so a template that names a
+// foreign suite, a malformed segment, or a sibling's id stops the build.
+pub const fn assert_template_identifiers(suite: &str, templates: &[&str]) {
+    use crate::definition::{TemplateIdentifierRefusal, template_identifier};
+
+    let mut index = 0;
+    while index < templates.len() {
+        match template_identifier(suite, templates[index]) {
+            Ok(()) => {}
+            Err(TemplateIdentifierRefusal::OutsideSuite) => {
+                panic!("a template id is its suite's id followed by `.` and one segment")
+            }
+            Err(TemplateIdentifierRefusal::InvalidSegment) => panic!(
+                "a template id's last segment is lowercase ASCII letters, digits, and underscores, starting with a letter"
+            ),
+        }
+        let mut earlier = 0;
+        while earlier < index {
+            if same_identifier(templates[earlier], templates[index]) {
+                panic!("two templates of one suite declare the same id");
+            }
+            earlier += 1;
+        }
+        index += 1;
+    }
+}
+
 /* === Private Functions === */
+const fn same_identifier(left: &str, right: &str) -> bool {
+    let (left, right) = (left.as_bytes(), right.as_bytes());
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < left.len() {
+        if left[index] != right[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
 fn validated_identifier(
     field: &'static str,
     value: String,

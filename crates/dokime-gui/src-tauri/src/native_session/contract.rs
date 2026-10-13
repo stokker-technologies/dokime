@@ -34,6 +34,18 @@ pub struct DesktopSessionSnapshot {
     pub connection: ConnectionSnapshot,
 }
 
+/// What an owned backend left behind when it failed to start: the resolved
+/// executable, how it exited, the redacted stderr tail and its full log.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendDiagnostics {
+    pub executable: String,
+    pub exit_code: Option<i32>,
+    pub exit_status: Option<String>,
+    pub tail: String,
+    pub log: Option<String>,
+}
+
 /* === Enums === */
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -58,9 +70,16 @@ pub enum DesktopSessionError {
     LocalBackendUnavailable,
     ShuttingDown,
     Superseded,
-    Startup { message: String },
-    Shutdown { message: String },
-    Connection { error: ConnectionError },
+    Startup {
+        message: String,
+        diagnostics: Option<BackendDiagnostics>,
+    },
+    Shutdown {
+        message: String,
+    },
+    Connection {
+        error: ConnectionError,
+    },
 }
 
 /* === Traits === */

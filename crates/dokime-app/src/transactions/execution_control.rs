@@ -20,7 +20,7 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-use crate::execution::CycleStatus;
+use crate::execution::{CycleStatus, ExecutionStatus};
 use crate::records::{ProductRecordDraft, RecordSeverity};
 use crate::state::RuntimeState;
 use crate::transactions::{
@@ -51,6 +51,36 @@ pub struct ControlExecution {
 
 /* === Implementations === */
 impl ControlExecution {
+    /// The active request that runs this execution: the one addressed to it,
+    /// or the cycle-addressed request whose queue or running set holds it.
+    pub(crate) fn owning_request<'a>(
+        state: &'a RuntimeState,
+        id: &TestExecutionId,
+    ) -> Option<&'a RunRequest> {
+        let execution = state.executions.get(id)?;
+        state.run_requests.values().find(|request| {
+            if request.summary.phase.terminal() {
+                return false;
+            }
+            match &request.test_execution_id {
+                Some(addressed) => addressed == id,
+                None => {
+                    request.summary.cycle_id == execution.test_cycle_id
+                        && execution.finished_at.is_none()
+                        && (request.pending.contains(id)
+                            || request
+                                .groups
+                                .iter()
+                                .any(|group| group.pending.contains(id))
+                            || matches!(
+                                execution.status,
+                                ExecutionStatus::Pending | ExecutionStatus::Running
+                            ))
+                }
+            }
+        })
+    }
+
     pub(crate) fn request<'a>(&self, state: &'a RuntimeState) -> Result<&'a RunRequest, String> {
         if state.shutting_down {
             return Err("runtime is shutting down".into());
@@ -59,14 +89,8 @@ impl ControlExecution {
             .executions
             .get(&self.test_execution_id)
             .ok_or("execution not found")?;
-        let request = state
-            .run_requests
-            .values()
-            .find(|request| {
-                request.test_execution_id.as_ref() == Some(&self.test_execution_id)
-                    && !request.summary.phase.terminal()
-            })
-            .ok_or("execution has no active execution-addressed request")?;
+        let request = Self::owning_request(state, &self.test_execution_id)
+            .ok_or("execution has no active request")?;
         if request.summary.cycle_id != execution.test_cycle_id {
             return Err("execution request belongs to another cycle".into());
         }
@@ -83,7 +107,25 @@ impl ControlExecution {
         ) {
             return Err("provider work has settled; execution checkpoints are finishing".into());
         }
+        // A cycle-addressed request pauses and resumes as one queue, so only
+        // Stop narrows to a single member; Pause and Resume stay cycle-level.
+        let addressed = request.test_execution_id.is_some();
         match self.action {
+            CycleControlAction::Pause | CycleControlAction::Resume if !addressed => {
+                Err("a cycle run pauses and resumes at cycle level".into())
+            }
+            CycleControlAction::Stop
+                if !addressed
+                    && (request.summary.stop_requested
+                        || request
+                            .stopped_execution_ids
+                            .contains(&self.test_execution_id)
+                        || request
+                            .settled_execution_ids
+                            .contains(&self.test_execution_id)) =>
+            {
+                Err("execution is already stopping or has settled".into())
+            }
             CycleControlAction::Pause
                 if request.summary.paused || request.summary.stop_requested =>
             {
@@ -154,6 +196,15 @@ impl Transaction<RuntimeState> for ControlExecution {
             .cycles
             .get_mut(&request.summary.cycle_id)
             .expect("checked cycle");
+        if request.test_execution_id.is_none() {
+            // Stop one member of a cycle run: the request and its siblings run on.
+            request
+                .stopped_execution_ids
+                .push(self.test_execution_id.clone());
+            cycle.touch_at(self.occurred_at.clone());
+            records.apply(state);
+            return;
+        }
         match self.action {
             CycleControlAction::Pause => {
                 request.summary.paused = true;

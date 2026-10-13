@@ -168,6 +168,49 @@ class Cycle:
         admission = _admission(self._backend, reply)
         return RunRequest(self._transport, self._backend, admission.command_id, self.id)
 
+    async def schedule_rerun(self, case_id: str) -> None:
+        """Append the case's next attempt as a new execution; nothing runs yet.
+
+        Creation is not idempotent: each call that succeeds appends another
+        attempt, and earlier attempts and their evidence stay as they are.
+        """
+        if not case_id:
+            raise ValueError("case_id must not be empty")
+        await self._transport.verify(self._backend, live=True)
+        reply = await self._transport.unary(
+            "Execution",
+            "ScheduleCaseRerun",
+            _wire.request(
+                "Execution", "ScheduleCaseRerun", cycle_id=self.id, case_id=case_id
+            ),
+        )
+        _cursor(self._backend, reply)
+
+    async def run_case(self, case_id: str, *, request_key: str) -> "RunRequest":
+        """Admit the case's queued attempt once under the caller-retained key."""
+        if not case_id:
+            raise ValueError("case_id must not be empty")
+        _key(request_key)
+        await self._transport.verify(self._backend, live=True)
+        try:
+            reply = await self._transport.unary(
+                "Execution",
+                "RunCase",
+                _wire.request(
+                    "Execution",
+                    "RunCase",
+                    cycle_id=self.id,
+                    case_id=case_id,
+                    idempotency_key=request_key,
+                ),
+            )
+        except RpcError as error:
+            if error.submission_uncertain:
+                raise SubmissionUncertain(self.id, request_key) from error
+            raise
+        admission = _admission(self._backend, reply)
+        return RunRequest(self._transport, self._backend, admission.command_id, self.id)
+
     async def result(self) -> ResultSummary:
         """Read current cycle result counters, not a particular request's result."""
         cycle = await self._snapshot()
@@ -272,6 +315,7 @@ class Cycle:
                         field.metadata.identifier for field in item.definition.fields
                     ),
                     _wire.fields(item.values),
+                    level=_wire.enum_name(item.definition.level),
                 )
             if not page.HasField("next_after_prompt_id"):
                 return

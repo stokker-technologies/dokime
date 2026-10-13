@@ -435,7 +435,63 @@ def test_cancel_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert destination.read_bytes() == DATA
 
 
+def test_growing_follow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _requests(monkeypatch)
+    destination = tmp_path / "output.bin"
+    # Phase: The Producer Had Written 314 Bytes When The Follow Opened
+    opened = 314
+    frames = _frames(0)
+    frames[0].payload.Metadata.field_0.available_length = opened
+    frames[1:-1] = [
+        _frame("Chunk", offset=start, data=DATA[start : start + size])
+        for start, size in _growth(opened)
+    ]
+    reader = Reader(frames)
+    transport = Transport(reader)
+
+    async def scenario() -> list[files.FileUpdate]:
+        return [
+            update
+            async for update in files.follow_file(
+                cast(ClientTransport, transport),
+                BACKEND,
+                IDENTITY.execution_id,
+                IDENTITY.relative_path,
+                destination,
+            )
+        ]
+
+    updates = asyncio.run(scenario())
+
+    # Phase: Every Accepted Chunk Commits A Longer Prefix Until The Seal
+    offsets = [update.committed_offset for update in updates[:-1]]
+    assert updates[0] == files.FileUpdate(IDENTITY, 0, "producing")
+    assert offsets[1] == opened
+    assert offsets == sorted(set(offsets))
+    assert offsets[-1] == len(DATA)
+    assert all(update.phase == "producing" for update in updates[:-1])
+    assert updates[-1] == files.FileUpdate(
+        IDENTITY, len(DATA), "finished", hashlib.sha256(DATA).hexdigest()
+    )
+    assert destination.read_bytes() == DATA
+    assert reader.final_accepted
+    assert reader.closed
+
+
 # === Private Functions === #
+
+
+def _growth(opened: int) -> list[tuple[int, int]]:
+    """The Prefix Available At Open, Then Appends Of Varying Size Within 64 KiB"""
+    pieces = [(0, opened)]
+    start = opened
+    for size in (1, 4_096, 32_768):
+        pieces.append((start, size))
+        start += size
+    remaining = len(DATA) - start
+    assert 0 < remaining <= 65_536
+    pieces.append((start, remaining))
+    return pieces
 
 
 def _requests(monkeypatch: pytest.MonkeyPatch) -> None:

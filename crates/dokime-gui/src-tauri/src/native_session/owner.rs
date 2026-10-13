@@ -114,16 +114,20 @@ impl DesktopSession {
                 let store = dokime_client::profiles::Store::discover(None).map_err(|error| {
                     Error::Startup {
                         message: error.to_string(),
+                        diagnostics: None,
                     }
                 })?;
                 let document = store.load().map_err(|error| Error::Startup {
                     message: error.to_string(),
+                    diagnostics: None,
                 })?;
                 let profile = document.get(&name).map_err(|error| Error::Startup {
                     message: error.to_string(),
+                    diagnostics: None,
                 })?;
                 let resolved = profile.selection().map_err(|error| Error::Startup {
                     message: error.to_string(),
+                    diagnostics: None,
                 })?;
                 let target = if resolved.target.is_remote() {
                     ConnectionTarget::Remote {
@@ -162,6 +166,7 @@ impl DesktopSession {
             .await
             .map_err(|error| Error::Startup {
                 message: error.to_string(),
+                diagnostics: None,
             })?;
         // Startup is over, one way or another: whatever phase it last
         // reported no longer describes anything a caller should show. The
@@ -183,7 +188,10 @@ impl DesktopSession {
             .local
             .clone()
             .ok_or(Error::LocalBackendUnavailable)?
-            .map_err(|message| Error::Startup { message })
+            .map_err(|message| Error::Startup {
+                message,
+                diagnostics: None,
+            })
     }
     fn begin(&self, closing: bool) -> Result<u64, Error> {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
@@ -245,8 +253,7 @@ impl DesktopSession {
                 let (process, endpoint) = super::backend::start(&backend, move |phase| {
                     self.report_phase(revision, phase)
                 })
-                .await
-                .map_err(|message| Error::Startup { message })?;
+                .await?;
                 resources.local = Some(process);
                 (
                     ConnectRequest {

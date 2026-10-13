@@ -81,7 +81,7 @@ enum Streams {
 impl Checks {}
 
 struct Pulse;
-#[dokime::template(id = "fixture.embedded.pulse", label = "Pulse", streams = Streams)]
+#[dokime::template(id = "fixture.embedded.checks.pulse", label = "Pulse", streams = Streams)]
 impl Pulse {
     async fn initialize(
         _: &mut dokime::execution::InitializationContext<'_>,

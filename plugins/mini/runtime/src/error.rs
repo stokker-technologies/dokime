@@ -27,7 +27,7 @@
 /* === Structs === */
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct LaunchError(#[from] harmos::Incompatible);
+pub struct LaunchError(#[from] harmos::runtime::Incompatible);
 
 /* === Enums === */
 #[derive(Debug, thiserror::Error)]

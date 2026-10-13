@@ -87,7 +87,7 @@ impl GetCurrent {
     }
 }
 
-#[sdk::template(label = "Probe", requires = ProbeRequired)]
+#[sdk::template(id = "undeclared.checks.probe", label = "Probe", requires = ProbeRequired)]
 impl Probe {
     async fn initialize(
         _: &mut sdk::execution::InitializationContext<'_>,
@@ -109,7 +109,7 @@ impl Probe {
     }
 }
 
-#[sdk::suite(label = "Checks", templates = ChecksTemplates)]
+#[sdk::suite(id = "undeclared.checks", label = "Checks", templates = ChecksTemplates)]
 impl Checks {}
 
 impl sdk::harmos::operations::lifecycle::Policy for Plugin {

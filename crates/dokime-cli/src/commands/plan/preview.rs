@@ -47,22 +47,32 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
+    // === Read Request === //
+
     let mut input = args.input;
-    let request = match input.input_file.take() {
+    let planned = match input.input_file.take() {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
-            serde_json::from_slice::<PreviewSelectionRequest>(&bytes)
-                .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?
+            let request = serde_json::from_slice::<PreviewSelectionRequest>(&bytes)
+                .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?;
+            super::input::Planned::canonical(request.plan)?
         }
-        None => PreviewSelectionRequest {
-            plan: Some(input.plan()?),
-        },
+        None => input.plan()?,
     };
-    super::input::validate(request.plan.as_ref())?;
+
+    // === Resolve And Preview === //
+
     let client = args.connection.connect().await?;
-    let result = client.preview_selection(request).await;
+    let result = async {
+        let plan = planned.resolve(&client).await?;
+        let reply = client
+            .preview_selection(PreviewSelectionRequest { plan })
+            .await?;
+        super::input::print(&client, &reply, args.json).await
+    }
+    .await;
     client.close_and_wait().await;
-    super::input::print(&result?, args.json)
+    result
 }
 
 /* === Private Functions === */

@@ -185,6 +185,9 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.authorization == 'release' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
     outputs:
       artifact_name: ${{ steps.build.outputs.artifact_name }}
+      archives_artifact_name: ${{ steps.build.outputs.archives_artifact_name }}
+      installers_artifact_name: ${{ steps.build.outputs.installers_artifact_name }}
+      python_artifact_name: ${{ steps.build.outputs.python_artifact_name }}
     steps:
       - *checkout
       - *tools_restore
@@ -241,6 +244,28 @@ jobs:
         with:
           name: ${{ steps.build.outputs.artifact_name }}
           path: dist/downloads/dokime-${{ inputs.os }}.zip
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve Nextest Archives
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.build.outputs.archives_artifact_name }}
+          path: target/test-archives/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve Installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.build.outputs.installers_artifact_name }}
+          path: dist/assets/${{ inputs.os }}/installers/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve Python Distributions
+        if: inputs.os == 'linux'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.build.outputs.python_artifact_name }}
+          path: dist/assets/python/
           if-no-files-found: error
           retention-days: 30
       - name: Preserve Build Diagnostics
@@ -320,6 +345,13 @@ jobs:
           name: ${{ needs.build_release.outputs.artifact_name }}
           path: dist/downloads/
       - run: mise run --skip-tools ci:artifacts:restore
+      - &archives_download
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build_release.outputs.archives_artifact_name }}
+          path: target/test-archives/
+      - &archives_verify
+        run: mise run --skip-tools ci:artifacts:archives
       - run: mise run --skip-tools test:integration:rust
       - name: Preserve Correctness Evidence
         if: always()
@@ -412,6 +444,8 @@ jobs:
       - *windows
       - *build_download
       - run: mise run --skip-tools ci:artifacts:restore
+      - *archives_download
+      - *archives_verify
       - run: mise run --skip-tools test:acceptance:rust
       - name: Preserve Correctness Evidence
         if: always()
@@ -646,5 +680,12 @@ jobs:
         with:
           name: ${{ steps.test.outputs.artifact_name }}
           path: dist/downloads/dokime-${{ inputs.os }}.zip
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve Validated Installers
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.test.outputs.installers_validated_artifact_name }}
+          path: dist/assets/${{ inputs.os }}/installers-validated/
           if-no-files-found: error
           retention-days: 90

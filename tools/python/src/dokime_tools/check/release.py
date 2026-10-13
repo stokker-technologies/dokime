@@ -42,7 +42,6 @@ VALIDATION = "validation"
 REPORT_TEMPLATE = f"{VALIDATION}/report-template.html"
 AUDITS = f"{VALIDATION}/audits"
 FIXTURE_BUNDLES = f"{VALIDATION}/fixtures"
-TEST_ARCHIVES = f"{VALIDATION}/test-archives"
 TEST_EVIDENCE = f"{VALIDATION}/tests"
 COVERAGE_EVIDENCE = f"{VALIDATION}/coverage"
 EXAMPLES = "examples"
@@ -67,15 +66,15 @@ DIRECTORIES = {
     "timing": VALIDATION,
     "proto": PROTO,
     "fixture": FIXTURE_BUNDLES,
-    "archive": TEST_ARCHIVES,
     "test": TEST_EVIDENCE,
     "coverage": COVERAGE_EVIDENCE,
     "example": EXAMPLES,
 }
-# Only Python distributions and the Nextest archives validation replays may
-# nest an archive inside the download.
+# Only Python distributions may nest an archive inside the download; the
+# Nextest archives travel as their own CI artifact bound by `test_archives`.
 ARCHIVE_SUFFIXES = (".tar", ".tar.gz", ".tgz", ".tar.zst", ".zip")
-ARCHIVE_DIRECTORIES = ("python", TEST_ARCHIVES)
+ARCHIVE_DIRECTORIES = ("python",)
+TEST_ARCHIVES = "target/test-archives"
 
 # === Types === #
 
@@ -321,18 +320,7 @@ def _artifacts(
     if not required <= by_role.keys():
         raise ValueError(f"incomplete {platform} release artifact roles")
     _layout(by_role)
-    archives = {
-        role.removeprefix("archive:") for role in by_role if role.startswith("archive:")
-    }
-    bundles = {
-        name.removesuffix(".tar.zst") for name in archives if name.endswith(".tar.zst")
-    }
-    if not bundles or archives != {
-        name + suffix for name in bundles for suffix in (".tar.zst", ".tar.json")
-    }:
-        raise ValueError(
-            "release preparation requires complete Nextest archives and receipts"
-        )
+    _test_archives(manifest)
     if by_role["license"]["path"] != "licenses/LICENSE-APACHE":
         raise ValueError("canonical Apache license is missing")
     if by_role["report-template"]["path"] != REPORT_TEMPLATE:
@@ -410,6 +398,68 @@ def _layout(roles: dict[str, dict]) -> None:
             and directory not in ARCHIVE_DIRECTORIES
         ):
             raise ValueError(f"release download must not nest an archive: {role}")
+
+
+def _test_archives(manifest: dict) -> None:
+    """The Nextest archives the build job uploaded beside this package."""
+    archives = manifest.get("test_archives")
+    if (
+        not isinstance(archives, dict)
+        or not isinstance(archives.get("artifact"), str)
+        or not re.fullmatch(
+            rf"test-archives-{manifest['platform']}-[1-9][0-9]*", archives["artifact"]
+        )
+        or not isinstance(archives.get("files"), list)
+        or not archives["files"]
+    ):
+        raise ValueError("release test archive artifact identity is missing")
+    names = []
+    for entry in archives["files"]:
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("name"), str)
+            or not re.fullmatch(r"[A-Za-z0-9_.-]+", entry["name"])
+            or entry["name"] in {".", ".."}
+            or not isinstance(entry.get("sha256"), str)
+            or not re.fullmatch(r"[a-f0-9]{64}", entry["sha256"])
+            or type(entry.get("bytes")) is not int
+            or entry["bytes"] < 0
+        ):
+            raise ValueError("release test archive inventory is invalid")
+        names.append(entry["name"])
+    bundles = {
+        name.removesuffix(".tar.zst") for name in names if name.endswith(".tar.zst")
+    }
+    if (
+        len(names) != len(set(names))
+        or not bundles
+        or set(names)
+        != {name + suffix for name in bundles for suffix in (".tar.zst", ".tar.json")}
+    ):
+        raise ValueError(
+            "release preparation requires complete Nextest archives and receipts"
+        )
+
+
+def verify_test_archives(root: Path, manifest: dict) -> Path:
+    """Downloaded Nextest archives must be exactly the candidate's own bytes."""
+    directory = root / TEST_ARCHIVES
+    if directory.is_symlink() or not directory.is_dir():
+        raise ValueError(f"missing test archives: {directory}")
+    expected = {entry["name"]: entry for entry in manifest["test_archives"]["files"]}
+    actual = {path.name for path in directory.iterdir()}
+    if actual != set(expected):
+        raise ValueError("downloaded test archives differ from the candidate's own")
+    for name, entry in expected.items():
+        path = directory / name
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or path.stat().st_size != entry["bytes"]
+            or digest(path) != entry["sha256"]
+        ):
+            raise ValueError(f"test archive checksum or size mismatch: {name}")
+    return directory
 
 
 def _proto(root: Path, manifest: dict, roles: dict) -> None:

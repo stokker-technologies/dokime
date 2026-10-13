@@ -42,7 +42,7 @@ use super::{Error, State};
 use entry::{Encoded, key, timestamp_key};
 
 /* === Constants === */
-const FORMAT: &str = "dokime.sqlite.storage.v1";
+pub(super) const FORMAT: &str = "dokime.sqlite.storage.v1";
 pub(super) const HISTORY_BYTES: usize = 4096;
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS storage_data_head (

@@ -1,6 +1,6 @@
 {
   "suite": "matrix.lab",
-  "template": "matrix.probe",
+  "template": "matrix.lab.probe",
   "record": "matrix.phase",
   "stream": "matrix.reading",
   "scenarios": [

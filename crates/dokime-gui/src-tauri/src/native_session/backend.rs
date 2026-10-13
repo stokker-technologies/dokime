@@ -24,6 +24,8 @@ use tokio::{
     process::{Child, ChildStdin, ChildStdout, Command},
 };
 // Local Imports
+use super::diagnostics::Capture;
+use super::{BackendDiagnostics, DesktopSessionError as Error};
 // The development-stream contracts a backend must report to be trusted. The
 // desktop and its backend ship from one installer, so this is the same gate
 // cargo-dokime applies to a separately installed host.
@@ -50,6 +52,7 @@ const MISSING: &str = "No Dokime backend was found beside this application. Rein
 pub struct Backend {
     executable: PathBuf,
     arguments: Vec<String>,
+    logs: Option<PathBuf>,
 }
 
 struct Search {
@@ -63,6 +66,7 @@ pub struct Process {
     child: Child,
     control: Option<ChildStdin>,
     events: BufReader<ChildStdout>,
+    diagnostics: Capture,
 }
 
 #[derive(serde::Deserialize)]
@@ -81,7 +85,16 @@ impl Backend {
         Self {
             executable,
             arguments,
+            logs: None,
         }
+    }
+
+    /// Streams each launch's redacted stderr into its own file under
+    /// `directory`; without one, only the in-memory tail is kept.
+    #[must_use]
+    pub fn with_logs(mut self, directory: PathBuf) -> Self {
+        self.logs = Some(directory);
+        self
     }
 }
 
@@ -188,40 +201,65 @@ pub fn locate() -> Result<PathBuf, String> {
 pub async fn start(
     backend: &Backend,
     mut on_phase: impl FnMut(&str) + Send,
-) -> Result<(Process, String), String> {
+) -> Result<(Process, String), Error> {
+    // Spawn The Backend
+    let executable = backend.executable.display().to_string();
     let mut command = Command::new(&backend.executable);
     command
         .args(&backend.arguments)
         .stdin(Stdio::piped())
+        // Stdout is the readiness channel; stderr carries diagnostics only.
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
+        // A desktop launch has no console to inherit, so stderr is captured.
+        .stderr(Stdio::piped())
         // A desktop that dies without draining must not leave an owned backend
         // behind holding the execution store.
         .kill_on_drop(true);
     no_console(&mut command);
-    let mut child = command.spawn().map_err(|error| {
-        format!(
-            "Dokime backend {} could not be started: {error}",
-            backend.executable.display()
-        )
+    let mut child = command.spawn().map_err(|error| Error::Startup {
+        message: format!("Dokime backend {executable} could not be started: {error}"),
+        diagnostics: Some(BackendDiagnostics {
+            executable: executable.clone(),
+            exit_code: None,
+            exit_status: None,
+            tail: String::new(),
+            log: None,
+        }),
     })?;
     let events = BufReader::new(child.stdout.take().expect("piped readiness output"));
+    let stderr = child.stderr.take().expect("piped diagnostic output");
+    let diagnostics = Capture::start(stderr, backend.logs.as_deref(), child.id()).await;
     let mut process = Process {
         control: child.stdin.take(),
         child,
         events,
+        diagnostics,
     };
-    match process.readiness(&backend.executable, &mut on_phase).await {
-        Ok(endpoint) => Ok((process, endpoint)),
-        Err(error) => {
-            // Readiness failed, but the process may still be running and still
-            // holding the execution store. Drain it before reporting.
-            Err(match process.shutdown().await {
-                Ok(status) => format!("{error} The backend exited with {status}."),
-                Err(cleanup) => format!("{error} {cleanup}"),
-            })
-        }
-    }
+
+    // Await Readiness
+    let error = match process.readiness(&backend.executable, &mut on_phase).await {
+        Ok(endpoint) => return Ok((process, endpoint)),
+        Err(error) => error,
+    };
+
+    // Report The Failed Launch
+    // Readiness failed, but the process may still be running and still
+    // holding the execution store. Drain it before reporting.
+    let (message, status) = match process.shutdown().await {
+        Ok(status) => (error, Some(status)),
+        Err(cleanup) => (format!("{error} {cleanup}"), None),
+    };
+    let (tail, log) = process.diagnostics.settle().await;
+    Err(Error::Startup {
+        message,
+        diagnostics: Some(BackendDiagnostics {
+            executable,
+            exit_code: status.and_then(|status| status.code()),
+            exit_status: status.map(|status| status.to_string()),
+            tail,
+            log: log.map(|path| path.display().to_string()),
+        }),
+    })
 }
 
 /* === Private Functions === */

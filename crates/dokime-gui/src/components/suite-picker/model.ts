@@ -57,6 +57,9 @@ export type TestSuiteRow = {
   suite: TestSuiteEntry;
 };
 
+/** Additional searchable text for a suite, such as its registering plugin's label. */
+export type SuiteSearchExtra = (suite: TestSuiteEntry) => unknown[];
+
 export type DiagramStep = {
   description?: string | null;
   key: string;
@@ -109,18 +112,22 @@ export function suiteDiagramSteps(template: SuiteTemplateEntry): DiagramStep[] {
   }));
 }
 
-export function filterTestSuites(suites: TestSuiteEntry[], query: string): TestSuiteRow[] {
+export function filterTestSuites(
+  suites: TestSuiteEntry[],
+  query: string,
+  extra?: SuiteSearchExtra,
+): TestSuiteRow[] {
   const tokens = searchTokens(query);
   if (!tokens.length) {
     return suites.map((suite) => ({ suite, members: suite.members }));
   }
   return suites
     .map((suite) => {
-      const suiteMatches = matchesTokens(suiteSearchText(suite), tokens);
+      const suiteMatches = matchesTokens(suiteSearchText(suite, extra), tokens);
       const members = suiteMatches
         ? suite.members
         : suite.members.filter((template) =>
-            matchesTokens(templateSearchText(template, suite), tokens),
+            matchesTokens(templateSearchText(template, suite, extra), tokens),
           );
       return { suite, members };
     })
@@ -374,10 +381,11 @@ function matchesTokens(text: string, tokens: string[]): boolean {
   return tokens.every((token) => text.includes(token));
 }
 
-function suiteSearchText(suite: TestSuiteEntry): string {
+function suiteSearchText(suite: TestSuiteEntry, extra: SuiteSearchExtra | undefined): string {
   return searchableText([
     suite.suite_id,
-    suite.suite_id,
+    suite.source,
+    extra?.(suite),
     suite.name,
     suite.description,
     suite.product,
@@ -386,10 +394,14 @@ function suiteSearchText(suite: TestSuiteEntry): string {
   ]);
 }
 
-function templateSearchText(template: SuiteTemplateEntry, suite: TestSuiteEntry): string {
+function templateSearchText(
+  template: SuiteTemplateEntry,
+  suite: TestSuiteEntry,
+  extra: SuiteSearchExtra | undefined,
+): string {
   return searchableText([
-    suiteSearchText(suite),
-    template.template_id,
+    suiteSearchText(suite, extra),
+    template.identifier,
     templateSelectionId(template),
     template.name,
     template.description,

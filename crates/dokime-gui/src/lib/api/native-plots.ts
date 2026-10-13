@@ -23,6 +23,7 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   DocumentAxisScale,
   DocumentDataExpression,
+  DocumentDownsampleTechnique,
   DocumentFftOptions,
   DocumentHistogramOptions,
   DocumentPlotType,
@@ -75,6 +76,7 @@ type PlotEnvelope = Wire<plotWire.Row4>;
 type PlotRequest = Wire<plotWire.Row3>;
 type PlotType = Wire<plotWire.Row5>;
 type AxisScale = Wire<plotWire.Row6>;
+type DownsampleTechnique = Wire<plotWire.Row11>;
 type FilterOperator = Wire<plotWire.Row40>;
 type PlotCartesianMode = Wire<plotWire.Row88>;
 const AnalysisSelectionSchema = plotWire.Row15Schema;
@@ -130,6 +132,8 @@ export type PlotPayloadRequestInput = {
   zField?: string | null;
   unit?: string | null;
   maxPoints?: number;
+  /** Absent is the host default (`lttb`). */
+  technique?: DocumentDownsampleTechnique | null;
   windowS?: number | null;
   scope?: RecordScope | null;
   /** Legacy cursors are accepted only when they carry native epoch identity. */
@@ -261,7 +265,7 @@ export function toNativePlotRequest(
     ...(input.windowS == null ? {} : { windowS: boundedWindow(input.windowS) }),
     ...(nativeScope ? { scope: nativeScope } : {}),
     ...(nativeCursor ? { cursor: nativeCursor } : {}),
-    technique: { HarmosVariant: { case: "Raw" as const, value: {} } },
+    technique: downsampleTechnique(input.technique),
   });
 }
 
@@ -454,13 +458,48 @@ export function mapNativePlotEnvelope(envelope: PlotEnvelope): NativePlotPayload
   };
 }
 
-/** Map one protobuf stream frame into the renderer's append/replace model. */
+/**
+ * Map one protobuf stream frame into the renderer's append/replace model.
+ *
+ * An error frame reports one plot's failure while the watch stays open, so it
+ * may carry no payload, cursor or diagnostics; it maps to an empty payload
+ * with its warnings rather than ending the whole stream on a mapping throw.
+ */
 export function mapNativePlotStreamFrame(frame: PlotStreamFrame): NativePlotStreamMessage {
   if (!frame.envelope) throw new Error("Native plot stream frame has no envelope.");
+  const kind = plotStreamKind(frame.kind);
+  if (kind === "error") {
+    return {
+      ...mapNativePlotErrorEnvelope(frame.envelope),
+      kind,
+    };
+  }
   const envelope = mapNativePlotEnvelope(frame.envelope);
   return {
     ...envelope,
-    kind: plotStreamKind(frame.kind),
+    kind,
+  };
+}
+
+function mapNativePlotErrorEnvelope(envelope: PlotEnvelope): NativePlotPayloadEnvelope {
+  if (envelope.cursor && envelope.payload && envelope.diagnostics) {
+    return mapNativePlotEnvelope(envelope);
+  }
+  const cursor = envelope.cursor ?? create(PlotCursorSchema, {});
+  return {
+    plot_id: envelope.plotId,
+    revision: safeNumber(envelope.revision, "Plots envelope revision"),
+    cursor: mapPlotCursor(cursor),
+    nativeCursor: cursor,
+    payload: envelope.payload
+      ? mapNativePlotPayload(envelope.payload)
+      : { stream: "", x_key: "", max_points: 0, generated_at: "", series: [] },
+    ...(envelope.diagnostics
+      ? { diagnostics: mapNativePlotDiagnostics(envelope.diagnostics) }
+      : {}),
+    warnings: envelope.warnings.length
+      ? [...envelope.warnings]
+      : ["Plot stream returned an error."],
   };
 }
 
@@ -656,6 +695,17 @@ function plotType(value?: DocumentPlotType | null): PlotType {
       return { HarmosVariant: { case: "BoxSummary" as const, value: {} } };
     default:
       throw new Error(`Unsupported document plot type: ${String(value)}`);
+  }
+}
+
+function downsampleTechnique(value?: DocumentDownsampleTechnique | null): DownsampleTechnique {
+  switch (value) {
+    case "raw":
+      return { HarmosVariant: { case: "Raw" as const, value: {} } };
+    case "min_max":
+      return { HarmosVariant: { case: "MinMax" as const, value: {} } };
+    default:
+      return { HarmosVariant: { case: "Lttb" as const, value: {} } };
   }
 }
 
@@ -983,25 +1033,6 @@ function normalizeCancellation(
 
 function abortError(): DOMException {
   return new DOMException("Native plot request cancelled.", "AbortError");
-}
-
-/** Read one bounded page; callers explicitly request further pages. */
-export async function listNativeAnalyses(
-  session: SessionIdentity,
-  afterId = "",
-  signal?: AbortSignal,
-): Promise<{ definitions: EvidenceAnalysisDefinition[]; nextAfterId?: string }> {
-  ensureActive(session, signal);
-  try {
-    const reply = await rpc.plotsListAnalyses(session, { limit: 64, afterId });
-    ensureActive(session, signal);
-    return {
-      definitions: reply.definitions.map(mapNativeAnalysisDefinition),
-      nextAfterId: reply.nextAfterId,
-    };
-  } catch (error) {
-    throw normalizeCancellation(error, session, signal);
-  }
 }
 
 function mapNativeAnalysisDefinition(value: NativeAnalysisDefinition): EvidenceAnalysisDefinition {

@@ -7,12 +7,14 @@
  * ***
  */
 
-/* The open cycle's cases, as the Cycles destination's children.
+/* The open cycle's executions, as the Cycles destination's children.
  *
- * This is the only list of the cycle's cases: the workspace gives the whole
- * main region to evidence. The rows read the same query the workspace reads, so
- * the tree and the evidence never disagree about an attempt, and selection
- * leaves through the URL — `caseId` and the attempt the operator picked.
+ * This is the only list of the cycle's work: the workspace gives the whole
+ * main region to evidence. One row is one execution, in cycle order, so a
+ * re-run is a new row at the end marked with the row it re-runs. The rows read
+ * the same query the workspace reads, so the tree and the evidence never
+ * disagree, and selection leaves through the URL as `executionId` — or as
+ * `caseId` for a case the runtime has no execution for yet.
  *
  * With `live={false}` the same rows become the frozen report's outline: the
  * same grid, the same pills, no row menus and no commands, and selection is
@@ -46,52 +48,60 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarRow } from "@/shell/sidebar-row";
-import { useCycleCommands, useCycleDetailQuery } from "./cycle-queries";
+import { useCycleCommands, useCycleDetailQuery, useRerunCase } from "./cycle-queries";
 import {
-  buildCycleCaseRows,
-  type CycleCaseRow,
+  buildCycleCases,
+  buildCycleExecutionRows,
+  type CycleExecutionRow,
+  type CycleSelection,
   caseActionTooltip,
-  caseStatusLabel,
-  caseStatusVariant,
+  cycleRowSelection,
+  cycleRowStatus,
   cycleStatusLabel,
   cycleStatusVariant,
-  cycleTreeSelection,
+  isPlannedExecution,
   STATUS_PILL_CLASS,
+  selectedCycleRow,
 } from "./cycle-workspace-model";
 
 /* === Types === */
 
 export type CycleSidebarCasesProps = {
-  caseId: string | undefined;
   cycleId: string;
+  selection: CycleSelection;
 } & (
-  | { live?: true; onSelectCase?: undefined }
-  | { live: false; onSelectCase: (caseId: string | undefined) => void }
+  | { live?: true; onSelect?: undefined }
+  | { live: false; onSelect: (selection: CycleSelection) => void }
 );
 
 /* === Constants === */
 
-/** The attempt count and the row menu, as two fixed trailing columns. */
-const ATTEMPT_COLUMN_CLASS = "w-3 text-right text-xs tabular-nums";
+/** The execution ordinal and the row menu, as two fixed trailing columns. */
+const ORDINAL_COLUMN_CLASS = "w-7 text-right text-xs tabular-nums";
 const MENU_COLUMN_CLASS = "flex w-6 shrink-0 justify-center";
 
 /* === Components === */
 
 export function CycleSidebarCases({
-  caseId,
   cycleId,
   live = true,
-  onSelectCase,
+  onSelect,
+  selection,
 }: CycleSidebarCasesProps) {
   const navigate = useNavigate();
   const detailQuery = useCycleDetailQuery(cycleId);
   const commands = useCycleCommands(cycleId);
-  const [pendingDelete, setPendingDelete] = useState<CycleCaseRow | null>(null);
+  const rerunCase = useRerunCase(cycleId);
+  const [pendingDelete, setPendingDelete] = useState<CycleExecutionRow | null>(null);
 
   const plan = detailQuery.data?.plan ?? null;
   const executions = useMemo(() => detailQuery.data?.executions ?? [], [detailQuery.data]);
-  const rows = useMemo(() => buildCycleCaseRows(plan, executions), [executions, plan]);
-  const selection = cycleTreeSelection(caseId, rows);
+  const rows = useMemo(
+    () => buildCycleExecutionRows(buildCycleCases(plan), executions),
+    [executions, plan],
+  );
+  /* A stale selection selects the overview, so exactly one row is ever selected. */
+  const selectedKey = selectedCycleRow(rows, selection)?.key ?? null;
 
   const report = (outcome: { done: string; failed: string }, action: () => Promise<unknown>) => {
     action()
@@ -103,11 +113,11 @@ export function CycleSidebarCases({
       );
   };
 
-  /* Overview clears the case and execution selection. The evidence pane
-     asks for an execution before resolving a document. */
-  const selectOverview = () => {
+  /* The overview is the empty selection. A row selects its execution, or its
+     case while the runtime has no execution for it. */
+  const select = (next: CycleSelection) => {
     if (!live) {
-      onSelectCase?.(undefined);
+      onSelect?.(next);
       return;
     }
     void navigate({
@@ -115,25 +125,8 @@ export function CycleSidebarCases({
       replace: true,
       search: (current: Record<string, unknown>) => ({
         ...current,
-        caseId: undefined,
-        executionId: undefined,
-      }),
-      to: "/cycles/$cycleId",
-    });
-  };
-
-  const select = (row: CycleCaseRow) => {
-    if (!live) {
-      onSelectCase?.(row.caseId);
-      return;
-    }
-    void navigate({
-      params: { cycleId },
-      replace: true,
-      search: (current: Record<string, unknown>) => ({
-        ...current,
-        caseId: row.caseId,
-        executionId: row.browsable.at(-1)?.test_execution_id,
+        caseId: next.caseId,
+        executionId: next.executionId,
       }),
       to: "/cycles/$cycleId",
     });
@@ -143,16 +136,16 @@ export function CycleSidebarCases({
     <>
       {plan ? (
         <SidebarRow
-          active={selection.kind === "overview"}
+          active={selectedKey === null}
           label={plan.test_cycle.title}
           level="overview"
-          onSelect={selectOverview}
+          onSelect={() => select({})}
           title={plan.test_cycle.title}
         >
           <Badge className={STATUS_PILL_CLASS} variant={cycleStatusVariant(plan.test_cycle.status)}>
             {cycleStatusLabel(plan.test_cycle.status)}
           </Badge>
-          <span aria-hidden className={ATTEMPT_COLUMN_CLASS} />
+          <span aria-hidden className={ORDINAL_COLUMN_CLASS} />
           <span aria-hidden className={MENU_COLUMN_CLASS} />
         </SidebarRow>
       ) : null}
@@ -184,25 +177,28 @@ export function CycleSidebarCases({
         />
       ) : (
         rows.map((row) => (
-          <CaseTreeRow
-            key={row.caseId}
+          <ExecutionTreeRow
+            key={row.key}
             onDelete={setPendingDelete}
             onRun={() =>
               report({ done: "Execution Started", failed: "Execution Could Not Start" }, () => {
-                const execution = row.attempts.find((attempt) => attempt.status === "planned");
-                if (!execution) throw new Error("No unstarted execution is available.");
+                const execution = row.execution;
+                if (!execution || !isPlannedExecution(execution.status)) {
+                  throw new Error("No unstarted execution is available.");
+                }
                 return commands.runCase.mutateAsync(execution.test_execution_id);
               })
             }
-            onScheduleRerun={() =>
-              report({ done: "Rerun scheduled", failed: "The rerun could not be scheduled." }, () =>
-                commands.scheduleRerun.mutateAsync(row.caseId),
-              )
+            onRerun={() =>
+              report({ done: "Case Re-Run Started", failed: "Case Re-Run Failed" }, async () => {
+                const created = await rerunCase.rerun(row.case.caseId);
+                if (created) select({ executionId: created });
+              })
             }
             live={live}
-            onSelect={() => select(row)}
+            onSelect={() => select(cycleRowSelection(row))}
             row={row}
-            selected={selection.kind === "case" && selection.caseId === row.caseId}
+            selected={row.key === selectedKey}
           />
         ))
       )}
@@ -216,7 +212,7 @@ export function CycleSidebarCases({
             <DialogTitle>Delete Case</DialogTitle>
             <DialogDescription>
               {pendingDelete
-                ? `Deleting removes the case "${pendingDelete.label}" and its ${pendingDelete.attemptCount} attempts from this cycle. This cannot be undone.`
+                ? `Deleting removes the case "${pendingDelete.case.label}" and its ${caseExecutionCount(rows, pendingDelete.case.caseId)} executions from this cycle. This cannot be undone.`
                 : ""}
             </DialogDescription>
           </DialogHeader>
@@ -229,20 +225,10 @@ export function CycleSidebarCases({
                 const row = pendingDelete;
                 setPendingDelete(null);
                 if (!row) return;
-                if (row.caseId === caseId) {
-                  void navigate({
-                    params: { cycleId },
-                    replace: true,
-                    search: (current: Record<string, unknown>) => ({
-                      ...current,
-                      caseId: undefined,
-                      executionId: undefined,
-                    }),
-                    to: "/cycles/$cycleId",
-                  });
-                }
+                const selected = rows.find((candidate) => candidate.key === selectedKey);
+                if (selected?.case.caseId === row.case.caseId) select({});
                 report({ done: "Case deleted", failed: "The case could not be deleted." }, () =>
-                  commands.deleteCase.mutateAsync(row.caseId),
+                  commands.deleteCase.mutateAsync(row.case.caseId),
                 );
               }}
               variant="danger"
@@ -258,72 +244,77 @@ export function CycleSidebarCases({
 
 /* === Private Components === */
 
-function CaseTreeRow({
+function ExecutionTreeRow({
   live,
   onDelete,
+  onRerun,
   onRun,
-  onScheduleRerun,
   onSelect,
   row,
   selected,
 }: {
   live: boolean;
-  onDelete: (row: CycleCaseRow) => void;
+  onDelete: (row: CycleExecutionRow) => void;
+  onRerun: () => void;
   onRun: () => void;
-  onScheduleRerun: () => void;
   onSelect: () => void;
-  row: CycleCaseRow;
+  row: CycleExecutionRow;
   selected: boolean;
 }) {
   /* Eligibility is the runtime's, not a guess from the row's own status: the
      projection computes it from the checks each mutation enforces, and its
      reasons are the only honest thing to put on a disabled item. A projection
      that states no eligibility at all offers every item, and the mutation
-     itself refuses. */
-  const actions = row.actions;
-  const reason = caseActionTooltip(row);
+     itself refuses. The case's actions live on its newest row: an earlier
+     execution is history, and acting on the case from it would be ambiguous. */
+  const actions = row.case.actions;
+  const reason = caseActionTooltip(row.case);
   const allowed = (key: "delete" | "run" | "schedule_rerun") => actions === null || actions[key];
+  const status = cycleRowStatus(row);
+  const label = row.case.label;
 
   return (
     <SidebarRow
       active={selected}
-      label={row.label}
+      data-execution-id={row.execution?.test_execution_id}
+      data-rerun-of={row.rerunOf ?? undefined}
+      label={
+        row.rerunOf === null ? (
+          label
+        ) : (
+          <>
+            {label}{" "}
+            <span className="text-xs whitespace-nowrap text-muted-foreground">
+              Re-Run Of #{row.rerunOf}
+            </span>
+          </>
+        )
+      }
       level="case"
       onSelect={onSelect}
-      title={row.label}
+      title={row.rerunOf === null ? label : `${label} · Re-Run Of #${row.rerunOf}`}
     >
       <Badge
         className={STATUS_PILL_CLASS}
-        title={row.rerunScheduled ? "Rerun Scheduled" : undefined}
-        variant={caseStatusVariant(row.status)}
+        title={row.newest && row.case.rerunScheduled ? "Rerun Scheduled" : undefined}
+        variant={status.variant}
       >
-        {caseStatusLabel(row.status)}
+        {status.label}
       </Badge>
-      {/* What this column offers is somewhere to go, so it counts the
-          attempts there is something to read. The runtime counts a
-          materialized but undispatched attempt in `attempt_count` — a queued
-          case holds one — and printing that here would draw a 1 that leads
-          nowhere; the tooltip states it instead, where it explains rather than
-          invites. */}
       <span
-        className={ATTEMPT_COLUMN_CLASS}
-        title={
-          row.browsable.length
-            ? `${row.browsable.length} ${row.browsable.length === 1 ? "Attempt" : "Attempts"}`
-            : row.attemptCount
-              ? "One attempt is materialized and has not been dispatched"
-              : "No Attempts Yet"
-        }
+        className={ORDINAL_COLUMN_CLASS}
+        title={row.execution ? `Execution ${row.ordinal}` : "No Execution Yet"}
       >
-        {row.browsable.length || ""}
+        {row.execution ? `#${row.ordinal}` : ""}
       </span>
-      {/* The menu's column stays, so a frozen outline and a live tree put the
-          label, the pill and the attempt count on exactly the same x. */}
-      {live ? (
+      {/* The menu's column stays, so a frozen outline, a live tree and an
+          earlier execution put the label, the pill and the ordinal on exactly
+          the same x. */}
+      {live && row.newest ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              aria-label={`Actions For ${row.label}`}
+              aria-label={`Actions For ${label}`}
               className="size-6"
               size="icon-sm"
               variant="ghost"
@@ -342,11 +333,11 @@ function CaseTreeRow({
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={!allowed("schedule_rerun")}
-              onSelect={onScheduleRerun}
+              onSelect={onRerun}
               title={allowed("schedule_rerun") ? undefined : reason}
             >
               <RotateCcw />
-              Schedule Rerun
+              Re-Run Case
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -389,4 +380,11 @@ function TreeNotice({
       ) : null}
     </li>
   );
+}
+
+/* === Private Functions === */
+
+/** How many executions of `caseId` the list holds. */
+function caseExecutionCount(rows: readonly CycleExecutionRow[], caseId: string): number {
+  return rows.filter((row) => row.case.caseId === caseId && row.execution !== null).length;
 }

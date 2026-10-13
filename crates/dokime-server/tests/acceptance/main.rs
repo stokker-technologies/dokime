@@ -489,6 +489,61 @@ async fn charger_telemetry_query_uses_native_prompt_log_telemetry() {
     assert!(running_log.contains("record=started"));
     assert!(running_log.contains("record=prompt_requested"));
 
+    // The Viewer's Live Path: Follow The Same Log Mid-Run From Offset Zero
+    let follow = content
+        .content_follow_execution_file(contracts::content::FollowExecutionFileRequest {
+            execution_id: execution_id.clone(),
+            relative_path: STARTUP_STREAM_LOG.into(),
+            identity: None,
+            offset: 0,
+            max_bytes: 64 * 1024,
+        })
+        .await
+        .unwrap();
+    let Some(contracts::content::ExecutionFileFollowFramePayload::Metadata(metadata)) = follow
+        .message()
+        .await
+        .unwrap()
+        .and_then(|frame| frame.payload)
+    else {
+        panic!("a live follow begins with its metadata frame");
+    };
+    assert_eq!(
+        metadata.phase,
+        contracts::content::ExecutionFilePhase::Producing
+    );
+    assert_eq!(metadata.offset, 0);
+    let identity = metadata
+        .identity
+        .expect("a live follow names its retained identity");
+    assert_eq!(identity.relative_path, STARTUP_STREAM_LOG);
+    let followed = tokio::time::timeout(Duration::from_secs(5), async {
+        let mut followed = Vec::new();
+        loop {
+            match follow
+                .message()
+                .await
+                .unwrap()
+                .and_then(|frame| frame.payload)
+            {
+                Some(contracts::content::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
+                    assert_eq!(chunk.offset, followed.len() as u64);
+                    assert!(!chunk.data.is_empty() && chunk.data.len() <= 64 * 1024);
+                    followed.extend_from_slice(&chunk.data);
+                }
+                _ => panic!("a producing follow delivers only contiguous chunks"),
+            }
+            let text = String::from_utf8_lossy(&followed).into_owned();
+            if text.contains("record=prompt_requested") {
+                break text;
+            }
+        }
+    })
+    .await
+    .expect("the running log's prefix is followable while the prompt is pending");
+    assert!(followed.contains("record=started"));
+    drop(follow);
+
     prompts
         .prompts_respond(contracts::prompts::RespondToPromptRequest {
             prompt_id: pending.prompt_id,

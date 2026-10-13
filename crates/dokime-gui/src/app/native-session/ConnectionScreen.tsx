@@ -11,7 +11,8 @@
  *
  * One centred column on the paper ground. The mark appears once with the
  * product name beneath it, then one sentence of state, then the startup phases
- * the backend reports as a quiet vertical step list. Cancel and Desktop
+ * the backend reports as a quiet vertical step list. A failed local start
+ * keeps its headline and adds the backend's exit, log file and diagnostics. Cancel and Desktop
  * Settings are one balanced pair of equal-width secondary buttons. The attach
  * form keeps the same column width and puts its fields on a two-column
  * label/value grid so nothing inside the centred box is left ragged.
@@ -42,8 +43,9 @@ import type {
 } from "@/lib/desktop/connection";
 import type { DesktopLaunch } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
-import { connectionError } from "./errors";
+import { connectionError, startupDiagnostics } from "./errors";
 import { useNativeSessionController } from "./NativeSessionProvider";
+import { StartupDiagnostics } from "./StartupDiagnostics";
 
 /* === Constants === */
 
@@ -86,6 +88,7 @@ export function ConnectionScreen({
   const [phase, setPhase] = useState<string | null>(null);
   const busy = state.phase === "connecting";
   const error = state.phase === "failed" ? state.error : (launchError ?? launch?.error);
+  const diagnostics = startupDiagnostics(error);
 
   useEffect(() => {
     let active = true;
@@ -197,6 +200,7 @@ export function ConnectionScreen({
                 {connectionError(error)}
               </p>
             )}
+            {diagnostics && <StartupDiagnostics diagnostics={diagnostics} />}
             {!launch && !error ? (
               <p role="status">Loading desktop settings…</p>
             ) : (

@@ -80,12 +80,21 @@ contract: `.proto` files, descriptor set, `contracts.json`, `manifest.txt`,
 published contract archive's hash under `contracts.archive_sha256`. Everything
 validation needs but users do not lives under `validation/`: the report template
 that `ci:artifacts:restore` rehydrates, `audits/`, Cargo timings, `fixtures/`,
-`test-archives/`, and, after successful validation, `tests/` and `coverage/`.
-Only `python/` and `validation/test-archives/` may nest archives. After
+and, after successful validation, `tests/` and `coverage/`. Only `python/` may
+nest archives: the Nextest archives the Rust lanes replay stay in
+`target/test-archives/`, travel as the build job's own
+`test-archives-<os>-<job>` artifact, and are bound to the package through
+`manifest.json`'s `test_archives` inventory; `ci:artifacts:archives` admits a
+downloaded set only when every name, size and SHA-256 matches. After
 validation, `examples/charger-report.html` is the sealed report the Python
 acceptance lane captured from this same candidate against the Mini charger
 sidecar (`DOKIME_EXAMPLE_REPORT` declares where that lane exports it; a declared
-export without a completed capture fails the lane). The
+export without a completed capture fails the lane). The build job also exposes
+the installer set (`installers-<os>-<job>`, roles deb/rpm/installer/signature/
+updater) and, on Linux, the pure wheel and source archive (`python-<job>`) as
+their own artifacts; after validation the unchanged installer set is re-exposed
+as `installers-validated-<os>-<job>`, the set a release consumes. The zip keeps
+every file; the manifest binds each hash. The
 catalog records both platforms' original native build/test jobs, run attempt,
 artifact IDs, and archive hashes. Dependency and tool caches live in `.cache/`;
 instrumented Cargo output is cached separately from release packages. JUnit,

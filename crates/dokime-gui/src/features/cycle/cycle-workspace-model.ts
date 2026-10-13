@@ -9,7 +9,7 @@
 
 /* What the cycle workspace shows about a cycle's progress and controls.
  *
- * Only derivation lives here: the case rows the pane lists, the finished count
+ * Only derivation lives here: the execution rows the list shows, the finished count
  * the header states, the status wording, and which run control a lifecycle
  * allows. The projections in `@/lib/types` stay the only data contract; nothing
  * here introduces a second one.
@@ -32,32 +32,46 @@ export type CycleLifecycle = TestCycle["status"];
 
 export type CaseState = ExecutionQueueItem["status"];
 
-export type CycleCaseRow = {
+/** A case of the cycle, as the plan's case projection states it. */
+export type CycleCase = {
   caseId: string;
   templateId: string;
   label: string;
-  testCase: TestCase | null;
-  /** Every attempt of this case, oldest first. */
-  attempts: TestExecution[];
-  /**
-   * The attempts there is something to read, oldest first.
-   *
-   * A planned attempt is a placeholder for work the cycle has not done: no
-   * steps, no records, no document. It is not an attempt to browse, so the
-   * evidence pane and the sidebar's attempt count both count from here.
-   */
-  browsable: TestExecution[];
-  latest: TestExecution | null;
+  testCase: TestCase;
   /** The case's own state, as `CaseSummary` projects it. */
   status: CaseState;
-  /** Every live attempt this case holds, superseded ones included. */
+  /** Every live execution this case holds, superseded ones included. */
   attemptCount: number;
-  /** A recorded outcome with a fresh undispatched attempt on top of it. */
+  /** A recorded outcome with a fresh undispatched execution on top of it. */
   rerunScheduled: boolean;
   /** Null where the projection reports none: no menu item is offered then. */
   actions: CaseActions | null;
   finished: boolean;
 };
+
+/**
+ * One row of the cycle list: one execution, in cycle order.
+ *
+ * A re-run is a new execution appended to the cycle, so it is a new row at the
+ * end rather than a choice inside an existing one. A case the runtime has not
+ * materialized an execution for still needs a row to show its parameters and
+ * offer Run Case; that row has no execution and is keyed by its case.
+ */
+export type CycleExecutionRow = {
+  /** Unique within the cycle: the execution id, or `case:<caseId>` without one. */
+  key: string;
+  case: CycleCase;
+  execution: TestExecution | null;
+  /** One-based position in the cycle list. */
+  ordinal: number;
+  /** The ordinal of the earlier execution of the same case this one re-runs. */
+  rerunOf: number | null;
+  /** The newest row of its case, which is the one carrying the case's actions. */
+  newest: boolean;
+};
+
+/** What the URL selects: an execution, or a case that has none yet. */
+export type CycleSelection = { caseId?: string; executionId?: string };
 
 export type RunControlAvailability = {
   run: boolean;
@@ -74,8 +88,6 @@ export type RunControlAvailability = {
  * menu keeps everything that is not a run control. Pause and Resume are one
  * control that swaps, never two.
  */
-export type CycleTreeSelection = { kind: "overview" } | { kind: "case"; caseId: string };
-
 export type RunControlVisibility = {
   run: boolean;
   pauseResume: "pause" | "resume" | null;
@@ -154,27 +166,12 @@ export function isActiveExecutionStatus(status: TestExecution["status"]): boolea
  *
  * State, attempt count, rerun and action eligibility come from the plan's case
  * projection — one RPC, the runtime's own statement — and are never rederived
- * from the attempt vector. The attempts are still joined, because the evidence
- * pane and the attempt selector list them; nothing about a case's *state* is
- * read off them.
+ * from the executions.
  */
-export function buildCycleCaseRows(
-  plan: TestCyclePlan | null,
-  executions: readonly TestExecution[],
-): CycleCaseRow[] {
+export function buildCycleCases(plan: TestCyclePlan | null): CycleCase[] {
   if (!plan) return [];
-  const byCase = new Map<string, TestExecution[]>();
-  for (const execution of executions) {
-    const attempts = byCase.get(execution.case_id);
-    if (attempts) attempts.push(execution);
-    else byCase.set(execution.case_id, [execution]);
-  }
   const projection = new Map(plan.queue.map((item) => [item.case_id, item]));
-
   return plan.cases.map((testCase) => {
-    const attempts = [...(byCase.get(testCase.case_id) ?? [])].sort(
-      (left, right) => left.attempt_index - right.attempt_index,
-    );
     const item = projection.get(testCase.case_id);
     const status: CaseState = item?.status ?? "unknown";
     return {
@@ -182,11 +179,8 @@ export function buildCycleCaseRows(
       templateId: testCase.template_id,
       label: testCase.label || testCase.case_id,
       testCase,
-      attempts,
-      browsable: attempts.filter((attempt) => !isPlannedExecution(attempt.status)),
-      latest: attempts.at(-1) ?? null,
       status,
-      attemptCount: item?.attempt_count ?? attempts.length,
+      attemptCount: item?.attempt_count ?? 0,
       rerunScheduled: item?.rerun_scheduled ?? false,
       actions: item?.actions ?? null,
       finished: isFinishedCase(status),
@@ -194,8 +188,130 @@ export function buildCycleCaseRows(
   });
 }
 
-export function finishedCaseCount(rows: readonly CycleCaseRow[]): number {
-  return rows.reduce((total, row) => total + (row.finished ? 1 : 0), 0);
+/**
+ * The cycle list: every execution in cycle order, then the cases with none.
+ *
+ * `attempt_index` is the execution's position in the cycle, live and frozen
+ * alike, so ordering by it puts a re-run after everything already created. An
+ * execution re-runs the previous execution of its case; the runtime states no
+ * other linkage. Executions of a case the plan does not carry are not listed.
+ */
+export function buildCycleExecutionRows(
+  cases: readonly CycleCase[],
+  executions: readonly TestExecution[],
+): CycleExecutionRow[] {
+  const byId = new Map(cases.map((item) => [item.caseId, item]));
+  const ordered = executions
+    .filter((execution) => byId.has(execution.case_id))
+    .map((execution, position) => ({ execution, position }))
+    .sort(
+      (left, right) =>
+        left.execution.attempt_index - right.execution.attempt_index ||
+        left.position - right.position,
+    );
+
+  const rows: CycleExecutionRow[] = [];
+  const previous = new Map<string, CycleExecutionRow>();
+  for (const { execution } of ordered) {
+    const owner = byId.get(execution.case_id);
+    if (!owner) continue;
+    const earlier = previous.get(owner.caseId);
+    if (earlier) earlier.newest = false;
+    const row: CycleExecutionRow = {
+      case: owner,
+      execution,
+      key: execution.test_execution_id,
+      newest: true,
+      ordinal: rows.length + 1,
+      rerunOf: earlier?.ordinal ?? null,
+    };
+    rows.push(row);
+    previous.set(owner.caseId, row);
+  }
+  for (const owner of cases) {
+    if (previous.has(owner.caseId)) continue;
+    rows.push({
+      case: owner,
+      execution: null,
+      key: `case:${owner.caseId}`,
+      newest: true,
+      ordinal: rows.length + 1,
+      rerunOf: null,
+    });
+  }
+  return rows;
+}
+
+/** The row a selection names, or null for the overview or a stale selection. */
+export function selectedCycleRow(
+  rows: readonly CycleExecutionRow[],
+  selection: CycleSelection,
+): CycleExecutionRow | null {
+  if (selection.executionId) {
+    return rows.find((row) => row.execution?.test_execution_id === selection.executionId) ?? null;
+  }
+  if (selection.caseId) {
+    return (
+      rows.find((row) => row.execution === null && row.case.caseId === selection.caseId) ?? null
+    );
+  }
+  return null;
+}
+
+/** The selection that names `row`: its execution, or its case while it has none. */
+export function cycleRowSelection(row: CycleExecutionRow): CycleSelection {
+  return row.execution
+    ? { executionId: row.execution.test_execution_id }
+    : { caseId: row.case.caseId };
+}
+
+/**
+ * The execution a re-run of `caseId` created: the first of that case that was
+ * not known before the re-run was requested.
+ */
+export function createdExecutionId(
+  executions: readonly TestExecution[],
+  caseId: string,
+  known: ReadonlySet<string>,
+): string | null {
+  return (
+    executions.find(
+      (execution) => execution.case_id === caseId && !known.has(execution.test_execution_id),
+    )?.test_execution_id ?? null
+  );
+}
+
+/** The pill a row shows: its execution's own status, or its case's without one. */
+export function cycleRowStatus(row: CycleExecutionRow): {
+  label: string;
+  variant: ReturnType<typeof caseStatusVariant>;
+} {
+  return row.execution
+    ? {
+        label: executionStatusLabel(row.execution.status),
+        variant: executionStatusVariant(row.execution.status),
+      }
+    : { label: caseStatusLabel(row.case.status), variant: caseStatusVariant(row.case.status) };
+}
+
+export function finishedCaseCount(cases: readonly CycleCase[]): number {
+  return cases.reduce((total, item) => total + (item.finished ? 1 : 0), 0);
+}
+
+/**
+ * Why the bundle and the report are unavailable while a cycle is in flight.
+ *
+ * Both are cut from the sealed cycle, and a running, paused or stopping cycle
+ * has no seal yet. The backend refuses both with `FAILED_PRECONDITION` while
+ * the cycle is in flight, so the CLI and the Python client get the answer the
+ * disabled menu items state.
+ */
+export const SEALED_EVIDENCE_PENDING =
+  "The bundle and the report become available when the cycle is terminal.";
+
+/** Whether the cycle is still producing evidence: running, paused or stopping. */
+export function isCycleInFlight(status: CycleLifecycle): boolean {
+  return status === "running" || status === "paused" || status === "stopping";
 }
 
 export function cycleStatusLabel(status: CycleLifecycle): string {
@@ -321,23 +437,6 @@ export function runControlAvailability(
 }
 
 /**
- * Which row of the sidebar tree the URL has selected.
- *
- * The cycle overview and a case are one selection, not two: an absent — or
- * stale — `caseId` selects the overview, so exactly one row can ever carry
- * the selected treatment.
- */
-export function cycleTreeSelection(
-  caseId: string | undefined,
-  rows: readonly CycleCaseRow[],
-): CycleTreeSelection {
-  if (!caseId || !rows.some((row) => row.caseId === caseId)) {
-    return { kind: "overview" };
-  }
-  return { caseId, kind: "case" };
-}
-
-/**
  * Which run controls the cycle's lifecycle shows.
  *
  * Run Queued appears exactly when it would work, or when the runtime has a
@@ -351,7 +450,7 @@ export function runControlVisibility(
   startableCases: number,
   refused = false,
 ): RunControlVisibility {
-  const lifecycleOffersRun = !["paused", "running", "stopping"].includes(status);
+  const lifecycleOffersRun = !isCycleInFlight(status);
   return {
     pauseResume: status === "running" ? "pause" : status === "paused" ? "resume" : null,
     run: runControlAvailability(status, startableCases).run || (lifecycleOffersRun && refused),
@@ -368,12 +467,12 @@ export function runControlVisibility(
  * an explicit rerun, an INVALIDATED one needs its rerun scheduled first, and a
  * captured grouping states nothing to count.
  */
-export function queuedCaseCount(rows: readonly CycleCaseRow[]): number {
-  return rows.reduce((total, row) => total + (isQueuedCase(row) ? 1 : 0), 0);
+export function queuedCaseCount(cases: readonly CycleCase[]): number {
+  return cases.reduce((total, item) => total + (isQueuedCase(item) ? 1 : 0), 0);
 }
 
-export function isQueuedCase(row: CycleCaseRow): boolean {
-  return QUEUED_CASE_STATES.has(row.status);
+export function isQueuedCase(item: CycleCase): boolean {
+  return QUEUED_CASE_STATES.has(item.status);
 }
 
 /**
@@ -385,9 +484,9 @@ export function isQueuedCase(row: CycleCaseRow): boolean {
  * a captured cycle grouping — has only its case states to go on, and there the
  * queued projection is the whole statement.
  */
-export function startableCaseCount(rows: readonly CycleCaseRow[]): number {
-  if (!rows.some((row) => row.actions !== null)) return queuedCaseCount(rows);
-  return rows.reduce((total, row) => total + (row.actions?.run ? 1 : 0), 0);
+export function startableCaseCount(cases: readonly CycleCase[]): number {
+  if (!cases.some((item) => item.actions !== null)) return queuedCaseCount(cases);
+  return cases.reduce((total, item) => total + (item.actions?.run ? 1 : 0), 0);
 }
 
 /**
@@ -397,8 +496,8 @@ export function startableCaseCount(rows: readonly CycleCaseRow[]): number {
  * whole case, not a per-operation code, so every disabled item on a row shows
  * the same sentence rather than inventing a reason of its own.
  */
-export function caseActionTooltip(row: CycleCaseRow): string | undefined {
-  const reasons = row.actions?.unavailable_reasons ?? [];
+export function caseActionTooltip(item: CycleCase): string | undefined {
+  const reasons = item.actions?.unavailable_reasons ?? [];
   return reasons.length ? reasons.join(" ") : undefined;
 }
 
@@ -410,13 +509,13 @@ export function caseActionTooltip(row: CycleCaseRow): string | undefined {
  * drop the explanation with it, so the button stays and says why. A cycle with
  * nothing queued owes nothing and needs no reason.
  */
-export function cycleRunRefusal(rows: readonly CycleCaseRow[]): string | null {
-  if (startableCaseCount(rows) > 0) return null;
+export function cycleRunRefusal(cases: readonly CycleCase[]): string | null {
+  if (startableCaseCount(cases) > 0) return null;
   const reasons = [
     ...new Set(
-      rows
-        .filter((row) => isQueuedCase(row))
-        .flatMap((row) => row.actions?.unavailable_reasons ?? []),
+      cases
+        .filter((item) => isQueuedCase(item))
+        .flatMap((item) => item.actions?.unavailable_reasons ?? []),
     ),
   ];
   return reasons.length ? reasons.join(" ") : null;
@@ -476,30 +575,6 @@ export function caseStatusVariant(
     default:
       return "outline";
   }
-}
-
-/**
- * The attempt the workspace shows, as a zero-based index into `attempts`.
- *
- * An unknown or absent execution resolves to the newest attempt; the caller
- * decides whether that resolution may move the selection.
- */
-export function attemptIndexOf(
-  attempts: readonly TestExecution[],
-  executionId: string | undefined,
-): number {
-  if (attempts.length === 0) return -1;
-  const found = attempts.findIndex((attempt) => attempt.test_execution_id === executionId);
-  return found >= 0 ? found : attempts.length - 1;
-}
-
-export function attemptLabel(index: number, total: number): string {
-  return `Attempt ${index + 1} Of ${total}`;
-}
-
-/** The case a running cycle is on, as the case projection states it. */
-export function activeCaseLabel(rows: readonly CycleCaseRow[]): string | null {
-  return rows.find((row) => row.status === "running")?.label ?? null;
 }
 
 /**

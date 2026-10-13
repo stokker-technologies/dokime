@@ -25,11 +25,13 @@
 /* === Type Aliases === */
 
 /* === Structs === */
-// Asked before the startup sequence goes on.
+// Asked before the startup sequence goes on. The charger is energized while
+// the operator looks, so the question is raised to Warning.
 #[dokime::prompt(
     id = "mini.charger.startup.check",
     label = "Inspect Powered Charger",
     submit = "Submit",
+    level = warning,
     description = "Check that the charger status indicator is steady and no fault is shown, then record your observation."
 )]
 pub struct StartupCheck {
@@ -39,11 +41,13 @@ pub struct StartupCheck {
     pub accepted: bool,
 }
 
-// Asked before the steady-state measurement decides.
+// Asked before the steady-state measurement decides, with the charger under
+// load, so the question is raised to Warning.
 #[dokime::prompt(
     id = "mini.charger.steady.check",
     label = "Inspect Charging State",
     submit = "Submit",
+    level = warning,
     description = "Check that the charger status indicator is steady and no fault is shown, then record your observation."
 )]
 pub struct SteadyCheck {

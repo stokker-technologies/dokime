@@ -125,8 +125,19 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         None => quote!(::std::vec::Vec::new()),
     };
 
+    // A template is referenced as `<suite id>.<segment>`; the suite owns the
+    // prefix, so the check runs here, once per suite, while the plugin builds.
+    let identities = quote! {
+        const _: () = #sdk::definition::authoring::assert_template_identifiers(
+            #identifier,
+            &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateIdentifiers>>::ENTRIES,
+        );
+    };
+
     Ok(quote! {
         #block
+
+        #identities
 
         #[automatically_derived]
         impl #suite {

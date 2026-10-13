@@ -27,7 +27,7 @@ use super::{
     Client, Error, ExecutionRequestHandle, ResponseStream, Result, TestExecutionHandle, contracts,
     validate_observed_cursor, validate_observed_epoch,
 };
-use dokime_contract::core::{CaseId, CommandId, TemplateId, TestCycleId, TestExecutionId};
+use dokime_contract::core::{CaseId, CommandId, TestCycleId, TestExecutionId};
 use dokime_contract::operations::{
     Endpoint, common::Metadata, execution as contract, planning, value::Value,
 };
@@ -319,6 +319,55 @@ impl TestCycleHandle {
         super::execution::admission(&self.client.backend().epoch, reply)
     }
 
+    /// Append the case's next attempt as a new execution without running it.
+    ///
+    /// Creation is not idempotent: every accepted call appends another attempt.
+    /// Earlier attempts and their evidence are never reused or changed; admit
+    /// the new one with [`Self::run_case`].
+    pub async fn schedule_rerun(
+        &self,
+        case_id: &str,
+    ) -> Result<contracts::execution::ControlReply> {
+        self.client.verify(true).await?;
+        let reply = self
+            .client
+            .execution_schedule_case_rerun(contracts::execution::CaseControlRequest {
+                cycle_id: self.id.to_string(),
+                case_id: case_id.to_owned(),
+                context: None,
+            })
+            .await?;
+        validate_observed_epoch(
+            &self.client.backend().epoch,
+            reply
+                .observed_cursor
+                .as_ref()
+                .map(|cursor| cursor.epoch.as_str()),
+        )?;
+        Ok(reply)
+    }
+
+    /// Admit the case's queued attempt once under a caller-retained key.
+    pub async fn run_case(
+        &self,
+        case_id: &str,
+        key: &str,
+    ) -> Result<contracts::execution::Admission> {
+        dokime_contract::core::command::validate_idempotency_key(key)
+            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
+        self.client.verify(true).await?;
+        let reply = self
+            .client
+            .execution_run_case(contracts::execution::RunCaseRequest {
+                cycle_id: self.id.to_string(),
+                case_id: case_id.to_owned(),
+                context: None,
+                idempotency_key: Some(key.to_owned()),
+            })
+            .await?;
+        super::execution::admission(&self.client.backend().epoch, reply)
+    }
+
     pub async fn snapshot(&self) -> Result<contracts::execution::CycleSummary> {
         self.client.verify(true).await?;
         let snapshot = self
@@ -408,25 +457,8 @@ fn single_plan(
         .identity
         .as_ref()
         .ok_or_else(|| invalid("suite definition has no identity"))?;
-    let mut matches = definition.templates.iter().filter(|candidate| {
-        candidate.template_id == template
-            || candidate
-                .metadata
-                .as_ref()
-                .is_some_and(|metadata| metadata.identifier == template)
-    });
-    let selected = matches.next().ok_or_else(|| {
-        Error::Rpc(tonic::Status::invalid_argument(
-            "template must identify exactly one registered template in the suite",
-        ))
-    })?;
-    if matches.next().is_some() {
-        return Err(Error::Rpc(tonic::Status::invalid_argument(
-            "template must identify exactly one registered template in the suite",
-        )));
-    }
-    TemplateId::from_uuid(&selected.template_id)
-        .map_err(|_| invalid("template has an invalid identity"))?;
+    // Templates are referenced by their readable id; the UUID stays internal.
+    let selected = super::catalog::registered_template(definition, template)?;
     let plan = planning::SelectionPlan {
         max_cases: 1,
         case_ids: Vec::new(),

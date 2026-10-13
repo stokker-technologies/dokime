@@ -948,6 +948,10 @@ fn evidence_contract() {
         run_scenario(content::artifact_upload_completion, false, None, false);
     }
     {
+        eprintln!("Scenario: content::cycle_evidence_settled");
+        run_scenario(content::cycle_evidence_settled, false, None, false);
+    }
+    {
         eprintln!("Scenario: content::large_artifact_buffering");
         run_scenario(content::large_artifact_buffering, false, None, false);
     }
@@ -1231,6 +1235,10 @@ fn protocol_contract() {
     {
         eprintln!("Scenario: prompts::prompt_condition_commit");
         run_scenario(prompts::prompt_condition_commit, false, None, false);
+    }
+    {
+        eprintln!("Scenario: prompts::prompt_level_watched");
+        run_scenario(prompts::prompt_level_watched, false, None, false);
     }
     {
         eprintln!("Scenario: query::aggregate_answers_asked");

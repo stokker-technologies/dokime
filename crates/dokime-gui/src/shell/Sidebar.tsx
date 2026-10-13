@@ -39,11 +39,16 @@ import { type ReactNode, type RefObject, useLayoutEffect, useRef } from "react";
 
 /* === Local Imports === */
 
+import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CycleSidebarCases } from "@/features/cycle/CycleSidebarCases";
 import { useCycleDetailQuery } from "@/features/cycle/cycle-queries";
+import { STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
+import { highestPromptLevel, pendingPromptCountLabel } from "@/features/cycle/prompt-banner-model";
+import { usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { DEFAULT_SETTINGS_SECTION, SETTINGS_SECTIONS } from "@/features/settings/settings-sections";
 import { useBrand } from "@/lib/brand";
+import { recordLevelVariant } from "@/lib/record-display";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/shell/BrandMark";
 import { cycleIdOfPathname } from "@/shell/route-scope";
@@ -162,6 +167,11 @@ function DestinationTree() {
   const cycleDetail = useCycleDetailQuery(cycleId ?? "", cycleId !== null);
   const caseCount = cycleDetail.data?.plan?.cases.length ?? 0;
 
+  // Every open prompt, whichever cycle asked it: the same read the status bar
+  // makes, so the Cycles entry says an operator is needed before they look.
+  const pendingPrompts = usePendingPromptsQuery().data ?? [];
+  const promptLevel = highestPromptLevel(pendingPrompts);
+
   const childCount = (destination: Destination): number => {
     if (destination.to === "/settings") return SETTINGS_SECTIONS.length;
     if (destination.to === "/cycles") return cycleId ? caseCount : 0;
@@ -185,7 +195,18 @@ function DestinationTree() {
         level="destination"
         onSelect={() => void navigate({ to: destination.to })}
         title={destination.label}
-      />
+      >
+        {destination.to === "/cycles" && promptLevel ? (
+          <Badge
+            aria-label={pendingPromptCountLabel(pendingPrompts.length)}
+            className={STATUS_PILL_CLASS}
+            data-testid="navigation-prompt-count"
+            variant={recordLevelVariant(promptLevel)}
+          >
+            {pendingPrompts.length}
+          </Badge>
+        ) : null}
+      </SidebarRow>
     );
     if (!collapsed) return row;
     return (
@@ -193,6 +214,9 @@ function DestinationTree() {
         <TooltipTrigger asChild>{row}</TooltipTrigger>
         <TooltipContent side="right">
           {childCountLabel(destination, childCount(destination))}
+          {destination.to === "/cycles" && pendingPrompts.length > 0
+            ? ` · ${pendingPromptCountLabel(pendingPrompts.length)}`
+            : null}
         </TooltipContent>
       </Tooltip>
     );

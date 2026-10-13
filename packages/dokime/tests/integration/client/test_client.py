@@ -51,7 +51,10 @@ from .canonical import _message, _value, _value_object, register
 
 # === Constants === #
 
-SUITE_ID = "25eb4f2c-542a-48a0-b4a1-bb0827c7c211"
+# Suites and templates are named by readable IDs; only the template's
+# registered UUID travels on the planning wire.
+SUITE_ID = "bench.checks"
+TEMPLATE = "bench.checks.probe"
 TEMPLATE_ID = "25eb4f2c-542a-48a0-b4a1-bb0827c7c212"
 REQUEST_ID = "98184567-8924-4fb0-b4e2-667347e097a1"
 CASE_ID = "a13ae695-1f02-4464-9f7b-0b14ecffcb41"
@@ -85,6 +88,8 @@ class BackendFixture:
         self.restart_during: str | None = None
         self.execution_control_calls: list[str] = []
         self.stop_calls = 0
+        self.rerun_calls: list[str] = []
+        self.case_runs: list[str] = []
         self.run_calls = 0
         self.receipt_reads = 0
         self.fail_receipt_read = False
@@ -163,6 +168,8 @@ class BackendFixture:
                 "PauseExecution",
                 "ResumeExecution",
                 "StopExecution",
+                "ScheduleCaseRerun",
+                "RunCase",
             ],
             "Evidence": ["WatchRecords", "ListRecords"],
             "Telemetry": ["ListSamples"],
@@ -249,7 +256,7 @@ class BackendFixture:
                         "GetCase",
                         direction="response",
                         path="suite",
-                        identifier="suite",
+                        identifier=SUITE_ID,
                         label="Suite",
                     ),
                 )
@@ -284,7 +291,7 @@ class BackendFixture:
                     "GetCase",
                     direction="response",
                     path="suite",
-                    identifier="suite",
+                    identifier=SUITE_ID,
                     label="Suite",
                 ),
             ),
@@ -300,7 +307,7 @@ class BackendFixture:
                         "GetCase",
                         direction="response",
                         path="suite",
-                        identifier="template",
+                        identifier=TEMPLATE,
                         label="Template",
                     ),
                 )
@@ -675,6 +682,38 @@ class BackendFixture:
             ),
         )
 
+    async def ScheduleCaseRerun(self, request: Any, context: Any) -> Any:
+        assert request.cycle_id == CYCLE_ID
+        self.rerun_calls.append(request.case_id)
+        return _message(
+            "Execution",
+            "AppendPlannedCases",
+            direction="response",
+            path="",
+            observed_cursor=_message(
+                "Evidence",
+                "ListRecords",
+                direction="request",
+                path="after",
+                epoch=self.epoch,
+            ),
+        )
+
+    async def RunCase(self, request: Any, context: Any) -> Any:
+        assert request.cycle_id == CYCLE_ID
+        self.case_runs.append(f"{request.case_id}:{request.idempotency_key}")
+        return await self.RunCycle(
+            _message(
+                "Execution",
+                "RunCycle",
+                direction="request",
+                path="",
+                cycle_id=CYCLE_ID,
+                idempotency_key=request.idempotency_key,
+            ),
+            context,
+        )
+
     def publish(self, kind: str) -> None:
         n = len(self.records) + 1
         self.records.append(
@@ -882,7 +921,7 @@ def case_polling_summarizing() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
             server.sample_page_size = 1
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             (handle,) = run_cycle.executions
             await handle.start(request_key="polling-example")
             summary = await poll(handle, 0.01)
@@ -902,7 +941,7 @@ def case_execution_terminal() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
             server.seal_automatically = False
-            cycle = await client.new_cycle(suite="suite", template="template")
+            cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             (handle,) = cycle.executions
             await handle.start(request_key="delayed-seal")
             await asyncio.wait_for(server.terminal.wait(), 1)
@@ -922,7 +961,7 @@ def case_execution_terminal() -> None:
 def case_execution_wait() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
-            cycle = await client.new_cycle(suite="suite", template="template")
+            cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             (handle,) = cycle.executions
             entered = asyncio.Event()
             release = asyncio.Event()
@@ -966,7 +1005,7 @@ def case_execution_wait() -> None:
 def case_callback_work() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
-            cycle = await client.new_cycle(suite="suite", template="template")
+            cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             (handle,) = cycle.executions
 
             async def on_record(item: Any) -> None:
@@ -993,10 +1032,10 @@ def case_live_values() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
             suites = [s async for s in client.suites()]
-            assert suites[0].templates[0].id == TEMPLATE_ID
+            assert suites[0].templates[0].id == TEMPLATE
             run_cycle = await client.new_cycle(
-                suite="suite",
-                template="template",
+                suite=SUITE_ID,
+                template=TEMPLATE,
                 parameters={"integer": 2**60, "flag": True, "array": [1, None]},
             )
             run = await run_cycle.run(request_key="lab-order")
@@ -1023,7 +1062,7 @@ def case_live_values() -> None:
 def case_replay_pages() -> None:
     async def scenario() -> None:
         async with fixture() as (_, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             run = await run_cycle.run(request_key="lab-order")
             await run.wait(poll_interval=0.01)
             records = await collect(
@@ -1044,7 +1083,7 @@ def case_replay_pages() -> None:
 def case_stop_evidence() -> None:
     async def scenario() -> None:
         async with fixture() as (_, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             run = await run_cycle.run(request_key="lab-order")
             records_task = asyncio.create_task(collect(run_cycle.records(until=run)))
             control = await client.execution(EXECUTION_ID)
@@ -1056,10 +1095,29 @@ def case_stop_evidence() -> None:
     asyncio.run(scenario())
 
 
+def case_rerun_admission() -> None:
+    async def scenario() -> None:
+        async with fixture() as (server, client):
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
+            await run_cycle.schedule_rerun(CASE_ID)
+            run = await run_cycle.run_case(CASE_ID, request_key="rerun-1")
+            assert run.id == REQUEST_ID
+            assert run.cycle_id == CYCLE_ID
+            assert server.rerun_calls == [CASE_ID]
+            assert server.case_runs == [f"{CASE_ID}:rerun-1"]
+            with pytest.raises(ValueError):
+                await run_cycle.run_case(CASE_ID, request_key=" ")
+            with pytest.raises(ValueError):
+                await run_cycle.schedule_rerun("")
+            assert server.rerun_calls == [CASE_ID]
+
+    asyncio.run(scenario())
+
+
 def case_wait_run() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             run = await run_cycle.run(request_key="lab-order")
             with pytest.raises(TimeoutError):
                 await run.wait(timeout=0.01, poll_interval=0.001)
@@ -1078,7 +1136,7 @@ def case_ambiguous_cycle() -> None:
         async with fixture() as (server, client):
             server.fail_admission = True
             with pytest.raises(SubmissionUncertain) as caught:
-                cycle = await client.new_cycle(suite="suite", template="template")
+                cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
                 await cycle.run(request_key="durable-key")
             assert caught.value.cycle_id == CYCLE_ID
             run_cycle = await client.cycle(caught.value.cycle_id)
@@ -1096,7 +1154,7 @@ def case_rejections_explicit() -> None:
         async with fixture() as (server, client):
             server.deny_run = True
             with pytest.raises(RunRejected, match="provider_unavailable"):
-                cycle = await client.new_cycle(suite="suite", template="template")
+                cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
                 await cycle.run(request_key="key")
         async with fixture() as (server, client):
             server.methods["Execution"].remove("RunCycle")
@@ -1111,7 +1169,7 @@ def case_rejections_explicit() -> None:
 def case_restart_receipts() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             run = await run_cycle.run(request_key="key")
             server.epoch = "epoch-2"
             assert (await run.status()).id == run.id
@@ -1134,14 +1192,14 @@ def test_cycle_replay(method: str) -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
             if method == "GetCycle":
-                cycle_id = await client.create_cycle(suite="suite", template="template")
+                cycle_id = await client.create_cycle(suite=SUITE_ID, template=TEMPLATE)
                 server.restart_during = method
                 with pytest.raises(BackendChanged):
                     await client.cycle(cycle_id)
             else:
                 server.restart_during = method
                 with pytest.raises(BackendChanged):
-                    await client.create_cycle(suite="suite", template="template")
+                    await client.create_cycle(suite=SUITE_ID, template=TEMPLATE)
             assert server.registration_calls == 1
             assert server.created == (0 if method == "RegisterSelection" else 1)
             assert server.run_calls == 0
@@ -1203,13 +1261,13 @@ def case_protocol_validation() -> None:
             with pytest.raises(ProtocolError):
                 await client.connect()
         async with fixture() as (server, client):
-            cycle = await client.new_cycle(suite="suite", template="template")
+            cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             for key in ["", " ", "bad\nkey", "x" * 257]:
                 with pytest.raises(ValueError):
                     await cycle.run(request_key=key)
             with pytest.raises(ValueError):
                 await client.new_cycle(
-                    suite="suite", template="template", parameters={"voltage": 2**64}
+                    suite=SUITE_ID, template=TEMPLATE, parameters={"voltage": 2**64}
                 )
             assert server.created == 1
             assert server.registration_calls == 1
@@ -1260,6 +1318,23 @@ def case_checkpoint_validation() -> None:
     asyncio.run(scenario())
 
 
+def case_readable_catalog() -> None:
+    async def scenario() -> None:
+        async with fixture() as (server, client):
+            # Suites and templates list and resolve by their readable IDs.
+            suites = [suite async for suite in client.suites()]
+            assert [suite.id for suite in suites] == [SUITE_ID]
+            assert [template.id for template in suites[0].templates] == [TEMPLATE]
+            assert (await client.suite(SUITE_ID)).templates[0].id == TEMPLATE
+            # The registered UUID is wire identity, never a template reference.
+            with pytest.raises(ValueError):
+                await client.create_cycle(suite=SUITE_ID, template=TEMPLATE_ID)
+            assert server.registration_calls == 0
+            assert server.created == server.run_calls == 0
+
+    asyncio.run(scenario())
+
+
 def case_catalog_validation() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
@@ -1284,7 +1359,7 @@ def case_catalog_validation() -> None:
                             "ListSuites",
                             direction="response",
                             path="suites",
-                            suite_id="invalid",
+                            suite_id="bad suite",
                         ),
                     ],
                     None,
@@ -1335,7 +1410,7 @@ def test_endpoint_refusals(endpoint: str) -> None:
 def case_completed_backend() -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
-            run_cycle = await client.new_cycle(suite="suite", template="template")
+            run_cycle = await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
             run = await run_cycle.run(request_key="done")
             await run.wait(poll_interval=0.01)
             control = await client.execution(EXECUTION_ID)
@@ -1510,7 +1585,7 @@ def case_expected_backend_identity() -> None:
             )
             try:
                 with pytest.raises(BackendChanged, match="selected profile identity"):
-                    await mismatched.create_cycle(suite="suite", template="template")
+                    await mismatched.create_cycle(suite=SUITE_ID, template=TEMPLATE)
                 assert server.created == 0
                 assert mismatched._transport.backend is None
                 assert mismatched._transport._channel is None
@@ -1555,6 +1630,7 @@ def case_execution_observation() -> None:
         pytest.param(case_live_values, id="live_values"),
         pytest.param(case_replay_pages, id="replay_pages"),
         pytest.param(case_stop_evidence, id="stop_evidence"),
+        pytest.param(case_rerun_admission, id="rerun_admission"),
         pytest.param(case_wait_run, id="wait_run"),
         pytest.param(case_ambiguous_cycle, id="ambiguous_cycle"),
         pytest.param(case_rejections_explicit, id="rejections_explicit"),
@@ -1562,6 +1638,7 @@ def case_execution_observation() -> None:
         pytest.param(case_command_replay, id="command_replay"),
         pytest.param(case_protocol_validation, id="protocol_validation"),
         pytest.param(case_checkpoint_validation, id="checkpoint_validation"),
+        pytest.param(case_readable_catalog, id="readable_catalog"),
         pytest.param(case_catalog_validation, id="catalog_validation"),
         pytest.param(case_completed_backend, id="completed_backend"),
         pytest.param(case_shared_scenarios, id="shared_scenarios"),

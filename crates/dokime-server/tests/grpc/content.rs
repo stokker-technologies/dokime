@@ -967,6 +967,32 @@ async fn completion_harness() -> (
     )
 }
 
+/// Wait on the live state the settled-evidence refusal reads, not on a sibling source.
+async fn wait_for_watched_lifecycle(
+    owner: &Runtime,
+    cycle: &dokime_app::core::TestCycleId,
+    lifecycle: dokime_app::execution::CycleStatus,
+) {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let watched = owner
+                .handle()
+                .watch_state()
+                .latest()
+                .state()
+                .cycles
+                .get(cycle)
+                .map(|cycle| cycle.lifecycle);
+            if watched == Some(lifecycle) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the watched cycle never reached the expected lifecycle");
+}
+
 async fn finish_completion_harness(
     execution: WireClient,
     cycle_id: String,
@@ -1151,6 +1177,78 @@ pub(crate) async fn artifact_upload_completion() {
         .unwrap_err();
     assert_eq!(error.code(), Code::InvalidArgument);
     finish_completion_harness(execution, cycle_id, gate, owner, server).await;
+}
+
+pub(crate) async fn cycle_evidence_settled() {
+    let (_root, mut owner, server, execution, _content, gate, cycle_id, _scope) =
+        completion_harness().await;
+    let cycle = dokime_app::core::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
+    wait_for_watched_lifecycle(&owner, &cycle, dokime_app::execution::CycleStatus::Running).await;
+
+    // Running: Both Cycle-Wide Products Refuse With A Readable Precondition
+    let bundle = execution
+        .download::<contracts::content::DownloadCycleBundle>(authenticated(
+            contracts::content::DownloadCycleBundleRequest {
+                cycle_id: cycle_id.clone(),
+            },
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!(bundle.code(), Code::FailedPrecondition);
+    assert_eq!(
+        bundle.message(),
+        "The evidence bundle becomes available when the cycle is terminal; this cycle is still running."
+    );
+    let report = execution
+        .download::<contracts::reports::DownloadCycleReport>(authenticated(
+            contracts::reports::DownloadCycleReportRequest {
+                cycle_id: cycle_id.clone(),
+                identifier: String::new(),
+            },
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!(report.code(), Code::FailedPrecondition);
+    assert_eq!(
+        report.message(),
+        "The final report becomes available when the cycle is terminal; this cycle is still running."
+    );
+
+    // Terminal: The Refusal Lifts And Each Product Answers As It Did Before
+    gate.release.notify_one();
+    wait_for_watched_lifecycle(
+        &owner,
+        &cycle,
+        dokime_app::execution::CycleStatus::Completed,
+    )
+    .await;
+    let bundle = execution
+        .download::<contracts::content::DownloadCycleBundle>(authenticated(
+            contracts::content::DownloadCycleBundleRequest {
+                cycle_id: cycle_id.clone(),
+            },
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!(bundle.code(), Code::Unimplemented);
+    if let Err(report) = execution
+        .download::<contracts::reports::DownloadCycleReport>(authenticated(
+            contracts::reports::DownloadCycleReportRequest {
+                cycle_id: cycle_id.clone(),
+                identifier: String::new(),
+            },
+        ))
+        .await
+    {
+        assert!(
+            !report
+                .message()
+                .contains("becomes available when the cycle is terminal"),
+            "a terminal cycle must not be refused as running: {report:?}"
+        );
+    }
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
 }
 
 pub(crate) async fn large_artifact_buffering() {

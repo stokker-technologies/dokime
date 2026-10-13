@@ -7,17 +7,25 @@
  * ***
  */
 
-/* The prompts this cycle is waiting on, in a bounded banner under the header.
+/* The questions this cycle is waiting on, as the first thing under the header.
  *
- * The banner names every pending prompt and opens one response form at a time
- * through the existing `PromptPanel`. `usePromptValues` keys the draft by
+ * Every pending prompt is a card in one grid, most urgent first, coloured by
+ * the level its author declared on the record severity scale. A card states
+ * the level, the kind, how long it has waited, the title and the instruction,
+ * and opens its response form through the existing `PromptPanel`; it leaves
+ * only when the prompt is answered. `usePromptValues` keys the draft by
  * correlation id, so a refresh of the pending list never discards what the
  * operator has typed.
+ *
+ * The banner exists only while the cycle is live. The answered history stays
+ * where it always was: the request record in the timeline and the sealed
+ * report, whose level pill carries the same declared level.
  */
 
 /* === External Imports === */
 
-import { useEffect, useState } from "react";
+import { BellRing } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
@@ -25,9 +33,20 @@ import { PromptPanel } from "@/components/PromptPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type PromptValue, promptResponseValues } from "@/lib/prompts";
+import {
+  recordLevelLabel,
+  recordLevelVariant,
+  recordToneRowClass,
+  recordToneShellClass,
+} from "@/lib/record-display";
+import { relativeAgeLabel } from "@/lib/time-format";
 import type { PromptField, PromptRequest } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { STATUS_PILL_CLASS } from "./cycle-workspace-model";
+import {
+  orderPendingPrompts,
+  pendingPromptCountLabel,
+  promptLevelTone,
+} from "./prompt-banner-model";
 import { usePromptResponseMutation } from "./server-state";
 import { usePromptValues } from "./use-prompt-values";
 
@@ -37,13 +56,27 @@ export type CyclePromptBannerProps = {
   prompts: PromptRequest[];
 };
 
+type PromptCardProps = {
+  now: number;
+  onToggle: () => void;
+  open: boolean;
+  prompt: PromptRequest;
+};
+
+/* === Constants === */
+
+/** Ages read in seconds while young, so the clock ticks once a second. */
+const AGE_TICK_MS = 1_000;
+
 /* === Components === */
 
 export function CyclePromptBanner({ prompts }: CyclePromptBannerProps) {
   const [openPromptId, setOpenPromptId] = useState<string | null>(null);
   const responseMutation = usePromptResponseMutation();
-  const openPrompt = prompts.find((prompt) => prompt.correlation_id === openPromptId) ?? undefined;
+  const ordered = useMemo(() => orderPendingPrompts(prompts), [prompts]);
+  const openPrompt = ordered.find((prompt) => prompt.correlation_id === openPromptId) ?? undefined;
   const [values, setValues] = usePromptValues(openPrompt);
+  const now = useAgeClock(ordered.length > 0);
 
   useEffect(() => {
     if (openPromptId && !prompts.some((prompt) => prompt.correlation_id === openPromptId)) {
@@ -51,7 +84,7 @@ export function CyclePromptBanner({ prompts }: CyclePromptBannerProps) {
     }
   }, [openPromptId, prompts]);
 
-  if (prompts.length === 0) return null;
+  if (ordered.length === 0) return null;
 
   const submit = (action: string) => {
     if (!openPrompt) return;
@@ -68,39 +101,31 @@ export function CyclePromptBanner({ prompts }: CyclePromptBannerProps) {
   return (
     <section
       aria-label="Pending Prompts"
-      className="grid max-h-96 gap-3 overflow-y-auto border-b bg-muted/40 px-4 py-3"
+      className="grid max-h-[50vh] gap-3 overflow-y-auto border-b bg-background px-[var(--shell-inset)] py-3"
     >
-      <ul className="grid gap-0.5">
-        {prompts.map((prompt) => {
-          const open = prompt.correlation_id === openPromptId;
-          return (
-            <li
-              className={cn(
-                "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-lg px-2 py-1.5",
-                open ? "bg-background" : null,
-              )}
-              key={prompt.correlation_id}
-            >
-              <span className="min-w-0 truncate text-sm leading-6" title={prompt.title}>
-                {prompt.title}
-                {prompt.message ? (
-                  <span className="text-muted-foreground"> — {prompt.message}</span>
-                ) : null}
-              </span>
-              <Badge className={STATUS_PILL_CLASS} variant="warning">
-                {promptKindLabel(prompt.kind)}
-              </Badge>
-              <Button
-                aria-expanded={open}
-                onClick={() => setOpenPromptId(open ? null : prompt.correlation_id)}
-                size="sm"
-                variant={open ? "secondary" : "outline"}
-              >
-                {open ? "Hide" : "Respond"}
-              </Button>
-            </li>
-          );
-        })}
+      <h2 className="flex items-center gap-2 font-heading text-sm leading-6 font-semibold">
+        <BellRing aria-hidden className="size-4" />
+        Operator Input Needed
+        <span className="font-sans font-normal text-muted-foreground">
+          · {pendingPromptCountLabel(ordered.length)}
+        </span>
+      </h2>
+
+      <ul
+        aria-live="polite"
+        className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-2"
+      >
+        {ordered.map((prompt) => (
+          <PromptCard
+            key={prompt.correlation_id}
+            now={now}
+            onToggle={() =>
+              setOpenPromptId(prompt.correlation_id === openPromptId ? null : prompt.correlation_id)
+            }
+            open={prompt.correlation_id === openPromptId}
+            prompt={prompt}
+          />
+        ))}
       </ul>
 
       {openPrompt ? (
@@ -125,7 +150,85 @@ export function CyclePromptBanner({ prompts }: CyclePromptBannerProps) {
   );
 }
 
+/* === Private Components === */
+
+/**
+ * One pending prompt on a fixed four-row grid: pills and age, title,
+ * instruction, action. The tone colours the card's ground and its leading
+ * rule; the words stay in the foreground ink so a red card is still readable.
+ */
+function PromptCard({ now, onToggle, open, prompt }: PromptCardProps) {
+  const tone = promptLevelTone(prompt.level);
+
+  return (
+    <li
+      className={recordToneShellClass(
+        tone,
+        recordToneRowClass(
+          tone,
+          "grid grid-rows-[auto_auto_1fr_auto] gap-1.5 rounded-lg border-l-4 p-3",
+        ),
+      )}
+      data-prompt-id={prompt.correlation_id}
+      data-prompt-level={prompt.level}
+    >
+      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2">
+        <Badge className={STATUS_PILL_CLASS} variant={recordLevelVariant(prompt.level)}>
+          {recordLevelLabel(prompt.level)}
+        </Badge>
+        <Badge className={STATUS_PILL_CLASS} variant="outline">
+          {promptKindLabel(prompt.kind)}
+        </Badge>
+        <span />
+        <time
+          className="text-xs leading-6 text-muted-foreground tabular-nums"
+          dateTime={prompt.created_at}
+          title={prompt.created_at}
+        >
+          {relativeAgeLabel(prompt.created_at, now)}
+        </time>
+      </div>
+      <p
+        className="line-clamp-2 font-heading text-base leading-6 font-semibold text-foreground"
+        title={prompt.title}
+      >
+        {prompt.title}
+      </p>
+      <p
+        className="line-clamp-3 text-sm leading-5 text-foreground/80"
+        title={prompt.message ?? undefined}
+      >
+        {prompt.message ?? ""}
+      </p>
+      <div className="grid justify-end">
+        <Button
+          aria-expanded={open}
+          onClick={onToggle}
+          size="sm"
+          variant={open ? "secondary" : "default"}
+        >
+          {open ? "Hide" : "Respond"}
+        </Button>
+      </div>
+    </li>
+  );
+}
+
 /* === Private Functions === */
+
+/** A clock for the ages on the cards, running only while a card is shown. */
+function useAgeClock(running: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!running) return;
+    setNow(Date.now());
+    const handle = window.setInterval(() => setNow(Date.now()), AGE_TICK_MS);
+    return () => window.clearInterval(handle);
+  }, [running]);
+
+  return now;
+}
 
 function promptKindLabel(kind: PromptRequest["kind"]): string {
   switch (kind) {

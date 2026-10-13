@@ -16,6 +16,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -46,6 +47,10 @@ from dokime_tools.release import inputs as source_inputs
 
 COMMIT = "a" * 40
 TAG = "v1.2.3"
+ARCHIVES = {
+    "fixture.tar.zst": b"release test executables",
+    "fixture.tar.json": b"archive receipt",
+}
 
 # === Types === #
 
@@ -226,6 +231,10 @@ def test_release_inventory(tmp_path: Path, change: str) -> None:
         "example-missing",
         "example-empty",
         "example-misplaced",
+        "archive-in-package",
+        "archives-missing",
+        "archives-incomplete",
+        "archives-foreign",
     ],
 )
 def test_release_layout(tmp_path: Path, change: str) -> None:
@@ -276,13 +285,127 @@ def test_release_layout(tmp_path: Path, change: str) -> None:
         manifest["files"].remove(entry)
     elif change == "example-misplaced":
         move(f"example:{checks.EXAMPLE_REPORT}", checks.EXAMPLE_REPORT)
+    elif change == "archive-in-package":
+        nested = package / "validation/test-archives/fixture.tar.zst"
+        nested.parent.mkdir()
+        nested.write_bytes(b"nested")
+        manifest["files"].append(
+            {
+                "role": "archive:fixture.tar.zst",
+                "path": "validation/test-archives/fixture.tar.zst",
+                "bytes": nested.stat().st_size,
+                "sha256": digest(nested),
+            }
+        )
+    elif change == "archives-missing":
+        del manifest["test_archives"]
+    elif change == "archives-incomplete":
+        manifest["test_archives"]["files"].pop()
+    elif change == "archives-foreign":
+        manifest["test_archives"]["artifact"] = "test-archives-windows-10"
     path.write_text(json.dumps(manifest))
     if change == "proto-revision":
         _replace(package, "proto:revision.txt", b"b" * 40 + b"\n")
     elif change == "example-empty":
         _replace(package, f"example:{checks.EXAMPLE_REPORT}", b"  \n")
-    with pytest.raises(ValueError, match="layout|directory|archive|protocol|example"):
+    with pytest.raises(
+        ValueError, match="layout|directory|archive|protocol|example|Nextest"
+    ):
         verify_release(root, COMMIT, TAG, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "change", [None, "missing", "changed", "unlisted", "absent", "symlink"]
+)
+def test_release_archives(tmp_path: Path, change: str | None) -> None:
+    root = _release(tmp_path)
+    manifest = json.loads((root / "linux/manifest.json").read_text())
+    directory = tmp_path / checks.TEST_ARCHIVES
+    directory.mkdir(parents=True)
+    for name, content in ARCHIVES.items():
+        (directory / name).write_bytes(content)
+    if change == "missing":
+        (directory / "fixture.tar.json").unlink()
+    elif change == "changed":
+        (directory / "fixture.tar.zst").write_bytes(b"rebuilt executables")
+    elif change == "unlisted":
+        (directory / "other.tar.zst").write_bytes(b"foreign")
+    elif change == "absent":
+        shutil.rmtree(directory)
+    elif change == "symlink":
+        (directory / "fixture.tar.zst").unlink()
+        (directory / "fixture.tar.zst").symlink_to(directory / "fixture.tar.json")
+    if change is None:
+        assert checks.verify_test_archives(tmp_path, manifest) == directory
+    else:
+        with pytest.raises(ValueError, match="archive"):
+            checks.verify_test_archives(tmp_path, manifest)
+
+
+@pytest.mark.parametrize(
+    "change", [None, "native-wheel", "divergent", "extra-wheel", "no-sdist"]
+)
+def test_release_python_distributions(tmp_path: Path, change: str | None) -> None:
+    from dokime_tools.package import publish
+
+    root = _release(tmp_path)
+    manifests = [
+        json.loads((root / platform / "manifest.json").read_text())
+        for platform in ("linux", "windows")
+    ]
+    files = manifests[1]["files"]
+    wheel = next(item for item in files if item["role"] == "wheel")
+    if change == "native-wheel":
+        for manifest in manifests:
+            item = next(item for item in manifest["files"] if item["role"] == "wheel")
+            item["path"] = "python/dokime-1.2.3-cp313-abi3-linux_x86_64.whl"
+    elif change == "divergent":
+        wheel["sha256"] = "0" * 64
+    elif change == "extra-wheel":
+        files.append({**wheel, "path": "python/dokime-1.2.3-py3-none-any2.whl"})
+    elif change == "no-sdist":
+        for manifest in manifests:
+            manifest["files"] = [
+                item for item in manifest["files"] if item["role"] != "sdist"
+            ]
+    if change is None:
+        expected = publish.artifacts(root, manifests)
+        assert set(expected) == {"dokime-1.2.3-py3-none-any.whl", "dokime-1.2.3.tar.gz"}
+        assert all(
+            item.path.parent == root / "linux/python" for item in expected.values()
+        )
+    else:
+        with pytest.raises(ValueError, match="Python distribution|pure wheel"):
+            publish.artifacts(root, manifests)
+
+
+@pytest.mark.parametrize("change", [None, "tampered", "missing", "none"])
+def test_release_asset_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str | None
+) -> None:
+    root = _release(tmp_path)
+    monkeypatch.setattr(stage, "directory", lambda root: root / "release/windows")
+    manifest = json.loads((root / "windows/manifest.json").read_text())
+    roles = stage.INSTALLER_ROLES
+    if change == "tampered":
+        entry = next(item for item in manifest["files"] if item["role"] == "installer")
+        (root / "windows" / entry["path"]).write_bytes(b"rebuilt installer")
+    elif change == "missing":
+        entry = next(item for item in manifest["files"] if item["role"] == "installer")
+        (root / "windows" / entry["path"]).unlink()
+    elif change == "none":
+        roles = frozenset({"absent"})
+    destination = Path("dist/assets/windows/installers")
+    if change is None:
+        staged = stage.stage_assets(tmp_path, manifest, roles, destination)
+        assert staged == tmp_path / destination
+        assert {path.name for path in staged.iterdir()} == {
+            "dokime-1.2.3-windows-x86_64-setup.exe"
+        }
+        stage.stage_assets(tmp_path, manifest, roles, destination)
+    else:
+        with pytest.raises(ValueError, match="asset"):
+            stage.stage_assets(tmp_path, manifest, roles, destination)
 
 
 @pytest.mark.parametrize("result", ["failure", "error", "skipped", "empty"])
@@ -532,14 +655,6 @@ def _release(source: Path) -> Path:
                 f"{checks.FIXTURE_BUNDLES}/{name}/{name}.dokime",
                 name.encode(),
             )
-        files["archive:fixture.tar.zst"] = (
-            f"{checks.TEST_ARCHIVES}/fixture.tar.zst",
-            b"release test executables",
-        )
-        files["archive:fixture.tar.json"] = (
-            f"{checks.TEST_ARCHIVES}/fixture.tar.json",
-            b"archive receipt",
-        )
         coverage_suites = (
             "integration-rust",
             "acceptance-rust",
@@ -625,6 +740,17 @@ def _release(source: Path) -> Path:
             "toolchain": f"rustc 1.99.0 (fixture)\nrelease: 1.99.0\nhost: {TARGETS[platform]}",
             "inputs": checks.inputs(source),
             "contracts": {"archive_sha256": "e" * 64},
+            "test_archives": {
+                "artifact": f"test-archives-{platform}-10",
+                "files": [
+                    {
+                        "name": name,
+                        "bytes": len(content),
+                        "sha256": hashlib.sha256(content).hexdigest(),
+                    }
+                    for name, content in ARCHIVES.items()
+                ],
+            },
             "files": artifacts,
             "pipeline_id": "2",
             "run_attempt": "1",

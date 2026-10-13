@@ -158,11 +158,59 @@ impl Client {
         }
         Ok(suite)
     }
+
+    // A template is referenced as `<suite id>.<segment>`, so the reference
+    // names its own suite; the registered UUID stays on the wire.
+    pub async fn template(
+        &self,
+        identifier: &str,
+    ) -> Result<(catalog::SuiteDefinition, catalog::TemplateDefinition)> {
+        let suite = template_suite(identifier).ok_or_else(|| {
+            Error::Rpc(tonic::Status::invalid_argument(
+                "a template is referenced as `<suite id>.<segment>`",
+            ))
+        })?;
+        let definition = self.suite(suite).await?;
+        let template = registered_template(&definition, identifier)?.clone();
+        Ok((definition, template))
+    }
 }
 
 /* === Public Functions === */
+// The suite a readable template id names, when the id is well formed.
+pub fn template_suite(identifier: &str) -> Option<&str> {
+    let (suite, _) = identifier.rsplit_once('.')?;
+    dokime_contract::definition::template_identifier(suite, identifier)
+        .ok()
+        .map(|()| suite)
+}
 
 /* === Private Functions === */
+pub(crate) fn registered_template<'a>(
+    suite: &'a catalog::SuiteDefinition,
+    identifier: &str,
+) -> Result<&'a catalog::TemplateDefinition> {
+    let mut matches = suite.templates.iter().filter(|candidate| {
+        candidate
+            .metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.identifier == identifier)
+    });
+    let selected = matches.next().ok_or_else(|| {
+        Error::Rpc(tonic::Status::not_found(format!(
+            "template `{identifier}` is not registered in its suite"
+        )))
+    })?;
+    if matches.next().is_some() {
+        return Err(Error::Rpc(tonic::Status::failed_precondition(format!(
+            "template `{identifier}` is declared more than once in its suite"
+        ))));
+    }
+    dokime_contract::core::TemplateId::from_uuid(&selected.template_id)
+        .map_err(|_| invalid("template has an invalid identity"))?;
+    Ok(selected)
+}
+
 fn validate_listed_identity(
     identity: &catalog::SuiteIdentity,
     suite: &catalog::SuiteDefinition,

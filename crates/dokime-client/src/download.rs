@@ -40,6 +40,9 @@ struct Partial(Option<PathBuf>);
 /* === Enums === */
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// The backend refused to open the download; nothing was received.
+    #[error("download request failed")]
+    Request(#[source] super::Error),
     #[error(transparent)]
     Client(#[from] super::Error),
     #[error("invalid download: {0}")]
@@ -78,7 +81,10 @@ impl Client {
         destination: PathBuf,
     ) -> Result<Download<contracts::content::ArtifactMetadata>, Error> {
         let identity = request.artifact_id.clone();
-        let stream = self.content_download_artifact(request).await?;
+        let stream = self
+            .content_download_artifact(request)
+            .await
+            .map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -108,7 +114,10 @@ impl Client {
         destination: PathBuf,
     ) -> Result<Download<contracts::content::CycleBundleMetadata>, Error> {
         let identity = request.cycle_id.clone();
-        let stream = self.content_download_cycle_bundle(request).await?;
+        let stream = self
+            .content_download_cycle_bundle(request)
+            .await
+            .map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -138,7 +147,10 @@ impl Client {
         destination: PathBuf,
     ) -> Result<Download<contracts::content::ExecutionFileDownloadMetadata>, Error> {
         let identity = request.relative_path.clone();
-        let stream = self.content_download_execution_file(request).await?;
+        let stream = self
+            .content_download_execution_file(request)
+            .await
+            .map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -169,7 +181,10 @@ impl Client {
         expected: (u64, String),
     ) -> Result<Download<contracts::content::ArtifactMetadata>, Error> {
         let id = request.artifact_id.clone();
-        let stream = self.history_download_checkpoint_artifact(request).await?;
+        let stream = self
+            .history_download_checkpoint_artifact(request)
+            .await
+            .map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
@@ -206,7 +221,10 @@ impl Client {
         destination: PathBuf,
     ) -> Result<Download<contracts::reports::ReportMetadata>, Error> {
         let id = request.cycle_id.clone();
-        let stream = self.reports_download_cycle_report(request).await?;
+        let stream = self
+            .reports_download_cycle_report(request)
+            .await
+            .map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,

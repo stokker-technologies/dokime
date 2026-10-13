@@ -83,6 +83,31 @@ pub(crate) async fn rerun_fresh_started() {
 
     assert_ne!(restarted_at, first_started_at);
     assert_ne!(Some(restarted_at), restarted.started_at);
+
+    // The re-run is a new execution appended after the original, which keeps
+    // its identity, outcome and sealed evidence exactly as it was.
+    let first = &completed.test_executions[0];
+    let original = restarted
+        .test_executions
+        .iter()
+        .find(|execution| execution.test_execution_id == first.test_execution_id)
+        .expect("the original execution remains in the cycle");
+    assert_eq!(restarted.test_executions.len(), 2);
+    assert_eq!(
+        restarted.test_executions.last().unwrap().test_execution_id,
+        restarted_execution.test_execution_id
+    );
+    assert_ne!(
+        restarted_execution.test_execution_id,
+        first.test_execution_id
+    );
+    assert_eq!(original.status, first.status);
+    assert_eq!(original.started_at, first.started_at);
+    assert_eq!(original.finished_at, first.finished_at);
+    assert_eq!(
+        format!("{:?}", original.saved),
+        format!("{:?}", first.saved)
+    );
 }
 
 pub(crate) async fn stop_clear_state() {

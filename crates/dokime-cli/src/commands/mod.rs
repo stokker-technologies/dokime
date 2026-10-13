@@ -12,6 +12,7 @@ mod auth;
 mod backend;
 mod catalog;
 mod cycle;
+mod execution;
 mod operation;
 mod plan;
 mod status;
@@ -51,6 +52,8 @@ pub(crate) enum Command {
         about = "Submit Cycles And Recover Durable Request Progress."
     )]
     Cycle(cycle::Command),
+    #[command(subcommand, about = "Control One Execution Of A Cycle.")]
+    Execution(execution::Command),
     #[command(subcommand, about = "Browse Registered Suites And Their Templates.")]
     Catalog(catalog::Command),
     #[command(subcommand, about = "Discover And Invoke Remote Operations.")]
@@ -71,6 +74,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::Status(args) => status::run(args).await,
         Command::Backend(command) => backend::run(command),
         Command::Cycle(command) => cycle::run(command).await,
+        Command::Execution(command) => execution::run(command).await,
         Command::Catalog(command) => catalog::run(command).await,
         Command::Operation(command) => operation::run(command).await,
         Command::Plan(command) => plan::run(command).await,

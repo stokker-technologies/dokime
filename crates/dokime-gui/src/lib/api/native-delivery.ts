@@ -20,6 +20,7 @@ import type {
   DesktopSaveKind,
 } from "@/lib/desktop/delivery";
 import { isTauriDesktop } from "@/lib/desktop-open";
+import { normalizeDeliveryError } from "@/lib/rpc/errors";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { NativeApiUnsupportedError } from "./native-values";
 
@@ -148,12 +149,16 @@ export async function deliverNativeArtifact(
   if (!filename) throw new Error("Native artifact delivery requires a filename.");
   assertCurrent(session);
   const { commands } = await import("@/lib/desktop/commands");
-  const delivered = await commands.desktopArtifactDeliver(session.generation, {
-    source: request.source,
-    kind: request.kind,
-    filename,
-    action: request.action,
-  });
+  const delivered = await commands
+    .desktopArtifactDeliver(session.generation, {
+      source: request.source,
+      kind: request.kind,
+      filename,
+      action: request.action,
+    })
+    .catch((error: unknown) => {
+      throw normalizeDeliveryError(error);
+    });
   assertCurrent(session);
   return delivered;
 }

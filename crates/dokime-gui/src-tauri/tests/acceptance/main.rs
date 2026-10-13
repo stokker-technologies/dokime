@@ -122,7 +122,7 @@ enum Prompts {
 impl Lab {}
 
 #[dokime::template(
-    id = "matrix.probe",
+    id = "matrix.lab.probe",
     label = "Probe",
     records = Records,
     streams = Streams,

@@ -338,7 +338,7 @@ pub(crate) async fn queued_plugin_until() {
                 .suite
                 .test_case_templates
                 .iter()
-                .any(|template| template.metadata.identifier.as_str() == "fixture.smoke")
+                .any(|template| template.metadata.identifier.as_str() == "fixture.checks.smoke")
     }));
     active.shutdown().await.unwrap();
 

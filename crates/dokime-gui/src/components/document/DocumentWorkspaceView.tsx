@@ -21,15 +21,16 @@ import {
 } from "@/components/document/DocumentSurface";
 import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
+import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import type { MediaGalleryArtifact } from "@/components/MediaGallery";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
+import { updatePlotSettings } from "@/lib/api/native-documents";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
 import type {
   DocumentViewCard,
   DocumentViewPayload,
   DocumentViewSection,
-  EvidenceAnalysisSelection,
   HealthItem,
   HubRecord,
   OperatorNote,
@@ -39,8 +40,8 @@ import type {
   TelemetryStream,
   TraceabilitySnapshot,
 } from "@/lib/types";
-import { AnalysisControls } from "@/plots/AnalysisControls";
 import { type LivePlotStateMap, useLivePlotPayloads } from "@/plots/live-data";
+import type { PlotDisplaySettings } from "@/plots/PlotSettingsDialog";
 
 /* === Constants === */
 
@@ -110,13 +111,39 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
   );
   const scopeKey =
     props.renderMode === "live" ? `${props.document?.document_id}/${props.plotResetKey}` : "report";
-  const [analysisOverrides, setAnalysisOverrides] = useState<{
+  /* A persisted plot setting is applied to the open document as soon as the
+     host accepted it, so the watch reopens with the new budget without waiting
+     for the frozen document to be captured again. */
+  const [plotSettingsOverrides, setPlotSettingsOverrides] = useState<{
     key: string;
-    selections: Record<string, EvidenceAnalysisSelection | null>;
-  }>({ key: scopeKey, selections: {} });
-  const selections = useMemo(
-    () => (analysisOverrides.key === scopeKey ? analysisOverrides.selections : {}),
-    [analysisOverrides, scopeKey],
+    settings: Record<string, PlotDisplaySettings>;
+  }>({ key: scopeKey, settings: {} });
+  const plotSettings = useMemo(
+    () => (plotSettingsOverrides.key === scopeKey ? plotSettingsOverrides.settings : {}),
+    [plotSettingsOverrides, scopeKey],
+  );
+  const nativeSession = useNativeSessionOptional();
+  const cycleId = props.renderMode === "live" ? (props.scope?.test_cycle_id ?? null) : null;
+  const onPlotSettingsChange = useCallback(
+    async (plotId: string, settings: PlotDisplaySettings) => {
+      if (!nativeSession || !cycleId) {
+        throw new Error("A running cycle on a connected backend is required.");
+      }
+      await updatePlotSettings(nativeSession.identity, {
+        cycleId,
+        plotId,
+        displayPoints: settings.display_points,
+        downsample: settings.downsample,
+      });
+      setPlotSettingsOverrides((previous) => ({
+        key: scopeKey,
+        settings: {
+          ...(previous.key === scopeKey ? previous.settings : {}),
+          [plotId]: settings,
+        },
+      }));
+    },
+    [cycleId, nativeSession, scopeKey],
   );
   const document = useMemo(
     () =>
@@ -126,14 +153,14 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
             cards: props.document.cards.map((card) => ({
               ...card,
               plots: card.plots.map((plot) =>
-                Object.hasOwn(selections, plot.plot_id)
-                  ? { ...plot, analysis: selections[plot.plot_id] }
+                Object.hasOwn(plotSettings, plot.plot_id)
+                  ? { ...plot, ...plotSettings[plot.plot_id] }
                   : plot,
               ),
             })),
           }
         : props.document,
-    [props.document, selections],
+    [props.document, plotSettings],
   );
   const sections = useMemo(() => orderedDocumentSections(document), [document]);
   const liveDocumentPlots = useMemo(
@@ -152,29 +179,13 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
       cardFilter={resolvedCardFilter}
       document={document}
       emptyMessage={props.emptyMessage}
-      prependSections={
-        <>
-          {props.prependSections}
-          {props.renderMode === "live" && liveDocumentPlots.length > 0 && (
-            <AnalysisControls
-              key={scopeKey}
-              plots={liveDocumentPlots}
-              onChange={(plotId, selection) =>
-                setAnalysisOverrides((previous) => ({
-                  key: scopeKey,
-                  selections: {
-                    ...(previous.key === scopeKey ? previous.selections : {}),
-                    [plotId]: selection,
-                  },
-                }))
-              }
-            />
-          )}
-        </>
-      }
+      prependSections={props.prependSections}
       sectionChrome={props.sectionChrome}
       renderCard={(card) => (
-        <DocumentCardContent {...documentCardContentProps(props, card, livePlotStates)} />
+        <DocumentCardContent
+          {...documentCardContentProps(props, card, livePlotStates)}
+          {...(props.renderMode === "live" && cycleId ? { onPlotSettingsChange } : {})}
+        />
       )}
     />
   );

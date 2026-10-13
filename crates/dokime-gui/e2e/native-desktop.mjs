@@ -22,6 +22,7 @@
 //   a. startup      the connection screen, then Cycles with empty groups
 //   b. library      suite expansion, the template dialog, two templates added
 //   c. cycle        the workspace: sidebar, run, prompts, focus, console, overflow
+//   c'. execution-stop  a copy: Stop Execution stops one, its siblings finish
 //   d. cycles-home  the groups after a run, Show Cleared, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
@@ -122,6 +123,9 @@ const NUMBER_PARAMETER = "frequency_hz";
 
 const OPERATOR_NOTE = "Trace steady, no fault indicated.";
 
+/** The startup template's question, which the mini plugin raises to Warning. */
+const STARTUP_PROMPT = "Inspect Powered Charger";
+
 /** The WebDriver code points for the named keys this gate presses. */
 const WEBDRIVER_KEYS = { Enter: "\uE007", Escape: "\uE00C", Tab: "\uE004" };
 
@@ -161,6 +165,9 @@ const failures = [];
 const passedJourneys = [];
 
 const notes = [];
+
+/** What the prompt banner and its counts showed before each prompt was answered. */
+const promptSightings = [];
 
 /** The journey whose WebView died, once one has: everything after it is moot. */
 let webviewGone = null;
@@ -871,6 +878,25 @@ async function settle(session) {
 
 /** Answer every prompt the open cycle is waiting on, through the banner. */
 async function answerPendingPrompts(session) {
+  /* The banner is gone the moment a prompt is answered, so what it showed is
+     read here, before Respond, and asserted once the run is over. */
+  const sighting = await session.execute(`
+    const banner = document.querySelector('section[aria-label="Pending Prompts"]');
+    if (!banner) return null;
+    const cards = [...banner.querySelectorAll('li[data-prompt-level]')];
+    return {
+      cards: cards.map((card) => ({
+        level: card.dataset.promptLevel,
+        text: card.innerText,
+        top: card.getBoundingClientRect().top,
+      })),
+      bannerTop: banner.getBoundingClientRect().top,
+      header: document.querySelector('[data-testid="cycle-prompt-count"]')?.innerText ?? null,
+      navigation:
+        document.querySelector('[data-testid="navigation-prompt-count"]')?.innerText ?? null,
+    };
+  `);
+  if (sighting) promptSightings.push(sighting);
   const pending = await session.execute(`
     const banner = document.querySelector('section[aria-label="Pending Prompts"]');
     if (!banner) return 0;
@@ -1390,6 +1416,54 @@ async function cycleJourney(session, cycleId) {
     }
   }
 
+  /* Sealed evidence while the cycle is in flight: Download Bundle and Write
+     Report are cut from the sealed cycle, so they stay disabled and say why
+     rather than failing with the backend's refusal after a click. */
+  const inFlight = await until(
+    "the cycle header to show an in-flight lifecycle",
+    async () => /\b(Running|Paused|Stopping)\b/.test(normalize(await session.text())),
+    30000,
+  ).catch(() => false);
+  if (inFlight) {
+    await openMenu(session, "Cycle Actions");
+    const evidence = await session.execute(`
+      const items = [...document.querySelectorAll('[role=menu] [role=menuitem]')];
+      const state = (name) => {
+        const item = items.find((candidate) => candidate.innerText.trim() === name);
+        if (!item) return null;
+        const reason = document.getElementById(item.getAttribute('aria-describedby') ?? '');
+        return {
+          disabled: item.getAttribute('aria-disabled') === 'true' || item.hasAttribute('data-disabled'),
+          reason: reason ? reason.innerText.trim() : '',
+        };
+      };
+      return { bundle: state('Download Bundle'), report: state('Write Report') };
+    `);
+    await closeAnyMenu(session);
+    for (const [name, item] of [
+      ["Download Bundle", evidence.bundle],
+      ["Write Report", evidence.report],
+    ]) {
+      assert.ok(item, `The overflow menu must offer ${name} while the cycle runs`);
+      assert.ok(item.disabled, `${name} must be disabled while the cycle is in flight`);
+      assert.match(
+        item.reason,
+        /become available when the cycle is terminal/,
+        `${name} must state why it is unavailable while the cycle is in flight`,
+      );
+    }
+    assert.equal(
+      await session.execute("return document.body.style.pointerEvents || '';"),
+      "",
+      "A closed overflow menu must leave the page interactive",
+    );
+  } else {
+    defect(
+      "cycle/sealed-evidence",
+      "The admitted cycle never showed Running, Paused or Stopping, so Download Bundle and Write Report could not be checked while it was in flight.",
+    );
+  }
+
   await runUntil(
     session,
     "cycle completion",
@@ -1408,6 +1482,39 @@ async function cycleJourney(session, cycleId) {
       return /\b(Passed|Failed|Blocked)\b/.test(rows);
     },
     300000,
+  );
+
+  /* The Startup Prompt Was A Warning Banner With Counts In Header And Navigation. */
+  const startupSighting = promptSightings.find((seen) =>
+    seen.cards.some((card) => hasText(card.text, STARTUP_PROMPT)),
+  );
+  assert.ok(
+    startupSighting,
+    `The prompt banner must show "${STARTUP_PROMPT}" before it is answered`,
+  );
+  const startupCard = startupSighting.cards.find((card) => hasText(card.text, STARTUP_PROMPT));
+  assert.equal(
+    startupCard.level,
+    "warning",
+    "The mini plugin's startup prompt must render at its declared Warning level",
+  );
+  assert.ok(
+    /Respond/.test(startupCard.text) && /Form/.test(startupCard.text),
+    "A banner card must offer its kind and the Respond action",
+  );
+  assert.ok(
+    startupSighting.bannerTop < 400,
+    `The prompt banner must sit at the top of the workspace, not at ${startupSighting.bannerTop}px`,
+  );
+  assert.match(
+    startupSighting.header ?? "",
+    /\d+ prompts? waiting/,
+    "The cycle header must count the open prompts",
+  );
+  assert.match(
+    startupSighting.navigation ?? "",
+    /^\d+$/,
+    "The Cycles navigation entry must count the open prompts",
   );
 
   assert.ok(
@@ -1629,6 +1736,98 @@ async function cycleJourney(session, cycleId) {
     );
   }
   return selection;
+}
+
+/**
+ * Stop one execution of a running copy and keep its siblings running.
+ *
+ * Stop Execution in the evidence toolbar is scoped to the selected execution:
+ * the cycle never enters Stopping, every other case still reaches a recorded
+ * outcome, and the cycle-level control stays labelled Stop Cycle and asks
+ * before acting. The copy keeps the measured cycle the later journeys read
+ * untouched.
+ */
+async function executionStopJourney(session, cycleId) {
+  // === Copy The Cycle And Run It === //
+
+  await session.goto(`/cycles/${cycleId}`);
+  await openMenu(session, "Cycle Actions");
+  await session.clickNamed("menuitem", "Copy Cycle");
+  const copyId = await until(
+    "the copied cycle route",
+    async () => {
+      const match = /^\/cycles\/([^/]+)$/.exec((await session.location()).pathname);
+      return match && match[1] !== cycleId ? match[1] : null;
+    },
+    30000,
+  );
+  await until("Run Queued on the copy", () => session.exists("button", "Run Queued"), 30000);
+  await session.clickNamed("button", "Run Queued");
+
+  // === Select The Running Execution === //
+
+  let running = null;
+  await runUntil(
+    session,
+    "a running execution on the copy",
+    async () => {
+      running = await session.execute(`
+        const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+          .find((candidate) => /\bRunning\b/.test(candidate.innerText));
+        if (!row) return null;
+        row.querySelector('button').click();
+        return row.innerText.split('\n')[0];
+      `);
+      return running !== null;
+    },
+    120000,
+  );
+  assert.ok(
+    await session.exists("button", "Stop Cycle"),
+    "The cycle-level control must say it stops the cycle",
+  );
+  assert.ok(
+    !(await session.exists("button", "Stop")),
+    "No unscoped Stop may sit beside a selected execution",
+  );
+  await until("Stop Execution", () => session.exists("button", "Stop Execution"), 30000);
+
+  // === Stop Only That Execution === //
+
+  await session.clickNamed("button", "Stop Execution");
+  await until(
+    "the stop acknowledgement",
+    async () => /Execution Stop Requested/.test(await toastText(session)),
+    20000,
+  );
+  const header = normalize(await session.text());
+  assert.ok(
+    !/Stopping Cycle|\bStopping\b/.test(header),
+    "Stopping one execution must not put the cycle into Stopping",
+  );
+
+  // === Siblings Finish And The Stopped Row Settles === //
+
+  await runUntil(
+    session,
+    "the copy's remaining cases to finish",
+    async () => {
+      const rows = await sidebarText(session);
+      return !/\b(Running|Waiting|Finalizing|Queued)\b/.test(rows);
+    },
+    300000,
+  );
+  const rows = await sidebarText(session);
+  const stoppedRow = await caseRowText(session, running);
+  assert.ok(
+    /\bStopped\b/.test(stoppedRow),
+    `The stopped execution must read Stopped: ${stoppedRow}`,
+  );
+  assert.ok(
+    /\b(Passed|Failed|Blocked)\b/.test(rows),
+    "Sibling executions must still reach a recorded outcome",
+  );
+  return copyId;
 }
 
 /** Cycles home after the run: the Recent row, Show Cleared, and the filter. */
@@ -2440,10 +2639,11 @@ async function main() {
 
   if (cycleId) {
     await journey("cycle", () => cycleJourney(session, cycleId));
+    await journey("execution-stop", () => executionStopJourney(session, cycleId));
     await journey("cycles-home", () => cyclesHomeJourney(session));
     await journey("history", () => historyJourney(session));
   } else {
-    for (const name of ["cycle", "cycles-home", "history"]) {
+    for (const name of ["cycle", "execution-stop", "cycles-home", "history"]) {
       failures.push({
         kind: "failure",
         name,

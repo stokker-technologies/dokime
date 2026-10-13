@@ -24,15 +24,15 @@ use crate::{Testbench, Transactions, error::LaunchError};
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type Origin = harmos::Origin<Testbench>;
+pub type Origin = harmos::state::Origin<Testbench>;
 
 pub type Builder = harmos::Builder<ChargerBench>;
 
 pub type Runtime = harmos::Runtime<ChargerBench>;
 
-pub type Handle = harmos::Handle<ChargerBench>;
+pub type Handle = harmos::runtime::Handle<ChargerBench>;
 
-pub type State = harmos::ManagedState<ChargerBench>;
+pub type State = harmos::state::ManagedState<ChargerBench>;
 
 #[cfg(feature = "sim")]
 pub type Simulated = harmos::sim::SimulatedRuntime<ChargerBench>;
@@ -68,7 +68,10 @@ pub async fn launch(origin: impl Into<Origin>) -> Result<Runtime, LaunchError> {
 }
 
 #[cfg(feature = "sim")]
-pub fn simulate(origin: impl Into<Origin>, seed: u64) -> Result<Simulated, harmos::Incompatible> {
+pub fn simulate(
+    origin: impl Into<Origin>,
+    seed: u64,
+) -> Result<Simulated, harmos::runtime::Incompatible> {
     builder(origin, ()).entropy_seed(seed).simulate()
 }
 

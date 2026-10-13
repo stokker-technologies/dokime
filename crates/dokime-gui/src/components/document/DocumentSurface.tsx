@@ -23,7 +23,7 @@ import {
   DocumentMetricFlow,
   metricFlowStorageKey,
 } from "@/components/document/DocumentOverviewCards";
-import { LivePlotGroupGrid } from "@/components/document/PlotGroupGrid";
+import { LivePlotGroupGrid, type PlotSettingsChange } from "@/components/document/PlotGroupGrid";
 import { RecordTimeline } from "@/components/document/RecordTimeline";
 import { StepRecordList } from "@/components/document/StepRecordsCard";
 import { MarkdownText } from "@/components/MarkdownText";
@@ -122,6 +122,7 @@ type LiveDocumentSurfaceProps = DocumentSurfaceSharedProps & {
   boxSummarySection?: BoxSummarySectionSpec;
   histogramSection?: HistogramSectionSpec;
   livePlotStates: LivePlotStateMap;
+  onPlotSettingsChange?: PlotSettingsChange;
   plotContextTelemetry: Record<string, TelemetryStream> | null;
   plotResetKey: string;
   renderMode?: "live";
@@ -195,6 +196,7 @@ export function DocumentCardContent(props: DocumentCardContentProps) {
           documentPlots={props.card.plots}
           hideWhenEmpty
           liveStates={props.livePlotStates}
+          onPlotSettingsChange={props.onPlotSettingsChange}
           parameters={props.plotParameterContext}
           resetKey={props.plotResetKey}
           showGroupHeaders={false}
@@ -631,6 +633,7 @@ function reportPlotStates(
               plot.plot_id,
               {
                 payload,
+                buffer: null,
                 cursor: null,
                 diagnostics: null,
                 revision: 0,

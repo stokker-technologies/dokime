@@ -237,7 +237,7 @@ impl dokime::Plugin for TelemetrySidecar {
 #[dokime::suite(id = "validation-telemetry.records", label = "Record Demand", templates = Templates)]
 impl RecordChecks {}
 
-#[dokime::template(id = "validation-telemetry.capture", label = "Capture Startup", subscribes = Subscriptions)]
+#[dokime::template(id = "validation-telemetry.records.capture", label = "Capture Startup", subscribes = Subscriptions)]
 impl CaptureStartup {
     async fn initialize(
         _: &mut dokime::execution::InitializationContext<'_>,

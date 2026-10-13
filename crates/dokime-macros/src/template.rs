@@ -261,10 +261,13 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     }
     let template = block.self_ty.clone();
 
-    let identifier = match arguments.value("id") {
-        Some(identifier) => identifier.clone(),
-        None => arguments.identifier(arguments::type_name(&template)?)?,
-    };
+    let identifier = arguments
+        .required(
+            "id",
+            "a template is referenced as `<suite id>.<segment>`, which its item name cannot spell",
+        )?
+        .clone();
+    refuse_malformed_segment(&identifier)?;
     let label = arguments.required("label", "an operator reads the template by its label")?;
     let metadata = arguments::metadata(
         &identifier,
@@ -424,6 +427,8 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
 
         #[automatically_derived]
         impl #sdk::definition::DeclaredTemplate for #template {
+            const IDENTIFIER: &'static str = #identifier;
+
             fn template_id() -> #sdk::core::TemplateId {
                 <Self>::template_id()
             }
@@ -458,6 +463,36 @@ fn requires(template: &Type, required: &TokenStream) -> TokenStream {
             type Operations = #required;
         }
     }
+}
+
+// A literal id is read on the line it was written: it names its suite and one
+// lowercase segment. The suite checks the prefix and uniqueness, and checks a
+// constant id the same way once it is evaluated.
+fn refuse_malformed_segment(identifier: &Expr) -> Result<(), Error> {
+    let Expr::Lit(syn::ExprLit {
+        lit: syn::Lit::Str(text),
+        ..
+    }) = identifier
+    else {
+        return Ok(());
+    };
+    let value = text.value();
+    let segment = value.rsplit_once('.').map(|(_, segment)| segment);
+    let valid = segment.is_some_and(|segment| {
+        segment.starts_with(|first: char| first.is_ascii_lowercase())
+            && segment
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+    });
+    if valid {
+        return Ok(());
+    }
+    Err(Error::new(
+        text.span(),
+        format!(
+            "`{value}` is not a template id: it is `<suite id>.<segment>`, the segment lowercase ASCII letters, digits, and underscores, starting with a letter"
+        ),
+    ))
 }
 
 fn operation_ids(identifier: &Expr) -> Result<(TokenStream, TokenStream), Error> {

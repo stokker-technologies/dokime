@@ -31,12 +31,13 @@ use std::{
     },
 };
 // Third Party Imports
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use tokio::sync::Mutex;
 // Local Imports
 
 /* === Constants === */
-const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 1;
+pub const DATA_FORMAT: &str = data::FORMAT;
 const SQLITE_MEMORY_BYTES: usize = 32 * 1024 * 1024;
 
 /* === Macros === */
@@ -63,6 +64,14 @@ pub(crate) struct DataPin {
 struct Live {
     connection: Connection,
     lease: File,
+}
+
+/// What an existing storage root declares, read without taking its lease.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Baseline {
+    pub schema_version: i64,
+    pub data_format: Option<String>,
+    pub separate_recovery: bool,
 }
 
 /* === Enums === */
@@ -278,9 +287,78 @@ impl State {
     }
 }
 
+impl Baseline {
+    /// Describes why this build refuses the root, or `None` when it accepts it.
+    pub fn mismatch(&self) -> Option<String> {
+        if self.separate_recovery {
+            return Some(
+                "it holds a separate recovery.sqlite from an earlier storage layout".to_owned(),
+            );
+        }
+        if self.schema_version != 0 && self.schema_version != SCHEMA_VERSION {
+            return Some(format!(
+                "local.sqlite declares schema version {}, and this build reads version {SCHEMA_VERSION}",
+                self.schema_version
+            ));
+        }
+        match &self.data_format {
+            Some(format) if format != DATA_FORMAT => Some(format!(
+                "local.sqlite declares data format {format}, and this build reads {DATA_FORMAT}"
+            )),
+            _ => None,
+        }
+    }
+}
+
 /* === Public Functions === */
 pub fn initialize_sqlite() -> Result<(), Error> {
     memory::install()
+}
+
+/// Reads the baseline an existing root declares without locking or writing it.
+///
+/// Returns `None` when the root holds no Dokime database yet. Safe to call
+/// while a runtime owns the root: the connection is read-only.
+pub fn inspect(root: &Path) -> Result<Option<Baseline>, Error> {
+    // Resolve The Root's Database Files
+    let separate_recovery = root.join("recovery.sqlite").exists();
+    let path = root.join("local.sqlite");
+    if !path.is_file() {
+        return Ok(separate_recovery.then_some(Baseline {
+            schema_version: 0,
+            data_format: None,
+            separate_recovery,
+        }));
+    }
+
+    // Read The Declared Version And Data Format
+    initialize_sqlite()?;
+    let connection = Connection::open_with_flags(
+        &path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )?;
+    let schema_version = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    let headed: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='storage_data_head')",
+        [],
+        |row| row.get(0),
+    )?;
+    let data_format = if headed {
+        connection
+            .query_row(
+                "SELECT format FROM storage_data_head WHERE singleton=1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?
+    } else {
+        None
+    };
+    Ok(Some(Baseline {
+        schema_version,
+        data_format,
+        separate_recovery,
+    }))
 }
 
 /* === Private Functions === */

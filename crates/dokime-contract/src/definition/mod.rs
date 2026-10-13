@@ -29,8 +29,8 @@ pub use parameters::{
 };
 pub use registry::{SuiteSet, SuiteSnapshot};
 pub use suite::{
-    CriterionDefinition, ExecutionPhaseDefinition, FileDefinition, Subscription, TestCase,
-    TestCaseTemplate, TestSuite,
+    CriterionDefinition, ExecutionPhaseDefinition, FileDefinition, Subscription,
+    TemplateIdentifierRefusal, TestCase, TestCaseTemplate, TestSuite, template_identifier,
 };
 
 /* === Imports === */

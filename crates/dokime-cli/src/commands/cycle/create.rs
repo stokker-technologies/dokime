@@ -19,7 +19,7 @@ use std::{io::Write, path::PathBuf, time::Duration};
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::core::{CaseId, Identifier};
+use dokime_contract::core::Identifier;
 
 /* === Constants === */
 
@@ -68,7 +68,7 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let request = match args.input_file {
+    let mut request = match args.input_file {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
             serde_json::from_slice::<dokime_contract::operations::execution::CreateCycleRequest>(
@@ -99,11 +99,8 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             context: None,
         },
     };
-    if let Some(plan) = &request.plan {
-        for id in &plan.case_ids {
-            CaseId::from_wire(id).map_err(|error| crate::Error::Input(error.to_string()))?;
-        }
-    }
+    // Selections name templates by their readable ID, as `plan` does.
+    let planned = crate::commands::plan::input::Planned::canonical(request.plan.take())?;
     if let Some(metadata) = &request.metadata {
         Identifier::new(metadata.identifier.clone())
             .map_err(|error| crate::Error::Input(error.to_string()))?;
@@ -114,6 +111,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     }
     let client = args.connection.connect().await?;
     let result = async {
+        request.plan = planned.resolve(&client).await?;
         let cycle = client.create_cycle(request).await?;
         // Expose Recovery Identity Before Starting Work.
         created(

@@ -480,6 +480,52 @@ pub(crate) fn suite_declaration_contracts() {
     );
 }
 
+pub(crate) fn template_reference_is_suite_scoped() {
+    use dokime::definition::{TemplateIdentifierRefusal, template_identifier};
+
+    // The public reference a client, the CLI and the catalog use is the
+    // template's own id under its suite; the stored UUID never stands in.
+    let declaration = Probe::declaration();
+    assert_eq!(declaration.metadata.identifier.as_str(), TEMPLATE_ID);
+    assert_eq!(<Probe as DeclaredTemplate>::IDENTIFIER, TEMPLATE_ID);
+    assert_eq!(template_identifier(SUITE_ID, TEMPLATE_ID), Ok(()));
+    assert_eq!(
+        template_identifier("mini.charger.steady", "mini.charger.steady.charging_input"),
+        Ok(())
+    );
+    for (template, refusal) in [
+        (
+            "spike.pulses.pulse",
+            TemplateIdentifierRefusal::OutsideSuite,
+        ),
+        ("spike.checks", TemplateIdentifierRefusal::OutsideSuite),
+        ("spike.checks.", TemplateIdentifierRefusal::OutsideSuite),
+        ("spike.checksprobe", TemplateIdentifierRefusal::OutsideSuite),
+        (
+            "spike.checks.Probe",
+            TemplateIdentifierRefusal::InvalidSegment,
+        ),
+        (
+            "spike.checks.probe.deep",
+            TemplateIdentifierRefusal::InvalidSegment,
+        ),
+        (
+            "spike.checks.2probe",
+            TemplateIdentifierRefusal::InvalidSegment,
+        ),
+        (
+            "spike.checks.pro-be",
+            TemplateIdentifierRefusal::InvalidSegment,
+        ),
+    ] {
+        assert_eq!(
+            template_identifier(SUITE_ID, template),
+            Err(refusal),
+            "{template}"
+        );
+    }
+}
+
 pub(crate) fn one_step_phases() {
     let declaration = Probe::declaration();
 

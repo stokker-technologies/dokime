@@ -26,7 +26,6 @@ import {
   fetchNativeArtifacts,
   fetchNativeCycleFolderPath,
   fetchNativeExecutionFiles,
-  fetchNativeExecutionFileText,
 } from "@/lib/api/native-content";
 import { fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import { fetchNativeCycleRecords, fetchNativeRecords } from "@/lib/api/native-evidence";
@@ -34,7 +33,7 @@ import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
 import { fetchNativeCycleHistory } from "@/lib/api/native-history";
 import { fetchNativeDiagnostics, fetchNativeTraceability } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
-import type { ExecutionFileTextRead, RecordScope } from "@/lib/types";
+import type { RecordScope } from "@/lib/types";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
 
 /* === Types === */
@@ -48,15 +47,6 @@ type PromptResponseVariables = {
 type AddNoteVariables = {
   scope?: RecordScope | null;
   text: string;
-};
-
-export type ExecutionFileTextReadVariables = {
-  executionId: string;
-  maxBytes?: number;
-  offset?: number;
-  path: string;
-  signal?: AbortSignal;
-  tailBytes?: number;
 };
 
 /* === Query Keys === */
@@ -85,20 +75,6 @@ export const workflowQueryKeys = {
     [...workflowQueryKeys.all, "execution-detail", executionId ?? ""] as const,
   executionFiles: (executionId: string | null) =>
     [...workflowQueryKeys.all, "execution-files", executionId ?? ""] as const,
-  executionFileText: ({
-    executionId,
-    maxBytes,
-    offset,
-    path,
-    tailBytes,
-  }: Omit<ExecutionFileTextReadVariables, "signal">) =>
-    [
-      ...workflowQueryKeys.all,
-      "execution-file-text",
-      executionId,
-      path,
-      { maxBytes: maxBytes ?? null, offset: offset ?? null, tailBytes: tailBytes ?? null },
-    ] as const,
   health: () => [...workflowQueryKeys.all, "health"] as const,
   notes: () => [...workflowQueryKeys.all, "notes"] as const,
   prompts: () => [...workflowQueryKeys.all, "prompts"] as const,
@@ -343,33 +319,6 @@ export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }),
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }),
   ]);
-}
-
-export function fetchExecutionFileTextQuery(
-  queryClient: QueryClient,
-  session: ReturnType<typeof useNativeSession>,
-  variables: ExecutionFileTextReadVariables,
-): Promise<ExecutionFileTextRead> {
-  const { executionId, maxBytes, offset, path, tailBytes } = variables;
-  return queryClient.fetchQuery({
-    queryFn: () =>
-      fetchNativeExecutionFileText(session.identity, executionId, path, {
-        maxBytes,
-        offset,
-        tailBytes,
-      }),
-    queryKey: [
-      ...workflowQueryKeys.executionFileText({
-        executionId,
-        maxBytes,
-        offset,
-        path,
-        tailBytes,
-      }),
-      session.identity.generation,
-    ],
-    staleTime: 0,
-  });
 }
 
 export function fetchTestCycleFolderPathQuery(

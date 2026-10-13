@@ -150,6 +150,15 @@ fn domain_contract() {
         config_application::saved_data_overridden();
     }
     {
+        eprintln!("Scenario: config_application::data_root_reopens_stable");
+        run_scenario(
+            config_application::data_root_reopens_stable,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: config_settings::backend_policy_restart");
         run_scenario(config_settings::backend_policy_restart, false, None, false);
     }

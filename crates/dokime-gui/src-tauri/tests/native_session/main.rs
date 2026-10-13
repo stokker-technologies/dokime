@@ -28,6 +28,11 @@ use dokime_gui::native_session::backend::Backend;
 use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSessionError};
 
 /* === Constants === */
+#[cfg(unix)]
+const NOT_READY: &str =
+    "The Dokime backend stopped before reporting readiness; review its diagnostics.";
+#[cfg(unix)]
+const STDERR_LOG_PREFIX: &str = "backend-stderr.";
 
 /* === Macros === */
 
@@ -44,7 +49,9 @@ struct Published {
 enum Publish<'a> {
     Ready(&'a str),
     ReadyWithPhases(&'a str, &'a [&'a str]),
+    ReadyWithNoise(&'a str),
     Failure,
+    Crash,
 }
 
 /* === Traits === */
@@ -112,9 +119,24 @@ fn stub(directory: &Path, publish: Publish<'_>) -> std::path::PathBuf {
             ));
             ("ready-with-phases", script)
         }
+        Publish::ReadyWithNoise(endpoint) => (
+            // Far more stderr than a pipe buffers, then a ready-shaped decoy on
+            // stderr: readiness succeeds only if stderr is drained and only
+            // stdout is parsed.
+            "ready-with-noise",
+            format!(
+                "i=1\nwhile [ $i -le 3000 ]; do echo \"noise line $i padded well past the pipe buffer\" >&2; i=$((i+1)); done\nprintf '%s\\n' '{}' >&2\nprintf '%s\\n' '{}'\ncat > /dev/null\nrm -f \"$owner\"",
+                ready_line("http://192.0.2.1:9"),
+                ready_line(endpoint)
+            ),
+        ),
         Publish::Failure => (
             "failure",
             "echo \"plugin admission failed\" >&2\nexit 1".to_owned(),
+        ),
+        Publish::Crash => (
+            "crash",
+            "i=1\nwhile [ $i -le 250 ]; do echo \"startup diagnostic line $i\" >&2; i=$((i+1)); done\necho \"Authorization: Bearer s3cret-credential\" >&2\necho \"plugin admission failed\" >&2\nexit 3".to_owned(),
         ),
     };
     let path = directory.join(format!("dokime-stub-{name}"));
@@ -176,6 +198,22 @@ fn owned(executable: std::path::PathBuf, root: &Path) -> Backend {
         root.display().to_string(),
     ];
     Backend::new(executable, arguments)
+}
+
+#[cfg(unix)]
+fn stderr_logs(directory: &Path) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(directory)
+        .map(|entries| {
+            entries
+                .map(|entry| entry.unwrap().path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.starts_with(STDERR_LOG_PREFIX))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(unix)]
@@ -410,6 +448,106 @@ pub(crate) async fn failed_start_launched() {
 }
 
 #[cfg(unix)]
+pub(crate) async fn failed_start_diagnostics() {
+    let root = tempfile::tempdir().unwrap();
+    let logs = root.path().join("logs");
+    let executable = stub(root.path(), Publish::Crash);
+    let owner = DesktopSession::with_local_backend(
+        ConnectionSession::default(),
+        owned(executable.clone(), &root.path().join("store")).with_logs(logs.clone()),
+    );
+    let Err(DesktopSessionError::Startup {
+        message,
+        diagnostics: Some(diagnostics),
+    }) = owner.select(BackendSelection::OwnedLocal).await
+    else {
+        panic!("a crashed backend reports startup diagnostics");
+    };
+
+    // The Headline And Exit
+    assert_eq!(message, NOT_READY);
+    assert_eq!(diagnostics.exit_code, Some(3));
+    assert!(diagnostics.exit_status.is_some());
+    assert_eq!(diagnostics.executable, executable.display().to_string());
+
+    // The Bounded, Redacted Tail
+    let tail: Vec<&str> = diagnostics.tail.lines().collect();
+    assert_eq!(tail.len(), 200, "the tail keeps the last 200 lines");
+    assert_eq!(tail.first(), Some(&"startup diagnostic line 53"));
+    assert_eq!(tail.last(), Some(&"plugin admission failed"));
+    assert!(tail.contains(&"Authorization: <redacted>"));
+    assert!(!diagnostics.tail.contains("s3cret"));
+
+    // The Complete, Redacted Log
+    let log = std::path::PathBuf::from(diagnostics.log.expect("a log directory yields a log"));
+    assert_eq!(stderr_logs(&logs), vec![log.clone()]);
+    let written = std::fs::read_to_string(&log).unwrap();
+    assert!(
+        written
+            .lines()
+            .any(|line| line == "startup diagnostic line 1")
+    );
+    assert!(
+        written
+            .lines()
+            .any(|line| line == "plugin admission failed")
+    );
+    assert!(!written.contains("s3cret"));
+    assert_eq!(owner.status().ownership, BackendOwnership::None);
+}
+
+#[cfg(unix)]
+pub(crate) async fn stderr_beside_readiness() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = Published::start(&root.path().join("published")).await;
+    let logs = root.path().join("logs");
+    let executable = stub(root.path(), Publish::ReadyWithNoise(&backend.endpoint()));
+    let owner = DesktopSession::with_local_backend(
+        ConnectionSession::default(),
+        owned(executable, &root.path().join("store")).with_logs(logs.clone()),
+    );
+    let started = tokio::time::timeout(
+        Duration::from_secs(20),
+        owner.select(BackendSelection::OwnedLocal),
+    )
+    .await
+    .expect("a drained stderr never blocks readiness")
+    .unwrap();
+    assert_eq!(started.ownership, BackendOwnership::OwnedLocal);
+    assert!(
+        !started
+            .connection
+            .endpoint
+            .unwrap_or_default()
+            .contains("192.0.2.1"),
+        "a ready line on stderr is never parsed as readiness"
+    );
+
+    // The log streams while the backend runs; the pump may trail readiness.
+    let written = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let [log] = stderr_logs(&logs).as_slice()
+                && let Ok(written) = std::fs::read_to_string(log)
+                && written.contains("192.0.2.1")
+            {
+                return written;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("the running backend's stderr reaches its log");
+    assert!(
+        written
+            .lines()
+            .any(|line| line == "noise line 3000 padded well past the pipe buffer")
+    );
+
+    owner.shutdown().await.unwrap();
+    backend.shutdown().await;
+}
+
+#[cfg(unix)]
 pub(crate) async fn overlapping_selection() {
     let root = tempfile::tempdir().unwrap();
     let backend = Published::start(&root.path().join("published")).await;
@@ -587,6 +725,16 @@ fn domain_contract() {
     {
         eprintln!("Scenario: failed_start_launched");
         run_scenario(failed_start_launched, false, None, false);
+    }
+    #[cfg(unix)]
+    {
+        eprintln!("Scenario: failed_start_diagnostics");
+        run_scenario(failed_start_diagnostics, false, None, false);
+    }
+    #[cfg(unix)]
+    {
+        eprintln!("Scenario: stderr_beside_readiness");
+        run_scenario(stderr_beside_readiness, false, None, false);
     }
     #[cfg(unix)]
     {

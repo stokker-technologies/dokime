@@ -27,6 +27,7 @@ use crate::core::{
     Timestamp, Value, ValueType,
 };
 use crate::definition::RuntimeCondition;
+use crate::records::RecordSeverity;
 
 /* === Constants === */
 
@@ -53,6 +54,10 @@ pub struct PromptDefinition {
     pub template_identifier: Option<Identifier>,
     #[serde(default)]
     pub examples: Vec<BTreeMap<String, Value>>,
+    // How urgently an operator must look: the author declares it once per
+    // prompt type, on the record severity scale, and it defaults to Info.
+    #[serde(default)]
+    pub level: RecordSeverity,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

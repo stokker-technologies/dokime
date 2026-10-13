@@ -306,6 +306,8 @@ impl From<dokime::Error> for ProbeError {
 impl std::error::Error for ProbeError {}
 
 impl DeclaredTemplate for Probe {
+    const IDENTIFIER: &'static str = TEMPLATE;
+
     fn template_id() -> dokime::core::TemplateId {
         dokime::core::TemplateId::from_seed(TEMPLATE)
     }

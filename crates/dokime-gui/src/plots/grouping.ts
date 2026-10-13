@@ -184,6 +184,8 @@ export function documentPlotsKey(plots: DocumentViewPlot[]): string {
           )
           .join("|"),
         plot.live_window_s ?? "",
+        plot.display_points ?? "",
+        plot.downsample ?? "",
       ].join(":"),
     )
     .join(",");

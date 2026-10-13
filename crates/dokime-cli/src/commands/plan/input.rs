@@ -16,6 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 // Third Party Imports
@@ -34,12 +35,14 @@ use dokime_contract::operations::planning::{
 /* === Structs === */
 #[derive(Debug, clap::Args)]
 pub(super) struct Args {
-    #[arg(long, conflicts_with_all = ["suite_id", "template_id", "case_ids", "selections", "max_cases"], help = "Read The Canonical Request JSON Without Flag Overrides.")]
+    #[arg(long, conflicts_with_all = ["template", "case_ids", "selections", "max_cases"], help = "Read The Canonical Request JSON Without Flag Overrides.")]
     pub(super) input_file: Option<PathBuf>,
-    #[arg(long, requires = "template_id", conflicts_with_all = ["case_ids", "selections"], help = "Exact Registered Suite ID; Omitted Parameters Use Backend Defaults.")]
-    suite_id: Option<String>,
-    #[arg(long, requires = "suite_id")]
-    template_id: Option<String>,
+    #[arg(
+        long,
+        conflicts_with = "case_ids",
+        help = "Template ID As `<Suite ID>.<Segment>`; Omitted Parameters Use Backend Defaults."
+    )]
+    template: Option<String>,
     #[arg(
         long = "case-id",
         conflicts_with = "selections",
@@ -48,7 +51,7 @@ pub(super) struct Args {
     case_ids: Vec<String>,
     #[arg(
         long = "selection-json",
-        help = "Canonical RegisteredSelection JSON; Repeat For Ordered Selections."
+        help = "RegisteredSelection JSON Naming Its Template ID; Repeat For Ordered Selections."
     )]
     selections: Vec<String>,
     #[arg(
@@ -59,13 +62,19 @@ pub(super) struct Args {
     max_cases: u32,
 }
 
+// A plan read offline. Its selections name templates by their readable ID,
+// which the catalog turns into the registered selection the backend plans.
+pub(crate) struct Planned {
+    plan: Option<SelectionPlan>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
 impl Args {
-    pub(super) fn plan(self) -> crate::Result<SelectionPlan> {
+    pub(super) fn plan(self) -> crate::Result<Planned> {
         let mut selections = self
             .selections
             .into_iter()
@@ -75,43 +84,120 @@ impl Args {
                 })
             })
             .collect::<crate::Result<Vec<_>>>()?;
-        if let (Some(suite_id), Some(template_id)) = (self.suite_id, self.template_id) {
+        if let Some(template) = self.template {
             selections.push(RegisteredSelection {
-                suite_id,
-                template_id,
+                suite_id: dokime_client::template_suite(&template)
+                    .unwrap_or_default()
+                    .to_owned(),
+                template_id: template,
                 parameters: Vec::new(),
                 files: Vec::new(),
             });
         }
         if selections.is_empty() && self.case_ids.is_empty() {
             return Err(crate::Error::Input(
-                "a request file, selection or case ID is required".into(),
+                "a request file, template, selection or case ID is required".into(),
             ));
         }
-        Ok(SelectionPlan {
+        Planned::canonical(Some(SelectionPlan {
             selections,
             max_cases: self.max_cases,
             case_ids: self.case_ids,
-        })
+        }))
+    }
+}
+
+impl Planned {
+    // Everything checkable without a backend is refused before connecting.
+    pub(crate) fn canonical(plan: Option<SelectionPlan>) -> crate::Result<Self> {
+        if let Some(plan) = &plan {
+            for id in &plan.case_ids {
+                dokime_contract::core::CaseId::from_wire(id)
+                    .map_err(|error| crate::Error::Input(error.to_string()))?;
+            }
+            for selection in &plan.selections {
+                let template = &selection.template_id;
+                let Some(suite) = dokime_client::template_suite(template) else {
+                    return Err(crate::Error::Input(format!(
+                        "`{template}` is not a template ID: it is `<suite ID>.<segment>`"
+                    )));
+                };
+                if selection.suite_id != suite {
+                    return Err(crate::Error::Input(format!(
+                        "template `{template}` belongs to suite `{suite}`, not `{}`",
+                        selection.suite_id
+                    )));
+                }
+            }
+        }
+        Ok(Self { plan })
+    }
+
+    // The backend plans registered selections; each readable template ID is
+    // read from the catalog once, however many selections sweep it.
+    pub(crate) async fn resolve(
+        self,
+        client: &dokime_client::Client,
+    ) -> crate::Result<Option<SelectionPlan>> {
+        let Self { mut plan } = self;
+        let mut registered = BTreeMap::new();
+        for selection in plan.iter_mut().flat_map(|plan| plan.selections.iter_mut()) {
+            if !registered.contains_key(&selection.template_id) {
+                let (_, definition) = client.template(&selection.template_id).await?;
+                registered.insert(selection.template_id.clone(), definition.template_id);
+            }
+            selection.template_id = registered[&selection.template_id].clone();
+        }
+        Ok(plan)
     }
 }
 
 /* === Public Functions === */
-pub(super) fn validate(plan: Option<&SelectionPlan>) -> crate::Result<()> {
-    if let Some(plan) = plan {
-        for id in &plan.case_ids {
-            dokime_contract::core::CaseId::from_wire(id)
-                .map_err(|error| crate::Error::Input(error.to_string()))?;
-        }
-    }
-    Ok(())
-}
+// Planned cases name their template by its readable ID; the registered UUID
+// the backend answers with never reaches the operator.
+pub(super) async fn print(
+    client: &dokime_client::Client,
+    reply: &PreviewSelectionReply,
+    json: bool,
+) -> crate::Result<()> {
+    // === Read Template References === //
 
-pub(super) fn print(reply: &PreviewSelectionReply, json: bool) -> crate::Result<()> {
+    let mut references = BTreeMap::new();
+    let mut read = BTreeSet::new();
+    for case in &reply.cases {
+        if references.contains_key(&case.template_id) || !read.insert(case.suite_id.clone()) {
+            continue;
+        }
+        let suite = client.suite(&case.suite_id).await?;
+        references.extend(suite.templates.into_iter().filter_map(|template| {
+            template
+                .metadata
+                .map(|metadata| (template.template_id, metadata.identifier))
+        }));
+    }
+
+    // === Write Readable Cases === //
+
+    let mut value = serde_json::to_value(reply)?;
+    let cases = value
+        .get_mut("cases")
+        .and_then(serde_json::Value::as_array_mut)
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_object_mut);
+    for case in cases {
+        let Some(serde_json::Value::String(id)) = case.get("template_id") else {
+            continue;
+        };
+        let template = references.get(id).ok_or_else(|| {
+            crate::Error::Setup("a planned template is no longer registered in its suite".into())
+        })?;
+        case.insert("template_id".into(), template.clone().into());
+    }
     let output = if json {
-        serde_json::to_string(reply)?
+        serde_json::to_string(&value)?
     } else {
-        serde_json::to_string_pretty(reply)?
+        serde_json::to_string_pretty(&value)?
     };
     println!("{output}");
     Ok(())

@@ -49,7 +49,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
         let suites = client.suites()?;
         while let Some(suite) = suites.message().await? {
             if args.json {
-                println!("{}", serde_json::to_string(&suite)?);
+                println!("{}", serde_json::to_string(&super::readable(&suite)?)?);
             } else {
                 let identity = suite
                     .identity
@@ -65,6 +65,14 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                     label,
                     suite.templates.len()
                 );
+                // Each template under its suite, by the ID `plan --template` takes.
+                for metadata in suite
+                    .templates
+                    .iter()
+                    .filter_map(|template| template.metadata.as_ref())
+                {
+                    println!("\t{}\t{}", metadata.identifier, metadata.label);
+                }
             }
         }
         suites.close().await;

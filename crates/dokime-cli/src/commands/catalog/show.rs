@@ -30,7 +30,7 @@
 /* === Structs === */
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
-    #[arg(help = "Registered Suite ID Or Unique Suite Identifier.")]
+    #[arg(help = "Suite ID, As The Catalog Lists It.")]
     suite: String,
     #[command(flatten)]
     connection: crate::connection::Args,
@@ -49,7 +49,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let client = args.connection.connect().await?;
     let result = client.suite(&args.suite).await;
     client.close_and_wait().await;
-    let suite = result?;
+    let suite = super::readable(&result?)?;
     let output = if args.json {
         serde_json::to_string(&suite)?
     } else {

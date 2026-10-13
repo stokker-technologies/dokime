@@ -204,6 +204,10 @@ fn recovery_contract() {
         run_scenario(objects::executions_reopen_results, false, None, false);
     }
     {
+        eprintln!("Scenario: objects::prompt_level_rows");
+        objects::prompt_level_rows();
+    }
+    {
         eprintln!("Scenario: reports::report_publication_reopens");
         run_scenario(reports::report_publication_reopens, false, None, false);
     }

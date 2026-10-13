@@ -81,9 +81,7 @@ pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<
     if state.executions.get(id)?.finished_at.is_some() {
         return None;
     }
-    let request = state.run_requests.values().find(|request| {
-        request.test_execution_id.as_ref() == Some(id) && !request.summary.phase.terminal()
-    })?;
+    let request = ControlExecution::owning_request(state, id)?;
     let accepts = |action| {
         ControlExecution {
             test_execution_id: id.clone(),
@@ -98,7 +96,8 @@ pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<
         request_id: request.summary.request_id.clone(),
         mode: request.summary.mode,
         paused: request.summary.paused,
-        stop_requested: request.summary.stop_requested,
+        stop_requested: request.summary.stop_requested
+            || request.stopped_execution_ids.contains(id),
         can_pause: accepts(CycleControlAction::Pause),
         can_resume: accepts(CycleControlAction::Resume),
         can_stop: accepts(CycleControlAction::Stop),

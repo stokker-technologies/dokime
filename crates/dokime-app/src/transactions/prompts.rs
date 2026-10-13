@@ -287,9 +287,12 @@ fn prepare_insert(
             "prompt already exists",
         ));
     }
+    // The request record carries the prompt's declared level, so the timeline
+    // row and the sealed report state how urgent the question was.
     let records = prepare_prompt_record(
         state,
         request_record_type(&prompt.kind),
+        prompt.definition.level,
         Some(prompt.definition.title.clone()),
         Some(prompt.scope.clone()),
         prompt_request_details(prompt),
@@ -350,6 +353,7 @@ fn prepare_response(
     let records = prepare_prompt_record(
         state,
         record_type,
+        RecordSeverity::Info,
         Some("Prompt response submitted.".to_owned()),
         Some(prompt.scope),
         details,
@@ -361,6 +365,7 @@ fn prepare_response(
 fn prepare_prompt_record(
     state: &RuntimeState,
     record_type: Identifier,
+    severity: RecordSeverity,
     message: Option<String>,
     scope: Option<RecordScope>,
     details: BTreeMap<String, Value>,
@@ -381,7 +386,7 @@ fn prepare_prompt_record(
         record_type,
         contract.schema_version,
         "runtime",
-        RecordSeverity::Info,
+        severity,
     );
     record.record_id = state.next_record_id();
     record.message = message;

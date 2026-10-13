@@ -25,6 +25,7 @@ mod transport;
 mod upload;
 
 /* === Re-Exports === */
+pub use catalog::template_suite;
 pub use cycle::TestCycleHandle;
 pub use dokime_contract::operations as contracts;
 pub use download::{Download, Error as DownloadError};

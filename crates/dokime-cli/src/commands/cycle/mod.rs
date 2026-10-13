@@ -10,6 +10,7 @@
 /* === Modules === */
 mod create;
 mod request;
+mod rerun;
 mod run;
 mod stop;
 
@@ -40,8 +41,12 @@ pub(crate) enum Command {
     Run(run::Args),
     #[command(about = "Read Or Wait For A Durable Request Without Replaying Work.")]
     Request(request::Args),
-    #[command(about = "Request Backend Cycle Stop Without Waiting For Sealing.")]
+    #[command(
+        about = "Request A Stop Of Every Execution In The Cycle Without Waiting For Sealing."
+    )]
     Stop(stop::Args),
+    #[command(about = "Append A Case's Next Attempt As A New Execution And Admit It Once.")]
+    Rerun(rerun::Args),
 }
 
 /* === Traits === */
@@ -55,6 +60,7 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::Run(args) => run::run(args).await,
         Command::Request(args) => request::run(args).await,
         Command::Stop(args) => stop::run(args).await,
+        Command::Rerun(args) => rerun::run(args).await,
     }
 }
 

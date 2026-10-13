@@ -118,9 +118,12 @@ function mapSuite(definition: SuiteDefinition, identity?: SuiteIdentity): TestSu
 
 function mapSuiteTemplate(template: TemplateDefinition, suiteName: string): SuiteTemplateEntry {
   if (!template.templateId) throw new Error("Native template has no stable template ID.");
-  const name = template.metadata?.label || template.templateId;
+  // The authored template id; never fall back to the internal UUID.
+  const identifier = template.metadata?.identifier || null;
+  const name = template.metadata?.label || identifier || template.templateId;
   return {
     template_id: template.templateId,
+    identifier,
     name,
     description: template.metadata?.description ?? null,
     path: [suiteName, name],

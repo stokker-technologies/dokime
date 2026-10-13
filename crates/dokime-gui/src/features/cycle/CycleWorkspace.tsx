@@ -77,7 +77,7 @@ export type CycleWorkspaceProps = {
   onSelectionChange: (next: { caseId?: string; executionId?: string }) => void;
 };
 
-type PendingConfirm = { kind: "clear" } | null;
+type PendingConfirm = { kind: "clear" } | { kind: "stop" } | null;
 
 /* === Components === */
 
@@ -213,6 +213,7 @@ export function CycleWorkspace({
         cycleId={cycleId}
         finishedCases={finished}
         label={plan.test_cycle.title}
+        pendingPrompts={live ? (promptsQuery.data ?? []) : []}
         onAddCases={() => void navigate({ to: "/library", search: { appendTo: cycleId } })}
         followActive={followActive}
         onClearCycle={() => setConfirm({ kind: "clear" })}
@@ -256,11 +257,7 @@ export function CycleWorkspace({
         }
         onRuntimePolicy={() => setPolicyOpen(true)}
         onToggleFollowActive={() => setSelectionState({ followActive: !followActive })}
-        onStop={() =>
-          run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () =>
-            commands.stopCycle.mutateAsync(),
-          )
-        }
+        onStop={() => setConfirm({ kind: "stop" })}
         onWriteReport={() =>
           run({ done: "Report written", failed: "The report could not be written." }, () =>
             commands.writeReport.mutateAsync(),
@@ -306,32 +303,48 @@ export function CycleWorkspace({
       <Dialog onOpenChange={(next) => !next && setConfirm(null)} open={live && confirm !== null}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Clear Cycle</DialogTitle>
+            <DialogTitle>{confirm?.kind === "stop" ? "Stop Cycle" : "Clear Cycle"}</DialogTitle>
             <DialogDescription>
-              {confirm?.kind === "clear"
-                ? `Clearing stops this cycle and removes its ${rows.length} cases, every attempt, and the evidence they produced from the loaded runtime. Saved bundles and written reports are not affected.`
-                : ""}
+              {confirm?.kind === "stop"
+                ? `Stopping the cycle stops every running and queued execution of its ${rows.length} cases. To stop only one execution, open it and use Stop Execution.`
+                : confirm?.kind === "clear"
+                  ? `Clearing stops this cycle and removes its ${rows.length} cases, every attempt, and the evidence they produced from the loaded runtime. Saved bundles and written reports are not affected.`
+                  : ""}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setConfirm(null)} variant="outline">
               Cancel
             </Button>
-            <Button
-              onClick={() => {
-                setConfirm(null);
-                run(
-                  { done: "Cycle cleared", failed: "The cycle could not be cleared." },
-                  async () => {
-                    await commands.clearCycle.mutateAsync();
-                    await navigate({ to: "/cycles" });
-                  },
-                );
-              }}
-              variant="danger"
-            >
-              Clear Cycle
-            </Button>
+            {confirm?.kind === "stop" ? (
+              <Button
+                onClick={() => {
+                  setConfirm(null);
+                  run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () =>
+                    commands.stopCycle.mutateAsync(),
+                  );
+                }}
+                variant="danger"
+              >
+                Stop Cycle
+              </Button>
+            ) : (
+              <Button
+                onClick={() => {
+                  setConfirm(null);
+                  run(
+                    { done: "Cycle cleared", failed: "The cycle could not be cleared." },
+                    async () => {
+                      await commands.clearCycle.mutateAsync();
+                      await navigate({ to: "/cycles" });
+                    },
+                  );
+                }}
+                variant="danger"
+              >
+                Clear Cycle
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

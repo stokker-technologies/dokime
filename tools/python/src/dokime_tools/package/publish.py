@@ -58,7 +58,7 @@ class NoRedirect(HTTPRedirectHandler):
 class Registry:
     """Exact GitHub Release Inventories; Credentials Remain In Headers."""
 
-    max_files = 3
+    max_files = 2
 
     def __init__(self, api: str, project: str, token: str):
         if (
@@ -335,20 +335,32 @@ def main() -> int:
 
 
 def artifacts(directory: Path, manifests: list[dict]) -> dict[str, Artifact]:
+    """The pure Python wheel and source distribution every platform package carries."""
     expected: dict[str, Artifact] = {}
     for manifest in manifests:
         for entry in manifest["files"]:
-            if entry["role"] != "wheel" and not (
-                entry["role"] == "sdist" and manifest["platform"] == "linux"
-            ):
+            if entry["role"] not in {"wheel", "sdist"}:
                 continue
             path = directory / manifest["platform"] / entry["path"]
-            if path.name in expected:
-                raise ValueError("duplicate Python distribution filename")
-            expected[path.name] = Artifact(path, entry["sha256"], entry["bytes"])
-    if len(expected) != 3:
+            artifact = Artifact(path, entry["sha256"], entry["bytes"])
+            known = expected.get(path.name)
+            if known is not None and (
+                known.sha256 != artifact.sha256 or known.size != artifact.size
+            ):
+                raise ValueError(
+                    f"Python distribution differs between platforms: {path.name}"
+                )
+            expected.setdefault(path.name, artifact)
+    wheels = [name for name in expected if name.endswith(".whl")]
+    sources = [name for name in expected if name.endswith(".tar.gz")]
+    if (
+        len(expected) != 2
+        or len(wheels) != 1
+        or not wheels[0].endswith("-py3-none-any.whl")
+        or len(sources) != 1
+    ):
         raise ValueError(
-            "Python publication requires two native wheels and one source distribution"
+            "Python publication requires one pure wheel and one source distribution"
         )
     return expected
 

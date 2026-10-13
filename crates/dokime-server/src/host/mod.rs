@@ -87,7 +87,9 @@ pub async fn run(
     };
     let expected = expected_plugins(&args.plugins)?;
     emit_phase(args.dev_control, "storage");
-    let mut runtime = dokime_app::app::launch(config).await?;
+    let mut runtime = dokime_app::app::launch(config)
+        .await
+        .map_err(|error| Error::launch(error, storage_root.clone()))?;
     emit_phase(args.dev_control, "plugins");
     if let Err(error) = verify_plugins(
         &runtime.handle(),

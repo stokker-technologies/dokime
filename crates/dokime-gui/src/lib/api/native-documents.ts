@@ -32,6 +32,7 @@ import type { Wire } from "@/lib/rpc/canonical";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   DocumentDataExpression,
+  DocumentDownsampleTechnique,
   DocumentViewCard,
   DocumentViewPayload,
   Metadata,
@@ -77,6 +78,7 @@ type PlotType = Wire<documentWire.Row172>;
 type FilterOperator = Wire<documentWire.Row54>;
 type DocumentCardKind = Wire<documentWire.Row118>;
 type NativePlotDefinition = Wire<documentWire.Row107>;
+type NativeDownsampleTechnique = NonNullable<PlotRequest["technique"]>;
 
 export const documentLimits = {
   bytes: 32 * 1024 * 1024,
@@ -116,6 +118,34 @@ export interface NativeDocumentRequest {
 export interface NativeDocumentSession extends SessionIdentity {
   /** Keep the stream attached to the owning generation until it settles. */
   own(dispose: () => void): () => void;
+}
+
+/** One operator edit of a plot's display settings on a running cycle's frozen document. */
+export interface PlotSettingsUpdate {
+  cycleId: string;
+  plotId: string;
+  /** `null` restores the host default; `0` keeps every sample. */
+  displayPoints: number | null;
+  downsample: DocumentDownsampleTechnique;
+}
+
+/**
+ * Persist a plot's display settings into the execution's frozen document, so
+ * the live view and the sealed report render the same reduction.
+ *
+ * The generated client does not carry `Documents.UpdatePlotSettings` yet: the
+ * host RPC lands with the Rust contract, after which this calls
+ * `rpc.documentsUpdatePlotSettings(session, { cycleId, plotId, displayPoints,
+ * downsample })`. Until then the edit is refused with a plain message rather
+ * than pretending it was saved.
+ */
+export async function updatePlotSettings(
+  session: SessionIdentity,
+  update: PlotSettingsUpdate,
+): Promise<void> {
+  if (!session.isCurrent()) throw new Error("The backend connection was replaced.");
+  if (!update.cycleId || !update.plotId) throw new Error("A cycle and a plot are required.");
+  throw new Error("Plot settings persistence is not yet available in this build.");
 }
 
 /** Open one generation-owned document stream and assemble it after clean EOF. */
@@ -479,7 +509,26 @@ function mapNativePlot(
     x_format: mapNativeValueFormat(presentation?.xFormat),
     y_format: mapNativeValueFormat(presentation?.yFormat),
     x_axis: mapNativePlotAxis(presentation?.xAxis, presentation?.xAxisUnit),
+    display_points: request.maxPoints === undefined ? null : Number(request.maxPoints),
+    downsample: mapDownsampleTechnique(request.technique),
   });
+}
+
+/**
+ * The reduction the definition asks for, or `null` for the host default.
+ *
+ * Keyed by variant name so a technique the frozen-document wire gains later
+ * (`Lttb`) maps without an edit here; `Unspecified` stays the default.
+ */
+function mapDownsampleTechnique(
+  value: NativeDownsampleTechnique | undefined,
+): DocumentDownsampleTechnique | null {
+  const techniques: Record<string, DocumentDownsampleTechnique> = {
+    Raw: "raw",
+    MinMax: "min_max",
+    Lttb: "lttb",
+  };
+  return techniques[value?.HarmosVariant.case ?? ""] ?? null;
 }
 
 /**

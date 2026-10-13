@@ -309,6 +309,69 @@ pub(crate) async fn stopping_cycle_execution() {
     }
 }
 
+pub(crate) async fn stopping_ignored_run_settles() {
+    // === Start A Run That Never Answers Its Stop === //
+
+    let root = tempdir().unwrap();
+    let mut runtime = fixture_runtime(root.path()).await;
+    let handle = runtime.handle();
+    let suite = fixture_suite(&handle, &["cancel_ignored"]).await;
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite: suite.clone(),
+                metadata: metadata("cycle.sidecar.ignored", "Ignored Stop Cycle"),
+                cases: materialize_cases("fixture.sidecar", &suite),
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    wait_started(&handle).await;
+
+    // === Stop And Wait Out The Settlement Budget === //
+
+    let stopped = tokio::time::timeout(Duration::from_secs(90), async {
+        handle
+            .stop_cycle(cycle_id.clone(), CommandContext::default())
+            .await
+            .unwrap();
+        loop {
+            if let Some(cycle) = handle.cycles().await.into_iter().find(|cycle| {
+                cycle.test_cycle_id == cycle_id && cycle.lifecycle == CycleStatus::Stopped
+            }) {
+                return cycle;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("a run that ignores its stop still settles within the host budget");
+    handle
+        .operations()
+        .call_encoded("fixture-sidecar.release", Vec::new())
+        .await
+        .unwrap();
+
+    assert!(signals(&handle).await.cancelled);
+    assert_eq!(
+        stopped.test_executions[0].status,
+        ExecutionStatus::Cancelled
+    );
+    assert!(
+        stopped.saved.is_some(),
+        "a host-settled stop still seals the cycle's final report"
+    );
+    assert!(handle.pending_prompt_projection().await.is_empty());
+
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
 pub(crate) async fn execution_scope_error() {
     let root = tempdir().unwrap();
     let mut runtime = fixture_runtime(root.path()).await;

@@ -7,6 +7,10 @@
  * ***
  */
 
+/* === External Imports === */
+
+import type { ReactNode } from "react";
+
 /* === Local Imports === */
 
 import { CartesianPlot } from "@/plots/CartesianPlot";
@@ -15,10 +19,12 @@ import type { PlotCardSpec, PlotViewportMode } from "@/plots/types";
 /* === Components === */
 
 export function TimeSeriesPlot({
+  actions,
   plot,
   resetKey,
   viewportMode = "fit",
 }: {
+  actions?: ReactNode;
   plot: PlotCardSpec;
   resetKey?: string;
   viewportMode?: PlotViewportMode;
@@ -33,6 +39,7 @@ export function TimeSeriesPlot({
       markers={plot.markers}
       referenceBands={plot.referenceBands}
       referenceLines={plot.referenceLines}
+      actions={actions}
       resetKey={resetKey}
       series={plot.series}
       stateDetail={plot.stateDetail}

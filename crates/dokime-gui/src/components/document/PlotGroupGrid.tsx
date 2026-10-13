@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { memo, useMemo } from "react";
+import { memo, type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
@@ -29,6 +29,7 @@ import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
 import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap } from "@/plots/live-data";
+import { type PlotDisplaySettings, PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import type { PlotViewportMode } from "@/plots/types";
 import { usePlotPalette } from "@/plots/use-plot-palette";
 
@@ -41,9 +42,13 @@ type PlotGroupGridProps = {
   showGroupHeaders?: boolean;
 };
 
+export type PlotSettingsChange = (plotId: string, settings: PlotDisplaySettings) => Promise<void>;
+
 type LivePlotGroupGridProps = {
   documentPlots: DocumentViewPlot[];
   liveStates?: LivePlotStateMap;
+  /** Present only on the live surface; the sealed report reads what it persisted. */
+  onPlotSettingsChange?: PlotSettingsChange;
   parameters?: JsonObject | null;
   telemetry?: Record<string, TelemetryStream> | null;
   resetKey?: string;
@@ -106,6 +111,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
   documentPlots,
   hideWhenEmpty = false,
   liveStates = EMPTY_LIVE_PLOT_STATES,
+  onPlotSettingsChange,
   parameters,
   resetKey,
   showGroupHeaders = true,
@@ -151,6 +157,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
               <LivePlotCard
                 descriptor={descriptor}
                 key={plot.key}
+                onPlotSettingsChange={onPlotSettingsChange}
                 resetKey={resetKey}
                 state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
                 parameters={parameters}
@@ -180,6 +187,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
                 <LivePlotCard
                   descriptor={descriptor}
                   key={plot.key}
+                  onPlotSettingsChange={onPlotSettingsChange}
                   resetKey={resetKey}
                   state={liveStates[descriptor.plot_id] ?? EMPTY_LIVE_PLOT_STATE}
                   parameters={parameters}
@@ -211,6 +219,7 @@ const EMPTY_LIVE_PLOT_STATE = emptyLivePlotState();
 
 const LivePlotCard = memo(function LivePlotCard({
   descriptor,
+  onPlotSettingsChange,
   parameters,
   plotPalette,
   resetKey,
@@ -219,6 +228,7 @@ const LivePlotCard = memo(function LivePlotCard({
   viewportMode,
 }: {
   descriptor: DocumentViewPlot;
+  onPlotSettingsChange?: PlotSettingsChange;
   parameters?: JsonObject | null;
   plotPalette: readonly string[];
   resetKey?: string;
@@ -237,6 +247,12 @@ const LivePlotCard = memo(function LivePlotCard({
       }),
     [descriptor, parameters, plotPalette, state, telemetry],
   );
+  const actions = onPlotSettingsChange ? (
+    <PlotSettingsButton
+      plot={descriptor}
+      onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)}
+    />
+  ) : undefined;
 
   return (
     <div
@@ -244,7 +260,7 @@ const LivePlotCard = memo(function LivePlotCard({
       data-live-mounted="true"
       data-plot-id={descriptor.plot_id}
     >
-      {plotElement(plot, resetKey, viewportMode)}
+      {plotElement(plot, resetKey, viewportMode, actions)}
     </div>
   );
 });
@@ -266,6 +282,7 @@ function plotElement(
   plot: PlotTopicGroup["plots"][number],
   resetKey?: string,
   viewportMode: PlotViewportMode = "fit",
+  actions?: ReactNode,
 ) {
   if (plot.computed)
     return (
@@ -290,19 +307,49 @@ function plotElement(
     return <BarPlot plot={plot} />;
   }
   if (plot.plotType === "xy_scatter") {
-    return <XyScatterPlot plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+    return (
+      <XyScatterPlot
+        actions={actions}
+        plot={plot}
+        resetKey={resetKey}
+        viewportMode={viewportMode}
+      />
+    );
   }
   if (plot.plotType === "xy_line") {
-    return <XyLinePlot plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+    return (
+      <XyLinePlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />
+    );
   }
   if (plot.plotType === "xy_interval") {
-    return <XyIntervalPlot plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+    return (
+      <XyIntervalPlot
+        actions={actions}
+        plot={plot}
+        resetKey={resetKey}
+        viewportMode={viewportMode}
+      />
+    );
   }
   if (plot.plotType === "trajectory") {
-    return <TrajectoryPlot plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+    return (
+      <TrajectoryPlot
+        actions={actions}
+        plot={plot}
+        resetKey={resetKey}
+        viewportMode={viewportMode}
+      />
+    );
   }
   if (plot.plotType === "frequency_series") {
-    return <FrequencySeriesPlot plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+    return (
+      <FrequencySeriesPlot
+        actions={actions}
+        plot={plot}
+        resetKey={resetKey}
+        viewportMode={viewportMode}
+      />
+    );
   }
   if (plot.plotType === "histogram") {
     return <HistogramSeriesPlot plot={plot} />;
@@ -311,7 +358,14 @@ function plotElement(
     return <BoxSummarySeriesPlot plot={plot} />;
   }
   if (plot.plotType === "time_series")
-    return <TimeSeriesPlot plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
+    return (
+      <TimeSeriesPlot
+        actions={actions}
+        plot={plot}
+        resetKey={resetKey}
+        viewportMode={viewportMode}
+      />
+    );
   return <p role="alert">Unsupported document plot type: {plot.plotType}</p>;
 }
 
@@ -351,16 +405,20 @@ function livePlotSpec({
       ? "Loading Plot"
       : state.status === "stale"
         ? "Stream Stale"
-        : state.status === "error"
-          ? "Stream Error"
-          : spec?.stateLabel;
+        : state.status === "reconnecting"
+          ? "Reconnecting"
+          : state.status === "error"
+            ? "Stream Error"
+            : spec?.stateLabel;
   const detail =
-    state.error ??
-    (state.status === "loading"
-      ? "Waiting for the first plot payload."
-      : state.status === "stale"
-        ? "The last samples remain visible while the plot stream reconnects."
-        : spec?.stateDetail);
+    state.status === "reconnecting"
+      ? "The last samples remain visible while the plot stream reopens."
+      : (state.error ??
+        (state.status === "loading"
+          ? "Waiting for the first plot payload."
+          : state.status === "stale"
+            ? "The last samples remain visible while the plot stream reconnects."
+            : spec?.stateDetail));
   const diagnostics = state.diagnostics
     ? `${state.diagnostics.point_count} delta points`
     : undefined;

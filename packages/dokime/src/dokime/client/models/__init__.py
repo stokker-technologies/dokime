@@ -186,8 +186,8 @@ class Backend:
 
 @dataclass(frozen=True)
 class Template:
+    # The readable `<suite id>.<segment>` reference, never the registered UUID.
     id: str
-    identifier: str
     label: str
     parameters: tuple[str, ...]
 
@@ -209,6 +209,8 @@ class Prompt:
     actions: tuple[str, ...]
     fields: tuple[str, ...]
     values: dict[str, Value]
+    level: str
+    """The author's declared level, named like `Record.severity`: "warn" for Warning."""
 
 
 @dataclass(frozen=True)

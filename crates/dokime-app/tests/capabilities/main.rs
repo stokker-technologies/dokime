@@ -757,6 +757,15 @@ fn execution_contract() {
         run_scenario(execution::run::stop_holds_unwind, false, None, false);
     }
     {
+        eprintln!("Scenario: execution::run::execution_stop_spares_sibling");
+        run_scenario(
+            execution::run::execution_stop_spares_sibling,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: execution::run::cycle_spanning_group");
         run_scenario(execution::run::cycle_spanning_group, false, None, false);
     }
@@ -777,6 +786,15 @@ fn execution_contract() {
         eprintln!("Scenario: execution::session::stopping_cycle_execution");
         run_scenario(
             execution::session::stopping_cycle_execution,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: execution::session::stopping_ignored_run_settles");
+        run_scenario(
+            execution::session::stopping_ignored_run_settles,
             false,
             None,
             false,

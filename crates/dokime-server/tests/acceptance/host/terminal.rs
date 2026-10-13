@@ -243,6 +243,140 @@ async fn environment_file_precedence_and_missing_file_errors() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot load project .env file"));
 }
 
+fn owned_launch(application: &std::path::Path) -> std::process::Command {
+    // The Arguments The Desktop Shell Passes Its Owned Backend
+    let mut command = Command::new(super::executable());
+    command
+        .args([
+            "--color",
+            "never",
+            "--dev-control",
+            "--shutdown-stdin",
+            "--port",
+            "0",
+            "--application-root",
+        ])
+        .arg(application)
+        .env_remove("DOKIME_OUTPUT_ROOT")
+        .env("RUST_LOG", "off");
+    command
+}
+
+fn same_root_relaunches_ready() {
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+    let root = tempfile::tempdir().unwrap();
+    let application = root.path().join("application");
+    for launch in 0..3 {
+        // Await The Readiness Line On The Default Data Root
+        let mut child = owned_launch(&application)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut events = BufReader::new(child.stdout.take().unwrap());
+        let ready = loop {
+            let mut line = String::new();
+            if events.read_line(&mut line).unwrap() == 0 {
+                break None;
+            }
+            let event: serde_json::Value = serde_json::from_str(&line).unwrap();
+            if event["event"] != "phase" {
+                break Some(event);
+            }
+        };
+
+        // Drain Through The Owned Shutdown Path
+        drop(child.stdin.take());
+        let output = child.wait_with_output().unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(
+            ready.as_ref().map(|event| &event["event"]),
+            Some(&serde_json::json!("ready")),
+            "launch {launch} did not report readiness: {stderr}"
+        );
+        assert!(
+            output.status.success(),
+            "launch {launch} did not drain cleanly: {stderr}"
+        );
+    }
+    assert!(application.join("data").join("local.sqlite").is_file());
+}
+
+async fn incompatible_storage_is_refused_by_name() {
+    use dokime::storage::sqlite::{self, rusqlite};
+    let root = tempfile::tempdir().unwrap();
+    let application = root.path().join("application");
+    let data = application.join("data");
+    std::fs::create_dir_all(&data).unwrap();
+
+    // Write A Root From Another Baseline
+    sqlite::initialize_sqlite().unwrap();
+    let connection = rusqlite::Connection::open(data.join("local.sqlite")).unwrap();
+    connection
+        .execute_batch("PRAGMA user_version=7; CREATE TABLE foreign_evidence(payload BLOB);")
+        .unwrap();
+    drop(connection);
+    let original = std::fs::read(data.join("local.sqlite")).unwrap();
+
+    // The Process Exits With Its Own Code And A Remedy On Stderr Only
+    let output = owned_launch(&application).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(4), "{stderr}");
+    assert!(
+        !String::from_utf8_lossy(&output.stdout).contains("\"ready\""),
+        "a refused root never reports readiness"
+    );
+    for expected in [
+        data.display().to_string(),
+        "schema version 7".to_owned(),
+        "this build reads version 1".to_owned(),
+        "Move or delete that directory".to_owned(),
+        "DOKIME_OUTPUT_ROOT".to_owned(),
+        "settings.json data_root".to_owned(),
+    ] {
+        assert!(
+            stderr.contains(&expected),
+            "missing {expected:?} in {stderr}"
+        );
+    }
+    assert!(!stderr.contains("backtrace"), "{stderr}");
+    assert_eq!(std::fs::read(data.join("local.sqlite")).unwrap(), original);
+
+    // The Same Refusal Is Typed In Process
+    let mut config = dokime_app::config::Config::local(&data);
+    config.application_root = Some(application.clone());
+    config.seed_plugins = false;
+    let error = dokime_app::app::launch(config).await.err().unwrap();
+    let error = dokime_server::host::Error::launch(error, data.clone());
+    assert!(
+        matches!(&error, dokime_server::host::Error::IncompatibleStorage { root, .. } if root == &data),
+        "{error}"
+    );
+    assert_eq!(error.exit_code(), std::process::ExitCode::from(4));
+    assert_eq!(
+        error.to_string().lines().count(),
+        3,
+        "one sentence per line"
+    );
+
+    // A Root Owned By Another Runtime Is Not Reported As Incompatible
+    let fresh = root.path().join("owned");
+    let owner = sqlite::State::open(&fresh).await.unwrap();
+    let mut config = dokime_app::config::Config::local(&fresh);
+    config.application_root = Some(application);
+    config.seed_plugins = false;
+    let error = dokime_app::app::launch(config).await.err().unwrap();
+    let error = dokime_server::host::Error::launch(error, fresh);
+    assert!(
+        matches!(&error, dokime_server::host::Error::Runtime(_)),
+        "{error}"
+    );
+    assert_eq!(error.exit_code(), std::process::ExitCode::from(3));
+    owner.close().await.unwrap();
+}
+
 #[cfg(unix)]
 async fn ready_then_sigint_shutdown() {
     measure_shutdown(true, true, false, None, std::time::Duration::ZERO).await;
@@ -257,6 +391,8 @@ async fn terminal_contract() {
     control_requires_stdin();
     authentication_file_is_read_bounded_and_validated();
     environment_file_precedence_and_missing_file_errors().await;
+    same_root_relaunches_ready();
+    incompatible_storage_is_refused_by_name().await;
     #[cfg(unix)]
     ready_then_sigint_shutdown().await;
 }

@@ -46,7 +46,14 @@ use dokime_client::profiles::Store;
 pub(crate) async fn json_files_connection() {
     assert!(Cli::try_parse_from(["dokime", "serve"]).is_err());
     for arguments in [
-        vec!["plan", "preview", "--suite-id", "suite"],
+        vec![
+            "plan",
+            "preview",
+            "--template",
+            "checks.probe",
+            "--case-id",
+            "case",
+        ],
         vec![
             "plan",
             "preview",
@@ -162,6 +169,8 @@ pub(crate) async fn json_files_connection() {
         ],
         vec!["cycle", "request", "invalid"],
         vec!["cycle", "stop", "invalid"],
+        vec!["cycle", "rerun", "invalid", "case", "--key", "rerun-1"],
+        vec!["execution", "stop", "invalid"],
         vec!["plan", "preview", "--case-id", "invalid"],
         vec![
             "plan",
@@ -180,12 +189,22 @@ pub(crate) async fn json_files_connection() {
         vec![
             "plan",
             "register",
-            "--suite-id",
-            "suite",
-            "--template-id",
-            "template",
+            "--template",
+            "checks.probe",
             "--request-key",
             " ",
+        ],
+        // A template is named by its readable ID, refused before connecting
+        // when it does not name a suite and one lowercase segment.
+        vec!["plan", "preview", "--template", "probe"],
+        vec!["plan", "preview", "--template", "checks.Probe"],
+        vec![
+            "plan",
+            "register",
+            "--template",
+            "0197f000-0000-7000-8000-000000000002",
+            "--request-key",
+            "plan-1",
         ],
         vec![
             "plan",

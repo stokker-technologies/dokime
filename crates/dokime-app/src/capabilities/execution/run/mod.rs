@@ -48,6 +48,9 @@ use session::Session;
 
 /* === Constants === */
 const WATCH_INTERVAL: Duration = Duration::from_millis(100);
+/// How long a cancelled run may take to answer before the host settles the
+/// execution as stopped without it. Stop stays cooperative inside this budget.
+const STOP_SETTLEMENT: Duration = Duration::from_secs(30);
 
 /* === Macros === */
 
@@ -854,14 +857,27 @@ async fn execute_case(
     let run = target.run(request);
     tokio::pin!(run);
     let mut cancelled = false;
+    let mut cancelled_at = None;
     let answered = loop {
         tokio::select! {
-            answered = &mut run => break answered,
+            answered = &mut run => break Some(answered),
             () = tokio::time::sleep(WATCH_INTERVAL) => {}
         }
-        if !cancelled && (session.refused().await || cancellation_requested(context, cycle).await) {
+        if cancelled_at.is_some_and(|at: Instant| at.elapsed() >= STOP_SETTLEMENT) {
+            break None;
+        }
+        if !cancelled
+            && (session.refused().await
+                || cancellation_requested(context, cycle).await
+                || context.execution_stop_requested(&execution.test_execution_id))
+        {
             cancelled = true;
+            cancelled_at = Some(Instant::now());
             session.cancel().await;
+            // A step waiting on the operator must not outlive the stop: its
+            // pending questions are settled as cancelled now, not after the
+            // run has already returned.
+            session.prompts.lock().await.settle_on_cancel(context).await;
             if let Err(error) = target
                 .signal(ExecutionSignal {
                     execution_token: execution_token.clone(),
@@ -878,9 +894,37 @@ async fn execute_case(
             session.refuse(error).await;
         }
     };
+    context.runtime.execution_sessions.remove(&execution_token);
+    let Some(answered) = answered else {
+        // The run never answered its cancellation. The host settles it as
+        // stopped with the evidence captured so far; cleanup signals the run
+        // once more and releases everything the execution held.
+        tracing::warn!(execution_id = %execution.test_execution_id,
+            budget_s = STOP_SETTLEMENT.as_secs(), "cancelled run did not settle; host settled it as stopped");
+        let message = format!(
+            "the run did not answer its stop within {} seconds; the host settled it as stopped",
+            STOP_SETTLEMENT.as_secs()
+        );
+        session
+            .narrate_refusal(&failure("stop_settlement", message.clone()))
+            .await;
+        context.finalization.finish(context).await?;
+        return Ok(CaseResult {
+            execution: execution_outcome(
+                case,
+                execution,
+                source,
+                "cancelled",
+                Vec::new(),
+                Some(message),
+                Vec::new(),
+                None,
+            ),
+            cancelled: true,
+        });
+    };
     tracing::debug!(execution_id = %execution.test_execution_id, succeeded = answered.is_ok(),
         elapsed_ms = provider_started.elapsed().as_millis() as u64, "execution provider run settled");
-    context.runtime.execution_sessions.remove(&execution_token);
     let concluded = match answered {
         Ok(outcome) => {
             context.finalization.settled().await;
@@ -948,6 +992,19 @@ async fn run_sidecar_cycle(
             ));
             continue;
         }
+        if context.execution_stop_requested(&execution.test_execution_id) {
+            executions.push(execution_outcome(
+                case,
+                execution,
+                &target.source,
+                "cancelled",
+                Vec::new(),
+                Some("execution stopped by the operator before dispatch".to_owned()),
+                Vec::new(),
+                None,
+            ));
+            continue;
+        }
         let result = execute_case(
             &context,
             cycle,
@@ -957,9 +1014,34 @@ async fn run_sidecar_cycle(
             &target.source,
             operations.clone(),
         )
-        .await?;
-        stop_after_failure = !cycle.continue_on_failure && result.execution.status != "passed";
-        cancelled |= result.cancelled;
+        .await;
+        // An operator stop of this one execution is not a cycle stop and not a
+        // failure: the siblings behind it still run, even when the stopped run
+        // unwound through a refusal rather than an outcome.
+        let stopped_alone = context.execution_stop_requested(&execution.test_execution_id);
+        let result = match result {
+            Ok(result) => result,
+            Err(error) if stopped_alone => CaseResult {
+                execution: execution_outcome(
+                    case,
+                    execution,
+                    &target.source,
+                    "cancelled",
+                    Vec::new(),
+                    Some(format!(
+                        "execution stopped by the operator: {}",
+                        error.message
+                    )),
+                    Vec::new(),
+                    None,
+                ),
+                cancelled: true,
+            },
+            Err(error) => return Err(error),
+        };
+        stop_after_failure =
+            !cycle.continue_on_failure && result.execution.status != "passed" && !stopped_alone;
+        cancelled |= result.cancelled && !stopped_alone;
         failures.extend(result.execution.failures.iter().cloned());
         executions.push(result.execution);
     }

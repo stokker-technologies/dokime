@@ -25,6 +25,7 @@ use super::{error::detailed, value};
 use dokime_app::{
     RuntimeHandle,
     core::{Identifier, TestCycleId},
+    execution::CycleStatus,
 };
 use dokime_contract::operations::{checkpoint, reports as wire};
 
@@ -77,6 +78,7 @@ impl Operation for Download {
         let cycle = TestCycleId::from_uuid(request.cycle_id.clone())
             .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
         let identifier = report_identifier(&request.identifier)?;
+        require_settled(&self.resources.runtime, &cycle, "final report")?;
         let storage = self.resources.runtime.storage();
         let mut query =
             harmos::storage::ObjectQuery::<dokime::storage::objects::cycle::Cycle>::new();
@@ -252,6 +254,38 @@ pub(super) fn register(
             }),
         )?;
     Ok(())
+}
+
+/// Refuse a cycle-wide evidence product while the cycle is still producing evidence.
+///
+/// The final report and the evidence bundle are cut from the sealed cycle, and a
+/// running, paused or stopping cycle is still adding evidence no seal covers.
+/// Its absence from the live
+/// state means nothing is running, so a stored cycle passes through to the
+/// product's own checks.
+pub(super) fn require_settled(
+    runtime: &RuntimeHandle,
+    cycle: &TestCycleId,
+    product: &str,
+) -> Result<(), Status> {
+    let latest = runtime.watch_state().latest();
+    let Some(lifecycle) = latest
+        .state()
+        .cycles
+        .get(cycle)
+        .map(|cycle| cycle.lifecycle)
+    else {
+        return Ok(());
+    };
+    let phase = match lifecycle {
+        CycleStatus::Running => "running",
+        CycleStatus::Paused => "paused",
+        CycleStatus::Stopping => "stopping",
+        _ => return Ok(()),
+    };
+    Err(Status::failed_precondition(format!(
+        "The {product} becomes available when the cycle is terminal; this cycle is still {phase}."
+    )))
 }
 
 /* === Private Functions === */

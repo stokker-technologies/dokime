@@ -378,6 +378,78 @@ pub(crate) async fn prompt_condition_commit() {
     owner.shutdown().await.unwrap();
 }
 
+pub(crate) async fn prompt_level_watched() {
+    use dokime_app::records::RecordSeverity;
+
+    // === Ask A Warning Prompt === //
+
+    let root = tempfile::tempdir().unwrap();
+    let definition = FormPrompt::<BTreeMap<String, bool>>::new("fixture.level", "Check the bench")
+        .level(RecordSeverity::Warning)
+        .definition();
+    let mut owner = prompt_runtime(root.path(), definition).await;
+    let handle = owner.handle();
+    let id = PromptId::new();
+    handle
+        .request_prompt(PromptRequest {
+            prompt_id: id.clone(),
+            prompt_type: Identifier::new("fixture.level").unwrap(),
+            values: BTreeMap::new(),
+            scope: RecordScope::default(),
+        })
+        .await
+        .unwrap();
+    let server = Server::start(
+        handle.clone(),
+        Config::local()
+            .with_bearer_auth(vec![grant(Role::Control)])
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+
+    // === Read The Prompt And Its Request Record === //
+
+    let view = client
+        .unary::<contracts::prompts::GetPrompt>(authenticated(
+            contracts::prompts::GetPromptRequest {
+                prompt_id: id.to_string(),
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut follow = client
+        .download::<contracts::evidence::WatchRecords>(authenticated(
+            contracts::evidence::WatchRecordsRequest {
+                selection: Some(contracts::evidence::CapturedRecordSelection {
+                    record_types: vec!["prompt.request.form".into()],
+                    ..Default::default()
+                }),
+                after: None,
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    let mut watched = Vec::new();
+    while watched.is_empty() {
+        watched = follow.message().await.unwrap().unwrap().records;
+    }
+
+    // === Compare === //
+
+    let level = view.prompt.unwrap().definition.unwrap().level;
+    assert_eq!(level, contracts::common::Severity::Warn);
+    assert_eq!(watched.len(), 1);
+    assert_eq!(watched[0].severity, contracts::common::Severity::Warn);
+    drop(follow);
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
 async fn prompt_runtime(
     root: &std::path::Path,
     definition: dokime_app::capabilities::prompts::PromptDefinition,

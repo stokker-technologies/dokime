@@ -149,6 +149,11 @@ pub struct PromptDefinition {
     pub owner_suite_id: Option<String>,
     pub template_identifier: Option<String>,
     pub examples: Vec<Value>,
+    // The declared level on the record severity scale; Unspecified reads as Info.
+    #[row(
+        description = "The declared level on the record severity scale; Unspecified reads as Info."
+    )]
+    pub level: Severity,
 }
 
 #[harmos::message]

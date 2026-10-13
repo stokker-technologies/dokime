@@ -21,7 +21,7 @@ import sys
 import tempfile
 import time
 import tomllib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from zipfile import ZIP_DEFLATED, ZipFile
 
 # Third Party Imports
@@ -45,6 +45,7 @@ from dokime_tools.check.release import (
     inputs,
     required_suites,
     verify_platform,
+    verify_test_archives,
 )
 from dokime_tools.check.wheel import verify_wheel
 from dokime_tools.ci.artifacts import job_id
@@ -59,6 +60,9 @@ from dokime_tools.package.wheel import select_wheel
 # === Constants === #
 PLATFORMS = ("linux", "windows")
 CONTRACT_ARCHIVE = Path("target/contracts/dokime-contract.tar")
+ASSETS = Path("dist/assets")
+INSTALLER_ROLES = frozenset({"deb", "rpm", "installer", "signature", "updater"})
+PYTHON_ROLES = frozenset({"wheel", "sdist"})
 
 
 # === Types === #
@@ -97,6 +101,8 @@ def collect(root: Path) -> None:
     products = _products(root)
     audits = verify_wheel(products["wheel"][0])
     protocol = _protocol(root)
+    build_job_id = job_id("build:release", platform())
+    archives = _test_archives(root, build_job_id)
     with tempfile.TemporaryDirectory(dir=destination.parent) as temporary:
         staging = Path(temporary) / platform()
         staging.mkdir()
@@ -134,12 +140,13 @@ def collect(root: Path) -> None:
             )["workspace"]["package"]["version"],
             "toolchain": _output(root, ["rustc", "--version", "--verbose"]),
             "build_revision": _output(root, ["git", "rev-parse", "HEAD"]),
-            "build_job_id": job_id("build:release", platform()),
+            "build_job_id": build_job_id,
             "built_unix_seconds": int(time.time()),
             "pipeline_id": os.environ.get("GITHUB_RUN_ID"),
             "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
             "inputs": identity,
             "contracts": {"archive_sha256": digest(root / CONTRACT_ARCHIVE)},
+            "test_archives": archives,
             "tools": {
                 name: _output(root, [name, "--version"])
                 for name in (
@@ -161,6 +168,14 @@ def collect(root: Path) -> None:
     verify(root)
     export(root)
     _artifact_output(f"build-{platform()}-{manifest['build_job_id']}")
+    _artifact_output(archives["artifact"], key="archives_artifact_name")
+    stage_assets(root, manifest, INSTALLER_ROLES, ASSETS / platform() / "installers")
+    _artifact_output(
+        f"installers-{platform()}-{build_job_id}", key="installers_artifact_name"
+    )
+    if platform() == "linux":
+        stage_assets(root, manifest, PYTHON_ROLES, ASSETS / "python")
+        _artifact_output(f"python-{build_job_id}", key="python_artifact_name")
 
 
 def verify(root: Path) -> dict:
@@ -169,10 +184,15 @@ def verify(root: Path) -> dict:
     return manifest
 
 
+def verify_archives(root: Path) -> None:
+    """Admit only the candidate's own downloaded Nextest archives into a lane."""
+    verify_test_archives(root, verify(root))
+
+
 def prepare_archives(root: Path) -> None:
     from dokime_tools import test_archive
 
-    destination = root / "target/test-archives"
+    destination = root / TEST_ARCHIVES
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_symlink():
         raise ValueError("test archive destination must not be a symlink")
@@ -280,7 +300,15 @@ def validate(root: Path) -> None:
     _write(destination / "manifest.json", manifest)
     verify(root)
     export(root)
-    _artifact_output(f"validation-{platform()}-{manifest['validation']['test_job_id']}")
+    test_job_id = manifest["validation"]["test_job_id"]
+    _artifact_output(f"validation-{platform()}-{test_job_id}")
+    stage_assets(
+        root, manifest, INSTALLER_ROLES, ASSETS / platform() / "installers-validated"
+    )
+    _artifact_output(
+        f"installers-validated-{platform()}-{test_job_id}",
+        key="installers_validated_artifact_name",
+    )
 
 
 def export(root: Path) -> None:
@@ -291,6 +319,35 @@ def export(root: Path) -> None:
         for path in sorted(package.rglob("*")):
             if path.is_file():
                 archive.write(path, path.relative_to(package).as_posix())
+
+
+def stage_assets(
+    root: Path, manifest: dict, roles: frozenset[str], destination: Path
+) -> Path:
+    """Flat copies of the selected package roles, each byte-identical to the manifest."""
+    package = directory(root)
+    staging = root / destination
+    if staging.is_symlink():
+        raise ValueError("release asset staging must not be a symlink")
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
+    selected = [entry for entry in manifest["files"] if entry["role"] in roles]
+    if not selected:
+        raise ValueError("release asset staging selected no package files")
+    for entry in selected:
+        source = package / entry["path"]
+        target = staging / PurePosixPath(entry["path"]).name
+        if target.exists():
+            raise ValueError("release asset filenames collide")
+        if source.is_symlink() or not source.is_file():
+            raise ValueError(f"missing release asset: {entry['path']}")
+        shutil.copy2(source, target)
+        if target.stat().st_size != entry["bytes"] or digest(target) != entry["sha256"]:
+            raise ValueError(
+                f"release asset differs from the validated manifest: {entry['path']}"
+            )
+    return staging
 
 
 def platform() -> str:
@@ -318,11 +375,26 @@ def _report_template(root: Path, manifest: dict) -> None:
         )
 
 
-def _artifact_output(name: str) -> None:
+def _artifact_output(name: str, *, key: str = "artifact_name") -> None:
     destination = os.environ.get("GITHUB_OUTPUT")
     if destination:
         with Path(destination).open("a", encoding="utf-8") as output:
-            output.write(f"artifact_name={name}\n")
+            output.write(f"{key}={name}\n")
+
+
+def _test_archives(root: Path, build_job_id: str | None) -> dict:
+    """Inventory of the Nextest archives `ci:archives:prepare` staged."""
+    directory = root / TEST_ARCHIVES
+    files = []
+    for path in sorted(directory.glob("*")) if directory.is_dir() else []:
+        if path.suffix not in {".json", ".zst"} or path.is_symlink():
+            raise ValueError(f"unexpected test archive artifact: {path}")
+        files.append(
+            {"name": path.name, "bytes": path.stat().st_size, "sha256": digest(path)}
+        )
+    if not files:
+        raise ValueError("release preparation omitted Nextest archives")
+    return {"artifact": f"test-archives-{platform()}-{build_job_id}", "files": files}
 
 
 def _products(root: Path) -> dict[str, tuple[Path, str]]:
@@ -375,13 +447,6 @@ def _products(root: Path) -> dict[str, tuple[Path, str]]:
             root / "target/fixtures" / name / f"{name}.dokime",
             f"{FIXTURE_BUNDLES}/{name}/{name}.dokime",
         )
-    archives = root / "target/test-archives"
-    for path in sorted(archives.glob("*")):
-        if path.suffix not in {".json", ".zst"}:
-            raise ValueError(f"unexpected test archive artifact: {path}")
-        products[f"archive:{path.name}"] = (path, f"{TEST_ARCHIVES}/{path.name}")
-    if not any(role.startswith("archive:") for role in products):
-        raise ValueError("release preparation omitted Nextest archives")
     for source, _ in products.values():
         if not source.is_file() or source.is_symlink():
             raise ValueError(f"missing native build artifact: {source}")
@@ -444,12 +509,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=("collect", "verify", "validate", "collect-tests", "prepare-archives"),
+        choices=(
+            "collect",
+            "verify",
+            "verify-archives",
+            "validate",
+            "collect-tests",
+            "prepare-archives",
+        ),
     )
     arguments = parser.parse_args()
     {
         "collect": collect,
         "verify": verify,
+        "verify-archives": verify_archives,
         "validate": validate,
         "collect-tests": collect_tests,
         "prepare-archives": prepare_archives,

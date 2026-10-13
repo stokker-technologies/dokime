@@ -54,27 +54,44 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
+    // === Read Request === //
+
     let mut input = args.input;
-    let request = match input.input_file.take() {
+    let (planned, idempotency_key) = match input.input_file.take() {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
-            serde_json::from_slice::<RegisterSelectionRequest>(&bytes)
-                .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?
+            let request = serde_json::from_slice::<RegisterSelectionRequest>(&bytes)
+                .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?;
+            (
+                super::input::Planned::canonical(request.plan)?,
+                request.idempotency_key,
+            )
         }
-        None => RegisterSelectionRequest {
-            plan: Some(input.plan()?),
-            idempotency_key: args
-                .request_key
+        None => (
+            input.plan()?,
+            args.request_key
                 .ok_or_else(|| crate::Error::Input("request key is required".into()))?,
-        },
+        ),
     };
-    super::input::validate(request.plan.as_ref())?;
-    dokime_contract::core::command::validate_idempotency_key(&request.idempotency_key)
+    dokime_contract::core::command::validate_idempotency_key(&idempotency_key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
+
+    // === Resolve And Register === //
+
     let client = args.connection.connect().await?;
-    let result = client.register_selection(request).await;
+    let result = async {
+        let plan = planned.resolve(&client).await?;
+        let reply = client
+            .register_selection(RegisterSelectionRequest {
+                plan,
+                idempotency_key,
+            })
+            .await?;
+        super::input::print(&client, &reply, args.json).await
+    }
+    .await;
     client.close_and_wait().await;
-    super::input::print(&result?, args.json)
+    result
 }
 
 /* === Private Functions === */

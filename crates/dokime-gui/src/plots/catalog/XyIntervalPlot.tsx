@@ -7,6 +7,10 @@
  * ***
  */
 
+/* === External Imports === */
+
+import type { ReactNode } from "react";
+
 /* === Local Imports === */
 
 import type { PlotCartesianFrame, PlotSeries } from "@/lib/types";
@@ -16,10 +20,12 @@ import type { PlotCardSpec, PlotViewportMode } from "@/plots/types";
 /* === Components === */
 
 export function XyIntervalPlot({
+  actions,
   plot,
   resetKey,
   viewportMode = "fit",
 }: {
+  actions?: ReactNode;
   plot: PlotCardSpec;
   resetKey?: string;
   viewportMode?: PlotViewportMode;
@@ -43,6 +49,7 @@ export function XyIntervalPlot({
       colors={plot.colors}
       referenceBands={plot.referenceBands}
       referenceLines={plot.referenceLines}
+      actions={actions}
       resetKey={resetKey}
       series={series}
       stateDetail={plot.stateDetail}

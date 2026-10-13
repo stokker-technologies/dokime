@@ -1,6 +1,7 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
 import type { ConnectionError } from "../desktop/connection";
+import type { ArtifactDeliveryError, DeliveryStage } from "../desktop/delivery";
 import type { RpcError } from "../desktop/rpc";
 
 const connectionErrorMessages: Record<
@@ -19,6 +20,36 @@ const connectionErrorMessages: Record<
   superseded: "The connection request was replaced.",
   not_connected: "The backend is not connected.",
   generation_exhausted: "The connection session has expired.",
+};
+
+/** Canonical gRPC status names, indexed by numeric code. */
+const grpcCodeNames = [
+  "OK",
+  "CANCELLED",
+  "UNKNOWN",
+  "INVALID_ARGUMENT",
+  "DEADLINE_EXCEEDED",
+  "NOT_FOUND",
+  "ALREADY_EXISTS",
+  "PERMISSION_DENIED",
+  "RESOURCE_EXHAUSTED",
+  "FAILED_PRECONDITION",
+  "ABORTED",
+  "OUT_OF_RANGE",
+  "UNIMPLEMENTED",
+  "INTERNAL",
+  "UNAVAILABLE",
+  "DATA_LOSS",
+  "UNAUTHENTICATED",
+] as const;
+
+const deliveryStageLabels: Record<DeliveryStage, string> = {
+  prepare: "Preparing the download",
+  request: "Requesting the download",
+  stream: "Receiving the download",
+  write: "Writing the download",
+  rename: "Saving the download",
+  open: "Opening the download",
 };
 
 function connectionMessage(error: ConnectionError): string {
@@ -49,6 +80,15 @@ function rpcMessage(error: RpcError): string {
     case "cancelled":
       return "The native RPC request was cancelled.";
   }
+}
+
+function deliveryMessage(error: ArtifactDeliveryError): string {
+  const stage = deliveryStageLabels[error.stage];
+  if (error.failure.kind === "local") return `${stage} failed: ${error.failure.detail}`;
+  const rpc = error.failure.detail;
+  if (rpc.kind !== "grpc") return `${stage} failed: ${rpcMessage(rpc)}`;
+  const code = grpcCodeNames[rpc.detail.code] ?? `status ${rpc.detail.code}`;
+  return `${stage} failed with ${code}: ${rpcMessage(rpc)}`;
 }
 
 function isConnectionError(error: unknown): error is ConnectionError {
@@ -111,6 +151,31 @@ function isRpcError(error: unknown): error is RpcError {
     default:
       return false;
   }
+}
+
+function isDeliveryError(error: unknown): error is ArtifactDeliveryError {
+  if (!error || typeof error !== "object" || !("stage" in error) || !("failure" in error)) {
+    return false;
+  }
+  const { stage, failure } = error as { stage: unknown; failure: unknown };
+  if (typeof stage !== "string" || !Object.hasOwn(deliveryStageLabels, stage)) return false;
+  if (!failure || typeof failure !== "object" || !("kind" in failure)) return false;
+  const { kind, detail } = failure as { kind: unknown; detail?: unknown };
+  return kind === "local" ? typeof detail === "string" : kind === "rpc" && isRpcError(detail);
+}
+
+/**
+ * Keep native delivery failures usable by UI code that displays Error.message.
+ *
+ * The message names the stage that failed and, when the backend answered, its
+ * gRPC status name and own words; `stage` and `failure` stay on the error.
+ */
+export function normalizeDeliveryError(error: unknown): unknown {
+  if (error instanceof Error || !isDeliveryError(error)) return error;
+  const normalized = new Error(deliveryMessage(error));
+  normalized.name = "NativeDeliveryError";
+  Object.assign(normalized, { stage: error.stage, failure: error.failure });
+  return normalized;
 }
 
 /** Keep native RPC failures usable by UI code that displays Error.message. */

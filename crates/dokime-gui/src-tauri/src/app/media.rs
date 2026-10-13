@@ -89,7 +89,9 @@ pub async fn desktop_media_prepare(
         .map_err(|error| error.to_string())??;
     let destination = cache_dir.join(&key);
     if !tokio::fs::try_exists(&destination).await.unwrap_or(false) {
-        let verified = content::fetch_verified(&lease, &source, &destination).await?;
+        let verified = content::fetch_verified(&lease, &source, &destination)
+            .await
+            .map_err(|error| error.to_string())?;
         write_content_type(&destination, verified.content_type.as_deref()).await?;
         let private_path = destination.clone();
         tauri::async_runtime::spawn_blocking(move || set_private_file(&private_path))

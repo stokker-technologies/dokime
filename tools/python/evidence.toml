@@ -30,6 +30,7 @@ command = [
   "--test-reporter-destination={junit}",
   "--test-timeout={timeout_ms}",
   "crates/dokime-gui/src-tauri/tests/rpc/fixtures/generator.test.mjs",
+  "crates/dokime-gui/tests/execution-file-paging.test.mjs",
 ]
 
 [testing.javascript.system]
