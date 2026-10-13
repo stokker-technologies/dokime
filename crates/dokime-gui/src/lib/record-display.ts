@@ -74,6 +74,14 @@ export function recordLevelVariant(level: string): "outline" | "destructive" | "
   return "outline";
 }
 
+/** The text colour a dense console row gives a level; no pill, colour only. */
+export function recordLevelTextClass(level: string): string {
+  if (level === "error") return "text-destructive";
+  if (level === "warning" || level === "warn") return "text-warning";
+  if (level === "info") return "text-foreground";
+  return "text-muted-foreground";
+}
+
 /** The time of day a dense record row prints, or an em dash for no time. */
 export function recordClockLabel(timestamp: string | null | undefined): string {
   const at = timestamp ? new Date(timestamp) : null;

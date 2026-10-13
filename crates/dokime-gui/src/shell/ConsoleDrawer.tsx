@@ -34,7 +34,6 @@ import {
 
 /* === Local Imports === */
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,7 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { recordClockLabel, recordLevelVariant } from "@/lib/record-display";
+import { recordClockLabel, recordLevelTextClass } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type ConsoleLevel, type ConsoleScope, useUiStore } from "@/stores/ui-store";
@@ -404,7 +403,7 @@ function ConsoleRow({ record }: { record: HubRecord }) {
   return (
     <button
       className={cn(
-        "grid w-full grid-cols-[6rem_5rem_10rem_minmax(0,1fr)] items-start gap-3 px-[var(--shell-inset)] text-left font-mono text-xs tabular-nums hover:bg-muted/40",
+        "grid w-full grid-cols-[5rem_3.75rem_9rem_minmax(0,1fr)] items-start gap-2 px-[var(--shell-inset)] text-left font-mono text-xs tabular-nums hover:bg-muted/40",
         expanded ? "py-1" : "overflow-hidden",
       )}
       onClick={() => setExpanded((current) => !current)}
@@ -412,12 +411,7 @@ function ConsoleRow({ record }: { record: HubRecord }) {
       type="button"
     >
       <span className="truncate text-muted-foreground">{recordClockLabel(record.timestamp)}</span>
-      <Badge
-        className="h-4 justify-self-start px-1 text-[0.65rem]"
-        variant={recordLevelVariant(level)}
-      >
-        {label}
-      </Badge>
+      <span className={cn("truncate uppercase", recordLevelTextClass(level))}>{label}</span>
       <span className="truncate text-muted-foreground">{record.source}</span>
       <span className={cn("min-w-0", expanded ? "break-words whitespace-pre-wrap" : "truncate")}>
         {record.message ?? ""}
