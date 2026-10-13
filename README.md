@@ -133,15 +133,18 @@ mise run dev:desktop:dev
 
 This starts the desktop application with its local backend. The
 [Mini plugin](plugins/mini/) supplies a simulated charger; no physical charger
-is required. Build its installable bundle from the repository root:
+is required. The task builds Mini and a suite fixture into
+`target/debug/plugins/` and points `DOKIME_PLUGINS_DIR` at that directory, so
+the backend loads both for the session without installing them. Use Mini's
+charging templates to assemble a cycle, choose operating points, and inspect
+live measurements and results.
+
+To install Mini into a regular application instead, build its bundle and add
+it through the application's plugin settings, then restart:
 
 ```sh
 cargo run -p cargo-dokime -- build --package mini-sidecar --output target/debug/plugins/mini-sidecar.dokime
 ```
-
-Install the `.dokime` bundle through the application's plugin settings and
-restart the application to activate it. Use its charging templates to assemble
-a cycle, choose operating points, and inspect live measurements and results.
 
 ## Browser Origins
 

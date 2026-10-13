@@ -250,9 +250,11 @@ run = "uv run --no-sync python -m dokime_tools.bindings --language typescript --
 
 [tasks."dev:desktop:dev"]
 description = "Start the Native Tauri Cycle Workspace with an Owned Local Backend."
-# The owned session spawns the companion `dokime`, so it is built first;
-# plugins reach it through the plugin store, never from the build tree.
-depends = ["bindings:generate", "build:cli:dev"]
+# The owned session spawns the companion `dokime`, so it is built first. The
+# backend inherits `DOKIME_PLUGINS_DIR` and loads the development bundles from
+# the build tree for this process only; nothing enters the plugin store.
+depends = ["bindings:generate", "build:cli:dev", "build:plugins:dev"]
+env.DOKIME_PLUGINS_DIR = "{{config_root}}/target/debug/plugins"
 run = "pnpm --dir crates/dokime-gui run tauri:dev"
 
 # === === Tasks | Build === === #
@@ -278,7 +280,11 @@ run = "cargo build --timings -p dokime-server --bin dokime-server"
 
 [tasks."build:plugins:dev"]
 description = "Build Development Demo Plugin Packages"
-run = "cargo run --locked -p cargo-dokime -- build --package mini-sidecar --output target/debug/plugins/mini-sidecar.dokime"
+# The suite fixture gives a development session runnable suites beside Mini.
+run = [
+  "cargo run --locked -p cargo-dokime -- build --package mini-sidecar --output target/debug/plugins/mini-sidecar.dokime",
+  "cargo run --locked -p cargo-dokime -- build --package dokime-route-plugin --bin dokime-app-suite-sidecar-fixture --output target/debug/plugins/fixture-suites.dokime",
+]
 
 [tasks."build:desktop:dev"]
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
