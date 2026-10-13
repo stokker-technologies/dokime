@@ -10,18 +10,20 @@
 /* What a failed owned-backend start left behind, under the error headline.
  *
  * The exit and the full log file sit on the connect screen's two-column
- * label/value grid so they line up with the attach form. The resolved
+ * label/value grid so they line up with the attach form; the log opens with
+ * the system handler through the shell. The resolved
  * executable and the redacted stderr tail fold into one Diagnostics block,
  * styled like the form's other disclosure.
  */
 
 /* === External Imports === */
 
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 /* === Local Imports === */
 
 import { PathPill } from "@/components/PathPill";
+import { commands } from "@/lib/desktop/commands";
 import type { BackendDiagnostics } from "@/lib/desktop/session";
 
 /* === Types === */
@@ -39,6 +41,17 @@ type DetailProps = {
 
 export function StartupDiagnostics({ diagnostics }: StartupDiagnosticsProps) {
   const exit = diagnostics.exitCode ?? diagnostics.exitStatus;
+  const [openFailure, setOpenFailure] = useState<string | null>(null);
+
+  // The shell opens the log it recorded; the WebView never names the path.
+  async function openLog() {
+    setOpenFailure(null);
+    try {
+      await commands.desktopOpenBackendLog();
+    } catch (error) {
+      setOpenFailure(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   return (
     <section aria-label="Backend Diagnostics" className="grid w-full gap-3 text-left">
@@ -52,7 +65,14 @@ export function StartupDiagnostics({ diagnostics }: StartupDiagnosticsProps) {
         )}
         {diagnostics.log && (
           <Detail label="Log File">
-            <PathPill value={diagnostics.log} />
+            <PathPill value={diagnostics.log} onOpen={() => void openLog()} />
+          </Detail>
+        )}
+        {openFailure && (
+          <Detail label="Open Failed">
+            <span className="text-sm text-destructive" role="alert">
+              {openFailure}
+            </span>
           </Detail>
         )}
       </dl>

@@ -80,6 +80,12 @@ native_commands! {
         () -> Result<dokime_client::profiles::Document, String>
         => crate::native_session::desktop_profiles_list;
 
+    // Open the failed owned start's log; the shell supplies the path.
+    async desktop_open_backend_log
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::native_session::DesktopSessionControl>, app: tauri::AppHandle]
+        () -> Result<(), String>
+        => crate::native_session::desktop_open_backend_log;
+
     async desktop_open_path
         [app: tauri::AppHandle]
         (path: String) -> Result<(), String>

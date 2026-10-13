@@ -104,6 +104,37 @@ pub(crate) fn trusted_application_url(url: &url::Url, config: &tauri::Config) ->
         && url.password().is_none()
 }
 
+/// Opens the failed owned start's log with the system handler. The WebView
+/// names no path: the shell opens only the log its own session recorded.
+pub async fn desktop_open_backend_log(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, DesktopSessionControl>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri::Manager;
+    use tauri_plugin_opener::OpenerExt;
+
+    // Trust Only The Main Application Window
+    let url = window.url().map_err(|error| error.to_string())?;
+    if window.label() != "main" || !trusted_application_url(&url, window.app_handle().config()) {
+        return Err("Only the main application window may open the backend log.".into());
+    }
+
+    // Open The Recorded Log
+    let log = state
+        .0
+        .startup_log()
+        .ok_or("No failed backend start has a log file to open.")?;
+    // The opener forks a launcher process; keep it off the async workers.
+    tauri::async_runtime::spawn_blocking(move || {
+        app.opener()
+            .open_path(log.to_string_lossy(), None::<&str>)
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 pub fn desktop_profiles_list() -> Result<dokime_client::profiles::Document, String> {
     let store =
         dokime_client::profiles::Store::discover(None).map_err(|error| error.to_string())?;

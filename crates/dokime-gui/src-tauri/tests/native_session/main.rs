@@ -494,6 +494,13 @@ pub(crate) async fn failed_start_diagnostics() {
     );
     assert!(!written.contains("s3cret"));
     assert_eq!(owner.status().ownership, BackendOwnership::None);
+
+    // The Shell-Owned Log Path
+    // The shell opens only the log its session recorded, and forgets it once
+    // the next transition begins.
+    assert_eq!(owner.startup_log(), Some(log));
+    owner.disconnect().await.unwrap();
+    assert_eq!(owner.startup_log(), None);
 }
 
 #[cfg(unix)]

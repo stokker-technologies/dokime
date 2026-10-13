@@ -13,7 +13,10 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::sync::{Arc, Mutex};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 // Third Party Imports
 
 // Local Imports
@@ -47,6 +50,9 @@ struct State {
     closing: bool,
     ownership: BackendOwnership,
     phase: Option<String>,
+    // The log the last failed owned start reported; the only file the shell
+    // opens on the WebView's behalf.
+    startup_log: Option<PathBuf>,
 }
 
 #[derive(Default)]
@@ -68,6 +74,7 @@ impl DesktopSession {
                 closing: false,
                 ownership: BackendOwnership::None,
                 phase: None,
+                startup_log: None,
             }),
             transition: tokio::sync::Mutex::new(Resources::default()),
             local: None,
@@ -98,10 +105,23 @@ impl DesktopSession {
             state.phase = Some(phase.to_owned());
         }
     }
-    fn clear_phase(&self, revision: u64) {
+    /// The log file of the current failed owned start, if it wrote one.
+    pub fn startup_log(&self) -> Option<PathBuf> {
+        let state = self.0.state.lock().expect("desktop owner poisoned");
+        state.startup_log.clone()
+    }
+    fn fail(&self, revision: u64, error: &Error) {
+        let log = match error {
+            Error::Startup {
+                diagnostics: Some(diagnostics),
+                ..
+            } => diagnostics.log.as_deref().map(PathBuf::from),
+            _ => None,
+        };
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
         if state.revision == revision {
             state.phase = None;
+            state.startup_log = log;
         }
     }
     pub async fn select(
@@ -171,9 +191,10 @@ impl DesktopSession {
         // Startup is over, one way or another: whatever phase it last
         // reported no longer describes anything a caller should show. The
         // success path already clears it before publishing its snapshot;
-        // this covers every way `select_owned` can fail instead.
-        if result.is_err() {
-            self.clear_phase(revision);
+        // this covers every way `select_owned` can fail instead, and keeps
+        // the failed start's log for the shell to open.
+        if let Err(error) = &result {
+            self.fail(revision, error);
         }
         result
     }
@@ -202,6 +223,7 @@ impl DesktopSession {
         state.closing |= closing;
         state.ownership = BackendOwnership::None;
         state.phase = None;
+        state.startup_log = None;
         self.0
             .connection
             .disconnect()
