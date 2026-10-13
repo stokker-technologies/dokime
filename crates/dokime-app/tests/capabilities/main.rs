@@ -833,6 +833,10 @@ fn execution_contract() {
         );
     }
     {
+        eprintln!("Scenario: execution::sampling::large_case_seals");
+        run_scenario(execution::sampling::large_case_seals, false, None, false);
+    }
+    {
         eprintln!("Scenario: execution::storage::execution_save_sealing");
         run_scenario(
             execution::storage::execution_save_sealing,

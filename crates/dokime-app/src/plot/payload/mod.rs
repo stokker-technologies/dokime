@@ -11,6 +11,7 @@
 mod analyses;
 pub(crate) mod builtins;
 mod cartesian;
+pub(crate) mod streamed;
 mod types;
 
 /* === Re-Exports === */

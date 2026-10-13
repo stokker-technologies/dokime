@@ -431,7 +431,7 @@ fn selected_samples(
         .map(move |index| &samples[index])
 }
 
-fn selection(length: usize) -> Vec<usize> {
+pub(crate) fn selection(length: usize) -> Vec<usize> {
     let mut indices = if length <= 2_000 {
         (0..length).collect::<Vec<_>>()
     } else {

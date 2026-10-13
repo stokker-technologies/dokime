@@ -42,6 +42,9 @@ const WATCHED_FIRST_BYTES: usize = 256 * 1024;
 const ARTIFACT_EVIDENCE_HEADER: &str = "sample,value\n";
 const ARTIFACT_EVIDENCE_ROWS: usize = 262_144;
 
+/// Points the pulse plot declares it shows, whatever the capture's length.
+const PULSE_DISPLAY_POINTS: u32 = 400;
+
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
@@ -261,6 +264,22 @@ impl Checks {}
     records = Records
 )]
 impl Smoke {
+    fn document() -> dokime::prelude::Document {
+        let mut plot = dokime::prelude::Plot::time_series("Pulse");
+        plot.id("fixture.checks.smoke.pulse");
+        plot.y(dokime::expressions::telemetry(
+            "fixture-suites.pulse",
+            "value",
+        ));
+        plot.display_points = Some(PULSE_DISPLAY_POINTS);
+        plot.downsample = dokime::document::DownsampleTechnique::MinMax;
+        let mut section = dokime::prelude::Section::new("fixture.checks.smoke.pulse", "Pulse");
+        section.plot(plot);
+        let mut document = dokime::prelude::Document::new("default", "Fixture Smoke");
+        document.section(section);
+        document
+    }
+
     async fn initialize(
         ctx: &mut dokime::execution::InitializationContext<'_>,
     ) -> Result<Self, Error> {

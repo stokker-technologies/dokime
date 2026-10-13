@@ -485,6 +485,27 @@ impl ExecutionView {
         super::telemetry::TelemetryReader::open(storage, self, page, projection, true)
     }
 
+    /// One page of this execution's telemetry after storage position
+    /// `after`, read as its own query bound to the captured evidence cut.
+    pub async fn telemetry_after(
+        &self,
+        storage: &Manager,
+        page: ReadLimits,
+        projection: NonZeroUsize,
+        after: u64,
+    ) -> Result<
+        Option<(
+            u64,
+            QueryValue<Vec<dokime::storage::telemetry::TelemetryEntry>>,
+        )>,
+    > {
+        self.check_projection(projection)?;
+        super::telemetry::TelemetryReader::open_after(storage, self, page, projection, after)
+            .await?
+            .next_after()
+            .await
+    }
+
     pub async fn read_file(&self, file: &FileReference) -> Result<StorageFileReader> {
         let owned = if let Some(source) = &self.captured {
             source.outputs.iter().any(|output| &output.file == file)

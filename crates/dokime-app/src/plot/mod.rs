@@ -16,6 +16,7 @@ mod record_timing;
 /* === Re-Exports === */
 
 pub(crate) use payload::builtins;
+pub(crate) use payload::streamed::StreamedPlot;
 pub use payload::{
     BoxSummary, DownsampleTechnique, HistogramBin, HistogramSeries, HistogramStatistics,
     PlotAnalysis, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation,

@@ -363,7 +363,7 @@ impl Steady {
         )
     }
 
-    #[dokime::observer(interval_ms = 5, streams = ObserverStreams)]
+    #[dokime::observer(interval_ms = 50, streams = ObserverStreams)]
     async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
         let row = reading(ctx.resources())?;
         ctx.stream::<InputMeasurement>()

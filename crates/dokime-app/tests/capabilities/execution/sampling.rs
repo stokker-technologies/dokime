@@ -38,6 +38,13 @@ const PULSE_ROWS: u32 = 2_000;
 /// rows and the terminal capture exhausted its query time by the third case.
 const CASES: usize = 6;
 
+/// Rows one large case pushes: more than the report could hold as samples
+/// under its 32 MiB materialization budget.
+const LARGE_PULSE_ROWS: u32 = 20_000;
+
+/// Points the fixture's pulse plot declares it shows.
+const PULSE_DISPLAY_POINTS: u64 = 400;
+
 /// How much slower the last case may settle than the first. Work that grows
 /// with the store's history settles the sixth case several times slower.
 const GROWTH: u32 = 3;
@@ -58,6 +65,16 @@ const GROWTH: u32 = 3;
 
 /* === Private Functions === */
 async fn run_case(handle: &RuntimeHandle, label: &str) -> Duration {
+    run_case_execution(handle, label, Duration::from_secs(60))
+        .await
+        .0
+}
+
+async fn run_case_execution(
+    handle: &RuntimeHandle,
+    label: &str,
+    bound: Duration,
+) -> (Duration, dokime::core::TestExecutionId) {
     let suite = handle
         .test_suites()
         .await
@@ -84,7 +101,7 @@ async fn run_case(handle: &RuntimeHandle, label: &str) -> Duration {
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
     // A terminal capture refused by its query budget leaves the receipt
     // nonterminal for good, so the bound here is the failure, not a wait.
-    let phase = tokio::time::timeout(Duration::from_secs(60), async {
+    let phase = tokio::time::timeout(bound, async {
         loop {
             let receipt = handle
                 .run_request(&receipt.command_id)
@@ -121,7 +138,7 @@ async fn run_case(handle: &RuntimeHandle, label: &str) -> Duration {
         CriterionStatus::Passed,
         "{label}: the run was handed back every pulse row exactly once"
     );
-    settled
+    (settled, execution.test_execution_id)
 }
 
 /* === Tests === */
@@ -148,6 +165,41 @@ pub(crate) async fn paged_evidence_settles() {
         "the last case settled in {last:?} against the first case's {first:?}: \
          replay and terminal capture grew with the store's history ({settled:?})"
     );
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// one case far larger than the report budget seals a reduced plot over every row.
+pub(crate) async fn large_case_seals() {
+    let root = tempdir().unwrap();
+    let (mut runtime, handle) = started(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({ "pulse_rows": LARGE_PULSE_ROWS }),
+            )
+            .unwrap()]),
+    )
+    .await;
+    let (_, execution_id) =
+        run_case_execution(&handle, "pulse.large", Duration::from_secs(300)).await;
+    let html = crate::support::native::report(&handle, &execution_id).await;
+    let payload = crate::support::reports::parse(&html);
+    let series = &payload["case_runs"][0]["plots"]["fixture.checks.smoke.pulse"]["series"][0];
+    let points = series["points"]
+        .as_array()
+        .expect("the sealed plot carries its points");
+    assert!(
+        !points.is_empty() && points.len() as u64 <= PULSE_DISPLAY_POINTS,
+        "the sealed plot shows {} points against its declared {PULSE_DISPLAY_POINTS}",
+        points.len()
+    );
+    assert_eq!(
+        series["raw_points"],
+        serde_json::json!(LARGE_PULSE_ROWS),
+        "the plot was reduced from every captured row, none truncated"
+    );
+    assert_eq!(series["downsampled"], serde_json::json!(true));
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
