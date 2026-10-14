@@ -167,6 +167,9 @@
 /* Theme Values */
 
 :root {
+  /* The application menu bar: one thin row of menu titles above the shell,
+     28px on a desk and 40px at touch. */
+  --menu-bar-height: 1.75rem;
   --status-bar-height: 1.75rem;
   --settings-row-py: 0.75rem;
   /* The settings content column: one label width and one value measure so
@@ -178,12 +181,19 @@
   /* Live shell rhythm. Every shell region shares the same inset and gap so the
      sidebar, page bar and status bar read as one grid. */
   --nav-rail-width: 12.5rem;
-  /* The one contextual sidebar: 280px open, 56px collapsed to icons. */
-  --sidebar-width: 22rem;
+  /* The one contextual sidebar: a quarter of the window when open, never
+     wider than 352px nor narrower than its longest destination; 56px
+     collapsed to icons. */
+  --sidebar-width: clamp(14rem, 24vw, 22rem);
   --sidebar-width-collapsed: 3.5rem;
   --sidebar-indent: 0.75rem;
   /* The tree's own rhythm: 36px at every desktop density, 48px at touch. */
   --sidebar-row-height: 2.25rem;
+  /* The cycle explorer's one-line rows: 28px on a desk, 44px at touch, with
+     the same width for every trailing action column and one indent step. */
+  --tree-row-height: 1.75rem;
+  --tree-action-width: 1.5rem;
+  --tree-indent: 1rem;
   /* A bar is its control plus air above and below, and a bar's controls sit
      12px apart. Every bar that hosts a button — the page bar, the Cycles and
      Library filter rows, the evidence toolbar — reads these three, so none of
@@ -241,13 +251,17 @@
 /* Touch: 56px primary run controls, 48px for every other control, list row,
    and the status bar; 12px gaps; a 16px base; a 56px page bar. */
 :root[data-density="touch"] {
+  --menu-bar-height: 2.5rem;
   --status-bar-height: 3rem;
   --settings-row-py: 1rem;
   --settings-row-height: 3rem;
   --nav-rail-width: 6rem;
-  --sidebar-width: 24rem;
+  --sidebar-width: clamp(16rem, 28vw, 24rem);
   --sidebar-indent: 0.875rem;
   --sidebar-row-height: 3rem;
+  --tree-row-height: 2.75rem;
+  --tree-action-width: 2.75rem;
+  --tree-indent: 1.25rem;
   /* 48px control with 8px above and below. */
   --bar-control-height: 3rem;
   --bar-pad-y: 0.5rem;
@@ -320,6 +334,20 @@
     [class*="h-["]
   ) {
   height: var(--control-height);
+}
+
+/* A checkbox stays a box, but at touch it grows to 28px and its hit area to
+   44px around it, so a tablet operator can tick a prompt field. */
+:root[data-density="touch"] [data-slot="checkbox"] {
+  position: relative;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+:root[data-density="touch"] [data-slot="checkbox"]::after {
+  content: "";
+  position: absolute;
+  inset: -0.5rem;
 }
 
 :root[data-density="touch"] [data-slot="textarea"] {

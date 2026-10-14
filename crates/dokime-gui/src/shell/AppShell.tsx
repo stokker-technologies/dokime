@@ -19,9 +19,9 @@ import { useRuntimeStream } from "@/app/live/use-runtime-stream";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
-import { ApplicationMenu } from "@/shell/ApplicationMenu";
 import { ConsoleDrawer } from "@/shell/ConsoleDrawer";
 import { useFocusMode } from "@/shell/focus-mode";
+import { MenuBar } from "@/shell/MenuBar";
 import { PageChromeProvider, usePageChromeState } from "@/shell/page-chrome";
 import { useRouteCycleScope } from "@/shell/route-scope";
 import { Sidebar } from "@/shell/Sidebar";
@@ -58,13 +58,14 @@ const TOP_LEVEL = new Set(["/cycles", "/library", "/history", "/settings"]);
 /* === Components === */
 
 /**
- * The application frame: the one contextual sidebar, page bar, main region,
- * status bar. Left and right regions share one inset and one gap so the three
- * horizontal bands line up on the same grid.
+ * The application frame: the menu bar row across the top, then the one
+ * contextual sidebar, page bar and main region, then the status bar. Left and
+ * right regions share one inset and one gap so the horizontal bands line up on
+ * the same grid.
  *
  * `live` is the only switch. With it off the same frame carries a frozen
- * report: the same sidebar, page bar and status bar, holding what a file can
- * honestly hold. There is no second shell.
+ * report: the same menu bar, sidebar, page bar and status bar, holding what a
+ * file can honestly hold. There is no second shell.
  */
 export function AppShell(props: AppShellProps) {
   // The one live runtime subscription for the whole app. It invalidates the
@@ -88,9 +89,10 @@ export function AppShell(props: AppShellProps) {
 /**
  * The frame proper, inside the providers so it can read focus.
  *
- * Focus takes the page bar away and leaves the workspace header and the status
- * bar: the operator keeps the run controls and the connection, and gives up
- * only the chrome that names the page they can already see.
+ * Focus takes the page bar away and leaves the menu bar, the workspace header
+ * and the status bar: the operator keeps the run controls, the connection and
+ * the way back out of focus, and gives up only the chrome that names the page
+ * they can already see.
  */
 function AppFrame({ children, frozen }: { children: ReactNode; frozen: FrozenShell | null }) {
   const { focused, setFocused } = useFocusMode();
@@ -115,9 +117,12 @@ function AppFrame({ children, frozen }: { children: ReactNode; frozen: FrozenShe
 
   return (
     <div
-      className="fixed inset-0 grid h-dvh grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-background text-foreground"
+      className="fixed inset-0 grid h-dvh grid-rows-[var(--menu-bar-height)_minmax(0,1fr)_auto] overflow-hidden bg-background text-foreground"
       style={{ fontSize: "var(--shell-text-base)" }}
     >
+      {/* The menu bar spans the window above the sidebar, at its own height
+          token so the rows below never move when a menu opens. */}
+      {frozen ? <MenuBar generatedAt={frozen.generatedAt} live={false} /> : <MenuBar />}
       <div className="flex min-h-0 min-w-0">
         {frozen ? (
           <Sidebar
@@ -159,10 +164,9 @@ function PageBar({ frozen }: { frozen: FrozenShell | null }) {
 
   return (
     /* The bar is its controls plus air: `--bar-pad-y` above and below a
-       `--bar-control-height` control, `--bar-gap` between the page action and
-       the Application menu, and the shell inset at the right edge. It sits on
-       the content surface with no rule of its own: the title belongs to the
-       page below it. */
+       `--bar-control-height` control, `--bar-gap` between page actions, and the
+       shell inset at the right edge. It sits on the content surface with no
+       rule of its own: the title belongs to the page below it. */
     <header
       className="flex shrink-0 items-center justify-between gap-[var(--bar-gap)] px-[var(--shell-inset)] py-[var(--bar-pad-y)]"
       style={{ height: "var(--page-bar-height)" }}
@@ -180,7 +184,6 @@ function PageBar({ frozen }: { frozen: FrozenShell | null }) {
           never shifts between routes. */}
       <div className="flex min-w-32 shrink-0 items-center justify-end gap-[var(--bar-gap)] [&_[data-slot=button]:not([class*='h-['])]:h-[var(--bar-control-height)]">
         {frozen ? null : chrome.actions}
-        {frozen ? null : <ApplicationMenu />}
       </div>
     </header>
   );

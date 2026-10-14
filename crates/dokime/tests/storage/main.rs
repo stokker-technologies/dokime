@@ -571,6 +571,15 @@ fn recovery_contract() {
         );
     }
     {
+        eprintln!("Scenario: sqlite::production::late_checkpoints_settle");
+        run_scenario(
+            sqlite::production::late_checkpoints_settle,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: sqlite::production::recovery_charges_limits");
         run_scenario(
             sqlite::production::recovery_charges_limits,

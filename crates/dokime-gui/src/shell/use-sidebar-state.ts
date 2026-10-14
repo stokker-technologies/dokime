@@ -15,13 +15,19 @@
 
 /* === External Imports === */
 
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 /* === Local Imports === */
 
 import { useFocusMode } from "@/shell/focus-mode";
 import { useShellDensity } from "@/shell/use-shell-density";
 import { sidebarStartsCollapsed, useUiStore } from "@/stores/ui-store";
+
+/* === Constants === */
+
+/* Below this the open sidebar would take more than a third of the window, so
+   a window this narrow starts on the icon rail unless the operator opened it. */
+const NARROW_WINDOW = "(max-width: 56rem)";
 
 /* === Types === */
 
@@ -32,17 +38,31 @@ export type SidebarState = {
   width: string;
 };
 
+/* === Private Functions === */
+
+function readNarrow(): boolean {
+  return typeof window !== "undefined" && window.matchMedia(NARROW_WINDOW).matches;
+}
+
+function observeNarrow(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  const query = window.matchMedia(NARROW_WINDOW);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
 /* === Public Functions === */
 
 export function useSidebarState(): SidebarState {
   const density = useShellDensity();
+  const narrow = useSyncExternalStore(observeNarrow, readNarrow, () => false);
   const collapsedByDensity = useUiStore((state) => state.sidebarCollapsed);
   const setUiState = useUiStore((state) => state.setUiState);
   const { focused } = useFocusMode();
 
   // Focus borrows a collapsed sidebar for as long as it lasts; the operator's
   // own choice is untouched and comes back when they leave.
-  const chosen = sidebarStartsCollapsed(collapsedByDensity, density);
+  const chosen = sidebarStartsCollapsed(collapsedByDensity, density, narrow);
   const collapsed = chosen || focused;
 
   const toggle = useCallback(() => {

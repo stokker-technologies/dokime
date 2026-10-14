@@ -49,6 +49,12 @@ const PULSE_DISPLAY_POINTS: u64 = 400;
 /// with the store's history settles the sixth case several times slower.
 const GROWTH: u32 = 3;
 
+/// Cases of one cycle whose terminal captures seal concurrently.
+const LOGGED_CASES: usize = 5;
+
+/// Lines each logged case writes into its sidecar stream log.
+const LOGGED_LINES: u32 = 3;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -165,6 +171,108 @@ pub(crate) async fn paged_evidence_settles() {
         "the last case settled in {last:?} against the first case's {first:?}: \
          replay and terminal capture grew with the store's history ({settled:?})"
     );
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// a multi-case cycle whose every case logs seals its outputs and goes terminal.
+pub(crate) async fn logged_cycle_terminal() {
+    let root = tempdir().unwrap();
+    let (mut runtime, handle) = started(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({ "log_lines": LOGGED_LINES }),
+            )
+            .unwrap()]),
+    )
+    .await;
+    let suite = handle
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|suite| suite.source == "fixture-suites")
+        .unwrap()
+        .suite;
+    let case = materialize_cases("fixture.checks", &suite).remove(0);
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite,
+                metadata: Metadata::new(Identifier::new("logged.cycle").unwrap(), "Logged", None),
+                cases: vec![case; LOGGED_CASES],
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let mut watch = handle.watch_state();
+    let receipt = handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+
+    // Each case's sealed log is produced while sibling captures flush, so a
+    // checkpoint captured before a seal persists after it. That must not fail
+    // terminal publication and leave the cycle running with every case passed.
+    let terminal = tokio::time::timeout(
+        Duration::from_secs(120),
+        watch.wait_until(|snapshot| {
+            snapshot.state().cycles.get(&cycle_id).is_some_and(|cycle| {
+                !matches!(
+                    cycle.lifecycle,
+                    CycleStatus::Ready
+                        | CycleStatus::Running
+                        | CycleStatus::Paused
+                        | CycleStatus::Stopping
+                )
+            })
+        }),
+    )
+    .await
+    .expect("the state watch reports the cycle terminal")
+    .expect("the state watch stays open");
+    let cycle = &terminal.state().cycles[&cycle_id];
+    assert_eq!(cycle.lifecycle, CycleStatus::Completed);
+    let phase = tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            let receipt = handle
+                .run_request(&receipt.command_id)
+                .await
+                .unwrap()
+                .unwrap();
+            if receipt.summary.phase.terminal() {
+                break receipt.summary.phase;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the run request records its terminal provider state");
+    assert_eq!(phase, RunPhase::Completed);
+    let executions = handle
+        .cycles()
+        .await
+        .into_iter()
+        .find(|cycle| cycle.test_cycle_id == cycle_id)
+        .unwrap()
+        .test_executions;
+    assert_eq!(executions.len(), LOGGED_CASES);
+    for execution in &executions {
+        assert_eq!(execution.status, ExecutionStatus::Passed);
+        crate::support::native::checkpoint(&handle, &execution.test_execution_id).await;
+        let files = handle
+            .execution_files(&execution.test_execution_id)
+            .await
+            .unwrap();
+        assert!(
+            files
+                .iter()
+                .any(|file| file.relative_path.ends_with("stream.log") && file.size_bytes > 0),
+            "every logged case seals its sidecar stream log: {files:?}"
+        );
+    }
     drop(handle);
     runtime.shutdown().await.unwrap();
 }

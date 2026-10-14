@@ -22,7 +22,7 @@ import { useNavigate } from "@tanstack/react-router";
 /* === Local Imports === */
 
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
-import { PluginRow } from "@/features/settings/plugins/PluginRow";
+import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 
 /* === Public Functions === */
@@ -66,23 +66,17 @@ export function PluginPrograms({ programs }: { programs: RuntimeInstalledPluginR
         candidate.owner.plugin_id === program.plugin_id,
     )?.section_id ?? null;
 
-  return (
-    <ul className="divide-y overflow-hidden rounded-lg border bg-card">
-      {programs.map((program) => {
-        const pluginId = sectionOf(program);
-        return (
-          <PluginRow
-            key={programKey(program)}
-            name={program.label}
-            onOpenSettings={
-              pluginId
-                ? () => void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" })
-                : undefined
-            }
-            source={programSource(program)}
-          />
-        );
-      })}
-    </ul>
-  );
+  const rows = programs.map((program): PluginTableRow => {
+    const pluginId = sectionOf(program);
+    return {
+      key: programKey(program),
+      name: program.label,
+      onOpenSettings: pluginId
+        ? () => void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" })
+        : undefined,
+      source: programSource(program),
+    };
+  });
+
+  return <PluginTable label="Plugin Programs" rows={rows} />;
 }

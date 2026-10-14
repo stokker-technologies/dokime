@@ -121,14 +121,14 @@ export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[]
 
   return [
     {
-      emptyText: "Nothing is waiting on you.",
+      emptyText: "Nothing Is Waiting On You",
       id: "attention",
       rows: attention,
       title: "Needs Attention",
     },
-    { emptyText: "No cycle is running.", id: "active", rows: active, title: "Active" },
+    { emptyText: "No Cycle Is Running", id: "active", rows: active, title: "Active" },
     {
-      emptyText: filtered ? "No cycles match this filter." : "No cycles have been loaded yet.",
+      emptyText: filtered ? "No Cycles Match This Filter" : "No Cycles Loaded Yet",
       id: "recent",
       rows: recent,
       title: "Recent",

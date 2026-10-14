@@ -11,13 +11,24 @@
 
 import type { RuntimeAppearanceFrame } from "@/lib/appearance";
 import { type Brand, defaultBrand } from "@/lib/brand";
-import { applyThemeStylesheet, applyThemeVariables } from "@/lib/theme";
+import {
+  applyThemeStylesheet,
+  applyThemeVariables,
+  type ResolvedTheme,
+  type ThemeModePreference,
+} from "@/lib/theme";
 import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
 
 /* === Report appearance ===
    The generated report carries the captured runtime appearance frame. Applying it here
    keeps the frozen report under the theme contract instead of reverting
    to default branding. */
+
+/* === Constants === */
+
+/* The family the payload named, kept so a mode change can re-materialize its
+   variables for the other scheme. */
+let reportThemeFamily: ReturnType<typeof resolveThemeFamily> = null;
 
 /* === Public Functions === */
 
@@ -32,17 +43,10 @@ export function applyReportAppearance(appearance: unknown): Brand {
     return defaultBrand;
   }
 
-  const active = resolveThemeFamily(frame.themes ?? [], { activeThemeId: frame.active_theme });
-  if (active) {
-    applyThemeStylesheet(active.stylesheet);
-    const mode =
-      typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-    if (mode === "dark") {
-      document.documentElement.classList.add("dark");
-    }
-    applyThemeVariables(materializeThemeFamilyVariables(active, mode));
+  reportThemeFamily = resolveThemeFamily(frame.themes ?? [], { activeThemeId: frame.active_theme });
+  if (reportThemeFamily) {
+    applyThemeStylesheet(reportThemeFamily.stylesheet);
+    applyReportColorMode("system");
   }
 
   if (frame.app_name?.trim()) {
@@ -52,7 +56,30 @@ export function applyReportAppearance(appearance: unknown): Brand {
   return brandFromFrame(frame);
 }
 
+/**
+ * Render the report in one color mode. `system` follows the viewer's scheme
+ * at the moment of the call; the report holds no preference store.
+ */
+export function applyReportColorMode(preference: ThemeModePreference): ResolvedTheme {
+  const mode: ResolvedTheme = preference === "system" ? systemColorMode() : preference;
+  const root = document.documentElement;
+  root.classList.toggle("dark", mode === "dark");
+  root.classList.toggle("light", mode === "light");
+  root.style.colorScheme = mode;
+  if (reportThemeFamily) {
+    applyThemeVariables(materializeThemeFamilyVariables(reportThemeFamily, mode));
+  }
+  return mode;
+}
+
 /* === Private Functions === */
+
+function systemColorMode(): ResolvedTheme {
+  return typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
 
 function appearanceFrame(value: unknown): RuntimeAppearanceFrame | null {
   if (

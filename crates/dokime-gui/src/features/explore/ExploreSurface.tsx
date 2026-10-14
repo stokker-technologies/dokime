@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { useExploreHistoryQuery } from "@/features/explore/explore-queries";
 import { HistoryComparisonView } from "@/features/explore/HistoryComparisonView";
 import { HistoryLibrary } from "@/features/explore/HistoryLibrary";
+import type { ExecutionBrowsePage } from "@/lib/types/view-contracts";
 import { usePageChrome } from "@/shell/page-chrome";
 import { type ExploreTarget, exploreEntryKey } from "./explore-contracts";
 
@@ -74,25 +75,7 @@ export function ExploreSurface({
         </p>
       ) : null}
       {cyclesQuery.coverage && !cyclesQuery.coverage.discovery_complete ? (
-        <div className="border-b px-[var(--shell-inset)] py-[var(--shell-gap)]" role="status">
-          History is incomplete. Some sources or executions could not be read.
-          <details>
-            <summary>Discovery Details</summary>
-            {[
-              ...new Set(
-                cyclesQuery.coverage.issues.map(
-                  (issue) => `${issue.source ?? "Storage"}: ${issue.message}`,
-                ),
-              ),
-            ].map((message) => (
-              <p key={message}>{message}</p>
-            ))}
-            <p>
-              {cyclesQuery.coverage.conflicts.length + cyclesQuery.coverage.omitted_conflicts}{" "}
-              conflicting execution identities.
-            </p>
-          </details>
-        </div>
+        <IncompleteHistoryNotice coverage={cyclesQuery.coverage} />
       ) : null}
       {comparing ? (
         <HistoryComparisonView cycles={selectedCycles} onBack={onBack} />
@@ -119,6 +102,42 @@ export function ExploreSurface({
             {cyclesQuery.isFetchingNextPage ? "Loading…" : "Load More Executions"}
           </Button>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+/* === Private Components === */
+
+/**
+ * One quiet line above the list, and the reasons only when there are any: a
+ * source that could not be read, or executions claiming the same identity.
+ */
+function IncompleteHistoryNotice({ coverage }: { coverage: ExecutionBrowsePage }) {
+  const reasons = [
+    ...new Set(coverage.issues.map((issue) => `${issue.source ?? "Storage"}: ${issue.message}`)),
+  ];
+  const conflicts = coverage.conflicts.length + coverage.omitted_conflicts;
+  if (conflicts > 0) {
+    reasons.push(
+      conflicts === 1
+        ? "1 execution identity is claimed by more than one source."
+        : `${conflicts} execution identities are claimed by more than one source.`,
+    );
+  }
+
+  return (
+    <div
+      className="grid gap-1 border-b px-[var(--shell-inset)] py-[var(--shell-gap)] text-sm text-muted-foreground"
+      role="status"
+    >
+      <p>History is incomplete: some sources or executions could not be read.</p>
+      {reasons.length ? (
+        <ul className="list-disc pl-5">
+          {reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );

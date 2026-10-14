@@ -172,12 +172,13 @@ function storageKey(name: string): string {
 
 /* === Public Functions === */
 
-/** Collapsed unless the operator said otherwise; a touch surface starts narrow. */
+/** The operator's choice wins; without one, a touch surface or a narrow window starts collapsed. */
 export function sidebarStartsCollapsed(
   collapsed: Partial<Record<DensityPreference, boolean>>,
   density: DensityPreference,
+  narrow: boolean,
 ): boolean {
-  return collapsed[density] ?? density === "touch";
+  return collapsed[density] ?? (density === "touch" || narrow);
 }
 
 export const useUiStore = create<UiStore>()(

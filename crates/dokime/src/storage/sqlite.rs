@@ -29,6 +29,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
+    time::{Duration, Instant},
 };
 // Third Party Imports
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
@@ -39,6 +40,10 @@ use tokio::sync::Mutex;
 pub const SCHEMA_VERSION: i64 = 1;
 pub const DATA_FORMAT: &str = data::FORMAT;
 const SQLITE_MEMORY_BYTES: usize = 32 * 1024 * 1024;
+// A runtime being replaced releases the root as it exits; a successor waits
+// this long for that before calling the root owned.
+const LEASE_WAIT: Duration = Duration::from_secs(5);
+const LEASE_POLL: Duration = Duration::from_millis(50);
 
 /* === Macros === */
 
@@ -129,10 +134,7 @@ impl State {
                 .read(true)
                 .write(true)
                 .open(root.join("local.lock"))?;
-            lease.try_lock().map_err(|error| match error {
-                std::fs::TryLockError::WouldBlock => Error::Owned,
-                std::fs::TryLockError::Error(error) => Error::Io(error),
-            })?;
+            acquire_lease(&lease)?;
 
             // Recovery Shares `local.sqlite`; An Older Separate Journal Is Never Merged.
             if root.join("recovery.sqlite").exists() {
@@ -362,6 +364,22 @@ pub fn inspect(root: &Path) -> Result<Option<Baseline>, Error> {
 }
 
 /* === Private Functions === */
+// Takes the root's exclusive lease, waiting a bounded time for a departing
+// owner to let go. A lease still held after that belongs to a live runtime.
+fn acquire_lease(lease: &File) -> Result<(), Error> {
+    let deadline = Instant::now() + LEASE_WAIT;
+    loop {
+        match lease.try_lock() {
+            Ok(()) => return Ok(()),
+            Err(std::fs::TryLockError::Error(error)) => return Err(Error::Io(error)),
+            Err(std::fs::TryLockError::WouldBlock) if Instant::now() < deadline => {
+                std::thread::sleep(LEASE_POLL);
+            }
+            Err(std::fs::TryLockError::WouldBlock) => return Err(Error::Owned),
+        }
+    }
+}
+
 fn check_version(connection: &Connection) -> Result<(), Error> {
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version == SCHEMA_VERSION {

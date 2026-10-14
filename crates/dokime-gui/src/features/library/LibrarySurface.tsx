@@ -57,8 +57,13 @@ type OpenTemplate = {
 const ROW_COLUMNS =
   "grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-x-[var(--shell-gap)] gap-y-0.5";
 
-/* The suite label sits after the chevron (size-4 + gap-2); its identifier
-   starts on the label's text edge, not under the chevron. */
+/* Within the title column the name takes the width and the identifier sits
+   right-aligned on the same row. */
+const TITLE_COLUMNS =
+  "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-[var(--shell-gap)]";
+
+/* A template's title column starts on the suite label's text edge (after the
+   chevron, size-4 + gap-2), not under the chevron. */
 const SUITE_IDENTIFIER_INSET = "pl-6";
 
 /* === Components === */
@@ -154,39 +159,36 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
               const isExpanded = expanded.has(suite.suite_id) || hasSearch;
               return (
                 <li className="grid gap-2" key={suite.suite_id}>
-                  {/* Two lines on shared columns: label, template count, tags;
-                      then identifier and plugin provenance beneath them. */}
+                  {/* Shared columns: label with its identifier right-aligned,
+                      template count, tags; plugin provenance beneath. */}
                   <div className={ROW_COLUMNS}>
-                    <button
-                      className="flex min-h-[var(--control-height)] min-w-0 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() =>
-                        setExpanded((current) => {
-                          const next = new Set(current);
-                          if (!next.delete(suite.suite_id)) {
-                            next.add(suite.suite_id);
-                          }
-                          return next;
-                        })
-                      }
-                      title={suite.suite_id}
-                      type="button"
-                    >
-                      <ChevronRight
-                        aria-hidden
-                        className={`size-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                      />
-                      <span className="truncate font-medium">{suite.name}</span>
-                    </button>
+                    <div className={TITLE_COLUMNS}>
+                      <button
+                        className="flex min-h-[var(--control-height)] min-w-0 items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() =>
+                          setExpanded((current) => {
+                            const next = new Set(current);
+                            if (!next.delete(suite.suite_id)) {
+                              next.add(suite.suite_id);
+                            }
+                            return next;
+                          })
+                        }
+                        type="button"
+                      >
+                        <ChevronRight
+                          aria-hidden
+                          className={`size-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                        />
+                        <span className="truncate font-medium">{suite.name}</span>
+                      </button>
+                      <CatalogIdentifier subject="suite" value={suite.suite_id} />
+                    </div>
                     <Badge className="justify-self-start" variant="outline">
                       {templateCountLabel(members.length)}
                     </Badge>
                     <SuiteTags tags={suite.tags} />
                     <span />
-                    <CatalogIdentifier
-                      className={`col-start-1 ${SUITE_IDENTIFIER_INSET}`}
-                      subject="suite"
-                      value={suite.suite_id}
-                    />
                     <SuiteProvenance
                       className="col-start-3"
                       plugin={plugins.get(suite.source)}
@@ -202,35 +204,25 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                           data-testid={`suite-template-${templateSelectionId(template)}`}
                           key={selectionDraftKey(suite.suite_id, templateSelectionId(template))}
                         >
-                          {/* The whole row opens the dialog; Configure names
-                              the same outcome for anyone scanning for a verb. */}
+                          {/* The same columns as the suite row above it, so
+                              identifiers, counts and tags line up down the
+                              list. The title opens the dialog. */}
                           <div className={ROW_COLUMNS}>
-                            <button
-                              className="min-h-[var(--control-height)] min-w-0 truncate text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              onClick={() => setOpenTemplate({ suite, template })}
-                              title={template.identifier ?? undefined}
-                              type="button"
-                            >
-                              {template.name}
-                            </button>
+                            <div className={`${TITLE_COLUMNS} ${SUITE_IDENTIFIER_INSET}`}>
+                              <button
+                                className="min-h-[var(--control-height)] min-w-0 truncate text-left font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => setOpenTemplate({ suite, template })}
+                                type="button"
+                              >
+                                {template.name}
+                              </button>
+                              {template.identifier ? (
+                                <CatalogIdentifier subject="template" value={template.identifier} />
+                              ) : null}
+                            </div>
                             <span />
                             <SuiteTags tags={template.tags} />
-                            <Button
-                              className="h-[var(--control-height)]"
-                              onClick={() => setOpenTemplate({ suite, template })}
-                              size="sm"
-                              type="button"
-                              variant="outline"
-                            >
-                              Configure
-                            </Button>
-                            {template.identifier ? (
-                              <CatalogIdentifier
-                                className="col-start-1"
-                                subject="template"
-                                value={template.identifier}
-                              />
-                            ) : null}
+                            <span />
                           </div>
                           {/* One paragraph, then the full-width timeline. */}
                           {template.description ? (
@@ -241,6 +233,19 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                           {template.steps.length ? (
                             <TemplateStepTimeline template={template} />
                           ) : null}
+                          {/* The action closes the block: Configure names the
+                              outcome for anyone scanning for a verb. */}
+                          <div className="flex justify-end">
+                            <Button
+                              className="h-[var(--control-height)]"
+                              onClick={() => setOpenTemplate({ suite, template })}
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              Configure
+                            </Button>
+                          </div>
                         </li>
                       ))}
                     </ul>

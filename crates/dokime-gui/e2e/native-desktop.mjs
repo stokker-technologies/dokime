@@ -1114,9 +1114,9 @@ async function startupJourney(session, notes) {
     assert.ok(hasText(body, heading), `Cycles home must render "${heading}"`);
   }
   for (const empty of [
-    "Nothing is waiting on you.",
-    "No cycle is running.",
-    "No cycles have been loaded yet.",
+    "Nothing Is Waiting On You",
+    "No Cycle Is Running",
+    "No Cycles Loaded Yet",
   ]) {
     assert.ok(hasText(body, empty), `An empty group must state "${empty}"`);
   }
@@ -1366,14 +1366,14 @@ async function cycleJourney(session, cycleId) {
     await session.exists("button", "Cycle Actions"),
     "The header must carry the overflow menu",
   );
-  /* Run Queued is the redesign's promise on a Ready cycle. Two things can
+  /* Start Cycle is the redesign's promise on a Ready cycle. Two things can
      deny it: a header that does not offer it, and a backend that refuses the
      admission. Either way the cases still have to run for everything behind
      them to be covered, so the gate states what happened and starts the work
      from the row menus instead. */
   let admitted = false;
-  if (await session.exists("button", "Run Queued")) {
-    await session.clickNamed("button", "Run Queued");
+  if (await session.exists("button", "Start Cycle")) {
+    await session.clickNamed("button", "Start Cycle");
     /* The admission's own answer, before anything waits on its effect: the
        workspace toasts every command's outcome with the backend's own text,
        and a refused run is a refusal to state here rather than five silent
@@ -1391,7 +1391,7 @@ async function cycleJourney(session, cycleId) {
     if (!admitted) {
       defect(
         "cycle/run-queued",
-        `Run Queued did not start the cycle. The application said: ${
+        `Start Cycle did not start the cycle. The application said: ${
           normalize(answer) || "nothing at all"
         }. Started the cases from their row menus instead.`,
       );
@@ -1399,7 +1399,7 @@ async function cycleJourney(session, cycleId) {
   } else {
     defect(
       "cycle/run-queued",
-      `Run Queued is absent on a Ready cycle whose header reads "${
+      `Start Cycle is absent on a Ready cycle whose header reads "${
         /(\d+ of \d+ cases finished)/.exec(normalize(header))?.[1] ?? "n of n cases finished"
       }". Started the cases from their row menus instead.`,
     );
@@ -1415,7 +1415,7 @@ async function cycleJourney(session, cycleId) {
     }
     assert.ok(
       started.length > 0,
-      "Run Case on a row must start a case when Run Queued does not run one",
+      "Run Case on a row must start a case when Start Cycle does not run one",
     );
     if (started.length < 2) {
       defect(
@@ -1809,8 +1809,8 @@ async function executionStopJourney(session, cycleId) {
     },
     30000,
   );
-  await until("Run Queued on the copy", () => session.exists("button", "Run Queued"), 30000);
-  await session.clickNamed("button", "Run Queued");
+  await until("Start Cycle on the copy", () => session.exists("button", "Start Cycle"), 30000);
+  await session.clickNamed("button", "Start Cycle");
 
   // === Select The Running Execution === //
 
@@ -1823,13 +1823,52 @@ async function executionStopJourney(session, cycleId) {
         const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
           .find((candidate) => /\bRunning\b/.test(candidate.innerText));
         if (!row) return null;
-        row.querySelector('button').click();
-        return row.innerText.split('\n')[0];
+        const label = row.querySelector('button');
+        label.click();
+        return label.innerText.split('\n')[0];
       `);
       return running !== null;
     },
     120000,
   );
+
+  // === An Explicit Selection Beats Follow Active === //
+
+  /* Selecting a queued execution while another runs must stay there: Follow
+     Active only moves a selection that is following. The queued attempt shows
+     its planned parameters. Selecting the cycle node selects the cycle. */
+  const queued = await session.execute(`
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => /\bQueued\b/.test(candidate.innerText));
+    if (!row) return null;
+    row.querySelector('button').click();
+    return row.dataset.executionId ?? null;
+  `);
+  if (queued) {
+    await delay(3000);
+    assert.equal(
+      (await session.location()).searchParams.get("executionId"),
+      queued,
+      "A queued execution the operator selected must stay selected while another runs",
+    );
+    assert.ok(
+      hasText(await session.text(), "This case has not run yet"),
+      "A queued execution shows its planned parameters",
+    );
+  }
+  await session.execute(
+    "document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();",
+  );
+  await until(
+    "the cycle selection",
+    async () => (await session.location()).searchParams.get("view") === "cycle",
+    10000,
+  );
+  await session.execute(`
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => /\bRunning\b/.test(candidate.innerText));
+    row?.querySelector('button').click();
+  `);
   assert.ok(
     await session.exists("button", "Stop Cycle"),
     "The cycle-level control must say it stops the cycle",
@@ -1904,13 +1943,13 @@ async function cyclesHomeJourney(session) {
   await session.type(filter, "zzz-no-such-cycle");
   await until(
     "filter excludes every row",
-    async () => hasText(await session.text(), "No cycles match this filter."),
+    async () => hasText(await session.text(), "No Cycles Match This Filter"),
     20000,
   );
   await session.type(filter, "");
   await until(
     "filter cleared",
-    async () => !hasText(await session.text(), "No cycles match this filter."),
+    async () => !hasText(await session.text(), "No Cycles Match This Filter"),
     20000,
   );
   assert.ok(
@@ -2277,7 +2316,10 @@ async function reportJourney(session, cycleId) {
     /Frozen Report .{0,3} Generated/.test(normalize(report)),
     "The report must state when it was generated",
   );
-  assert.ok(!/Run Queued|Pause|Stop\b/.test(report), "A frozen report renders no run controls");
+  assert.ok(
+    !/\bStart\b|Run Again|Pause|Stop\b/.test(report),
+    "A frozen report renders no run controls",
+  );
   assert.ok(hasText(report, "Records"), "The report renders its records section");
 }
 

@@ -493,15 +493,25 @@ export function ExpressionReferencePopover() {
           <CircleHelp aria-hidden />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[24rem]" data-testid="expression-reference">
+      <PopoverContent
+        align="end"
+        className="w-[min(38rem,calc(100vw-2rem))]"
+        data-testid="expression-reference"
+      >
         <div className="grid gap-2">
           <p className="font-heading text-sm font-semibold">Expression Reference</p>
-          <dl className="grid grid-cols-[auto_auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 text-xs">
+          {/* Three content-sized columns: a result list reads as one line, never
+              one number per row. */}
+          <dl className="grid grid-cols-[auto_auto_auto] items-baseline gap-x-4 gap-y-1 text-xs">
             {EXPRESSION_REFERENCE.map((entry) => (
               <div className="contents" key={entry.syntax}>
-                <dt className="font-mono text-foreground">{entry.syntax}</dt>
-                <dd className="font-mono text-muted-foreground">{entry.example}</dd>
-                <dd className="font-mono tabular-nums text-muted-foreground">{entry.result}</dd>
+                <dt className="font-mono whitespace-nowrap text-foreground">{entry.syntax}</dt>
+                <dd className="font-mono whitespace-nowrap text-muted-foreground">
+                  {entry.example}
+                </dd>
+                <dd className="font-mono whitespace-nowrap tabular-nums text-muted-foreground">
+                  {entry.result}
+                </dd>
               </div>
             ))}
           </dl>

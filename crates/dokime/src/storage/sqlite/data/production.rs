@@ -110,16 +110,33 @@ impl State {
                     history: requested.session.history.clone(),
                     id: requested.session.id.clone(),
                 };
-                let (generation, phase, prior) =
-                    checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
-                if phase != FilePhase::Producing
-                    || requested.metadata != prior.metadata
+                // A Snapshot Captured While Producing Can Persist After A Longer
+                // Save, Completion, Abandonment Or Deletion. Durable State Already
+                // Covers That Prefix, So The Late Checkpoint Is A No-Op.
+                saved(connection)?.history.check(&file.history)?;
+                if deleted(connection, file.id.as_str())? {
+                    return Ok(());
+                }
+                let (generation, phase, prior) = stored_checkpoint(connection, &file)?
+                    .ok_or(Error::Data("unknown production"))?;
+                if requested.metadata != prior.metadata
                     || requested.session.generation != generation
-                    || requested.length < prior.length
                 {
-                    return Err(Error::Conflict(
-                        "checkpoint regresses, is fenced or is terminal",
-                    ));
+                    return Err(Error::Conflict("checkpoint identity differs or is fenced"));
+                }
+                match phase {
+                    FilePhase::Producing if requested.length < prior.length => return Ok(()),
+                    FilePhase::Producing => {}
+                    FilePhase::Finished => {
+                        let finished = files::stored_metadata(connection, &file.id)?
+                            .and_then(|(_, reference)| reference)
+                            .ok_or(Error::Corrupt("finished production has no reference"))?;
+                        if requested.length > finished.length {
+                            return Err(Error::Conflict("checkpoint exceeds finished production"));
+                        }
+                        return Ok(());
+                    }
+                    FilePhase::Abandoned => return Ok(()),
                 }
                 if requested.length == prior.length && requested.hash_state != prior.hash_state {
                     return Err(Error::Conflict("checkpoint retry differs"));
@@ -332,12 +349,7 @@ impl State {
 
 /* === Public Functions === */
 pub(super) fn check_available(connection: &Connection, id: &str) -> Result<(), Error> {
-    let deleted: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM storage_deleted_files WHERE id=?1)",
-        [id],
-        |row| row.get(0),
-    )?;
-    if deleted {
+    if deleted(connection, id)? {
         return Err(Error::Conflict("file identity has been deleted"));
     }
     Ok(())
@@ -363,6 +375,14 @@ pub(super) fn checkpoint(
 ) -> Result<Option<(u64, FilePhase, FileCheckpoint)>, Error> {
     check_available(connection, file.id.as_str())?;
     stored_checkpoint(connection, file)
+}
+
+fn deleted(connection: &Connection, id: &str) -> Result<bool, Error> {
+    Ok(connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM storage_deleted_files WHERE id=?1)",
+        [id],
+        |row| row.get(0),
+    )?)
 }
 
 pub(super) fn stored_checkpoint(

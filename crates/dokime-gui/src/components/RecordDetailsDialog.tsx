@@ -104,6 +104,9 @@ export function RecordDetailsDialog({ selected, onClose }: RecordDetailsDialogPr
               <RecordMeta label="Timestamp" value={absoluteTimestampLabel(record.timestamp)} />
               <RecordMeta label="Session" value={record.session_id ?? "-"} />
               <RecordMeta label="Record ID" value={record.record_id} />
+              <RecordMeta label="Cycle" value={record.scope?.test_cycle_id ?? "-"} />
+              <RecordMeta label="Execution" value={record.scope?.test_execution_id ?? "-"} />
+              <RecordMeta label="Case" value={record.scope?.test_case_id ?? "-"} />
             </dl>
 
             {detailEntries.length ? (
