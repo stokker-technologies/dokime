@@ -7,18 +7,31 @@
  * ***
  */
 
+/* Streams the console's records into the session-scoped buffer store.
+ *
+ * The hook owns the subscription, never the rows: a route change that moves
+ * the drawer to another scope only swaps which buffer it reads and resumes,
+ * and closing the drawer stops the stream without forgetting what it showed.
+ */
+
 /* === External Imports === */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
+import { useStore } from "zustand";
 
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
 import type { HubRecord } from "@/lib/types";
+import {
+  consoleBufferKey,
+  createConsoleRecordsStore,
+  EMPTY_CONSOLE_BUFFER,
+} from "./console-buffer";
 
 /* === Constants === */
-const RETAINED_RECORDS = 5_000;
-const RETAINED_BYTES = 2 * 1024 * 1024;
-const NO_RECORDS: HubRecord[] = [];
+
+/** One per window: the console's rows outlive every route. */
+export const consoleRecordsStore = createConsoleRecordsStore();
 
 /* === Hooks === */
 export function useConsoleRecords({
@@ -31,24 +44,31 @@ export function useConsoleRecords({
   enabled: boolean;
   executionId: string | null;
   level: TraceLevel;
-}): { dropped: bigint; records: HubRecord[]; error: string | null } {
+}): { clear: () => void; dropped: bigint; records: HubRecord[]; error: string | null } {
   const session = useNativeSessionOptional();
-  const [records, setRecords] = useState<HubRecord[]>(NO_RECORDS);
-  const [dropped, setDropped] = useState(0n);
-  const [error, setError] = useState<string | null>(null);
+  const generation = session?.identity.generation ?? null;
+  const key = consoleBufferKey({ cycleId, executionId, level });
+  const buffer = useStore(
+    consoleRecordsStore,
+    (state) => state.buffers.get(key) ?? EMPTY_CONSOLE_BUFFER,
+  );
 
   useEffect(() => {
-    setRecords(NO_RECORDS);
-    setDropped(0n);
-    setError(null);
+    consoleRecordsStore.getState().bindSession(generation);
+  }, [generation]);
+
+  useEffect(() => {
     if (!enabled || !session) return undefined;
+    const store = consoleRecordsStore.getState;
+    store().bindSession(session.identity.generation);
+    const held = store().buffers.get(key) ?? EMPTY_CONSOLE_BUFFER;
     let active = true;
     let retry: number | undefined;
     let stream: Awaited<ReturnType<typeof openTraceStream>> | undefined;
-    let afterSequence = 0n;
-    let epoch: string | undefined;
+    let afterSequence = held.afterSequence;
+    let epoch = held.epoch;
     let reconnectDelay = 1_000;
-    let priorDropped = 0n;
+    let priorDropped = held.dropped;
     let streamDropped = 0n;
 
     const connect = async () => {
@@ -74,14 +94,10 @@ export function useConsoleRecords({
           afterSequence = page.nextSequence;
           epoch = page.epoch;
           streamDropped = page.dropped;
-          setDropped(priorDropped + streamDropped);
-          setError(null);
           reconnectDelay = 1_000;
-          if (page.records.length > 0) {
-            setRecords((current) => retained([...current, ...page.records]));
-          }
+          store().receive(key, page, priorDropped + streamDropped);
         }
-        if (active) setError("Trace stream ended; reconnecting.");
+        if (active) store().setError(key, "Trace stream ended; reconnecting.");
       } catch (failure) {
         if (!active || !session.identity.isCurrent()) return;
         const code = grpcCode(failure);
@@ -90,17 +106,16 @@ export function useConsoleRecords({
           epoch = undefined;
           priorDropped = 0n;
           streamDropped = 0n;
-          setRecords(NO_RECORDS);
-          setDropped(0n);
-          setError("Trace history expired; replaying retained events.");
+          store().rewind(key);
+          store().setError(key, "Trace history expired; replaying retained events.");
         } else if (code === 12 || unavailable(failure)) {
           reconnect = false;
-          setError("Tracing is not available for this connection.");
+          store().setError(key, "Tracing is not available for this connection.");
         } else if (code === 3 || code === 7 || code === 16 || code === 8) {
           reconnect = false;
-          setError("Trace subscription was refused by the backend.");
+          store().setError(key, "Trace subscription was refused by the backend.");
         } else {
-          setError("Trace stream unavailable; reconnecting.");
+          store().setError(key, "Trace stream unavailable; reconnecting.");
         }
       } finally {
         const closing = stream;
@@ -118,30 +133,14 @@ export function useConsoleRecords({
       if (retry !== undefined) window.clearTimeout(retry);
       void stream?.cancel().catch(() => undefined);
     };
-  }, [cycleId, enabled, executionId, level, session]);
+  }, [cycleId, enabled, executionId, key, level, session]);
 
-  return { dropped, records, error };
+  const clear = useCallback(() => consoleRecordsStore.getState().clear(key), [key]);
+
+  return { clear, dropped: buffer.dropped, error: buffer.error, records: buffer.records };
 }
 
 /* === Private Functions === */
-function retained(records: HubRecord[]): HubRecord[] {
-  let bytes = 0;
-  let start = records.length;
-  while (start > 0 && records.length - start < RETAINED_RECORDS) {
-    const record = records[start - 1];
-    const size =
-      256 +
-      2 *
-        (record.source.length +
-          (record.message?.length ?? 0) +
-          JSON.stringify(record.details).length);
-    if (bytes + size > RETAINED_BYTES) break;
-    bytes += size;
-    start -= 1;
-  }
-  return records.slice(start);
-}
-
 function grpcCode(error: unknown): number | undefined {
   if (
     !error ||

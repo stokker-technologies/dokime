@@ -31,6 +31,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useStore } from "zustand";
 
 /* === Local Imports === */
 
@@ -49,7 +50,7 @@ import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type ConsoleLevel, type ConsoleScope, useUiStore } from "@/stores/ui-store";
 import { consoleTailPinned } from "./console-follow";
-import { useConsoleRecords } from "./console-records";
+import { consoleRecordsStore, useConsoleRecords } from "./console-records";
 
 /* === Types === */
 
@@ -143,7 +144,9 @@ export function consoleAttentionCount(records: HubRecord[], since: number): numb
  * The drawer proper: a toolbar on one grid, then the windowed rows.
  *
  * Only the rows scroll, so the toolbar stays reachable while a running cycle
- * pushes hundreds of records past it.
+ * pushes hundreds of records past it. Rows and the filter live in the
+ * session's console store, so moving between routes or closing the drawer
+ * never empties them.
  */
 function LiveConsole({
   cycleId,
@@ -154,7 +157,8 @@ function LiveConsole({
 }) {
   const drawer = useUiStore((state) => state.console);
   const setConsoleState = useUiStore((state) => state.setConsoleState);
-  const [filter, setFilter] = useState("");
+  const filter = useStore(consoleRecordsStore, (state) => state.filter);
+  const setFilter = useStore(consoleRecordsStore, (state) => state.setFilter);
 
   const scope = resolvedScope(drawer.scope, cycleId, executionId);
   const streamed = useConsoleRecords({
@@ -163,21 +167,9 @@ function LiveConsole({
     executionId: scope === "execution" ? executionId : null,
     level: drawer.level,
   });
-  const [clearedThrough, setClearedThrough] = useState<string | null>(null);
-  const records = useMemo(() => {
-    if (!clearedThrough) return streamed.records;
-    const sequence = BigInt(clearedThrough.slice("trace-".length));
-    return streamed.records.filter(
-      (record) => BigInt(record.record_id.slice("trace-".length)) > sequence,
-    );
-  }, [clearedThrough, streamed.records]);
-
-  useEffect(() => {
-    if (streamed.records.length === 0) setClearedThrough(null);
-  }, [streamed.records]);
   const rows = useMemo(
-    () => visibleConsoleRecords(records, drawer.level, filter),
-    [drawer.level, filter, records],
+    () => visibleConsoleRecords(streamed.records, drawer.level, filter),
+    [drawer.level, filter, streamed.records],
   );
 
   const close = useCallback(() => setConsoleState({ open: false }), [setConsoleState]);
@@ -247,7 +239,7 @@ function LiveConsole({
         />
 
         <Button
-          onClick={() => setClearedThrough(streamed.records.at(-1)?.record_id ?? null)}
+          onClick={streamed.clear}
           size="sm"
           title="Clear the rows shown here; the backend retains its trace history."
           variant="outline"
