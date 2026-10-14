@@ -47,17 +47,17 @@ async fn move_tool(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
 
     let job = ListControlPointsRequest { point_type: PointType::Control };
     let points = ctx.call::<ListControlPoints>(job).await?.points;
-    ctx.info("loaded {} control points", points.len());
+    dokime::info!(ctx, "loaded {} control points", points.len());
 
     // === Prompt Operator / Move Tool === //
 
     let accepted = ctx.ask::<MoveToolCheckpoint>().await?;
     if !accepted {
-        ctx.warn("operator declined the move");
+        dokime::warn!(ctx, "operator declined the move");
         return Ok(());
     }
     ctx.resources().arm.lock().await.move_to(&points).await?;
-    ctx.info("tool moved through {} points", points.len());
+    dokime::info!(ctx, "tool moved through {} points", points.len());
 
     Ok(())
 }
@@ -67,7 +67,7 @@ async fn move_tool(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
   both sides. It names what the phase does for the operator — `Load Control
   Points`, `Prompt Operator / Move Tool` — not the mechanism. A step with one
   phase carries no banner.
-- Each phase ends by saying what it learned: a `ctx.info(…)`/`ctx.debug(…)` line,
+- Each phase ends by saying what it learned: a `dokime::info!(ctx, …)`/`ctx.debug(…)` line,
   a `ctx.publish`, or an artifact write. The execution log then reads as the
   same list of phases the source does.
 - Keep the happy path shallow and readable; no universal indentation cap is required.
@@ -80,8 +80,9 @@ async fn move_tool(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
 - The same banners apply to `resources`, `traceability` and `cleanup` when a
   hook has more than one phase. A criterion is one read over captured evidence
   and takes none.
-- Log through the context methods `ctx.trace(…)` … `ctx.error(…)`, never
-  `tracing::*` inside a template: only the context reaches the execution log.
+- Log through the `dokime::trace!(ctx, …)` … `dokime::error!(ctx, …)` macros,
+  never `tracing::*` nor the bare context methods inside a template: only the
+  context reaches the execution log, and the macros carry the format string.
 
 
 ## Template File Style
@@ -105,9 +106,9 @@ Bodies:
 - Every operation call builds its request first and passes it by name: `let operation = StartMeasurementRequest { … };` then `ctx.call::<StartMeasurement>(operation).await?;`, with the reply bound as `let result = …`. Fields are listed one per line.
 - A step's phases are banners as described under Step Bodies. Inside a loop body, shorter Title Case comment lines (`// Move To Reference Angles`, `// Emit Result`) mark its sub-steps; banners stay at phase level.
 - Iterate with `ctx.progress("Label", range)` so the cockpit shows the loop's progress.
-- A measurement that may legitimately fail inside a loop is matched: the `Ok` arm yields `Some(value)`, the `Err` arm warns through `ctx.warn(format!(…))` and yields `None`, and the row is published either way.
+- A measurement that may legitimately fail inside a loop is matched: the `Ok` arm yields `Some(value)`, the `Err` arm warns through `dokime::warn!(ctx, format!(…))` and yields `None`, and the row is published either way.
 - Rows and records are published with `ctx.publish(row).await`, the one infallible verb.
-- Log through the context methods `ctx.trace(…)` … `ctx.error(…)`; `format!` only when a value is interpolated.
+- Log through `dokime::trace!(ctx, …)` … `dokime::error!(ctx, …)`, format arguments inline; never the bare `ctx.info(…)` methods.
 - A criterion's label states the rule the way an operator would (`"Reconnection Time < 30s"`). Its body reads the evidence once, returns `Ok(false)` when there is none, then applies one iterator predicate or one aggregate.
 - `cleanup` logs the reason from `ctx.reason()` and restores the bench through operations, in the reverse order of what the steps changed.
 - `traceability` builds each section by statements (`let mut dut = TraceabilitySection::new(…); dut.row(…);`) under one banner per section and returns the sections in order.
