@@ -19,6 +19,7 @@ use clap::Parser;
 // Local Imports
 
 /* === Constants === */
+const STACK_BYTES: usize = 32 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -38,11 +39,25 @@ use clap::Parser;
 fn main() -> ExitCode {
     let cli = dokime_cli::Cli::parse();
     let terminal = dokime_terminal::Terminal::new(cli.color);
-    let result = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .map_err(dokime_cli::Error::from)
-        .and_then(|runtime| runtime.block_on(cli.run()));
+    // The client stays off the Dokime runtime crate, so it sizes its own
+    // stacks the way `dokime::process` does: Windows grants the main thread
+    // one megabyte, which dev-profile futures overflow.
+    let driver = std::thread::Builder::new()
+        .name("dokime-main".to_owned())
+        .stack_size(STACK_BYTES)
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .thread_stack_size(STACK_BYTES)
+                .build()
+                .map_err(dokime_cli::Error::from)?;
+            runtime.block_on(cli.run())
+        })
+        .map_err(dokime_cli::Error::from);
+    let result = driver.and_then(|driver| match driver.join() {
+        Ok(outcome) => outcome,
+        Err(panic) => std::panic::resume_unwind(panic),
+    });
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

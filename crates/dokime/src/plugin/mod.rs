@@ -68,10 +68,7 @@ where
 {
     install_panic_hook();
     install_subscriber();
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()?
-        .block_on(harmos::sidecar::run_plugin::<P>(invocation_capacity()))
+    crate::process::block_on(harmos::sidecar::run_plugin::<P>(invocation_capacity()))?
 }
 
 #[cfg(feature = "native")]

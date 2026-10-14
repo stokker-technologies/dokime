@@ -65,10 +65,8 @@ fn main() -> ExitCode {
     let terminal = dokime_terminal::Terminal::new(cli.color);
     let result = cli.args.network.config().and_then(|config| {
         load_environment(cli.args.env_file.as_deref())?;
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?;
-        runtime.block_on(host::run(cli.args, config, terminal.clone()))
+        let served = host::run(cli.args, config, terminal.clone());
+        dokime::process::block_on(served)?
     });
     match result {
         Ok(()) => ExitCode::SUCCESS,

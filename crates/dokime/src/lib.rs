@@ -39,6 +39,9 @@ pub mod plugin;
 #[cfg(feature = "native")]
 pub mod prelude;
 
+#[cfg(feature = "native")]
+pub mod process;
+
 pub mod prompts;
 
 pub mod publication;
