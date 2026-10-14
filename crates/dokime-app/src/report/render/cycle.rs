@@ -383,7 +383,7 @@ impl Serialize for Telemetry<'_, '_> {
                     spec: None,
                     summary: BTreeMap::new(),
                     samples: Samples(self.0, samples),
-                    max_samples: 2_000,
+                    max_samples: dokime::document::DEFAULT_PLOT_MAX_POINTS,
                     total_samples: count,
                     dropped_samples: count - returned,
                     downsampled: returned < count,
@@ -432,7 +432,7 @@ fn selected_samples(
 }
 
 pub(crate) fn selection(length: usize) -> Vec<usize> {
-    let mut indices = if length <= 2_000 {
+    let mut indices = if length <= dokime::document::DEFAULT_PLOT_MAX_POINTS {
         (0..length).collect::<Vec<_>>()
     } else {
         harmos_signal::decimate(length, 1_999)

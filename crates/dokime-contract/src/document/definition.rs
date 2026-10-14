@@ -25,7 +25,7 @@ use crate::expressions::{DataExpression, DataSource, RecordMarker};
 use crate::telemetry::{TelemetryColumn, TelemetryContract};
 
 /* === Constants === */
-pub const DEFAULT_PLOT_MAX_POINTS: usize = 1_500;
+pub const DEFAULT_PLOT_MAX_POINTS: usize = 2_000;
 pub const DURATION_UNIT_SYMBOLS: &[&str] = &["s", "ms", "us", "\u{b5}s", "min", "h"];
 
 /* === Macros === */

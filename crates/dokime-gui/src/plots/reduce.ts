@@ -19,7 +19,7 @@
 /* === Constants === */
 
 /** The host display budget when a plot declares none. */
-export const DEFAULT_PLOT_MAX_POINTS = 1_500;
+export const DEFAULT_PLOT_MAX_POINTS = 2_000;
 
 /** Raw samples retained behind the display budget before reduction. */
 export const RAW_RING_FACTOR = 20;
