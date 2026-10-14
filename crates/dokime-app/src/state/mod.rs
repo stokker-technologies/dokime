@@ -623,7 +623,7 @@ impl RuntimeState {
         policy: Redefinition,
     ) -> Result<(), RuntimeStateInstallError> {
         if let Some(definition) = self.record_definitions.get(&contract.record_type) {
-            return if definition == &contract {
+            return if definition.record_schema() == contract.record_schema() {
                 Ok(())
             } else {
                 Err(RuntimeStateInstallError::DuplicateRecord(

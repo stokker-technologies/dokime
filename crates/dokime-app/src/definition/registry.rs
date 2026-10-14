@@ -309,7 +309,10 @@ fn validate_record_contract(
     existing: &[RecordContract],
     candidate: &RecordContract,
 ) -> Result<(), String> {
-    if existing.iter().any(|contract| contract == candidate) {
+    if existing
+        .iter()
+        .any(|contract| contract.record_schema() == candidate.record_schema())
+    {
         return Ok(());
     }
     if existing

@@ -332,7 +332,6 @@ impl dokime::harmos::operations::lifecycle::Policy for Measured {
         dokime::Records<MeasuredRecords, MeasuredListeners>,
         dokime::Settings<MeasuredSettings>,
     ),
-    streams(observers::Auxiliary, observers::Measurement),
     observers = MeasuredObservers,
     observer_control = MeasuredObserveControl,
     restart = "never", description = "Owned stream fixture.")]

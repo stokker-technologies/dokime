@@ -103,7 +103,6 @@ impl dokime::harmos::operations::lifecycle::Policy for Plugin {
         dokime::Evidence<observers::Streams>,
         dokime::Settings<settings::BenchSettings>,
     ),
-    streams(suites::soak::SoakRow, observers::temperature::TemperatureRow),
     observers = observers::Observers,
     observer_control = observers::controls::Observe,
     restart = "never", description = "A thermal bench: one plugin, one suite, one template that holds a chamber at temperature and decides whether it stayed there.\nThe identity, the operations it serves and calls, and the contributions it makes to the host are literal data on the attribute: they are what the host reads *before* the plugin runs, out of a binary it never executes. A template calls `ReadChamber` through the host; the plugin serves it privately, so its own runs may call it without naming it in `requires(...)`, which lists only what other plugins or the host provide.")]

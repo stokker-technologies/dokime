@@ -266,7 +266,6 @@ impl dokime::harmos::operations::lifecycle::Policy for Owner {
         dokime::Records<Records>,
         dokime::Settings<OwnerSettings>,
     ),
-    streams(ObservationRow),
     observers = OwnerObservers,
     observer_control = OwnerObserveControl,
     restart = "never", description = "Observer Lifecycle Fixture.")]

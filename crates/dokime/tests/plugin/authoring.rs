@@ -24,6 +24,7 @@ pub(crate) mod catalog_lifecycle {
         const OPERATIONS: &'static [dokime::harmos::catalog::Node<
             dokime::harmos::operations::WireDeclaration,
         >] = &[];
+        const STREAMS: &'static [dokime::harmos::catalog::Node<dokime::catalog::Publication>] = &[];
 
         fn definition() -> dokime::domains::TestSuiteDefinition {
             RECORDS.lock().unwrap().push("catalog");

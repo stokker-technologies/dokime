@@ -22,9 +22,8 @@ use harmos::plugin::{Registrar, RegistrationError};
 // Local Imports
 use crate::catalog::{self, Catalog};
 use crate::plugin::registration::{
-    ANALYSES_NAMESPACE, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE, PROMPTS_NAMESPACE,
-    RECORDS_NAMESPACE, SETTINGS_NAMESPACE, SUITES_NAMESPACE, SettingsRegistration,
-    TELEMETRY_NAMESPACE, domain_schema,
+    ANALYSES_NAMESPACE, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE, RECORDS_NAMESPACE,
+    SETTINGS_NAMESPACE, SUITES_NAMESPACE, SettingsRegistration, TELEMETRY_NAMESPACE, domain_schema,
 };
 use crate::plugin::settings::PluginSettings;
 
@@ -43,8 +42,6 @@ macro_rules! section {
 pub struct Suites<S>(PhantomData<fn() -> S>);
 
 pub struct Records<R, L = ()>(PhantomData<fn() -> (R, L)>);
-
-pub struct Prompts<P>(PhantomData<fn() -> P>);
 
 pub struct Evidence<S, A = ()>(PhantomData<fn() -> (S, A)>);
 
@@ -117,25 +114,6 @@ where
             register(registrar, LISTENERS_NAMESPACE, &listeners)?;
         }
         Ok(())
-    }
-}
-
-impl<P> harmos::plugin::Contribution for Prompts<P>
-where
-    P: Catalog<catalog::Prompts> + 'static,
-{
-    const NAMESPACE: &'static str = PROMPTS_NAMESPACE;
-    const SECTION: Section = section!(PROMPTS_NAMESPACE, r#"{"schema":1}"#);
-
-    fn register(registrar: &mut Registrar) -> Result<(), RegistrationError> {
-        let prompts = catalog::entries::<P, catalog::Prompts>()
-            .into_iter()
-            .map(|definition| definition())
-            .collect::<Vec<_>>();
-        if prompts.is_empty() {
-            return Ok(());
-        }
-        register(registrar, PROMPTS_NAMESPACE, &prompts)
     }
 }
 

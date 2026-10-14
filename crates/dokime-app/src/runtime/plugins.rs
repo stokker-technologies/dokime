@@ -808,7 +808,7 @@ impl Runtime {
                 .filter(|contract| {
                     state
                         .historical_record_contract(&contract.record_type, contract.schema_version)
-                        .is_some_and(|old| old != *contract)
+                        .is_some_and(|old| old.record_schema() != contract.record_schema())
                 })
                 .map(|contract| (contract.record_type.to_string(), contract.schema_version))
                 .collect()

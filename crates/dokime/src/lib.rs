@@ -111,7 +111,7 @@ pub use publication::Publishable;
 // The Harmos plugin model, with its own type identity: a Dokime plugin is a
 // Harmos plugin, its device operations are Harmos operations, and its domains
 // reach the host as Harmos contributions.
-pub use contributions::{Evidence, Prompts, Records, Settings, Suites};
+pub use contributions::{Evidence, Records, Settings, Suites};
 pub use harmos::Plugin;
 pub use harmos::catalog::RequirementEntry as Requirement;
 pub use harmos::operations::{CallContext, Declares, Operation};
