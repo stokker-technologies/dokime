@@ -19,9 +19,15 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::*;
+use dokime_app::capabilities::execution::requests::RunPhase;
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */
+/// Read budget that boots and runs a case but cannot materialize its report.
+const STARVED_READ_BYTES: usize = 896 * 1024;
+
+/// How a permanent execution finalization failure opens its diagnosis.
+const UNSEALED: &str = "final execution report was not sealed";
 
 /* === Macros === */
 
@@ -267,5 +273,159 @@ pub(crate) async fn terminal_capture_repaired() {
         ExecutionStatus::Passed
     );
     drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+// a permanent finalization failure settles the cycle Failed with its cause, and a
+// rerun of the same case under a restored budget runs and seals.
+pub(crate) async fn permanent_finalization_settles() {
+    let root = tempdir().unwrap();
+    let mut starved = config(root.path());
+    starved.storage_reads.execution.memory_bytes =
+        std::num::NonZeroUsize::new(STARVED_READ_BYTES).unwrap();
+    let (mut owner, runtime) =
+        started_with_fixture(starved, Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
+    let mut watch = runtime.watch_state();
+    let receipt = runtime
+        .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+
+    // The report can never be read back under this budget. The watch stream
+    // reports the cycle Failed instead of Running forever.
+    let terminal = tokio::time::timeout(
+        Duration::from_secs(60),
+        watch.wait_until(|snapshot| {
+            snapshot
+                .state()
+                .cycles
+                .get(&test_cycle_id)
+                .is_some_and(|cycle| cycle.lifecycle == CycleStatus::Failed)
+        }),
+    )
+    .await
+    .expect("the state watch reports the cycle Failed")
+    .expect("the state watch stays open");
+    let cycle = terminal.state().cycle_view(&test_cycle_id).unwrap();
+    assert!(
+        cycle.saved.is_none(),
+        "an unproduced report is never sealed"
+    );
+    let failed_id = cycle.test_executions[0].test_execution_id.clone();
+    let test_case_id = cycle.test_executions[0].test_case_id.clone();
+    assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Failed);
+    assert!(cycle.test_executions[0].saved.is_none());
+    let diagnosis = terminal
+        .state()
+        .run_requests
+        .get(&receipt.command_id)
+        .and_then(|request| request.failure.clone());
+    assert!(
+        diagnosis
+            .as_deref()
+            .is_some_and(|cause| cause.starts_with(UNSEALED)),
+        "the watch stream carries the terminal diagnosis: {diagnosis:?}"
+    );
+    drop(terminal);
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+
+    // Restore the budget on the same store. The failure stays terminal and its
+    // cause durable: in the receipt, and as evidence scoped to the execution
+    // and to the cycle.
+    let (mut owner, runtime) = started_with_fixture(
+        config(root.path()),
+        Arc::new(FakePythonExecutor::fixed("passed")),
+    )
+    .await;
+    register_python_suite(&runtime, suite).await;
+    assert_eq!(
+        cycle_snapshot(&runtime, &test_cycle_id).await.lifecycle,
+        CycleStatus::Failed
+    );
+    let receipt = runtime
+        .run_request(&receipt.command_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(receipt.summary.phase, RunPhase::Failed);
+    assert_eq!(receipt.summary.failed, 1);
+    assert!(
+        receipt
+            .interruption
+            .as_deref()
+            .is_some_and(|cause| cause.starts_with(UNSEALED)),
+        "the receipt reports the unsealed cause: {:?}",
+        receipt.interruption
+    );
+    let evidence = runtime.evidence_snapshot().await.unwrap();
+    for (record_type, scoped) in [
+        ("test.execution.finalization.failed", Some(&failed_id)),
+        ("test.cycle.finalization.failed", None),
+    ] {
+        let record = evidence
+            .records
+            .iter()
+            .find(|record| record.record_type.as_str() == record_type)
+            .unwrap_or_else(|| panic!("{record_type} is recorded as evidence"));
+        assert_eq!(record.severity, RecordSeverity::Error);
+        assert_eq!(
+            record
+                .scope
+                .as_ref()
+                .and_then(|scope| scope.test_execution_id.as_ref()),
+            scoped,
+            "{record_type} scope"
+        );
+        assert!(
+            record
+                .message
+                .as_deref()
+                .is_some_and(|message| message.starts_with(UNSEALED)),
+            "{record_type} names the permanent cause: {record:?}"
+        );
+    }
+
+    // A rerun runs and seals the whole cycle, the failed attempt included.
+    runtime
+        .rerun_cycle_case(
+            test_cycle_id.clone(),
+            test_case_id.clone(),
+            CommandContext::default(),
+        )
+        .await
+        .expect("a failed finalization leaves the case restartable");
+    runtime
+        .run_cycle_case(
+            test_cycle_id.clone(),
+            test_case_id,
+            CommandContext::default(),
+        )
+        .await;
+    let rerun = tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            let cycle = cycle_snapshot(&runtime, &test_cycle_id).await;
+            if cycle.test_executions.len() == 2 && cycle.saved.is_some() {
+                break cycle;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the rerun cycle seals under the restored budget");
+    let original = &rerun.test_executions[0];
+    assert_eq!(original.test_execution_id, failed_id);
+    assert_eq!(original.status, ExecutionStatus::Failed);
+    assert!(
+        original.saved.is_some(),
+        "the failed attempt seals with the cycle"
+    );
+    let attempt = &rerun.test_executions[1];
+    assert_eq!(attempt.status, ExecutionStatus::Passed);
+    assert!(attempt.saved.is_some(), "the rerun attempt is sealed");
+    drop(runtime);
     owner.shutdown().await.unwrap();
 }

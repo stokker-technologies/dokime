@@ -23,6 +23,14 @@ use dokime_app::runtime::query::{
 };
 
 /* === Constants === */
+/// Samples a long fast capture holds: far more than one plot shows.
+const LARGE_PLOT_SAMPLES: usize = 50_000;
+
+/// Samples published per batch.
+const SAMPLE_BATCH: usize = 1_000;
+
+/// Points the plot asks to show.
+const PLOT_POINTS: usize = 400;
 
 /* === Macros === */
 
@@ -259,6 +267,54 @@ pub(crate) async fn execution_plots_samples() {
     assert_eq!(error.code(), Some("document_closed"));
     drop(runtime);
     owner.shutdown().await.unwrap();
+}
+
+// a plot over a large sample set waits while other readers hold the shared
+// storage read capacity, then reads within its display budget.
+pub(crate) async fn saturated_reads_plot() {
+    let root = tempdir().unwrap();
+    let (_owner, runtime) = booted(root.path()).await;
+    register_plot_suite(&runtime).await;
+    for _ in 0..LARGE_PLOT_SAMPLES / SAMPLE_BATCH {
+        runtime
+            .publish_telemetry_batch(samples("host.wifi.channel_occupancy", SAMPLE_BATCH, None))
+            .await
+            .unwrap();
+    }
+    // Hold every execution view the shared read capacity admits, as
+    // concurrent finalization captures do.
+    let mut held = Vec::new();
+    while let Ok(view) = runtime
+        .storage()
+        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .await
+    {
+        held.push(view);
+    }
+    assert!(!held.is_empty());
+    let mut request = wifi_request(None, Some(PLOT_POINTS), None);
+    // Markers read records from storage; samples come from the live window.
+    request.marker_record_types = vec!["test.cycle.started".to_owned()];
+    let reading = tokio::spawn({
+        let runtime = runtime.clone();
+        async move {
+            runtime
+                .query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot)
+                .await
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(!reading.is_finished(), "the plot waits for read capacity");
+    drop(held);
+    let envelopes = tokio::time::timeout(Duration::from_secs(10), reading)
+        .await
+        .expect("the plot reads once capacity frees")
+        .unwrap()
+        .expect("a saturated read budget never fails the plot");
+    let series = &envelopes[0].payload.series[0];
+    assert!(series.raw_points > PLOT_POINTS);
+    assert!(series.downsampled);
+    assert!(series.points.len() <= PLOT_POINTS);
 }
 
 async fn register_plot_suite(runtime: &RuntimeHandle) {

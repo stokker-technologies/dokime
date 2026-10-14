@@ -23,6 +23,7 @@ use crate::records::{
     Record, RecordSeverity, ValidationMode, builtin_record_contracts, validate_record,
 };
 use crate::state::RuntimeState;
+use crate::transactions::records::draft::Drafts;
 use dokime::core::{
     CommandId, Identifier, PromptId, RecordScope, Timestamp, ValidationIssue, Value, ValueType,
 };
@@ -58,11 +59,67 @@ pub struct SubmitPromptResponse {
     pub accepted_at: Timestamp,
 }
 
+/// The prompts a transaction settles, and when.
+#[derive(Debug, Default)]
+pub(crate) struct SettledPrompts {
+    ids: Vec<PromptId>,
+    at: Option<Timestamp>,
+}
+
 /* === Enums === */
+/// Why the runtime settled a prompt that nobody can answer any more.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PromptSettlement {
+    /// An operator stopped the owning execution or cycle.
+    Stopped,
+    /// The owning execution reached a terminal status.
+    Ended,
+    /// The host restarted while the prompt was open.
+    Interrupted,
+}
 
 /* === Traits === */
 
 /* === Implementations === */
+impl PromptSettlement {
+    fn action(self) -> &'static str {
+        match self {
+            Self::Stopped => "cancel",
+            Self::Ended | Self::Interrupted => "expire",
+        }
+    }
+
+    fn record_type(self) -> &'static str {
+        match self {
+            Self::Stopped => "prompt.response.cancelled",
+            Self::Ended | Self::Interrupted => "prompt.response.expired",
+        }
+    }
+
+    fn severity(self) -> RecordSeverity {
+        match self {
+            Self::Stopped => RecordSeverity::Info,
+            Self::Ended | Self::Interrupted => RecordSeverity::Warning,
+        }
+    }
+
+    fn reason(self) -> &'static str {
+        match self {
+            Self::Stopped => "execution_stopped",
+            Self::Ended => "execution_ended",
+            Self::Interrupted => "runtime_restarted",
+        }
+    }
+
+    fn message(self) -> &'static str {
+        match self {
+            Self::Stopped => "Prompt cancelled because its execution stopped.",
+            Self::Ended => "Prompt expired because its execution ended.",
+            Self::Interrupted => "Prompt expired because the runtime restarted.",
+        }
+    }
+}
+
 impl Transaction<RuntimeState> for RequestPrompt {
     type Error = String;
 
@@ -139,6 +196,69 @@ pub fn submit_prompt_response(
         .prompt_responses
         .insert(response.prompt_id.clone(), answer);
     Ok(response.prompt_id.clone())
+}
+
+/// Settles every open prompt whose scope `owned` selects: one runtime
+/// settlement record per prompt, appended to the transaction's own drafts so
+/// the settlement commits with the transition that ended the owner. The
+/// prompt closes without a response: no requester is handed an answer nobody
+/// gave, and a requester still waiting is cancelled with its owner. Commit
+/// the result with [`commit_settled_prompts`].
+pub(crate) fn settle_prompts(
+    state: &RuntimeState,
+    records: &mut Drafts,
+    settlement: PromptSettlement,
+    at: &Timestamp,
+    owned: impl Fn(&RecordScope) -> bool,
+) -> SettledPrompts {
+    let contract = builtin_record_contracts()
+        .into_iter()
+        .find(|contract| contract.record_type.as_str() == settlement.record_type())
+        .expect("prompt settlement records have built-in contracts");
+    let mut settled = SettledPrompts {
+        ids: Vec::new(),
+        at: Some(at.clone()),
+    };
+    for prompt in state.open_prompts().filter(|prompt| owned(&prompt.scope)) {
+        let closure = PromptResponse {
+            prompt_id: prompt.prompt_id.clone(),
+            action: settlement.action().to_owned(),
+            responder: "runtime".to_owned(),
+            submitted_at: at.clone(),
+            values: BTreeMap::new(),
+            accepted: false,
+        };
+        let mut details = prompt_response_details(&closure);
+        details.insert("source".to_owned(), Value::from("runtime"));
+        details.insert("reason".to_owned(), Value::from(settlement.reason()));
+        let mut record = Record::new(
+            at.clone(),
+            identifier(settlement.record_type()),
+            contract.schema_version,
+            "runtime",
+            settlement.severity(),
+        );
+        record.record_id = records.next_id();
+        record.message = Some(settlement.message().to_owned());
+        record.scope = Some(prompt.scope.clone());
+        record.details = details;
+        debug_assert!(
+            validate_record(Some(&contract), &record, ValidationMode::Strict).is_ok(),
+            "prompt settlement record matches its contract"
+        );
+        records.push(record);
+        settled.ids.push(prompt.prompt_id.clone());
+    }
+    settled
+}
+
+pub(crate) fn commit_settled_prompts(state: &mut RuntimeState, settled: SettledPrompts) {
+    let Some(at) = settled.at else {
+        return;
+    };
+    for id in settled.ids {
+        state.closed_prompts.insert(id, at.clone());
+    }
 }
 
 /* === Private Functions === */
@@ -312,10 +432,16 @@ fn prepare_response(
         ));
     }
     let prompt = state
-        .pending_prompt_projection()
-        .into_iter()
-        .find(|prompt| prompt.prompt_id == response.prompt_id)
+        .prompt_requests
+        .get(&response.prompt_id)
+        .cloned()
         .ok_or_else(|| Error::not_found("prompt_not_found", "prompt not found"))?;
+    if !state.prompt_open(&prompt) {
+        return Err(Error::conflict(
+            "prompt_settled",
+            "prompt was settled because its execution is no longer running",
+        ));
+    }
     let action = response.action.trim().to_owned();
     prompt
         .definition

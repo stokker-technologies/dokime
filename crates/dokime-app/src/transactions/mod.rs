@@ -51,7 +51,7 @@ pub use plugins::{InstallHostPlugin, ReconcileProviders, ReloadProviderCatalog};
 pub use prompts::{RequestPrompt, SubmitPromptResponse};
 pub use provider::RunProvider;
 pub use provider::request::{
-    AdvanceRunGroup, CompleteRun, DispatchProvider, PrepareAttempt, SettleRun,
+    AdvanceRunGroup, CompleteRun, DispatchProvider, PrepareAttempt, SettleRun, Unsealed,
 };
 pub use provider_finish::FinishProvider;
 pub use suite_sets::{RemoveSuiteSet, SetSuiteSet};

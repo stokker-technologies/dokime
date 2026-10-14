@@ -296,6 +296,22 @@ export async function rerunNativeTestCase(
   return runNativeQueuedTestCase(session, cycleId, caseId);
 }
 
+/**
+ * Run a finished cycle again: schedule a re-run of each named case, then run
+ * the cycle's queue once, so the cases run as one cycle request in plan order.
+ */
+export async function rerunNativeTestCycle(
+  session: SessionIdentity,
+  cycleId: string,
+  caseIds: readonly string[],
+): Promise<NativeRunAdmission> {
+  if (caseIds.length === 0) throw new Error("No case of this cycle can be run again.");
+  for (const caseId of caseIds) {
+    await rpc.executionScheduleCaseRerun(session, { cycleId, caseId });
+  }
+  return runNativeQueuedTestCycle(session, cycleId);
+}
+
 async function controlNativeCycle(
   session: SessionIdentity,
   cycleId: string,

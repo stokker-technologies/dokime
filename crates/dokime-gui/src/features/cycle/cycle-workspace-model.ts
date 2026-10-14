@@ -70,8 +70,23 @@ export type CycleExecutionRow = {
   newest: boolean;
 };
 
-/** What the URL selects: an execution, or a case that has none yet. */
-export type CycleSelection = { caseId?: string; executionId?: string };
+/**
+ * What the URL selects: the cycle itself, an execution, or a case that has
+ * none yet. No field at all is the landing state, which follows the active
+ * execution; `view: "cycle"` is the operator's explicit choice of the cycle.
+ */
+export type CycleSelection = { caseId?: string; executionId?: string; view?: "cycle" };
+
+/** The input `followSelection` decides from. */
+export type FollowState = {
+  selection: CycleSelection;
+  /** The execution the runtime names as running now. */
+  active: string | null;
+  /** The execution it named on the previous render. */
+  previousActive: string | null;
+  /** Whether the selected execution ended since the previous render. */
+  selectedEnded: boolean;
+};
 
 export type RunControlAvailability = {
   run: boolean;
@@ -146,6 +161,24 @@ const ACTIVE_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set(
   "finalizing",
 ]);
 
+/** The execution states an attempt ends in, and so the ones Run Again follows. */
+const TERMINAL_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set([
+  "passed",
+  "failed",
+  "skipped",
+  "stopped",
+  "interrupted",
+  "disconnected",
+]);
+
+/** The cycle states a whole run ends in, and so the ones Run Again follows. */
+const TERMINAL_CYCLE_STATUSES: ReadonlySet<CycleLifecycle> = new Set([
+  "completed",
+  "failed",
+  "stopped",
+  "interrupted",
+]);
+
 /* === Public Functions === */
 
 export function isFinishedCase(status: CaseState): boolean {
@@ -157,8 +190,73 @@ export function isPlannedExecution(status: TestExecution["status"]): boolean {
   return status === "planned";
 }
 
+/** An attempt with nothing captured yet: planned, or queued and undispatched. */
+export function isUnstartedExecution(status: TestExecution["status"]): boolean {
+  return status === "planned" || status === "created";
+}
+
+/** Whether the selection names the cycle itself rather than a member. */
+export function isCycleSelection(selection: CycleSelection): boolean {
+  return selection.view === "cycle";
+}
+
+/**
+ * Where Follow Active moves the selection, or `null` to leave it.
+ *
+ * An explicit choice always wins: once the operator selects the cycle, a case
+ * or an execution other than the active one, following stops. It resumes when
+ * they select the active execution again, or when the execution they were on
+ * ends. Landing with nothing selected follows the active execution, and so
+ * does a selection that was following when the runtime moved on.
+ */
+export function followSelection({
+  selection,
+  active,
+  previousActive,
+  selectedEnded,
+}: FollowState): string | null {
+  if (!active || selection.executionId === active) return null;
+  if (isCycleSelection(selection) || selection.caseId) return null;
+  if (!selection.executionId) return active;
+  if (selection.executionId === previousActive || selectedEnded) return active;
+  return null;
+}
+
+/** Whether the selection is following `active`: landing, or on it already. */
+export function isFollowing(selection: CycleSelection, active: string | null): boolean {
+  if (!active || isCycleSelection(selection) || selection.caseId) return false;
+  return !selection.executionId || selection.executionId === active;
+}
+
 export function isActiveExecutionStatus(status: TestExecution["status"]): boolean {
   return ACTIVE_EXECUTION_STATUSES.has(status);
+}
+
+export function isTerminalExecutionStatus(status: TestExecution["status"]): boolean {
+  return TERMINAL_EXECUTION_STATUSES.has(status);
+}
+
+export function isCycleTerminal(status: CycleLifecycle): boolean {
+  return TERMINAL_CYCLE_STATUSES.has(status);
+}
+
+/**
+ * The cases Run Again re-runs: every case the runtime would let schedule a
+ * re-run. A projection that states no eligibility offers every case, and the
+ * mutation itself refuses.
+ */
+export function rerunnableCaseIds(cases: readonly CycleCase[]): string[] {
+  return cases
+    .filter((item) => item.actions === null || item.actions.schedule_rerun)
+    .map((item) => item.caseId);
+}
+
+/**
+ * Whether `row` offers Run Again: the newest attempt of its case, ended. An
+ * earlier attempt is history, and the case's actions live on its newest row.
+ */
+export function rowOffersRunAgain(row: CycleExecutionRow): boolean {
+  return row.newest && row.execution !== null && isTerminalExecutionStatus(row.execution.status);
 }
 
 /**
@@ -415,7 +513,7 @@ export function executionStatusVariant(
 /**
  * Which run control the cycle's lifecycle allows.
  *
- * Run Queued needs a case the runtime would admit, so a finished cycle whose
+ * Start needs a case the runtime would admit, so a finished cycle whose
  * cases all ended — or one whose cases the runtime refuses — offers nothing to
  * start. Pause, Resume and Stop stay the lifecycle's own: they act on the
  * cycle, not on a case, and no case projection speaks for them.
@@ -439,7 +537,7 @@ export function runControlAvailability(
 /**
  * Which run controls the cycle's lifecycle shows.
  *
- * Run Queued appears exactly when it would work, or when the runtime has a
+ * Start appears exactly when it would work, or when the runtime has a
  * reason it would not. A cycle with no queued case needs cases, not a dead
  * Run, so the control is absent rather than dimmed; a cycle with queued cases
  * the runtime refuses keeps it, disabled, carrying that refusal — which is the
@@ -476,7 +574,7 @@ export function isQueuedCase(item: CycleCase): boolean {
 }
 
 /**
- * The cases Run Queued would actually start.
+ * The cases Start would actually start.
  *
  * Eligibility is the runtime's own: `CaseActions.run` is computed from the
  * same checks RunCase enforces, so a case whose provider has gone away does
@@ -502,7 +600,7 @@ export function caseActionTooltip(item: CycleCase): string | undefined {
 }
 
 /**
- * Why Run Queued would do nothing, when the cycle still owes cases.
+ * Why Start would do nothing, when the cycle still owes cases.
  *
  * A cycle with queued work whose every case the runtime refuses is the one
  * place the header has something to explain: hiding the control there would

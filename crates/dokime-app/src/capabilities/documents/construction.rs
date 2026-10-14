@@ -31,25 +31,40 @@ use dokime::core::DocumentId;
 use dokime::telemetry::{TelemetryColumn, TelemetryContract};
 
 /* === Constants === */
-pub(super) const RESULT_SECTIONS: [Section; 1] = [Section {
-    id: "execution.result",
-    label: "Execution",
-    cards: &[
-        Card {
-            id: "result.steps",
-            label: "Steps",
+/// The result built-ins lead the default document: steps and criteria, then
+/// the operator's notes on them, before any authored section.
+pub(super) const RESULT_SECTIONS: [Section; 2] = [
+    Section {
+        id: "execution.result",
+        label: "Execution",
+        cards: &[
+            Card {
+                id: "result.steps",
+                label: "Steps",
+                order: 10,
+                body: DocumentCardBody::Steps,
+            },
+            Card {
+                id: "result.criteria",
+                label: "Criteria",
+                order: 20,
+                body: DocumentCardBody::Criteria,
+            },
+        ],
+    },
+    Section {
+        id: "execution.traceability.notes",
+        label: "Operator Notes",
+        cards: &[Card {
+            id: "traceability.notes",
+            label: "Operator Notes",
             order: 10,
-            body: DocumentCardBody::Steps,
-        },
-        Card {
-            id: "result.criteria",
-            label: "Criteria",
-            order: 20,
-            body: DocumentCardBody::Criteria,
-        },
-    ],
-}];
-pub(super) const EVIDENCE_SECTIONS: [Section; 5] = [
+            body: DocumentCardBody::Notes,
+        }],
+    },
+];
+/// The evidence built-ins close the default document, after authored sections.
+pub(super) const EVIDENCE_SECTIONS: [Section; 4] = [
     Section {
         id: "execution.events",
         label: "Records",
@@ -88,16 +103,6 @@ pub(super) const EVIDENCE_SECTIONS: [Section; 5] = [
             label: "Traceability",
             order: 10,
             body: DocumentCardBody::Traceability,
-        }],
-    },
-    Section {
-        id: "execution.traceability.notes",
-        label: "Operator Notes",
-        cards: &[Card {
-            id: "traceability.notes",
-            label: "Operator Notes",
-            order: 10,
-            body: DocumentCardBody::Notes,
         }],
     },
 ];

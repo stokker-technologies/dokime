@@ -17,8 +17,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 /* === Constants === */
 
 const gui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const { highestPromptLevel, orderPendingPrompts, pendingPromptCountLabel, promptLevelTone } =
-  await import(pathToFileURL(resolve(gui, "src/features/cycle/prompt-banner-model.ts")).href);
+const {
+  answerablePrompts,
+  highestPromptLevel,
+  orderPendingPrompts,
+  pendingPromptCountLabel,
+  promptLevelTone,
+} = await import(pathToFileURL(resolve(gui, "src/features/cycle/prompt-banner-model.ts")).href);
 
 /* === Fixture === */
 
@@ -98,4 +103,29 @@ test("the tone follows the record severity scale with Info kept visible", () => 
     "info",
     "muted",
   ]);
+});
+
+test("a prompt is answerable only while its owner runs", () => {
+  const scoped = (id, executionId) => ({
+    correlation_id: id,
+    scope: { test_execution_id: executionId },
+  });
+  const pending = [
+    scoped("running", "one"),
+    scoped("interrupted", "two"),
+    { correlation_id: "cycle" },
+  ];
+  const owners = (cycleEnded) => ({
+    cycleEnded,
+    executionActive: (executionId) => executionId === "one",
+  });
+
+  assert.deepEqual(
+    answerablePrompts(pending, owners(false)).map((item) => item.correlation_id),
+    ["running", "cycle"],
+  );
+  assert.deepEqual(
+    answerablePrompts(pending, owners(true)).map((item) => item.correlation_id),
+    ["running"],
+  );
 });

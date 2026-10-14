@@ -192,10 +192,8 @@ pub(super) fn preflight(
     if state.prompt_requests.len() > crate::execution::notes::NOTE_SCAN_LIMIT {
         return Err(error("presentation prompt scan budget exceeded"));
     }
-    for (id, prompt) in &state.prompt_requests {
-        if !state.prompt_responses.contains_key(id) && owns_projection(&prompt.scope, scope) {
-            budget.source(prompt)?;
-        }
+    for prompt in prompt_rows(state, scope) {
+        budget.source(prompt)?;
     }
     if cases
         .retained_bytes
@@ -387,12 +385,8 @@ pub(super) fn prompt_rows<'a>(
     scope: &'a RecordScope,
 ) -> impl Iterator<Item = &'a dokime::prompts::PromptInstance> {
     state
-        .prompt_requests
-        .iter()
-        .filter(move |(id, item)| {
-            !state.prompt_responses.contains_key(*id) && owns_projection(&item.scope, scope)
-        })
-        .map(|(_, item)| item)
+        .open_prompts()
+        .filter(move |item| owns_projection(&item.scope, scope))
 }
 
 pub(super) fn note_rows<'a>(

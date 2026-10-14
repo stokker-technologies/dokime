@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import type { ReactNode } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 /* === Local Imports === */
 
@@ -31,6 +31,14 @@ import type {
 import { cn } from "@/lib/utils";
 
 /* === Constants === */
+
+/**
+ * A control a surface places in one section's header, by section id — the
+ * live plot window beside the plots it scales. Absent, headers are plain.
+ */
+export const DocumentSectionActionContext = createContext<(sectionId: string) => ReactNode>(
+  () => null,
+);
 
 /* === Types === */
 
@@ -163,7 +171,7 @@ function DocumentLayoutNodeBlock({
     if (card && sameLabel(node.metadata.label, card.title)) {
       return cardFilter(card) ? (
         <DocumentViewBlock
-          action={cardAction?.(card)}
+          action={cardAction?.(card) ?? <SectionAction sectionId={node.metadata.identifier} />}
           card={card}
           chrome={resolvedCardChrome(card)}
           key={card.card_id}
@@ -261,6 +269,12 @@ export function DocumentViewBlock({
   );
 }
 
+/** The control the surface placed on this section, if any. */
+function SectionAction({ sectionId }: { sectionId: string }) {
+  const action = useContext(DocumentSectionActionContext)(sectionId);
+  return action ? <div className="flex min-w-0 items-center">{action}</div> : null;
+}
+
 function DocumentSectionBlock({
   chrome,
   children,
@@ -274,7 +288,10 @@ function DocumentSectionBlock({
     return (
       <Card className="rounded-lg bg-muted/20 py-0">
         <CardHeader className="border-b px-4 py-3">
-          <CardTitle className="text-base">{section.metadata.label}</CardTitle>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <CardTitle className="text-base">{section.metadata.label}</CardTitle>
+            <SectionAction sectionId={section.metadata.identifier} />
+          </div>
           {section.metadata.description ? (
             <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
               {section.metadata.description}
@@ -293,7 +310,10 @@ function DocumentSectionBlock({
         data-section-id={section.metadata.identifier}
       >
         <header className="grid min-w-0 gap-0.5 border-b border-border/60 pb-2">
-          <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+            <SectionAction sectionId={section.metadata.identifier} />
+          </div>
           {section.metadata.description ? (
             <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
               {section.metadata.description}
@@ -308,7 +328,10 @@ function DocumentSectionBlock({
   return (
     <section className="grid min-w-0 gap-3">
       <header className="grid min-w-0 gap-0.5">
-        <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <h4 className="truncate text-sm font-semibold">{section.metadata.label}</h4>
+          <SectionAction sectionId={section.metadata.identifier} />
+        </div>
         {section.metadata.description ? (
           <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
             {section.metadata.description}

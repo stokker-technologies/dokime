@@ -23,6 +23,10 @@ use crate::execution::{
     StepStatus,
 };
 use crate::records::{ProductRecordDraft, RecordSeverity};
+use crate::transactions::prompts::{
+    PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
+};
+use crate::transactions::records::draft::Drafts;
 use crate::{Error, state::RuntimeState};
 use dokime::core::{
     CaseId, Identifier, RecordScope, TestCycleId, TestExecutionId, Timestamp, Value,
@@ -57,6 +61,14 @@ pub struct ResetCycle {
     pub test_cycle_id: TestCycleId,
     pub action: CycleResetAction,
     pub occurred_at: Timestamp,
+}
+
+/// A checked cycle control: the next cycle view, its records, and the prompts
+/// a stop settles in the same transaction.
+struct CycleControlPlan {
+    cycle: CycleView,
+    records: Drafts,
+    settled: SettledPrompts,
 }
 
 /* === Enums === */
@@ -110,6 +122,34 @@ impl Transaction<RuntimeState> for UpdateCyclePolicy {
     }
 }
 
+impl CycleControlPlan {
+    fn new(
+        state: &RuntimeState,
+        control: &ControlCycle,
+        cycle: CycleView,
+        mut records: Drafts,
+    ) -> Self {
+        // A stopped cycle answers nothing: its open prompts settle with the stop
+        // itself, so a provider blocked on one can wind down.
+        let settled = if matches!(control.action, CycleControlAction::Stop) {
+            settle_prompts(
+                state,
+                &mut records,
+                PromptSettlement::Stopped,
+                &control.occurred_at,
+                |scope| scope.test_cycle_id.as_ref() == Some(&control.test_cycle_id),
+            )
+        } else {
+            SettledPrompts::default()
+        };
+        Self {
+            cycle,
+            records,
+            settled,
+        }
+    }
+}
+
 impl Transaction<RuntimeState> for ControlCycle {
     type Error = String;
 
@@ -123,7 +163,7 @@ impl Transaction<RuntimeState> for ControlCycle {
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
         prepare_cycle_control(state, self)
             .expect("checked cycle control")
-            .1
+            .records
             .collect(out);
     }
     fn apply(&self, state: &mut RuntimeState) {
@@ -189,7 +229,11 @@ pub fn apply_cycle_reset(
 
 /* === Private Functions === */
 fn apply_cycle_control(state: &mut RuntimeState, control: &ControlCycle) -> Result<(), Error> {
-    let (cycle, records) = prepare_cycle_control(state, control)?;
+    let CycleControlPlan {
+        cycle,
+        records,
+        settled,
+    } = prepare_cycle_control(state, control)?;
     if let Some(request) = state.run_requests.values_mut().find(|request| {
         request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal()
     }) {
@@ -206,13 +250,14 @@ fn apply_cycle_control(state: &mut RuntimeState, control: &ControlCycle) -> Resu
         .replace_cycle(cycle)
         .expect("cycle projection has valid ownership");
     records.apply(state);
+    commit_settled_prompts(state, settled);
     Ok(())
 }
 
 fn prepare_cycle_control(
     state: &RuntimeState,
     control: &ControlCycle,
-) -> Result<(CycleView, crate::transactions::records::draft::Drafts), Error> {
+) -> Result<CycleControlPlan, Error> {
     if state.run_requests.values().any(|request| {
         request.summary.cycle_id == control.test_cycle_id
             && request.summary.phase == super::provider::request::RunPhase::Finishing
@@ -231,7 +276,7 @@ fn prepare_cycle_control(
     }
     .map_err(conflict)?;
 
-    let mut records = crate::transactions::records::draft::Drafts::new(state);
+    let mut records = Drafts::new(state);
     if state.run_requests.values().any(|request| {
         request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal()
     }) {
@@ -254,7 +299,7 @@ fn prepare_cycle_control(
             message,
             control.occurred_at.clone(),
         );
-        return Ok((cycle, records));
+        return Ok(CycleControlPlan::new(state, control, cycle, records));
     }
     match control.action {
         CycleControlAction::Pause => {
@@ -297,7 +342,7 @@ fn prepare_cycle_control(
             control.occurred_at.clone(),
         ),
     }
-    Ok((cycle, records))
+    Ok(CycleControlPlan::new(state, control, cycle, records))
 }
 
 fn ensure_policy_mutable(status: CycleStatus) -> Result<(), String> {
@@ -544,7 +589,7 @@ pub(crate) fn ensure_case_restartable(
 }
 
 fn record_execution_lifecycle(
-    records: &mut crate::transactions::records::draft::Drafts,
+    records: &mut Drafts,
     cycle: &CycleView,
     record_type: &str,
     message: &str,
@@ -573,7 +618,7 @@ fn record_execution_lifecycle(
 }
 
 fn record_request(
-    records: &mut crate::transactions::records::draft::Drafts,
+    records: &mut Drafts,
     cycle: &CycleView,
     record_type: &str,
     message: &str,

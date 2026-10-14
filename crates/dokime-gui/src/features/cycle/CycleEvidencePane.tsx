@@ -7,10 +7,14 @@
  * ***
  */
 
-/* The evidence the current selection holds.
+/* The document region: what the current selection holds.
  *
- * Execution selection owns the document and captured evidence. A case without
- * an execution shows its planned parameters. Records, telemetry, steps,
+ * An execution that has run shows its document and captured evidence. One
+ * that has not started — planned, or queued and undispatched — and a case
+ * without an execution show the planned parameters. The cycle itself, or no
+ * selection at all, shows the cycle's own document. The document starts right
+ * under the cockpit: the plot window sits in the header of the plots it
+ * scales, and Focus is in the page bar. Records, telemetry, steps,
  * criteria, notes, health, artifacts and traceability all arrive through the
  * existing `useDocumentView` and `DocumentWorkspaceView`; nothing is assembled
  * a second time here.
@@ -22,7 +26,6 @@
 
 /* === External Imports === */
 
-import { Maximize2, Minimize2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 /* === Local Imports === */
@@ -32,15 +35,19 @@ import { MarkdownText } from "@/components/MarkdownText";
 import { Button } from "@/components/ui/button";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import type { HubLiveState, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
-import { type CycleExecutionRow, isPlannedExecution } from "./cycle-workspace-model";
-import { DocumentView, documentHasWindowedCards, documentWindowElapsedUnit } from "./DocumentView";
+import { type CycleExecutionRow, isUnstartedExecution } from "./cycle-workspace-model";
+import { DocumentView, documentWindowElapsedUnit } from "./DocumentView";
 import {
   DEFAULT_PLOT_WINDOW_INDEX,
   PLOT_WINDOW_OPTIONS,
   PlotWindowSlider,
   plotWindowValueLabel,
 } from "./PlotWindowSlider";
-import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
+import {
+  useCycleDocumentQuery,
+  useExecutionDetailQuery,
+  useExecutionDocumentQuery,
+} from "./server-state";
 
 /* === Types === */
 
@@ -49,28 +56,24 @@ export type CycleEvidencePaneProps = {
   plan: TestCyclePlan | null;
   row: CycleExecutionRow | null;
   snapshot: HubLiveState | null;
-  /** True while the shell has given the evidence the whole window. */
-  focused: boolean;
-  /** False in the frozen report: no slider, no focus, no live plot window. */
+  /** False in the frozen report: no slider, no live plot window. */
   live?: boolean;
-  onToggleFocus: () => void;
 };
 
 /* === Components === */
 
 export function CycleEvidencePane({
   cycleId,
-  focused,
   live = true,
   plan,
   row,
   snapshot,
-  onToggleFocus,
 }: CycleEvidencePaneProps) {
   const [plotWindowIndex, setPlotWindowIndex] = useState(DEFAULT_PLOT_WINDOW_INDEX);
   const [plotWindowOverridden, setPlotWindowOverridden] = useState(false);
   const selectedExecution =
-    row?.execution && !isPlannedExecution(row.execution.status) ? row.execution : null;
+    row?.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null;
+  const cycleShown = row === null;
   const scope = useMemo<RecordScope>(
     () =>
       selectedExecution
@@ -95,8 +98,9 @@ export function CycleEvidencePane({
     cycleId: selectedExecution ? cycleId : null,
     executionId: selectedExecution?.test_execution_id ?? null,
   });
-  const document = selectedExecution ? (executionDocumentQuery.data ?? null) : null;
-  const documentQuery = executionDocumentQuery;
+  const cycleDocumentQuery = useCycleDocumentQuery(cycleId, cycleShown);
+  const documentQuery = cycleShown ? cycleDocumentQuery : executionDocumentQuery;
+  const document = selectedExecution || cycleShown ? (documentQuery.data ?? null) : null;
 
   const plotWindow =
     PLOT_WINDOW_OPTIONS[plotWindowIndex] ?? PLOT_WINDOW_OPTIONS[DEFAULT_PLOT_WINDOW_INDEX];
@@ -105,60 +109,31 @@ export function CycleEvidencePane({
 
   const sections = useMemo(() => orderedDocumentSections(document), [document]);
   const documentError = documentQuery.error;
-  const windowed = documentHasWindowedCards(sections);
   const windowElapsedUnit = documentWindowElapsedUnit(sections);
+  /* The plot window sits in the header of the plots it scales. A frozen plot
+     shows the window it was drawn with: saying so is honest, offering a slider
+     that changes nothing is not. */
+  const plotWindowControl = live ? (
+    <div className="w-56 xl:w-80">
+      <PlotWindowSlider
+        elapsedUnit={windowElapsedUnit}
+        index={plotWindowIndex}
+        onIndexChange={(index) => {
+          setPlotWindowIndex(index);
+          setPlotWindowOverridden(true);
+        }}
+        option={plotWindow}
+      />
+    </div>
+  ) : (
+    <span className="text-xs text-muted-foreground">
+      {windowElapsedUnit ? "Elapsed window" : "Plot window"}{" "}
+      {plotWindowValueLabel(plotWindow, windowElapsedUnit)}
+    </span>
+  );
 
   return (
-    <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-      {/* The document's own toolbar: the plot window and Focus, nothing
-          else; running the cycle belongs to the cockpit above. A frozen
-          report has no cockpit group naming the execution, so there the
-          toolbar names the scope instead. */}
-      <div className="grid min-h-[var(--page-bar-height)] grid-cols-[minmax(0,1fr)_auto] items-center gap-[var(--bar-gap)] border-b px-4 py-[var(--bar-pad-y)]">
-        {live ? (
-          <span />
-        ) : (
-          <h2 className="min-w-0 truncate font-heading text-sm leading-6 font-semibold tracking-wide uppercase">
-            {row ? (selectedExecution ? `Execution ${row.ordinal}` : "Not Run Yet") : "Cycle"}
-          </h2>
-        )}
-        <div className="flex items-center justify-end gap-[var(--bar-gap)] [&_[data-slot=button]:not([class*='h-['])]:h-[var(--bar-control-height)]">
-          {windowed && live ? (
-            <div className="h-full w-full min-w-56 xl:w-80">
-              <PlotWindowSlider
-                elapsedUnit={windowElapsedUnit}
-                index={plotWindowIndex}
-                onIndexChange={(index) => {
-                  setPlotWindowIndex(index);
-                  setPlotWindowOverridden(true);
-                }}
-                option={plotWindow}
-              />
-            </div>
-          ) : null}
-          {/* A frozen plot shows the window it was drawn with. Saying so is
-              honest; offering a slider that changes nothing is not. */}
-          {windowed && !live ? (
-            <span className="text-xs text-muted-foreground">
-              {windowElapsedUnit ? "Elapsed window" : "Plot window"}{" "}
-              {plotWindowValueLabel(plotWindow, windowElapsedUnit)}
-            </span>
-          ) : null}
-          {/* The toolbar's right end: the evidence takes the window, and says
-              how to give it back. Escape leaves too. */}
-          {live ? (
-            <Button onClick={onToggleFocus} size="sm" variant={focused ? "secondary" : "outline"}>
-              {focused ? (
-                <Minimize2 data-icon="inline-start" />
-              ) : (
-                <Maximize2 data-icon="inline-start" />
-              )}
-              {focused ? "Leave Focus" : "Focus"}
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
+    <div className="grid min-h-0">
       <div className="min-h-0 overflow-y-auto px-4 py-4">
         {documentError ? (
           <PaneNotice
@@ -178,11 +153,6 @@ export function CycleEvidencePane({
             {template?.description ? <MarkdownText text={template.description} /> : null}
             {row.case.testCase ? <CaseParameterGrid testCase={row.case.testCase} /> : null}
           </div>
-        ) : !selectedExecution ? (
-          <PaneNotice
-            message="Select an execution to read its document and evidence."
-            title="Select Execution"
-          />
         ) : documentQuery.isPending && !document ? (
           <PaneNotice message="Reading the document for this selection." title="Loading" />
         ) : (
@@ -201,6 +171,7 @@ export function CycleEvidencePane({
                 selectedExecution?.started_at ?? plan?.test_cycle.started_at ?? null
               }
               plotWindow={plotWindow}
+              plotWindowControl={plotWindowControl}
               plotWindowOverridden={plotWindowOverridden}
               traceabilityExportName={
                 row && plan

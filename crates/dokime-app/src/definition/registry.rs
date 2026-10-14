@@ -47,6 +47,31 @@ pub struct SuiteRegistry {
 
 /* === Implementations === */
 impl SuiteRegistry {
+    // The Registry's Parts, For The State Encoding That Stores Each Suite Once
+    pub(crate) fn snapshots(&self) -> &BTreeMap<String, SuiteSnapshot> {
+        &self.suites
+    }
+
+    pub(crate) fn cases(&self) -> &BTreeMap<CaseId, TestCase> {
+        &self.cases
+    }
+
+    pub(crate) fn registrations(&self) -> &BTreeMap<CommandId, Vec<CaseId>> {
+        &self.registrations
+    }
+
+    pub(crate) fn from_parts(
+        suites: BTreeMap<String, SuiteSnapshot>,
+        cases: BTreeMap<CaseId, TestCase>,
+        registrations: BTreeMap<CommandId, Vec<CaseId>>,
+    ) -> Self {
+        Self {
+            suites,
+            cases,
+            registrations,
+        }
+    }
+
     pub fn case(&self, id: &CaseId) -> Option<&TestCase> {
         self.cases.get(id)
     }

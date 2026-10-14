@@ -467,23 +467,22 @@ impl Runtime {
             .values()
             .map(|active| active.package.catalog.clone())
             .collect();
-        let has_previous_providers = self
-            .handle
-            .state_read()
+        let providers: Vec<_> = admitted
+            .into_iter()
+            .map(Into::into)
+            .chain(embedded_catalogs)
+            .collect();
+        let state = self.handle.state_read();
+        let has_previous_providers = state
             .plugin_owners
             .values()
             .any(|owner| !matches!(owner, crate::state::PluginOwner::Host));
-        if (!admitted.is_empty() || !self.embedded.is_empty() || has_previous_providers)
-            && let Err(error) = self
-                .handle
-                .commit(ReconcileProviders {
-                    providers: admitted
-                        .into_iter()
-                        .map(Into::into)
-                        .chain(embedded_catalogs)
-                        .collect(),
-                })
-                .await
+        // An unchanged catalog set is not journaled again; otherwise every
+        // boot appends every catalog in full to the journal and its tail.
+        let reconcile = (!providers.is_empty() || has_previous_providers)
+            && !state.providers_current(&providers);
+        drop(state);
+        if reconcile && let Err(error) = self.handle.commit(ReconcileProviders { providers }).await
         {
             return Err(operation(error));
         }

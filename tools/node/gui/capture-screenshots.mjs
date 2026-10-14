@@ -558,7 +558,7 @@ async function capture(session) {
 
   /* Cycle: the workspace while a case streams telemetry into its plots. */
   await session.goto(`/cycles/${cycleId}`);
-  await until("cycle workspace", () => session.exists("button", "Cycle Actions"), 60000);
+  await until("cycle workspace", () => session.exists("button", "Focus"), 60000);
   await startRun(session);
   await until("a running case", async () => /Running|Waiting/.test(await session.text()), 120000);
   await selectFirstCase(session);
@@ -576,7 +576,7 @@ async function capture(session) {
 
   /* Touch: the same workspace at the tablet's density. */
   await setDensity(session, touch);
-  await until("touch workspace", () => session.exists("button", "Cycle Actions"), 60000);
+  await until("touch workspace", () => session.exists("button", "Focus"), 60000);
   await assertNoPersonalData(session, "touch-cycle");
   await shoot(session, "touch-cycle", touch);
   await setDensity(session, desktop);
@@ -584,7 +584,7 @@ async function capture(session) {
   /* Let both cycles finish, so Cycles home and History have settled rows. */
   await runUntil(session, "cycle completion", () => casesSettled(session), 600000);
   await session.goto(`/cycles/${first}`);
-  await until("the first cycle", () => session.exists("button", "Cycle Actions"), 60000);
+  await until("the first cycle", () => session.exists("button", "Focus"), 60000);
   await startRun(session);
   await runUntil(session, "first cycle completion", () => casesSettled(session), 600000);
 
@@ -635,17 +635,17 @@ async function setDensity(session, variant) {
 /**
  * Start the open cycle.
  *
- * Run Queued is the control for this, and the capture uses it when the header
+ * Start Cycle is the control for this, and the capture uses it when the cockpit
  * offers it. A cycle whose cases all arrive with a pre-dispatch attempt leaves
  * the header without it, and then the row menus are the only way in.
  */
 async function startRun(session) {
   const queued = await session
-    .named("button", "Run Queued")
+    .named("button", "Start Cycle")
     .then(() => true)
     .catch(() => false);
   if (queued) {
-    await session.clickNamed("button", "Run Queued");
+    await session.clickNamed("button", "Start Cycle");
     return;
   }
   const labels = await session.execute(`

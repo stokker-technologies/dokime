@@ -1318,7 +1318,7 @@ async function libraryJourney(session) {
  * whole-cycle command, and the evidence pane shows what the URL selects.
  */
 async function cycleJourney(session, cycleId) {
-  await session.goto(`/cycles/${cycleId}`);
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
   const beforeReads = await session.execute("return globalThis.__dokimeStreamReads ?? 0");
   let listened = false;
   const sidebar = await until(
@@ -1358,6 +1358,16 @@ async function cycleJourney(session, cycleId) {
     row.querySelector('button').click();
   `,
     [PROTECTION_TEMPLATE],
+  );
+  /* The cycle page carries the cycle's progress, status and run controls:
+     select the cycle node, then come back to the measuring case. */
+  await session.execute(
+    "document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();",
+  );
+  await until(
+    "the cycle page",
+    async () => (await session.location()).searchParams.get("view") === "cycle",
+    10000,
   );
   const header = await session.text();
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
@@ -1472,6 +1482,16 @@ async function cycleJourney(session, cycleId) {
       "The admitted cycle never showed Running, Paused or Stopping, so Download Bundle and Write Report could not be checked while it was in flight.",
     );
   }
+
+  /* Back to the measuring case for the streams the run is read through. */
+  await session.execute(
+    `
+    const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
+      .find((candidate) => candidate.innerText.includes(arguments[0]));
+    row?.querySelector('button').click();
+  `,
+    [PROTECTION_TEMPLATE],
+  );
 
   await runUntil(
     session,
@@ -1726,6 +1746,10 @@ async function cycleJourney(session, cycleId) {
      The trigger is pressed again if the first press produced no menu: a real
      WebView occasionally drops the pointer sequence a dropdown opens on, and
      one silent miss is not a product defect. A second miss is, and fails. */
+  await session.execute(
+    "document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();",
+  );
+  await until("the cycle page", () => session.exists("button", "Cycle Actions"), 10000);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
   for (const item of [
@@ -1789,16 +1813,16 @@ async function cycleJourney(session, cycleId) {
 /**
  * Stop one execution of a running copy and keep its siblings running.
  *
- * Stop Execution in the evidence toolbar is scoped to the selected execution:
- * the cycle never enters Stopping, every other case still reaches a recorded
- * outcome, and the cycle-level control stays labelled Stop Cycle and asks
+ * Stop Execution in the page bar is scoped to the selected execution: the
+ * cycle never enters Stopping and every other case still reaches a recorded
+ * outcome. Stop Cycle lives on the cycle page only, labelled as such, and asks
  * before acting. The copy keeps the measured cycle the later journeys read
  * untouched.
  */
 async function executionStopJourney(session, cycleId) {
   // === Copy The Cycle And Run It === //
 
-  await session.goto(`/cycles/${cycleId}`);
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
   await openMenu(session, "Cycle Actions");
   await session.clickNamed("menuitem", "Copy Cycle");
   const copyId = await until(
@@ -1870,8 +1894,8 @@ async function executionStopJourney(session, cycleId) {
     row?.querySelector('button').click();
   `);
   assert.ok(
-    await session.exists("button", "Stop Cycle"),
-    "The cycle-level control must say it stops the cycle",
+    !(await session.exists("button", "Stop Cycle")),
+    "The execution page carries the execution's controls, not the cycle's",
   );
   assert.ok(
     !(await session.exists("button", "Stop")),
@@ -2243,7 +2267,7 @@ async function settingsJourney(session, notes, work) {
  * records -- and the absence of every control that would lie.
  */
 async function reportJourney(session, cycleId) {
-  await session.goto(`/cycles/${cycleId}`);
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
   await until("cycle workspace", () => session.exists("button", "Cycle Actions"), 60000);
   await installSaveTap(session);
   await session.clickNamed("button", "Cycle Actions");
@@ -2344,7 +2368,7 @@ async function touchJourney(session, cycleId) {
   );
   assert.ok(hasText(home, "Needs Attention"), "The groups keep their order at touch");
 
-  await session.goto(`/cycles/${cycleId}`);
+  await session.goto(`/cycles/${cycleId}?view=cycle`);
   await until("touch workspace", () => session.exists("button", "Cycle Actions"), 60000);
   /* The rail: collapsed at touch, with the children behind it. */
   if (await session.exists("button", "Collapse Sidebar")) {
@@ -2356,18 +2380,19 @@ async function touchJourney(session, cycleId) {
   );
   assert.equal(railChildren, 0, "A collapsed rail must hide its children");
 
-  await session.clickNamed("button", "Executions");
-  const sheet = await until("cases sheet", () =>
-    session.find("css selector", "[data-slot=sheet-content]"),
+  /* The sidebar tree is the one execution switcher: expanding the rail
+     brings the rows back, at the touch row height. */
+  await session.clickNamed("button", "Expand Sidebar");
+  const touchRows = await until("expanded tree", () =>
+    session.execute(`
+      const rows = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case] > div')];
+      return rows.length ? rows.map((row) => Math.round(row.getBoundingClientRect().height)) : null;
+    `),
   );
-  const sheetText = await session.textOf(sheet);
-  assert.ok(hasText(sheetText, "Executions"), "The Executions sheet must name itself");
   assert.ok(
-    hasText(sheetText, PROTECTION_TEMPLATE) || hasText(sheetText, STARTUP_TEMPLATE),
-    "The Executions sheet must hold the cycle's execution rows",
+    touchRows.every((height) => height >= 44),
+    `Touch tree rows must be at least 44px tall: ${JSON.stringify(touchRows)}`,
   );
-  await session.key("Escape");
-  await delay(500);
 
   await session.goto("/library");
   await until("touch library", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);

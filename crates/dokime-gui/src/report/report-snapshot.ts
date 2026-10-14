@@ -68,10 +68,12 @@ export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource
   for (const [executionId, caseRun] of caseRuns) {
     documents.set(executionId, materialize(caseRun.documents.default));
   }
+  const cycleDocument = materialize(payload.documents.default);
 
   return {
     artifacts,
-    document: (executionId) => (executionId === null ? null : (documents.get(executionId) ?? null)),
+    document: (executionId) =>
+      executionId === null ? cycleDocument : (documents.get(executionId) ?? null),
     executionFiles: (executionId) =>
       executionId === null
         ? []

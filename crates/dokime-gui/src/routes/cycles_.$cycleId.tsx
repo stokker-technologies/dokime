@@ -16,8 +16,8 @@ import { z } from "zod";
 /* === Local Imports === */
 
 import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
+import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
 import { focusSearchSchema } from "@/shell/focus-mode";
-import { usePageChrome } from "@/shell/page-chrome";
 
 /* === Constants === */
 
@@ -35,6 +35,8 @@ const optionalId = z
 const cycleWorkspaceSearchSchema = z.object({
   caseId: optionalId,
   executionId: optionalId,
+  /** The operator chose the cycle itself, so nothing follows the active execution. */
+  view: z.enum(["cycle"]).optional().catch(undefined),
   /** Focus survives a reload and can be linked; see `shell/focus-mode`. */
   focus: focusSearchSchema,
 });
@@ -50,16 +52,15 @@ export const Route = createFileRoute("/cycles_/$cycleId")({
 
 function CycleWorkspaceRoute() {
   const { cycleId } = Route.useParams();
-  const { caseId, executionId, focus } = Route.useSearch();
+  const { caseId, executionId, focus, view } = Route.useSearch();
   const navigate = useNavigate();
-  usePageChrome({ title: "Cycle" });
 
   const selectionChanged = useCallback(
-    (next: { caseId?: string; executionId?: string }) => {
+    (next: CycleSelection) => {
       void navigate({
         params: { cycleId },
         replace: true,
-        search: { caseId: next.caseId, executionId: next.executionId, focus },
+        search: { caseId: next.caseId, executionId: next.executionId, focus, view: next.view },
         to: "/cycles/$cycleId",
       });
     },
@@ -72,6 +73,7 @@ function CycleWorkspaceRoute() {
       cycleId={cycleId}
       executionId={executionId}
       key={cycleId}
+      view={view}
       onSelectionChange={selectionChanged}
     />
   );

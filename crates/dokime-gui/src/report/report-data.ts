@@ -11,8 +11,8 @@
 
 import { serializedValueObjectToJson } from "@/lib/api/native-values";
 import type { AnalysisSelection } from "@/lib/document-contracts";
-import type { EvidenceAnalysisResult, PlotPayload } from "@/lib/types";
 import type { ReportPayload } from "@/lib/report-types";
+import type { EvidenceAnalysisResult, PlotPayload } from "@/lib/types";
 
 /* === Constants === */
 

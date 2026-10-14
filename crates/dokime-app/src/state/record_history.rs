@@ -59,6 +59,12 @@ pub(crate) enum Redefinition {
 
 /* === Implementations === */
 impl RecordHistory {
+    pub(super) fn from_contracts(
+        contracts: BTreeMap<Identifier, BTreeMap<u32, RecordContract>>,
+    ) -> Self {
+        Self(contracts)
+    }
+
     pub(super) fn contracts(&self) -> &BTreeMap<Identifier, BTreeMap<u32, RecordContract>> {
         &self.0
     }

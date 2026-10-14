@@ -22,8 +22,9 @@ use dokime_app::{
     capabilities::prompts::{
         FormPrompt, Prompt, PromptField, PromptFieldKind, PromptRequest, Rule,
     },
-    core::{PromptId, RecordScope, Value, ValueType},
+    core::{PromptId, RecordScope, TestCycleId, Value, ValueType},
     expressions::BooleanExpression,
+    runtime::command::CommandContext,
 };
 
 /* === Constants === */
@@ -441,6 +442,99 @@ pub(crate) async fn prompt_level_watched() {
     assert_eq!(watched.len(), 1);
     assert_eq!(watched[0].severity, contracts::common::Severity::Warn);
     drop(follow);
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+pub(crate) async fn settled_prompt_refused() {
+    // === Ask A Cycle's Question With No Cancel Action === //
+
+    let root = tempfile::tempdir().unwrap();
+    let mut definition =
+        FormPrompt::<BTreeMap<String, bool>>::new("fixture.settle", "Inspect Charging State")
+            .definition();
+    definition.actions.retain(|action| action.id != "cancel");
+    let mut owner = prompt_runtime(root.path(), definition).await;
+    let handle = owner.handle();
+    let cycle = handle
+        .start_cycle(
+            dokime_app::transactions::CycleDefinition {
+                suite: dokime::definition::TestSuite {
+                    metadata: common::metadata("suite.prompt.settle", "Prompt Settle"),
+                    tags: Vec::new(),
+                    parameter_groups: Vec::new(),
+                    test_case_templates: Vec::new(),
+                },
+                metadata: common::metadata("cycle.prompt.settle", "Prompt Settle"),
+                cases: Vec::new(),
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let id = PromptId::new();
+    handle
+        .request_prompt(PromptRequest {
+            prompt_id: id.clone(),
+            prompt_type: Identifier::new("fixture.settle").unwrap(),
+            values: BTreeMap::new(),
+            scope: RecordScope::default().with_cycle(cycle.clone()),
+        })
+        .await
+        .unwrap();
+    let server = Server::start(
+        handle.clone(),
+        Config::local()
+            .with_bearer_auth(vec![grant(Role::Control)])
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let pending = |cycle: &TestCycleId| contracts::prompts::ListPendingPromptsRequest {
+        cycle_id: Some(cycle.to_string()),
+        ..Default::default()
+    };
+    let waiting = client
+        .unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle)))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(waiting.prompts.len(), 1);
+
+    // === Stop The Cycle === //
+
+    handle
+        .stop_cycle(cycle.clone(), CommandContext::default())
+        .await
+        .unwrap();
+
+    // === Nothing Waits, And A Late Answer Is A Failed Precondition === //
+
+    let settled = client
+        .unary::<contracts::prompts::ListPending>(authenticated(pending(&cycle)))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(settled.prompts.is_empty());
+    let late = client
+        .unary::<contracts::prompts::Respond>(authenticated(
+            contracts::prompts::RespondToPromptRequest {
+                prompt_id: id.to_string(),
+                action: "submit".into(),
+                values: None,
+                accepted: true,
+                context: None,
+            },
+        ))
+        .await
+        .unwrap_err();
+    assert_eq!(late.code(), Code::FailedPrecondition);
+    assert!(handle.prompt_response(&id).await.is_none());
+    assert!(handle.prompt_settled_at(&id).await.is_some());
+
     server.shutdown().await.unwrap();
     drop(handle);
     owner.shutdown().await.unwrap();

@@ -108,15 +108,17 @@ impl Operation for Capture {
             .clone()
             .try_acquire_owned()
             .map_err(|_| Status::resource_exhausted("document resolver is busy"))?;
-        let (cycle, execution) = scope(request.scope.take())?;
+        let (cycle, execution) = owner(request.scope.take())?;
         value::text(&request.document_id)?;
         let id = DocumentId::from_identifier(&request.document_id)
             .map_err(|_| Status::invalid_argument("invalid document ID"))?;
-        let prepared = self
-            .resources
-            .runtime
-            .prepare_current_document(&cycle, &execution, &id)
-            .map_err(super::execution::status)?;
+        // A scope without an execution names the cycle's own document.
+        let runtime = &self.resources.runtime;
+        let prepared = match &execution {
+            Some(execution) => runtime.prepare_current_document(&cycle, execution, &id),
+            None => runtime.prepare_current_cycle_document(&cycle, &id),
+        }
+        .map_err(super::execution::status)?;
         let cancel = CancellationToken::new();
         let _cancel_on_drop = cancel.clone().drop_guard();
         let handle = tokio::runtime::Handle::current();
@@ -237,6 +239,22 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
+/// The capture scope: a cycle, and the execution whose document it names, or
+/// none for the cycle's own document.
+fn owner(
+    scope: Option<contract::DocumentScope>,
+) -> Result<(TestCycleId, Option<TestExecutionId>), Status> {
+    let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
+    let cycle = TestCycleId::from_uuid(scope.cycle_id)
+        .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
+    if scope.execution_id.is_empty() {
+        return Ok((cycle, None));
+    }
+    let execution = TestExecutionId::from_uuid(scope.execution_id)
+        .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+    Ok((cycle, Some(execution)))
+}
+
 fn scope(scope: Option<contract::DocumentScope>) -> Result<(TestCycleId, TestExecutionId), Status> {
     let scope = scope.ok_or_else(|| Status::invalid_argument("document scope required"))?;
     let cycle = TestCycleId::from_uuid(scope.cycle_id)

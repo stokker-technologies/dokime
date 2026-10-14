@@ -53,6 +53,8 @@ use request::{
 use stream::{cursor_revision, response_cursor, stream_requests_by_mode};
 
 /* === Constants === */
+/// How long a plot waits for shared storage read capacity other readers hold.
+const READ_CAPACITY_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /* === Macros === */
 
@@ -152,6 +154,27 @@ pub async fn query_plot_stream_batches(
 }
 
 /* === Private Functions === */
+/// Reads the plot's records once shared storage read capacity is free.
+/// Concurrent readers, such as finalization captures, release it as they
+/// settle, so a plot waits for them instead of failing its stream.
+async fn records_when_admitted(
+    runtime: &RuntimeHandle,
+    snapshot: &crate::queries::RuntimeStateSnapshot,
+) -> crate::Result<Vec<RecordEntry>> {
+    let deadline = tokio::time::Instant::now() + READ_CAPACITY_WAIT;
+    loop {
+        match runtime.records_at(snapshot).await {
+            Err(error)
+                if crate::runtime::storage::record_capture::read_capacity(&error)
+                    && tokio::time::Instant::now() < deadline =>
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+            result => return result,
+        }
+    }
+}
+
 fn plot_payload_context(
     request: &PlotPayloadRequest,
     contract: Option<&TelemetryContract>,
@@ -202,7 +225,7 @@ async fn query_plot_payloads_with_context(
             .iter()
             .any(|request| !request_record_types(request).is_empty())
         {
-            runtime.records_at(&context.snapshot).await
+            records_when_admitted(runtime, &context.snapshot).await
         } else {
             Ok(Vec::new())
         }

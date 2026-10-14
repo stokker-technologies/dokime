@@ -39,6 +39,7 @@ import { useMemo, useState } from "react";
 
 import { DokimeToaster } from "@/components/DokimeToaster";
 import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
+import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
 import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import type { ReportPayload } from "@/lib/report-types";
 import { AppShell } from "@/shell/AppShell";
@@ -84,7 +85,7 @@ export function ReportApp({ payload }: { payload: ReportPayload }) {
 /** The routed surface: the shell, the workspace, and which case is open. */
 function ReportSurface() {
   const source = useCycleSnapshotSource();
-  const [selection, setSelection] = useState<{ caseId?: string; executionId?: string }>({});
+  const [selection, setSelection] = useState<CycleSelection>({});
 
   if (!source) return null;
 
@@ -109,6 +110,7 @@ function ReportSurface() {
         cycleId={cycleId}
         executionId={selection.executionId}
         live={false}
+        view={selection.view}
         onSelectionChange={setSelection}
       />
     </AppShell>

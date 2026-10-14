@@ -40,14 +40,19 @@ pub struct ListTelemetrySamplesRequestAfterStreamCursorsEntry {
     pub value: u64,
 }
 
-// A zero limit means the documented default of 500. Values above 5,000 are
-// rejected; the encoded reply must also fit the negotiated gRPC message limit.
-// No response is silently truncated: lower the limit and retry after a
-// ResourceExhausted response.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListTelemetrySamplesRequest {
     pub streams: Vec<String>,
+    // Most samples one page returns. Zero uses 500; larger values are clamped
+    // to 5,000, and a page is further clamped to the samples that fit the
+    // negotiated message budget. A clamped page reports complete=false: for
+    // latest=false it keeps the oldest samples and its cursors continue after
+    // them; for latest=true it keeps the newest. No request is refused for
+    // asking too much.
+    #[row(
+        description = "Most samples one page returns. Zero uses 500; larger values are clamped to 5,000, and a page is further clamped to the samples that fit the negotiated message budget. A clamped page reports complete=false: for latest=false it keeps the oldest samples and its cursors continue after them; for latest=true it keeps the newest. No request is refused for asking too much."
+    )]
     pub limit: u32,
     pub schema_versions: Vec<u32>,
     pub sources: Vec<String>,
@@ -84,12 +89,13 @@ pub struct TelemetrySamplesReply {
         description = "The greatest sequence returned for each stream. For latest=false, a caller can use these positions as the next after_stream_cursors value. Latest-window replies leave this map empty because older samples are intentionally outside that request's selection."
     )]
     pub through_stream_cursors: Vec<TelemetrySamplesReplyThroughStreamCursorsEntry>,
-    // For latest=false, false means the service reached the limit and the full
-    // filtered selection may contain more samples; continue with the returned
-    // cursors. For latest=true, the selected tail window is complete even when
-    // older samples exist outside that explicit window.
+    // For latest=false, false means the page reached its limit or the message
+    // budget and the full filtered selection may contain more samples; continue
+    // with the returned cursors. For latest=true, the selected tail window is
+    // complete even when older samples exist outside that explicit window, and
+    // false means the budget clamped the window to its newest samples.
     #[row(
-        description = "For latest=false, false means the service reached the limit and the full filtered selection may contain more samples; continue with the returned cursors. For latest=true, the selected tail window is complete even when older samples exist outside that explicit window."
+        description = "For latest=false, false means the page reached its limit or the message budget and the full filtered selection may contain more samples; continue with the returned cursors. For latest=true, the selected tail window is complete even when older samples exist outside that explicit window, and false means the budget clamped the window to its newest samples."
     )]
     pub complete: bool,
 }

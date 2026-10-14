@@ -216,10 +216,7 @@ impl Operation for ListPending {
             &snapshot,
         )?;
         let selected = |prompt: &&dokime_app::capabilities::prompts::PromptInstance| {
-            !snapshot
-                .state()
-                .prompt_responses
-                .contains_key(&prompt.prompt_id)
+            snapshot.state().prompt_open(prompt)
                 && cycle
                     .as_ref()
                     .is_none_or(|id| prompt.scope.test_cycle_id.as_ref() == Some(id))

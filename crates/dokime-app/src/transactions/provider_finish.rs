@@ -27,6 +27,9 @@ use crate::records::{
     Record, RecordSeverity, ValidationMode as RecordValidationMode, validate_record,
 };
 use crate::state::RuntimeState;
+use crate::transactions::prompts::{
+    PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
+};
 use crate::transactions::records::draft::Drafts;
 use dokime::core::{
     CriterionId, DebugLevel, ErrorCause, Identifier, Metadata, RecordScope, SessionId, StepId,
@@ -68,6 +71,8 @@ struct FinishPlan {
     rejected_evidence: Vec<String>,
     health: Option<(HealthSeverity, String, Option<String>)>,
     effects: ProviderFinishEffects,
+    prompts: Drafts,
+    settled: SettledPrompts,
 }
 
 /* === Enums === */
@@ -107,12 +112,15 @@ impl FinishPlan {
             rejected_evidence: Vec::new(),
             health: None,
             effects: ProviderFinishEffects::default(),
+            prompts: Drafts::new(state),
+            settled: SettledPrompts::default(),
         }
     }
 
     fn collect(&self, out: &mut harmos::state::Records) {
         self.evidence.collect(out);
         self.terminal.collect(out);
+        self.prompts.collect(out);
     }
 
     fn apply(self, state: &mut RuntimeState, finish: &FinishProvider) -> ProviderFinishEffects {
@@ -210,6 +218,8 @@ impl FinishPlan {
                 .expect("cycle projection has valid ownership");
         }
         self.terminal.apply(state);
+        self.prompts.apply(state);
+        commit_settled_prompts(state, self.settled);
         if let Some((severity, message, detail)) = self.health {
             state.record_health(scope, severity, message, detail, finish.finished_at.clone());
         }
@@ -289,6 +299,34 @@ fn prepare_finish_provider(state: &RuntimeState, finish: &FinishProvider) -> Fin
                 .is_some_and(|scope| scope.test_execution_id.is_some())
         });
     }
+    // A prompt never outlives its execution: whatever this finish ends settles
+    // its open prompts in the same transaction.
+    let ended = plan.cycle.as_ref().map_or_else(BTreeSet::new, |cycle| {
+        cycle
+            .test_executions
+            .iter()
+            .filter(|execution| {
+                !matches!(
+                    execution.status,
+                    ExecutionStatus::Pending | ExecutionStatus::Running
+                )
+            })
+            .map(|execution| execution.test_execution_id.clone())
+            .collect()
+    });
+    plan.prompts = plan.terminal.following();
+    plan.settled = settle_prompts(
+        state,
+        &mut plan.prompts,
+        PromptSettlement::Ended,
+        &finish.finished_at,
+        |scope| {
+            scope
+                .test_execution_id
+                .as_ref()
+                .is_some_and(|id| ended.contains(id))
+        },
+    );
     plan
 }
 

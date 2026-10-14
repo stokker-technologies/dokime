@@ -291,7 +291,11 @@ impl PromptBridge {
 
     async fn settle_on_cancel(&mut self, context: &ExecutionFixtureContext) {
         for prompt_id in self.outstanding.keys().cloned().collect::<Vec<_>>() {
-            if context.runtime.prompt_response(&prompt_id).await.is_some() {
+            // Answered, or already settled by the stop that ended its owner.
+            let runtime = &context.runtime;
+            if runtime.prompt_response(&prompt_id).await.is_some()
+                || runtime.prompt_settled_at(&prompt_id).await.is_some()
+            {
                 self.outstanding.remove(&prompt_id);
                 continue;
             }
@@ -308,7 +312,10 @@ impl PromptBridge {
                 .await;
             self.outstanding.remove(&prompt_id);
             if let Err(detail) = settled
-                && detail.code() != Some("prompt_already_answered")
+                && !matches!(
+                    detail.code(),
+                    Some("prompt_already_answered" | "prompt_settled")
+                )
             {
                 tracing::warn!(
                     %prompt_id,
@@ -945,6 +952,15 @@ async fn execute_case(
         }
     };
     context.runtime.execution_sessions.remove(&execution_token);
+    // A run can wind down before the watch loop sees its stop, for instance
+    // when the stop settled the question it was waiting on. It still ended
+    // because it was stopped.
+    if !cancelled
+        && (cancellation_requested(context, cycle).await
+            || context.execution_stop_requested(&execution.test_execution_id))
+    {
+        cancelled = true;
+    }
     let Some(answered) = answered else {
         // The run never answered its cancellation. The host settles it as
         // stopped with the evidence captured so far; cleanup signals the run

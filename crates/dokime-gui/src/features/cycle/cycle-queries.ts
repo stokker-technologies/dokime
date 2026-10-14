@@ -26,11 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
-import {
-  downloadNativeCycleBundle,
-  fetchNativeCycleFolderPath,
-  nativeContentSession,
-} from "@/lib/api/native-content";
+import { downloadNativeCycleBundle, nativeContentSession } from "@/lib/api/native-content";
 import {
   clearNativeTestCycle,
   deleteNativeTestCycleCases,
@@ -39,10 +35,11 @@ import {
   pauseNativeTestExecution,
   reopenNativeTestCycle,
   rerunNativeTestCase,
+  rerunNativeTestCycle,
   resumeNativeTestCycle,
   resumeNativeTestExecution,
-  runNativeQueuedTestExecution,
   runNativeQueuedTestCycle,
+  runNativeQueuedTestExecution,
   stopNativeTestCycle,
   stopNativeTestExecution,
   updateNativeTestCyclePolicy,
@@ -149,9 +146,6 @@ export function useCycleCommands(cycleId: string) {
       mutationFn: () =>
         downloadNativeCycleBundle(nativeContentSession(session().identity, session().own), cycleId),
     }),
-    openFolder: useMutation({
-      mutationFn: () => fetchNativeCycleFolderPath(session().identity, cycleId),
-    }),
     pauseExecution: useMutation({
       mutationFn: (executionId: string) =>
         pauseNativeTestExecution(session().identity, executionId),
@@ -181,6 +175,11 @@ export function useCycleCommands(cycleId: string) {
     }),
     runQueued: useMutation({
       mutationFn: () => runNativeQueuedTestCycle(session().identity, cycleId),
+      onSettled: invalidateAll,
+    }),
+    rerunCycle: useMutation({
+      mutationFn: (caseIds: readonly string[]) =>
+        rerunNativeTestCycle(session().identity, cycleId, caseIds),
       onSettled: invalidateAll,
     }),
     scheduleRerun: useMutation({

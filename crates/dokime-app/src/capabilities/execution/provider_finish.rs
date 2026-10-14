@@ -124,6 +124,7 @@ impl RuntimeHandle {
                 .ok_or_else(|| Error::Operation("terminal evidence timestamp is missing".into()))?,
             sealed_cycle: None,
             sealed_executions: Vec::new(),
+            unsealed: None,
         };
         let (summary, cycle) = {
             use harmos::state::Transaction;
@@ -135,30 +136,67 @@ impl RuntimeHandle {
                 preview.cycle_view(&cycle_id).expect("request cycle exists"),
             )
         };
-        loop {
-            let executions = cycle
-                .test_executions
-                .iter()
-                .filter(|execution| {
-                    selected_execution
-                        .as_ref()
-                        .is_none_or(|id| id == &execution.test_execution_id)
-                        && (ids.contains(&execution.test_execution_id)
-                            || settled.contains(&execution.test_execution_id)
-                            || execution.status == crate::execution::ExecutionStatus::Skipped)
-                })
-                .cloned()
-                .collect();
-            let Err(error) = self.finish_saved_executions(&cycle, executions).await else {
-                break;
+        let mut pending = cycle
+            .test_executions
+            .iter()
+            .filter(|execution| {
+                selected_execution
+                    .as_ref()
+                    .is_none_or(|id| id == &execution.test_execution_id)
+                    && (ids.contains(&execution.test_execution_id)
+                        || settled.contains(&execution.test_execution_id)
+                        || execution.status == crate::execution::ExecutionStatus::Skipped)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        // An earlier attempt whose report was never produced is still a cycle
+        // member; seal it now so a rerun can seal the cycle.
+        pending.extend(self.unsealed_members(&cycle, &pending).await);
+        let mut unsealed = Vec::new();
+        let mut cause = None;
+        while !pending.is_empty() {
+            let failures = match self.finish_saved_executions(&cycle, pending.clone()).await {
+                Ok(failures) => failures,
+                Err(error) if self.is_shutting_down() => return Err(error),
+                Err(error) if cannot_retry_save(&error) => {
+                    tracing::debug!(%error, %cycle_id, "final execution saves failed");
+                    cause.get_or_insert_with(|| {
+                        format!("final execution report was not sealed: {error}")
+                    });
+                    unsealed.extend(
+                        pending
+                            .drain(..)
+                            .map(|execution| execution.test_execution_id),
+                    );
+                    continue;
+                }
+                Err(error) => {
+                    tracing::debug!(%error, %cycle_id, "final execution saves will retry");
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    continue;
+                }
             };
-            tracing::debug!(%error, %cycle_id, "final execution save will retry");
-            if self.is_shutting_down() || cannot_retry_save(&error) {
-                return Err(error);
+            let mut retry = Vec::new();
+            for (id, error) in failures {
+                if self.is_shutting_down() {
+                    return Err(error);
+                }
+                tracing::debug!(%error, %cycle_id, execution_id = %id, "final execution save failed");
+                if cannot_retry_save(&error) {
+                    cause.get_or_insert_with(|| {
+                        format!("final execution report was not sealed: {error}")
+                    });
+                    unsealed.push(id);
+                } else {
+                    retry.push(id);
+                }
             }
-            // Retry checkpoint publication only. Provider dispatch and outcome
-            // folds are outside this loop and cannot be executed again.
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            pending.retain(|execution| retry.contains(&execution.test_execution_id));
+            if !pending.is_empty() {
+                // Retry checkpoint publication only. Provider dispatch and outcome
+                // folds are outside this loop and cannot be executed again.
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
         }
         let terminal = matches!(
             cycle.lifecycle,
@@ -167,20 +205,23 @@ impl RuntimeHandle {
                 | dokime::execution::CycleStatus::Blocked
                 | dokime::execution::CycleStatus::Stopped
         );
-        let sealed_cycle = if terminal {
-            Some(loop {
+        // A cycle whose members are not all sealed can never be sealed itself.
+        let sealed_cycle = if terminal && cause.is_none() {
+            loop {
                 match self.finish_saved_cycle(&cycle).await {
-                    Ok(cycle) => {
-                        break cycle;
-                    }
+                    Ok(cycle) => break Some(cycle),
                     Err(error) if self.is_shutting_down() => return Err(error),
-                    Err(error) if cannot_retry_save(&error) => return Err(error),
+                    Err(error) if cannot_retry_save(&error) => {
+                        tracing::debug!(%error, %cycle_id, "final cycle save failed");
+                        cause = Some(format!("final cycle report was not sealed: {error}"));
+                        break None;
+                    }
                     Err(error) => {
                         tracing::debug!(%error, %cycle_id, "final cycle save will retry");
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                     }
                 }
-            })
+            }
         } else {
             None
         };
@@ -198,6 +239,23 @@ impl RuntimeHandle {
                 .map_err(|error| Error::Operation(error.to_string()))?;
             self.execution_storage.retire_cycle_report(&cycle_id).await;
         } else {
+            // A permanent failure settles the run Failed with its cause. The
+            // cycle is terminal and unsealed; nothing claims a report that was
+            // never produced, and the next finalization starts afresh.
+            if let Some(cause) = &cause {
+                tracing::error!(%cycle_id, %cause, "final report could not be sealed");
+                let mut released = Vec::with_capacity(unsealed.len());
+                for id in unsealed {
+                    if self.execution_storage.release_finalization(&id).await {
+                        released.push(id);
+                    }
+                }
+                complete.unsealed = Some(crate::transactions::Unsealed {
+                    cause: cause.clone(),
+                    execution_ids: released,
+                });
+                self.execution_storage.retire_cycle_report(&cycle_id).await;
+            }
             self.commit(complete)
                 .await
                 .map_err(|error| Error::Operation(error.to_string()))?;
@@ -214,15 +272,24 @@ impl RuntimeHandle {
             }
         }
         // The durable terminal receipt acknowledges both sealed executions and
-        // their final cycle row. A failed cycle save must leave it nonterminal.
+        // their final cycle row, or the permanent cause they were not sealed.
+        // A failed transient save leaves it nonterminal.
+        let summary = if cause.is_some() {
+            self.state_read().run_requests[&request_id].summary.clone()
+        } else {
+            summary
+        };
+        let growth = harmos::MemorySize::memory_size(&summary)
+            .saturating_add(cause.as_ref().map_or(0, String::len));
         loop {
             match self
                 .request_storage
-                .update(
-                    &request_id,
-                    harmos::MemorySize::memory_size(&summary),
-                    |receipt| receipt.summary = summary.clone(),
-                )
+                .update(&request_id, growth, |receipt| {
+                    receipt.summary = summary.clone();
+                    if cause.is_some() {
+                        receipt.interruption = cause.clone();
+                    }
+                })
                 .await
             {
                 Ok(()) => break,

@@ -8,7 +8,7 @@
  */
 
 /* === Modules === */
-mod decode;
+mod encoding;
 mod foreign_streams;
 mod notes;
 mod ownership;
@@ -22,7 +22,6 @@ pub(crate) use record_history::Redefinition;
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use serde::Serialize;
 // Local Imports
 use crate::definition::SuiteRegistry;
 use crate::definition::{MaterializedParameter, SuiteSnapshot};
@@ -55,16 +54,15 @@ product_error!(RuntimeStateInstallError, formatter {
 /* === Type Aliases === */
 
 /* === Structs === */
-#[derive(Clone, Debug, PartialEq, Serialize)]
+// The managed snapshot encodes this state through `encoding`.
+#[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeState {
     pub session_id: SessionId,
     pub(crate) record_namespace: SessionId,
     pub identity: DokimeIdentity,
     pub run_parameters: BTreeMap<String, MaterializedParameter>,
     pub shutting_down: bool,
-    #[serde(default)]
     pub installed_plugins: BTreeMap<String, InstalledPlugin>,
-    #[serde(default)]
     pub plugin_owners: BTreeMap<String, PluginOwner>,
     pub suites: SuiteRegistry,
     pub record_definitions: BTreeMap<dokime::core::Identifier, RecordContract>,
@@ -72,7 +70,6 @@ pub struct RuntimeState {
     pub telemetry_definitions: BTreeMap<dokime::core::Identifier, TelemetryContract>,
     pub cycles: BTreeMap<TestCycleId, crate::execution::TestCycle>,
     pub executions: BTreeMap<dokime::core::TestExecutionId, crate::execution::TestExecution>,
-    #[serde(default)]
     pub run_requests:
         BTreeMap<dokime::core::CommandId, crate::transactions::provider::request::RunRequest>,
     pub note_admissions: BTreeMap<dokime::core::NoteId, crate::execution::notes::NoteAdmission>,
@@ -83,6 +80,7 @@ pub struct RuntimeState {
     pub record_count: u64,
     pub prompt_requests: BTreeMap<PromptId, PromptInstance>,
     pub prompt_responses: BTreeMap<PromptId, PromptResponse>,
+    /// Prompts the runtime settled when their owner ended, and when.
     pub closed_prompts: BTreeMap<PromptId, Timestamp>,
 }
 
@@ -691,14 +689,41 @@ impl RuntimeState {
     }
 
     pub fn pending_prompt_projection(&self) -> Vec<PromptInstance> {
+        self.open_prompts().cloned().collect()
+    }
+
+    /// The prompts an operator can still answer: the one authority every
+    /// pending view, count and response check reads.
+    pub fn open_prompts(&self) -> impl Iterator<Item = &PromptInstance> {
         self.prompt_requests
-            .iter()
-            .filter(|(prompt_id, _)| {
-                !self.prompt_responses.contains_key(*prompt_id)
-                    && !self.closed_prompts.contains_key(*prompt_id)
-            })
-            .map(|(_, prompt)| prompt.clone())
-            .collect()
+            .values()
+            .filter(|prompt| self.prompt_open(prompt))
+    }
+
+    /// A prompt is open while it has no response and its owner still runs. An
+    /// execution-scoped prompt never outlives its execution, and a
+    /// cycle-scoped one never outlives its cycle.
+    pub fn prompt_open(&self, prompt: &PromptInstance) -> bool {
+        if self.prompt_responses.contains_key(&prompt.prompt_id)
+            || self.closed_prompts.contains_key(&prompt.prompt_id)
+        {
+            return false;
+        }
+        if let Some(id) = &prompt.scope.test_execution_id {
+            return self.executions.get(id).is_some_and(|execution| {
+                execution.finished_at.is_none()
+                    && matches!(
+                        execution.status,
+                        crate::execution::ExecutionStatus::Pending
+                            | crate::execution::ExecutionStatus::Running
+                    )
+            });
+        }
+        prompt
+            .scope
+            .test_cycle_id
+            .as_ref()
+            .is_none_or(|id| self.cycles.contains_key(id))
     }
 
     pub fn projected_prompt_request(&self, prompt_id: &PromptId) -> Option<PromptInstance> {
@@ -716,12 +741,11 @@ impl RuntimeState {
     ) -> Result<Option<crate::definition::RuntimeCondition>, String> {
         // Existence/action/duplicate errors belong to the response transaction.
         // Only a pending, valid action can require this external precheck.
-        if self.prompt_responses.contains_key(prompt_id)
-            || self.closed_prompts.contains_key(prompt_id)
-        {
-            return Ok(None);
-        }
-        let Some(prompt) = self.prompt_requests.get(prompt_id) else {
+        let Some(prompt) = self
+            .prompt_requests
+            .get(prompt_id)
+            .filter(|prompt| self.prompt_open(prompt))
+        else {
             return Ok(None);
         };
         let Some(action) = prompt

@@ -612,6 +612,24 @@ impl ExecutionStorage {
         acquisition.report.is_some() || acquisition.execution.saved.is_some()
     }
 
+    /// Releases the input a permanently failed finalization retained, so the
+    /// execution can settle with its cause and a later finalization captures it
+    /// afresh. Returns false when its report was sealed after all.
+    pub(crate) async fn release_finalization(&self, execution: &TestExecutionId) -> bool {
+        let Some(owner) = self.acquisition(execution).await else {
+            return true;
+        };
+        let gate = owner.lock().await.gate.clone();
+        let _boundary = gate.lock().await;
+        let mut acquisition = owner.lock().await;
+        if acquisition.execution.saved.is_some() {
+            return false;
+        }
+        acquisition.report = None;
+        acquisition.finalizing = None;
+        true
+    }
+
     pub(crate) async fn retry_final_report(
         &self,
         execution: &TestExecutionId,

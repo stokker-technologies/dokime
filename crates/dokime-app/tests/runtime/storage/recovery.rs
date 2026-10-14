@@ -32,6 +32,8 @@ use dokime_app::execution::CycleView;
 const MEMBERS: usize = 9;
 const COLUMNS: usize = 49;
 const STREAM: &str = "fixture.wide";
+// The Two Shipped Bundles A Development Session Loads Beside The Host
+const BUNDLES: [&str; 2] = ["mini-sidecar", "fixture-suites"];
 
 /* === Macros === */
 
@@ -165,25 +167,40 @@ async fn assert_history(handle: &RuntimeHandle, cycles: &[&CycleView], entries: 
 }
 
 async fn reboot(root: &Path) -> (Runtime, RuntimeHandle) {
-    tokio::time::timeout(
+    let started = tokio::time::timeout(
         Duration::from_secs(60),
         started_with_fixture(wide_config(root), Arc::new(WideTelemetryExecutor)),
     )
     .await
-    .expect("recovery boot is bounded")
+    .expect("recovery boot is bounded");
+
+    // Every Boot Carries Both Shipped Catalogs Into The Snapshot It Writes
+    let latest = started.1.watch_state().latest();
+    for bundle in BUNDLES {
+        assert!(
+            latest.state().installed_plugins.contains_key(bundle),
+            "{bundle} is loaded"
+        );
+    }
+    drop(latest);
+    started
 }
+
 fn wide_config(root: &Path) -> RuntimeConfig {
     let columns = (0..COLUMNS)
         .map(|index| fixture_host_column(&format!("value_{index:02}"), &format!("Value {index}")))
         .collect();
-    config(root).with_installed_plugins([dokime_app::InstalledPlugin {
-        source: "fixture.host".to_owned(),
-        version: "test".to_owned(),
-        description: "Fixture Host".to_owned(),
-        enabled: true,
-        telemetry_contracts: vec![fixture_host_contract(STREAM, "Fixture Wide", columns)],
-        ..Default::default()
-    }])
+    let bundles = BUNDLES.map(|bundle| crate::support::plugins::fixture_bundle(root, bundle));
+    config(root)
+        .with_plugins(bundles)
+        .with_installed_plugins([dokime_app::InstalledPlugin {
+            source: "fixture.host".to_owned(),
+            version: "test".to_owned(),
+            description: "Fixture Host".to_owned(),
+            enabled: true,
+            telemetry_contracts: vec![fixture_host_contract(STREAM, "Fixture Wide", columns)],
+            ..Default::default()
+        }])
 }
 
 fn wide_batch(scope: RecordScope) -> TelemetryBatch {
@@ -208,11 +225,51 @@ fn wide_batch(scope: RecordScope) -> TelemetryBatch {
     TelemetryBatch::new(identifier(STREAM), samples)
 }
 
+// Shut A Session Down And Return The Bytes Of The State Snapshot It Wrote
+async fn shut_down(mut owner: Runtime, handle: RuntimeHandle, logs: &Captured) -> usize {
+    let primary = handle.storage_root().join("local.sqlite");
+    drop(handle);
+    owner.shutdown().await.unwrap();
+    assert!(
+        !logs.text().contains("snapshot skipped"),
+        "the session's state should fit one state snapshot:\n{}",
+        logs.text()
+    );
+
+    let connection = rusqlite::Connection::open(primary).unwrap();
+    let bytes: Option<i64> = connection
+        .query_row(
+            "SELECT length(snapshot) FROM storage_recovery_head",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let bytes = bytes.expect("shutdown writes a state snapshot");
+    usize::try_from(bytes).unwrap()
+}
+
+// The Snapshot Encoding Stores Shared Catalogs And Plans Once; Decoding Restores Them
+fn assert_round_trip(handle: &RuntimeHandle) {
+    let latest = handle.watch_state().latest();
+    let encoded = serde_json::to_vec(latest.state()).unwrap();
+    let decoded: dokime_app::state::RuntimeState = serde_json::from_slice(&encoded).unwrap();
+    assert!(
+        &decoded == latest.state(),
+        "state survives its snapshot encoding"
+    );
+}
+
 /* === Tests === */
 
 // Sealed Cycles Leave Live State At The Next Cycle Start Or Restart, So A Wide
-// Cycle Never Strands Its Root And The State Snapshot Stays Bounded.
+// Cycle Never Strands Its Root And The State Snapshot Stays Bounded With The
+// Shipped Plugin Catalogs Loaded.
 pub(crate) async fn cycle_survives_skipped_snapshot() {
+    // Measured 925,117 And 922,395 Bytes: About 512 KB Of State (420 KB Of It The
+    // Pooled Plugin Catalog) Plus About 413 KB Of Journal Tail, Mostly The Wide
+    // Member's Finalized Aggregates.
+    const SNAPSHOT_LIMIT: usize = 960 * 1024;
+
     let logs = Captured::default();
     let _subscriber = tracing::subscriber::set_default(
         tracing_subscriber::fmt()
@@ -229,34 +286,39 @@ pub(crate) async fn cycle_survives_skipped_snapshot() {
     register_python_suite(&handle, suite.clone()).await;
     let first = sealed_cycle(&handle, suite.clone()).await;
     assert!(resident(&handle, &first.test_cycle_id).await);
+    assert_round_trip(&handle);
     drop(handle);
     owner.shutdown().await.unwrap();
+    // Not Yet Bounded: The Resident Wide Cycle Holds About 340 KB Of Aggregates
+    // In State And Again About 300 KB In The Journal Tail Of Its Finalization.
+    logs.clear();
 
     // A Restart Retires It From Live State Without Touching Its History
-    let (mut owner, handle) = reboot(root.path()).await;
+    let (owner, handle) = reboot(root.path()).await;
     assert!(!resident(&handle, &first.test_cycle_id).await);
     assert_history(&handle, &[&first], MEMBERS).await;
 
     // Starting Another Cycle Retires The Previous Sealed One In Session
-    logs.clear();
     register_python_suite(&handle, suite.clone()).await;
     let second = sealed_cycle(&handle, suite.clone()).await;
     assert!(resident(&handle, &second.test_cycle_id).await);
     let third = start_cycle(&handle, suite, false).await;
     assert!(!resident(&handle, &second.test_cycle_id).await);
     assert!(resident(&handle, &third).await);
-    drop(handle);
-    owner.shutdown().await.unwrap();
+    let written = shut_down(owner, handle, &logs).await;
     assert!(
-        !logs.text().contains("snapshot skipped"),
-        "one working cycle should fit one state snapshot:\n{}",
-        logs.text()
+        written <= SNAPSHOT_LIMIT,
+        "state snapshot of {written} bytes"
     );
 
-    let (mut owner, handle) = reboot(root.path()).await;
+    // The Next Boot Restores That Snapshot And Writes Its Own
+    let (owner, handle) = reboot(root.path()).await;
     assert!(!resident(&handle, &second.test_cycle_id).await);
     // The Third Cycle Was Started But Never Run; Its Planned Members Are Listed Too
     assert_history(&handle, &[&first, &second], 3 * MEMBERS).await;
-    drop(handle);
-    owner.shutdown().await.unwrap();
+    let written = shut_down(owner, handle, &logs).await;
+    assert!(
+        written <= SNAPSHOT_LIMIT,
+        "state snapshot of {written} bytes"
+    );
 }

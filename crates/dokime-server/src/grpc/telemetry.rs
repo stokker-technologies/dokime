@@ -94,7 +94,7 @@ impl Operation for List {
             end: timestamp(request.end.take(), "telemetry end")?,
             latest: request.latest,
         };
-        let samples = self
+        let mut samples = self
             .resources
             .runtime
             .try_selected_telemetry(selection)
@@ -102,52 +102,16 @@ impl Operation for List {
             .map_err(|error| {
                 Status::unavailable(format!("telemetry query unavailable: {error}"))
             })?;
-        let sample_count = samples.len();
-        let mut through_stream_cursors: BTreeMap<_, _> = if request.latest {
-            BTreeMap::new()
-        } else {
-            after_stream_cursors.into_iter().collect()
-        };
-        if !request.latest {
-            for sample in &samples {
-                let stream = dokime_app::capabilities::telemetry::telemetry_stream_id(
-                    sample.scope.as_ref(),
-                    &sample.stream,
-                );
-                through_stream_cursors
-                    .entry(stream)
-                    .and_modify(|cursor| *cursor = (*cursor).max(sample.sequence))
-                    .or_insert(sample.sequence);
-            }
-        }
-        let required = samples
-            .iter()
-            .try_fold(
-                std::mem::size_of::<wire::TelemetrySamplesReply>(),
-                |bytes, item| {
-                    Ok::<_, Status>(
-                        bytes
-                            .saturating_add(projection::memory(item)?)
-                            .saturating_add(3 * std::mem::size_of::<wire::TelemetrySample>()),
-                    )
-                },
-            )?
-            .saturating_add(
-                through_stream_cursors
-                    .iter()
-                    .fold(0usize, |bytes, (key, _)| {
-                        bytes.saturating_add(key.len()).saturating_add(
-                            4 * std::mem::size_of::<
-                                wire::TelemetrySamplesReplyThroughStreamCursorsEntry,
-                            >(),
-                        )
-                    }),
-            );
-        if required > self.resources.max_message_bytes {
-            return Err(Status::resource_exhausted(
-                "telemetry response exceeds original budget",
-            ));
-        }
+        let selected = samples.len();
+        let (through_stream_cursors, required) = fit_page(
+            &mut samples,
+            request.latest,
+            after_stream_cursors,
+            self.resources.max_message_bytes,
+        )?;
+        // A clamped page is never complete: forward pages continue from the
+        // returned cursors, a latest window asks again with a smaller limit.
+        let clamped = samples.len() < selected;
         let preparation = self
             .resources
             .runtime
@@ -172,7 +136,7 @@ impl Operation for List {
                     },
                 )
                 .collect(),
-            complete: request_is_complete(request.latest, sample_count, limit),
+            complete: !clamped && request_is_complete(request.latest, selected, limit),
         };
         if reply.encoded_len() > self.resources.max_message_bytes {
             return Err(Status::resource_exhausted(
@@ -210,12 +174,79 @@ fn bounded_limit(value: u32) -> Result<usize, Status> {
         usize::try_from(value)
             .map_err(|_| Status::out_of_range("telemetry limit is unsupported"))?
     };
-    if value > MAX_LIMIT {
+    // Asking for more than one page holds is never refused; the page clamps.
+    Ok(value.min(MAX_LIMIT))
+}
+
+/// Clamps the selected samples to the longest run that fits the message
+/// budget, returning the page's continuation cursors and its reserved bytes.
+/// Forward pages keep their oldest samples so the cursors continue exactly
+/// after them; latest windows keep their newest. Only a single sample larger
+/// than the whole budget is refused, because no page could ever carry it.
+fn fit_page(
+    samples: &mut Vec<dokime_app::telemetry::TelemetrySample>,
+    latest: bool,
+    after_stream_cursors: BTreeMap<String, u64>,
+    budget: usize,
+) -> Result<(BTreeMap<String, u64>, usize), Status> {
+    let cursor = |key: &str| {
+        key.len().saturating_add(
+            4 * std::mem::size_of::<wire::TelemetrySamplesReplyThroughStreamCursorsEntry>(),
+        )
+    };
+    let mut through = if latest {
+        BTreeMap::new()
+    } else {
+        after_stream_cursors
+    };
+    let mut required = through.keys().fold(
+        std::mem::size_of::<wire::TelemetrySamplesReply>(),
+        |bytes, key| bytes.saturating_add(cursor(key)),
+    );
+    let order: Box<dyn Iterator<Item = usize>> = if latest {
+        Box::new((0..samples.len()).rev())
+    } else {
+        Box::new(0..samples.len())
+    };
+    let mut kept = 0;
+    for index in order {
+        let sample = &samples[index];
+        let mut bytes = projection::memory(sample)?
+            .saturating_add(3 * std::mem::size_of::<wire::TelemetrySample>());
+        let stream = (!latest).then(|| {
+            dokime_app::capabilities::telemetry::telemetry_stream_id(
+                sample.scope.as_ref(),
+                &sample.stream,
+            )
+        });
+        if let Some(stream) = &stream
+            && !through.contains_key(stream)
+        {
+            bytes = bytes.saturating_add(cursor(stream));
+        }
+        if required.saturating_add(bytes) > budget {
+            break;
+        }
+        required = required.saturating_add(bytes);
+        if let Some(stream) = stream {
+            through
+                .entry(stream)
+                .and_modify(|through| *through = (*through).max(sample.sequence))
+                .or_insert(sample.sequence);
+        }
+        kept += 1;
+    }
+    if kept == 0 && !samples.is_empty() {
         return Err(Status::resource_exhausted(
-            "telemetry limit exceeds 5000 samples",
+            "one telemetry sample exceeds the message budget",
         ));
     }
-    Ok(value)
+    if latest {
+        samples.drain(..samples.len() - kept);
+    } else {
+        samples.truncate(kept);
+    }
+    Ok((through, required))
 }
 
 fn bounded_cursors(

@@ -1268,6 +1268,10 @@ fn protocol_contract() {
         run_scenario(prompts::prompt_level_watched, false, None, false);
     }
     {
+        eprintln!("Scenario: prompts::settled_prompt_refused");
+        run_scenario(prompts::settled_prompt_refused, false, None, false);
+    }
+    {
         eprintln!("Scenario: query::aggregate_answers_asked");
         run_scenario(query::aggregate_answers_asked, false, None, false);
     }

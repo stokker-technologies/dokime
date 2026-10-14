@@ -98,18 +98,18 @@ pub(crate) async fn running_execution_owners() {
         }
     }
     assert!(complete);
-    // One document, every card, one fixed order: the result opens it and the
-    // evidence closes it. Nothing is selected and nothing is left behind.
+    // One document, every card, one fixed order: the result and the operator's
+    // notes open it and the evidence closes it. Nothing is selected and nothing is left behind.
     assert_eq!(
         kinds,
         [
             contracts::documents::DocumentCardKind::Steps,
             contracts::documents::DocumentCardKind::Criteria,
+            contracts::documents::DocumentCardKind::Notes,
             contracts::documents::DocumentCardKind::Records,
             contracts::documents::DocumentCardKind::Artifacts,
             contracts::documents::DocumentCardKind::Media,
             contracts::documents::DocumentCardKind::Traceability,
-            contracts::documents::DocumentCardKind::Notes,
         ]
     );
     gate.release.notify_one();

@@ -20,7 +20,11 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleStatus, ExecutionStatus, StepRecord, StepStatus, TestExecution};
 use crate::state::RuntimeState;
+use crate::transactions::prompts::{
+    PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
+};
 use crate::transactions::provider::request::RunPhase;
+use crate::transactions::records::draft::Drafts;
 use dokime::core::{DokimeNodeIdentity, SessionId, Timestamp};
 
 /* === Constants === */
@@ -96,24 +100,34 @@ impl Transaction<RuntimeState> for StartShutdown {
     }
 }
 
+impl RecoverInterruptedCycles {
+    /// The requester no longer exists after restart: every prompt a cycle or
+    /// execution raised expires as a runtime response, never an operator one.
+    fn prompts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
+        let mut records = Drafts::new(state);
+        let settled = settle_prompts(
+            state,
+            &mut records,
+            PromptSettlement::Interrupted,
+            &self.at,
+            |scope| scope.test_cycle_id.is_some() || scope.test_execution_id.is_some(),
+        );
+        (records, settled)
+    }
+}
+
 impl Transaction<RuntimeState> for RecoverInterruptedCycles {
     type Error = String;
     fn check(&self, _: &RuntimeState) -> Result<(), String> {
         Ok(())
     }
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        self.prompts(state).0.collect(out);
+    }
     fn apply(&self, state: &mut RuntimeState) {
-        // The requester no longer exists after restart. Keep the original
-        // question as evidence without fabricating an operator response.
-        for (id, prompt) in &state.prompt_requests {
-            if (prompt.scope.test_cycle_id.is_some() || prompt.scope.test_execution_id.is_some())
-                && !state.prompt_responses.contains_key(id)
-            {
-                state
-                    .closed_prompts
-                    .entry(id.clone())
-                    .or_insert_with(|| self.at.clone());
-            }
-        }
+        let (records, settled) = self.prompts(state);
+        records.apply(state);
+        commit_settled_prompts(state, settled);
 
         for request in state.run_requests.values_mut() {
             if request.summary.phase.terminal() {

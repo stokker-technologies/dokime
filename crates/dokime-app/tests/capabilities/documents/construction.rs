@@ -73,12 +73,12 @@ pub(crate) async fn default_document_order() {
         section_identifiers(&execution_document),
         [
             "execution.result",
+            "execution.traceability.notes",
             "custom.signals",
             "execution.events",
             "execution.traceability.artifacts",
             "execution.traceability.media",
             "execution.traceability.sections",
-            "execution.traceability.notes",
         ]
     );
     assert_eq!(
@@ -86,12 +86,12 @@ pub(crate) async fn default_document_order() {
         [
             "steps",
             "criteria",
+            "notes",
             "custom.signals.text",
             "records",
             "artifacts",
             "media",
             "traceability",
-            "notes",
         ]
     );
     // The runtime composes host sections only. A product's own card reaches the
@@ -393,13 +393,13 @@ pub(crate) async fn section_run_report() {
         section_identifiers(&live),
         [
             "execution.result",
+            "execution.traceability.notes",
             "custom.signals",
             "run.discovered",
             "execution.events",
             "execution.traceability.artifacts",
             "execution.traceability.media",
             "execution.traceability.sections",
-            "execution.traceability.notes",
         ]
     );
     assert_eq!(

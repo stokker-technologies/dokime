@@ -820,21 +820,49 @@ async fn sidecar_execution_streams_evidence_through_native_grpc() {
         Some("traceability.template.device")
     );
 
-    let final_samples = telemetry
-        .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
-            streams: vec![STEADY_SAMPLES.into()],
-            scope: Some(execution_scope.clone()),
-            // Headroom, not a count: the stream measures at its declared
-            // cadence for as long as the prompt is pending, so this page is
-            // sized to hold everything rather than to predict how much.
-            limit: 5_000,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    assert!(final_samples.complete);
-    assert!(final_samples.samples.len() >= STEADY_SAMPLE_COUNT as usize);
-    assert!(final_samples.samples.iter().all(|sample| {
+    // The stream measures at its declared cadence for as long as the prompt
+    // is pending, so read every page: an oversized limit is clamped to what
+    // fits one message and continues from the returned cursors.
+    let mut final_samples = Vec::new();
+    let mut after_stream_cursors = Vec::new();
+    loop {
+        let page = telemetry
+            .telemetry_list_samples(contracts::telemetry::ListTelemetrySamplesRequest {
+                streams: vec![STEADY_SAMPLES.into()],
+                scope: Some(execution_scope.clone()),
+                limit: u32::MAX,
+                after_stream_cursors,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert!(
+            !page.samples.is_empty() || page.complete,
+            "an incomplete page always makes progress"
+        );
+        final_samples.extend(page.samples);
+        if page.complete {
+            break;
+        }
+        after_stream_cursors = page
+            .through_stream_cursors
+            .into_iter()
+            .map(
+                |entry| contracts::telemetry::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
+                    key: entry.key,
+                    value: entry.value,
+                },
+            )
+            .collect();
+    }
+    assert!(final_samples.len() >= STEADY_SAMPLE_COUNT as usize);
+    assert!(
+        final_samples
+            .windows(2)
+            .all(|pair| pair[0].sequence < pair[1].sequence),
+        "pages continue in order without repeats"
+    );
+    assert!(final_samples.iter().all(|sample| {
         sample.stream == STEADY_SAMPLES
             && sample.scope.as_ref().is_some_and(|sample_scope| {
                 sample_scope.cycle_id.as_deref() == Some(cycle_id.as_str())

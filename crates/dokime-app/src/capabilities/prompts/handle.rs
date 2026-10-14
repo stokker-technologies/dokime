@@ -25,7 +25,7 @@ use crate::transactions::prompts::{
 };
 use crate::{
     CommandContext, CommandId, CommandReceipt, Error, RuntimeHandle, commands::accepted_receipt,
-    execution::CycleStatus, prompts::PromptDefinition, unavailable_rejection,
+    prompts::PromptDefinition, unavailable_rejection,
 };
 use dokime::core::{PromptId, TestCycleId, Timestamp, Value};
 use dokime::prompts::{PromptInstance, PromptRequest, PromptResponse};
@@ -180,6 +180,11 @@ impl RuntimeHandle {
         self.state_read().prompt_response(prompt_id)
     }
 
+    /// When the runtime settled the prompt because its owner ended, if it did.
+    pub async fn prompt_settled_at(&self, prompt_id: &PromptId) -> Option<Timestamp> {
+        self.state_read().closed_prompts.get(prompt_id).cloned()
+    }
+
     pub async fn wait_for_prompt_response(
         &self,
         prompt_id: PromptId,
@@ -199,6 +204,8 @@ impl RuntimeHandle {
             })
     }
 
+    /// Waits for the prompt's response. A stop settles the prompt in the same
+    /// transaction without answering it, so the wait ends as cancelled.
     pub async fn wait_for_prompt_response_for_cycle(
         &self,
         prompt_id: PromptId,
@@ -207,62 +214,24 @@ impl RuntimeHandle {
         let mut state = self.watch_state();
         let snapshot = state
             .wait_until(|snapshot| {
-                snapshot.state().shutting_down
-                    || snapshot.state().prompt_response(&prompt_id).is_some()
-                    || matches!(
-                        snapshot
-                            .state()
-                            .cycles
-                            .get(&test_cycle_id)
-                            .map(|cycle| cycle.lifecycle),
-                        Some(CycleStatus::Stopping | CycleStatus::Stopped),
-                    )
+                let state = snapshot.state();
+                state.shutting_down
+                    || state.prompt_response(&prompt_id).is_some()
+                    || !state.cycles.contains_key(&test_cycle_id)
+                    || state
+                        .prompt_requests
+                        .get(&prompt_id)
+                        .is_none_or(|prompt| !state.prompt_open(prompt))
             })
             .await
             .ok_or_else(|| {
                 prompt_wait_cancelled("runtime cancellation requested while waiting for prompt")
             })?;
 
-        if let Some(response) = snapshot.state().prompt_response(&prompt_id) {
-            return Ok(response);
-        }
-
-        let pending_prompt = snapshot
+        snapshot
             .state()
-            .pending_prompt_projection()
-            .into_iter()
-            .find(|prompt| prompt.prompt_id == prompt_id)
-            .ok_or_else(|| {
-                prompt_wait_cancelled("cycle stopped while waiting for prompt response")
-            })?;
-        if !pending_prompt
-            .definition
-            .actions
-            .iter()
-            .any(|action| action.id == "cancel")
-        {
-            return Err(prompt_wait_cancelled(
-                "cycle stopped while waiting for prompt response",
-            ));
-        }
-
-        match self
-            .submit_prompt_response(
-                prompt_id.clone(),
-                "cancel".to_owned(),
-                "runtime".to_owned(),
-                BTreeMap::new(),
-                false,
-            )
-            .await
-        {
-            Ok(response) => Ok(response),
-            Err(detail) if detail.code() == Some("prompt_already_answered") => self
-                .prompt_response(&prompt_id)
-                .await
-                .ok_or_else(|| prompt_projection_missing("answered prompt was not projected")),
-            Err(detail) => Err(detail),
-        }
+            .prompt_response(&prompt_id)
+            .ok_or_else(|| prompt_wait_cancelled("prompt closed while waiting for its response"))
     }
 
     async fn commit_prompt_response(

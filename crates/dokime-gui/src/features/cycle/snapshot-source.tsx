@@ -68,7 +68,7 @@ export type CycleSnapshotSource = {
   artifacts: ArtifactRecord[];
   /** The artifacts one attempt produced, as the live execution-file read returns them. */
   executionFiles: (executionId: string | null) => ArtifactRecord[];
-  /** The selected execution document; null selection has no document. */
+  /** The selected execution's document, or the cycle's own for `null`. */
   document: (executionId: string | null) => DocumentViewPayload | null;
   plotPayloads: (executionId: string | null) => FrozenPlotPayloads;
   traceability: (executionId: string | null) => TraceabilitySnapshot | null;

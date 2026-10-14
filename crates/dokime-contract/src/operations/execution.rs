@@ -334,6 +334,12 @@ pub struct RunRequestReceipt {
     pub provider_started_at: Option<Timestamp>,
     pub finished_at: Option<Timestamp>,
     pub submitted_by: Option<String>,
+    // Why the request ended without its normal outcome: the interruption of an
+    // Interrupted request, or the permanent cause a Failed request's final
+    // reports were not sealed.
+    #[row(
+        description = "Why the request ended without its normal outcome: the interruption of an Interrupted request, or the permanent cause a Failed request's final reports were not sealed."
+    )]
     pub interruption: Option<String>,
     pub mode: ExecutionMode,
 }

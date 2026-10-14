@@ -173,10 +173,15 @@ impl Session {
                     .map(|response_json| OperatorAnswer { response_json })
                     .map_err(|error| error.to_string());
             }
-            if self.cancelling.load(Ordering::Acquire) {
-                return Err(
-                    "the execution was cancelled while the question was outstanding".into(),
-                );
+            // A stop settles the question in its own transaction, before the
+            // watch loop cancels the run: the run is being stopped, so the
+            // question ends as a cancellation rather than a refused answer.
+            let settled = self.context.runtime.prompt_settled_at(&prompt_id).await;
+            if settled.is_some() {
+                self.prompts.lock().await.outstanding.remove(&prompt_id);
+            }
+            if self.cancelling.load(Ordering::Acquire) || settled.is_some() {
+                return Err("the execution was stopped while the question was outstanding".into());
             }
             tokio::time::sleep(ANSWER_POLL).await;
         }
