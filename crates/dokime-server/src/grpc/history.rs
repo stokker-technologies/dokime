@@ -25,7 +25,6 @@ mod wire;
 
 /* === Re-Exports === */
 pub(super) use inspection::register;
-pub(super) use wire::checkpoint;
 pub(crate) use wire::{traceability, traceability_memory};
 
 /* === Imports === */

@@ -14,7 +14,6 @@ pub(super) mod files;
 mod follow;
 mod inventory;
 mod list;
-mod local;
 mod upload;
 pub(super) mod window;
 
@@ -45,13 +44,8 @@ const MAX_TRANSFER_CHUNK_BYTES: usize = 64 * 1024;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn register(
-    runtime: &RuntimeHandle,
-    maximum: usize,
-    local_only: bool,
-) -> Result<(), crate::grpc::Error> {
-    artifacts::register(runtime, maximum)?;
-    local::register(runtime, maximum, local_only)
+pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
+    artifacts::register(runtime, maximum)
 }
 
 pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
@@ -67,9 +61,6 @@ pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
         }),
         transfer_frame_memory(wire::UploadArtifactFrame {
             payload: Some(wire::UploadArtifactFramePayload::Chunk(chunk.clone())),
-        }),
-        transfer_frame_memory(wire::CycleBundleFrame {
-            payload: Some(wire::CycleBundleFramePayload::Chunk(chunk.clone())),
         }),
         transfer_frame_memory(wire::ExecutionFileDownloadFrame {
             payload: Some(wire::ExecutionFileDownloadFramePayload::Chunk(

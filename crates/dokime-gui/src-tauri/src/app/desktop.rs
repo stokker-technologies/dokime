@@ -80,7 +80,6 @@ pub enum DesktopSaveKind {
     DiagnosticsBundle,
     /// JSON assembled in the webview, such as an execution's traceability.
     JsonDocument,
-    CycleBundle,
     Artifact,
 }
 
@@ -104,9 +103,6 @@ pub enum ArtifactSource {
     ExecutionFile {
         execution_id: String,
         relative_path: String,
-    },
-    CycleBundle {
-        cycle_id: String,
     },
 }
 
@@ -397,9 +393,6 @@ fn validate_save_document(
             MAX_JSON_DOCUMENT_BYTES,
             "JSON document",
         ),
-        DesktopSaveKind::CycleBundle => {
-            return Err("Cycle bundle is delivered through desktop_artifact_deliver".into());
-        }
         DesktopSaveKind::Artifact => {
             return Err("Artifact is delivered through desktop_artifact_deliver".into());
         }
@@ -430,7 +423,6 @@ fn apply_dialog_filter(
         // truthful so a future route cannot pick up a wrong filter by default.
         DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics bundle", &["zip"]),
         DesktopSaveKind::JsonDocument => dialog.add_filter("JSON document", &["json"]),
-        DesktopSaveKind::CycleBundle => dialog.add_filter("Cycle bundle", &["zip"]),
         DesktopSaveKind::Artifact => dialog,
     }
 }
@@ -440,7 +432,6 @@ fn extension_policy(kind: DesktopSaveKind) -> ExtensionPolicy {
         DesktopSaveKind::HtmlReport => ExtensionPolicy::Append(".html"),
         DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".zip"),
         DesktopSaveKind::JsonDocument => ExtensionPolicy::Append(".json"),
-        DesktopSaveKind::CycleBundle => ExtensionPolicy::Append(".zip"),
         DesktopSaveKind::Artifact => ExtensionPolicy::Free,
     }
 }

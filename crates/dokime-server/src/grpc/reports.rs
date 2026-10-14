@@ -23,15 +23,14 @@ use super::chunked;
 use super::value::canonical;
 use super::{error::detailed, value};
 use dokime_app::{
-    RuntimeHandle,
-    core::{Identifier, TestCycleId},
-    execution::CycleStatus,
+    OpenedReport, ReportOrigin, RuntimeHandle,
+    core::{Identifier, TestCycleId, TestExecutionId},
 };
-use dokime_contract::operations::{checkpoint, reports as wire};
+use dokime_contract::operations::reports as wire;
 
 /* === Constants === */
 const HTML_CHUNK_BYTES: usize = 64 * 1024;
-const MAX_REPORT_HTML_BYTES: usize = 16 * 1024 * 1024;
+const EXECUTION_REPORT_IDENTIFIER: &str = "execution.report";
 
 /* === Macros === */
 
@@ -47,13 +46,15 @@ struct HtmlFrames(Response<wire::ReportHtmlFrame>);
 struct Download {
     resources: Arc<Resources>,
 }
-struct Render;
+struct Execution {
+    resources: Arc<Resources>,
+}
 
 /* === Enums === */
 #[harmos::catalog]
 enum Operations {
     Download(Download),
-    Render(Render),
+    Execution(Execution),
 }
 
 /* === Traits === */
@@ -81,139 +82,46 @@ impl Operation for Download {
         let cycle = TestCycleId::from_uuid(request.cycle_id.clone())
             .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
         let identifier = report_identifier(&request.identifier)?;
-        require_settled(&self.resources.runtime, &cycle, "final report")?;
-        let storage = self.resources.runtime.storage();
-        let mut query =
-            harmos::storage::ObjectQuery::<dokime::storage::objects::cycle::Cycle>::new();
-        query.item = Some(cycle.as_str());
-        let selection = storage
-            .query(query)
+        let report = self
+            .resources
+            .runtime
+            .open_cycle_report(&cycle)
             .await
-            .map_err(|error| report_failure(error.into()))?;
-        let view = selection
-            .view()
-            .ok_or_else(|| Status::internal("cycle query has no saved view"))?
-            .clone();
-        let selected = dokime::storage::objects::cycle::read_in(
-            storage,
-            &view,
-            &cycle,
-            harmos::storage::ObjectVersion::Latest,
-            selection.decoded_bytes(),
-        )
-        .await
-        .map_err(|error| report_failure(error.into()))?
-        .ok_or_else(|| Status::not_found("cycle not found"))?;
-        let seal = selected
-            .value
-            .saved
-            .as_ref()
-            .ok_or_else(|| Status::failed_precondition("cycle has no saved final report"))?;
-        seal.validate(&selected.value)
-            .map_err(|error| Status::failed_precondition(error.to_string()))?;
-        if seal.report.length > MAX_REPORT_HTML_BYTES as u64 {
-            return Err(Status::resource_exhausted(
-                "report HTML exceeds the download limit",
-            ));
-        }
-        let reader = view
-            .read_file(&seal.report)
-            .await
-            .map_err(|error| report_failure(error.into()))?;
-        // The boxed report payload owns its heap pointee beside the inline frame.
-        let required = std::mem::size_of::<wire::ReportHtmlFrame>()
-            .saturating_add(std::mem::size_of::<wire::ReportMetadata>())
-            .saturating_add(cycle.as_str().len())
-            .saturating_add(identifier.as_str().len())
-            .saturating_add(canonical::metadata_memory(&selected.value.metadata)?);
-        if required
-            > selection
-                .decoded_bytes()
-                .get()
-                .min(self.resources.max_message_bytes)
-        {
-            return Err(Status::resource_exhausted(
-                "report metadata exceeds its projection budget",
-            ));
-        }
-        let allowance = std::num::NonZeroUsize::new(required)
-            .ok_or_else(|| Status::resource_exhausted("invalid report metadata allowance"))?;
-        let frame = selected
-            .try_project(allowance, |selected, _| {
-                let metadata = &selected.value.metadata;
-                let frame = wire::ReportHtmlFrame {
-                    payload: Some(wire::ReportHtmlFramePayload::Report(Box::new(
-                        wire::ReportMetadata {
-                            test_cycle_id: cycle.to_string(),
-                            identifier: identifier.to_string(),
-                            metadata: Some(
-                                canonical::metadata(metadata).map_err(projection_failure)?,
-                            ),
-                            generated_at: Some(
-                                canonical::timestamp(&seal.sealed_at)
-                                    .map_err(projection_failure)?,
-                            ),
-                            warnings: Vec::new(),
-                        },
-                    ))),
-                };
-                if frame.encoded_len() > self.resources.max_message_bytes {
-                    return Err(harmos::Error::ResourceExhausted {
-                        resource: "report metadata encoding",
-                    });
-                }
-                Ok(frame)
-            })
-            .map_err(|source| report_failure(source.into()))?;
-        let owner = frame
-            .try_into_response()
-            .map_err(|source| report_failure(source.into()))?;
-        chunked::Download {
-            frames: HtmlFrames(owner),
-            source: chunked::Source::Native(Box::new(reader)),
-            size_bytes: seal.report.length,
-            sha256: Some(
-                seal.report
-                    .sha256
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect(),
-            ),
-            noun: "report HTML",
-            read_failure: "saved report HTML could not be read",
-            chunk_bytes: HTML_CHUNK_BYTES.min(self.resources.max_message_bytes.saturating_sub(256)),
-            message_limit: self.resources.max_message_bytes,
-        }
-        .run(output)
-        .await?;
-        Ok(().into())
+            .map_err(report_failure)?;
+        deliver(&self.resources, report, &identifier, output).await
     }
 }
 
-impl Operation for Render {
-    type Declaration = wire::RenderCheckpointReport;
+impl Operation for Execution {
+    type Declaration = wire::DownloadExecutionReport;
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = ();
-    async fn initialize<'ctx>(_: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
-        Ok(Self)
+    type Endpoints = StreamOutput<wire::ReportHtmlFrame>;
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
+        Ok(Self { resources })
     }
     async fn run<'a>(
         &mut self,
         _: Self::Context<'a>,
-        request: &mut wire::RenderCheckpointReportRequest,
-        _: &mut (),
-    ) -> Result<Response<wire::RenderedReport>, Status> {
-        let (context, checkpoints) = inputs(
-            request.context.take(),
-            std::mem::take(&mut request.checkpoints),
-        )?;
-        let identifier = required_identifier(&request.identifier)?;
-        let _ = (context, checkpoints, identifier);
-        Err(Status::unimplemented(
-            "sealed checkpoint reports return stored bytes and cannot be rendered again",
-        ))
+        request: &mut wire::DownloadExecutionReportRequest,
+        output: &mut Self::Endpoints,
+    ) -> Result<Response<()>, Status> {
+        value::text(&request.execution_id)?;
+        let execution = TestExecutionId::from_uuid(request.execution_id.clone())
+            .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+        let identifier = Identifier::new(EXECUTION_REPORT_IDENTIFIER)
+            .map_err(|_| Status::internal("execution report identifier is invalid"))?;
+        let report = self
+            .resources
+            .runtime
+            .open_execution_report(&execution)
+            .await
+            .map_err(report_failure)?;
+        deliver(&self.resources, report, &identifier, output).await
     }
 }
 
@@ -266,52 +174,64 @@ pub(super) fn register(
     Ok(())
 }
 
-/// Refuse a cycle-wide evidence product while the cycle is still producing evidence.
-///
-/// The final report and the evidence bundle are cut from the sealed cycle, and a
-/// running, paused or stopping cycle is still adding evidence no seal covers.
-/// Its absence from the live
-/// state means nothing is running, so a stored cycle passes through to the
-/// product's own checks.
-pub(super) fn require_settled(
-    runtime: &RuntimeHandle,
-    cycle: &TestCycleId,
-    product: &str,
-) -> Result<(), Status> {
-    let latest = runtime.watch_state().latest();
-    let Some(lifecycle) = latest
-        .state()
-        .cycles
-        .get(cycle)
-        .map(|cycle| cycle.lifecycle)
-    else {
-        return Ok(());
+/* === Private Functions === */
+/// Streams one opened report: its metadata, then its bytes, then the digest.
+async fn deliver(
+    resources: &Resources,
+    report: OpenedReport,
+    identifier: &Identifier,
+    output: &mut StreamOutput<wire::ReportHtmlFrame>,
+) -> Result<Response<()>, Status> {
+    let OpenedReport {
+        test_cycle_id,
+        test_execution_id,
+        metadata,
+        generated_at,
+        origin,
+        html,
+    } = report;
+    let frame = wire::ReportHtmlFrame {
+        payload: Some(wire::ReportHtmlFramePayload::Report(Box::new(
+            wire::ReportMetadata {
+                test_cycle_id: test_cycle_id.to_string(),
+                test_execution_id: test_execution_id.map(|id| id.to_string()),
+                identifier: identifier.to_string(),
+                metadata: metadata.as_ref().map(canonical::metadata).transpose()?,
+                generated_at: Some(canonical::timestamp(&generated_at)?),
+                origin: match origin {
+                    ReportOrigin::Sealed => wire::ReportOrigin::Sealed,
+                    ReportOrigin::Regenerated => wire::ReportOrigin::Regenerated,
+                    ReportOrigin::Current => wire::ReportOrigin::Current,
+                },
+                warnings: Vec::new(),
+            },
+        ))),
     };
-    let phase = match lifecycle {
-        CycleStatus::Running => "running",
-        CycleStatus::Paused => "paused",
-        CycleStatus::Stopping => "stopping",
-        _ => return Ok(()),
-    };
-    Err(Status::failed_precondition(format!(
-        "The {product} becomes available when the cycle is terminal; this cycle is still {phase}."
-    )))
+    if frame.encoded_len() > resources.max_message_bytes {
+        return Err(Status::resource_exhausted(
+            "report metadata exceeds the message limit",
+        ));
+    }
+    let size_bytes = html.len() as u64;
+    chunked::Download {
+        frames: HtmlFrames(frame.into()),
+        source: chunked::Source::owned_bytes(html),
+        size_bytes,
+        sha256: None,
+        noun: "report HTML",
+        read_failure: "report HTML could not be read",
+        chunk_bytes: HTML_CHUNK_BYTES.min(resources.max_message_bytes.saturating_sub(256)),
+        message_limit: resources.max_message_bytes,
+    }
+    .run(output)
+    .await?;
+    Ok(().into())
 }
 
-/* === Private Functions === */
-fn projection_failure(source: Status) -> harmos::Error {
-    if source.code() == tonic::Code::ResourceExhausted {
-        return harmos::Error::ResourceExhausted {
-            resource: "report metadata projection",
-        };
-    }
-    harmos::Error::backend(
-        "project saved report metadata",
-        harmos::BackendFailure::Corrupt,
-        source,
-    )
-}
 fn report_failure(error: dokime_app::Error) -> Status {
+    if let dokime_app::Error::NotFound { message, .. } = &error {
+        return Status::not_found(message.clone());
+    }
     let status = if matches!(
         &error,
         dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. })
@@ -336,25 +256,6 @@ fn required_identifier(value: &str) -> Result<Identifier, Status> {
     value::text(value)?;
     Identifier::new(value.to_owned())
         .map_err(|_| Status::invalid_argument("invalid report identifier"))
-}
-
-fn inputs(
-    context: Option<checkpoint::ExecutionCheckpoint>,
-    checkpoints: Vec<checkpoint::ExecutionCheckpoint>,
-) -> Result<
-    (
-        dokime_app::runtime::query::execution_history::ExecutionCheckpoint,
-        Vec<dokime_app::runtime::query::execution_history::ExecutionCheckpoint>,
-    ),
-    Status,
-> {
-    value::collection(checkpoints.len())?;
-    let context = super::history::checkpoint(context)?;
-    let checkpoints = checkpoints
-        .into_iter()
-        .map(|checkpoint| super::history::checkpoint(Some(checkpoint)))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((context, checkpoints))
 }
 
 /* === Tests === */

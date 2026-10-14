@@ -16,6 +16,7 @@ pub mod input;
 mod materialize;
 mod output;
 mod render;
+pub(crate) mod rendered;
 pub mod saved;
 pub mod value;
 

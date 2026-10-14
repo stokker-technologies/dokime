@@ -74,7 +74,7 @@ pub use dokime_contract::domains::InstalledPlugin;
 pub use error::{Error, Result};
 pub(crate) use runtime::RuntimeState;
 pub(crate) use runtime::command::{internal_rejection, rejected_receipt, unavailable_rejection};
-pub use runtime::{Runtime, RuntimeHandle};
+pub use runtime::{OpenedReport, ReportOrigin, Runtime, RuntimeHandle};
 
 /* === Imports === */
 // Standard Library Imports

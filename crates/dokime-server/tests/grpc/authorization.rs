@@ -108,9 +108,7 @@ matrix! {
     "/dokime.v1.Catalog/ListTelemetrySchemas", unary, contracts::catalog::ListTelemetrySchemas;
     "/dokime.v1.Content/DownloadAppearanceAsset", download, contracts::content::DownloadAppearanceAsset;
     "/dokime.v1.Content/DownloadArtifact", download, contracts::content::DownloadArtifact;
-    "/dokime.v1.Content/DownloadCycleBundle", download, contracts::content::DownloadCycleBundle;
     "/dokime.v1.Content/DownloadExecutionFile", download, contracts::content::DownloadExecutionFile;
-    "/dokime.v1.Content/GetCycleFolderPath", unary, contracts::content::GetCycleFolderPath;
     "/dokime.v1.Content/ListArtifacts", unary, contracts::content::ListArtifacts;
     "/dokime.v1.Content/ListExecutionFiles", unary, contracts::content::ListExecutionFiles;
     "/dokime.v1.Content/ReadExecutionFile", unary, contracts::content::ReadExecutionFile;
@@ -228,7 +226,7 @@ matrix! {
         limit: 0,
     };
     "/dokime.v1.Reports/DownloadCycleReport", download, contracts::reports::DownloadCycleReport;
-    "/dokime.v1.Reports/RenderCheckpointReport", unary, contracts::reports::RenderCheckpointReport;
+    "/dokime.v1.Reports/DownloadExecutionReport", download, contracts::reports::DownloadExecutionReport;
     "/dokime.v1.Settings/GetPluginSettings", unary, contracts::settings::GetPluginSettings;
     "/dokime.v1.Settings/GetSettings", unary, contracts::settings::GetSettings;
     "/dokime.v1.Settings/ReadApplicationSettings", unary, contracts::settings::ReadApplicationSettings;
@@ -446,7 +444,6 @@ pub(crate) async fn remote_refuses_local() {
         "/dokime.v1.Media/ScreenRecording",
         "/dokime.v1.Media/CameraRecording",
         "/dokime.v1.Files/FileWatch",
-        "/dokime.v1.Content/GetCycleFolderPath",
     ];
     for case in cases().filter(|case| local_only.contains(&case.path)) {
         let refusal = (case.call)(channel.clone(), Some(TOKEN))

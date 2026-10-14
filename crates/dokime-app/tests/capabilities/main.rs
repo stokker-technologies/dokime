@@ -261,6 +261,15 @@ fn documents_contract() {
         run_scenario(documents::reports::report_save_receipt, false, None, false);
     }
     {
+        eprintln!("Scenario: documents::reports::open_report_any_state");
+        run_scenario(
+            documents::reports::open_report_any_state,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: documents::reports::cycle_report_reboot");
         run_scenario(documents::reports::cycle_report_reboot, false, None, false);
     }

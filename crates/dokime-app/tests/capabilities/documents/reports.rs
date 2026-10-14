@@ -496,6 +496,84 @@ pub(crate) async fn report_save_receipt() {
     runtime.stop().await.unwrap();
 }
 
+pub(crate) async fn open_report_any_state() {
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let id = start_cycle(&runtime, suite, false).await;
+    runtime
+        .run_cycle_cases(id.clone(), CommandContext::default())
+        .await;
+    executor.wait_until_entered().await;
+    let execution = cycle_snapshot(&runtime, &id).await.test_executions[0]
+        .test_execution_id
+        .clone();
+
+    // Running: Both Reports Render From Current Evidence And Seal Nothing
+    let running = runtime.open_cycle_report(&id).await.unwrap();
+    assert_eq!(running.origin, dokime_app::ReportOrigin::Current);
+    let payload = crate::support::reports::parse(std::str::from_utf8(&running.html).unwrap());
+    assert_eq!(
+        payload["test_executions"][0]["test_execution_id"],
+        execution.as_str()
+    );
+    let running = runtime.open_execution_report(&execution).await.unwrap();
+    assert_eq!(running.origin, dokime_app::ReportOrigin::Current);
+    assert_eq!(running.test_execution_id.as_ref(), Some(&execution));
+    assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
+
+    // Sealed: The Exact Bytes Finalization Published
+    executor.release();
+    let cycle = wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    let seal = cycle.saved.clone().unwrap();
+    let published = crate::support::reports::bytes(runtime.storage(), &seal.report).await;
+    let sealed = runtime.open_cycle_report(&id).await.unwrap();
+    assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
+    assert_eq!(*sealed.html, published);
+    let sealed = runtime.open_execution_report(&execution).await.unwrap();
+    assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
+
+    // Deleted From The Root: Rendered Again From Sealed Evidence, Never Rewritten
+    let name = seal
+        .report
+        .sha256
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let removed = remove_named(root.path(), &name);
+    assert!(
+        removed,
+        "the sealed cycle report file must exist under the root"
+    );
+    let regenerated = runtime.open_cycle_report(&id).await.unwrap();
+    assert_eq!(regenerated.origin, dokime_app::ReportOrigin::Regenerated);
+    let payload = crate::support::reports::parse(std::str::from_utf8(&regenerated.html).unwrap());
+    let original = crate::support::reports::parse(std::str::from_utf8(&published).unwrap());
+    assert_eq!(payload["case_runs"], original["case_runs"]);
+    assert_eq!(cycle_snapshot(&runtime, &id).await.saved, Some(seal));
+    owner.shutdown().await.unwrap();
+}
+
+fn remove_named(directory: &std::path::Path, name: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if remove_named(&path, name) {
+                return true;
+            }
+        } else if path.file_name().is_some_and(|file| file == name) {
+            std::fs::remove_file(&path).unwrap();
+            return true;
+        }
+    }
+    false
+}
+
 pub(crate) async fn cycle_report_reboot() {
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());

@@ -112,18 +112,18 @@ impl HtmlReport {
         snapshot: CycleSnapshot,
     ) -> Result<Self> {
         let manager = runtime.storage();
-        let revisions = snapshot.revisions();
+        let count = snapshot.len();
         let documents = cycle_document(&snapshot)?;
         let memory = manager.prepare_production(allowance(std::mem::size_of::<Self>())?)?;
         let executor = tokio::runtime::Handle::try_current()
             .map_err(|error| Error::Operation(error.to_string()))?;
-        let bytes = std::mem::size_of::<Members>().saturating_add(revisions.len().saturating_mul(
+        let bytes = std::mem::size_of::<Members>().saturating_add(count.saturating_mul(
             std::mem::size_of::<SharedQueryValue<CapturedExecutionReportInput>>(),
         ));
         let mut members = manager
             .produce(allowance(bytes)?, |_| {
                 Ok(Members {
-                    values: Vec::with_capacity(revisions.len()),
+                    values: Vec::with_capacity(count),
                 })
             })?
             .try_into_value()?;
@@ -131,12 +131,13 @@ impl HtmlReport {
         let mut index = manager
             .produce(allowance(index.memory_size())?, |_| Ok(index))?
             .try_into_value()?;
-        for member in 0..revisions.len() {
+        for member in 0..count {
             let execution = snapshot.member(manager, member).await?;
             // Members Repeat The Frozen Catalogs And Every Case Of The Cycle; Once
             // Materialized, The Cycle Report Keeps Only Its Own Case So Retained
             // Members Grow Linearly Instead Of With Catalog And Cycle Size.
-            let captured = super::materialize::execution(runtime, &execution, true).await?;
+            let captured =
+                super::materialize::execution(runtime, &execution, snapshot.is_final()).await?;
             let own = captured.input.cycle.test_executions[0].test_case_id.clone();
             let id = captured.execution.execution_id.clone();
             let bytes = allowance(captured.memory_size())?;

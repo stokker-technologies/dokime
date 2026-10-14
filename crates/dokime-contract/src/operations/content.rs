@@ -10,10 +10,8 @@
 /* === Modules === */
 mod download_appearance_asset;
 mod download_artifact;
-mod download_cycle_bundle;
 mod download_execution_file;
 mod follow_execution_file;
-mod get_cycle_folder_path;
 mod list_artifacts;
 mod list_execution_files;
 mod read_execution_file;
@@ -22,10 +20,8 @@ mod upload_artifact;
 /* === Re-Exports === */
 pub use download_appearance_asset::DownloadAppearanceAsset;
 pub use download_artifact::DownloadArtifact;
-pub use download_cycle_bundle::DownloadCycleBundle;
 pub use download_execution_file::DownloadExecutionFile;
 pub use follow_execution_file::FollowExecutionFile;
-pub use get_cycle_folder_path::GetCycleFolderPath;
 pub use list_artifacts::ListArtifacts;
 pub use list_execution_files::ListExecutionFiles;
 pub use read_execution_file::ReadExecutionFile;
@@ -159,42 +155,6 @@ pub struct UploadArtifactHeader {
     pub content_type: Option<String>,
     pub size_bytes: u64,
     pub sha256: Option<String>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct DownloadCycleBundleRequest {
-    pub cycle_id: String,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct CycleBundleFrame {
-    pub payload: Option<CycleBundleFramePayload>,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct CycleBundleMetadata {
-    pub cycle_id: String,
-    pub filename: String,
-    pub content_type: String,
-    pub size_bytes: u64,
-    // Exactly 64 lowercase hexadecimal characters.
-    #[row(description = "Exactly 64 lowercase hexadecimal characters.")]
-    pub sha256: String,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetCycleFolderPathRequest {
-    pub cycle_id: String,
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct LocalPathResponse {
-    pub path: String,
 }
 
 // Files currently owned by an execution in this runtime. These logical names
@@ -435,14 +395,6 @@ pub enum UploadArtifactFramePayload {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub enum CycleBundleFramePayload {
-    Metadata(CycleBundleMetadata),
-    Chunk(ArtifactChunk),
-    Complete(ArtifactCompletion),
-}
-
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExecutionFileDownloadFramePayload {
     Metadata(ExecutionFileDownloadMetadata),
     Chunk(ArtifactChunk),
@@ -467,8 +419,6 @@ pub enum Operations {
     ListArtifacts(ListArtifacts),
     DownloadArtifact(DownloadArtifact),
     UploadArtifact(UploadArtifact),
-    DownloadCycleBundle(DownloadCycleBundle),
-    GetCycleFolderPath(GetCycleFolderPath),
 }
 
 /* === Traits === */
@@ -512,17 +462,6 @@ impl Endpoint for DownloadArtifact {
 impl Endpoint for UploadArtifact {
     const PATH: &'static str = "/dokime.v1.Content/UploadArtifact";
     const ACCESS: Access = Access::Control;
-}
-
-impl Endpoint for DownloadCycleBundle {
-    const PATH: &'static str = "/dokime.v1.Content/DownloadCycleBundle";
-    const ACCESS: Access = Access::Read;
-}
-
-impl Endpoint for GetCycleFolderPath {
-    const PATH: &'static str = "/dokime.v1.Content/GetCycleFolderPath";
-    const ACCESS: Access = Access::Read;
-    const LOCAL_ONLY: bool = true;
 }
 
 /* === Public Functions === */

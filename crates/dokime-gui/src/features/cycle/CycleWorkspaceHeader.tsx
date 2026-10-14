@@ -26,17 +26,8 @@
 
 /* === External Imports === */
 
-import {
-  Copy,
-  Download,
-  Ellipsis,
-  FileText,
-  Plus,
-  RotateCcw,
-  Settings2,
-  Trash2,
-} from "lucide-react";
-import { type ComponentProps, type ReactNode, useId } from "react";
+import { Copy, Ellipsis, FileText, Plus, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import { type ComponentProps, Fragment, type ReactNode } from "react";
 
 /* === Local Imports === */
 
@@ -47,11 +38,10 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SEALED_EVIDENCE_PENDING, STATUS_PILL_CLASS } from "./cycle-workspace-model";
+import { type NodeMenuItem, nodeMenuGroups, STATUS_PILL_CLASS } from "./cycle-workspace-model";
 
 /* === Types === */
 
@@ -69,20 +59,21 @@ export type CockpitIdentity = {
 export type CycleMenu = {
   kind: "cycle";
   followActive: boolean;
-  /** Bundle and report are cut from the sealed cycle; in flight they wait. */
-  evidencePending: boolean;
   onAddCases: () => void;
   onClearCycle: () => void;
   onCopyCycle: () => void;
-  onDownloadBundle: () => void;
+  /** Opens the report the cycle has now: current, sealed or regenerated. */
+  onOpenReport: () => void;
   onRuntimePolicy: () => void;
   onToggleFollowActive: () => void;
-  onWriteReport: () => void;
 };
 
 /** The execution page's "…" menu. */
 export type ExecutionMenu = {
   kind: "execution";
+  /** Opens the report the execution has now: current, sealed or regenerated;
+   *  `null` for a case that has not run, which has no report of its own. */
+  onOpenReport: (() => void) | null;
   /** Re-Run the execution's case; `null` while the attempt has not ended. */
   onRerun: (() => void) | null;
   /** Why the runtime refuses the re-run, when it does. */
@@ -145,7 +136,6 @@ export function CycleWorkspaceHeader({
 
 /** The selected node's own menu, behind one trigger of one size on both pages. */
 function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
-  const evidencePendingId = useId();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -158,73 +148,86 @@ function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
           <Ellipsis />
         </Button>
       </DropdownMenuTrigger>
-      {menu.kind === "cycle" ? (
-        <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem onSelect={menu.onCopyCycle}>
-            <Copy />
-            Copy Cycle
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={menu.onAddCases}>
-            <Plus />
-            Add Cases
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={menu.onRuntimePolicy}>
-            <Settings2 />
-            Runtime Policy
-          </DropdownMenuItem>
-          <DropdownMenuCheckboxItem
-            checked={menu.followActive}
-            onSelect={(event) => {
-              event.preventDefault();
-              menu.onToggleFollowActive();
-            }}
-          >
-            Follow Active
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuSeparator />
-          {/* A disabled menu item takes no pointer, so a hover title alone
-              would never show; the reason is visible text both items name. */}
-          <DropdownMenuItem
-            aria-describedby={menu.evidencePending ? evidencePendingId : undefined}
-            disabled={menu.evidencePending}
-            onSelect={menu.onDownloadBundle}
-            title={menu.evidencePending ? SEALED_EVIDENCE_PENDING : undefined}
-          >
-            <Download />
-            Download Bundle
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            aria-describedby={menu.evidencePending ? evidencePendingId : undefined}
-            disabled={menu.evidencePending}
-            onSelect={menu.onWriteReport}
-            title={menu.evidencePending ? SEALED_EVIDENCE_PENDING : undefined}
-          >
-            <FileText />
-            Write Report
-          </DropdownMenuItem>
-          {menu.evidencePending ? (
-            <DropdownMenuLabel className="font-normal" id={evidencePendingId}>
-              {SEALED_EVIDENCE_PENDING}
-            </DropdownMenuLabel>
-          ) : null}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={menu.onClearCycle} variant="destructive">
-            <Trash2 />
-            Clear Cycle
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      ) : (
-        <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem
-            disabled={!menu.onRerun || Boolean(menu.rerunRefusal)}
-            onSelect={() => menu.onRerun?.()}
-            title={menu.rerunRefusal}
-          >
-            <RotateCcw />
-            Re-Run
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      )}
+      {/* The groups and their order are the model's, so a test can read
+          what each page's menu offers without rendering it. */}
+      <DropdownMenuContent align="end" className="w-52">
+        {nodeMenuGroups(menu.kind).map((group, index) => (
+          <Fragment key={group[0]}>
+            {index > 0 ? <DropdownMenuSeparator /> : null}
+            {group.map((item) => (
+              <NodeMenuEntry item={item} key={item} menu={menu} />
+            ))}
+          </Fragment>
+        ))}
+      </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** One menu entry, wired to the handler its node supplies. */
+function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | ExecutionMenu }) {
+  switch (item) {
+    case "Open Report":
+      return (
+        <DropdownMenuItem disabled={!menu.onOpenReport} onSelect={() => menu.onOpenReport?.()}>
+          <FileText />
+          Open Report
+        </DropdownMenuItem>
+      );
+    case "Re-Run":
+      if (menu.kind !== "execution") return null;
+      return (
+        <DropdownMenuItem
+          disabled={!menu.onRerun || Boolean(menu.rerunRefusal)}
+          onSelect={() => menu.onRerun?.()}
+          title={menu.rerunRefusal}
+        >
+          <RotateCcw />
+          Re-Run
+        </DropdownMenuItem>
+      );
+  }
+  if (menu.kind !== "cycle") return null;
+  switch (item) {
+    case "Copy Cycle":
+      return (
+        <DropdownMenuItem onSelect={menu.onCopyCycle}>
+          <Copy />
+          Copy Cycle
+        </DropdownMenuItem>
+      );
+    case "Add Cases":
+      return (
+        <DropdownMenuItem onSelect={menu.onAddCases}>
+          <Plus />
+          Add Cases
+        </DropdownMenuItem>
+      );
+    case "Runtime Policy":
+      return (
+        <DropdownMenuItem onSelect={menu.onRuntimePolicy}>
+          <Settings2 />
+          Runtime Policy
+        </DropdownMenuItem>
+      );
+    case "Follow Active":
+      return (
+        <DropdownMenuCheckboxItem
+          checked={menu.followActive}
+          onSelect={(event) => {
+            event.preventDefault();
+            menu.onToggleFollowActive();
+          }}
+        >
+          Follow Active
+        </DropdownMenuCheckboxItem>
+      );
+    case "Clear Cycle":
+      return (
+        <DropdownMenuItem onSelect={menu.onClearCycle} variant="destructive">
+          <Trash2 />
+          Clear Cycle
+        </DropdownMenuItem>
+      );
+  }
 }

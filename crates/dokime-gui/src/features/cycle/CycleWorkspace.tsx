@@ -50,6 +50,7 @@ import { useSelectionStore } from "@/stores/selection-store";
 import { CycleEvidencePane } from "./CycleEvidencePane";
 import { CycleExecutionControls } from "./CycleExecutionControls";
 import { CyclePromptBanner } from "./CyclePromptBanner";
+import { CycleReportButton } from "./CycleReportButton";
 import { CycleRunControls } from "./CycleRunControls";
 import { CycleWorkspaceHeader } from "./CycleWorkspaceHeader";
 import {
@@ -74,7 +75,6 @@ import {
   finishedCaseCount,
   followSelection,
   isActiveExecutionStatus,
-  isCycleInFlight,
   isCycleTerminal,
   isTerminalExecutionStatus,
   progressStepLabel,
@@ -169,6 +169,21 @@ export function CycleWorkspace({
      them. The node is memoized on identities, so it is published only when
      the selection, focus or liveness changes. */
   const executionSelected = selectedRow !== null;
+  /* The node whose report Download Report saves: the selected execution, or
+     the cycle. A case that has not run yet has no report of its own. */
+  const selectedExecutionId = selectedRow?.execution?.test_execution_id ?? null;
+  const selectedLabel = selectedRow
+    ? `Execution ${selectedRow.ordinal} · ${selectedRow.case.label}`
+    : null;
+  const cycleTitle = plan?.test_cycle.title ?? null;
+  const reportSubject = useMemo(() => {
+    if (selectedLabel !== null) {
+      return selectedExecutionId
+        ? { executionId: selectedExecutionId, label: selectedLabel }
+        : null;
+    }
+    return cycleTitle !== null ? { executionId: null, label: cycleTitle } : null;
+  }, [cycleTitle, selectedExecutionId, selectedLabel]);
   const toggleFocus = focus.setFocused;
   const focused = focus.focused;
   const pageActions = useMemo(
@@ -184,6 +199,13 @@ export function CycleWorkspace({
           ) : (
             <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} />
           )}
+          {reportSubject ? (
+            <CycleReportButton
+              cycleId={cycleId}
+              executionId={reportSubject.executionId}
+              label={reportSubject.label}
+            />
+          ) : null}
           <Button
             aria-label={focused ? "Leave Focus" : "Focus"}
             aria-pressed={focused}
@@ -197,7 +219,16 @@ export function CycleWorkspace({
           </Button>
         </div>
       ) : null,
-    [cycleId, executionSelected, focused, live, onSelectionChange, selection, toggleFocus],
+    [
+      cycleId,
+      executionSelected,
+      focused,
+      live,
+      onSelectionChange,
+      reportSubject,
+      selection,
+      toggleFocus,
+    ],
   );
   /* The page bar names the selected node as a breadcrumb; Back from an
      execution returns to the cycle (see `useParentRoute`). */
@@ -239,6 +270,25 @@ export function CycleWorkspace({
 
   /* A command reports what happened, not what was attempted: the operator
      needs the outcome and, when it failed, what the backend said. */
+  const openReport = (executionId: string | null) => {
+    commands.openReport
+      .mutateAsync(executionId)
+      .then((origin) =>
+        toast.success("Report Opened", {
+          description:
+            origin === "Current"
+              ? "Generated from the run so far."
+              : origin === "Regenerated"
+                ? "The sealed report was missing, so it was generated again from its evidence."
+                : undefined,
+        }),
+      )
+      .catch((error: unknown) =>
+        toast.error("The report could not be opened.", {
+          description: error instanceof Error ? error.message : String(error),
+        }),
+      );
+  };
   const run = (report: { done: string; failed: string }, action: () => Promise<unknown>) => {
     action()
       .then(() => toast.success(report.done))
@@ -294,6 +344,9 @@ export function CycleWorkspace({
           selectedRow
             ? {
                 kind: "execution",
+                onOpenReport: selectedRow.execution
+                  ? () => openReport(selectedRow.execution?.test_execution_id ?? null)
+                  : null,
                 onRerun:
                   selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
                     ? () =>
@@ -311,7 +364,6 @@ export function CycleWorkspace({
                     : undefined,
               }
             : {
-                evidencePending: isCycleInFlight(status),
                 followActive,
                 kind: "cycle",
                 onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
@@ -327,16 +379,9 @@ export function CycleWorkspace({
                       });
                     },
                   ),
-                onDownloadBundle: () =>
-                  run({ done: "Bundle saved", failed: "The bundle could not be saved." }, () =>
-                    commands.downloadBundle.mutateAsync(),
-                  ),
+                onOpenReport: () => openReport(null),
                 onRuntimePolicy: () => setPolicyOpen(true),
                 onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
-                onWriteReport: () =>
-                  run({ done: "Report written", failed: "The report could not be written." }, () =>
-                    commands.writeReport.mutateAsync(),
-                  ),
               }
         }
         prompts={<CyclePromptBanner prompts={prompts} />}
@@ -373,7 +418,7 @@ export function CycleWorkspace({
               {confirm?.kind === "stop"
                 ? `Stopping the cycle stops every running and queued execution of its ${cases.length} cases. To stop only one execution, select it and use Stop Execution.`
                 : confirm?.kind === "clear"
-                  ? `Clearing stops this cycle and removes its ${cases.length} cases, every attempt, and the evidence they produced from the loaded runtime. Saved bundles and written reports are not affected.`
+                  ? `Clearing stops this cycle and removes its ${cases.length} cases, every attempt, and the evidence they produced from the loaded runtime. Saved reports are not affected.`
                   : ""}
             </DialogDescription>
           </DialogHeader>

@@ -116,7 +116,7 @@ impl RuntimeHandle {
             .value
     }
 
-    async fn snapshot_member(
+    pub(super) async fn snapshot_member(
         &self,
         cycle: &CycleView,
         execution: &TestExecution,

@@ -26,6 +26,7 @@ pub use handle::{CapturedRecord, CapturedRecords, RuntimeHandle};
 pub(crate) use native_telemetry::Admission as ExecutionPublicationAdmission;
 pub use state::RuntimeState;
 pub use storage::artifacts::{ArtifactReader, ArtifactUpload};
+pub use storage::report_open::{MAX_OPENED_REPORT_BYTES, OpenedReport, ReportOrigin};
 
 // Reachable only from this crate's test targets. Kept at the root so those
 // targets name one path, not a private module tree.

@@ -951,17 +951,32 @@ pub(crate) async fn historical_checkpoint_content() {
         .into_inner();
     assert_eq!(records.checkpoint, Some(checkpoint.clone()));
 
-    let refusal = reports
-        .unary::<contracts::reports::RenderCheckpointReport>(authenticated(
-            contracts::reports::RenderCheckpointReportRequest {
-                context: Some(checkpoint.clone()),
-                checkpoints: vec![checkpoint.clone()],
-                identifier: "grpc.rendered".into(),
+    let mut execution_stream = reports
+        .download::<contracts::reports::DownloadExecutionReport>(authenticated(
+            contracts::reports::DownloadExecutionReportRequest {
+                execution_id: checkpoint.execution_identifier.clone(),
             },
         ))
         .await
-        .unwrap_err();
-    assert_eq!(refusal.code(), Code::Unimplemented);
+        .unwrap()
+        .into_inner();
+    let mut execution_html = Vec::new();
+    while let Some(frame) = execution_stream.message().await.unwrap() {
+        match frame.payload.expect("execution report payload") {
+            contracts::reports::ReportHtmlFramePayload::Report(report) => {
+                assert_eq!(report.origin, contracts::reports::ReportOrigin::Sealed);
+                assert_eq!(
+                    report.test_execution_id.as_deref(),
+                    Some(checkpoint.execution_identifier.as_str())
+                );
+            }
+            contracts::reports::ReportHtmlFramePayload::Chunk(chunk) => {
+                execution_html.extend(chunk.data)
+            }
+            contracts::reports::ReportHtmlFramePayload::Complete(_) => {}
+        }
+    }
+    assert!(String::from_utf8_lossy(&execution_html).contains("<!doctype html>"));
 
     let mut html_stream = reports
         .download::<contracts::reports::DownloadCycleReport>(authenticated(

@@ -109,6 +109,23 @@ export type RunControlVisibility = {
   stop: boolean;
 };
 
+/** One entry of a node's "…" menu. */
+export type NodeMenuItem =
+  | "Copy Cycle"
+  | "Add Cases"
+  | "Runtime Policy"
+  | "Follow Active"
+  | "Open Report"
+  | "Clear Cycle"
+  | "Re-Run";
+
+/** The page bar's Download Report button as it stands. */
+export type ReportDownloadState = {
+  disabled: boolean;
+  label: "Download Report";
+  title: string;
+};
+
 /* === Constants === */
 
 /**
@@ -121,6 +138,9 @@ export type RunControlVisibility = {
  * short one the same space, and in the sidebar that space came out of the case
  * names, which are what the operator is actually reading.
  */
+/** Characters no saved report's name carries, whichever desktop saves it. */
+const UNSAFE_FILENAME_CHARACTERS = '\\/:*?"<>|';
+
 export const STATUS_PILL_CLASS = "justify-center rounded-4xl";
 
 /**
@@ -396,18 +416,42 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
   return cases.reduce((total, item) => total + (item.finished ? 1 : 0), 0);
 }
 
-/**
- * Why the bundle and the report are unavailable while a cycle is in flight.
- *
- * Both are cut from the sealed cycle, and a running, paused or stopping cycle
- * has no seal yet. The backend refuses both with `FAILED_PRECONDITION` while
- * the cycle is in flight, so the CLI and the Python client get the answer the
- * disabled menu items state.
- */
-export const SEALED_EVIDENCE_PENDING =
-  "The bundle and the report become available when the cycle is terminal.";
-
 /** Whether the cycle is still producing evidence: running, paused or stopping. */
+/**
+ * A node's "…" menu, as groups a separator divides. Open Report is always
+ * there and always enabled: the runtime answers with the sealed report, the
+ * one regenerated from sealed evidence, or one rendered from the run so far.
+ */
+export function nodeMenuGroups(kind: "cycle" | "execution"): NodeMenuItem[][] {
+  return kind === "cycle"
+    ? [
+        ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"],
+        ["Open Report"],
+        ["Clear Cycle"],
+      ]
+    : [["Re-Run"], ["Open Report"]];
+}
+
+/** Download Report waits only for a save already in progress. */
+export function reportDownloadState(saving: boolean): ReportDownloadState {
+  return {
+    disabled: saving,
+    label: "Download Report",
+    title: saving ? "Saving the report…" : "Download Report",
+  };
+}
+
+/** The file a saved report is offered as, named after its cycle or execution. */
+export function reportFilename(label: string): string {
+  const name = Array.from(label, (char) =>
+    char.charCodeAt(0) < 32 || UNSAFE_FILENAME_CHARACTERS.includes(char) ? "-" : char,
+  )
+    .join("")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s.-]+|[\s.-]+$/g, "");
+  return `${name || "report"}.html`;
+}
+
 export function isCycleInFlight(status: CycleLifecycle): boolean {
   return status === "running" || status === "paused" || status === "stopping";
 }

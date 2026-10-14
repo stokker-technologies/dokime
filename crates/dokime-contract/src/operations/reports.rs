@@ -9,11 +9,11 @@
 
 /* === Modules === */
 mod download_cycle_report;
-mod render_checkpoint_report;
+mod download_execution_report;
 
 /* === Re-Exports === */
 pub use download_cycle_report::DownloadCycleReport;
-pub use render_checkpoint_report::RenderCheckpointReport;
+pub use download_execution_report::DownloadExecutionReport;
 
 /* === Imports === */
 
@@ -23,8 +23,6 @@ pub use render_checkpoint_report::RenderCheckpointReport;
 use serde::{Deserialize, Serialize};
 
 // Local Imports
-#[allow(unused_imports)]
-use super::checkpoint::*;
 use super::common::Metadata;
 #[allow(unused_imports)]
 use super::common::*;
@@ -48,30 +46,23 @@ pub struct DownloadCycleReportRequest {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RenderCheckpointReportRequest {
-    pub context: Option<ExecutionCheckpoint>,
-    pub checkpoints: Vec<ExecutionCheckpoint>,
-    pub identifier: String,
-}
-
-// Legacy preview response shape. Native storage does not implement rerendering.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RenderedReport {
-    pub identifier: String,
-    pub metadata: Option<Metadata>,
-    pub generated_at: Option<Timestamp>,
-    pub warnings: Vec<String>,
-    pub html: String,
+pub struct DownloadExecutionReportRequest {
+    // Canonical UUID of one execution, running or settled.
+    #[row(description = "Canonical UUID of one execution, running or settled.")]
+    pub execution_id: String,
 }
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportMetadata {
     pub test_cycle_id: String,
+    // Set when the report is one execution's rather than its cycle's.
+    #[row(description = "Set when the report is one execution's rather than its cycle's.")]
+    pub test_execution_id: Option<String>,
     pub identifier: String,
     pub metadata: Option<Metadata>,
     pub generated_at: Option<Timestamp>,
+    pub origin: ReportOrigin,
     pub warnings: Vec<String>,
 }
 
@@ -99,6 +90,19 @@ pub struct ReportHtmlCompletion {
 }
 
 /* === Enums === */
+// Where the delivered report came from.
+#[harmos::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReportOrigin {
+    // The report finalization sealed, read back unchanged.
+    Sealed,
+    // The sealed report was unreadable, so it was rendered again from the
+    // sealed evidence. Nothing is written back.
+    Regenerated,
+    // The subject is not sealed: rendered from its current evidence.
+    Current,
+}
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReportHtmlFramePayload {
@@ -110,7 +114,7 @@ pub enum ReportHtmlFramePayload {
 #[harmos::catalog]
 pub enum Operations {
     DownloadCycleReport(DownloadCycleReport),
-    RenderCheckpointReport(RenderCheckpointReport),
+    DownloadExecutionReport(DownloadExecutionReport),
 }
 
 /* === Traits === */
@@ -121,8 +125,8 @@ impl Endpoint for DownloadCycleReport {
     const ACCESS: Access = Access::Read;
 }
 
-impl Endpoint for RenderCheckpointReport {
-    const PATH: &'static str = "/dokime.v1.Reports/RenderCheckpointReport";
+impl Endpoint for DownloadExecutionReport {
+    const PATH: &'static str = "/dokime.v1.Reports/DownloadExecutionReport";
     const ACCESS: Access = Access::Read;
 }
 

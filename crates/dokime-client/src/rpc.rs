@@ -299,30 +299,6 @@ impl Client {
         })
     }
 
-    pub async fn content_download_cycle_bundle(
-        &self,
-        message: contracts::content::DownloadCycleBundleRequest,
-    ) -> Result<ResponseStream<contracts::content::CycleBundleFrame>> {
-        self.download::<contracts::content::DownloadCycleBundle>(
-            contracts::content::DownloadCycleBundle::PATH,
-            message,
-        )
-        .await
-    }
-
-    pub async fn content_get_cycle_folder_path(
-        &self,
-        message: contracts::content::GetCycleFolderPathRequest,
-    ) -> Result<contracts::content::LocalPathResponse> {
-        let reply = self
-            .unary::<contracts::content::GetCycleFolderPath>(
-                contracts::content::GetCycleFolderPath::PATH,
-                message,
-            )
-            .await?;
-        super::transport::value(reply)
-    }
-
     pub async fn documents_capture_current_document(
         &self,
         message: contracts::documents::CaptureCurrentDocumentRequest,
@@ -1168,17 +1144,15 @@ impl Client {
         .await
     }
 
-    pub async fn reports_render_checkpoint_report(
+    pub async fn reports_download_execution_report(
         &self,
-        message: contracts::reports::RenderCheckpointReportRequest,
-    ) -> Result<contracts::reports::RenderedReport> {
-        let reply = self
-            .unary::<contracts::reports::RenderCheckpointReport>(
-                contracts::reports::RenderCheckpointReport::PATH,
-                message,
-            )
-            .await?;
-        super::transport::value(reply)
+        message: contracts::reports::DownloadExecutionReportRequest,
+    ) -> Result<ResponseStream<contracts::reports::ReportHtmlFrame>> {
+        self.download::<contracts::reports::DownloadExecutionReport>(
+            contracts::reports::DownloadExecutionReport::PATH,
+            message,
+        )
+        .await
     }
 
     pub async fn settings_read_storage_policy(

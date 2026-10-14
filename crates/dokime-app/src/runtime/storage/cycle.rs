@@ -51,6 +51,9 @@ struct State {
     appearance: SharedQueryValue<RuntimeAppearanceFrame>,
     captured_at: SharedQueryValue<Timestamp>,
     owner_node_id: SharedQueryValue<NodeId>,
+    /// The members of a cycle that is not sealed, captured as they stand;
+    /// `None` for the sealed revisions a final report reads.
+    current: Option<Vec<ExecutionView>>,
     _memory: StorageProductionPreparation,
 }
 
@@ -111,8 +114,83 @@ impl CycleSnapshot {
             appearance,
             captured_at,
             owner_node_id,
+            current: None,
             _memory: memory,
         })))
+    }
+
+    /// A snapshot of a cycle that is not sealed, over members captured as
+    /// they stand. It renders a report from current evidence and never seals.
+    pub(crate) fn current(
+        storage: &Manager,
+        view: StorageView,
+        source: SharedQueryValue<TestCycle>,
+        members: Vec<ExecutionView>,
+        appearance: SharedQueryValue<RuntimeAppearanceFrame>,
+        owner_node_id: &NodeId,
+    ) -> Result<Self> {
+        source.check_origin(storage)?;
+        appearance.check_origin(storage)?;
+        if source.saved.is_some() || source.session_id.is_none() {
+            return Err(invalid(
+                "current cycle snapshot requires an unsealed source and its session",
+            ));
+        }
+        for member in &members {
+            if member.execution().test_cycle_id != source.test_cycle_id {
+                return Err(invalid("current cycle snapshot member belongs elsewhere"));
+            }
+        }
+        let revisions = storage
+            .produce(
+                bound(std::mem::size_of::<Vec<ExecutionRevision>>())?,
+                |_| Ok(Vec::new()),
+            )?
+            .try_into_value()?
+            .try_into_shared()?;
+        let now = Timestamp::now_utc();
+        let captured_at = storage
+            .produce(bound(now.memory_size().saturating_add(64))?, |_| Ok(now))?
+            .try_into_value()?
+            .try_into_shared()?;
+        let owner_node_id = storage
+            .produce(bound(owner_node_id.memory_size())?, |_| {
+                Ok(owner_node_id.clone())
+            })?
+            .try_into_value()?
+            .try_into_shared()?;
+        let memory = storage.prepare_production(bound(
+            std::mem::size_of::<State>()
+                .saturating_add(2 * std::mem::size_of::<usize>())
+                .saturating_add(
+                    members
+                        .capacity()
+                        .saturating_mul(std::mem::size_of::<ExecutionView>()),
+                ),
+        )?)?;
+        Ok(Self(Arc::new(State {
+            view,
+            source,
+            revisions,
+            appearance,
+            captured_at,
+            owner_node_id,
+            current: Some(members),
+            _memory: memory,
+        })))
+    }
+
+    /// Whether the members are the sealed revisions a final report reads.
+    pub(crate) fn is_final(&self) -> bool {
+        self.0.current.is_none()
+    }
+
+    /// How many members the report covers.
+    pub(crate) fn len(&self) -> usize {
+        match &self.0.current {
+            Some(members) => members.len(),
+            None => self.0.revisions.len(),
+        }
     }
 
     pub(crate) fn view(&self) -> &StorageView {
@@ -142,6 +220,13 @@ impl CycleSnapshot {
     }
 
     pub(crate) async fn member(&self, storage: &Manager, index: usize) -> Result<ExecutionView> {
+        if let Some(members) = &self.0.current {
+            return members
+                .get(index)
+                .ok_or_else(|| invalid("cycle snapshot member index is out of bounds"))?
+                .snapshot(storage)
+                .await;
+        }
         let revision = self
             .0
             .revisions
