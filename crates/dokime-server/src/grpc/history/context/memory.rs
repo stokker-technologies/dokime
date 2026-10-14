@@ -7,6 +7,8 @@
  * ***
  */
 
+// Memory accounting for projected execution checkpoint contexts.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -111,6 +113,7 @@ pub(super) fn count(source: &ExecutionCheckpointContext) -> harmos::Result<usize
     bounded(bytes)
 }
 
+/* === Private Functions === */
 fn cycle_heap(source: &dokime_app::runtime::ExecutionCycleContext) -> harmos::Result<usize> {
     let mut bytes = source
         .cycle

@@ -7,6 +7,8 @@
  * ***
  */
 
+// History operations: browsing, reading and inspecting recorded executions.
+
 /* === Modules === */
 mod browse;
 mod capture;
@@ -27,6 +29,11 @@ pub(super) use wire::checkpoint;
 pub(crate) use wire::{traceability, traceability_memory};
 
 /* === Imports === */
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 
 /* === Constants === */
 

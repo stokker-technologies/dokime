@@ -7,10 +7,13 @@
  * ***
  */
 
+// The desktop RPC bridge exercised against a live server: unary, streaming and artifact upload frames.
+
 /* === Modules === */
 #[path = "../support/rpc_artifact.rs"]
 pub(crate) mod artifact_fixture;
 pub(crate) mod artifact_upload;
+
 #[path = "../support/bridge.rs"]
 pub(crate) mod bridge;
 
@@ -18,28 +21,27 @@ pub(crate) mod bridge;
 
 /* === Imports === */
 // Standard Library Imports
+use std::sync::Arc;
 use std::{
     process::{Command, Stdio},
     time::Duration,
 };
 // Third Party Imports
-
+use harmos::Protobuf;
+use serde_json::json;
+use sha2::Digest;
 // Local Imports
+use bridge::{Harness, Local, fenced};
 use dokime_app::{
     Runtime, RuntimeConfig,
     core::{Identifier, Metadata},
 };
 use dokime_contract::operations::{backend, execution, plugins, value};
-use bridge::{Harness, Local, fenced};
 use dokime_gui::{
     connection::ConnectionSession,
     rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES},
 };
 use dokime_server::grpc::{Config, Server};
-use harmos::Protobuf;
-use serde_json::json;
-use sha2::Digest;
-use std::sync::Arc;
 
 /* === Constants === */
 const STAGE: &str = "/dokime.v1.Plugins/Stage";
@@ -176,9 +178,6 @@ impl Fixture {
 }
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-
 pub(crate) async fn typescript_facade_bridge() {
     let fixture = Fixture::new().await;
     fixture.runtime.handle().set_brand(Some(
@@ -256,6 +255,305 @@ pub(crate) async fn typescript_facade_bridge() {
     fixture.close().await;
 }
 
+pub(crate) async fn refuses_invalid_dispatch() {
+    let fixture = Fixture::with_role(dokime_server::grpc::access::Role::Admin).await;
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    for command in ["rpc", "rpc_stream_open"] {
+        for (bytes, kind) in [
+            (vec![], "invalid_request"),
+            (vec![0; 40], "incompatible_descriptor"),
+            (vec![0; MAX_FRAME_BYTES + 40 + 1], "limit_exceeded"),
+        ] {
+            assert_eq!(
+                invoke(&harness.window, command, bytes).unwrap_err()["kind"],
+                kind
+            );
+        }
+        for path in [None, Some("dokime.v1.Backend/GetHealth"), Some("/a/b/c")] {
+            let headers = path.map_or(json!({}), |path| json!({"dokime-rpc-path": path}));
+            assert_eq!(
+                bridge::invoke(&harness.window, command, fenced(generation, &[]), &headers)
+                    .unwrap_err()["kind"],
+                "invalid_request",
+                "{command} {path:?}"
+            );
+        }
+    }
+    // A stream needs a channel to deliver to.
+    assert_eq!(
+        bridge::invoke(
+            &harness.window,
+            "rpc_stream_open",
+            fenced(generation, &[]),
+            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
+        )
+        .unwrap_err()["kind"],
+        "invalid_request"
+    );
+    // A superseded generation is refused before anything reaches the backend.
+    assert_eq!(
+        bridge::invoke(
+            &harness.window,
+            "rpc",
+            fenced(generation + 1, &[]),
+            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
+        )
+        .unwrap_err()["detail"]["kind"],
+        "superseded"
+    );
+    for command in ["rpc_stream_send", "rpc_stream_finish", "rpc_stream_cancel"] {
+        assert_eq!(
+            harness
+                .control(command, generation, 99, &[], json!({}))
+                .unwrap_err()["kind"],
+            "unknown_stream"
+        );
+    }
+    let (stream, channel) = harness
+        .open(generation, STAGE, &envelope(1, &[]), true)
+        .unwrap();
+    for credit in ["0", "33", "x", "1"] {
+        assert_eq!(
+            harness
+                .control(
+                    "rpc_stream_ack",
+                    generation,
+                    stream,
+                    &[],
+                    json!({"dokime-rpc-credit": credit}),
+                )
+                .unwrap_err()["kind"],
+            "invalid_ack",
+            "credit {credit} exceeds what was delivered"
+        );
+    }
+    harness
+        .control("rpc_stream_cancel", generation, stream, &[], json!({}))
+        .unwrap();
+    let frames = harness.settle(channel, Duration::from_secs(10));
+    assert_eq!(frames.last().unwrap()[8], FRAME_ERROR);
+    fixture.close().await;
+}
+
+pub(crate) async fn unary_bridge() {
+    let fixture = Fixture::new().await;
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let reply = bridge::invoke(
+        &harness.window,
+        "rpc",
+        fenced(generation, &backend::GetIdentityRequest {}.encode_to_vec()),
+        &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetIdentity"}),
+    )
+    .unwrap();
+    let tauri::ipc::InvokeResponseBody::Raw(reply) = reply else {
+        panic!("a unary reply is raw bytes");
+    };
+    assert_eq!(
+        u64::from_le_bytes(reply[..8].try_into().unwrap()),
+        generation
+    );
+    let identity = backend::BackendIdentity::decode(&reply[8..]).unwrap();
+    assert_eq!(
+        identity.backend_id,
+        fixture.session.status().backend.unwrap().backend_id
+    );
+    // A typed backend status crosses unchanged.
+    let missing = bridge::invoke(
+        &harness.window,
+        "rpc",
+        fenced(generation, &[]),
+        &json!({"dokime-rpc-path": "/dokime.v1.Missing/Call"}),
+    )
+    .unwrap_err();
+    assert_eq!(missing["kind"], "grpc");
+    assert_eq!(
+        missing["detail"]["code"],
+        tonic::Code::PermissionDenied as i32
+    );
+    fixture.close().await;
+}
+
+pub(crate) fn client_stream_runtime() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let fixture = runtime.block_on(Fixture::new());
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let (stream, _channel) = harness
+        .open(generation, STAGE, &envelope(1, &[]), true)
+        .expect("the bridge admits the stream");
+    assert!(stream > 0);
+    use tauri::Manager;
+    harness.app.state::<Bridge>().cancel_owner("main");
+    runtime.block_on(fixture.close());
+}
+
+pub(crate) fn stages_seventy_bridge() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let fixture = runtime.block_on(Fixture::with_role(dokime_server::grpc::access::Role::Admin));
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let bytes = large_bundle(70 * 1024 * 1024);
+    let frames = stage(&harness, generation, &bytes, "");
+    assert_eq!(frames.len(), 2, "one reply, then the final status");
+    assert_eq!(frames[0][8], FRAME_MESSAGE);
+    assert_eq!(frames[1][8], FRAME_END);
+    let installation = plugins::PluginInstallation::decode(&frames[0][9..])
+        .expect("the reply is a PluginInstallation");
+    assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
+    use tauri::Manager;
+    harness.app.state::<Bridge>().cancel_owner("main");
+    runtime.block_on(fixture.close());
+}
+
+pub(crate) fn stages_foreign_finish() {
+    let target = if cfg!(windows) {
+        "x86_64-unknown-linux-gnu"
+    } else {
+        "x86_64-pc-windows-msvc"
+    };
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let fixture = runtime.block_on(Fixture::with_role(dokime_server::grpc::access::Role::Admin));
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let frames = stage(
+        &harness,
+        generation,
+        &bundle_for_target(1024, target),
+        "[owner-bundle]",
+    );
+    let terminal = frames.last().unwrap();
+    assert_eq!(terminal[8], FRAME_ERROR);
+    let error: serde_json::Value = serde_json::from_slice(&terminal[9..]).unwrap();
+    let message = error["detail"]["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("no executable for this host"),
+        "expected a host-target refusal, got: {error}"
+    );
+    use tauri::Manager;
+    harness.app.state::<Bridge>().cancel_owner("main");
+    runtime.block_on(fixture.close());
+}
+
+pub(crate) async fn owner_cancellation_health() {
+    use tauri::Manager;
+
+    let fixture = Fixture::new().await;
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let (stream, channel) = harness
+        .open(generation, STAGE, &envelope(1, &[]), true)
+        .unwrap();
+    harness.app.state::<Bridge>().cancel_owner("main");
+    assert_eq!(
+        harness
+            .control(
+                "rpc_stream_send",
+                generation,
+                stream,
+                &stage_header(1, "0".repeat(64)),
+                json!({}),
+            )
+            .unwrap_err()["kind"],
+        "unknown_stream"
+    );
+    let frames = harness.settle(channel, Duration::from_secs(10));
+    let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
+    assert_eq!(error["kind"], "cancelled");
+    let client = dokime_client::Client::connect(
+        dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(),
+        Some("rpc-test-token-012345678901234567890123456789"),
+        None,
+    )
+    .await
+    .unwrap();
+    assert!(
+        client
+            .backend_get_health(backend::GetHealthRequest {})
+            .await
+            .is_ok()
+    );
+    fixture.close().await;
+}
+
+/// A Session Advance Ends Every Stream Of The Old Generation.
+pub(crate) async fn generation_fences_streams() {
+    let fixture = Fixture::new().await;
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let (_stream, channel) = harness
+        .open(
+            generation,
+            "/dokime.v1.Observation/WatchRuntime",
+            &[],
+            false,
+        )
+        .unwrap();
+    fixture.session.disconnect().unwrap();
+    let frames = harness.settle(channel, Duration::from_secs(10));
+    for frame in &frames {
+        assert_eq!(
+            u64::from_le_bytes(frame[..8].try_into().unwrap()),
+            generation
+        );
+    }
+    let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
+    assert_eq!(error["detail"]["kind"], "superseded");
+    assert_eq!(
+        bridge::invoke(
+            &harness.window,
+            "rpc",
+            fenced(generation, &[]),
+            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
+        )
+        .unwrap_err()["detail"]["kind"],
+        "superseded"
+    );
+    fixture.close().await;
+}
+
+pub(crate) async fn shared_client_producer() {
+    use dokime_client::{Client, Error, Target};
+
+    let fixture = Fixture::with_role(dokime_server::grpc::access::Role::Admin).await;
+    let client = Client::connect(
+        Target::local(fixture.server.local_endpoint()).unwrap(),
+        Some("rpc-test-token-012345678901234567890123456789"),
+        None,
+    )
+    .await
+    .unwrap();
+    let (entered, ready) = tokio::sync::oneshot::channel();
+    let (dropped, released) = tokio::sync::oneshot::channel();
+    let uploading = client.clone();
+    let task = tokio::spawn(async move {
+        uploading
+            .plugins_stage(StageInput {
+                entered: Some(entered),
+                dropped: Some(dropped),
+            })
+            .await
+    });
+    ready.await.unwrap();
+
+    client.close();
+    assert!(matches!(task.await.unwrap(), Err(Error::Closed)));
+    released.await.unwrap();
+
+    fixture.close().await;
+}
+
+/* === Private Functions === */
 fn large_bundle(resource_bytes: usize) -> Vec<u8> {
     bundle_for_target(resource_bytes, dokime_app::plugins::NATIVE_TARGET)
 }
@@ -365,7 +663,10 @@ fn stage(harness: &Harness, generation: u64, bytes: &[u8], label: &str) -> Vec<V
     const CHUNK_BYTES: usize = 256 * 1024;
     let sha256 = hex(&sha2::Sha256::digest(bytes));
     let chunk_count = bytes.len().div_ceil(CHUNK_BYTES);
-    eprintln!("[bridge]{label} bundle bytes: {}, chunks: {chunk_count}", bytes.len());
+    eprintln!(
+        "[bridge]{label} bundle bytes: {}, chunks: {chunk_count}",
+        bytes.len()
+    );
 
     let open_started = std::time::Instant::now();
     let (stream, channel) = harness
@@ -421,294 +722,6 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-pub(crate) async fn refuses_invalid_dispatch() {
-    let fixture = Fixture::with_role(dokime_server::grpc::access::Role::Admin).await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    for command in ["rpc", "rpc_stream_open"] {
-        for (bytes, kind) in [
-            (vec![], "invalid_request"),
-            (vec![0; 40], "incompatible_descriptor"),
-            (vec![0; MAX_FRAME_BYTES + 40 + 1], "limit_exceeded"),
-        ] {
-            assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
-        }
-        for path in [None, Some("dokime.v1.Backend/GetHealth"), Some("/a/b/c")] {
-            let headers = path.map_or(json!({}), |path| json!({"dokime-rpc-path": path}));
-            assert_eq!(
-                bridge::invoke(&harness.window, command, fenced(generation, &[]), &headers)
-                    .unwrap_err()["kind"],
-                "invalid_request",
-                "{command} {path:?}"
-            );
-        }
-    }
-    // A stream needs a channel to deliver to.
-    assert_eq!(
-        bridge::invoke(
-            &harness.window,
-            "rpc_stream_open",
-            fenced(generation, &[]),
-            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
-        )
-        .unwrap_err()["kind"],
-        "invalid_request"
-    );
-    // A superseded generation is refused before anything reaches the backend.
-    assert_eq!(
-        bridge::invoke(
-            &harness.window,
-            "rpc",
-            fenced(generation + 1, &[]),
-            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
-        )
-        .unwrap_err()["detail"]["kind"],
-        "superseded"
-    );
-    for command in ["rpc_stream_send", "rpc_stream_finish", "rpc_stream_cancel"] {
-        assert_eq!(
-            harness
-                .control(command, generation, 99, &[], json!({}))
-                .unwrap_err()["kind"],
-            "unknown_stream"
-        );
-    }
-    let (stream, channel) = harness
-        .open(generation, STAGE, &envelope(1, &[]), true)
-        .unwrap();
-    for credit in ["0", "33", "x", "1"] {
-        assert_eq!(
-            harness
-                .control(
-                    "rpc_stream_ack",
-                    generation,
-                    stream,
-                    &[],
-                    json!({"dokime-rpc-credit": credit}),
-                )
-                .unwrap_err()["kind"],
-            "invalid_ack",
-            "credit {credit} exceeds what was delivered"
-        );
-    }
-    harness
-        .control("rpc_stream_cancel", generation, stream, &[], json!({}))
-        .unwrap();
-    let frames = harness.settle(channel, Duration::from_secs(10));
-    assert_eq!(frames.last().unwrap()[8], FRAME_ERROR);
-    fixture.close().await;
-}
-
-pub(crate) async fn unary_bridge() {
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let reply = bridge::invoke(
-        &harness.window,
-        "rpc",
-        fenced(generation, &backend::GetIdentityRequest {}.encode_to_vec()),
-        &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetIdentity"}),
-    )
-    .unwrap();
-    let tauri::ipc::InvokeResponseBody::Raw(reply) = reply else {
-        panic!("a unary reply is raw bytes");
-    };
-    assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
-    let identity = backend::BackendIdentity::decode(&reply[8..]).unwrap();
-    assert_eq!(
-        identity.backend_id,
-        fixture.session.status().backend.unwrap().backend_id
-    );
-    // A typed backend status crosses unchanged.
-    let missing = bridge::invoke(
-        &harness.window,
-        "rpc",
-        fenced(generation, &[]),
-        &json!({"dokime-rpc-path": "/dokime.v1.Missing/Call"}),
-    )
-    .unwrap_err();
-    assert_eq!(missing["kind"], "grpc");
-    assert_eq!(missing["detail"]["code"], tonic::Code::PermissionDenied as i32);
-    fixture.close().await;
-}
-
-pub(crate) fn client_stream_runtime() {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let fixture = runtime.block_on(Fixture::new());
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let (stream, _channel) = harness
-        .open(generation, STAGE, &envelope(1, &[]), true)
-        .expect("the bridge admits the stream");
-    assert!(stream > 0);
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
-}
-
-pub(crate) fn stages_seventy_bridge() {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let fixture = runtime.block_on(Fixture::with_role(dokime_server::grpc::access::Role::Admin));
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let bytes = large_bundle(70 * 1024 * 1024);
-    let frames = stage(&harness, generation, &bytes, "");
-    assert_eq!(frames.len(), 2, "one reply, then the final status");
-    assert_eq!(frames[0][8], FRAME_MESSAGE);
-    assert_eq!(frames[1][8], FRAME_END);
-    let installation = plugins::PluginInstallation::decode(&frames[0][9..])
-        .expect("the reply is a PluginInstallation");
-    assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
-}
-
-pub(crate) fn stages_foreign_finish() {
-    let target = if cfg!(windows) {
-        "x86_64-unknown-linux-gnu"
-    } else {
-        "x86_64-pc-windows-msvc"
-    };
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let fixture = runtime.block_on(Fixture::with_role(dokime_server::grpc::access::Role::Admin));
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let frames = stage(
-        &harness,
-        generation,
-        &bundle_for_target(1024, target),
-        "[owner-bundle]",
-    );
-    let terminal = frames.last().unwrap();
-    assert_eq!(terminal[8], FRAME_ERROR);
-    let error: serde_json::Value = serde_json::from_slice(&terminal[9..]).unwrap();
-    let message = error["detail"]["message"].as_str().unwrap_or_default();
-    assert!(
-        message.contains("no executable for this host"),
-        "expected a host-target refusal, got: {error}"
-    );
-    use tauri::Manager;
-    harness.app.state::<Bridge>().cancel_owner("main");
-    runtime.block_on(fixture.close());
-}
-
-pub(crate) async fn owner_cancellation_health() {
-    use tauri::Manager;
-
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let (stream, channel) = harness
-        .open(generation, STAGE, &envelope(1, &[]), true)
-        .unwrap();
-    harness.app.state::<Bridge>().cancel_owner("main");
-    assert_eq!(
-        harness
-            .control(
-                "rpc_stream_send",
-                generation,
-                stream,
-                &stage_header(1, "0".repeat(64)),
-                json!({}),
-            )
-            .unwrap_err()["kind"],
-        "unknown_stream"
-    );
-    let frames = harness.settle(channel, Duration::from_secs(10));
-    let error: serde_json::Value =
-        serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
-    assert_eq!(error["kind"], "cancelled");
-    let client = dokime_client::Client::connect(
-        dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(),
-        Some("rpc-test-token-012345678901234567890123456789"),
-        None,
-    )
-    .await
-    .unwrap();
-    assert!(
-        client
-            .backend_get_health(backend::GetHealthRequest {})
-            .await
-            .is_ok()
-    );
-    fixture.close().await;
-}
-
-/// A Session Advance Ends Every Stream Of The Old Generation.
-pub(crate) async fn generation_fences_streams() {
-    let fixture = Fixture::new().await;
-    let harness = Harness::new(fixture.session.clone());
-    let generation = fixture.generation();
-    let (_stream, channel) = harness
-        .open(
-            generation,
-            "/dokime.v1.Observation/WatchRuntime",
-            &[],
-            false,
-        )
-        .unwrap();
-    fixture.session.disconnect().unwrap();
-    let frames = harness.settle(channel, Duration::from_secs(10));
-    for frame in &frames {
-        assert_eq!(u64::from_le_bytes(frame[..8].try_into().unwrap()), generation);
-    }
-    let error: serde_json::Value =
-        serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
-    assert_eq!(error["detail"]["kind"], "superseded");
-    assert_eq!(
-        bridge::invoke(
-            &harness.window,
-            "rpc",
-            fenced(generation, &[]),
-            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
-        )
-        .unwrap_err()["detail"]["kind"],
-        "superseded"
-    );
-    fixture.close().await;
-}
-
-pub(crate) async fn shared_client_producer() {
-    use dokime_client::{Client, Error, Target};
-
-    let fixture = Fixture::with_role(dokime_server::grpc::access::Role::Admin).await;
-    let client = Client::connect(
-        Target::local(fixture.server.local_endpoint()).unwrap(),
-        Some("rpc-test-token-012345678901234567890123456789"),
-        None,
-    )
-    .await
-    .unwrap();
-    let (entered, ready) = tokio::sync::oneshot::channel();
-    let (dropped, released) = tokio::sync::oneshot::channel();
-    let uploading = client.clone();
-    let task = tokio::spawn(async move {
-        uploading
-            .plugins_stage(StageInput {
-                entered: Some(entered),
-                dropped: Some(dropped),
-            })
-            .await
-    });
-    ready.await.unwrap();
-
-    client.close();
-    assert!(matches!(task.await.unwrap(), Err(Error::Closed)));
-    released.await.unwrap();
-
-    fixture.close().await;
-}
-
 fn fresh_runtime(
     multithread: bool,
     threads: Option<usize>,
@@ -727,6 +740,17 @@ fn fresh_runtime(
     builder.build().expect("scenario runtime")
 }
 
+#[inline(never)]
+fn run_scenario<F: std::future::Future>(
+    factory: impl FnOnce() -> F,
+    multithread: bool,
+    threads: Option<usize>,
+    paused: bool,
+) -> F::Output {
+    fresh_runtime(multithread, threads, paused).block_on(Box::pin(factory()))
+}
+
+/* === Tests === */
 #[test]
 fn domain_contract() {
     {
@@ -790,14 +814,4 @@ fn domain_contract() {
         eprintln!("Scenario: shared_client_producer");
         run_scenario(shared_client_producer, false, None, false);
     }
-}
-
-#[inline(never)]
-fn run_scenario<F: std::future::Future>(
-    factory: impl FnOnce() -> F,
-    multithread: bool,
-    threads: Option<usize>,
-    paused: bool,
-) -> F::Output {
-    fresh_runtime(multithread, threads, paused).block_on(Box::pin(factory()))
 }

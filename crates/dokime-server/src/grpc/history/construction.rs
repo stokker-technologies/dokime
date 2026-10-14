@@ -7,11 +7,18 @@
  * ***
  */
 
+// Heap accounting for constructing execution checkpoints.
+
 /* === Modules === */
 
 /* === Re-Exports === */
 
 /* === Imports === */
+// Standard Library Imports
+
+// Third Party Imports
+
+// Local Imports
 use dokime_app::runtime::query::execution_history::ExecutionCheckpoint;
 
 /* === Constants === */

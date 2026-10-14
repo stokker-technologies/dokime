@@ -7,17 +7,17 @@
  * ***
  */
 
+// Catalog parameter projection onto the wire, with its memory accounting and value checks.
+
 /* === Modules === */
 
 /* === Re-Exports === */
 
 /* === Imports === */
-
 // Standard Library Imports
 
 // Third Party Imports
 use tonic::Status;
-
 // Local Imports
 use super::super::value::canonical;
 use super::super::value::{self, Budget};
@@ -197,6 +197,7 @@ pub(in crate::grpc) fn unit(unit: &MeasurementUnit) -> Result<schema::Measuremen
     })
 }
 
+/* === Private Functions === */
 fn finite(values: &[f64]) -> Result<(), Status> {
     if values.iter().any(|v| !v.is_finite()) {
         Err(Status::internal("catalog contains nonfinite expression"))

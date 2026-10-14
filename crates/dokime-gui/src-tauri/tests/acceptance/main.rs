@@ -29,6 +29,7 @@ use async_trait::async_trait;
 use harmos::plugin::sidecar::StreamDeclaration;
 use serde_json::{Value, json};
 // Local Imports
+use bridge::{Harness, Local};
 use dokime::{
     execution::{
         CleanupContext, CriterionContext, InitializationContext, Runnable, StepContext, Workflow,
@@ -36,9 +37,8 @@ use dokime::{
     schema::Described,
 };
 use dokime_app::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
-use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
-use bridge::{Harness, Local};
 use dokime_gui::connection::ConnectionSession;
+use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
 use dokime_server::grpc::{Config, Server};
 
 /* === Constants === */
@@ -268,18 +268,21 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
         .await
         .unwrap();
     let harness = Harness::new(session.clone());
-    let mut child = Process(
-        Command::new("node")
-            .env("DOKIME_TEST_GENERATION", session.status().generation)
-            .arg(root.join("crates/dokime-gui/src-tauri/tests/rpc/fixtures/test-execution-matrix.mjs"))
-            .arg(root.join("crates/dokime-gui/src-tauri/tests/rpc/fixtures/execution.json"))
-            .arg(scenario)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .unwrap(),
-    );
+    let mut child =
+        Process(
+            Command::new("node")
+                .env("DOKIME_TEST_GENERATION", session.status().generation)
+                .arg(root.join(
+                    "crates/dokime-gui/src-tauri/tests/rpc/fixtures/test-execution-matrix.mjs",
+                ))
+                .arg(root.join("crates/dokime-gui/src-tauri/tests/rpc/fixtures/execution.json"))
+                .arg(scenario)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .unwrap(),
+        );
     let mut result = None;
     let status = harness.drive(
         &mut child.0,

@@ -7,6 +7,8 @@
  * ***
  */
 
+// Memory accounting for projected execution capture checkpoints.
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -33,6 +35,7 @@ use dokime_contract::operations::{
     catalog as catalog_wire, common as common_wire, execution as execution_wire,
     history as history_wire, notes as notes_wire, schema as schema_wire, value as value_wire,
 };
+
 /* === Constants === */
 
 /* === Macros === */
@@ -57,6 +60,7 @@ pub(super) fn count(source: &ExecutionCheckpointDocument) -> harmos::Result<usiz
     bounded(bytes)
 }
 
+/* === Private Functions === */
 fn bounded(bytes: usize) -> harmos::Result<usize> {
     if bytes == usize::MAX {
         return Err(harmos::Error::ResourceExhausted {
