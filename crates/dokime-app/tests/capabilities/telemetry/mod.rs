@@ -9,6 +9,7 @@
 
 /* === Modules === */
 pub(crate) mod sampling;
+pub(crate) mod shared;
 
 /* === Re-Exports === */
 

@@ -330,7 +330,7 @@ fn validate_telemetry_contract(
 ) -> Result<(), String> {
     if existing
         .iter()
-        .any(|contract| contract.normalized() == candidate.normalized())
+        .any(|contract| contract.stream_schema() == candidate.stream_schema())
     {
         return Ok(());
     }

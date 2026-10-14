@@ -266,6 +266,15 @@ impl TelemetryContract {
         normalized
     }
 
+    /// The normalized contract without its template association: what every
+    /// declaration of one stream has to agree on, whichever of its plugin's
+    /// templates declares it.
+    pub fn stream_schema(&self) -> Self {
+        let mut schema = self.normalized();
+        schema.template_id = None;
+        schema
+    }
+
     pub fn column_map(&self) -> BTreeMap<&str, &TelemetryColumn> {
         self.columns
             .iter()
