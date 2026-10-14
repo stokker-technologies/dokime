@@ -450,8 +450,12 @@ impl ExecutionStorage {
             .await
     }
 
-    pub(crate) async fn artifact_count(&self) -> Result<usize> {
-        super::artifact_inventory::count(self).await
+    /// Counts every artifact under `budget`, or the interactive default.
+    pub(crate) async fn artifact_count(
+        &self,
+        budget: Option<harmos::storage::QueryLimits>,
+    ) -> Result<usize> {
+        super::artifact_inventory::count(self, budget).await
     }
 
     pub(crate) async fn artifact_reader(&self, id: &ArtifactId) -> Result<Option<ArtifactReader>> {

@@ -193,10 +193,9 @@ impl RuntimeHandle {
             .view_with_limits(reads.finalization())
             .await?;
         let limit = view.decoded_bytes()?;
-        let inspection = ExecutionView::open_through(
+        let inspection = ExecutionView::open(
             self.storage(),
             view,
-            reads.execution,
             execution,
             harmos::storage::ObjectVersion::Latest,
             limit,

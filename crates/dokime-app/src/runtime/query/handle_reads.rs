@@ -179,7 +179,7 @@ impl RuntimeHandle {
     ) -> crate::Result<crate::evidence::EvidenceCounts> {
         Ok(crate::runtime_state::evidence_counts(
             snapshot.state(),
-            self.execution_storage.artifact_count().await?,
+            self.execution_storage.artifact_count(None).await?,
         ))
     }
 }

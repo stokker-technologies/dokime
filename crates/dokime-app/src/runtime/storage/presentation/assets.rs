@@ -19,7 +19,7 @@ use std::{io::Read, num::NonZeroUsize, path::PathBuf};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use harmos::{
     MemorySize,
-    storage::{QueryValue, SharedQueryValue, StorageProductionComputation},
+    storage::{QueryValue, SharedQueryValue, StorageProductionComputation, StorageView},
 };
 
 // Local Imports
@@ -60,8 +60,12 @@ impl MemorySize for Source {
 }
 
 /* === Public Functions === */
+/// Reads an appearance logo into a data URL under `view`'s read budget, so
+/// finalization reads it under its own budget and interactive callers under
+/// theirs.
 pub(in crate::runtime::storage) async fn capture_logo(
     storage: &Manager,
+    view: &StorageView,
     asset: &RuntimeInstalledPluginAsset,
 ) -> Result<QueryValue<String>> {
     validate_mime(&asset.mime_type)?;
@@ -70,7 +74,7 @@ pub(in crate::runtime::storage) async fn capture_logo(
         .and_then(|bytes| bytes.checked_add(asset.mime_type.len()))
         .and_then(NonZeroUsize::new)
         .ok_or_else(|| error("appearance logo source memory overflows"))?;
-    let preparation = storage.prepare_read_production(bytes)?;
+    let preparation = storage.prepare_read_production_in(view, bytes)?;
     let computation = preparation.computation()?;
     let deadline = computation.deadline();
     let scratch = computation.scratch_bytes();

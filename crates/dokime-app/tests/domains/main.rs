@@ -927,6 +927,24 @@ fn execution_contract() {
         );
     }
     {
+        eprintln!("Scenario: execution::sampling::pool_refusal_settles");
+        run_scenario(
+            execution::sampling::pool_refusal_settles,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: execution::sampling::slow_output_read_seals");
+        run_scenario(
+            execution::sampling::slow_output_read_seals,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: execution::sampling::logged_cycle_terminal");
         run_scenario(
             execution::sampling::logged_cycle_terminal,

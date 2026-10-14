@@ -81,6 +81,15 @@ pub struct StorageReadSettings {
     pub decoded_bytes_ceiling: std::num::NonZeroUsize,
     pub execution: harmos::storage::QueryLimits,
     pub execution_ceiling: harmos::storage::QueryLimits,
+    /// The read pool live readers and report captures share. Captures retain
+    /// their inputs in it while point reads and rendering reserve scratch.
+    #[serde(default = "default_read_pool_bytes")]
+    pub pool_bytes: std::num::NonZeroUsize,
+    /// Test hook: how long each native-output read finalization performs
+    /// stalls within its read budget. Zero outside tests.
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub finalization_read_stall: Duration,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -218,6 +227,8 @@ impl Default for StorageReadSettings {
                     .max(FINALIZATION_BUDGET),
                 ..settings.query_execution_ceiling
             },
+            pool_bytes: default_read_pool_bytes(),
+            finalization_read_stall: Duration::ZERO,
         }
     }
 }
@@ -262,6 +273,7 @@ impl StorageReadSettings {
         settings.query_decoded_bytes_ceiling = self.decoded_bytes_ceiling;
         settings.query_execution = self.execution;
         settings.query_execution_ceiling = self.execution_ceiling;
+        settings.read_memory_bytes = self.pool_bytes;
     }
 }
 
@@ -304,6 +316,10 @@ fn default_save_interval() -> Duration {
 
 fn default_compaction_interval() -> Duration {
     Duration::from_secs(24 * 60 * 60)
+}
+
+fn default_read_pool_bytes() -> std::num::NonZeroUsize {
+    std::num::NonZeroUsize::new(256 * 1024 * 1024).unwrap()
 }
 
 /* === Tests === */

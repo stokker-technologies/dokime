@@ -44,7 +44,9 @@ use dokime::{
 pub(super) struct PendingCycle {
     snapshot: CycleSnapshot,
     executions: SharedQueryValue<Vec<ExecutionSeal>>,
-    report: CycleReport,
+    // Retains every materialized member until the report file is written; the
+    // seal then releases it, before publication and the cycle object save.
+    report: Option<CycleReport>,
     seal: Option<SharedQueryValue<CycleSeal>>,
     native: Option<QueryValue<Cycle>>,
     publication: Option<reports::Prepared>,
@@ -158,7 +160,12 @@ impl RuntimeHandle {
                 return Ok(completed.clone());
             }
             if pending.seal.is_none() {
-                let report = pending.report.finish().await?;
+                let report = pending
+                    .report
+                    .as_mut()
+                    .ok_or_else(|| invalid("unsealed cycle report has no retained members"))?
+                    .finish()
+                    .await?;
                 let saved = runtime.storage().flush_until(&report.position).await?;
                 if !saved.covers(&report.position)? {
                     return Err(invalid("cycle report is not saved"));
@@ -193,6 +200,8 @@ impl RuntimeHandle {
                 seal.validate(pending.snapshot.source())
                     .map_err(dokime::storage::Error::from)?;
                 pending.seal = Some(seal);
+                // The Written Report Has Consumed Its Members; Release Them Now.
+                pending.report = None;
             }
             if pending.publication.is_none() {
                 let seal = pending.seal.as_ref().expect("prepared cycle seal");
@@ -305,8 +314,6 @@ impl RuntimeHandle {
             .storage()
             .view_with_limits(self.config().storage_reads.finalization())
             .await?;
-        // Object reads admit only the default limits, each under its own view.
-        let objects = self.config().storage_reads.execution;
         let limit = view.decoded_bytes()?;
         let mut revisions = self
             .storage()
@@ -360,10 +367,9 @@ impl RuntimeHandle {
                 computation.check()?;
                 continue;
             }
-            let inspection = ExecutionView::open_through(
+            let inspection = ExecutionView::open(
                 self.storage(),
                 view.clone(),
-                objects,
                 id,
                 ObjectVersion::Latest,
                 limit,
@@ -410,13 +416,15 @@ impl RuntimeHandle {
         }
         let appearance = match appearance {
             Some(appearance) => appearance,
-            None => self.report_appearance(limit).await?.try_into_shared()?,
+            None => self
+                .report_appearance(&view, limit)
+                .await?
+                .try_into_shared()?,
         };
         let revisions = revisions.try_into_shared()?;
         let snapshot = CycleSnapshot::capture(
             self.storage(),
             view,
-            objects,
             source.clone(),
             revisions,
             appearance,
@@ -431,7 +439,7 @@ impl RuntimeHandle {
         Ok(PendingCycle {
             snapshot,
             executions: executions.try_into_shared()?,
-            report,
+            report: Some(report),
             seal: None,
             native: None,
             publication: None,

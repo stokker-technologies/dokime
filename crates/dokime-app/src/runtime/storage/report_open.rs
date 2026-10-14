@@ -178,15 +178,7 @@ impl RuntimeHandle {
             let header = runtime.current_header(&source)?;
             let appearance = runtime.member_appearance(&members, &view).await?;
             let node = runtime.state_read().identity.node.node_id.clone();
-            CycleSnapshot::current(
-                runtime.storage(),
-                runtime.config().storage_reads.execution,
-                view,
-                header,
-                members,
-                appearance,
-                &node,
-            )
+            CycleSnapshot::current(runtime.storage(), view, header, members, appearance, &node)
         })
         .await??;
         let metadata = snapshot.source().metadata.clone();
@@ -286,12 +278,9 @@ impl RuntimeHandle {
             members.push(member.snapshot(storage).await?);
         }
         let appearance = self.member_appearance(&members, &view).await?;
-        // Object reads admit only the default limits, each under its own view.
-        let objects = self.config().storage_reads.execution;
         CycleSnapshot::capture(
             storage,
             view,
-            objects,
             source,
             revisions,
             appearance,
@@ -343,7 +332,7 @@ impl RuntimeHandle {
                 .try_into_shared()?);
         }
         Ok(self
-            .report_appearance(view.decoded_bytes()?)
+            .report_appearance(view, view.decoded_bytes()?)
             .await?
             .try_into_shared()?)
     }

@@ -56,6 +56,30 @@ const OVERSIZED_SPECTRUM_ROWS: u32 = 8_192;
 const UNSEALED: &str = "final execution report was not sealed";
 const EXHAUSTED: &str = "final report materialization memory";
 
+/// A storage read pool that admits running the cycle but never holds the cycle
+/// report retaining every member, as the 256 MiB production pool cannot
+/// hold a large enough cycle.
+const REFUSING_POOL_BYTES: usize = 128 * 1024 * 1024;
+
+/// Members of the cycle the refusing pool cannot hold at once.
+const POOLED_MEMBERS: usize = 9;
+
+/// Rows of each member's whole-capture stream: within one report's budget.
+const POOLED_SPECTRUM_ROWS: u32 = 1_536;
+
+/// How finalization names a cycle report it never sealed.
+const CYCLE_UNSEALED: &str = "final cycle report was not sealed";
+
+/// How finalization names a report the read pool refused on every attempt.
+const POOL_REFUSED: &str = "the report does not fit the storage read pool";
+
+/// An interactive query budget well below one stalled finalization read.
+const TIGHT_QUERY_BUDGET: Duration = Duration::from_millis(200);
+
+/// How long each native-output read finalization performs stalls within its
+/// budget: past the interactive budget, well within finalization's own.
+const OUTPUT_READ_STALL: Duration = Duration::from_secs(1);
+
 /// How much slower the last case may settle than the first. Work that grows
 /// with the store's history settles the sixth case several times slower.
 const GROWTH: u32 = 3;
@@ -432,6 +456,176 @@ pub(crate) async fn oversized_report_settles() {
     assert!(
         cycle.saved.is_none(),
         "an unproduced report is never sealed"
+    );
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// A cycle whose members together exceed the storage read pool settles Failed
+// in bounded time, the pool named as the cause, instead of retrying its report
+// while the cycle stays Running.
+pub(crate) async fn pool_refusal_settles() {
+    let root = tempdir().unwrap();
+    let mut refusing =
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({ "spectrum_rows": POOLED_SPECTRUM_ROWS }),
+            )
+            .unwrap()]);
+    refusing.storage_reads.pool_bytes = std::num::NonZeroUsize::new(REFUSING_POOL_BYTES).unwrap();
+    let (mut runtime, handle) = started(refusing).await;
+    let suite = handle
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|suite| suite.source == "fixture-suites")
+        .unwrap()
+        .suite;
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite: suite.clone(),
+                metadata: Metadata::new(
+                    Identifier::new("spectrum.refused").unwrap(),
+                    "Refused",
+                    None,
+                ),
+                cases: vec![materialize_cases("fixture.checks", &suite).remove(0); POOLED_MEMBERS],
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let receipt = handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    // The full pool may refuse this polling read too while finalization holds it.
+    let settled = tokio::time::timeout(Duration::from_secs(120), async {
+        loop {
+            if let Ok(Some(receipt)) = handle.run_request(&receipt.command_id).await
+                && receipt.summary.phase.terminal()
+            {
+                break receipt;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("a cycle the pool refuses settles its run in bounded time");
+    assert_eq!(settled.summary.phase, RunPhase::Failed);
+    assert!(
+        settled
+            .interruption
+            .as_deref()
+            .is_some_and(|cause| cause.starts_with(CYCLE_UNSEALED) && cause.contains(POOL_REFUSED)),
+        "the receipt names the refusing pool: {:?}",
+        settled.interruption
+    );
+    let cycle = handle
+        .cycles()
+        .await
+        .into_iter()
+        .find(|cycle| cycle.test_cycle_id == cycle_id)
+        .unwrap();
+    assert_eq!(cycle.lifecycle, CycleStatus::Failed);
+    assert!(
+        cycle.saved.is_none(),
+        "a refused cycle report is never sealed"
+    );
+    assert_eq!(cycle.test_executions.len(), POOLED_MEMBERS);
+    let evidence = handle.evidence_snapshot().await.unwrap();
+    let recorded = evidence
+        .records
+        .iter()
+        .find(|record| record.record_type.as_str() == "test.cycle.finalization.failed")
+        .expect("the unsealed cycle records its cause");
+    assert!(
+        recorded
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains(POOL_REFUSED)),
+        "the cycle evidence names the refusing pool: {recorded:?}"
+    );
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// Finalization reads native outputs under its own budget: a logged case whose
+// every output read stalls past the interactive budget still seals, where a
+// read under the interactive deadline would have exhausted it.
+pub(crate) async fn slow_output_read_seals() {
+    let root = tempdir().unwrap();
+    let mut slow =
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({ "log_lines": LOGGED_LINES }),
+            )
+            .unwrap()]);
+    slow.storage_reads.execution.timeout = TIGHT_QUERY_BUDGET;
+    slow.storage_reads.finalization_read_stall = OUTPUT_READ_STALL;
+    let (mut runtime, handle) = started(slow).await;
+    let suite = handle
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|suite| suite.source == "fixture-suites")
+        .unwrap()
+        .suite;
+    let case = materialize_cases("fixture.checks", &suite).remove(0);
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite,
+                metadata: Metadata::new(Identifier::new("logged.slow").unwrap(), "Slow", None),
+                cases: vec![case],
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let receipt = handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    let settled = tokio::time::timeout(Duration::from_secs(120), async {
+        loop {
+            let receipt = handle
+                .run_request(&receipt.command_id)
+                .await
+                .unwrap()
+                .unwrap();
+            if receipt.summary.phase.terminal() {
+                break receipt;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("a stalled output read settles its run");
+    assert_eq!(
+        settled.summary.phase,
+        RunPhase::Completed,
+        "{:?}",
+        settled.interruption
+    );
+    let cycle = handle
+        .cycles()
+        .await
+        .into_iter()
+        .find(|cycle| cycle.test_cycle_id == cycle_id)
+        .unwrap();
+    assert!(cycle.saved.is_some(), "the cycle report is sealed");
+    assert!(
+        cycle
+            .test_executions
+            .iter()
+            .all(|execution| execution.saved.is_some()),
+        "the logged execution seals although its output read stalled"
     );
     drop(handle);
     runtime.shutdown().await.unwrap();
