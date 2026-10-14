@@ -105,7 +105,7 @@ export function Sidebar(props: SidebarProps) {
           height is fixed, so the first destination starts on the same y
           whether the rail is open or collapsed. */}
       <div
-        className="grid place-items-center border-b px-[var(--shell-gap)]"
+        className="grid place-items-center px-[var(--shell-gap)]"
         style={{ height: "var(--page-bar-height)" }}
       >
         <div className="flex min-w-0 items-center justify-center gap-2">
