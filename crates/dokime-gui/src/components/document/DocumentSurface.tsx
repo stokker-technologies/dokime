@@ -23,10 +23,10 @@ import {
   DocumentMetricFlow,
   metricFlowStorageKey,
 } from "@/components/document/DocumentOverviewCards";
+import { OperatorNotesContent } from "@/components/document/OperatorNotesContent";
 import { LivePlotGroupGrid, type PlotSettingsChange } from "@/components/document/PlotGroupGrid";
 import { RecordTimeline } from "@/components/document/RecordTimeline";
 import { StepRecordList } from "@/components/document/StepRecordsCard";
-import { MarkdownText } from "@/components/MarkdownText";
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery, type MediaGalleryArtifact } from "@/components/MediaGallery";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
@@ -50,7 +50,6 @@ import {
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { formatValue } from "@/lib/dashboard";
 import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
-import { timeOfDayLabel } from "@/lib/time-format";
 import { isStatedGroup } from "@/lib/traceability";
 import type {
   DocumentViewCard,
@@ -129,6 +128,8 @@ type LiveDocumentSurfaceProps = DocumentSurfaceSharedProps & {
   boxSummarySection?: BoxSummarySectionSpec;
   /** The execution scope host captures attach to; absent hides the controls. */
   captureScope?: RecordScope | null;
+  /** The unsealed cycle or execution a new operator note is filed against. */
+  noteScope?: RecordScope | null;
   histogramSection?: HistogramSectionSpec;
   livePlotStates: LivePlotStateMap;
   onPlotSettingsChange?: PlotSettingsChange;
@@ -292,7 +293,12 @@ export function DocumentCardContent(props: DocumentCardContentProps) {
   }
 
   if (props.card.kind === "notes") {
-    return <NotesDocumentContent notes={props.notes} />;
+    return (
+      <OperatorNotesContent
+        notes={props.notes}
+        scope={isReportDocumentSurface(props) ? null : props.noteScope}
+      />
+    );
   }
 
   if (props.card.kind === "steps") {
@@ -565,26 +571,6 @@ export function TelemetryContextDocumentContent({ streams }: { streams: Telemetr
   );
 }
 
-export function NotesDocumentContent({ notes }: { notes: OperatorNote[] }) {
-  return notes.length ? (
-    <div className="grid gap-2">
-      {[...notes].reverse().map((note) => (
-        <DocumentEmbeddedBlock as="article" key={note.note_id}>
-          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
-            <time dateTime={note.timestamp}>{shortTimestamp(note.timestamp)}</time>
-            {note.elapsed_since_start_label ? (
-              <span title="Elapsed since test start">T+{note.elapsed_since_start_label}</span>
-            ) : null}
-          </div>
-          <MarkdownText text={note.text} />
-        </DocumentEmbeddedBlock>
-      ))}
-    </div>
-  ) : (
-    <DocumentEmbeddedEmptyState>No operator notes recorded.</DocumentEmbeddedEmptyState>
-  );
-}
-
 export function HealthDocumentContent({ health }: { health: HealthItem[] }) {
   return health.length ? (
     <div className="grid gap-2">
@@ -632,10 +618,6 @@ function tableColumns(rows: DocumentViewTableRow[]): string[] {
     }
   }
   return columns;
-}
-
-function shortTimestamp(timestamp: string): string {
-  return timeOfDayLabel(timestamp);
 }
 
 function reportPlotStates(

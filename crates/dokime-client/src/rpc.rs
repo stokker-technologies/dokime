@@ -873,6 +873,16 @@ impl Client {
         super::transport::value(reply)
     }
 
+    pub async fn notes_edit_note(
+        &self,
+        message: contracts::notes::EditNoteRequest,
+    ) -> Result<contracts::notes::EditNoteResponse> {
+        let reply = self
+            .unary::<contracts::notes::EditNote>(contracts::notes::EditNote::PATH, message)
+            .await?;
+        super::transport::value(reply)
+    }
+
     pub async fn health_list_health(
         &self,
         message: contracts::notes::ListAnnotationsRequest,

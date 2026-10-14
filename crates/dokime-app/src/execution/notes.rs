@@ -28,6 +28,8 @@ pub const NOTE_RECEIPT_LIMIT: usize = 4096;
 pub const NOTE_RECEIPT_BYTES: usize = 8 * 1024 * 1024;
 pub const NOTE_CHECKPOINT_LIMIT: usize = 64;
 pub const NOTE_SCAN_LIMIT: usize = 10_000;
+pub const NOTE_EDIT_NOT_AUTHOR: &str = "only the note's author may edit it";
+pub const NOTE_OWNER_SEALED: &str = "note owner is sealed; its report keeps the notes it froze";
 
 /* === Macros === */
 

@@ -20,9 +20,11 @@
 // Local Imports
 use crate::support::prelude::*;
 use dokime::Message;
-use dokime::core::Value;
+use dokime::core::{CommandId, Value};
 use dokime_app::domains::evidence::TelemetrySelection;
+use dokime_app::domains::evidence::notes::{CreateNoteRequest, EditNoteRequest, NoteError};
 use dokime_app::execution::CycleView;
+use dokime_app::execution::notes::NoteOwner;
 
 /* === Constants === */
 const STREAM: &str = "fixture-sidecar.reading";
@@ -202,6 +204,132 @@ async fn samples(handle: &RuntimeHandle, count: usize) -> Vec<dokime::telemetry:
 }
 
 /* === Tests === */
+
+pub(crate) async fn operator_notes_until_seal() {
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = Runtime::start(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-sidecar-protocol")]),
+    )
+    .await
+    .unwrap();
+    let handle = owner.handle();
+    let id = begin(&handle).await;
+    let running = cycle(&handle, &id, CycleStatus::Running).await;
+    let execution = &running.test_executions[0];
+    let request = CreateNoteRequest {
+        epoch: handle.process_epoch(),
+        mutation_id: CommandId::new(),
+        owner: NoteOwner::Execution {
+            cycle_id: id.clone(),
+            execution_id: execution.test_execution_id.clone(),
+        },
+        actor: "operator".into(),
+        message: "Fan **audible** at start.".into(),
+    };
+    let filed = handle
+        .create_current_note(request.clone())
+        .await
+        .unwrap()
+        .admission
+        .note;
+    assert_eq!(filed.author.as_deref(), Some("operator"));
+    assert_eq!(
+        filed.scope.test_execution_id,
+        Some(execution.test_execution_id.clone())
+    );
+    let edit = EditNoteRequest {
+        epoch: handle.process_epoch(),
+        note_id: filed.note_id.clone(),
+        actor: "operator".into(),
+        message: "Fan **audible** at start; quiet after warm-up.".into(),
+    };
+    assert!(matches!(
+        handle
+            .edit_current_note(EditNoteRequest {
+                actor: "someone-else".into(),
+                ..edit.clone()
+            })
+            .await,
+        Err(NoteError::NotAuthor)
+    ));
+    let edited = handle.edit_current_note(edit.clone()).await.unwrap();
+    assert_eq!(edited.note_id, filed.note_id);
+    assert_eq!(edited.created_at, filed.created_at);
+    assert_eq!(edited.message, edit.message);
+
+    let cycle_note = handle
+        .create_current_note(CreateNoteRequest {
+            mutation_id: CommandId::new(),
+            owner: NoteOwner::Cycle {
+                cycle_id: id.clone(),
+            },
+            message: "Bench ambient 23 °C.".into(),
+            ..request.clone()
+        })
+        .await
+        .unwrap()
+        .admission
+        .note;
+
+    handle
+        .stop_cycle(id.clone(), CommandContext::default())
+        .await
+        .unwrap();
+    let stopped = cycle(&handle, &id, CycleStatus::Stopped).await;
+    let seal = stopped
+        .saved
+        .as_ref()
+        .expect("stopping finalizes the cycle report");
+    let payload = crate::support::reports::payload(handle.storage(), &seal.report).await;
+    let notes = payload["snapshot"]["notes"]
+        .as_array()
+        .expect("the sealed report carries its notes");
+    assert_eq!(
+        notes
+            .iter()
+            .filter(|note| note["note_id"] == filed.note_id.as_str())
+            .map(|note| (note["author"].as_str(), note["text"].as_str()))
+            .collect::<Vec<_>>(),
+        [(Some("operator"), Some(edit.message.as_str()))],
+        "the sealed report keeps the note as last edited"
+    );
+
+    let late = CreateNoteRequest {
+        mutation_id: CommandId::new(),
+        message: "Filed after the seal.".into(),
+        ..request
+    };
+    assert!(matches!(
+        handle.create_current_note(late.clone()).await,
+        Err(NoteError::Sealed)
+    ));
+    assert!(matches!(
+        handle
+            .create_current_note(CreateNoteRequest {
+                owner: NoteOwner::Cycle {
+                    cycle_id: id.clone()
+                },
+                ..late
+            })
+            .await,
+        Err(NoteError::Sealed)
+    ));
+    assert!(matches!(
+        handle
+            .edit_current_note(EditNoteRequest {
+                note_id: cycle_note.note_id,
+                message: "Bench ambient 24 °C.".into(),
+                ..edit.clone()
+            })
+            .await,
+        Err(NoteError::Sealed)
+    ));
+    assert!(matches!(
+        handle.edit_current_note(edit).await,
+        Err(NoteError::Sealed)
+    ));
+    owner.shutdown().await.unwrap();
+}
 
 pub(crate) async fn native_capture_contexts() {
     let root = tempfile::tempdir().unwrap();

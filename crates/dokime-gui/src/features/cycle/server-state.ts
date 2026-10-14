@@ -19,6 +19,7 @@ import {
 } from "@/app/native-session/NativeSessionProvider";
 import {
   createNativeNote,
+  editNativeNote,
   fetchNativeHealth,
   fetchNativeNotes,
 } from "@/lib/api/native-annotations";
@@ -42,6 +43,11 @@ type PromptResponseVariables = {
 
 type AddNoteVariables = {
   scope?: RecordScope | null;
+  text: string;
+};
+
+type EditNoteVariables = {
+  noteId: string;
   text: string;
 };
 
@@ -377,6 +383,19 @@ export function useAddNoteMutation() {
         queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }),
         queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }),
       ]);
+    },
+  });
+}
+
+export function useEditNoteMutation() {
+  const session = useNativeSession();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ noteId, text }: EditNoteVariables) =>
+      editNativeNote(session.identity, nativeEpoch(session), noteId, text),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() });
     },
   });
 }

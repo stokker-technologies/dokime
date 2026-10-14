@@ -19,10 +19,11 @@
 // Local Imports
 use super::RuntimeState;
 use crate::execution::notes::{
-    NOTE_ACTOR_BYTES, NOTE_OWNER_BYTES, NOTE_SCAN_LIMIT, NOTE_TEXT_BYTES, NoteOwner,
+    NOTE_ACTOR_BYTES, NOTE_OWNER_BYTES, NOTE_OWNER_SEALED, NOTE_SCAN_LIMIT, NOTE_TEXT_BYTES,
+    NoteOwner,
 };
 use crate::execution::{HealthItem, OperatorNote};
-use dokime::core::RecordScope;
+use dokime::core::{NoteId, RecordScope};
 
 /* === Constants === */
 
@@ -208,7 +209,58 @@ impl RuntimeState {
         if self.canonical_note_scope(&note.scope)? != note.scope {
             return Err("note scope is not canonical".into());
         }
+        if self.note_scope_sealed(&note.scope) {
+            return Err(NOTE_OWNER_SEALED.into());
+        }
         Ok(())
+    }
+
+    // A Sealed Cycle Or Execution Keeps The Notes Its Report Froze
+    pub fn note_scope_sealed(&self, scope: &RecordScope) -> bool {
+        let cycle_sealed = scope
+            .test_cycle_id
+            .as_ref()
+            .and_then(|id| self.cycles.get(id))
+            .is_some_and(|cycle| cycle.saved.is_some());
+        let execution_sealed = scope
+            .test_execution_id
+            .as_ref()
+            .and_then(|id| self.executions.get(id))
+            .is_some_and(|execution| execution.saved.is_some());
+        cycle_sealed || execution_sealed
+    }
+
+    // An Execution That Sealed Froze Every Ancestor Note It Captured, So Editing
+    // A Cycle Or Case Note Stops Once Any Execution Beneath It Has Sealed.
+    pub fn note_edit_sealed(&self, scope: &RecordScope) -> bool {
+        if self.note_scope_sealed(scope) {
+            return true;
+        }
+        if scope.test_execution_id.is_some() {
+            return false;
+        }
+        let Some(cycle) = scope
+            .test_cycle_id
+            .as_ref()
+            .and_then(|id| self.cycles.get(id))
+        else {
+            return false;
+        };
+        cycle
+            .execution_ids
+            .iter()
+            .filter_map(|id| self.executions.get(id))
+            .filter(|execution| {
+                scope
+                    .test_case_id
+                    .as_ref()
+                    .is_none_or(|id| id == &execution.test_case_id)
+            })
+            .any(|execution| execution.saved.is_some())
+    }
+
+    pub fn find_note(&self, id: &NoteId) -> Option<&OperatorNote> {
+        self.iter_notes().find(|note| &note.note_id == id)
     }
 
     pub fn iter_notes(&self) -> impl Iterator<Item = &OperatorNote> {

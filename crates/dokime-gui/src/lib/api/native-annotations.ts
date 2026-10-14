@@ -123,6 +123,19 @@ export async function createNativeNote(
   };
 }
 
+export async function editNativeNote(
+  session: SessionIdentity,
+  epoch: string,
+  noteId: string,
+  text: string,
+): Promise<OperatorNote> {
+  const message = text.trim();
+  if (!message) throw new Error("A note cannot be empty.");
+  const reply = await rpc.notesEditNote(session, { epoch, noteId, message });
+  if (!reply.note) throw new Error(`Native note ${noteId} returned no edited note.`);
+  return mapNativeNote(reply.note);
+}
+
 /* === Mapping === */
 
 function mapNativeNote(note: NativeOperatorNote): OperatorNote {
@@ -130,6 +143,7 @@ function mapNativeNote(note: NativeOperatorNote): OperatorNote {
   if (!timestamp) throw new Error(`Native note ${note.noteId} has no valid creation timestamp.`);
   return {
     note_id: note.noteId,
+    author: note.author ?? null,
     text: note.message,
     timestamp,
     scope: recordScopeFromNative(note.scope),

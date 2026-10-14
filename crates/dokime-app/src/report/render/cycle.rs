@@ -256,6 +256,7 @@ impl Serialize for Rows<'_, '_> {
                             for note in &captured.context.notes {
                                 rows.serialize_element(&NoteRow {
                                     note_id: note.note_id.as_str(),
+                                    author: note.author.as_deref(),
                                     text: &note.message,
                                     timestamp: &note.created_at,
                                     scope: &note.scope,

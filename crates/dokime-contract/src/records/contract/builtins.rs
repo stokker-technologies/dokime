@@ -171,6 +171,11 @@ pub fn builtin_record_contracts() -> Vec<RecordContract> {
             vec![field("note_id", ValueType::Text)],
         ),
         contract(
+            "operator.note_edited",
+            RecordSeverity::Info,
+            vec![field("note_id", ValueType::Text)],
+        ),
+        contract(
             "health.added",
             RecordSeverity::Warning,
             vec![

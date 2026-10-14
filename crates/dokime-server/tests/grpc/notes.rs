@@ -339,7 +339,35 @@ pub(crate) async fn scoped_annotation_workflow() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(case_notes.notes, vec![case_receipt.note.unwrap()]);
+    assert_eq!(case_notes.notes, vec![case_receipt.note.clone().unwrap()]);
+    let edit = contracts::notes::EditNoteRequest {
+        epoch: epoch.clone(),
+        note_id: case_receipt.note.as_ref().unwrap().note_id.clone(),
+        message: "planned case note, **revised**".into(),
+    };
+    let edited = notes
+        .unary::<contracts::notes::EditNote>(authenticated(edit.clone()))
+        .await
+        .unwrap()
+        .into_inner()
+        .note
+        .unwrap();
+    assert_eq!(edited.message, "planned case note, **revised**");
+    assert_eq!(edited.note_id, edit.note_id);
+    assert_eq!(
+        edited.created_at,
+        case_receipt.note.as_ref().unwrap().created_at
+    );
+    let mut absent = edit.clone();
+    absent.note_id = uuid::Uuid::now_v7().to_string();
+    assert_eq!(
+        notes
+            .unary::<contracts::notes::EditNote>(authenticated(absent))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
     let mut oversized = create;
     oversized.mutation_id = uuid::Uuid::now_v7().to_string();
     oversized.message = "x".repeat(16 * 1024 + 1);
@@ -350,6 +378,90 @@ pub(crate) async fn scoped_annotation_workflow() {
             .unwrap_err()
             .code(),
         Code::InvalidArgument
+    );
+    server.shutdown().await.unwrap();
+    drop(handle);
+    owner.shutdown().await.unwrap();
+}
+
+pub(crate) async fn sealed_cycle_refuses_notes() {
+    let root = tempfile::tempdir().unwrap();
+    let gate = std::sync::Arc::new(Gate::reporting(|cycle| {
+        common::fixture_provider_outcome(cycle, false)
+    }));
+    let mut owner = Runtime::with_execution_fixture(
+        RuntimeConfig::new(root.path(), common::metadata("grpc.notes", "Notes")),
+        "fixture",
+        gate.clone(),
+    )
+    .await
+    .unwrap();
+    let handle = owner.handle();
+    let id = cycle(&handle).await;
+    let server = Server::start(
+        handle.clone(),
+        Config::local()
+            .with_bearer_auth(vec![grant(Role::Control)])
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    let notes = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let create = contracts::notes::CreateNoteRequest {
+        epoch: handle.process_epoch().to_string(),
+        mutation_id: uuid::Uuid::now_v7().to_string(),
+        owner: selection(&id, false).unwrap().owner,
+        message: "before the seal".into(),
+    };
+    let filed = notes
+        .unary::<contracts::notes::CreateNote>(authenticated(create.clone()))
+        .await
+        .unwrap()
+        .into_inner()
+        .note
+        .unwrap();
+    handle
+        .run_cycle_cases(id.clone(), CommandContext::default())
+        .await;
+    tokio::time::timeout(std::time::Duration::from_secs(5), gate.started.notified())
+        .await
+        .unwrap();
+    gate.release.notify_one();
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        while !handle
+            .watch_state()
+            .latest()
+            .state()
+            .cycle_view(&id)
+            .is_some_and(|cycle| cycle.saved.is_some())
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the completed cycle seals its report");
+    let mut late = create;
+    late.mutation_id = uuid::Uuid::now_v7().to_string();
+    late.message = "after the seal".into();
+    assert_eq!(
+        notes
+            .unary::<contracts::notes::CreateNote>(authenticated(late))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::FailedPrecondition
+    );
+    assert_eq!(
+        notes
+            .unary::<contracts::notes::EditNote>(authenticated(contracts::notes::EditNoteRequest {
+                epoch: handle.process_epoch().to_string(),
+                note_id: filed.note_id,
+                message: "rewritten after the seal".into(),
+            }))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::FailedPrecondition
     );
     server.shutdown().await.unwrap();
     drop(handle);

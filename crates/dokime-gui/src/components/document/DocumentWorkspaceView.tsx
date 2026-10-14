@@ -250,6 +250,7 @@ function documentCardContentProps(
     captureScope: props.scope?.test_cycle_id && props.scope.test_execution_id ? props.scope : null,
     histogramSection: props.histogramSections.find((item) => item.key === card.card_id),
     livePlotStates,
+    noteScope: props.scope?.test_cycle_id ? props.scope : null,
     plotContextTelemetry: props.plotContextTelemetry,
     plotResetKey: props.plotResetKey,
     renderMode: "live",

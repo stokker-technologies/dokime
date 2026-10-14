@@ -22,6 +22,7 @@ from google.protobuf.internal import builder as _builder
 from dokime._wire import _pool
 # @@protoc_insertion_point(imports)
 from dokime._wire.dokime.v1.NotesMessages.CreateNote import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_NotesMessages_dot_CreateNote_dot_messages__pb2
+from dokime._wire.dokime.v1.NotesMessages.EditNote import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_NotesMessages_dot_EditNote_dot_messages__pb2
 from dokime._wire.dokime.v1.NotesMessages.ListNotes import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_NotesMessages_dot_ListNotes_dot_messages__pb2
 
 # Type Checking Imports
@@ -47,15 +48,15 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n\"dokime/_wire/dokime/v1/Notes.proto\x12\tdokime.v1\x1a>dokime/_wire/dokime/v1/NotesMessages/CreateNote/messages.proto\x1a=dokime/_wire/dokime/v1/NotesMessages/ListNotes/messages.proto2\xc8\x01\n\x05Notes\x12`\n\nCreateNote\x12(.dokime.v1.NotesMessages.CreateNote.Row1\x1a(.dokime.v1.NotesMessages.CreateNote.Row2\x12]\n\tListNotes\x12\'.dokime.v1.NotesMessages.ListNotes.Row1\x1a\'.dokime.v1.NotesMessages.ListNotes.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n\"dokime/_wire/dokime/v1/Notes.proto\x12\tdokime.v1\x1a>dokime/_wire/dokime/v1/NotesMessages/CreateNote/messages.proto\x1a<dokime/_wire/dokime/v1/NotesMessages/EditNote/messages.proto\x1a=dokime/_wire/dokime/v1/NotesMessages/ListNotes/messages.proto2\xa4\x02\n\x05Notes\x12`\n\nCreateNote\x12(.dokime.v1.NotesMessages.CreateNote.Row1\x1a(.dokime.v1.NotesMessages.CreateNote.Row2\x12Z\n\x08\x45\x64itNote\x12&.dokime.v1.NotesMessages.EditNote.Row1\x1a&.dokime.v1.NotesMessages.EditNote.Row2\x12]\n\tListNotes\x12\'.dokime.v1.NotesMessages.ListNotes.Row1\x1a\'.dokime.v1.NotesMessages.ListNotes.Row2b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime._wire.dokime.v1.Notes_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_NOTES']._serialized_start=177
-  _globals['_NOTES']._serialized_end=377
+  _globals['_NOTES']._serialized_start=239
+  _globals['_NOTES']._serialized_end=531
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

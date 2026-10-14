@@ -20,11 +20,12 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::OperatorNote;
 use crate::execution::notes::{
-    NOTE_CHECKPOINT_LIMIT, NOTE_RECEIPT_BYTES, NOTE_RECEIPT_LIMIT, NoteAdmission, note_identity,
+    NOTE_CHECKPOINT_LIMIT, NOTE_EDIT_NOT_AUTHOR, NOTE_OWNER_SEALED, NOTE_RECEIPT_BYTES,
+    NOTE_RECEIPT_LIMIT, NoteAdmission, note_identity,
 };
 use crate::records::{ProductRecordDraft, RecordSeverity};
 use crate::state::RuntimeState;
-use dokime::core::{Identifier, Value};
+use dokime::core::{Identifier, NoteId, Timestamp, Value};
 
 /* === Constants === */
 
@@ -43,6 +44,15 @@ pub struct AddOperatorNote {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreateOperatorNote {
     pub admission: NoteAdmission,
+}
+
+#[harmos::transaction(id = "dokime.evidence.note.edit", version = 1, irreversible)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EditOperatorNote {
+    pub note_id: NoteId,
+    pub actor: String,
+    pub message: String,
+    pub edited_at: Timestamp,
 }
 
 /* === Enums === */
@@ -182,6 +192,68 @@ impl Transaction<RuntimeState> for CreateOperatorNote {
         state
             .note_admissions
             .insert(self.admission.note.note_id.clone(), self.admission.clone());
+    }
+}
+
+impl Transaction<RuntimeState> for EditOperatorNote {
+    type Error = String;
+
+    fn check(&self, state: &RuntimeState) -> Result<(), Self::Error> {
+        let note = state
+            .find_note(&self.note_id)
+            .ok_or("note is absent from current evidence")?;
+        if note.author.as_deref() != Some(self.actor.as_str()) {
+            return Err(NOTE_EDIT_NOT_AUTHOR.into());
+        }
+        if state.note_edit_sealed(&note.scope) {
+            return Err(NOTE_OWNER_SEALED.into());
+        }
+        state.validate_operator_note(&OperatorNote {
+            message: self.message.clone(),
+            ..note.clone()
+        })
+    }
+
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        self.plan(state).collect(out);
+    }
+
+    fn apply(&self, state: &mut RuntimeState) {
+        let records = self.plan(state);
+        let Some(scope) = state
+            .find_note(&self.note_id)
+            .map(|note| note.scope.clone())
+        else {
+            return;
+        };
+        if let Some(target) = state.records_for_scope_mut(&scope) {
+            target.revise_note(&self.note_id, self.message.clone());
+        }
+        records.apply(state);
+    }
+}
+
+impl EditOperatorNote {
+    fn plan(&self, state: &RuntimeState) -> crate::transactions::records::draft::Drafts {
+        let mut records = crate::transactions::records::draft::Drafts::new(state);
+        if let Some(note) = state.find_note(&self.note_id) {
+            records.draft(
+                ProductRecordDraft {
+                    record_type: Identifier::new("operator.note_edited")
+                        .expect("built-in event identifier is valid"),
+                    source: "operator".to_owned(),
+                    severity: RecordSeverity::Info,
+                    message: Some("Operator note edited.".to_owned()),
+                    details: BTreeMap::from([(
+                        "note_id".to_owned(),
+                        Value::from(note.note_id.as_str()),
+                    )]),
+                    scope: Some(note.scope.clone()),
+                },
+                self.edited_at.clone(),
+            );
+        }
+        records
     }
 }
 
