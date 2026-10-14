@@ -175,6 +175,39 @@ impl RuntimeHandle {
         })
         .await?
     }
+
+    /// Materializes and renders a sealed execution's report again, as cycle
+    /// finalization does for each member, and returns its HTML. Benchmarks
+    /// report materialization; nothing is stored.
+    #[doc(hidden)]
+    pub async fn render_saved_execution_report(
+        &self,
+        execution: &dokime::core::TestExecutionId,
+    ) -> Result<Vec<u8>> {
+        let reads = &self.config().storage_reads;
+        let view = self
+            .storage()
+            .view_with_limits(reads.finalization())
+            .await?;
+        let limit = view.decoded_bytes()?;
+        let inspection = ExecutionView::open_through(
+            self.storage(),
+            view,
+            reads.execution,
+            execution,
+            harmos::storage::ObjectVersion::Latest,
+            limit,
+        )
+        .await?
+        .ok_or_else(|| Error::InvalidReportInputs("report execution is not saved".into()))?;
+        let html = HtmlReport::from_snapshot(self, &inspection, true).await?;
+        tokio::task::spawn_blocking(move || {
+            let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
+            let length = html.length(maximum)?;
+            html.bytes(length)
+        })
+        .await?
+    }
 }
 
 impl CapturedExecutionReportInput {

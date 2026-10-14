@@ -26,6 +26,10 @@ use crate::{
 };
 
 /* === Constants === */
+/// How many times one finalization may exhaust its computation budget before
+/// that exhaustion is final. A slow or loaded host can overrun the budget once;
+/// overrunning it repeatedly means the report cannot be produced here.
+const EXHAUSTED_ATTEMPTS: u32 = 3;
 
 /* === Macros === */
 
@@ -154,11 +158,13 @@ impl RuntimeHandle {
         pending.extend(self.unsealed_members(&cycle, &pending).await);
         let mut unsealed = Vec::new();
         let mut cause = None;
+        let mut exhausted = 0;
+        let mut exhausted_members = std::collections::BTreeMap::new();
         while !pending.is_empty() {
             let failures = match self.finish_saved_executions(&cycle, pending.clone()).await {
                 Ok(failures) => failures,
                 Err(error) if self.is_shutting_down() => return Err(error),
-                Err(error) if cannot_retry_save(&error) => {
+                Err(error) if is_final(&error, &mut exhausted) => {
                     tracing::debug!(%error, %cycle_id, "final execution saves failed");
                     cause.get_or_insert_with(|| {
                         format!("final execution report was not sealed: {error}")
@@ -182,7 +188,7 @@ impl RuntimeHandle {
                     return Err(error);
                 }
                 tracing::debug!(%error, %cycle_id, execution_id = %id, "final execution save failed");
-                if cannot_retry_save(&error) {
+                if is_final(&error, exhausted_members.entry(id.clone()).or_default()) {
                     cause.get_or_insert_with(|| {
                         format!("final execution report was not sealed: {error}")
                     });
@@ -207,17 +213,21 @@ impl RuntimeHandle {
         );
         // A cycle whose members are not all sealed can never be sealed itself.
         let sealed_cycle = if terminal && cause.is_none() {
+            let mut exhausted = 0;
             loop {
                 match self.finish_saved_cycle(&cycle).await {
                     Ok(cycle) => break Some(cycle),
                     Err(error) if self.is_shutting_down() => return Err(error),
-                    Err(error) if cannot_retry_save(&error) => {
+                    Err(error) if is_final(&error, &mut exhausted) => {
                         tracing::debug!(%error, %cycle_id, "final cycle save failed");
                         cause = Some(format!("final cycle report was not sealed: {error}"));
                         break None;
                     }
                     Err(error) => {
                         tracing::debug!(%error, %cycle_id, "final cycle save will retry");
+                        if computation_exhausted(&error) {
+                            self.execution_storage.restart_cycle_report(&cycle_id).await;
+                        }
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                     }
                 }
@@ -431,6 +441,29 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+/// Whether a finalization failure is final. An exhausted computation budget is
+/// transient until it recurs `EXHAUSTED_ATTEMPTS` times for the same save.
+fn is_final(error: &Error, exhausted: &mut u32) -> bool {
+    if !computation_exhausted(error) {
+        return cannot_retry_save(error);
+    }
+    *exhausted += 1;
+    *exhausted >= EXHAUSTED_ATTEMPTS
+}
+
+fn computation_exhausted(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::Harmos(harmos::Error::ResourceExhausted {
+            resource: "query computation time"
+        }) | Error::Storage(dokime::storage::Error::Runtime(
+            harmos::Error::ResourceExhausted {
+                resource: "query computation time"
+            }
+        ))
+    )
+}
+
 fn cannot_retry_save(error: &Error) -> bool {
     let source = match error {
         Error::Harmos(source) | Error::Storage(dokime::storage::Error::Runtime(source)) => source,

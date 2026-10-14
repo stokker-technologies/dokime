@@ -245,6 +245,9 @@ fn selected_query(
         return Err(invalid("record evidence exceeds the original saved view"));
     }
     options.through = Some(through.sequence);
+    // Every read of a captured execution keeps the limits its view was opened
+    // with, so a finalization capture's pages keep the finalization budget.
+    options.execution = view.view().execution_limits()?;
     let mut query = RecordQuery::new(records::schema(), |bytes, allowance| {
         let bound = records::RecordRow::decoding_memory(bytes).map_err(codec_error)?;
         if bound == usize::MAX || bound > allowance.get() {

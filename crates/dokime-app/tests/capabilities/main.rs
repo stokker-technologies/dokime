@@ -269,6 +269,15 @@ fn documents_contract() {
 #[test]
 fn evidence_contract() {
     {
+        eprintln!("Scenario: evidence::finalization::tight_budget_seals");
+        run_scenario(
+            evidence::finalization::tight_budget_seals,
+            true,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: evidence::model::definitions_survive_completion");
         run_scenario(
             evidence::model::definitions_survive_completion,

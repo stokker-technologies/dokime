@@ -79,6 +79,18 @@ impl MemorySize for CompletedCycle {
 
 /* === Implementations === */
 impl super::executions::ExecutionStorage {
+    /// Forgets a cycle report that has not produced its file yet, so a retry
+    /// prepares it again under a fresh view and budget.
+    pub(crate) async fn restart_cycle_report(&self, id: &TestCycleId) {
+        let mut reports = self.cycle_reports.lock().await;
+        let Some(owner) = reports.get(id) else {
+            return;
+        };
+        if owner.lock().await.seal.is_none() {
+            reports.remove(id);
+        }
+    }
+
     pub(crate) async fn retire_cycle_report(&self, id: &TestCycleId) {
         let Some(owner) = self.cycle_reports.lock().await.remove(id) else {
             return;
@@ -291,8 +303,10 @@ impl RuntimeHandle {
         self.storage().flush().await?;
         let view = self
             .storage()
-            .view_with_limits(self.config().storage_reads.execution)
+            .view_with_limits(self.config().storage_reads.finalization())
             .await?;
+        // Object reads admit only the default limits, each under its own view.
+        let objects = self.config().storage_reads.execution;
         let limit = view.decoded_bytes()?;
         let mut revisions = self
             .storage()
@@ -346,9 +360,10 @@ impl RuntimeHandle {
                 computation.check()?;
                 continue;
             }
-            let inspection = ExecutionView::open(
+            let inspection = ExecutionView::open_through(
                 self.storage(),
                 view.clone(),
+                objects,
                 id,
                 ObjectVersion::Latest,
                 limit,
@@ -401,6 +416,7 @@ impl RuntimeHandle {
         let snapshot = CycleSnapshot::capture(
             self.storage(),
             view,
+            objects,
             source.clone(),
             revisions,
             appearance,

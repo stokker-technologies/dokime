@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub(crate) mod finalization;
 pub(crate) mod model;
 pub(crate) mod notes;
 pub(crate) mod plots;

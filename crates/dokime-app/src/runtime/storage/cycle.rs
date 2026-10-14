@@ -19,7 +19,9 @@ use std::{num::NonZeroUsize, sync::Arc};
 // Third Party Imports
 use harmos::{
     MemorySize,
-    storage::{ObjectVersion, SharedQueryValue, StorageProductionPreparation, StorageView},
+    storage::{
+        ObjectVersion, QueryLimits, SharedQueryValue, StorageProductionPreparation, StorageView,
+    },
 };
 
 // Local Imports
@@ -46,6 +48,9 @@ pub(crate) struct CycleSnapshot(Arc<State>);
 
 struct State {
     view: StorageView,
+    // Object reads admit only the storage manager's default limits; each member
+    // is read under them while `view` may carry the finalization budget.
+    objects: QueryLimits,
     source: SharedQueryValue<TestCycle>,
     revisions: SharedQueryValue<Vec<ExecutionRevision>>,
     appearance: SharedQueryValue<RuntimeAppearanceFrame>,
@@ -63,6 +68,7 @@ impl CycleSnapshot {
     pub(crate) fn capture(
         storage: &Manager,
         view: StorageView,
+        objects: QueryLimits,
         source: SharedQueryValue<TestCycle>,
         revisions: SharedQueryValue<Vec<ExecutionRevision>>,
         appearance: SharedQueryValue<RuntimeAppearanceFrame>,
@@ -106,6 +112,7 @@ impl CycleSnapshot {
         )?)?;
         Ok(Self(Arc::new(State {
             view,
+            objects,
             source,
             revisions,
             appearance,
@@ -153,9 +160,10 @@ impl CycleSnapshot {
                 .memory_size()
                 .saturating_add(std::mem::size_of::<ObjectVersion>()),
         )?)?;
-        let member = ExecutionView::open(
+        let member = ExecutionView::open_through(
             storage,
             self.0.view.clone(),
+            self.0.objects,
             &revision.execution_id,
             ObjectVersion::Exact(revision.version.clone()),
             self.0.view.decoded_bytes()?,

@@ -128,54 +128,6 @@ impl TelemetryReader {
         })
     }
 
-    /// Opens one page of the execution's telemetry after `after` as its own
-    /// bounded query, so a capture of any length reads under per-page budgets.
-    pub(super) async fn open_after(
-        storage: &Manager,
-        view: &ExecutionView,
-        page: ReadLimits,
-        projection: NonZeroUsize,
-        after: u64,
-    ) -> Result<Self> {
-        let query = selected_query(
-            view,
-            QueryOptions {
-                after,
-                page: Some(page),
-                decoded_bytes: Some(projection),
-                ..QueryOptions::default()
-            },
-        )?;
-        let mut reader = storage.query(query).await?;
-        // The final page exhausts the reader; its view must outlive that
-        // page for the page's own projection.
-        reader.retain_view()?;
-        Ok(Self {
-            reader,
-            view: view.clone(),
-            context: false,
-            projection,
-            pending: None,
-        })
-    }
-
-    /// The next page and the storage position it ends at.
-    pub(super) async fn next_after(
-        &mut self,
-    ) -> Result<Option<(u64, QueryValue<Vec<TelemetryEntry>>)>> {
-        let Some(positioned) = self.next_positioned().await? else {
-            return Ok(None);
-        };
-        // The query selects this execution's scope, so every stored row on
-        // the page belongs to it; an empty selection cannot advance a cursor.
-        let last = positioned
-            .last()
-            .map(|row| row.position)
-            .ok_or_else(|| invalid("execution telemetry page selected no rows"))?;
-        self.pending = Some(positioned);
-        Ok(self.next().await?.map(|entries| (last, entries)))
-    }
-
     pub(super) fn open_page(
         storage: &Manager,
         view: &ExecutionView,
@@ -651,8 +603,11 @@ fn exhausted() -> harmos::Error {
 
 fn selected_query(
     view: &ExecutionView,
-    options: QueryOptions,
+    mut options: QueryOptions,
 ) -> Result<StreamQuery<TelemetryRow>> {
+    // Every read of a captured execution keeps the limits its view was opened
+    // with, so a finalization capture's pages keep the finalization budget.
+    options.execution = view.view().execution_limits()?;
     let through = view.evidence_through()?;
     if !view.view().saved()?.covers(through)? {
         return Err(invalid(
