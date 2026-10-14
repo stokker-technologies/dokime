@@ -48,7 +48,7 @@ export type DataSource =
   | { type: "record"; record_type: string }
   | { type: "artifact"; artifact: string };
 
-/* One member of the Harmos aggregate vocabulary by its wire name; a
+/* One member of the Harmos aggregate vocabulary by its display name; a
    percentile is `p` and a whole rank from 0 to 100. */
 export type Aggregate =
   | "count"

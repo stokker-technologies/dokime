@@ -74,7 +74,7 @@ pub enum DataSource {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DataTransform {
     // One member of the Harmos aggregate vocabulary over the values so far,
-    // tagged `aggregate` and named by its wire name: `{"type": "aggregate",
+    // tagged `aggregate` and named by its display name: `{"type": "aggregate",
     // "aggregate": "p95"}`.
     Aggregate(
         #[serde(
