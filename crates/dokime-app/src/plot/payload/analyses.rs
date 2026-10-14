@@ -120,6 +120,12 @@ pub(super) fn analyze(
             None
         }
         PlotType::Histogram => {
+            if request.y_keys.is_empty() && request.y_expressions.is_empty() {
+                return Some(PlotAnalysis::Error {
+                    message: "histogram plots bin one x field or x expression; none was declared"
+                        .into(),
+                });
+            }
             if let Some(unit) = &request.histogram.unit {
                 for entry in series.iter_mut() {
                     entry.unit = Some(unit.clone());

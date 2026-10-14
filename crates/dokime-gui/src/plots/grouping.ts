@@ -19,6 +19,7 @@ import type {
 import { isRecord } from "@/lib/utils";
 import { elapsedColumnUnit } from "@/plots/axis";
 import { plotColor } from "@/plots/colors";
+import { histogramAxes } from "@/plots/histogram-axes";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Public Functions === */
@@ -76,6 +77,13 @@ export function documentPlotSpec({
     yScale: plot.y_scale ?? "linear",
     fft: plot.fft,
     histogram: plot.histogram,
+    histogramAxes:
+      plot.plot_type === "histogram"
+        ? histogramAxes(
+            plot,
+            telemetry?.[plot.stream]?.spec?.columns.find((column) => column.name === plot.x),
+          )
+        : null,
     timeAxis: plot.plot_type === "time_series",
     unit: plot.unit ?? commonUnit(series),
     colors: series.map((_, index) => plotColor(title, position + index, plotPalette)),

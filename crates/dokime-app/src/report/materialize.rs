@@ -372,8 +372,8 @@ fn materialize(
                 None,
             );
             let context = crate::plot::PlotPayloadContext {
-                x_format: descriptor.input.x_format.clone(),
-                series_format: descriptor.input.y_format.clone(),
+                x_format: request.x_format.clone(),
+                series_format: request.y_format.clone(),
                 run_started_at: execution.started_at.as_ref().map(ToString::to_string),
                 cycle_started_at: cycle.started_at.as_ref().map(ToString::to_string),
             };

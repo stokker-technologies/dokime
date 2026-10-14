@@ -37,6 +37,7 @@ import type {
   TestExecution,
 } from "@/lib/types";
 import { isNumber, numericValue } from "@/lib/utils";
+import { histogramAxisTitle } from "@/plots/histogram-axes";
 
 /* === Re-Exports === */
 
@@ -287,6 +288,12 @@ export function buildDocumentHistogramGroups({
       title: histogram.title,
       values,
       unit: histogramDisplayUnit(histogram),
+      xTitle: histogramAxisTitle({
+        label:
+          stream?.spec?.columns.find((column) => column.name === histogram.field)?.label ??
+          histogram.field,
+        unit: histogram.unit,
+      }),
       bins: Math.max(2, histogram.bins || 12),
     });
   });

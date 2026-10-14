@@ -11,6 +11,12 @@
 
 import { useState } from "react";
 
+/* === Local Imports === */
+
+import { formatNumber } from "@/lib/format";
+import type { ValueFormat } from "@/lib/types";
+import { HISTOGRAM_COUNT_LABEL } from "@/plots/histogram-axes";
+
 /* === Types === */
 
 type HistogramChartProps = {
@@ -18,6 +24,10 @@ type HistogramChartProps = {
   values: number[];
   distribution?: { bins: { lower: number; upper: number; count: number }[]; count: number };
   unit: string;
+  /** The x axis title: the binned value's label and unit. */
+  xTitle?: string;
+  /** How a bin edge prints; `null` keeps the plain number. */
+  format?: ValueFormat | null;
   bins?: number;
   sampleLabel?: string;
   emptyMessage?: string;
@@ -37,6 +47,8 @@ export function HistogramChart({
   values,
   distribution,
   unit,
+  xTitle,
+  format = null,
   bins: binCount = 8,
   sampleLabel = "records",
   emptyMessage = "Waiting for loss/recovery pairs.",
@@ -64,6 +76,7 @@ export function HistogramChart({
       </div>
       {sampleCount ? (
         <div className="grid min-w-0 gap-2">
+          <span className="text-[0.65rem] text-muted-foreground">{HISTOGRAM_COUNT_LABEL}</span>
           <div
             className="relative grid h-24 items-end gap-1"
             style={{ gridTemplateColumns: `repeat(${bins.length}, minmax(0, 1fr))` }}
@@ -78,9 +91,10 @@ export function HistogramChart({
             ) : null}
             {bins.map((bin, index) => (
               <button
-                aria-label={`${formatHistogramValue(bin.min, unit)} to ${formatHistogramValue(
+                aria-label={`${formatHistogramValue(bin.min, unit, format)} to ${formatHistogramValue(
                   bin.max,
                   unit,
+                  format,
                 )}: ${bin.count}`}
                 className="grid h-full min-w-0 items-end text-left"
                 key={bin.slot}
@@ -106,17 +120,23 @@ export function HistogramChart({
               <span
                 className="block truncate text-center text-[0.65rem] text-muted-foreground"
                 key={`${bin.slot}-label`}
-                title={formatHistogramValue(bin.min, unit)}
+                title={formatHistogramValue(bin.min, unit, format)}
               >
-                {formatHistogramValue(bin.min, unit)}
+                {formatHistogramValue(bin.min, unit, format)}
               </span>
             ))}
           </div>
+          {xTitle ? (
+            <span className="truncate text-center text-[0.65rem] text-muted-foreground">
+              {xTitle}
+            </span>
+          ) : null}
           <span className="min-h-5 text-xs text-muted-foreground">
             {activeBin
-              ? `${formatHistogramValue(activeBin.min, unit)} - ${formatHistogramValue(
+              ? `${formatHistogramValue(activeBin.min, unit, format)} - ${formatHistogramValue(
                   activeBin.max,
                   unit,
+                  format,
                 )}: ${activeBin.count}`
               : "Hover a bin for range and count."}
           </span>
@@ -156,10 +176,14 @@ function histogramBins(values: number[], count: number): HistogramBin[] {
   });
 }
 
-function formatHistogramValue(value: number | undefined, unit: string): string {
+function formatHistogramValue(
+  value: number | undefined,
+  unit: string,
+  format: ValueFormat | null,
+): string {
   if (value === undefined || !Number.isFinite(value)) {
     return "-";
   }
-  const precision = Math.abs(value) >= 100 ? 0 : 2;
-  return `${value.toFixed(precision)} ${unit}`;
+  const text = format ? formatNumber(value, format) : value.toFixed(Math.abs(value) >= 100 ? 0 : 2);
+  return unit ? `${text} ${unit}` : text;
 }

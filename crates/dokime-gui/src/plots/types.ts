@@ -24,6 +24,7 @@ import type {
   PlotSeries,
   ValueFormat,
 } from "@/lib/types";
+import type { HistogramAxes } from "@/plots/histogram-axes";
 
 /* === Types === */
 
@@ -43,6 +44,8 @@ export type PlotCardSpec = {
   yScale: DocumentAxisScale;
   fft: DocumentFftOptions;
   histogram?: DocumentHistogramOptions | null;
+  /** A histogram's axes: the declared value on x, the host's count on y. */
+  histogramAxes?: HistogramAxes | null;
   timeAxis: boolean;
   unit?: string | null;
   colors: string[];
