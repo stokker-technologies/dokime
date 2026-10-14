@@ -69,14 +69,10 @@ pub(crate) async fn native_history_index() {
         expected = Some(current);
         drop(history);
         let view = if attempt == 0 {
-            let available = crate::support::budgets::STORY_READ_MEMORY.get()
-                - handle.storage().status().read_bytes;
-            let reservation = handle
-                .storage()
-                .prepare_production(
-                    std::num::NonZeroUsize::new(available - 16 * 1024 * 1024).unwrap(),
-                )
-                .unwrap();
+            let reservation = crate::support::budgets::hold_all_but(
+                handle.storage(),
+                std::num::NonZeroUsize::new(16 * 1024 * 1024).unwrap(),
+            );
             let mut pending = Box::pin(handle.checkpoint_execution(&checkpoint));
             assert!(
                 tokio::time::timeout(Duration::from_millis(20), pending.as_mut())

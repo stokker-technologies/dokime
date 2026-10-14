@@ -24,6 +24,7 @@ use std::path::PathBuf;
 use dokime::core::Metadata;
 use dokime_app::RuntimeConfig;
 use dokime_app::config::StorageReadSettings;
+use harmos::storage::StorageProductionPreparation;
 
 /* === Constants === */
 /// One story's read ledger. A story on a loaded machine keeps more live views
@@ -77,6 +78,41 @@ pub fn whole_read_budget(reads: &mut StorageReadSettings) {
     reads.memory_bytes = StorageReadSettings::default().memory_bytes;
 }
 
+/// Holds the storage read ledger until only `headroom` bytes remain free,
+/// whatever the ledger's size, so a story can make the next reader wait for
+/// capacity. The ledger caps each reservation at its whole size, so this claims
+/// it in small chunks; dropping the returned claims releases it.
+pub fn hold_all_but(
+    storage: &dokime::storage::Manager,
+    headroom: NonZeroUsize,
+) -> Vec<StorageProductionPreparation> {
+    const CHUNK: usize = 1024 * 1024;
+    let mut held = claim_until_exhausted(storage, CHUNK);
+    held.extend(claim_until_exhausted(storage, 256));
+    let released = headroom.get().div_ceil(CHUNK);
+    assert!(
+        released <= held.len(),
+        "ledger cannot leave {headroom} bytes free"
+    );
+    held.drain(..released);
+    held
+}
+
 /* === Private Functions === */
+/// Claims `bytes` at a time until the ledger refuses for lack of capacity.
+fn claim_until_exhausted(
+    storage: &dokime::storage::Manager,
+    bytes: usize,
+) -> Vec<StorageProductionPreparation> {
+    let bytes = NonZeroUsize::new(bytes).unwrap();
+    let mut held = Vec::new();
+    loop {
+        match storage.prepare_production(bytes) {
+            Ok(claim) => held.push(claim),
+            Err(harmos::Error::ResourceExhausted { .. }) => return held,
+            Err(error) => panic!("holding read capacity failed: {error}"),
+        }
+    }
+}
 
 /* === Tests === */
