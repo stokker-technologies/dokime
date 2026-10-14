@@ -54,6 +54,8 @@ enum SettingContribution {
     SecretReference {
         id: String,
         default: Option<SecretDefault>,
+        #[serde(default)]
+        required: bool,
     },
     #[serde(other)]
     Other,
@@ -77,7 +79,25 @@ enum SecretDefault {
 pub(super) fn requested_environment_references(
     bundle: &Bundle,
 ) -> Result<BTreeSet<EnvironmentReference>, Error> {
-    let mut references = BTreeSet::new();
+    Ok(secret_references(bundle)?
+        .into_iter()
+        .map(|(reference, _)| reference)
+        .collect())
+}
+
+/// The environment references a plugin cannot start without.
+pub(super) fn required_environment_references(
+    bundle: &Bundle,
+) -> Result<BTreeSet<EnvironmentReference>, Error> {
+    Ok(secret_references(bundle)?
+        .into_iter()
+        .filter_map(|(reference, required)| required.then_some(reference))
+        .collect())
+}
+
+/* === Private Functions === */
+fn secret_references(bundle: &Bundle) -> Result<Vec<(EnvironmentReference, bool)>, Error> {
+    let mut references = Vec::new();
     for file in &bundle.manifest().files {
         let Some(executable) = &file.executable else {
             continue;
@@ -104,20 +124,20 @@ pub(super) fn requested_environment_references(
                 if let SettingContribution::SecretReference {
                     id,
                     default: Some(SecretDefault::Environment { variable }),
+                    required,
                 } = contribution
                 {
-                    references.insert(EnvironmentReference {
+                    let reference = EnvironmentReference {
                         owner: owner.clone(),
                         setting: id,
                         variable,
-                    });
+                    };
+                    references.push((reference, required));
                 }
             }
         }
     }
     Ok(references)
 }
-
-/* === Private Functions === */
 
 /* === Tests === */

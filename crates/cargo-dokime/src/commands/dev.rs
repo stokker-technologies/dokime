@@ -27,7 +27,7 @@ use tokio::{
 };
 // Local Imports
 use super::{
-    backend as host, build, environment::requested_environment_references,
+    backend as host, build, environment::required_environment_references,
     installation::gui_override,
 };
 use crate::error::Error;
@@ -385,11 +385,11 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                     let started = Instant::now();
                     if running.is_none() {
                         if let Err(error) =
-                            report_declared_secrets(&terminal, args.env_file.as_deref(), &cwd, &bytes)
+                            require_declared_secrets(args.env_file.as_deref(), &cwd, &bytes)
                         {
-                            terminal.warn(format!(
-                                "could not read the plugin's declared environment secrets: {error}"
-                            ));
+                            terminal.error(error.to_string());
+                            terminal.hint("No development host is running. Watching for changes · r + Enter to retry · q + Enter to stop");
+                            continue;
                         }
                         terminal.status("Starting development host…");
                         match launch(&args, installation.executable(), &state, &cwd, &bundle, gui.as_deref()).await {
@@ -927,39 +927,46 @@ fn read_environment_keys(
     Ok(values)
 }
 
-fn report_declared_secrets(
-    terminal: &Terminal,
+/// Refuses a launch whose plugin requires a secret that neither the process
+/// environment nor the environment file provides. Only the variable names are
+/// ever reported, never a value.
+fn require_declared_secrets(
     env_file: Option<&Path>,
     cwd: &Path,
     bundle_bytes: &[u8],
 ) -> Result<(), Error> {
     let bundle = Bundle::inspect(bundle_bytes, Limits::default())?;
-    let references = requested_environment_references(&bundle)?;
-    if references.is_empty() {
+    let required = required_environment_references(&bundle)?;
+    if required.is_empty() {
         return Ok(());
     }
     let declared_in_file = match env_file.map(Path::to_owned).or_else(|| locate_dotenv(cwd)) {
         Some(path) => environment_file_keys(&path)?,
         None => BTreeMap::new(),
     };
-    for reference in &references {
-        let present = std::env::var(&reference.variable)
-            .map(|value| !value.is_empty())
-            .unwrap_or(false)
-            || declared_in_file
+    let missing = required
+        .iter()
+        .filter(|reference| {
+            let exported = std::env::var(&reference.variable).is_ok_and(|value| !value.is_empty());
+            let filed = declared_in_file
                 .get(&reference.variable)
                 .is_some_and(|value| !value.is_empty());
-        terminal.field(
-            "Secret",
+            !exported && !filed
+        })
+        .map(|reference| {
             format!(
-                "{} ({}): {}",
-                reference.variable,
-                reference.owner,
-                if present { "present" } else { "missing" }
-            ),
-        );
+                "{} (secret {:?} of {})",
+                reference.variable, reference.setting, reference.owner
+            )
+        })
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    Err(Error::Invalid(format!(
+        "required environment variable not set: {}; export it or add it to the environment file, then press r + Enter to retry",
+        missing.join(", ")
+    )))
 }
 
 /* === Tests === */
