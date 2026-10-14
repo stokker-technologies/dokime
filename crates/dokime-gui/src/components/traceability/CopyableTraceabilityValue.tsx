@@ -15,6 +15,11 @@ import { toast } from "sonner";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
+/* === Constants === */
+
+/** Values longer than this may be truncated in a row, so the tooltip repeats them. */
+const LONG_VALUE_CHARS = 24;
+
 /* === Components === */
 
 export function CopyableTraceabilityValue({ value }: { value: string }) {
@@ -27,18 +32,19 @@ export function CopyableTraceabilityValue({ value }: { value: string }) {
           onClick={() => {
             void copyTraceabilityValue(value);
           }}
-          title={value}
           type="button"
         >
           {value}
         </button>
       </TooltipTrigger>
+      {/* A short value is fully visible; the tooltip then only says what the
+          click does. A long one may be truncated, so it is repeated in full. */}
       <TooltipContent
         align="end"
         className="max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal break-all text-left"
         side="top"
       >
-        {value}
+        {value.length > LONG_VALUE_CHARS ? `Copy: ${value}` : "Copy to clipboard"}
       </TooltipContent>
     </Tooltip>
   );

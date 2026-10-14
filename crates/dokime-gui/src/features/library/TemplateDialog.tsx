@@ -417,8 +417,8 @@ export function TemplateDialog({
     <>
       <div className="grid gap-1 text-xs">
         {[
-          { label: "Suite ID", value: suite.suite_id },
-          { label: "Template ID", value: templateId },
+          { label: "Suite", value: suite.suite_id },
+          { label: "Template", value: template.identifier ?? templateId },
         ].map(({ label, value }) => (
           <div className="flex min-w-0 items-center justify-between gap-2" key={label}>
             <span className="shrink-0 text-muted-foreground">{label}</span>
