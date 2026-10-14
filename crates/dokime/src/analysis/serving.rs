@@ -53,14 +53,8 @@ impl<A: Analysis> harmos::operations::Operation for Handler<A> {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    fn new(_: Arc<()>) -> Result<Self, Refusal> {
-        Ok(Self {
-            state: State {
-                consumed: false,
-                worker: None,
-            },
-            analysis: std::marker::PhantomData,
-        })
+    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
+        Ok(Self::fresh())
     }
     async fn run<'ctx>(
         &mut self,
@@ -86,9 +80,8 @@ impl<A: Analysis, R: Send + Sync + 'static> harmos::operations::Operation for Se
     type Context<'a> = &'a Supervisor;
     type Endpoints = ();
 
-    fn new(_: Arc<R>) -> Result<Self, Refusal> {
-        <Handler<A> as harmos::operations::Operation>::new(Arc::new(()))
-            .map(|handler| Self(handler, std::marker::PhantomData))
+    async fn initialize<'ctx>(_: Arc<R>, _: Self::Context<'ctx>) -> Result<Self, Refusal> {
+        Ok(Self(Handler::fresh(), std::marker::PhantomData))
     }
     async fn run<'ctx>(
         &mut self,
@@ -100,6 +93,18 @@ impl<A: Analysis, R: Send + Sync + 'static> harmos::operations::Operation for Se
     }
     async fn stop(&mut self) -> Result<(), Refusal> {
         self.0.state.settle().await
+    }
+}
+
+impl<A: Analysis> Handler<A> {
+    fn fresh() -> Self {
+        Self {
+            state: State {
+                consumed: false,
+                worker: None,
+            },
+            analysis: std::marker::PhantomData,
+        }
     }
 }
 

@@ -19,7 +19,9 @@ use std::sync::Arc;
 // Local Imports
 use dokime::core::Value;
 use dokime::domains::OptionProviderOption;
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::operations::{
+    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
+};
 use dokime::plugin::settings::{Discovered, PluginSettings, SettingsSection};
 use dokime::plugin::{Configuration, Secret};
 use dokime::prelude::{OptionsResponse, Refusal, StatusResponse, Supervisor};
@@ -30,6 +32,7 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -149,7 +152,7 @@ impl dokime::Plugin for Bench {
         table.bind_operations::<Operations, _>(self.resources())
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 
@@ -162,7 +165,7 @@ struct GetStatus;
 
 #[dokime::operation(id = "bench.get_status", version = 1, description = "Reports.", policy = POLICY)]
 impl GetStatus {
-    fn new(_: Arc<()>) -> Self {
+    async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -175,7 +178,7 @@ struct ListEnvironments;
 
 #[dokime::operation(id = "bench.list_environments", version = 1, description = "Offers.", policy = POLICY)]
 impl ListEnvironments {
-    fn new(_: Arc<()>) -> Self {
+    async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -194,7 +197,7 @@ struct DetectPort;
 
 #[dokime::operation(id = "bench.detect_port", version = 1, description = "Finds.", policy = POLICY)]
 impl DetectPort {
-    fn new(_: Arc<()>) -> Self {
+    async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -207,7 +210,7 @@ struct DetectStream;
 
 #[dokime::operation(id = "bench.detect_stream", version = 1, description = "Finds.", policy = POLICY)]
 impl DetectStream {
-    fn new(_: Arc<()>) -> Self {
+    async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -220,7 +223,7 @@ struct GetVoltage;
 
 #[dokime::operation(id = "bench.get_voltage", version = 1, description = "Reads.", policy = POLICY)]
 impl GetVoltage {
-    fn new(_: Arc<()>) -> Self {
+    async fn initialize(_: Arc<()>, _: &Supervisor) -> Self {
         Self
     }
 

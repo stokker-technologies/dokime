@@ -45,17 +45,13 @@ pub(crate) struct RecordDemand {
 /* === Implementations === */
 #[dokime::observer(interval_ms = 5, activation = "demand", demand_keys(STARTED))]
 impl RecordDemand {
-    fn new(resources: &Resources) -> Result<Self, Error> {
-        Ok(Self {
-            marker: resources.record_lifecycle.clone(),
-        })
-    }
-
-    async fn initialize(&mut self) -> Result<(), Error> {
-        if let Some(path) = &self.marker {
+    async fn initialize(resources: &Resources) -> Result<Self, Error> {
+        let marker = resources.record_lifecycle.clone();
+        if let Some(path) = &marker {
             std::fs::write(path.with_extension("started"), b"started")?;
         }
-        Ok(())
+
+        Ok(Self { marker })
     }
 
     async fn observe(

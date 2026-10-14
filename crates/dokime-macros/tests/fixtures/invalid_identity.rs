@@ -23,6 +23,7 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
+    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -45,7 +46,7 @@ enum UppercaseOperations {
 /* === Implementations === */
 #[sdk::operation(id = "uppercase.frobnicate", version = 1, description = "Invalid.", policy = POLICY)]
 impl Frobnicate {
-    pub fn new(_: std::sync::Arc<()>) -> Self {
+    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
@@ -85,7 +86,7 @@ impl sdk::Plugin for Uppercase {
         table.bind_operations::<UppercaseOperations, _>(self.resources())
     }
 
-    async fn shutdown(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 

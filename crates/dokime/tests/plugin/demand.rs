@@ -92,7 +92,7 @@ pub(crate) mod observers {
             dokime::harmos::plugin::sidecar::Activation::Demand;
         const INTERVAL: Duration = Duration::from_millis(5);
 
-        fn new(resource: &Resource) -> Result<Self, Error> {
+        async fn initialize(resource: &Resource) -> Result<Self, Error> {
             Ok(Self {
                 probe: Arc::clone(&resource.0),
             })
@@ -118,15 +118,11 @@ pub(crate) mod observers {
 
     #[dokime::observer(streams(Measurement), activation = "demand", interval_ms = 5)]
     impl Measurements {
-        fn new(resource: &Resource) -> Result<Self, Error> {
+        async fn initialize(resource: &Resource) -> Result<Self, Error> {
+            resource.0.observer_starts.fetch_add(1, Ordering::SeqCst);
             Ok(Self {
                 probe: Arc::clone(&resource.0),
             })
-        }
-
-        async fn initialize(&mut self) -> Result<(), Error> {
-            self.probe.observer_starts.fetch_add(1, Ordering::SeqCst);
-            Ok(())
         }
 
         async fn observe(
@@ -173,7 +169,7 @@ static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> =
 const UNIT_NOTED: DemandKey = DemandKey::new("dokime.record", "owned.unit.noted");
 
 /* === Macros === */
-super::native::observer_controls!(MeasuredObserverStart, MeasuredObserverStop, "owned-stream");
+super::native::observer_control!(MeasuredObserveControl, "owned-stream");
 
 /* === Type Aliases === */
 type Publishing = Publisher<Measured>;
@@ -305,8 +301,7 @@ enum MeasuredRecords {
 
 #[dokime::catalog]
 enum Operations {
-    Start(MeasuredObserverStart),
-    Stop(MeasuredObserverStop),
+    Observe(MeasuredObserveControl),
 }
 
 /* === Traits === */
@@ -340,7 +335,7 @@ impl dokime::harmos::operations::lifecycle::Policy for Measured {
     ),
     streams(observers::Auxiliary, observers::Measurement),
     observers = MeasuredObservers,
-    observer_controls(MeasuredObserverStart, MeasuredObserverStop),
+    observer_control = MeasuredObserveControl,
     restart = "never", description = "Owned stream fixture.")]
 impl dokime::Plugin for Measured {
     type Config = Configuration;
@@ -378,7 +373,7 @@ impl dokime::Plugin for Measured {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
-            .bind::<MeasuredObserverStart, MeasuredObserverStop>(table)
+            .bind::<MeasuredObserveControl>(table)
     }
 
     fn attachment(
@@ -390,7 +385,7 @@ impl dokime::Plugin for Measured {
         })
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 
@@ -414,13 +409,9 @@ impl dokime::Plugin for Measured {
 
 #[dokime::observer(demand_keys(UNIT_NOTED), activation = "demand", interval_ms = 5)]
 impl RecordObserver {
-    fn new(resource: &Resource) -> Result<Self, Error> {
+    async fn initialize(resource: &Resource) -> Result<Self, Error> {
+        resource.0.record_starts.fetch_add(1, Ordering::SeqCst);
         Ok(Self(Arc::clone(&resource.0)))
-    }
-
-    async fn initialize(&mut self) -> Result<(), Error> {
-        self.0.record_starts.fetch_add(1, Ordering::SeqCst);
-        Ok(())
     }
 
     async fn observe(
@@ -443,7 +434,7 @@ impl RecordObserver {
 
 #[dokime::listener(id = "owned-stream.noted", record = UnitConnected)]
 impl Noted {
-    fn new(resource: Arc<Resource>) -> Self {
+    async fn initialize(resource: Arc<Resource>, _: &Supervisor) -> Self {
         Self(Arc::clone(&resource.0))
     }
 
@@ -499,7 +490,7 @@ impl Noted {
 
 #[dokime::listener(id = "owned-stream.echoed", record = UnitConnected)]
 impl Echoed {
-    fn new(resource: Arc<Resource>) -> Self {
+    async fn initialize(resource: Arc<Resource>, _: &Supervisor) -> Self {
         Self(Arc::clone(&resource.0))
     }
 

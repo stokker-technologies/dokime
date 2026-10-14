@@ -17,7 +17,7 @@ use std::time::Duration;
 // Third Party Imports
 // Third-Party Imports
 use harmos::operations::{
-    OperationDeclaration, OperationPolicy, RetryPolicy, Visibility, WireOperation,
+    OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility, WireOperation,
 };
 // Local Imports
 
@@ -52,6 +52,7 @@ macro_rules! host_operation {
                 timeout: $timeout,
                 attempt_timeout: $timeout,
                 retries: RetryPolicy::Never,
+                restart: RestartPolicy::Never,
             };
             const VISIBILITY: Visibility = Visibility::Shared;
         }

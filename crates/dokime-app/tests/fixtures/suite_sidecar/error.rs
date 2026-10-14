@@ -35,6 +35,10 @@ pub(super) enum Error {
     Marker(#[from] std::io::Error),
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime::Error),
+    #[error("fixture host call: {0}")]
+    Host(#[from] dokime::harmos::plugin::sidecar::CallError),
+    #[error("the host capability and the step call disagree")]
+    HostDisagreed,
 }
 
 /* === Traits === */

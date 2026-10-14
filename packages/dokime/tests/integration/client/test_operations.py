@@ -209,6 +209,7 @@ def _contract(mode: str) -> dict:
                 "timeout": {"secs": 30, "nanos": 0},
                 "attempt_timeout": {"secs": 30, "nanos": 0},
                 "retries": "never",
+                "restart": "never",
             },
             "visibility": "shared",
             "replay": "idempotent",

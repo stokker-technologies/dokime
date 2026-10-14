@@ -111,7 +111,10 @@ impl Operation for GetCase {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -130,7 +133,10 @@ impl Operation for GetExecution {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -149,7 +155,10 @@ impl Operation for ListCaseParameters {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -168,7 +177,10 @@ impl Operation for ListExecutionParameters {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -187,7 +199,10 @@ impl Operation for ListExecutionSteps {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -206,7 +221,10 @@ impl Operation for ListStepCriteria {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -225,7 +243,10 @@ impl Operation for GetCycle {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -244,7 +265,10 @@ impl Operation for ListCycles {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -263,7 +287,10 @@ impl Operation for ListCases {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -282,7 +309,10 @@ impl Operation for ListExecutions {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(

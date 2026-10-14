@@ -118,7 +118,10 @@ impl Operation for Create {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -172,7 +175,10 @@ impl Operation for Copy {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -203,7 +209,10 @@ impl Operation for Append {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -236,7 +245,10 @@ impl Operation for Delete {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -266,7 +278,10 @@ impl Operation for Rerun {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -296,7 +311,10 @@ impl Operation for Clear {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -322,7 +340,10 @@ impl Operation for Policy {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -352,7 +373,10 @@ impl Operation for PauseCycle {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -378,7 +402,10 @@ impl Operation for ResumeCycle {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -404,7 +431,10 @@ impl Operation for StopCycle {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -430,7 +460,10 @@ impl Operation for PauseExecution {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -459,7 +492,10 @@ impl Operation for ResumeExecution {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -488,7 +524,10 @@ impl Operation for StopExecution {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 

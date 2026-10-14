@@ -23,6 +23,7 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
+    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -48,7 +49,7 @@ enum DuplicatedOperations {
 /* === Implementations === */
 #[sdk::operation(id = "duplicated.read", version = 1, description = "Reads.", policy = POLICY)]
 impl First {
-    pub fn new(_: std::sync::Arc<()>) -> Self {
+    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
@@ -59,7 +60,7 @@ impl First {
 
 #[sdk::operation(id = "duplicated.read", version = 1, description = "Reads.", policy = POLICY)]
 impl Second {
-    pub fn new(_: std::sync::Arc<()>) -> Self {
+    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
@@ -99,7 +100,7 @@ impl sdk::Plugin for Duplicated {
         table.bind_operations::<DuplicatedOperations, _>(self.resources())
     }
 
-    async fn shutdown(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 

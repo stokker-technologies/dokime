@@ -20,7 +20,7 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime::harmos::operations::{ServingError, WireTable};
+use dokime::harmos::operations::{Host, ServingError, WireTable};
 use dokime::harmos::plugin::contract::Declared;
 use dokime::harmos::plugin::sidecar::{ActivationId, ObserverAttachment, ObserverContext};
 // Local Imports
@@ -40,6 +40,7 @@ const LATE: dokime::harmos::operations::OperationPolicy =
         timeout: Duration::from_millis(20),
         attempt_timeout: Duration::from_millis(20),
         retries: dokime::harmos::operations::RetryPolicy::Never,
+        restart: dokime::harmos::operations::RestartPolicy::Never,
     };
 
 static OBSERVER_PROBES: LazyLock<Mutex<BTreeMap<String, ObserverTicks>>> =
@@ -48,7 +49,7 @@ static OBSERVER_PROBES: LazyLock<Mutex<BTreeMap<String, ObserverTicks>>> =
 static WIRE_CANCELLATIONS: AtomicU64 = AtomicU64::new(0);
 
 /* === Macros === */
-super::native::observer_controls!(BenchObserverStart, BenchObserverStop, "call-fixture");
+super::native::observer_control!(BenchObserveControl, "call-fixture");
 
 /* === Type Aliases === */
 type ObserverTicks = Arc<Mutex<Vec<(u64, ActivationId)>>>;
@@ -124,8 +125,7 @@ enum Implemented {
 enum Operations {
     #[nested]
     Implemented(Implemented),
-    Start(BenchObserverStart),
-    Stop(BenchObserverStop),
+    Observe(BenchObserveControl),
 }
 
 #[dokime::catalog]
@@ -154,7 +154,7 @@ enum ProbeRequired {
 /* === Implementations === */
 #[dokime::operation(id = "call-fixture.get_reading", version = 1, policy = super::native::POLICY)]
 impl GetReading {
-    fn new(shared: Arc<Shared>) -> Self {
+    async fn initialize(shared: Arc<Shared>, _: &Supervisor) -> Self {
         Self(shared)
     }
 
@@ -167,7 +167,7 @@ impl GetReading {
 
 #[dokime::operation(id = "call-fixture.get_late_reading", version = 1, policy = LATE)]
 impl GetLateReading {
-    fn new(_: Arc<Shared>) -> Self {
+    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -182,7 +182,7 @@ impl GetLateReading {
 
 #[dokime::operation(id = "call-fixture.get_status", version = 1, policy = super::native::POLICY)]
 impl GetStatus {
-    fn new(_: Arc<Shared>) -> Self {
+    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -197,7 +197,7 @@ impl GetStatus {
 
 #[dokime::operation(id = "call-fixture.echo", version = 1, policy = super::native::POLICY)]
 impl Echo {
-    fn new(_: Arc<Shared>) -> Self {
+    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -212,7 +212,7 @@ impl Echo {
 
 #[dokime::operation(id = "call-fixture.double", version = 1, policy = super::native::POLICY)]
 impl Double {
-    fn new(_: Arc<Shared>) -> Self {
+    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -230,7 +230,7 @@ impl Double {
 #[allow(dead_code)]
 #[dokime::operation(id = "call-fixture.hidden", version = 1, policy = super::native::POLICY)]
 impl Hidden {
-    fn new(_: Arc<Shared>) -> Self {
+    async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -251,7 +251,7 @@ impl dokime::harmos::operations::lifecycle::Policy for Bench {
     requires(),
     contributions(dokime::Suites<BenchSuites>, dokime::Settings<BenchSettings>),
     observers = BenchObservers,
-    observer_controls(BenchObserverStart, BenchObserverStop),
+    observer_control = BenchObserveControl,
     restart = "never", description = "The call verb on every context.")]
 impl dokime::Plugin for Bench {
     type Config = Configuration;
@@ -292,7 +292,7 @@ impl dokime::Plugin for Bench {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
-            .bind::<BenchObserverStart, BenchObserverStop>(table)
+            .bind::<BenchObserveControl>(table)
     }
 
     fn attachment(
@@ -304,7 +304,7 @@ impl dokime::Plugin for Bench {
         })
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 
@@ -319,7 +319,9 @@ impl dokime::Plugin for Bench {
     description = "A plugin observer reaches its own plugin's operations the way a step does."
 )]
 impl Watch {
-    fn new(shared: &Shared) -> Result<Self, dokime::harmos::plugin::sidecar::CallError> {
+    async fn initialize(
+        shared: &Shared,
+    ) -> Result<Self, dokime::harmos::plugin::sidecar::CallError> {
         Ok(Self(shared.observer_ticks.clone()))
     }
 
@@ -327,7 +329,7 @@ impl Watch {
         &mut self,
         ctx: &ObserverContext<'_, Shared>,
     ) -> Result<(), dokime::harmos::plugin::sidecar::CallError> {
-        let reading = ctx.call::<GetReadingDeclaration>(()).await?;
+        let reading = ctx.call_as::<GetReadingDeclaration>(()).await?;
         assert!(reading.reads >= 1, "the operation answered the observer");
         if ctx.tick().ordinal() <= 2
             && let Some(ticks) = &self.0
@@ -365,6 +367,16 @@ impl Probe {
         assert_eq!(
             echoed.value, 7,
             "the request reaches the operation it names"
+        );
+        let hosted = ctx
+            .host()
+            .call_as::<EchoDeclaration>(SharedReading { value: 9 })
+            .await
+            .expect("the host capability routes the same call");
+        assert_eq!(
+            hosted.into_owned().value,
+            9,
+            "the host capability reaches the operation it names"
         );
 
         Ok(())

@@ -24,6 +24,7 @@ const POLICY: dokime::harmos::operations::OperationPolicy =
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
         retries: dokime::harmos::operations::RetryPolicy::Never,
+        restart: dokime::harmos::operations::RestartPolicy::Never,
     };
 
 /* === Macros === */
@@ -65,7 +66,7 @@ impl dokime::Contribution for Marker {
     policy = POLICY
 )]
 impl Ping {
-    fn new(_: std::sync::Arc<()>) -> Self {
+    async fn initialize(_: std::sync::Arc<()>, _: &dokime::Supervisor) -> Self {
         Self
     }
 
@@ -111,7 +112,7 @@ impl dokime::Plugin for Plugin {
         table.bind_operations::<Operations, _>(self.resources())
     }
 
-    async fn shutdown(&mut self, _: &dokime::Supervisor) -> Result<(), dokime::Refusal> {
+    async fn stop(&mut self, _: &dokime::Supervisor) -> Result<(), dokime::Refusal> {
         Ok(())
     }
 

@@ -61,7 +61,10 @@ impl Operation for Submit {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Self::Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -80,7 +83,10 @@ impl Operation for Lookup {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Self::Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(

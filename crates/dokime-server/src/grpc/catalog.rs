@@ -76,7 +76,10 @@ impl Operation for ListSuites {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -95,7 +98,10 @@ impl Operation for GetSuite {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -114,7 +120,10 @@ impl Operation for ListRecordSchemas {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -135,7 +144,10 @@ impl Operation for GetRecordSchema {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -156,7 +168,10 @@ impl Operation for ListTelemetrySchemas {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -177,7 +192,10 @@ impl Operation for GetTelemetrySchema {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(

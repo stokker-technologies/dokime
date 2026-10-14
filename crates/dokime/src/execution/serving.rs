@@ -19,7 +19,9 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{OperationDeclaration, OperationPolicy, RetryPolicy, Visibility};
+use harmos::operations::{
+    Host, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility,
+};
 use harmos::plugin::sidecar::operations::{ServingError, WireTable};
 use harmos::plugin::sidecar::{Refusal, Supervisor};
 
@@ -41,12 +43,14 @@ const RUN_POLICY: OperationPolicy = OperationPolicy {
     timeout: RUN_BOUND,
     attempt_timeout: RUN_BOUND,
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 const SIGNAL_POLICY: OperationPolicy = OperationPolicy {
     timeout: SIGNAL_BOUND,
     attempt_timeout: SIGNAL_BOUND,
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -167,7 +171,10 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Running<T> {
     type Context<'a> = &'a Supervisor;
     type Endpoints = ();
 
-    fn new(workflow: Arc<Workflow<T>>) -> Result<Self, Refusal> {
+    async fn initialize<'ctx>(
+        workflow: Arc<Workflow<T>>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Refusal> {
         Ok(Self(workflow))
     }
 
@@ -198,7 +205,10 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Signalling<T> {
     type Context<'a> = &'a Supervisor;
     type Endpoints = ();
 
-    fn new(workflow: Arc<Workflow<T>>) -> Result<Self, Refusal> {
+    async fn initialize<'ctx>(
+        workflow: Arc<Workflow<T>>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Refusal> {
         Ok(Self(workflow))
     }
 
@@ -215,8 +225,9 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Signalling<T> {
 impl ExecutionHost for Supervisor {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
         Box::pin(async move {
-            self.operation::<PushEvidence>(batch)
+            self.call_as::<PushEvidence>(batch)
                 .await
+                .map(|response| response.into_owned())
                 .map_err(|error| error.to_string())
         })
     }
@@ -226,16 +237,18 @@ impl ExecutionHost for Supervisor {
         question: OperatorQuestion,
     ) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
         Box::pin(async move {
-            self.operation::<AskOperator>(question)
+            self.call_as::<AskOperator>(question)
                 .await
+                .map(|response| response.into_owned())
                 .map_err(|error| error.to_string())
         })
     }
 
     fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {
         Box::pin(async move {
-            self.operation::<LeaseStream>(ask)
+            self.call_as::<LeaseStream>(ask)
                 .await
+                .map(|response| response.into_owned())
                 .map_err(|error| error.to_string())
         })
     }

@@ -20,7 +20,7 @@ use std::sync::{
 };
 use std::time::Duration;
 // Third Party Imports
-use dokime::harmos::operations::{ServingError, WireTable};
+use dokime::harmos::operations::{Host as _, ServingError, WireTable};
 use dokime::harmos::plugin::contract::Declared;
 use dokime::harmos::plugin::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
@@ -40,7 +40,7 @@ static PROBES: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<Probe>>>> =
     LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
 
 /* === Macros === */
-super::native::observer_controls!(OwnerObserverStart, OwnerObserverStop, "observer-fixture");
+super::native::observer_control!(OwnerObserveControl, "observer-fixture");
 
 /* === Type Aliases === */
 type Publishing = Publisher<Owner>;
@@ -180,8 +180,7 @@ enum Implemented {
 enum Operations {
     #[nested]
     Implemented(Implemented),
-    Start(OwnerObserverStart),
-    Stop(OwnerObserverStop),
+    Observe(OwnerObserveControl),
 }
 
 #[dokime::catalog]
@@ -227,7 +226,7 @@ enum ProbeRequired {
 /* === Implementations === */
 #[dokime::operation(id = "observer-fixture.get_count", version = 1, policy = super::native::POLICY)]
 impl GetCount {
-    fn new(shared: Arc<Shared>) -> Self {
+    async fn initialize(shared: Arc<Shared>, _: &Supervisor) -> Self {
         Self(shared)
     }
 
@@ -240,7 +239,7 @@ impl GetCount {
 
 #[dokime::operation(id = "observer-fixture.get_probe", version = 1, policy = super::native::POLICY)]
 impl GetProbe {
-    fn new(shared: Arc<Shared>) -> Self {
+    async fn initialize(shared: Arc<Shared>, _: &Supervisor) -> Self {
         Self(shared)
     }
 
@@ -269,7 +268,7 @@ impl dokime::harmos::operations::lifecycle::Policy for Owner {
     ),
     streams(ObservationRow),
     observers = OwnerObservers,
-    observer_controls(OwnerObserverStart, OwnerObserverStop),
+    observer_control = OwnerObserveControl,
     restart = "never", description = "Observer Lifecycle Fixture.")]
 impl dokime::Plugin for Owner {
     type Config = Configuration;
@@ -307,7 +306,7 @@ impl dokime::Plugin for Owner {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
-            .bind::<OwnerObserverStart, OwnerObserverStop>(table)
+            .bind::<OwnerObserveControl>(table)
     }
 
     fn attachment(
@@ -319,7 +318,7 @@ impl dokime::Plugin for Owner {
         })
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 
@@ -349,13 +348,9 @@ impl StatelessWatch {
 
 #[dokime::observer(interval_ms = 5, streams(ObservationRow))]
 impl Watch {
-    fn new(shared: &Shared) -> Result<Self, WatchError> {
+    async fn initialize(shared: &Shared) -> Result<Self, WatchError> {
+        shared.probe.starts.fetch_add(1, Ordering::SeqCst);
         Ok(Self(Arc::clone(&shared.probe)))
-    }
-
-    async fn initialize(&mut self) -> Result<(), WatchError> {
-        self.0.starts.fetch_add(1, Ordering::SeqCst);
-        Ok(())
     }
 
     async fn observe(
@@ -363,7 +358,11 @@ impl Watch {
         ctx: &dokime::harmos::plugin::sidecar::ObserverContext<'_, Shared, Publishing>,
     ) -> Result<(), WatchError> {
         let host = ctx.capabilities().supervisor();
-        let credentials = host.operation::<GetProbeDeclaration>(()).await?.credentials;
+        let credentials = host
+            .call_as::<GetProbeDeclaration>(())
+            .await
+            .map(|response| response.into_owned())?
+            .credentials;
         self.0.credentials.store(credentials, Ordering::Release);
         self.0.credential_ticks.fetch_add(1, Ordering::Release);
         let index = ctx.tick().ordinal() - 1;
@@ -418,7 +417,7 @@ impl dokime::Plugin for MissingCredentials {
         Ok(())
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 

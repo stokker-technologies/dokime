@@ -43,7 +43,7 @@ pub(crate) struct ListChoices;
     policy = crate::POLICY
 )]
 impl ListChoices {
-    pub(crate) fn new(_: Arc<Resources>) -> Self {
+    pub(crate) async fn initialize(_: Arc<Resources>, _: &Supervisor) -> Self {
         Self
     }
 

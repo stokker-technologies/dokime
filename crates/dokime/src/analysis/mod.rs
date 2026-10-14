@@ -289,6 +289,7 @@ impl<A: Analysis> harmos::operations::OperationDeclaration for Operation<A> {
         timeout: A::TIMEOUT,
         attempt_timeout: A::TIMEOUT,
         retries: harmos::operations::RetryPolicy::Never,
+        restart: harmos::operations::RestartPolicy::Never,
     };
     const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Shared;
 }

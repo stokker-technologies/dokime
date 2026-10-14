@@ -71,7 +71,10 @@ impl Operation for ListNotes {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
@@ -132,7 +135,10 @@ impl Operation for ListHealth {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
@@ -195,7 +201,10 @@ impl Operation for CreateNote {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 

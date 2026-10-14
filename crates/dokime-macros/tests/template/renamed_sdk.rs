@@ -34,7 +34,9 @@ pub(crate) mod dokime {
 use std::sync::Arc;
 
 // Third Party Imports
-use sdk::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use sdk::harmos::operations::{
+    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
+};
 use sdk::harmos::plugin::contract::{Attachment, Declared};
 use sdk::harmos::plugin::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
@@ -45,6 +47,7 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -100,9 +103,7 @@ struct GetStatus;
 
 struct GetSpareEcho;
 
-struct ObserverStart;
-
-struct ObserverStop;
+struct ObserverControl;
 
 #[cfg(test)]
 struct SdkArtifact {
@@ -123,8 +124,7 @@ enum Implemented {
 enum Operations {
     #[nested]
     Implemented(Implemented),
-    Start(ObserverStart),
-    Stop(ObserverStop),
+    Observe(ObserverControl),
 }
 
 #[sdk::catalog]
@@ -148,7 +148,7 @@ pub enum Records {
 /* === Implementations === */
 #[sdk::operation(id = "renamed.get_echo", version = 1, description = "Echoes.", policy = POLICY)]
 impl GetEcho {
-    pub fn new(_: Arc<Resources>) -> Self {
+    pub async fn initialize(_: Arc<Resources>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
@@ -163,7 +163,7 @@ impl GetEcho {
 
 #[sdk::operation(id = "renamed.get_status", version = 1, description = "Reports.", policy = POLICY)]
 impl GetStatus {
-    pub fn new(_: Arc<Resources>) -> Self {
+    pub async fn initialize(_: Arc<Resources>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
@@ -184,7 +184,7 @@ impl GetStatus {
 
 #[sdk::operation(id = "renamed.get_spare_echo", version = 1, description = "Echoes too.", policy = POLICY)]
 impl GetSpareEcho {
-    pub fn new(_: Arc<Resources>) -> Self {
+    pub async fn initialize(_: Arc<Resources>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
@@ -197,29 +197,16 @@ impl GetSpareEcho {
     }
 }
 
-impl sdk::harmos::operations::OperationDeclaration for ObserverStart {
+impl sdk::harmos::operations::OperationDeclaration for ObserverControl {
     type Request = sdk::harmos::operations::observers::Control;
     type Response = ();
-    const ID: &'static str = "renamed.observers.start";
+    const ID: &'static str = "renamed.observers.observe";
     const VISIBILITY: sdk::harmos::operations::Visibility =
         sdk::harmos::operations::Visibility::Host;
-    const POLICY: OperationPolicy = POLICY;
+    const POLICY: OperationPolicy = sdk::harmos::operations::observers::POLICY;
 }
 
-impl sdk::harmos::operations::WireOperation for ObserverStart {
-    const VERSION: u32 = 1;
-}
-
-impl sdk::harmos::operations::OperationDeclaration for ObserverStop {
-    type Request = sdk::harmos::operations::observers::Control;
-    type Response = sdk::harmos::operations::observers::Status;
-    const ID: &'static str = "renamed.observers.stop";
-    const VISIBILITY: sdk::harmos::operations::Visibility =
-        sdk::harmos::operations::Visibility::Host;
-    const POLICY: OperationPolicy = POLICY;
-}
-
-impl sdk::harmos::operations::WireOperation for ObserverStop {
+impl sdk::harmos::operations::WireOperation for ObserverControl {
     const VERSION: u32 = 1;
 }
 
@@ -252,7 +239,7 @@ impl sdk::harmos::operations::lifecycle::Policy for Renamed {
     contributions(sdk::Records<Records, ()>, sdk::Settings<RenamedSettings>),
     streams(ObservationStream, DirectStream),
     observers = Observers,
-    observer_controls(ObserverStart, ObserverStop),
+    observer_control = ObserverControl,
     restart = "never",
 )]
 impl sdk::Plugin for Renamed {
@@ -289,7 +276,7 @@ impl sdk::Plugin for Renamed {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
-            .bind::<ObserverStart, ObserverStop>(table)
+            .bind::<ObserverControl>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<sdk::Supervisor>>> {
@@ -298,7 +285,7 @@ impl sdk::Plugin for Renamed {
             .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<sdk::Supervisor>>)
     }
 
-    async fn shutdown(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 
@@ -489,13 +476,14 @@ extern crate sdk;
 use std::sync::Arc;
 
 use sdk::harmos::plugin::contract::{Attachment, Declared};
-use sdk::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use sdk::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
 use sdk::harmos::plugin::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 #[sdk::stream(id = "shared.sample", window = 8)]
@@ -505,33 +493,21 @@ pub struct Sample { value: u64 }
 enum Observers { First(First), Second(Second) }
 
 #[sdk::catalog]
-enum Operations { Start(ObserverStart), Stop(ObserverStop) }
+enum Operations { Observe(ObserverControl) }
 
 type Observing = ObserverAttachment<(), Publisher<Shared>>;
 
 struct Shared { observers: Option<Arc<Observing>> }
-struct ObserverStart;
-struct ObserverStop;
+struct ObserverControl;
 
-impl sdk::harmos::operations::OperationDeclaration for ObserverStart {
+impl sdk::harmos::operations::OperationDeclaration for ObserverControl {
     type Request = sdk::harmos::operations::observers::Control;
     type Response = ();
-    const ID: &'static str = "shared.observers.start";
+    const ID: &'static str = "shared.observers.observe";
     const VISIBILITY: sdk::harmos::operations::Visibility = sdk::harmos::operations::Visibility::Host;
-    const POLICY: OperationPolicy = POLICY;
+    const POLICY: OperationPolicy = sdk::harmos::operations::observers::POLICY;
 }
-impl sdk::harmos::operations::WireOperation for ObserverStart {
-    const VERSION: u32 = 1;
-}
-
-impl sdk::harmos::operations::OperationDeclaration for ObserverStop {
-    type Request = sdk::harmos::operations::observers::Control;
-    type Response = sdk::harmos::operations::observers::Status;
-    const ID: &'static str = "shared.observers.stop";
-    const VISIBILITY: sdk::harmos::operations::Visibility = sdk::harmos::operations::Visibility::Host;
-    const POLICY: OperationPolicy = POLICY;
-}
-impl sdk::harmos::operations::WireOperation for ObserverStop {
+impl sdk::harmos::operations::WireOperation for ObserverControl {
     const VERSION: u32 = 1;
 }
 
@@ -546,7 +522,7 @@ impl sdk::harmos::operations::lifecycle::Policy for Shared {
     requires(),
     streams(STREAM_MEMBERS),
     observers = Observers,
-    observer_controls(ObserverStart, ObserverStop),
+    observer_control = ObserverControl,
     restart = "never",
 )]
 impl sdk::Plugin for Shared {
@@ -575,7 +551,7 @@ impl sdk::Plugin for Shared {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
-            .bind::<ObserverStart, ObserverStop>(table)
+            .bind::<ObserverControl>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<sdk::Supervisor>>> {
@@ -584,7 +560,7 @@ impl sdk::Plugin for Shared {
             .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<sdk::Supervisor>>)
     }
 
-    async fn shutdown(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 
@@ -694,8 +670,7 @@ pub(crate) fn alias_compiles_operations() {
             "renamed.get_echo",
             "renamed.get_spare_echo",
             "renamed.get_status",
-            "renamed.observers.start",
-            "renamed.observers.stop",
+            "renamed.observers.observe",
         ]
     );
     let streams = <Renamed as Declared>::STREAMS
@@ -736,8 +711,7 @@ fn alias_inventory_contains_only_declared_operations() {
             "renamed.get_echo",
             "renamed.get_status",
             "renamed.get_spare_echo",
-            "renamed.observers.start",
-            "renamed.observers.stop",
+            "renamed.observers.observe",
         ]
     );
     assert_eq!(declaration.observers.len(), 1);

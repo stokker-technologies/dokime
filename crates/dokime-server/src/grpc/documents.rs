@@ -90,7 +90,10 @@ impl Operation for Capture {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<contract::DocumentFrame>;
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -167,7 +170,10 @@ impl Operation for UpdatePlotSettings {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 

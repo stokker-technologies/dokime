@@ -70,7 +70,6 @@ pub struct RuntimeHandle {
     pub(crate) publication_core: Arc<super::sidecars::core::Publications>,
     pub(crate) record_ingress: Arc<super::sidecars::core::RecordIngress>,
     pub(crate) execution_sessions: Arc<crate::capabilities::execution::run::Sessions>,
-    pub(crate) services: harmos::services::ServiceManager<Dokime>,
 
     pub(crate) sampling: Arc<Sampling>,
     pub(crate) stream_leases: Arc<crate::telemetry_runtime::StreamLeases>,
@@ -390,7 +389,6 @@ impl RuntimeHandle {
                 publication_core,
                 record_ingress,
                 execution_sessions,
-                services: harmos_runtime.services.clone(),
                 sampling: Arc::new(sampling),
                 evidence_admission: Default::default(),
                 telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),

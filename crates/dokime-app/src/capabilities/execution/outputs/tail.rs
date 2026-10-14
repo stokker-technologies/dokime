@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::{future::poll_fn, path::PathBuf, pin::Pin, sync::Arc};
 // Third Party Imports
-use harmos::{services::Fault, services::Resident, services::Service, services::ServicePolicy};
+use harmos::{services::Fault, services::Resident, services::Service};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeek, AsyncSeekExt};
 // Local Imports
@@ -89,11 +89,11 @@ impl RuntimeHandle {
                 .await?;
             let storage = runtime.execution_storage.clone();
             runtime
-                .services
-                .register(
+                .operations
+                .register_service(
                     harmos::services::ServiceDefinition {
                         id: name.clone(),
-                        policy: ServicePolicy::default(),
+                        policy: harmos::services::POLICY,
                     },
                     move |_: Arc<()>| LogTail {
                         storage: Arc::clone(&storage),
@@ -110,16 +110,12 @@ impl RuntimeHandle {
                     },
                 )
                 .map_err(|error| Error::Operation(error.to_string()))?;
-            let lease = match runtime
-                .services
-                .activate(&name, &runtime.services.root_scope())
-                .await
-            {
+            let lease = match runtime.operations.submit_resident(&name).await {
                 Ok(lease) => lease,
                 Err(error) => {
                     runtime
-                        .services
-                        .unregister(&name)
+                        .operations
+                        .unregister_resident(&name)
                         .await
                         .map_err(|error| Error::Operation(error.to_string()))?;
                     return Err(Error::Operation(error.to_string()));
@@ -152,8 +148,8 @@ impl RuntimeHandle {
                 };
                 // A Failed Release Leaves The Resident In The Original Manager.
                 // Retry Its Physical Finalizer Even After The Lease Was Consumed.
-                let removed = if runtime.services.definition(&name).is_some() {
-                    runtime.services.unregister(&name).await
+                let removed = if runtime.operations.resident_definition(&name).is_some() {
+                    runtime.operations.unregister_resident(&name).await
                 } else {
                     Ok(())
                 };
@@ -177,7 +173,7 @@ impl RuntimeHandle {
         }
         let mut stops = self.execution_storage.tail_stops.lock().await;
         for name in names.iter() {
-            if self.services.definition(name).is_none() {
+            if self.operations.resident_definition(name).is_none() {
                 stops.remove(name);
             }
         }
@@ -200,14 +196,14 @@ impl RuntimeHandle {
 
 impl Resident<crate::app::Dokime> for LogTail {
     type Error = TailError;
-    async fn attempt(
+    async fn run(
         &mut self,
         mut context: Service<crate::app::Dokime>,
     ) -> std::result::Result<(), Fault<TailError>> {
         self.pump(&mut context).await
     }
 
-    async fn finalize(&mut self) -> std::result::Result<(), TailError> {
+    async fn cleanup(&mut self) -> std::result::Result<(), TailError> {
         self.finish_opening().await?;
         if self.source_failure.is_none()
             && let Some(file) = &mut self.file

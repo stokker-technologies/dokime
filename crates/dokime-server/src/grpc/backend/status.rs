@@ -57,7 +57,10 @@ impl Operation for Identity {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -75,7 +78,10 @@ impl Operation for Health {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -88,7 +94,7 @@ impl Operation for Health {
             .resources
             .runtime
             .operations()
-            .submit::<native::GetHealth>(native::Request {})
+            .submit_as::<native::GetHealth>(native::Request {})
             .map_err(health_failure)?;
         let health = harmos::grpc::response(instance)
             .await
@@ -125,7 +131,10 @@ impl Operation for Capabilities {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -153,7 +162,7 @@ impl Operation for Capabilities {
             .saturating_add(self.resources.identity.epoch.len());
         loop {
             let page = context
-                .call::<Operations>(OperationsRequest {
+                .call_as::<Operations>(OperationsRequest {
                     after: after.clone(),
                     rows: Some(64),
                     bytes: Some(DISCOVERY_PAGE_BYTES),
@@ -241,7 +250,10 @@ impl Operation for Logs {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<wire::LogFrame>;
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -272,7 +284,10 @@ impl Operation for Archive {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<wire::DiagnosticsBundleFrame>;
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -299,7 +314,7 @@ pub(in crate::grpc) async fn register(
 ) -> Result<(), crate::grpc::Error> {
     let instance = runtime
         .operations()
-        .submit::<native::GetIdentity>(native::Request {})?;
+        .submit_as::<native::GetIdentity>(native::Request {})?;
     let identity = harmos::grpc::response(instance).await?;
     let required = std::mem::size_of::<wire::BackendIdentity>()
         .saturating_add(identity.backend_id.len())

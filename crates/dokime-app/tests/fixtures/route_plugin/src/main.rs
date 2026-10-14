@@ -22,7 +22,8 @@ use std::sync::atomic::AtomicU64;
 use std::time::Duration;
 // Third Party Imports
 use dokime::harmos::operations::{
-    OperationPolicy, RetryPolicy, ServingError, StreamSettings, WireStreamLimits, WireTable,
+    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, StreamSettings, WireStreamLimits,
+    WireTable,
 };
 // Local Imports
 use dokime::{Refusal, Supervisor};
@@ -42,6 +43,7 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -127,7 +129,7 @@ impl dokime::Plugin for RoutePlugin {
         table.bind_streaming_operations::<operations::Operations, _>(self.resources(), limits)
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 

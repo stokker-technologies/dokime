@@ -25,8 +25,8 @@ use std::{
 };
 // Third Party Imports
 use dokime::harmos::operations::{
-    OperationDeclaration, OperationPolicy, Response, RetryPolicy, ServingError, Visibility,
-    WireOperation, WireTable,
+    Host, OperationDeclaration, OperationPolicy, Response, RestartPolicy, RetryPolicy,
+    ServingError, Visibility, WireOperation, WireTable,
 };
 use dokime::harmos::plugin::contract::Contribution;
 use dokime::harmos::plugin::{Registrar, RegistrationError, inventory::Section};
@@ -69,6 +69,7 @@ macro_rules! operation {
                 timeout: Duration::from_secs($seconds),
                 attempt_timeout: Duration::from_secs($seconds),
                 retries: RetryPolicy::Never,
+                restart: RestartPolicy::Never,
             };
         }
 
@@ -83,7 +84,10 @@ macro_rules! operation {
             type Error = Refusal;
             type Context<'a> = &'a Supervisor;
 
-            fn new(resources: Arc<Resources>) -> Result<Self, Refusal> {
+            async fn initialize<'ctx>(
+                resources: Arc<Resources>,
+                _: Self::Context<'ctx>,
+            ) -> Result<Self, Refusal> {
                 Ok(Self { resources })
             }
 
@@ -259,6 +263,7 @@ impl<M: Mode> OperationDeclaration for Run<M> {
         timeout: RUN_BOUND,
         attempt_timeout: RUN_BOUND,
         retries: RetryPolicy::Never,
+        restart: RestartPolicy::Never,
     };
     const VISIBILITY: Visibility = Visibility::Host;
 }
@@ -275,6 +280,7 @@ impl<M: Mode> OperationDeclaration for Signal<M> {
         timeout: M::SIGNAL_TIMEOUT,
         attempt_timeout: M::SIGNAL_TIMEOUT,
         retries: RetryPolicy::Never,
+        restart: RestartPolicy::Never,
     };
     const VISIBILITY: Visibility = Visibility::Host;
 }
@@ -294,7 +300,10 @@ impl<M: Mode> dokime::harmos::operations::Operation for Running<M> {
     type Error = Refusal;
     type Context<'a> = &'a Supervisor;
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Refusal> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Refusal> {
         Ok(Self {
             resources,
             mode: PhantomData,
@@ -325,7 +334,10 @@ impl<M: Mode> dokime::harmos::operations::Operation for Signalling<M> {
     type Error = Refusal;
     type Context<'a> = &'a Supervisor;
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Refusal> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Refusal> {
         Ok(Self {
             resources,
             mode: PhantomData,
@@ -418,7 +430,7 @@ impl dokime::Plugin for Protocol {
         table.bind_operations::<Operations, _>(self.resources())
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 
@@ -462,8 +474,9 @@ impl Resources {
         let mut push = async |mut batch: EvidenceBatch| {
             pushed += 1;
             batch.cursor = pushed;
-            host.operation::<PushEvidence>(batch)
+            host.call_as::<PushEvidence>(batch)
                 .await
+                .map(|response| response.into_owned())
                 .map_err(|error| Refusal::of(error.to_string()))
         };
         if mode == "stream_log" {
@@ -571,13 +584,14 @@ impl Resources {
             step_id: StepId::from_seed(format!("fixture.sidecar.{mode}.stream")),
             started_at: Timestamp::now_utc(),
         };
-        host.operation::<PushEvidence>(EvidenceBatch {
+        host.call_as::<PushEvidence>(EvidenceBatch {
             cursor: 1,
             phase: "stream".into(),
             step_begins: vec![serde_json::to_string(&start).unwrap()],
             ..Default::default()
         })
         .await
+        .map(|response| response.into_owned())
         .map_err(|error| Refusal::of(error.to_string()))?;
         // Started once the stream phase is admitted, so a test that stops the
         // cycle as soon as it sees the start stops a run that is streaming.
@@ -610,7 +624,7 @@ impl Resources {
         })
         .unwrap();
         let refused = mode == "cancel_refused";
-        host.operation::<PushEvidence>(EvidenceBatch {
+        host.call_as::<PushEvidence>(EvidenceBatch {
             cursor: 2,
             step_attempts: vec![ended],
             // A refusing run reports its step's end and then no outcome at all.
@@ -623,6 +637,7 @@ impl Resources {
             ..Default::default()
         })
         .await
+        .map(|response| response.into_owned())
         .map_err(|error| Refusal::of(error.to_string()))?;
         if refused {
             return Err(Refusal::of("run refused during cancellation"));

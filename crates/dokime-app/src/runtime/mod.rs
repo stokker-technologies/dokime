@@ -185,7 +185,7 @@ impl Runtime {
         let forwarding = sidecars::spawn_record_forwarding(handle.clone());
         handle.record_ingress.attach(handle.clone());
         let lease_gaps =
-            sidecars::spawn_lease_gap_watch(handle.clone(), harmos.services.subscribe());
+            sidecars::spawn_lease_gap_watch(handle.clone(), harmos.operations.watch_residents());
         Self {
             handle,
             harmos,
@@ -284,7 +284,6 @@ impl Runtime {
             if let Some(manager) = &mut self.plugin_manager {
                 let mut lifecycle = plugins::lifecycle::Adapter {
                     handle: &self.handle,
-                    services: &self.harmos.services,
                     publications: &self.publications,
                     packages: &mut self.plugins,
                     embedded: &mut self.embedded,

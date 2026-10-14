@@ -16,7 +16,9 @@
 use std::sync::Arc;
 // Third Party Imports
 use futures_util::FutureExt;
-use harmos::operations::{Context, Operation, OperationDeclaration, OperationPolicy, RetryPolicy};
+use harmos::operations::{
+    Context, Operation, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy,
+};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::app::Lanes;
@@ -153,6 +155,7 @@ impl OperationDeclaration for RunProviderCycle {
         timeout: std::time::Duration::from_secs(86_400),
         attempt_timeout: std::time::Duration::from_secs(86_400),
         retries: RetryPolicy::Never,
+        restart: RestartPolicy::Never,
     };
 }
 
@@ -163,7 +166,10 @@ impl Operation for ProviderState {
     type Endpoints = ();
     type Error = crate::Error;
 
-    fn new(_: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        _: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(ProviderState {
             invocation: None,
             work: ProviderWork::new(),
@@ -212,7 +218,7 @@ impl Operation for ProviderState {
             .into())
     }
 
-    async fn finalize(&mut self) -> Result<(), Self::Error> {
+    async fn cleanup(&mut self) -> Result<(), Self::Error> {
         let Some(invocation) = &self.invocation else {
             return Ok(());
         };
@@ -272,7 +278,7 @@ impl ProviderCycleRequest {
         let finalization = crate::execution_runtime::run::Finalization::default();
         let invocation = runtime
             .operations
-            .submit::<RunProviderCycle>(ProviderInvocation {
+            .submit_as::<RunProviderCycle>(ProviderInvocation {
                 job: self.clone(),
                 runtime: runtime.clone(),
                 after,

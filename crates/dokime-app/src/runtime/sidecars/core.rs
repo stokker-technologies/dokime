@@ -103,7 +103,10 @@ impl Operation for Invocation {
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
 
-    fn new(owner: Arc<Publications>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(
+        owner: Arc<Publications>,
+        _: Self::Context<'ctx>,
+    ) -> harmos::Result<Self> {
         Ok(Self {
             owner,
             native: None,
@@ -132,7 +135,8 @@ impl Operation for Invocation {
                     domain: "native publication owner",
                     name: scope.owner().to_owned(),
                 })?;
-            self.native = Some(NativePublication::new(Arc::new(resident))?);
+            self.native =
+                Some(NativePublication::initialize(Arc::new(resident), context.clone()).await?);
         }
         // The Original Connection Validates Authority And Retains Receipts.
         self.native
@@ -149,9 +153,9 @@ impl Operation for Invocation {
         Ok(())
     }
 
-    async fn finalize(&mut self) -> harmos::Result<()> {
+    async fn cleanup(&mut self) -> harmos::Result<()> {
         if let Some(native) = &mut self.native {
-            native.finalize().await?;
+            native.cleanup().await?;
         }
         Ok(())
     }
@@ -201,7 +205,10 @@ impl Operation for Filing {
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
 
-    fn new(ingress: Arc<RecordIngress>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(
+        ingress: Arc<RecordIngress>,
+        _: Self::Context<'ctx>,
+    ) -> harmos::Result<Self> {
         Ok(Self { ingress })
     }
 

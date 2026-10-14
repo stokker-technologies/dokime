@@ -25,6 +25,7 @@ pub const LISTENER_POLICY: harmos::operations::OperationPolicy =
         timeout: std::time::Duration::from_secs(30),
         attempt_timeout: std::time::Duration::from_secs(30),
         retries: harmos::operations::RetryPolicy::Never,
+        restart: harmos::operations::RestartPolicy::Never,
     };
 
 /* === Macros === */

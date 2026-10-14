@@ -53,7 +53,10 @@ impl Operation for Watch {
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<wire::TraceBatch>;
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 

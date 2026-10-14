@@ -196,22 +196,25 @@ impl RecordDemands {
 /* === Public Functions === */
 pub(crate) fn spawn_lease_gap_watch(
     handle: RuntimeHandle,
-    mut services: tokio::sync::watch::Receiver<
-        std::collections::BTreeMap<harmos::services::ServiceKey, harmos::services::ServiceSnapshot>,
+    mut residents: tokio::sync::watch::Receiver<
+        std::collections::BTreeMap<
+            harmos::operations::resident::Key,
+            harmos::operations::resident::Snapshot,
+        >,
     >,
 ) -> BackgroundTask {
-    let root_scope = handle.services.root_scope().id();
+    let root_scope = harmos::operations::resident::Key::root(String::new()).scope;
     BackgroundTask(tokio::spawn(async move {
         let mut down = std::collections::BTreeSet::<String>::new();
-        while services.changed().await.is_ok() {
-            let inactive = services
+        while residents.changed().await.is_ok() {
+            let inactive = residents
                 .borrow()
                 .iter()
                 .filter(|(key, instance)| {
                     key.scope == root_scope
                         && matches!(
-                            instance.status,
-                            harmos::services::ServiceStatus::Inactive { .. }
+                            instance.health,
+                            Some(harmos::services::ServiceStatus::Inactive { .. })
                         )
                 })
                 .map(|(key, _)| key.definition.clone())

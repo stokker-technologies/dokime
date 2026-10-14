@@ -51,7 +51,7 @@ pub struct Readiness {
     policy = super::POLICY
 )]
 impl AskReadiness {
-    pub fn new(resources: Arc<Resources>) -> Self {
+    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 

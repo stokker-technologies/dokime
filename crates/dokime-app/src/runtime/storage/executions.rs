@@ -57,7 +57,7 @@ const MAX_ACTIVE_OWNERS: usize = 10_000;
 
 /* === Structs === */
 pub(crate) struct TailStop {
-    pub(crate) lease: Mutex<Option<harmos::services::ServiceLease<crate::app::Dokime>>>,
+    pub(crate) lease: Mutex<Option<crate::services::Lease>>,
     _admission: StorageProductionPreparation,
 }
 
@@ -151,10 +151,7 @@ impl MemorySize for CycleMemberContext {
 }
 
 impl TailStopPreparation {
-    pub(crate) fn into_entry(
-        self,
-        lease: harmos::services::ServiceLease<crate::app::Dokime>,
-    ) -> (String, Arc<TailStop>) {
+    pub(crate) fn into_entry(self, lease: crate::services::Lease) -> (String, Arc<TailStop>) {
         let stop = TailStop {
             lease: Mutex::new(Some(lease)),
             _admission: self.admission,

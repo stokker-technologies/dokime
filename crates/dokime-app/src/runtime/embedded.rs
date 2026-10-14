@@ -119,7 +119,7 @@ impl Active {
                 wire_contracts,
                 required_contracts: None,
                 observers: Vec::new(),
-                observer_controls: None,
+                observer_control: None,
                 listeners: Vec::new(),
                 streams: streams.clone(),
                 registrations: registrations(&catalog)?,
@@ -305,7 +305,10 @@ impl harmos::operations::Operation for EmbeddedRun {
     type Error = harmos::plugin::sidecar::Refusal;
     type Context<'a> = harmos::operations::Context<'a>;
 
-    fn new(served: Arc<Served>) -> std::result::Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        served: Arc<Served>,
+        _: Self::Context<'ctx>,
+    ) -> std::result::Result<Self, Self::Error> {
         Ok(Self(served))
     }
 
@@ -343,7 +346,10 @@ impl harmos::operations::Operation for EmbeddedSignal {
     type Error = harmos::plugin::sidecar::Refusal;
     type Context<'a> = harmos::operations::Context<'a>;
 
-    fn new(served: Arc<Served>) -> std::result::Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        served: Arc<Served>,
+        _: Self::Context<'ctx>,
+    ) -> std::result::Result<Self, Self::Error> {
         Ok(Self(served))
     }
 

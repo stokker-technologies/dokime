@@ -58,7 +58,7 @@ pub struct ChamberReading {
     policy = super::POLICY
 )]
 impl ReadChamber {
-    pub fn new(bench: Arc<Bench>) -> Self {
+    pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }
     }
 
@@ -80,7 +80,7 @@ impl ReadChamber {
     policy = super::POLICY
 )]
 impl DetectPort {
-    pub fn new(bench: Arc<Bench>) -> Self {
+    pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }
     }
 

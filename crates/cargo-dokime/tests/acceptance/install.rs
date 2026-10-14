@@ -44,7 +44,10 @@ macro_rules! operation {
             type Error = tonic::Status;
             type Context<'a> = Context<'a>;
             type Endpoints = $endpoints;
-            fn new(host: Arc<Host>) -> Result<Self, Self::Error> {
+            async fn initialize<'ctx>(
+                host: Arc<Host>,
+                _: Self::Context<'ctx>,
+            ) -> Result<Self, Self::Error> {
                 Ok(Self { host })
             }
             async fn run<'ctx>(
@@ -321,6 +324,7 @@ fn review_bundle(schema: u32) -> Bundle {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
         retries: harmos::operations::RetryPolicy::Never,
+        restart: harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
         harmos::operations::lifecycle::Descriptor::new(

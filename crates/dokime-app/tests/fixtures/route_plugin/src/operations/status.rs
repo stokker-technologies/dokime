@@ -45,7 +45,7 @@ pub(crate) struct GetStatus {
     policy = crate::POLICY
 )]
 impl GetStatus {
-    pub(crate) fn new(resources: Arc<Resources>) -> Self {
+    pub(crate) async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 

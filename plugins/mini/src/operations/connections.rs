@@ -51,7 +51,7 @@ pub struct Connections {
     policy = super::POLICY
 )]
 impl ListConnections {
-    pub fn new(resources: Arc<Resources>) -> Self {
+    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 

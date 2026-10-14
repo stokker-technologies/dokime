@@ -135,7 +135,10 @@ impl Operation for ListInstallations {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -191,7 +194,10 @@ impl Operation for GetInstallation {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -214,7 +220,10 @@ impl Operation for Stage {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamInput<v1::StagePluginFrame>;
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -341,7 +350,10 @@ impl Operation for Consent {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -387,7 +399,10 @@ impl Operation for SetEnabled {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -417,7 +432,10 @@ impl Operation for Remove {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
@@ -463,7 +481,10 @@ impl Operation for ListAdmittedPlugins {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = ();
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(

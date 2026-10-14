@@ -20,7 +20,6 @@ use harmos::{
     services::Fault,
     services::Resident,
     services::Service,
-    services::ServicePolicy,
     storage::{FileFollower, FilePhase, FileReference, QueryOptions, QueryValue, StagedFile},
 };
 // Local Imports
@@ -264,27 +263,23 @@ impl RuntimeHandle {
             }
             let preparation = runtime.execution_storage.prepare_tail_stop(&name)?;
             runtime
-                .services
-                .register(
+                .operations
+                .register_service(
                     harmos::services::ServiceDefinition {
                         id: name.clone(),
-                        policy: ServicePolicy::default(),
+                        policy: harmos::services::POLICY,
                     },
                     move |_: Arc<()>| NativeCapture {
                         source: source.clone(),
                     },
                 )
                 .map_err(Error::from)?;
-            let lease = match runtime
-                .services
-                .activate(&name, &runtime.services.root_scope())
-                .await
-            {
+            let lease = match runtime.operations.submit_resident(&name).await {
                 Ok(lease) => lease,
                 Err(error) => {
                     runtime
-                        .services
-                        .unregister(&name)
+                        .operations
+                        .unregister_resident(&name)
                         .await
                         .map_err(Error::from)?;
                     return Err(error.into());
@@ -301,7 +296,7 @@ impl RuntimeHandle {
 
 impl Resident<crate::app::Dokime> for NativeCapture {
     type Error = Error;
-    async fn attempt(
+    async fn run(
         &mut self,
         mut context: Service<crate::app::Dokime>,
     ) -> std::result::Result<(), Fault<Error>> {
@@ -320,7 +315,7 @@ impl Resident<crate::app::Dokime> for NativeCapture {
             }
         }
     }
-    async fn finalize(&mut self) -> Result<()> {
+    async fn cleanup(&mut self) -> Result<()> {
         while !self.source.caught_up().await? {
             if !self.source.synchronize().await? {
                 tokio::time::sleep(SOURCE_POLL).await;

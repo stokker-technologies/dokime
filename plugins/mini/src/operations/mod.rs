@@ -21,13 +21,14 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy};
+use dokime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 
 /* === Constants === */
 pub(crate) const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_millis(2_000),
     attempt_timeout: Duration::from_millis(2_000),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -48,8 +49,7 @@ pub enum Implemented {
 pub enum Operations {
     #[nested]
     Implemented(Implemented),
-    Start(crate::observers::controls::Start),
-    Stop(crate::observers::controls::Stop),
+    Observe(crate::observers::controls::Observe),
 }
 
 /* === Traits === */

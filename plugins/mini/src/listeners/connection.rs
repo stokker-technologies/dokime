@@ -40,7 +40,7 @@ pub(crate) struct Observed {
 /* === Implementations === */
 #[dokime::listener(id = "mini-sidecar.connection", record = ToolConnectionAcquired)]
 impl Observed {
-    pub fn new(resources: Arc<Resources>) -> Self {
+    pub async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 

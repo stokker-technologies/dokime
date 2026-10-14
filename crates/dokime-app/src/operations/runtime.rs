@@ -61,7 +61,10 @@ impl Operation for ReadHealth {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { resources })
     }
 
@@ -102,7 +105,10 @@ impl Operation for ReadIdentity {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { resources })
     }
 

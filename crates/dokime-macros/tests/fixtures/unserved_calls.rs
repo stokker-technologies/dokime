@@ -23,6 +23,7 @@ const POLICY: sdk::harmos::operations::OperationPolicy = sdk::harmos::operations
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: sdk::harmos::operations::RetryPolicy::Never,
+    restart: sdk::harmos::operations::RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -62,7 +63,7 @@ enum NoOperations {}
 /* === Implementations === */
 #[sdk::operation(id = "mismatched.read_voltage", version = 1, description = "Reads.", policy = POLICY)]
 impl ReadVoltage {
-    pub fn new(_: std::sync::Arc<()>) -> Self {
+    pub async fn initialize(_: std::sync::Arc<()>, _: &sdk::Supervisor) -> Self {
         Self
     }
 
@@ -130,7 +131,7 @@ impl sdk::Plugin for Plugin {
         sdk::execution::serve::<Self, PluginSuites>(table)
     }
 
-    async fn shutdown(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
+    async fn stop(&mut self, _: &sdk::Supervisor) -> Result<(), sdk::Refusal> {
         Ok(())
     }
 

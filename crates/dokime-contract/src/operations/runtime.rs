@@ -17,7 +17,9 @@
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{OperationDeclaration, OperationPolicy, RetryPolicy, WireOperation};
+use harmos::operations::{
+    OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, WireOperation,
+};
 use serde::{Deserialize, Serialize};
 
 // Local Imports
@@ -87,6 +89,7 @@ impl OperationDeclaration for GetHealth {
         timeout: Duration::from_secs(5),
         attempt_timeout: Duration::from_secs(5),
         retries: RetryPolicy::Never,
+        restart: RestartPolicy::Never,
     };
 }
 
@@ -121,6 +124,7 @@ impl OperationDeclaration for GetIdentity {
         timeout: Duration::from_secs(5),
         attempt_timeout: Duration::from_secs(5),
         retries: RetryPolicy::Never,
+        restart: RestartPolicy::Never,
     };
 }
 

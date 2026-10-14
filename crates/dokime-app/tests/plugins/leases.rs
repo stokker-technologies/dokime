@@ -129,7 +129,10 @@ macro_rules! delivery_fixture {
             type Endpoints = ();
             type Error = harmos::Error;
             type Context<'a> = harmos::operations::Context<'a>;
-            fn new(sidecar: Arc<RecordingSidecar>) -> harmos::Result<Self> {
+            async fn initialize<'ctx>(
+                sidecar: Arc<RecordingSidecar>,
+                _: Self::Context<'ctx>,
+            ) -> harmos::Result<Self> {
                 Ok(Self { sidecar })
             }
             async fn run<'ctx>(

@@ -70,6 +70,7 @@ mod bare_attributes {
             timeout: std::time::Duration::from_secs(5),
             attempt_timeout: std::time::Duration::from_secs(5),
             retries: dokime::harmos::operations::RetryPolicy::Never,
+            restart: dokime::harmos::operations::RestartPolicy::Never,
         };
 
     #[message]
@@ -105,7 +106,7 @@ mod bare_attributes {
 
     #[operation(id = "prelude-bench.get_reading", version = 1, description = "Reads.", policy = POLICY)]
     impl GetReading {
-        fn new(_: std::sync::Arc<()>) -> Self {
+        async fn initialize(_: std::sync::Arc<()>, _: &Supervisor) -> Self {
             Self
         }
 
@@ -116,7 +117,7 @@ mod bare_attributes {
 
     #[operation(id = "prelude-bench.get_status", version = 1, description = "Reports.", policy = POLICY)]
     impl GetStatus {
-        fn new(_: std::sync::Arc<()>) -> Self {
+        async fn initialize(_: std::sync::Arc<()>, _: &Supervisor) -> Self {
             Self
         }
 
@@ -162,7 +163,7 @@ mod bare_attributes {
             table.bind_operations::<Operations, _>(self.resources())
         }
 
-        async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+        async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
             Ok(())
         }
 

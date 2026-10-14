@@ -27,6 +27,7 @@ const DYNAMIC_POLICY: harmos::operations::OperationPolicy = harmos::operations::
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: harmos::operations::RetryPolicy::Never,
+    restart: harmos::operations::RestartPolicy::Never,
 };
 const DYNAMIC_CAPABILITY_TOKEN: &str = "fixture-capability-012345678901234567890";
 const DYNAMIC_DENIED_TOKEN: &str = "fixture-unlisted-admin-012345678901234567890";
@@ -107,7 +108,10 @@ impl harmos::operations::Operation for DynamicReplacementHandler {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 
@@ -169,7 +173,10 @@ impl harmos::operations::Operation for DynamicUnaryHandler {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 
@@ -194,7 +201,10 @@ impl harmos::operations::Operation for DynamicDownloadHandler {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = harmos::operations::StreamOutput<DynamicNumber>;
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 
@@ -227,7 +237,10 @@ impl harmos::operations::Operation for DynamicUploadHandler {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = harmos::operations::StreamInput<DynamicNumber>;
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 
@@ -256,7 +269,10 @@ impl harmos::operations::Operation for DynamicDuplexHandler {
         harmos::operations::StreamOutput<DynamicNumber>,
     );
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 
@@ -303,6 +319,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
         timeout: std::time::Duration::from_secs(5),
         attempt_timeout: std::time::Duration::from_secs(5),
         retries: harmos::operations::RetryPolicy::Never,
+        restart: harmos::operations::RestartPolicy::Never,
     };
     let lifecycle = [
         harmos::operations::lifecycle::Descriptor::new(

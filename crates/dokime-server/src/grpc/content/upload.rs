@@ -61,7 +61,10 @@ impl Operation for Upload {
     type Error = Status;
     type Context<'a> = Context<'a>;
     type Endpoints = StreamInput<wire::UploadArtifactFrame>;
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self {
             resources,
             upload: None,
@@ -174,7 +177,7 @@ impl Operation for Upload {
     async fn stop(&mut self) -> Result<(), Status> {
         self.abandon().await
     }
-    async fn finalize(&mut self) -> Result<(), Status> {
+    async fn cleanup(&mut self) -> Result<(), Status> {
         self.abandon().await
     }
 }

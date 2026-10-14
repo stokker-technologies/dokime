@@ -521,7 +521,7 @@ pub(crate) async fn provider_reload_dependent() {
             .iter()
             .find(|definition| definition.id == "validation-telemetry")
             .expect("the provider is admitted");
-        // The observer controls and the capture template's run and signal:
+        // The observe control and the capture template's run and signal:
         // operations only the host dispatches, whoever else depends on it.
         let controls: Vec<_> = provider
             .contributions
@@ -532,7 +532,7 @@ pub(crate) async fn provider_reload_dependent() {
         let caller = runtime
             .fixture_operation_caller("fixture-dependent")
             .expect("the dependent has a live managed caller");
-        assert_eq!(controls.len(), 4, "{controls:?}");
+        assert_eq!(controls.len(), 3, "{controls:?}");
         for operation in controls {
             assert_eq!(operation.visibility, harmos::operations::Visibility::Host);
             assert!(matches!(

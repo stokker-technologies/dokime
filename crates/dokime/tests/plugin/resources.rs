@@ -217,7 +217,7 @@ impl Drop for PartialInitialization {
 
 #[dokime::operation(id = "resource-owner.get_device", version = 1, policy = super::native::POLICY)]
 impl GetDevice {
-    fn new(device: Arc<Device>) -> Self {
+    async fn initialize(device: Arc<Device>, _: &Supervisor) -> Self {
         Self(device)
     }
 
@@ -231,7 +231,7 @@ impl GetDevice {
 
 #[dokime::operation(id = "resource-owner.start_run", version = 1, policy = super::native::POLICY)]
 impl StartRun {
-    fn new(device: Arc<Device>) -> Self {
+    async fn initialize(device: Arc<Device>, _: &Supervisor) -> Self {
         Self(device)
     }
 
@@ -278,7 +278,7 @@ impl dokime::Plugin for Owner {
         dokime::execution::serve::<Self, OwnerSuites>(table)
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 
@@ -398,7 +398,7 @@ impl dokime::Plugin for CatalogOnly {
         Ok(())
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 

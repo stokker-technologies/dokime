@@ -92,7 +92,7 @@ pub use listen::{Deadlined, Listenable, ListeningRecords, ListeningRows};
 pub(crate) use listen::{PublishedRow, rows as listening_rows};
 
 #[cfg(feature = "native")]
-pub use calls::{Answering, Caller};
+pub use calls::{Answering, Caller, StepHost};
 pub use scope::{ExecutionScope, IdempotencyKey};
 #[cfg(feature = "native")]
 pub use serving::{

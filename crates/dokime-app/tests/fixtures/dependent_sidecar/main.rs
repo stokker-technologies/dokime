@@ -16,8 +16,8 @@
 use std::{io::Write, path::PathBuf, sync::Arc, time::Duration};
 // Third Party Imports
 use dokime::harmos::operations::{
-    OperationDeclaration, OperationPolicy, RetryPolicy, ServingError, Visibility, WireOperation,
-    WireTable,
+    Host, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, ServingError,
+    Visibility, WireOperation, WireTable,
 };
 // Local Imports
 use dokime::{Refusal, Supervisor};
@@ -27,6 +27,7 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -112,7 +113,7 @@ impl dokime::Plugin for Dependent {
         table.bind_operations::<Operations, _>(self.resources())
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 
@@ -134,8 +135,9 @@ impl dokime::Plugin for Dependent {
 
 impl Dependent {
     async fn record(&self, host: &Supervisor, phase: &str) -> std::io::Result<()> {
-        host.operation::<CheckHealth>(())
+        host.call_as::<CheckHealth>(())
             .await
+            .map(|response| response.into_owned())
             .map_err(std::io::Error::other)?;
         let Some(lifecycle) = &self.lifecycle else {
             return Ok(());

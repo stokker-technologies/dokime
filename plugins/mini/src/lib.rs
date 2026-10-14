@@ -32,7 +32,9 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::operations::{
+    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
+};
 use dokime::harmos::plugin::contract::{Attachment, Declared};
 use dokime::harmos::plugin::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
@@ -46,6 +48,7 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -120,7 +123,7 @@ impl dokime::harmos::operations::lifecycle::Policy for MiniSidecar {
         suites::recovery::Samples,
     ),
     observers = observers::Observers,
-    observer_controls(observers::controls::Start, observers::controls::Stop),
+    observer_control = observers::controls::Observe,
     restart(
         credit = 3,
         sustained_health_ms = 30_000,
@@ -172,7 +175,7 @@ impl dokime::Plugin for MiniSidecar {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
-            .bind::<observers::controls::Start, observers::controls::Stop>(table)
+            .bind::<observers::controls::Observe>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
@@ -181,7 +184,7 @@ impl dokime::Plugin for MiniSidecar {
             .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         dokime::execution::interrupt().await;
         if let Some(runtime) = &self.runtime
             && let Err(error) = runtime.state.commit(Stop).await

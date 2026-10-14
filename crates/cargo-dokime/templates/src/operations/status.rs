@@ -45,7 +45,7 @@ pub struct GetStatus {
     policy = super::POLICY
 )]
 impl GetStatus {
-    pub fn new(bench: Arc<Bench>) -> Self {
+    pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }
     }
 

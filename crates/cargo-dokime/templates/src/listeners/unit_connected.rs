@@ -41,7 +41,7 @@ pub struct UnitConnected {
 /* === Implementations === */
 #[dokime::listener(id = "{{owner}}.unit_connected", record = ToolConnectionAcquired)]
 impl UnitConnected {
-    pub fn new(bench: Arc<Bench>) -> Self {
+    pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }
     }
 

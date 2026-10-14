@@ -19,7 +19,7 @@ use std::{
     time::{Duration, Instant},
 };
 // Third Party Imports
-use harmos::{services::Fault, services::Resident, services::Service, services::ServicePolicy};
+use harmos::{services::Fault, services::Resident, services::Service};
 use tokio::sync::{Mutex, RwLock};
 // Local Imports
 use crate::app::Dokime;
@@ -72,7 +72,7 @@ struct ProducerEntry {
     registered: bool,
     sampler: Arc<dyn Sampler>,
     leases: BTreeMap<String, CaptureDemand>,
-    service: Option<harmos::services::ServiceLease<Dokime>>,
+    service: Option<crate::services::Lease>,
     session: Arc<SamplingSession>,
 }
 
@@ -413,7 +413,7 @@ impl Default for Sampling {
 impl Resident<Dokime> for Producer {
     type Error = ProduceError;
 
-    async fn attempt(
+    async fn run(
         &mut self,
         context: Service<Dokime>,
     ) -> std::result::Result<(), Fault<Self::Error>> {
@@ -431,7 +431,7 @@ impl Resident<Dokime> for Producer {
         result.map_err(Fault::Environmental)
     }
 
-    async fn finalize(&mut self) -> std::result::Result<(), Self::Error> {
+    async fn cleanup(&mut self) -> std::result::Result<(), Self::Error> {
         let mut owner = self.session.borrow().await;
         owner.settle(&self.runtime, &self.producer_key).await
     }
@@ -480,11 +480,11 @@ impl Sampling {
                 let owner = runtime.clone();
                 let session = Arc::clone(&producer.session);
                 runtime
-                    .services
-                    .register(
+                    .operations
+                    .register_service(
                         harmos::services::ServiceDefinition {
                             id: service_name.clone(),
-                            policy: ServicePolicy::default(),
+                            policy: harmos::services::POLICY,
                         },
                         move |_: Arc<()>| Producer {
                             producer_key: key.clone(),
@@ -501,8 +501,8 @@ impl Sampling {
         let service = if activate {
             Some(
                 runtime
-                    .services
-                    .activate(&service_name, &runtime.services.root_scope())
+                    .operations
+                    .submit_resident(&service_name)
                     .await
                     .map_err(|error| {
                         Error::Operation(format!("failed to activate sampling resident: {error}"))

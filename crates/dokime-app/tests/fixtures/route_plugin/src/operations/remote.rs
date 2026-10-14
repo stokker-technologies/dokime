@@ -138,7 +138,10 @@ impl harmos::operations::Operation for DynamicUnaryHandler {
     type Context<'a> = &'a dokime::Supervisor;
     type Endpoints = ();
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 
@@ -172,7 +175,10 @@ impl harmos::operations::Operation for DynamicDownloadHandler {
     type Context<'a> = &'a dokime::Supervisor;
     type Endpoints = harmos::operations::StreamOutput<DynamicNumber>;
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 
@@ -207,7 +213,10 @@ impl harmos::operations::Operation for DynamicUploadHandler {
     type Context<'a> = &'a dokime::Supervisor;
     type Endpoints = harmos::operations::StreamInput<DynamicNumber>;
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 
@@ -238,7 +247,10 @@ impl harmos::operations::Operation for DynamicDuplexHandler {
         harmos::operations::StreamOutput<DynamicNumber>,
     );
 
-    fn new(calls: Arc<Self::Resources>) -> Result<Self, Self::Error> {
+    async fn initialize<'ctx>(
+        calls: Arc<Self::Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Self::Error> {
         Ok(Self { calls })
     }
 

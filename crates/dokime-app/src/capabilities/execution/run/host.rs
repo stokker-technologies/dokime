@@ -142,7 +142,10 @@ impl Operation for Evidence {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(sessions: Arc<Sessions>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(
+        sessions: Arc<Sessions>,
+        _: Self::Context<'ctx>,
+    ) -> harmos::Result<Self> {
         Ok(Self(sessions))
     }
 
@@ -168,7 +171,10 @@ impl Operation for Question {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(sessions: Arc<Sessions>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(
+        sessions: Arc<Sessions>,
+        _: Self::Context<'ctx>,
+    ) -> harmos::Result<Self> {
         Ok(Self(sessions))
     }
 
@@ -201,7 +207,10 @@ impl Operation for Lease {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(sessions: Arc<Sessions>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(
+        sessions: Arc<Sessions>,
+        _: Self::Context<'ctx>,
+    ) -> harmos::Result<Self> {
         Ok(Self(sessions))
     }
 

@@ -44,7 +44,9 @@ use std::time::Duration;
 
 // Third Party Imports
 use harmos::catalog::{Member, Visitor};
-use harmos::operations::{OperationPolicy, RetryPolicy, WireDeclaration, WireOperation};
+use harmos::operations::{
+    OperationPolicy, RestartPolicy, RetryPolicy, WireDeclaration, WireOperation,
+};
 use harmos::schema::Described;
 use serde::{Deserialize, Serialize};
 
@@ -190,6 +192,7 @@ const fn policy(timeout: Duration) -> OperationPolicy {
         timeout,
         attempt_timeout: timeout,
         retries: RetryPolicy::Never,
+        restart: RestartPolicy::Never,
     }
 }
 

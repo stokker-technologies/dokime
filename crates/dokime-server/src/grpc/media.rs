@@ -93,7 +93,10 @@ impl Operation for Screenshot {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
@@ -121,7 +124,10 @@ impl Operation for Photo {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { resources })
     }
 
@@ -149,7 +155,10 @@ impl Operation for AudioRecording {
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<contract::RecordingFrame>;
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self {
             resources,
             recording: None,
@@ -235,7 +244,7 @@ impl Operation for ScreenRecording {
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<contract::RecordingFrame>;
 
-    fn new(_: Arc<()>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self)
     }
 
@@ -256,7 +265,7 @@ impl Operation for CameraRecording {
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<contract::RecordingFrame>;
 
-    fn new(_: Arc<()>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self)
     }
 

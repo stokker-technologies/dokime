@@ -59,8 +59,8 @@ type Publication =
 struct Fixture;
 
 struct Backend {
-    services: harmos::services::ServiceManager<Fixture>,
-    lease: Option<harmos::services::ServiceLease<Fixture>>,
+    services: harmos::operations::OperationManager,
+    lease: Option<harmos::operations::OperationInstance<harmos::operations::resident::Activation>>,
     registration: Option<harmos::operations::PluginRegistration>,
     scope: Option<PluginScope>,
     sdk: Option<harmos::operations::PluginSdkRegistration>,
@@ -86,7 +86,6 @@ struct Hosting {
 struct Host {
     resident: Option<Resident>,
     hosting: Arc<Hosting>,
-    services: harmos::services::ServiceManager<Fixture>,
     operations: harmos::operations::OperationManager,
 }
 
@@ -207,7 +206,10 @@ impl Operation for Evidence {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(hosting: Arc<Hosting>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(
+        hosting: Arc<Hosting>,
+        _: Self::Context<'ctx>,
+    ) -> harmos::Result<Self> {
         Ok(Self(hosting))
     }
 
@@ -265,7 +267,7 @@ impl Operation for Question {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(_: Arc<Hosting>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(_: Arc<Hosting>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self)
     }
 
@@ -293,7 +295,7 @@ impl Operation for Filing {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(_: Arc<Hosting>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(_: Arc<Hosting>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self)
     }
 
@@ -318,7 +320,7 @@ impl Operation for Lease {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(_: Arc<Hosting>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(_: Arc<Hosting>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self)
     }
 
@@ -346,7 +348,10 @@ impl Operation for Publishing {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(hosting: Arc<Hosting>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(
+        hosting: Arc<Hosting>,
+        _: Self::Context<'ctx>,
+    ) -> harmos::Result<Self> {
         Ok(Self {
             hosting,
             native: None,
@@ -369,7 +374,13 @@ impl Operation for Publishing {
                         field: "native publication",
                         reason: "the resident is not running",
                     })?;
-            self.native = Some(Publication::new(Arc::new(resident))?);
+            self.native = Some(
+                <Publication as harmos::operations::Operation>::initialize(
+                    Arc::new(resident),
+                    context.clone(),
+                )
+                .await?,
+            );
         }
         self.native
             .as_mut()
@@ -386,9 +397,9 @@ impl Operation for Publishing {
         Ok(())
     }
 
-    async fn finalize(&mut self) -> harmos::Result<()> {
+    async fn cleanup(&mut self) -> harmos::Result<()> {
         if let Some(native) = &mut self.native {
-            native.finalize().await?;
+            native.cleanup().await?;
         }
         Ok(())
     }
@@ -459,7 +470,7 @@ impl PluginLifecycle for Host {
 
     fn prepare(&mut self, _: &PluginDefinition) -> harmos::Result<PluginBackend<(), Backend, ()>> {
         Ok(PluginBackend::Sidecar(Backend {
-            services: self.services.clone(),
+            services: self.operations.clone(),
             lease: None,
             registration: None,
             scope: None,
@@ -506,12 +517,18 @@ impl PluginLifecycle for Host {
             .restart()
             .expect("mini declares its restart policy")
             .bounded();
-        let policy = harmos::services::ServicePolicy {
-            credit: usize::try_from(restart.credit).unwrap(),
-            sustained_health: Duration::from_millis(restart.sustained_health_ms),
-            backoff_base: Duration::from_millis(restart.backoff_base_ms),
-            backoff_cap: Duration::from_millis(restart.backoff_cap_ms),
-            stop_timeout: Duration::from_secs(5),
+        let policy = harmos::operations::OperationPolicy {
+            timeout: Duration::from_secs(5),
+            restart: harmos::operations::RestartPolicy::OnTransient {
+                credit: usize::try_from(restart.credit).unwrap(),
+                sustained_health: Duration::from_millis(restart.sustained_health_ms),
+                backoff: harmos::operations::Backoff::Exponential {
+                    initial: Duration::from_millis(restart.backoff_base_ms),
+                    maximum: Duration::from_millis(restart.backoff_cap_ms),
+                    jitter: harmos::operations::Jitter::Deterministic,
+                },
+            },
+            ..harmos::services::POLICY
         };
         let resident = self
             .resident
@@ -520,7 +537,7 @@ impl PluginLifecycle for Host {
             .clone()
             .routed(router)
             .expected_registrations(&definition.contributions.registrations);
-        self.services.register(
+        self.operations.register_service(
             harmos::services::ServiceDefinition {
                 id: definition.id.clone(),
                 policy,
@@ -531,11 +548,7 @@ impl PluginLifecycle for Host {
             },
         )?;
         backend.registered = true;
-        backend.lease = Some(
-            self.services
-                .activate(&definition.id, &self.services.root_scope())
-                .await?,
-        );
+        backend.lease = Some(self.operations.submit_resident(&definition.id).await?);
         let native = Arc::new(
             tokio::time::timeout(Duration::from_secs(5), resident.staged_operations())
                 .await
@@ -596,7 +609,7 @@ impl PluginLifecycle for Host {
             lease.release().await?;
         }
         if backend.registered {
-            backend.services.unregister(&definition.id).await?;
+            backend.services.unregister_resident(&definition.id).await?;
             backend.registered = false;
         }
         if let Some(sdk) = &mut backend.sdk {
@@ -641,11 +654,10 @@ impl Bench {
                 required_contracts: Some(declaration.contracts.requires.clone()),
                 streams: declaration.streams.clone(),
                 observers: declaration.observers.clone(),
-                observer_controls: match &declaration.carrier {
+                observer_control: match &declaration.carrier {
                     harmos::plugin::inventory::CarrierSection::Sidecar {
-                        observer_controls,
-                        ..
-                    } => observer_controls.as_deref().cloned(),
+                        observer_control, ..
+                    } => observer_control.as_deref().cloned(),
                     harmos::plugin::inventory::CarrierSection::Guest => None,
                 },
                 listeners: declaration.listeners.clone(),
@@ -672,7 +684,6 @@ impl Bench {
                 operations: OnceLock::new(),
                 resident: OnceLock::new(),
             }),
-            services: runtime.services.clone(),
             operations: runtime.operations.clone(),
         };
         let mut plugins = PluginManager::new(definitions).unwrap();
@@ -882,18 +893,18 @@ async fn the_inert_mini_inventory_matches_live_dispatch() {
     // dispatch all the same.
     dispatch(&runtime.operations, "mini-sidecar.connection", Vec::new()).await;
     served.push(("mini-sidecar.connection".to_owned(), 30_000));
-    for method in [
-        "mini-sidecar.observers.start",
-        "mini-sidecar.observers.stop",
-    ] {
-        dispatch(
-            &runtime.operations,
-            method,
-            harmos::operations::observers::Control::default().encode_to_vec(),
-        )
-        .await;
-        served.push((method.to_owned(), 1000));
-    }
+    // The observe control refuses an observer the sidecar does not serve.
+    let observe = "mini-sidecar.observers.observe";
+    dispatch(
+        &runtime.operations,
+        observe,
+        harmos::operations::observers::Control::default().encode_to_vec(),
+    )
+    .await;
+    served.push((
+        observe.to_owned(),
+        harmos::operations::observers::POLICY.timeout.as_millis() as u64,
+    ));
     served.sort();
     let mut inspected = declared
         .operations
@@ -1044,8 +1055,7 @@ fn executable_declares_identity_and_execution_routes() {
                 "mini-sidecar.connection",
                 "mini-sidecar.get_status",
                 "mini-sidecar.list_connections",
-                "mini-sidecar.observers.start",
-                "mini-sidecar.observers.stop",
+                "mini-sidecar.observers.observe",
                 // Every template of every suite serves a run and a signal.
                 "mini.charger.protection.overcurrent.run",
                 "mini.charger.protection.overcurrent.signal",

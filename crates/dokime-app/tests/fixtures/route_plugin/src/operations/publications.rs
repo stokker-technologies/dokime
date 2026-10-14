@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Resources;
+use dokime::harmos::operations::Host;
 use dokime::records::RecordPublication;
 use dokime::{Refusal, Supervisor};
 
@@ -53,10 +54,11 @@ pub(crate) struct PublishRecord;
         timeout: std::time::Duration::from_secs(1),
         attempt_timeout: std::time::Duration::from_secs(1),
         retries: dokime::harmos::operations::RetryPolicy::Never,
+        restart: dokime::harmos::operations::RestartPolicy::Never,
     }
 )]
 impl PublishRecord {
-    pub(crate) fn new(_: Arc<Resources>) -> Self {
+    pub(crate) async fn initialize(_: Arc<Resources>, _: &Supervisor) -> Self {
         Self
     }
 
@@ -68,8 +70,9 @@ impl PublishRecord {
         // The host's own admission is what refuses a publication this plugin
         // did not declare.
         dokime::plugin::refusal(
-            host.operation::<dokime::records::PublishRecord>(request.clone())
-                .await,
+            host.call_as::<dokime::records::PublishRecord>(request.clone())
+                .await
+                .map(|response| response.into_owned()),
         )?;
         Ok(Published {})
     }

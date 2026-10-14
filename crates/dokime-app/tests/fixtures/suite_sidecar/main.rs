@@ -18,7 +18,9 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 // Third Party Imports
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::operations::{
+    Host, OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
+};
 // Local Imports
 use dokime::transport::MAX_ARTIFACT_CHUNK_BYTES;
 use dokime::{Refusal, Supervisor};
@@ -49,6 +51,7 @@ const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -215,7 +218,7 @@ impl dokime::Plugin for SuiteSidecar {
         dokime::execution::serve::<Self, Suites>(table)
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         dokime::execution::interrupt().await;
         Ok(())
     }
@@ -232,7 +235,7 @@ impl dokime::Plugin for SuiteSidecar {
     policy = POLICY
 )]
 impl GetBehaviour {
-    fn new(config: Arc<Config>) -> Self {
+    async fn initialize(config: Arc<Config>, _: &Supervisor) -> Self {
         Self { config }
     }
 
@@ -290,6 +293,15 @@ impl Smoke {
 
     #[dokime::step(label = "Check")]
     async fn check(&mut self, ctx: &mut dokime::execution::StepContext<'_>) -> Result<(), Error> {
+        // The step's host capability reaches the same operation, once as a one
+        // shot and once as a submitted instance it joins.
+        let host = ctx.host();
+        let called = host.call_as::<GetBehaviourDeclaration>(()).await?;
+        let submitted = host.submit_as::<GetBehaviourDeclaration>(()).await?;
+        let joined = submitted.join().await?;
+        if called.into_owned() != self.behaviour || joined.into_owned() != self.behaviour {
+            return Err(Error::HostDisagreed);
+        }
         if !self.behaviour.execution_marker.is_empty() {
             std::fs::write(
                 &self.behaviour.execution_marker,

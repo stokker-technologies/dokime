@@ -7,6 +7,9 @@
  * ***
  */
 
+// Operation Initializers Capture Runtime Handles; Proving Their Futures Send Needs This Depth.
+#![recursion_limit = "256"]
+
 /* === Modules === */
 #[macro_use]
 mod macros;

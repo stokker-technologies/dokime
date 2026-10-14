@@ -94,7 +94,7 @@ impl dokime::Plugin for DirectStreams {
         Ok(())
     }
 
-    async fn shutdown(&mut self, _: &Supervisor) -> Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> Result<(), Refusal> {
         Ok(())
     }
 

@@ -39,14 +39,13 @@ type Backend =
 /* === Structs === */
 pub(in crate::runtime) struct Adapter<'a> {
     pub(in crate::runtime) handle: &'a RuntimeHandle,
-    pub(in crate::runtime) services: &'a harmos::services::ServiceManager<crate::Dokime>,
     pub(in crate::runtime) publications: &'a PublicationIngest,
     pub(in crate::runtime) packages: &'a mut BTreeMap<String, ActivePackage>,
     pub(in crate::runtime) embedded: &'a mut BTreeMap<String, crate::runtime::embedded::Active>,
 }
 
 pub(in crate::runtime) struct Sidecar {
-    services: harmos::services::ServiceManager<crate::Dokime>,
+    services: harmos::operations::OperationManager,
     publications: PublicationIngest,
     program: Program,
     package: String,
@@ -54,7 +53,7 @@ pub(in crate::runtime) struct Sidecar {
     registered: bool,
     publication_core: Arc<crate::runtime::sidecars::core::Publications>,
     publication_registered: bool,
-    lease: Option<harmos::services::ServiceLease<crate::Dokime>>,
+    lease: Option<crate::services::Lease>,
     operations: Option<harmos::operations::PluginRegistration>,
     scope: Option<harmos::plugin::PluginScope>,
     sdk: Option<harmos::operations::PluginSdkRegistration>,
@@ -311,7 +310,7 @@ impl Adapter<'_> {
         }
 
         Ok(Backend::Sidecar(Sidecar {
-            services: self.services.clone(),
+            services: self.handle.operations.clone(),
             publications: self.publications.clone(),
             program: program.clone(),
             package: name.clone(),
@@ -416,27 +415,34 @@ impl Sidecar {
             .restart()
             .ok_or_else(|| operation("sidecar declaration has no authored restart policy"))?
             .bounded();
+        // A declaration without restart credit deactivates on its first fault.
+        let restart = if policy.enabled() {
+            harmos::operations::RestartPolicy::OnTransient {
+                credit: usize::try_from(policy.credit).map_err(operation)?,
+                sustained_health: policy.sustained_health(),
+                backoff: harmos::operations::Backoff::Exponential {
+                    initial: policy.backoff_base(),
+                    maximum: policy.backoff_cap(),
+                    jitter: harmos::operations::Jitter::Deterministic,
+                },
+            }
+        } else {
+            harmos::operations::RestartPolicy::Never
+        };
         self.services
-            .register(
+            .register_service(
                 harmos::services::ServiceDefinition {
                     id: source.clone(),
-                    policy: harmos::services::ServicePolicy {
-                        credit: usize::try_from(policy.credit).map_err(operation)?,
-                        sustained_health: policy.sustained_health(),
-                        backoff_base: policy.backoff_base(),
-                        backoff_cap: policy.backoff_cap(),
-                        ..Default::default()
+                    policy: harmos::operations::OperationPolicy {
+                        restart,
+                        ..harmos::services::POLICY
                     },
                 },
                 move |_: Arc<()>| sidecar.clone(),
             )
             .map_err(Error::from)?;
         self.registered = true;
-        self.lease = Some(
-            self.services
-                .activate(&source, &self.services.root_scope())
-                .await?,
-        );
+        self.lease = Some(self.services.submit_resident(&source).await?);
         let native = Arc::new(
             tokio::time::timeout(Duration::from_secs(10), serving.staged_operations())
                 .await
@@ -508,10 +514,10 @@ impl Sidecar {
         self.operations = None;
         if self.registered {
             let source = self.program.executable.id();
-            let stopped = self.services.unregister(source).await;
+            let stopped = self.services.unregister_resident(source).await;
             // Settlement errors can still complete administrative revocation.
             // Cancellation before return leaves this stage owned for retry.
-            self.registered = self.services.definition(source).is_some();
+            self.registered = self.services.resident_definition(source).is_some();
             stopped?;
         }
         self.lease = None;

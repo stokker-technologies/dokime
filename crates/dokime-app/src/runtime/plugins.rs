@@ -394,7 +394,6 @@ impl Runtime {
                 .expect("manager prepared before activation");
             let mut lifecycle = lifecycle::Adapter {
                 handle: &self.handle,
-                services: &self.harmos.services,
                 publications: &self.publications,
                 packages: &mut self.plugins,
                 embedded: &mut self.embedded,
@@ -620,7 +619,6 @@ impl Runtime {
         }
         let mut lifecycle = lifecycle::Adapter {
             handle: &self.handle,
-            services: &self.harmos.services,
             publications: &self.publications,
             packages: &mut self.plugins,
             embedded: &mut self.embedded,
@@ -708,7 +706,6 @@ impl Runtime {
 
         let mut lifecycle = lifecycle::Adapter {
             handle: &self.handle,
-            services: &self.harmos.services,
             publications: &self.publications,
             packages: &mut self.plugins,
             embedded: &mut self.embedded,
@@ -860,7 +857,6 @@ impl Runtime {
         self.plugins.insert(name.clone(), desired);
         let mut lifecycle = lifecycle::Adapter {
             handle: &self.handle,
-            services: &self.harmos.services,
             publications: &self.publications,
             packages: &mut self.plugins,
             embedded: &mut self.embedded,
@@ -1172,11 +1168,10 @@ async fn prepare(
                 wire_contracts: declaration.contracts.provides.clone(),
                 required_contracts: Some(declaration.contracts.requires.clone()),
                 observers: declaration.observers.clone(),
-                observer_controls: match &declaration.carrier {
+                observer_control: match &declaration.carrier {
                     harmos::plugin::inventory::CarrierSection::Sidecar {
-                        observer_controls,
-                        ..
-                    } => observer_controls.as_deref().cloned(),
+                        observer_control, ..
+                    } => observer_control.as_deref().cloned(),
                     harmos::plugin::inventory::CarrierSection::Guest => None,
                 },
                 lifecycle: Some(declaration.contracts.lifecycle.clone()),

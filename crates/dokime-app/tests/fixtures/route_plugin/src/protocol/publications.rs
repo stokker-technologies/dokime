@@ -19,6 +19,7 @@
 
 // Local Imports
 use super::Resources;
+use dokime::harmos::operations::Host;
 use dokime::records::{PublishRecord, RecordPublication};
 use dokime::{Refusal, Supervisor};
 
@@ -45,8 +46,9 @@ impl Resources {
     ) -> Result<Published, Refusal> {
         // Relayed as it came, so the host's own admission is what refuses a
         // publication it cannot file under this plugin's identity.
-        host.operation::<PublishRecord>(publication)
+        host.call_as::<PublishRecord>(publication)
             .await
+            .map(|response| response.into_owned())
             .map_err(|error| Refusal::of(error.to_string()))?;
         Ok(Published {})
     }

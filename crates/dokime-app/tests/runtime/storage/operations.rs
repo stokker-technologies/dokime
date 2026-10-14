@@ -59,7 +59,7 @@ pub(crate) async fn storage_operations_view() {
 
     let info = handle
         .operations()
-        .call::<QueryStorage>(QueryStorageRequest)
+        .call_as::<QueryStorage>(QueryStorageRequest)
         .await
         .unwrap();
     assert_eq!(info.saved, handle.storage().cursor_saved());

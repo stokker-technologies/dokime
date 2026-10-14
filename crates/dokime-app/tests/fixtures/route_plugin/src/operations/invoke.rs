@@ -61,10 +61,11 @@ pub(crate) struct RunCommand {
         timeout: std::time::Duration::from_millis(200),
         attempt_timeout: std::time::Duration::from_millis(200),
         retries: dokime::harmos::operations::RetryPolicy::Never,
+        restart: dokime::harmos::operations::RestartPolicy::Never,
     }
 )]
 impl RunCommand {
-    pub(crate) fn new(resources: Arc<Resources>) -> Self {
+    pub(crate) async fn initialize(resources: Arc<Resources>, _: &Supervisor) -> Self {
         Self { resources }
     }
 

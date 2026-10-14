@@ -42,49 +42,37 @@ pub(super) const POLICY: harmos::operations::OperationPolicy =
         timeout: BOUND,
         attempt_timeout: BOUND,
         retries: harmos::operations::RetryPolicy::Never,
+        restart: harmos::operations::RestartPolicy::Never,
     };
 
 /* === Macros === */
-macro_rules! observer_controls {
-    ($start:ident, $stop:ident, $owner:literal) => {
-        struct $start;
+macro_rules! observer_control {
+    ($observe:ident, $owner:literal) => {
+        struct $observe;
 
-        struct $stop;
-
-        impl dokime::harmos::operations::OperationDeclaration for $start {
+        impl dokime::harmos::operations::OperationDeclaration for $observe {
             type Request = dokime::harmos::operations::observers::Control;
             type Response = ();
-            const ID: &'static str = concat!($owner, ".observers.start");
+            const ID: &'static str = concat!($owner, ".observers.observe");
             const VISIBILITY: dokime::harmos::operations::Visibility =
                 dokime::harmos::operations::Visibility::Host;
             const REPLAY: dokime::harmos::operations::ReplaySafety =
                 dokime::harmos::operations::ReplaySafety::Idempotent;
-            const POLICY: dokime::harmos::operations::OperationPolicy = super::native::POLICY;
+            const POLICY: dokime::harmos::operations::OperationPolicy =
+                dokime::harmos::operations::observers::POLICY;
         }
 
-        impl dokime::harmos::operations::WireOperation for $start {
-            const VERSION: u32 = 1;
-        }
-
-        impl dokime::harmos::operations::OperationDeclaration for $stop {
-            type Request = dokime::harmos::operations::observers::Control;
-            type Response = dokime::harmos::operations::observers::Status;
-            const ID: &'static str = concat!($owner, ".observers.stop");
-            const VISIBILITY: dokime::harmos::operations::Visibility =
-                dokime::harmos::operations::Visibility::Host;
-            const REPLAY: dokime::harmos::operations::ReplaySafety =
-                dokime::harmos::operations::ReplaySafety::Idempotent;
-            const POLICY: dokime::harmos::operations::OperationPolicy = super::native::POLICY;
-        }
-
-        impl dokime::harmos::operations::WireOperation for $stop {
+        impl dokime::harmos::operations::WireOperation for $observe {
             const VERSION: u32 = 1;
         }
     };
 }
-pub(super) use observer_controls;
+pub(super) use observer_control;
 
 /* === Type Aliases === */
+type PreparedCall<'a> =
+    std::pin::Pin<Box<dyn Future<Output = harmos::Result<Box<dyn PublicationCall>>> + Send + 'a>>;
+
 type Notices = Arc<dyn Fn(&harmos::services::Service<Fixture>, Notice) + Send + Sync>;
 
 /* === Structs === */
@@ -104,7 +92,6 @@ struct Host<A: Attach> {
     notices: Notices,
     demand_keys: Vec<String>,
     demands: Option<harmos::plugin::sidecar::DemandSource>,
-    services: harmos::services::ServiceManager<Fixture>,
     operations: harmos::operations::OperationManager,
     publications: Arc<Publications>,
 }
@@ -125,8 +112,8 @@ struct Lease;
 
 #[derive(Default)]
 struct Backend {
-    services: Option<harmos::services::ServiceManager<Fixture>>,
-    lease: Option<harmos::services::ServiceLease<Fixture>>,
+    services: Option<harmos::operations::OperationManager>,
+    lease: Option<harmos::operations::OperationInstance<harmos::operations::resident::Activation>>,
     registration: Option<harmos::operations::PluginRegistration>,
     sdk: Option<harmos::operations::PluginSdkRegistration>,
     initializing: Option<harmos::operations::EncodedInvocation>,
@@ -169,7 +156,7 @@ impl<A: Attach> Native<A> {
             lifecycle: attach.sdk_lifecycle().unwrap(),
             streams: attach.publications(),
             observers: attach.observers(),
-            observer_controls: attach.observer_controls().unwrap(),
+            observer_control: attach.observer_control().unwrap(),
             listeners: attach.listener_declarations().unwrap().unwrap_or_default(),
             ..Default::default()
         };
@@ -206,7 +193,6 @@ impl<A: Attach> Native<A> {
             notices: Arc::new(notices),
             demand_keys,
             demands: None,
-            services: runtime.services.clone(),
             operations: runtime.operations.clone(),
             publications: Publications::register(&runtime.operations),
         };
@@ -274,23 +260,19 @@ impl<A: Attach> PluginLifecycle for Host<A> {
         .routed(router);
         self.publications.insert(&definition.id, resident.clone());
         self.demands = Some(resident.demands());
-        self.services.register(
+        self.operations.register_service(
             harmos::services::ServiceDefinition {
                 id: definition.id.clone(),
-                policy: harmos::services::ServicePolicy::default(),
+                policy: harmos::services::POLICY,
             },
             {
                 let resident = resident.clone();
                 move |_: Arc<()>| resident.clone()
             },
         )?;
-        backend.services = Some(self.services.clone());
+        backend.services = Some(self.operations.clone());
         backend.registered = true;
-        backend.lease = Some(
-            self.services
-                .activate(&definition.id, &self.services.root_scope())
-                .await?,
-        );
+        backend.lease = Some(self.operations.submit_resident(&definition.id).await?);
         let native = Arc::new(
             tokio::time::timeout(BOUND, resident.staged_operations())
                 .await
@@ -358,7 +340,7 @@ impl<A: Attach> PluginLifecycle for Host<A> {
                 .services
                 .as_ref()
                 .expect("registered service owner")
-                .unregister(&definition.id)
+                .unregister_resident(&definition.id)
                 .await?;
         }
         backend.registered = false;
@@ -377,7 +359,7 @@ pub(super) struct Publications {
 }
 
 trait PublicationResident: Send + Sync {
-    fn prepare(self: Arc<Self>) -> harmos::Result<Box<dyn PublicationCall>>;
+    fn prepare<'a>(self: Arc<Self>, context: harmos::operations::Context<'a>) -> PreparedCall<'a>;
 }
 
 trait PublicationCall: Send {
@@ -416,10 +398,11 @@ where
     S: Attach,
     H: Fn(&harmos::services::Service<App>, Notice) + Send + Sync + 'static,
 {
-    fn prepare(self: Arc<Self>) -> harmos::Result<Box<dyn PublicationCall>> {
-        use harmos::operations::Operation;
-        let call = harmos::plugin::sidecar::Publish::<App, S, H>::new(self)?;
-        Ok(Box::new(call))
+    fn prepare<'a>(self: Arc<Self>, context: harmos::operations::Context<'a>) -> PreparedCall<'a> {
+        Box::pin(async move {
+            let call = <harmos::plugin::sidecar::Publish<App, S, H> as harmos::operations::Operation>::initialize(self, context).await?;
+            Ok(Box::new(call) as Box<dyn PublicationCall>)
+        })
     }
 }
 
@@ -468,7 +451,10 @@ impl harmos::operations::Operation for PublicationInvocation {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    fn new(owner: Arc<Publications>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(
+        owner: Arc<Publications>,
+        _: Self::Context<'ctx>,
+    ) -> harmos::Result<Self> {
         Ok(Self { owner, call: None })
     }
 
@@ -494,7 +480,7 @@ impl harmos::operations::Operation for PublicationInvocation {
                     domain: "fixture publication owner",
                     name: scope.owner().to_owned(),
                 })?;
-            self.call = Some(resident.prepare()?);
+            self.call = Some(resident.prepare(context.clone()).await?);
         }
         self.call
             .as_mut()
@@ -543,7 +529,7 @@ impl harmos::operations::Operation for Filing {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    fn new(log: Arc<HostLog>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(log: Arc<HostLog>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self(log))
     }
 
@@ -579,7 +565,7 @@ impl harmos::operations::Operation for Evidence {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    fn new(log: Arc<HostLog>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(log: Arc<HostLog>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self(log))
     }
 
@@ -622,7 +608,7 @@ impl harmos::operations::Operation for Question {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    fn new(_: Arc<()>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self)
     }
 
@@ -650,7 +636,7 @@ impl harmos::operations::Operation for Lease {
     type Context<'a> = harmos::operations::Context<'a>;
     type Endpoints = ();
 
-    fn new(_: Arc<()>) -> harmos::Result<Self> {
+    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
         Ok(Self)
     }
 

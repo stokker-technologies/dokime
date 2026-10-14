@@ -30,7 +30,9 @@ use std::time::Duration;
 
 // Local Imports
 use dokime::harmos::plugin::contract::{Attachment, Declared};
-use dokime::harmos::operations::{OperationPolicy, RetryPolicy, ServingError, WireTable};
+use dokime::harmos::operations::{
+    OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
+};
 use dokime::harmos::plugin::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
 
@@ -43,6 +45,7 @@ const LIFECYCLE: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
     retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 
 /* === Macros === */
@@ -102,7 +105,7 @@ impl dokime::harmos::operations::lifecycle::Policy for Plugin {
     ),
     streams(suites::soak::SoakRow, observers::temperature::TemperatureRow),
     observers = observers::Observers,
-    observer_controls(observers::controls::Start, observers::controls::Stop),
+    observer_control = observers::controls::Observe,
     restart = "never", description = "A thermal bench: one plugin, one suite, one template that holds a chamber at temperature and decides whether it stayed there.\nThe identity, the operations it serves and calls, and the contributions it makes to the host are literal data on the attribute: they are what the host reads *before* the plugin runs, out of a binary it never executes. A template calls `ReadChamber` through the host; the plugin serves it privately, so its own runs may call it without naming it in `requires(...)`, which lists only what other plugins or the host provide.")]
 impl dokime::Plugin for Plugin {
     type Config = Configuration;
@@ -154,7 +157,7 @@ impl dokime::Plugin for Plugin {
         self.observers
             .as_ref()
             .ok_or(ServingError::Catalog)?
-            .bind::<observers::controls::Start, observers::controls::Stop>(table)
+            .bind::<observers::controls::Observe>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
@@ -163,7 +166,7 @@ impl dokime::Plugin for Plugin {
             .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
 
-        async fn shutdown(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
+        async fn stop(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
         dokime::execution::interrupt().await;
         Ok(())
     }

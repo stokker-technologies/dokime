@@ -30,6 +30,7 @@ const POLICY: dokime::harmos::operations::OperationPolicy = dokime::harmos::oper
     timeout: std::time::Duration::from_secs(5),
     attempt_timeout: std::time::Duration::from_secs(5),
     retries: dokime::harmos::operations::RetryPolicy::Never,
+    restart: dokime::harmos::operations::RestartPolicy::Never,
 };
 struct Plugin;
 struct Ping;
@@ -37,7 +38,7 @@ struct Ping;
 enum Operations { Ping(Ping) }
 #[dokime::operation(id = "mini-sidecar.ping", version = 1, description = "Answers.", policy = POLICY)]
 impl Ping {
-    fn new(_: std::sync::Arc<()>) -> Self { Self }
+    async fn initialize(_: std::sync::Arc<()>, _: &dokime::Supervisor) -> Self { Self }
     async fn run(&mut self, _: &dokime::Supervisor, _: &()) -> Result<(), dokime::Refusal> { Ok(()) }
 }
 impl dokime::harmos::operations::lifecycle::Policy for Plugin {
@@ -63,7 +64,7 @@ impl dokime::Plugin for Plugin {
     ) -> Result<(), dokime::harmos::operations::ServingError> {
         table.bind_operations::<Operations, _>(self.resources())
     }
-    async fn shutdown(&mut self, _: &dokime::Supervisor) -> Result<(), dokime::Refusal> { Ok(()) }
+    async fn stop(&mut self, _: &dokime::Supervisor) -> Result<(), dokime::Refusal> { Ok(()) }
     async fn cleanup(&mut self) -> Result<(), dokime::Refusal> { record("finalized"); Ok(()) }
 }
 fn record(kind: &str) {

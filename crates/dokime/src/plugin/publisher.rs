@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::operations::Host;
 
 // Local Imports
 use crate::publication::{Publication, Publishable};
@@ -61,8 +62,9 @@ impl Publisher {
             produced_at: crate::core::Timestamp::now_utc().as_str().to_owned(),
         };
         self.host
-            .operation::<PublishRecord>(publication)
+            .call_as::<PublishRecord>(publication)
             .await
+            .map(|response| response.into_owned())
             .map_err(|error| crate::Error::Call {
                 operation: <PublishRecord as harmos::operations::OperationDeclaration>::ID,
                 reason: error.to_string(),

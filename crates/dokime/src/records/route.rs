@@ -55,6 +55,7 @@ impl harmos::operations::OperationDeclaration for PublishRecord {
         timeout: std::time::Duration::from_secs(30),
         attempt_timeout: std::time::Duration::from_secs(30),
         retries: harmos::operations::RetryPolicy::Never,
+        restart: harmos::operations::RestartPolicy::Never,
     };
     const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Shared;
 }

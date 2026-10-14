@@ -213,6 +213,12 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
             .call_at::<Op>(&self.call_stage, request)
             .await
     }
+
+    // The host capability for this stage: `call` and `submit` take the
+    // declaration as the request, `call_as` and `submit_as` name it.
+    pub fn host(&self) -> super::StepHost {
+        self.environment.caller().step_host(&self.call_stage)
+    }
 }
 
 impl<'a, C, O, I> Context<'a, C, O, I, Step> {

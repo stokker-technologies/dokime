@@ -73,7 +73,10 @@ impl Operation for Register {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 
@@ -124,7 +127,10 @@ impl Operation for Preview {
     type Context<'a> = Context<'a>;
     type Endpoints = ();
 
-    fn new(runtime: Arc<RuntimeHandle>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self { runtime })
     }
 

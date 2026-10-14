@@ -206,9 +206,9 @@ opt-level = 3
 # TEMPORARY fast-dev override: local Harmos worktree instead of the published pin.
 # Remove before publication; sync:harmos re-pins the git revision.
 [patch."https://github.com/stokker-technologies/harmos.git"]
-harmos = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos" }
-harmos-bundle = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-bundle" }
-harmos-contract = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-contract" }
-harmos-macros = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-macros" }
-harmos-sidecar = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-sidecar" }
-harmos-signal = { path = "../../harmos.wt/grpc-listener-settlement/crates/harmos-signal" }
+harmos = { path = "../../harmos.wt/streamline/crates/harmos" }
+harmos-bundle = { path = "../../harmos.wt/streamline/crates/harmos-bundle" }
+harmos-contract = { path = "../../harmos.wt/streamline/crates/harmos-contract" }
+harmos-macros = { path = "../../harmos.wt/streamline/crates/harmos-macros" }
+harmos-sidecar = { path = "../../harmos.wt/streamline/crates/harmos-sidecar" }
+harmos-signal = { path = "../../harmos.wt/streamline/crates/harmos-signal" }
