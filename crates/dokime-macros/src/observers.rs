@@ -108,6 +108,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
     } else {
         quote!(.strict())
     };
+    let published = !foreign;
     let stripped = crate::row::stripped(&declared);
     let shared = crate::facade::harmos_attribute("stream", quote!(#forwarded), quote!(#stripped));
     let owned = (!foreign).then(|| {
@@ -143,6 +144,8 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
 
         #[automatically_derived]
         impl #generics #sdk::telemetry::TelemetryStream for #name #types #predicates {
+            const PUBLISHED: bool = #published;
+
             fn contract() -> #sdk::telemetry::TelemetryContract {
                 let metadata = <Self as #sdk::StreamSpec>::metadata();
                 #sdk::telemetry::TelemetryContract {

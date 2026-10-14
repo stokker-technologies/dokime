@@ -207,7 +207,6 @@ impl dokime::harmos::operations::lifecycle::Policy for SuiteSidecar {
         dokime::Suites<Suites>,
         dokime::Settings<SuiteSidecarSettings>,
     ),
-    streams(Pulse, Spectrum),
     restart = "never", description = "Registers one suite for runtime loading tests.")]
 impl dokime::Plugin for SuiteSidecar {
     type Config = dokime::plugin::Configuration;

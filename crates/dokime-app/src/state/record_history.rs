@@ -86,7 +86,7 @@ impl RecordHistory {
             .get(&contract.record_type, contract.schema_version)
             .is_some();
         if let Some(previous) = self.get(&contract.record_type, contract.schema_version) {
-            if previous == contract {
+            if previous.record_schema() == contract.record_schema() {
                 return Ok(());
             }
             if policy == Redefinition::Refuse {

@@ -180,6 +180,8 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         impl #sdk::definition::DeclaredSuite for #suite {
             const OPERATIONS: &'static [#sdk::catalog::Node<#sdk::__harmos::operations::WireDeclaration>] =
                 &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateOperations>>::ENTRIES;
+            const STREAMS: &'static [#sdk::catalog::Node<#sdk::catalog::Publication>] =
+                &<#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateStreams>>::ENTRIES;
 
             fn definition() -> #sdk::domains::TestSuiteDefinition {
                 <Self>::definition()

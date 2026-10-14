@@ -157,7 +157,6 @@ impl dokime::harmos::operations::lifecycle::Policy for TelemetrySidecar {
         dokime::Evidence<Streams>,
         dokime::Settings<TelemetrySidecarSettings>,
     ),
-    streams(Probe, observers::continuous::FixtureRow),
     observers = observers::Observers,
     observer_control = observers::controls::Observe,
     restart = "never", description = "Publishes continuous telemetry for runtime ingest tests.")]

@@ -113,15 +113,6 @@ impl dokime::harmos::operations::lifecycle::Policy for MiniSidecar {
         dokime::Evidence<observers::system::Streams>,
         dokime::Settings<BenchSettings>,
     ),
-    streams(
-        PulseRow,
-        observers::system::SystemRow,
-        suites::startup::Samples,
-        suites::steady::Samples,
-        suites::steady::BenchEvent,
-        suites::protection::Samples,
-        suites::recovery::Samples,
-    ),
     observers = observers::Observers,
     observer_control = observers::controls::Observe,
     restart(

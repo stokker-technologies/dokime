@@ -236,8 +236,11 @@ impl sdk::harmos::operations::lifecycle::Policy for Renamed {
     id = "renamed",
     provides = Operations,
     requires(),
-    contributions(sdk::Records<Records, ()>, sdk::Settings<RenamedSettings>),
-    streams(ObservationStream, DirectStream),
+    contributions(
+        sdk::Records<Records, ()>,
+        sdk::Evidence<Streams>,
+        sdk::Settings<RenamedSettings>
+    ),
     observers = Observers,
     observer_control = ObserverControl,
     restart = "never",
@@ -467,7 +470,8 @@ fn compile(source: &str) -> (std::process::Output, std::path::PathBuf) {
 #[cfg(test)]
 fn compile_observer_catalogs(
     name: &str,
-    streams: &str,
+    arguments: &str,
+    peer_stream: &str,
     peer_interval: u64,
 ) -> (std::process::Output, std::path::PathBuf) {
     let source = r#"
@@ -488,6 +492,14 @@ const POLICY: OperationPolicy = OperationPolicy {
 
 #[sdk::stream(id = "shared.sample", window = 8)]
 pub struct Sample { value: u64 }
+
+// One stream id under another row: a module of its own keeps the two
+// declarations apart until the plugin gathers them.
+mod conflicting {
+    #[sdk::stream(id = "shared.sample", window = 8)]
+    pub struct Conflicting { pub other: f64 }
+}
+use conflicting::Conflicting;
 
 #[sdk::catalog]
 enum Observers { First(First), Second(Second) }
@@ -520,7 +532,7 @@ impl sdk::harmos::operations::lifecycle::Policy for Shared {
     id = "shared",
     provides = Operations,
     requires(),
-    streams(STREAM_MEMBERS),
+    PLUGIN_ARGUMENTS
     observers = Observers,
     observer_control = ObserverControl,
     restart = "never",
@@ -580,7 +592,7 @@ impl First {
 
 #[derive(Default)]
 struct Second;
-#[sdk::observer(interval_ms = PEER_INTERVAL, streams(Sample), activation = "demand")]
+#[sdk::observer(interval_ms = PEER_INTERVAL, streams(PEER_STREAM), activation = "demand")]
 impl Second {
     async fn observe(&mut self, _: &ObserverContext<'_, (), Publisher<Shared>>) -> Result<(), PublishError> {
         Ok(())
@@ -592,7 +604,8 @@ fn main() {
     let _ = <Shared as Declared>::markers();
 }
 "#
-    .replace("STREAM_MEMBERS", streams)
+    .replace("PLUGIN_ARGUMENTS", arguments)
+    .replace("PEER_STREAM", peer_stream)
     .replace("PEER_INTERVAL", &peer_interval.to_string());
     let directory = sdk_artifact()
         .library
@@ -721,7 +734,10 @@ fn alias_inventory_contains_only_declared_operations() {
         .iter()
         .map(|section| section.namespace.to_string())
         .collect::<Vec<_>>();
-    assert_eq!(namespaces, ["dokime.records", "dokime.settings"]);
+    assert_eq!(
+        namespaces,
+        ["dokime.records", "dokime.telemetry", "dokime.settings"]
+    );
 }
 
 #[cfg(test)]
@@ -929,17 +945,31 @@ fn mount_refuses_unserved_template_operations() {
 }
 
 #[cfg(test)]
-fn observer_streams_must_belong_to_the_plugin_grant() {
-    let (built, _) = compile_observer_catalogs("missing_stream", "", 10);
+fn a_plugin_refuses_a_hand_written_stream_grant() {
+    let (built, _) = compile_observer_catalogs("listed_streams", "streams(Sample),", "Sample", 10);
     let diagnostics = String::from_utf8_lossy(&built.stderr);
 
-    assert!(!built.status.success(), "an undeclared stream compiled");
+    assert!(!built.status.success(), "a hand-written grant compiled");
     assert!(
-        diagnostics.contains("observer outputs must be a subset of the artifact publication grant"),
+        diagnostics.contains("remove `streams(...)`"),
         "{diagnostics}"
     );
     assert!(
-        diagnostics.contains("aborting due to 1 previous error"),
+        !diagnostics.contains("proc macro panicked"),
+        "{diagnostics}"
+    );
+}
+
+#[cfg(test)]
+fn declarations_disagreeing_about_one_stream_are_refused() {
+    let (built, _) = compile_observer_catalogs("conflicting_streams", "", "Conflicting", 10);
+    let diagnostics = String::from_utf8_lossy(&built.stderr);
+
+    assert!(!built.status.success(), "two shapes of one stream compiled");
+    assert!(
+        diagnostics.contains(
+            "two declarations of the plugin name one stream id with different rows, schema versions, windows or metadata"
+        ),
         "{diagnostics}"
     );
     assert!(
@@ -950,7 +980,7 @@ fn observer_streams_must_belong_to_the_plugin_grant() {
 
 #[cfg(test)]
 fn observers_sharing_a_stream_register_its_output_once() {
-    let (built, output) = compile_observer_catalogs("shared_observer_stream", "Sample", 20);
+    let (built, output) = compile_observer_catalogs("shared_observer_stream", "", "Sample", 20);
     assert!(
         built.status.success(),
         "{}",
@@ -1012,8 +1042,11 @@ pub(crate) fn compiled_authoring_contracts() {
     eprintln!("compile contract: mount_refuses_unserved_template_operations");
     mount_refuses_unserved_template_operations();
 
-    eprintln!("compile contract: observer_streams_must_belong_to_the_plugin_grant");
-    observer_streams_must_belong_to_the_plugin_grant();
+    eprintln!("compile contract: a_plugin_refuses_a_hand_written_stream_grant");
+    a_plugin_refuses_a_hand_written_stream_grant();
+
+    eprintln!("compile contract: declarations_disagreeing_about_one_stream_are_refused");
+    declarations_disagreeing_about_one_stream_are_refused();
 
     eprintln!("compile contract: observers_sharing_a_stream_register_its_output_once");
     observers_sharing_a_stream_register_its_output_once();

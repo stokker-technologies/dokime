@@ -37,6 +37,10 @@ use crate::telemetry::{TelemetryContract, TelemetryRow};
     note = "declare a `#[dokime::stream(id = …, label = …, window = …)]`, or explicitly select a stream with `ctx.stream::<{Self}>().into::<Stream>()`"
 )]
 pub trait TelemetryStream: harmos::StreamSpec<Row: TelemetryRow> {
+    /// Whether the plugin declaring this stream publishes it natively; a
+    /// foreign view or a host stream is only read.
+    const PUBLISHED: bool = true;
+
     fn contract() -> TelemetryContract;
 
     fn stream_id() -> Identifier {

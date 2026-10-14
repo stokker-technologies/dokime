@@ -35,6 +35,12 @@ use crate::telemetry::{TelemetryContract, TelemetryStream};
 
 /* === Type Aliases === */
 #[cfg(feature = "native")]
+pub type Publication = harmos::sidecar::inventory::publications::Entry;
+
+#[cfg(feature = "native")]
+type Observer = harmos::sidecar::inventory::observers::Entry;
+
+#[cfg(feature = "native")]
 pub type Publish = for<'a> fn(
     &'a harmos::sidecar::Supervisor,
     &'a str,
@@ -60,6 +66,12 @@ pub struct Prompts;
 
 #[cfg(feature = "native")]
 pub struct Subscriptions;
+
+#[cfg(feature = "native")]
+pub struct TemplateStreams;
+
+#[cfg(feature = "native")]
+pub struct SuiteStreams;
 
 #[cfg(feature = "native")]
 pub struct Templates;
@@ -118,12 +130,36 @@ pub struct ListenerEntry {
 /* === Implementations === */
 #[cfg(feature = "native")]
 impl Visitor for Streams {
-    type Entry = harmos::sidecar::inventory::publications::Entry;
+    type Entry = Node<Publication>;
+}
+
+// A stream the plugin only reads is no part of what it publishes.
+#[cfg(feature = "native")]
+impl<T: TelemetryStream<Row: harmos::schema::Described>> Member<T> for Streams {
+    const ENTRY: Self::Entry = match T::PUBLISHED {
+        true => Node::Leaf(Publication::of::<T>()),
+        false => Node::Nested(&[]),
+    };
 }
 
 #[cfg(feature = "native")]
-impl<T: harmos::StreamSpec<Row: harmos::schema::Described>> Member<T> for Streams {
-    const ENTRY: Self::Entry = harmos::sidecar::inventory::publications::Entry::of::<T>();
+impl Visitor for TemplateStreams {
+    type Entry = Node<Publication>;
+}
+
+#[cfg(feature = "native")]
+impl<T: SidecarTemplate> Member<T> for TemplateStreams {
+    const ENTRY: Self::Entry = Node::Nested(T::STREAMS);
+}
+
+#[cfg(feature = "native")]
+impl Visitor for SuiteStreams {
+    type Entry = Node<Publication>;
+}
+
+#[cfg(feature = "native")]
+impl<T: crate::definition::DeclaredSuite> Member<T> for SuiteStreams {
+    const ENTRY: Self::Entry = Node::Nested(T::STREAMS);
 }
 
 impl Visitor for StreamContracts {
@@ -363,6 +399,70 @@ pub const fn required_by(
     true
 }
 
+/// Every stream a plugin's declarations publish, before deduplication: the
+/// streams its suites' templates and its evidence name, then its observers'.
+#[cfg(feature = "native")]
+pub const fn publication_count(
+    streams: &[Node<Publication>],
+    observers: &[Node<Observer>],
+) -> usize {
+    harmos::catalog::count(streams) + observed_count(observers)
+}
+
+#[cfg(feature = "native")]
+pub const fn publications<const N: usize>(
+    streams: &[Node<Publication>],
+    observers: &[Node<Observer>],
+) -> [Publication; N] {
+    let mut gathered = [UNSET; N];
+    let at = write(streams, &mut gathered, 0);
+    let written = write_observed(observers, &mut gathered, at);
+    assert!(
+        written == N,
+        "a plugin's publications are exactly its declared streams"
+    );
+    gathered
+}
+
+/// How many distinct streams `declared` names. Several declarations may name
+/// one stream, as long as each declares it the same way; two that disagree on
+/// its row, schema version, window or presentation stop the build.
+#[cfg(feature = "native")]
+pub const fn distinct_publications(declared: &[Publication]) -> usize {
+    let mut distinct = 0;
+    let mut index = 0;
+    while index < declared.len() {
+        match earlier(declared, index) {
+            Some(first) => assert!(
+                same_publication(&declared[first], &declared[index]),
+                "two declarations of the plugin name one stream id with different rows, schema versions, windows or metadata"
+            ),
+            None => distinct += 1,
+        }
+        index += 1;
+    }
+    distinct
+}
+
+#[cfg(feature = "native")]
+pub const fn deduplicated<const N: usize>(declared: &[Publication]) -> [Publication; N] {
+    let mut distinct = [UNSET; N];
+    let mut written = 0;
+    let mut index = 0;
+    while index < declared.len() {
+        if earlier(declared, index).is_none() {
+            distinct[written] = declared[index];
+            written += 1;
+        }
+        index += 1;
+    }
+    assert!(
+        written == N,
+        "a deduplicated grant has exactly its distinct streams"
+    );
+    distinct
+}
+
 /* === Private Functions === */
 const fn granted_id(granted: &[Node<harmos::catalog::RequirementEntry>], id: &str) -> bool {
     let mut index = 0;
@@ -401,6 +501,79 @@ const fn provided_privately(
         index += 1;
     }
     false
+}
+
+#[cfg(feature = "native")]
+const UNSET: Publication = Publication {
+    id: "",
+    metadata_json: "",
+    row_metadata_json: "[]",
+    schema: 0,
+    window: 0,
+    row: harmos::schema::declaration::Definition::of::<()>(),
+};
+
+#[cfg(feature = "native")]
+const fn observed_count(observers: &[Node<Observer>]) -> usize {
+    let mut count = 0;
+    let mut index = 0;
+    while index < observers.len() {
+        count += match &observers[index] {
+            Node::Leaf(observer) => observer.streams.len(),
+            Node::Nested(nested) => observed_count(nested),
+        };
+        index += 1;
+    }
+    count
+}
+
+#[cfg(feature = "native")]
+const fn write_observed<const N: usize>(
+    observers: &[Node<Observer>],
+    flat: &mut [Publication; N],
+    at: usize,
+) -> usize {
+    let mut cursor = at;
+    let mut index = 0;
+    while index < observers.len() {
+        match &observers[index] {
+            Node::Leaf(observer) => {
+                let mut stream = 0;
+                while stream < observer.streams.len() {
+                    flat[cursor] = observer.streams[stream];
+                    cursor += 1;
+                    stream += 1;
+                }
+            }
+            Node::Nested(nested) => cursor = write_observed(nested, flat, cursor),
+        }
+        index += 1;
+    }
+    cursor
+}
+
+#[cfg(feature = "native")]
+const fn earlier(declared: &[Publication], index: usize) -> Option<usize> {
+    let mut candidate = 0;
+    while candidate < index {
+        if same(declared[candidate].id, declared[index].id) {
+            return Some(candidate);
+        }
+        candidate += 1;
+    }
+    None
+}
+
+// The row's fields are reached only through function pointers, which a
+// constant cannot call; its type name stands for them here, and admission
+// compares the fields themselves.
+#[cfg(feature = "native")]
+const fn same_publication(left: &Publication, right: &Publication) -> bool {
+    left.schema == right.schema
+        && left.window == right.window
+        && same(left.row.name, right.row.name)
+        && same(left.metadata_json, right.metadata_json)
+        && same(left.row_metadata_json, right.row_metadata_json)
 }
 
 const fn same(left: &str, right: &str) -> bool {

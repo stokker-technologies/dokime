@@ -313,9 +313,9 @@ pub(super) fn validate(
             .find(|stream| stream.id == contract.stream.as_str())
             .ok_or_else(|| {
                 format!(
-                    "telemetry `{}` is declared by a template of `{}` but the plugin does not \
-                     register it as a native stream: list its row type in the plugin's \
-                     `streams(...)`",
+                    "telemetry `{}` is declared by `{}` but the plugin does not register it \
+                     as a native stream: rebuild the plugin so `#[dokime::plugin]` derives its \
+                     streams from its suites' templates, its observers and its evidence",
                     contract.stream, artifact.source
                 )
             })?;

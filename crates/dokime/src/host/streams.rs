@@ -96,6 +96,8 @@ macro_rules! host_rows {
                 const WINDOW: usize = 4096;
             }
             impl TelemetryStream for $stream {
+                const PUBLISHED: bool = false;
+
                 fn contract() -> TelemetryContract {
                     host_telemetry_contract(HostTelemetryStream::$stream)
                 }

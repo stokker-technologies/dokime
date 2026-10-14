@@ -1012,6 +1012,9 @@ fn engine(
                 }
             }
         });
+    let published = ::core::iter::once(streams)
+        .chain(observers.iter().map(|observer| &observer.streams))
+        .collect::<Vec<_>>();
     let declarations = observers.iter().map(|observer| &observer.declaration);
     let cancellation = graceful_stop.map(|parameter| {
         quote! {
@@ -1088,6 +1091,11 @@ fn engine(
                     #sdk::__harmos::operations::Contracts,
                     #sdk::__harmos::operations::WireDeclaration,
                 >>::ENTRIES;
+            const STREAMS: &'static [#sdk::catalog::Node<#sdk::catalog::Publication>] = &[
+                #(#sdk::catalog::Node::Nested(
+                    &<#published as #sdk::catalog::Catalog<#sdk::catalog::Streams>>::ENTRIES
+                )),*
+            ];
 
             fn definition() -> #sdk::execution::TemplateDefinition {
                 #sdk::execution::TemplateDefinition {

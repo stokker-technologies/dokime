@@ -34,6 +34,7 @@ use syn::{Error, GenericArgument, ItemImpl, Meta, Path, PathArguments, Token, Ty
 #[derive(Default)]
 struct Contributed {
     suites: Option<Type>,
+    evidence: Option<Type>,
     listeners: Option<Type>,
     records: bool,
 }
@@ -74,9 +75,21 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let arguments = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute)?;
     let contributed = contributed(&arguments)?;
     let mut generated = Vec::new();
-    let mut forwarded = Vec::new();
+    let mut forwarded = vec![streams(&contributed, &block.self_ty)];
     for argument in arguments {
         match &argument {
+            Meta::List(list) if list.path.is_ident("streams") => {
+                return Err(Error::new(
+                    list.span(),
+                    "a plugin registers the streams its templates, observers and evidence declare; remove `streams(...)` and declare a stream no template or observer publishes in `dokime::Evidence<Streams>`",
+                ));
+            }
+            Meta::NameValue(named) if named.path.is_ident("stream_entries") => {
+                return Err(Error::new(
+                    named.span(),
+                    "`#[dokime::plugin]` derives its stream grant from its declarations; remove `stream_entries`",
+                ));
+            }
             Meta::NameValue(named) if named.path.is_ident("provides") => {
                 let authored = &named.value;
                 let nested = provided(&contributed);
@@ -188,6 +201,7 @@ fn contributed(arguments: &Punctuated<Meta, Token![,]>) -> Result<Contributed, E
             };
             match last.ident.to_string().as_str() {
                 "Suites" => contributed.suites = generics.first().cloned(),
+                "Evidence" => contributed.evidence = generics.first().cloned(),
                 "Records" => {
                     contributed.records = true;
                     contributed.listeners = generics.get(1).cloned();
@@ -214,6 +228,36 @@ fn provided(contributed: &Contributed) -> Vec<TokenStream> {
         )));
     }
     nested
+}
+
+// The plugin publishes what its declarations name: the streams of its suites'
+// templates and their observers, of its evidence, and of its own observers.
+// Several declarations may name one stream; it is granted once, and two that
+// disagree about it stop the build.
+fn streams(contributed: &Contributed, owner: &Type) -> TokenStream {
+    let sdk = crate::facade::root();
+    let entry = quote!(#sdk::catalog::Publication);
+    let suites = contributed.suites.iter().map(|suites| {
+        quote!(#sdk::catalog::Node::Nested(
+            &<#suites as #sdk::catalog::Catalog<#sdk::catalog::SuiteStreams>>::ENTRIES
+        ))
+    });
+    let evidence = contributed.evidence.iter().map(|streams| {
+        quote!(#sdk::catalog::Node::Nested(
+            &<#streams as #sdk::catalog::Catalog<#sdk::catalog::Streams>>::ENTRIES
+        ))
+    });
+
+    quote!(stream_entries = {
+        const DECLARED: &[#sdk::catalog::Node<#entry>] = &[#(#suites,)* #(#evidence,)*];
+        const OBSERVED: &[#sdk::catalog::Node<#sdk::__harmos::sidecar::inventory::observers::Entry>] =
+            <#owner as #sdk::__harmos::plugin::Declared>::OBSERVERS;
+        const COUNT: usize = #sdk::catalog::publication_count(DECLARED, OBSERVED);
+        const GATHERED: [#entry; COUNT] = #sdk::catalog::publications::<COUNT>(DECLARED, OBSERVED);
+        const DISTINCT: usize = #sdk::catalog::distinct_publications(&GATHERED);
+        const GRANTED: [#entry; DISTINCT] = #sdk::catalog::deduplicated::<DISTINCT>(&GATHERED);
+        &GRANTED
+    })
 }
 
 fn hosted(contributed: &Contributed) -> Vec<Path> {

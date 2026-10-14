@@ -30,7 +30,7 @@ use dokime::{Refusal, Supervisor};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::message]
+#[dokime::row]
 #[derive(Clone, PartialEq)]
 pub(crate) struct Reading {
     value: f64,
@@ -54,6 +54,19 @@ impl dokime::StreamSpec for Readings {
     const ID: &'static str = "fixture-sidecar.reading";
     const VERSION: u32 = 1;
     const WINDOW: usize = 32;
+}
+
+impl dokime::telemetry::TelemetryStream for Readings {
+    fn contract() -> TelemetryContract {
+        TelemetryContract::declared("fixture-sidecar.reading", "Reading")
+            .columns([TelemetryColumn::declared(
+                "value",
+                "Value",
+                ValueType::Number,
+                TelemetryRole::Value,
+            )])
+            .strict()
+    }
 }
 
 impl Resources {
@@ -81,16 +94,7 @@ impl Resources {
 
 /* === Public Functions === */
 pub(crate) fn contract(template: TemplateId) -> TelemetryContract {
-    let mut contract = TelemetryContract::declared("fixture-sidecar.reading", "Reading")
-        .columns([TelemetryColumn::declared(
-            "value",
-            "Value",
-            ValueType::Number,
-            TelemetryRole::Value,
-        )])
-        .strict();
-    contract.template_id = Some(template);
-    contract
+    <Readings as dokime::telemetry::TelemetryStream>::contract().for_template(template)
 }
 
 /* === Private Functions === */

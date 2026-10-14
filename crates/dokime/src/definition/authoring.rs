@@ -157,6 +157,10 @@ pub trait DeclaredSuite {
     #[cfg(feature = "native")]
     const OPERATIONS: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>];
 
+    /// The native streams the suite's templates publish.
+    #[cfg(feature = "native")]
+    const STREAMS: &'static [harmos::catalog::Node<crate::catalog::Publication>];
+
     fn definition() -> TestSuiteDefinition;
 
     #[cfg(feature = "native")]

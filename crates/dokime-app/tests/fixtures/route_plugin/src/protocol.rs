@@ -39,7 +39,7 @@ use dokime::definition::{
 };
 use dokime::domains::TestSuiteDefinition;
 use dokime::execution::{StepAttemptStart, TerminationReason, TestStepAttempt};
-use dokime::plugin::registration::{SUITES_NAMESPACE, TELEMETRY_NAMESPACE, domain_schema};
+use dokime::plugin::registration::{SUITES_NAMESPACE, domain_schema};
 use dokime::records::{RecordContract, RecordField, RecordPublishRequest, RecordSeverity};
 use dokime::transport::{
     ArtifactChunk, EvidenceBatch, ExecutionSignal, PushEvidence, RUN_BOUND, RunExecutionRequest,
@@ -180,6 +180,11 @@ struct Signalling<M> {
 struct Domains;
 
 /* === Enums === */
+#[dokime::catalog]
+enum Streams {
+    Readings(telemetry::Readings),
+}
+
 #[dokime::catalog]
 enum Operations {
     #[nested]
@@ -378,11 +383,6 @@ impl Contribution for Domains {
         suite.telemetry_contracts =
             vec![telemetry::contract(capture.test_case_template_id.clone())];
         registrar.register(
-            TELEMETRY_NAMESPACE,
-            domain_schema(TELEMETRY_NAMESPACE),
-            &suite.telemetry_contracts,
-        )?;
-        registrar.register(
             SUITES_NAMESPACE,
             domain_schema(SUITES_NAMESPACE),
             &SuiteSet::new([suite]),
@@ -403,8 +403,7 @@ impl dokime::harmos::operations::lifecycle::Policy for Protocol {
         dokime::records::PublishRecord,
         dokime::harmos::operations::host::Publish,
     ),
-    contributions(Domains),
-    streams(telemetry::Readings),
+    contributions(Domains, dokime::Evidence<Streams>),
     restart = "never", description = "Serves Controlled Execution Replies Through The Original Physical Owner.")]
 impl dokime::Plugin for Protocol {
     type Config = dokime::plugin::Configuration;

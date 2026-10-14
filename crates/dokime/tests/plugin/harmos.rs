@@ -44,6 +44,11 @@ struct DirectStreams {
 }
 
 /* === Enums === */
+#[dokime::catalog]
+enum Streams {
+    Inlet(Inlet),
+    Outlet(Outlet),
+}
 
 /* === Traits === */
 
@@ -58,7 +63,7 @@ impl dokime::harmos::operations::lifecycle::Policy for DirectStreams {
     id = "sdk-streams",
     provides = (),
     requires(dokime::harmos::operations::host::Publish),
-    streams(Inlet, Outlet),
+    contributions(dokime::Evidence<Streams>),
     restart = "never", description = "Publishes through Harmos streams.")]
 impl dokime::Plugin for DirectStreams {
     type Config = dokime::plugin::Configuration;

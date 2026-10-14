@@ -172,7 +172,7 @@ impl Streams {
             self.failure.send_if_modified(|failure| {
                 if failure.is_some() { return false; }
                 *failure = Some(crate::diagnostics::Diagnostic::of(format!(
-                    "template {} cannot publish row {row_type} on undeclared stream {stream}; add the stream type to streams(...) or declare an observer for it",
+                    "template {} cannot publish row {row_type} on undeclared stream {stream}; add the stream type to the template's `streams` catalog or declare an observer for it",
                     admission.template
                 )));
                 true

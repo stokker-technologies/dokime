@@ -81,6 +81,10 @@ pub trait SidecarTemplate: Send + Sized + 'static {
 
     const REQUIRED: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>] = &[];
 
+    /// The native streams this template and its observers publish; the plugin
+    /// serving its suite registers them.
+    const STREAMS: &'static [harmos::catalog::Node<crate::catalog::Publication>] = &[];
+
     const OPERATIONS: &'static [harmos::catalog::Node<harmos::operations::WireDeclaration>] = &[
         harmos::catalog::Node::Leaf(harmos::operations::WireDeclaration::of::<super::Run<Self>>()),
         harmos::catalog::Node::Leaf(

@@ -188,7 +188,7 @@ async fn assert_refused<T: SidecarTemplate + dokime::definition::DeclaredTemplat
         "{diagnostics}"
     );
     assert!(diagnostics.contains("Reading"), "{diagnostics}");
-    assert!(diagnostics.contains("streams(...)"), "{diagnostics}");
+    assert!(diagnostics.contains("`streams` catalog"), "{diagnostics}");
     assert!(diagnostics.contains("admission.reading"), "{diagnostics}");
 }
 
