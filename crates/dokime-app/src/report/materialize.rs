@@ -14,7 +14,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    num::NonZeroUsize,
+};
 
 // Third Party Imports
 use harmos::{
@@ -40,6 +43,14 @@ use dokime::execution::saved::ExecutionOutputContent;
 /* === Type Aliases === */
 
 /* === Structs === */
+/// Plot collectors for a report no document of which evaluates raw rows.
+struct PagedPlots {
+    /// Plots reduced sample by sample, keyed by document and plot.
+    streamed: BTreeMap<(String, String), StreamedPlot>,
+    /// Streams the remaining whole-capture plots read; only their rows are kept.
+    streams: Vec<String>,
+}
+
 /// What a report materializes from.
 struct Evidence<'a> {
     records: &'a [dokime::records::RecordEntry],
@@ -52,8 +63,12 @@ struct Evidence<'a> {
 enum PlotSource {
     /// The execution's rows, read whole for documents that evaluate them.
     Rows(QueryValue<Vec<dokime::telemetry::TelemetrySample>>),
-    /// Collectors fed one page at a time.
-    Streamed(BTreeMap<(String, String), StreamedPlot>),
+    /// Collectors fed one page at a time, beside the rows of only those
+    /// streams the report's whole-capture plots read.
+    Paged {
+        streamed: BTreeMap<(String, String), StreamedPlot>,
+        rows: QueryValue<Vec<dokime::telemetry::TelemetrySample>>,
+    },
 }
 
 /* === Traits === */
@@ -95,12 +110,17 @@ pub(super) async fn execution(
     }
     drop(reader);
     let execution = inspection.revision().clone();
-    // A report whose plots each reduce sample by sample reads the capture one
-    // bounded page at a time and keeps only compact plot rows and the bounded
-    // preview the report shows. A document that evaluates raw rows itself
-    // still reads the execution's rows whole, charged and failing closed.
-    let (source, telemetry) = match streamed_plots(&captured, &execution.value, &records, limit)? {
-        Some(mut plots) => {
+    // A report no document of which evaluates raw rows reads the capture one
+    // bounded page at a time: plots that reduce sample by sample keep compact
+    // rows, and plots that need the whole capture keep only the rows of the
+    // streams they read. A document that evaluates raw rows itself still
+    // reads the execution's rows whole, charged and failing closed.
+    let (source, telemetry) = match paged_plots(&captured, &execution.value, &records, limit)? {
+        Some(PagedPlots {
+            mut streamed,
+            streams,
+        }) => {
+            let mut kept = empty(runtime.storage())?;
             let mut after = 0;
             let mut count = 0usize;
             while let Some((last, rows)) = inspection
@@ -111,19 +131,42 @@ pub(super) async fn execution(
                 // one keeps it, and the evidence it pins, from going idle.
                 view.saved()?;
                 after = last;
+                let mut selected = Vec::new();
                 for row in rows.iter() {
                     count = count.saturating_add(1);
-                    for plot in plots.values_mut() {
+                    for plot in streamed.values_mut() {
                         plot.push(&row.sample);
                     }
+                    if streams.iter().any(|stream| {
+                        crate::plot::stream_matches_alias(row.sample.stream.as_str(), stream)
+                    }) {
+                        selected.push(row.sample.clone());
+                    }
                 }
-                let held = plots.values().fold(records.memory_size(), |bytes, plot| {
-                    bytes.saturating_add(plot.memory_size())
-                });
+                drop(rows);
+                if !selected.is_empty() {
+                    let bytes = selected.memory_size();
+                    check(bytes, limit)?;
+                    let projected = runtime
+                        .storage()
+                        .produce(bound(bytes)?, |_| Ok(selected))?
+                        .try_into_value()?;
+                    kept = append(&view, kept, &projected, limit)?;
+                }
+                let held = streamed.values().fold(
+                    records.memory_size().saturating_add(kept.memory_size()),
+                    |bytes, plot| bytes.saturating_add(plot.memory_size()),
+                );
                 check(held, limit)?;
             }
             let preview = preview(runtime, inspection, &view, page, limit, count).await?;
-            (PlotSource::Streamed(plots), preview)
+            (
+                PlotSource::Paged {
+                    streamed,
+                    rows: kept,
+                },
+                preview,
+            )
         }
         None => {
             let mut telemetry = empty(runtime.storage())?;
@@ -207,22 +250,28 @@ fn materialize(
         source,
         preview,
     } = evidence;
-    let streaming = matches!(source, PlotSource::Streamed(_));
-    let (rows, mut streamed) = match source {
-        PlotSource::Rows(rows) => (Some(rows), BTreeMap::new()),
-        PlotSource::Streamed(plots) => (None, plots),
+    let (rows, mut streamed, paged) = match source {
+        PlotSource::Rows(rows) => (rows, BTreeMap::new(), false),
+        PlotSource::Paged { streamed, rows } => (rows, streamed, true),
     };
-    let telemetry: &[dokime::telemetry::TelemetrySample] = rows.as_deref().map_or(&[], |rows| rows);
+    // Plots read the kept rows; documents read raw rows only when they were
+    // all kept for them.
+    let telemetry: &[dokime::telemetry::TelemetrySample] = &rows;
+    let document_telemetry = if paged { &[][..] } else { telemetry };
     let streamed_bytes = streamed.values().fold(0usize, |bytes, plot| {
         bytes.saturating_add(plot.memory_size())
     });
-    let evidence = records
-        .iter()
-        .fold(
-            std::mem::size_of::<Vec<dokime::records::RecordEntry>>(),
-            |bytes, row| bytes.saturating_add(row.memory_size()),
-        )
-        .saturating_add(telemetry.iter().chain(preview).fold(
+    let records_bytes = records.iter().fold(
+        std::mem::size_of::<Vec<dokime::records::RecordEntry>>(),
+        |bytes, row| bytes.saturating_add(row.memory_size()),
+    );
+    let rows_bytes = telemetry.iter().fold(
+        std::mem::size_of::<Vec<dokime::telemetry::TelemetrySample>>(),
+        |bytes, row| bytes.saturating_add(row.memory_size()),
+    );
+    let evidence = records_bytes
+        .saturating_add(rows_bytes)
+        .saturating_add(preview.iter().fold(
             std::mem::size_of::<Vec<dokime::telemetry::TelemetrySample>>(),
             |bytes, row| bytes.saturating_add(row.memory_size()),
         ))
@@ -281,7 +330,7 @@ fn materialize(
                         &selection.scope,
                     ),
                     records: crate::document::input::Records::Native(records),
-                    telemetry,
+                    telemetry: document_telemetry,
                     artifacts: crate::document::input::Artifacts::Outputs(&captured.outputs),
                 },
             },
@@ -296,18 +345,23 @@ fn materialize(
             CardBindingResult::Plot { descriptor } => Some(descriptor),
             _ => None,
         }) {
-            // Plot Working Buffers Need Their Evidence Allowance.
+            let key = (id.to_string(), descriptor.plot_id.to_string());
+            let collector = streamed.remove(&key);
+            // Plot Working Buffers Need Their Evidence Allowance. A builder
+            // works over its own input only: a streamed plot's rows become
+            // points once more while reducing, and a whole-capture plot filters,
+            // indexes and projects at most every kept row and record twice.
+            let input = match &collector {
+                Some(plot) => plot.memory_size(),
+                None => records_bytes.saturating_add(rows_bytes),
+            };
             check(
                 working
                     .saturating_add(documents.memory_size())
                     .saturating_add(plots.memory_size())
                     .saturating_add(selected.memory_size())
-                    .saturating_add(if streaming {
-                        // Streamed rows become points once more while reducing.
-                        evidence.saturating_add(streamed_bytes.saturating_mul(2))
-                    } else {
-                        evidence.saturating_mul(3)
-                    }),
+                    .saturating_add(evidence)
+                    .saturating_add(input.saturating_mul(2)),
                 allowance,
             )?;
             let request = crate::plot::plot_payload_request_for_descriptor(
@@ -323,11 +377,8 @@ fn materialize(
                 run_started_at: execution.started_at.as_ref().map(ToString::to_string),
                 cycle_started_at: cycle.started_at.as_ref().map(ToString::to_string),
             };
-            let payload = if streaming {
-                streamed
-                    .remove(&(id.to_string(), descriptor.plot_id.to_string()))
-                    .ok_or_else(|| invalid("streamed report plot is missing"))?
-                    .finish(records, generated_at.as_str(), &context)
+            let payload = if let Some(plot) = collector {
+                plot.finish(records, generated_at.as_str(), &context)
             } else if request.analysis.is_some() {
                 let payload = crate::plot::project_plot_payload(
                     telemetry,
@@ -427,20 +478,23 @@ fn materialize(
         },
     })
 }
-/// Collectors for every report plot when each one reduces sample by sample
-/// and no document evaluates raw telemetry rows; `None` otherwise.
-fn streamed_plots(
+/// Collectors for every report plot that reduces sample by sample, and the
+/// streams every other plot reads, when no document evaluates raw telemetry
+/// rows and plot ids are unique; `None` otherwise.
+fn paged_plots(
     captured: &CapturedSource,
     execution: &TestExecution,
     records: &[dokime::records::RecordEntry],
     allowance: NonZeroUsize,
-) -> Result<Option<BTreeMap<(String, String), StreamedPlot>>> {
+) -> Result<Option<PagedPlots>> {
     let selection = crate::document::DocumentSelection {
         scope: execution.scope.clone(),
     };
     let context =
         crate::document::input::Context::new(std::slice::from_ref(execution), &selection.scope);
-    let mut plots = BTreeMap::new();
+    let mut streamed = BTreeMap::new();
+    let mut whole = BTreeSet::new();
+    let mut streams = Vec::new();
     for (id, definition) in &captured.context.execution_documents {
         if crate::document::binding::telemetry_needed(definition, context) {
             return Ok(None);
@@ -473,18 +527,25 @@ fn streamed_plots(
                 None,
                 None,
             );
-            let Some(plot) = StreamedPlot::new(request) else {
+            let key = (id.to_string(), descriptor.plot_id.to_string());
+            if streamed.contains_key(&key) || whole.contains(&key) {
                 return Ok(None);
-            };
-            if plots
-                .insert((id.to_string(), descriptor.plot_id.to_string()), plot)
-                .is_some()
-            {
-                return Ok(None);
+            }
+            let read = crate::plot::plot_streams(&request);
+            match StreamedPlot::new(request) {
+                Some(plot) => {
+                    streamed.insert(key, plot);
+                }
+                None => {
+                    streams.extend(read);
+                    whole.insert(key);
+                }
             }
         }
     }
-    Ok(Some(plots))
+    streams.sort_unstable();
+    streams.dedup();
+    Ok(Some(PagedPlots { streamed, streams }))
 }
 
 /// The bounded sample preview a report shows, selected from the execution's
@@ -589,7 +650,14 @@ fn exhausted() -> harmos::Error {
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(dokime::storage::Error::Invalid(reason))
 }
+/// A storage refusal keeps its own classification, so shared-budget
+/// contention stays retryable; any other failure to build the report is
+/// permanent.
 fn codec(source: Error) -> harmos::Error {
+    if let Error::Harmos(source) | Error::Storage(dokime::storage::Error::Runtime(source)) = source
+    {
+        return source;
+    }
     harmos::Error::backend(
         "materialize terminal report",
         harmos::BackendFailure::Permanent,

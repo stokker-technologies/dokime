@@ -45,6 +45,17 @@ const LARGE_PULSE_ROWS: u32 = 20_000;
 /// Points the fixture's pulse plot declares it shows.
 const PULSE_DISPLAY_POINTS: u64 = 400;
 
+/// Rows of the stream the fixture's frequency plot transforms whole: many
+/// storage pages, yet a fraction of the 32 MiB report budget.
+const SPECTRUM_ROWS: u32 = 1_024;
+
+/// Rows of the whole-capture stream that alone exceed the 32 MiB report budget.
+const OVERSIZED_SPECTRUM_ROWS: u32 = 8_192;
+
+/// How a report too large for its whole budget names its permanent cause.
+const UNSEALED: &str = "final execution report was not sealed";
+const EXHAUSTED: &str = "final report materialization memory";
+
 /// How much slower the last case may settle than the first. Work that grows
 /// with the store's history settles the sixth case several times slower.
 const GROWTH: u32 = 3;
@@ -308,6 +319,120 @@ pub(crate) async fn large_case_seals() {
         "the plot was reduced from every captured row, none truncated"
     );
     assert_eq!(series["downsampled"], serde_json::json!(true));
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// a plot that needs its whole capture keeps only its own stream's rows, so a
+// case whose other stream would overflow the report budget still seals both.
+pub(crate) async fn whole_capture_plot_seals() {
+    let root = tempdir().unwrap();
+    let (mut runtime, handle) = started(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({
+                    "pulse_rows": LARGE_PULSE_ROWS,
+                    "spectrum_rows": SPECTRUM_ROWS,
+                }),
+            )
+            .unwrap()]),
+    )
+    .await;
+    let (_, execution_id) =
+        run_case_execution(&handle, "spectrum.whole", Duration::from_secs(300)).await;
+    let html = crate::support::native::report(&handle, &execution_id).await;
+    let payload = crate::support::reports::parse(&html);
+    let plots = &payload["case_runs"][0]["plots"];
+    assert_eq!(
+        plots["fixture.checks.smoke.pulse"]["series"][0]["raw_points"],
+        serde_json::json!(LARGE_PULSE_ROWS),
+        "the streamed plot was reduced from every pulse row"
+    );
+    assert_eq!(
+        plots["fixture.checks.smoke.spectrum"]["series"][0]["raw_points"],
+        serde_json::json!(SPECTRUM_ROWS),
+        "the whole-capture plot read every spectrum row across its pages"
+    );
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// a report whose kept rows exceed the whole report budget settles its run
+// Failed with that permanent cause instead of retrying forever.
+pub(crate) async fn oversized_report_settles() {
+    let root = tempdir().unwrap();
+    let (mut runtime, handle) = started(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({ "spectrum_rows": OVERSIZED_SPECTRUM_ROWS }),
+            )
+            .unwrap()]),
+    )
+    .await;
+    let suite = handle
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|suite| suite.source == "fixture-suites")
+        .unwrap()
+        .suite;
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite: suite.clone(),
+                metadata: Metadata::new(
+                    Identifier::new("spectrum.oversized").unwrap(),
+                    "Oversized",
+                    None,
+                ),
+                cases: materialize_cases("fixture.checks", &suite),
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let receipt = handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    let settled = tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            let receipt = handle
+                .run_request(&receipt.command_id)
+                .await
+                .unwrap()
+                .unwrap();
+            if receipt.summary.phase.terminal() {
+                break receipt;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("an oversized report settles its run instead of retrying");
+    assert_eq!(settled.summary.phase, RunPhase::Failed);
+    assert!(
+        settled
+            .interruption
+            .as_deref()
+            .is_some_and(|cause| cause.starts_with(UNSEALED) && cause.contains(EXHAUSTED)),
+        "the receipt names the exhausted report budget: {:?}",
+        settled.interruption
+    );
+    let cycle = handle
+        .cycles()
+        .await
+        .into_iter()
+        .find(|cycle| cycle.test_cycle_id == cycle_id)
+        .unwrap();
+    assert_eq!(cycle.lifecycle, CycleStatus::Failed);
+    assert!(
+        cycle.saved.is_none(),
+        "an unproduced report is never sealed"
+    );
     drop(handle);
     runtime.shutdown().await.unwrap();
 }

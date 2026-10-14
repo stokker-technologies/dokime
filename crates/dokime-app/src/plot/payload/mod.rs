@@ -37,7 +37,7 @@ use crate::definition::MaterializedParameter;
 use crate::document::{DocumentFilter, FilterOperator, PlotDescriptor, PlotType};
 use crate::execution::CycleView;
 use crate::plot::record_telemetry::record_telemetry_series;
-use crate::plot::record_timing::record_timing_series;
+use crate::plot::record_timing::{RECORD_CONTEXT_STREAM, record_timing_series};
 use crate::records::RecordEntry;
 use crate::traceability::TraceabilitySnapshot;
 use cartesian::cartesian_frame;
@@ -48,6 +48,8 @@ use harmos::storage::reduce::Agg;
 
 /* === Constants === */
 pub(crate) use dokime::document::DEFAULT_PLOT_MAX_POINTS;
+/// The stream whose latest sample gives a channel occupancy plot its context.
+const WIFI_CONTEXT_STREAM: &str = "host.wifi";
 const MARKER_COLORS: [&str; 8] = [
     "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899",
 ];
@@ -145,6 +147,37 @@ pub(crate) fn build_plot_payload(
         return payload;
     }
     finish_plot_payload(payload, &request)
+}
+
+/// Every telemetry stream a whole-capture build of `request` reads: its own,
+/// its z axis, each expression's sources and lookups, and the occupancy
+/// context. Rows of no listed stream never change its payload.
+pub(crate) fn plot_streams(request: &PlotPayloadRequest) -> Vec<String> {
+    let mut streams = vec![request.stream.clone(), RECORD_CONTEXT_STREAM.to_owned()];
+    streams.extend(request.z_stream.clone());
+    if request.plot_type == Some(PlotType::WifiChannelOccupancy) {
+        streams.push(WIFI_CONTEXT_STREAM.to_owned());
+    }
+    let expressions = request
+        .x_expression
+        .iter()
+        .chain(&request.y_expressions)
+        .chain(&request.series_by_expression)
+        .chain(&request.z_expression)
+        .chain(request.filters.iter().map(|filter| &filter.expression));
+    for expression in expressions {
+        if let DataSource::Telemetry { stream, .. } = &expression.source {
+            streams.push(stream.clone());
+        }
+        for transform in &expression.transforms {
+            if let DataTransform::TelemetryAtOrBefore { stream, .. } = transform {
+                streams.push(stream.clone());
+            }
+        }
+    }
+    streams.sort_unstable();
+    streams.dedup();
+    streams
 }
 
 pub(crate) fn project_plot_payload(
@@ -1202,7 +1235,7 @@ fn plot_context(
     let wifi_values = telemetry
         .iter()
         .rev()
-        .find(|sample| sample.stream.as_str() == "host.wifi")
+        .find(|sample| sample.stream.as_str() == WIFI_CONTEXT_STREAM)
         .map(|sample| &sample.values);
 
     copy_context_value(
