@@ -873,6 +873,24 @@ fn execution_contract() {
         run_scenario(execution::sampling::large_case_seals, false, None, false);
     }
     {
+        eprintln!("Scenario: execution::sampling::whole_capture_plot_seals");
+        run_scenario(
+            execution::sampling::whole_capture_plot_seals,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: execution::sampling::oversized_report_settles");
+        run_scenario(
+            execution::sampling::oversized_report_settles,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: execution::sampling::logged_cycle_terminal");
         run_scenario(
             execution::sampling::logged_cycle_terminal,

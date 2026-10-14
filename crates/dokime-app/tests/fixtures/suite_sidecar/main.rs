@@ -47,6 +47,9 @@ const ARTIFACT_EVIDENCE_ROWS: usize = 262_144;
 /// Points the pulse plot declares it shows, whatever the capture's length.
 const PULSE_DISPLAY_POINTS: u32 = 400;
 
+/// Sample rate the spectrum plot transforms its rows at.
+const SPECTRUM_SAMPLE_RATE_HZ: f64 = 100.0;
+
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: Duration::from_secs(5),
     attempt_timeout: Duration::from_secs(5),
@@ -86,6 +89,10 @@ struct Config {
         description = "Logs this many lines from the check step, so every execution owns a sidecar stream log the host seals as a native output when the cycle finishes."
     )]
     log_lines: u32,
+    #[setting(
+        description = "Pushes this many rows onto the template's spectrum stream, whose plot needs the whole capture, so the host keeps those rows while every other stream pages through."
+    )]
+    spectrum_rows: u32,
 }
 
 #[dokime::settings]
@@ -101,6 +108,16 @@ struct SuiteSidecarSettings {
     description = "A stream the smoke step fills only when asked to, so its inspected inventory carries one stream revision a reload can be refused over."
 )]
 pub struct Pulse {
+    value: f64,
+}
+
+#[dokime::stream(
+    id = "fixture-suites.spectrum",
+    window = 1024,
+    label = "Fixture Spectrum",
+    description = "A stream the smoke step fills only when asked to, drawn by a frequency plot that transforms the whole capture at once."
+)]
+pub struct Spectrum {
     value: f64,
 }
 
@@ -135,6 +152,7 @@ struct Behaviour {
     execution_release: String,
     pulse_rows: u32,
     log_lines: u32,
+    spectrum_rows: u32,
 }
 
 struct GetBehaviour {
@@ -145,6 +163,7 @@ struct GetBehaviour {
 #[dokime::catalog]
 pub enum Streams {
     Pulse(Pulse),
+    Spectrum(Spectrum),
 }
 
 #[dokime::catalog]
@@ -188,7 +207,7 @@ impl dokime::harmos::operations::lifecycle::Policy for SuiteSidecar {
         dokime::Suites<Suites>,
         dokime::Settings<SuiteSidecarSettings>,
     ),
-    streams(Pulse),
+    streams(Pulse, Spectrum),
     restart = "never", description = "Registers one suite for runtime loading tests.")]
 impl dokime::Plugin for SuiteSidecar {
     type Config = dokime::plugin::Configuration;
@@ -258,6 +277,7 @@ impl GetBehaviour {
             execution_release: path(&self.config.execution_release),
             pulse_rows: self.config.pulse_rows,
             log_lines: self.config.log_lines,
+            spectrum_rows: self.config.spectrum_rows,
         })
     }
 }
@@ -284,6 +304,14 @@ impl Smoke {
         plot.downsample = dokime::document::DownsampleTechnique::MinMax;
         let mut section = dokime::prelude::Section::new("fixture.checks.smoke.pulse", "Pulse");
         section.plot(plot);
+        let mut spectrum = dokime::prelude::Plot::fft("Spectrum");
+        spectrum.id("fixture.checks.smoke.spectrum");
+        spectrum.y(dokime::expressions::telemetry(
+            "fixture-suites.spectrum",
+            "value",
+        ));
+        spectrum.fft.sample_rate_hz = Some(SPECTRUM_SAMPLE_RATE_HZ);
+        section.plot(spectrum);
         let mut document = dokime::prelude::Document::new("default", "Fixture Smoke");
         document.section(section);
         document
@@ -330,6 +358,16 @@ impl Smoke {
                 rows: self.behaviour.pulse_rows,
             })
             .await;
+        }
+        if self.behaviour.spectrum_rows > 0 {
+            let spectrum = ctx.stream::<Spectrum>().open();
+            for index in 0..self.behaviour.spectrum_rows {
+                spectrum
+                    .push(Spectrum {
+                        value: f64::from(index % 16),
+                    })
+                    .await;
+            }
         }
         if self.behaviour.artifact_evidence {
             let mut evidence = ctx.artifacts().create(ARTIFACT_EVIDENCE_PATH)?;
