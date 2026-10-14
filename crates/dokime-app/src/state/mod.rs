@@ -522,8 +522,8 @@ impl RuntimeState {
             .into_iter()
             .partition(|(_, contract)| declares_foreign_view(contract));
 
-        for (_, contract) in owned {
-            self.ensure_telemetry_definition(contract)
+        for (source, contract) in owned {
+            self.ensure_telemetry_definition(&source, contract)
                 .map_err(|error| error.to_string())?;
         }
         // Only the views name their plugin: a reader is wrong about a contract
@@ -531,7 +531,7 @@ impl RuntimeState {
         // go and fix. An owner's collision already names the stream, and the
         // stream is the plugin's own.
         for (source, contract) in views {
-            self.ensure_telemetry_definition(contract)
+            self.ensure_telemetry_definition(&source, contract)
                 .map_err(|error| format!("plugin {source}: {error}"))?;
         }
         Ok(())
@@ -594,13 +594,18 @@ impl RuntimeState {
         let (foreign_views, owned_streams): (Vec<_>, Vec<_>) = self
             .suites
             .suites()
-            .flat_map(|snapshot| snapshot.telemetry_contracts.clone())
-            .partition(declares_foreign_view);
+            .flat_map(|snapshot| {
+                snapshot
+                    .telemetry_contracts
+                    .iter()
+                    .map(|contract| (snapshot.source.clone(), contract.clone()))
+            })
+            .partition(|(_, contract)| declares_foreign_view(contract));
         for contract in record_contracts {
             self.ensure_record_definition(contract)?;
         }
-        for contract in owned_streams.into_iter().chain(foreign_views) {
-            self.ensure_telemetry_definition(contract)?;
+        for (source, contract) in owned_streams.into_iter().chain(foreign_views) {
+            self.ensure_telemetry_definition(&source, contract)?;
         }
         Ok(())
     }
@@ -636,26 +641,54 @@ impl RuntimeState {
         Ok(())
     }
 
+    /// Admits one plugin's declaration of a stream. The stream belongs to the
+    /// plugin that declares it, and any number of that plugin's templates may
+    /// declare it again with the same schema: each keeps its own declaration
+    /// in its suite, which is what grants it publication. Another plugin only
+    /// ever reads the stream through a foreign view.
     pub fn ensure_telemetry_definition(
         &mut self,
+        source: &str,
         contract: TelemetryContract,
     ) -> Result<(), RuntimeStateInstallError> {
-        if let Some(definition) = self.telemetry_definitions.get(&contract.stream) {
-            let incoming = contract.normalized();
-            if definition.normalized() == incoming {
-                return Ok(());
-            }
-            return if declares_foreign_view(&contract) {
-                admit_foreign_view(definition, &contract)
+        let Some(definition) = self.telemetry_definitions.get(&contract.stream) else {
+            self.telemetry_definitions
+                .insert(contract.stream.clone(), contract);
+            return Ok(());
+        };
+        if declares_foreign_view(&contract) {
+            return if definition.normalized() == contract.normalized() {
+                Ok(())
             } else {
-                Err(RuntimeStateInstallError::DuplicateTelemetry(
-                    contract.stream,
-                ))
+                admit_foreign_view(definition, &contract)
             };
         }
-        self.telemetry_definitions
-            .insert(contract.stream.clone(), contract);
-        Ok(())
+        if definition.stream_schema() == contract.stream_schema()
+            && !self.owned_elsewhere(source, &contract.stream)
+        {
+            return Ok(());
+        }
+        Err(RuntimeStateInstallError::DuplicateTelemetry(
+            contract.stream,
+        ))
+    }
+
+    /// Whether a plugin other than `source` declares `stream` as its own.
+    fn owned_elsewhere(&self, source: &str, stream: &dokime::core::Identifier) -> bool {
+        let suites = self
+            .suites
+            .suites()
+            .filter(|snapshot| snapshot.source != source)
+            .flat_map(|snapshot| &snapshot.telemetry_contracts);
+        let plugins = self
+            .installed_plugins
+            .values()
+            .filter(|installation| installation.source != source)
+            .flat_map(|installation| &installation.telemetry_contracts);
+
+        suites
+            .chain(plugins)
+            .any(|declared| !declares_foreign_view(declared) && &declared.stream == stream)
     }
 
     pub(crate) fn historical_record_contracts(

@@ -943,6 +943,33 @@ fn execution_contract() {
             false,
         );
     }
+    {
+        eprintln!("Scenario: telemetry::shared::shared_stream_publishes");
+        run_scenario(
+            telemetry::shared::shared_stream_publishes,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: telemetry::shared::shared_stream_schema_refused");
+        run_scenario(
+            telemetry::shared::shared_stream_schema_refused,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: telemetry::shared::shared_stream_owner_refused");
+        run_scenario(
+            telemetry::shared::shared_stream_owner_refused,
+            false,
+            None,
+            false,
+        );
+    }
 }
 
 #[test]
