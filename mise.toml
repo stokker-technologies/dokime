@@ -115,7 +115,6 @@ run = [
   { task = "check:bundles" },
   { task = "bindings:check" },
   { task = "bindings:python:check" },
-  { task = "bindings:python:check" },
   { task = "version:check" },
   { task = "installer:check" },
 ]
