@@ -148,12 +148,13 @@ fn decode(request: &mut wire::AggregateRequest) -> Result<AggregateQuery, Status
             value::text(&aggregate.column)?;
         }
         value::text(&aggregate.alias)?;
-        value::text(&aggregate.aggregate)?;
-        let kind = harmos::Aggregate::parse(&aggregate.aggregate).ok_or_else(|| {
-            Status::invalid_argument("aggregate is not a member of the vocabulary")
-        })?;
+        if !aggregate.aggregate.answerable() {
+            return Err(Status::invalid_argument(
+                "aggregate percentile rank exceeds 100",
+            ));
+        }
         aggregates.push(AggregateColumn {
-            aggregate: kind,
+            aggregate: aggregate.aggregate,
             column: aggregate.column,
             alias: aggregate.alias,
         });

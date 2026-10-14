@@ -16,6 +16,7 @@
 
 # Local Imports
 from ._transport import DiscoveredOperation as DiscoveredOperation
+from .aggregate import Aggregate as Aggregate
 from .capture import Artifact as Artifact
 from .capture import Capture as Capture
 from .capture import CaptureResult as CaptureResult

@@ -162,12 +162,12 @@ pub struct DataTransform {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EmptyTransform {}
 
-// One member of the Harmos aggregate vocabulary by its wire name: `count`,
-// `sum`, `mean`, `median`, `min`, `max`, `rms`, `std` or `p0` to `p100`.
+// One member of the Harmos aggregate vocabulary as its enum message; a
+// percentile rank above 100 is refused.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregateTransform {
-    pub aggregate: String,
+    pub aggregate: harmos::Aggregate,
 }
 
 #[harmos::message]

@@ -37,6 +37,7 @@ import type {
   Metadata,
 } from "@/lib/types";
 import * as documentWire from "../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb";
+import { aggregateName } from "./native-aggregate";
 import {
   enumTail,
   mapNativeValueFormat,
@@ -704,7 +705,7 @@ function mapNativeExpression(value?: DataExpression): DocumentDataExpression | n
       case "Aggregate":
         return {
           type: "aggregate" as const,
-          aggregate: kind.value.field0.aggregate,
+          aggregate: aggregateName(kind.value.field0.aggregate),
         };
       case "TimeBetween":
         if (!kind.value.field0) invalid("expression transform is missing");

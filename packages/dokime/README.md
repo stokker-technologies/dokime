@@ -122,6 +122,40 @@ the live provider. Contract drift and unavailable gRPC bindings are refused.
 RPC failures retain their status, initial/trailing metadata and native cause;
 mutating calls are never automatically retried.
 
+## Aggregate Queries
+
+`Query.Aggregate` and plot expressions name their statistic with the Harmos
+aggregate enum message: one `_harmos_variant` oneof whose members are `Count`,
+`Sum`, `Mean`, `Median`, `Min`, `Max`, `Rms`, `Std` and `Percentile`, which
+carries a `rank` from 0 to 100. `Aggregate` builds and reads that field for any
+generated message; ranks outside 0 to 100 are refused before transmission.
+
+```python
+from dokime import DOKIME_QUERY_AGGREGATE
+from dokime.client import Aggregate
+
+request = DOKIME_QUERY_AGGREGATE.request(
+    source={"Steps": {}},
+    group_by=["identifier"],
+    aggregates=[
+        {
+            "aggregate": Aggregate.percentile(95).to_wire(),
+            "column": "duration_ms",
+            "alias": "p95",
+        },
+        {"aggregate": Aggregate.count().to_wire(), "alias": "samples"},
+    ],
+)
+reply = await client.call(DOKIME_QUERY_AGGREGATE, request)
+
+assert Aggregate.from_wire(request.aggregates[0].aggregate) == Aggregate.percentile(95)
+```
+
+The generated field remains a plain protobuf oneof:
+`entry.aggregate.Percentile.rank = 95` selects the percentile, and
+`entry.aggregate.WhichOneof("_harmos_variant")` names the member. An absent
+member reads as `Count`.
+
 ## Follow And Resume Execution Files
 
 `TestExecutionHandle.follow_file(relative_path, destination)` keeps a local file

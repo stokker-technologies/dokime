@@ -57,7 +57,7 @@ pub(crate) async fn aggregate_answers_asked() {
             filters: Vec::new(),
             group_by: vec!["status".to_owned()],
             aggregates: vec![contracts::query::QueryAggregate {
-                aggregate: "count".into(),
+                aggregate: harmos::Aggregate::Count,
                 column: String::new(),
                 alias: "total".to_owned(),
             }],
@@ -83,7 +83,7 @@ pub(crate) async fn unknown_column_exist() {
             filters: Vec::new(),
             group_by: vec!["step_id".to_owned()],
             aggregates: vec![contracts::query::QueryAggregate {
-                aggregate: "mean".into(),
+                aggregate: harmos::Aggregate::Mean,
                 column: "duration_ms".to_owned(),
                 alias: "mean".to_owned(),
             }],
@@ -97,50 +97,44 @@ pub(crate) async fn unknown_column_exist() {
     assert!(status.message().contains("template_identifier"));
 }
 
-// The aggregate is a member of the Harmos vocabulary by its wire name; a name
-// outside it, or a percentile past 100, is refused before any row is read.
-pub(crate) async fn unknown_aggregate_refused() {
+// The aggregate travels as the Harmos enum message; a percentile keeps its rank
+// across the gRPC codec, and a rank past 100 is refused before any row is read.
+pub(crate) async fn percentile_rank_bounded() {
     let root = tempfile::tempdir().unwrap();
     let (_held, client) = client(root.path()).await;
+    let request = |aggregate| contracts::query::AggregateRequest {
+        source: contracts::query::QuerySource::Steps,
+        filters: Vec::new(),
+        group_by: Vec::new(),
+        aggregates: vec![contracts::query::QueryAggregate {
+            aggregate,
+            column: "duration_ms".to_owned(),
+            alias: "statistic".to_owned(),
+        }],
+        limit: 0,
+    };
 
-    for name in ["average", "p101", "P95"] {
+    for rank in [101, 255] {
         let status = client
-            .unary::<contracts::query::Aggregate>(authenticated(
-                contracts::query::AggregateRequest {
-                    source: contracts::query::QuerySource::Steps,
-                    filters: Vec::new(),
-                    group_by: Vec::new(),
-                    aggregates: vec![contracts::query::QueryAggregate {
-                        aggregate: name.into(),
-                        column: "duration_ms".to_owned(),
-                        alias: "statistic".to_owned(),
-                    }],
-                    limit: 0,
-                },
-            ))
+            .unary::<contracts::query::Aggregate>(authenticated(request(
+                harmos::Aggregate::Percentile(rank),
+            )))
             .await
             .unwrap_err();
 
-        assert_eq!(status.code(), tonic::Code::InvalidArgument, "{name}");
-        assert!(status.message().contains("vocabulary"), "{name}");
+        assert_eq!(status.code(), tonic::Code::InvalidArgument, "{rank}");
+        assert!(status.message().contains("rank exceeds 100"), "{rank}");
     }
 
     let reply = client
-        .unary::<contracts::query::Aggregate>(authenticated(contracts::query::AggregateRequest {
-            source: contracts::query::QuerySource::Steps,
-            filters: Vec::new(),
-            group_by: Vec::new(),
-            aggregates: vec![contracts::query::QueryAggregate {
-                aggregate: "p95".into(),
-                column: "duration_ms".to_owned(),
-                alias: "p95".to_owned(),
-            }],
-            limit: 0,
-        }))
+        .unary::<contracts::query::Aggregate>(authenticated(request(
+            harmos::Aggregate::Percentile(95),
+        )))
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(reply.columns, ["p95"]);
+    assert_eq!(reply.columns, ["statistic"]);
+    assert!(reply.complete);
 }
 
 pub(crate) async fn unspecified_source_read() {
@@ -178,7 +172,7 @@ pub(crate) async fn detailed_status_directory() {
             source: contracts::query::QuerySource::Steps,
             group_by: vec![format!("{home}/evidence")],
             aggregates: vec![contracts::query::QueryAggregate {
-                aggregate: "count".into(),
+                aggregate: harmos::Aggregate::Count,
                 column: String::new(),
                 alias: "total".into(),
             }],

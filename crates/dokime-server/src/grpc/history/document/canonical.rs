@@ -323,7 +323,7 @@ fn data_transform(
     use plots::DataTransformKind as Kind;
     let kind = match value {
         DataTransform::Aggregate(aggregate) => Kind::Aggregate(plots::AggregateTransform {
-            aggregate: aggregate.name(),
+            aggregate: *aggregate,
         }),
         DataTransform::TimeBetween {
             previous_record_type,

@@ -45,6 +45,7 @@ import type {
 } from "@/lib/types";
 import * as plotWire from "../../../.generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
 import type { Row3 as WatchFrame } from "../../../.generated/dokime/v1/PlotsMessages/Watch/messages_pb";
+import { aggregateMessage } from "./native-aggregate";
 import { mapParameter } from "./native-catalog";
 import {
   jsonToNativeValue,
@@ -579,7 +580,9 @@ function dataTransform(value: unknown): DataTransform {
         kind: {
           HarmosVariant: {
             case: "Aggregate",
-            value: { field0: { aggregate: requiredText(input.aggregate, "aggregate") } },
+            value: {
+              field0: { aggregate: aggregateMessage(requiredText(input.aggregate, "aggregate")) },
+            },
           },
         },
       });

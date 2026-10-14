@@ -313,7 +313,7 @@ fn data_transform_wire(
     let kind = match transform {
         DataTransform::Aggregate(aggregate) => {
             Kind::Aggregate(dokime_contract::operations::plots::AggregateTransform {
-                aggregate: aggregate.name(),
+                aggregate: *aggregate,
             })
         }
         DataTransform::TimeBetween {

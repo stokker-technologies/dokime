@@ -391,11 +391,12 @@ fn data_transform(
         .ok_or_else(|| Status::invalid_argument("data transform kind is required"))?;
     Ok(match kind {
         dokime_contract::operations::plots::DataTransformKind::Aggregate(value) => {
-            DataTransform::Aggregate(
-                harmos::Aggregate::parse(&value.aggregate).ok_or_else(|| {
-                    Status::invalid_argument("data transform aggregate is unknown")
-                })?,
-            )
+            if !value.aggregate.answerable() {
+                return Err(Status::invalid_argument(
+                    "data transform aggregate percentile rank exceeds 100",
+                ));
+            }
+            DataTransform::Aggregate(value.aggregate)
         }
         dokime_contract::operations::plots::DataTransformKind::TimeBetween(value) => {
             DataTransform::TimeBetween {

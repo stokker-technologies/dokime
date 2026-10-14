@@ -56,19 +56,20 @@ pub struct QueryFilter {
     pub values: Vec<Value>,
 }
 
-// `aggregate` names one member of the Harmos aggregate vocabulary by its wire
-// name: `count`, `sum`, `mean`, `median`, `min`, `max`, `rms`, `std` or `p0`
-// to `p100` (`harmos::Aggregate::name`). `count` with an empty column counts
-// rows; `count` with a column counts its non-null values. Every other member
-// requires a column. Null inputs are skipped by every member, so `mean` over a
-// nullable column is the mean of the rows that have a value. `min` and `max`
-// order any one scalar type; the rest require numbers. `alias` names the
+// `aggregate` is one member of the Harmos aggregate vocabulary, carried as
+// its enum message: `Count`, `Sum`, `Mean`, `Median`, `Min`, `Max`, `Rms`,
+// `Std` or `Percentile { rank }` with a rank from 0 to 100; a larger rank is
+// refused and an absent member reads as `Count`. `Count` with an empty column
+// counts rows; `Count` with a column counts its non-null values. Every other
+// member requires a column. Null inputs are skipped by every member, so `Mean`
+// over a nullable column is the mean of the rows that have a value. `Min` and
+// `Max` order any one scalar type; the rest require numbers. `alias` names the
 // output column and must be unique across the request and distinct from every
 // `group_by` name.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryAggregate {
-    pub aggregate: String,
+    pub aggregate: harmos::Aggregate,
     pub column: String,
     pub alias: String,
 }

@@ -25,6 +25,7 @@ import type {
   Row2 as GeneratedAggregateReply,
   Row14 as GeneratedValue,
 } from "../../../.generated/dokime/v1/QueryMessages/Aggregate/messages_pb";
+import { aggregateMessage } from "./native-aggregate";
 import { jsonToNativeValue, NativeApiLimitError, safeNumber } from "./native-values";
 
 type AggregateReply = Wire<GeneratedAggregateReply>;
@@ -76,12 +77,12 @@ export async function fetchNativeStepDurations(
       {
         alias: SAMPLE_COUNT_ALIAS,
         column: DURATION_COLUMN,
-        aggregate: "count",
+        aggregate: aggregateMessage("count"),
       },
       {
         alias: MEAN_MS_ALIAS,
         column: DURATION_COLUMN,
-        aggregate: "mean",
+        aggregate: aggregateMessage("mean"),
       },
     ],
     filters: [

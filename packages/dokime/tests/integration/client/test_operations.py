@@ -21,7 +21,7 @@ import pytest
 
 # Local Imports
 import dokime
-from dokime.client import DokimeClient, ProtocolError
+from dokime.client import Aggregate, DokimeClient, ProtocolError
 from dokime.dynamic import from_contract
 
 from .canonical import register
@@ -184,6 +184,28 @@ def test_external_operation(mode: str) -> None:
             await server.stop(0)
 
     asyncio.run(scenario())
+
+
+def test_aggregate_wire_round_trip() -> None:
+    request = dokime.DokimeQueryAggregateRequest(
+        aggregates=[
+            {"aggregate": Aggregate.percentile(95).to_wire(), "column": "duration_ms"},
+            {"aggregate": Aggregate.count().to_wire()},
+        ]
+    )
+    decoded = dokime.DokimeQueryAggregateRequest.FromString(request.SerializeToString())
+    percentile, count = (entry.aggregate for entry in decoded.aggregates)
+
+    assert percentile.WhichOneof("_harmos_variant") == "Percentile"
+    assert percentile.Percentile.rank == 95
+    assert Aggregate.from_wire(percentile) == Aggregate.percentile(95)
+    assert Aggregate.from_wire(count) == Aggregate.count()
+    assert str(Aggregate.percentile(95)) == "p95"
+    # An absent member reads as Count, as the Harmos codec decodes it.
+    assert Aggregate.from_wire(type(count)()) == Aggregate.count()
+    for rank in (-1, 101):
+        with pytest.raises(ValueError, match="outside 0 to 100"):
+            Aggregate.percentile(rank)
 
 
 # === Private Functions === #
