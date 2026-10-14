@@ -35,11 +35,11 @@ export function PluginSettingsCards({ cards }: PluginSettingsCardsProps) {
   }
 
   return (
-    <div className="grid gap-6">
+    <>
       {cards.map((card) => (
         <PluginSettingsCard card={card} key={`${card.plugin_id}:${card.card_id}`} />
       ))}
-    </div>
+    </>
   );
 }
 

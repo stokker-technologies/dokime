@@ -57,7 +57,7 @@ export function AccountUpdatesSection() {
       : "Not signed in.";
 
   return (
-    <div className="grid gap-6">
+    <>
       <SettingsCard title="Account">
         <SettingsRow description={accountLabel} label="GitLab">
           <Button
@@ -96,6 +96,6 @@ export function AccountUpdatesSection() {
       ) : null}
 
       <DesktopUpdateDialog onOpenChange={setDialogOpen} open={dialogOpen} />
-    </div>
+    </>
   );
 }

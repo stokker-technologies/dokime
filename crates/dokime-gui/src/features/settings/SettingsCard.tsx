@@ -36,7 +36,11 @@ export function SettingsCard({
   title,
 }: SettingsCardProps) {
   return (
-    <section className={cn("overflow-hidden rounded-lg border bg-card", className)}>
+    /* A column, so a card stretched to its grid row grows its body and keeps
+       the footer on the row's bottom edge. */
+    <section
+      className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card", className)}
+    >
       {title || description ? (
         <header className="border-b px-4 py-3">
           {title ? <h2 className="text-sm font-semibold">{title}</h2> : null}
@@ -45,7 +49,7 @@ export function SettingsCard({
           ) : null}
         </header>
       ) : null}
-      <div className="divide-y">{children}</div>
+      <div className="flex-1 divide-y">{children}</div>
       {footer ? <footer className="border-t bg-muted/20 px-4 py-3">{footer}</footer> : null}
     </section>
   );

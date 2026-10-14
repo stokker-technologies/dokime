@@ -119,7 +119,7 @@ export function DiagnosticsSection() {
   );
 
   return (
-    <div className="grid gap-6">
+    <>
       <SettingsCard title="Server">
         <SettingsRow label="Status">
           <Badge className={startupBadgeClass(runtime.startup_doctor.status)}>
@@ -176,7 +176,7 @@ export function DiagnosticsSection() {
           </SettingsRow>
         ) : null}
       </SettingsCard>
-    </div>
+    </>
   );
 }
 

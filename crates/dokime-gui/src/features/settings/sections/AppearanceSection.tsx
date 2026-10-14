@@ -99,7 +99,7 @@ function AppearanceControls({
   const modeControlDisabled = disabled || saving || appearance.mode_locked || Boolean(forcedTheme);
 
   return (
-    <div className="grid gap-6">
+    <>
       <SettingsCard title="Appearance">
         {loadError ? (
           <SettingsRow label="Status">
@@ -199,6 +199,6 @@ function AppearanceControls({
           </div>
         </SettingsRow>
       </SettingsCard>
-    </div>
+    </>
   );
 }

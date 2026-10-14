@@ -22,14 +22,15 @@ import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/features/settings/SettingsCard";
+import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
 import { AboutSection } from "@/features/settings/sections/AboutSection";
 import { AccountUpdatesSection } from "@/features/settings/sections/AccountUpdatesSection";
 import { AppearanceSection } from "@/features/settings/sections/AppearanceSection";
-import { PluginSettingsSection } from "@/features/settings/sections/PluginSettingsSection";
 import { DiagnosticsSection } from "@/features/settings/sections/DiagnosticsSection";
 import { GeneralSection } from "@/features/settings/sections/GeneralSection";
 import { IdentitySection } from "@/features/settings/sections/IdentitySection";
+import { PluginSettingsSection } from "@/features/settings/sections/PluginSettingsSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
 import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
 import {
@@ -80,14 +81,18 @@ export function SettingsSurface({
           <PluginsSection />
         </div>
       ) : (
-        <div className="w-full max-w-[1040px] p-[var(--shell-inset)]">
-          <SectionContent
-            frame={frame}
-            loadError={settings.error}
-            loading={settings.loading}
-            retry={settings.retry}
-            section={section}
-          />
+        /* Every section returns its cards as siblings so they land directly
+           in the one settings grid. */
+        <div className="p-[var(--shell-inset)]">
+          <SettingsGrid>
+            <SectionContent
+              frame={frame}
+              loadError={settings.error}
+              loading={settings.loading}
+              retry={settings.retry}
+              section={section}
+            />
+          </SettingsGrid>
         </div>
       )}
     </div>
@@ -109,10 +114,10 @@ function SectionContent({
 }) {
   if (section === "general")
     return (
-      <div className="grid gap-4">
+      <>
         <GeneralSection />
         <StorageSourcesCard />
-      </div>
+      </>
     );
   if (section === "appearance") return <AppearanceSection />;
 

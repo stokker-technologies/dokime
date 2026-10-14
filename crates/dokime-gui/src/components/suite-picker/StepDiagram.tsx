@@ -132,7 +132,7 @@ export function StepDiagram({
       {/* Description left, template facts right; the panel is only as tall as
           the description makes it and the facts align to its top. */}
       <div className="grid min-h-12 items-start gap-4 rounded-md bg-muted/20 px-3 py-2 md:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="min-w-0 max-w-prose text-sm text-muted-foreground [&_li]:leading-[1.5] [&_p]:leading-[1.5]">
+        <div className="min-w-0 max-w-[var(--prose-measure)] text-sm text-muted-foreground [&_li]:leading-[1.5] [&_p]:leading-[1.5]">
           {description ? (
             <MarkdownText text={flowSoftBreaks(description)} />
           ) : (

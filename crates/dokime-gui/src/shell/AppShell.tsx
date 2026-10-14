@@ -160,9 +160,11 @@ function PageBar({ frozen }: { frozen: FrozenShell | null }) {
   return (
     /* The bar is its controls plus air: `--bar-pad-y` above and below a
        `--bar-control-height` control, `--bar-gap` between the page action and
-       the Application menu, and the shell inset at the right edge. */
+       the Application menu, and the shell inset at the right edge. It sits on
+       the content surface with no rule of its own: the title belongs to the
+       page below it. */
     <header
-      className="flex shrink-0 items-center justify-between gap-[var(--bar-gap)] border-b bg-card px-[var(--shell-inset)] py-[var(--bar-pad-y)]"
+      className="flex shrink-0 items-center justify-between gap-[var(--bar-gap)] px-[var(--shell-inset)] py-[var(--bar-pad-y)]"
       style={{ height: "var(--page-bar-height)" }}
     >
       <div className="flex min-w-0 items-center gap-[var(--shell-gap)]">

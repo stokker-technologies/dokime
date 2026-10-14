@@ -100,20 +100,13 @@ export function Sidebar(props: SidebarProps) {
       style={{ width }}
     >
       {/* The mark and the product name, once, as one centred block at the top
-          of the one sidebar.
-          The block is the page bar's height plus the air the mark asks for
-          (24px above and below, 32px at touch), so its rule sits below the
-          page bar's rather than on it. The two bands are deliberately not one
-          line here: a mark crowded against a 48px bar reads as a toolbar icon,
-          and the sidebar's own rule is what the destination rows align to.
-          The height is fixed, so the first destination starts on the same y
+          of the one sidebar. It is exactly the page bar's height, so the brand
+          bar and the page title bar end on one line at every density. The
+          height is fixed, so the first destination starts on the same y
           whether the rail is open or collapsed. */}
       <div
         className="grid place-items-center border-b px-[var(--shell-gap)]"
-        style={{
-          minHeight:
-            "calc(var(--page-bar-height) + 2 * var(--sidebar-brand-pad, 1.5rem) - 2 * var(--bar-pad-y))",
-        }}
+        style={{ height: "var(--page-bar-height)" }}
       >
         <div className="flex min-w-0 items-center justify-center gap-2">
           <BrandMark />

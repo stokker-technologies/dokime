@@ -133,7 +133,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
 
   return (
     <div className="grid content-start">
-      <div className="mx-auto grid w-full max-w-5xl gap-4 p-[var(--shell-inset)]">
+      <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
         {/* One toolbar row: Back on the left column, the bundle action on the
             right, both on the same fixed control height. */}
         <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[var(--shell-gap)]">
@@ -157,7 +157,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
         {unrun ? (
           <section aria-label="Case never run" className="grid gap-2 rounded-md border p-3">
             <h2 className="font-medium">This case was never run</h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="max-w-[var(--prose-measure)] text-sm text-muted-foreground">
               {unrun.metadata.title} was planned and never started, so this execution has no
               acquisition, no steps and no records behind it.
             </p>

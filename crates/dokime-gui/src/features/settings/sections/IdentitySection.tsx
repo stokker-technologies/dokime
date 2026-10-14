@@ -24,7 +24,7 @@ export function IdentitySection({ frame }: IdentitySectionProps) {
   const cards = frame?.cards.filter((card) => card.section_id === "identity") ?? [];
 
   return (
-    <div className="grid gap-6">
+    <>
       <SettingsCard title="Identity">
         <SettingsRow
           control={<span className="text-sm text-muted-foreground">Dokime</span>}
@@ -33,6 +33,6 @@ export function IdentitySection({ frame }: IdentitySectionProps) {
         />
       </SettingsCard>
       <PluginSettingsCards cards={cards} />
-    </div>
+    </>
   );
 }

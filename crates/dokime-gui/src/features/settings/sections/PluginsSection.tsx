@@ -162,10 +162,10 @@ export function PluginsSection() {
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto grid max-w-[1040px] gap-6 pb-4">
+      <div className="grid gap-[var(--section-gap)] pb-4">
         <header>
           <h1 className="text-lg font-semibold">Plugins</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 max-w-[var(--prose-measure)] text-sm text-muted-foreground">
             Install and manage .dokime plugin bundles. New installs activate only after the next
             Dokime restart.
           </p>
