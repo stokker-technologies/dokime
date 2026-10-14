@@ -167,6 +167,9 @@
 /* Theme Values */
 
 :root {
+  /* The application menu bar: one thin row of menu titles above the shell,
+     28px on a desk and 40px at touch. */
+  --menu-bar-height: 1.75rem;
   --status-bar-height: 1.75rem;
   --settings-row-py: 0.75rem;
   /* The settings content column: one label width and one value measure so
@@ -248,6 +251,7 @@
 /* Touch: 56px primary run controls, 48px for every other control, list row,
    and the status bar; 12px gaps; a 16px base; a 56px page bar. */
 :root[data-density="touch"] {
+  --menu-bar-height: 2.5rem;
   --status-bar-height: 3rem;
   --settings-row-py: 1rem;
   --settings-row-height: 3rem;
