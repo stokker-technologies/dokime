@@ -58,6 +58,9 @@ export const commands = {
   desktopProfilesList: () => invoke<BackendProfiles>("desktop_profiles_list"),
   /** Open the failed owned start's log; the shell supplies the path. */
   desktopOpenBackendLog: () => invoke<null>("desktop_open_backend_log"),
+  /** Development only: delete the owned backend's storage and restart it. */
+  desktopResetLocalStorage: (directory: string) =>
+    invoke<DesktopSessionSnapshot>("desktop_reset_local_storage", { directory }),
   desktopOpenPath: (path: string) => invoke<null>("desktop_open_path", { path }),
   desktopOpenTarget: (target: string) => invoke<null>("desktop_open_target", { target }),
   /** Save a verified document through the native file picker. */

@@ -80,6 +80,21 @@ pub enum DesktopSessionError {
     Connection {
         error: ConnectionError,
     },
+    StorageReset {
+        reason: StorageResetReason,
+        message: String,
+    },
+}
+
+/// Why the shell refused or failed to reset its owned backend's storage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageResetReason {
+    DevelopmentOnly,
+    NotOwned,
+    BackendRunning,
+    OutsideRoot,
+    Failed,
 }
 
 /* === Traits === */

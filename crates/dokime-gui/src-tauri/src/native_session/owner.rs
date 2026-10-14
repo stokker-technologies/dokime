@@ -14,15 +14,17 @@
 /* === Imports === */
 // Standard Library Imports
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 // Third Party Imports
 
 // Local Imports
 use super::backend::{Backend, Process};
+use super::storage::StorageRoot;
 use super::{
     BackendOwnership, BackendSelection, DesktopSessionError as Error, DesktopSessionSnapshot,
+    StorageResetReason,
 };
 use crate::connection::{
     ConnectRequest, ConnectionCredentials, ConnectionSession, ConnectionTarget,
@@ -198,6 +200,38 @@ impl DesktopSession {
         }
         result
     }
+    /// Stops the owned backend, deletes the contents of its data root and
+    /// starts it again on the empty root with the same settings.
+    pub async fn reset_local_storage(
+        &self,
+        confirmed: &Path,
+        root: StorageRoot,
+    ) -> Result<DesktopSessionSnapshot, Error> {
+        // Refuse Before Touching The Running Backend
+        if self.status().ownership != BackendOwnership::OwnedLocal {
+            return Err(Error::StorageReset {
+                reason: StorageResetReason::NotOwned,
+                message: "Only a backend this desktop started can have its storage reset."
+                    .to_owned(),
+            });
+        }
+        root.verify(confirmed)?;
+        self.backend()?;
+
+        // Reset Under A New Revision
+        let revision = self.begin(false)?;
+        let owner = self.clone();
+        let result = tokio::spawn(async move { owner.reset_owned(revision, root).await })
+            .await
+            .map_err(|error| Error::Startup {
+                message: error.to_string(),
+                diagnostics: None,
+            })?;
+        if let Err(error) = &result {
+            self.fail(revision, error);
+        }
+        result
+    }
     pub async fn disconnect(&self) -> Result<DesktopSessionSnapshot, Error> {
         self.stop(false).await
     }
@@ -267,6 +301,16 @@ impl DesktopSession {
         self.current(revision)?;
         resources.shutdown().await?;
         self.current(revision)?;
+        self.establish(revision, selection, &mut resources).await
+    }
+    /// Starts or attaches the selected backend once the previous one is gone,
+    /// and connects to it; the caller holds the transition lock throughout.
+    async fn establish(
+        &self,
+        revision: u64,
+        selection: BackendSelection,
+        resources: &mut Resources,
+    ) -> Result<DesktopSessionSnapshot, Error> {
         let (request, ownership) = match selection {
             BackendSelection::Profile { .. } => unreachable!("profile resolved before transition"),
             BackendSelection::Attach { request } => (request, BackendOwnership::Attached),
@@ -333,6 +377,41 @@ impl DesktopSession {
                 Err(Error::Connection { error })
             }
         }
+    }
+    async fn reset_owned(
+        &self,
+        revision: u64,
+        root: StorageRoot,
+    ) -> Result<DesktopSessionSnapshot, Error> {
+        // Stop The Owned Backend
+        // The transition lock stays held until the new backend is ready, so
+        // no other selection starts a backend on a half-deleted root.
+        let mut resources = self.0.transition.lock().await;
+        self.current(revision)?;
+        self.report_phase(revision, "stopping");
+        resources.shutdown().await?;
+        self.current(revision)?;
+
+        // Delete The Contents Of The Data Root
+        self.report_phase(revision, "deleting");
+        let path = root.path().to_path_buf();
+        tracing::warn!(root = %path.display(), "resetting local storage");
+        tokio::task::spawn_blocking(move || root.clear())
+            .await
+            .map_err(|error| Error::StorageReset {
+                reason: StorageResetReason::Failed,
+                message: error.to_string(),
+            })?
+            .inspect_err(|error| {
+                tracing::error!(root = %path.display(), ?error, "local storage reset refused");
+            })?;
+        tracing::warn!(root = %path.display(), "local storage deleted");
+
+        // Start Again On The Empty Root
+        self.current(revision)?;
+        self.report_phase(revision, "starting");
+        self.establish(revision, BackendSelection::OwnedLocal, &mut resources)
+            .await
     }
 }
 

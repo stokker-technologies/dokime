@@ -59,6 +59,10 @@ const PHASE_POLL_INTERVAL_MS = 300;
  * them. The wire carries only the phase it is in, so the order lives here. */
 const STARTUP_PHASES = ["storage", "plugins", "requests"] as const;
 
+/** The steps a local storage reset reports. The shell reports the first three
+ * itself; every backend startup phase after them belongs to "Starting". */
+const RESET_PHASES = ["stopping", "deleting", "starting"] as const;
+
 /* === Components === */
 
 export function ConnectionScreen({
@@ -87,6 +91,7 @@ export function ConnectionScreen({
   const [ca, setCa] = useState("");
   const [phase, setPhase] = useState<string | null>(null);
   const busy = state.phase === "connecting";
+  const reset = state.phase === "connecting" && state.reset;
   const error = state.phase === "failed" ? state.error : (launchError ?? launch?.error);
   const diagnostics = startupDiagnostics(error);
 
@@ -181,12 +186,12 @@ export function ConnectionScreen({
         <h1 className="font-heading text-3xl leading-none font-semibold">{defaultBrand.label}</h1>
 
         <p className="text-sm text-muted-foreground" {...(busy ? { role: "status" } : {})}>
-          {stateSentence({ busy, error: Boolean(error), launch })}
+          {stateSentence({ busy, error: Boolean(error), launch, reset })}
         </p>
 
         {busy ? (
           <>
-            <StartupSteps current={phase} />
+            {reset ? <ResetSteps current={phase} /> : <StartupSteps current={phase} />}
             <div className="grid w-full gap-3">
               <Button className="w-full" onClick={() => void owner.disconnect()} variant="outline">
                 Cancel
@@ -344,34 +349,58 @@ function StartupSteps({ current }: { current: string | null }) {
 
   return (
     <ol aria-label="Startup Phases" className="grid w-full gap-2 text-left">
-      {phases.map((name, position) => {
-        const done = index >= 0 && position < index;
-        const active = position === index;
-        return (
-          <li
-            className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 text-sm"
-            data-state={done ? "done" : active ? "active" : "waiting"}
-            key={name}
-          >
-            <span className="grid size-5 place-items-center">
-              {done ? (
-                <Check aria-hidden className="text-primary" size={14} />
-              ) : (
-                <span
-                  aria-hidden
-                  className={
-                    active ? "size-2 rounded-full bg-primary" : "size-2 rounded-full bg-border"
-                  }
-                />
-              )}
-            </span>
-            <span className={active ? "font-medium text-foreground" : "text-muted-foreground"}>
-              {phaseLabel(name)}
-            </span>
-          </li>
-        );
-      })}
+      {phases.map((name, position) => (
+        <Step
+          active={position === index}
+          done={index >= 0 && position < index}
+          key={name}
+          label={phaseLabel(name)}
+        />
+      ))}
     </ol>
+  );
+}
+
+/** A local storage reset's steps: stop, delete, then start again. */
+function ResetSteps({ current }: { current: string | null }) {
+  const phases: readonly string[] = RESET_PHASES;
+  // Any phase past the shell's own is the backend starting on the empty root.
+  const index = current === null ? 0 : phases.includes(current) ? phases.indexOf(current) : 2;
+  return (
+    <ol aria-label="Reset Steps" className="grid w-full gap-2 text-left">
+      {phases.map((name, position) => (
+        <Step
+          active={position === index}
+          done={position < index}
+          key={name}
+          label={phaseLabel(name)}
+        />
+      ))}
+    </ol>
+  );
+}
+
+/** One row of a vertical step list. */
+function Step({ active, done, label }: { active: boolean; done: boolean; label: string }) {
+  return (
+    <li
+      className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 text-sm"
+      data-state={done ? "done" : active ? "active" : "waiting"}
+    >
+      <span className="grid size-5 place-items-center">
+        {done ? (
+          <Check aria-hidden className="text-primary" size={14} />
+        ) : (
+          <span
+            aria-hidden
+            className={active ? "size-2 rounded-full bg-primary" : "size-2 rounded-full bg-border"}
+          />
+        )}
+      </span>
+      <span className={active ? "font-medium text-foreground" : "text-muted-foreground"}>
+        {label}
+      </span>
+    </li>
   );
 }
 
@@ -390,6 +419,12 @@ function phaseLabel(phase: string): string {
       return "Accepting Requests";
     case "sidecars":
       return "Starting Sidecars";
+    case "stopping":
+      return "Stopping Backend";
+    case "deleting":
+      return "Deleting Local Storage";
+    case "starting":
+      return "Starting Backend";
     default:
       return phase;
   }
@@ -400,11 +435,14 @@ function stateSentence({
   busy,
   error,
   launch,
+  reset,
 }: {
   busy: boolean;
   error: boolean;
   launch: DesktopLaunch | null;
+  reset: boolean;
 }): string {
+  if (reset) return "Resetting local storage.";
   if (busy) return "Starting the backend.";
   if (error) return "The last attempt did not connect.";
   if (!launch) return "Reading this desktop's settings.";

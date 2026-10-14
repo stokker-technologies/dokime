@@ -36,6 +36,7 @@ command = [
   "crates/dokime-gui/tests/prompt-banner.test.mjs",
   "crates/dokime-gui/tests/plot-auto.test.mjs",
   "crates/dokime-gui/tests/execution-list.test.mjs",
+  "crates/dokime-gui/tests/storage-reset.test.mjs",
 ]
 
 [testing.javascript.system]

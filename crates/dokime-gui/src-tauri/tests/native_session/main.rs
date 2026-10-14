@@ -9,6 +9,7 @@
 
 /* === Modules === */
 pub(crate) mod parameters;
+pub(crate) mod storage_reset;
 
 /* === Re-Exports === */
 
@@ -755,6 +756,15 @@ fn domain_contract() {
     {
         eprintln!("Scenario: invalid_local_attachment");
         run_scenario(invalid_local_attachment, false, None, false);
+    }
+    {
+        eprintln!("Scenario: storage_reset::refuses_unowned");
+        run_scenario(storage_reset::refuses_unowned, false, None, false);
+    }
+    #[cfg(unix)]
+    {
+        eprintln!("Scenario: storage_reset::refusals_and_reset");
+        run_scenario(storage_reset::refusals_and_reset, false, None, false);
     }
     {
         eprintln!("Scenario: parameters::param_replacement_failure");
