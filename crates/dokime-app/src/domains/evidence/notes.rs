@@ -258,7 +258,7 @@ impl RuntimeHandle {
             if note.author.as_deref() != Some(request.actor.as_str()) {
                 return Err(NoteError::NotAuthor);
             }
-            if state.note_scope_sealed(&note.scope) {
+            if state.note_edit_sealed(&note.scope) {
                 return Err(NoteError::Sealed);
             }
             note.scope.clone()

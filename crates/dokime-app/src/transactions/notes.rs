@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::OperatorNote;
 use crate::execution::notes::{
-    NOTE_CHECKPOINT_LIMIT, NOTE_EDIT_NOT_AUTHOR, NOTE_RECEIPT_BYTES, NOTE_RECEIPT_LIMIT,
-    NoteAdmission, note_identity,
+    NOTE_CHECKPOINT_LIMIT, NOTE_EDIT_NOT_AUTHOR, NOTE_OWNER_SEALED, NOTE_RECEIPT_BYTES,
+    NOTE_RECEIPT_LIMIT, NoteAdmission, note_identity,
 };
 use crate::records::{ProductRecordDraft, RecordSeverity};
 use crate::state::RuntimeState;
@@ -204,6 +204,9 @@ impl Transaction<RuntimeState> for EditOperatorNote {
             .ok_or("note is absent from current evidence")?;
         if note.author.as_deref() != Some(self.actor.as_str()) {
             return Err(NOTE_EDIT_NOT_AUTHOR.into());
+        }
+        if state.note_edit_sealed(&note.scope) {
+            return Err(NOTE_OWNER_SEALED.into());
         }
         state.validate_operator_note(&OperatorNote {
             message: self.message.clone(),

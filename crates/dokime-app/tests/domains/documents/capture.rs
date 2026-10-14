@@ -257,6 +257,20 @@ pub(crate) async fn operator_notes_until_seal() {
     assert_eq!(edited.created_at, filed.created_at);
     assert_eq!(edited.message, edit.message);
 
+    let cycle_note = handle
+        .create_current_note(CreateNoteRequest {
+            mutation_id: CommandId::new(),
+            owner: NoteOwner::Cycle {
+                cycle_id: id.clone(),
+            },
+            message: "Bench ambient 23 °C.".into(),
+            ..request.clone()
+        })
+        .await
+        .unwrap()
+        .admission
+        .note;
+
     handle
         .stop_cycle(id.clone(), CommandContext::default())
         .await
@@ -296,6 +310,16 @@ pub(crate) async fn operator_notes_until_seal() {
                     cycle_id: id.clone()
                 },
                 ..late
+            })
+            .await,
+        Err(NoteError::Sealed)
+    ));
+    assert!(matches!(
+        handle
+            .edit_current_note(EditNoteRequest {
+                note_id: cycle_note.note_id,
+                message: "Bench ambient 24 °C.".into(),
+                ..edit.clone()
             })
             .await,
         Err(NoteError::Sealed)
