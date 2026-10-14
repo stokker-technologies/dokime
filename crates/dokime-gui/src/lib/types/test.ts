@@ -256,6 +256,8 @@ export type TestCycle = {
   duration_delta_s?: number | null;
   metadata: JsonObject;
   generated_at: string;
+  /** Hidden from the default lists; orthogonal to the lifecycle. */
+  archived?: boolean;
 };
 
 /**
@@ -325,6 +327,8 @@ export type ExecutionInvalidation = {
 };
 
 export type TestExecution = {
+  /** Hidden from the default lists; orthogonal to the lifecycle. */
+  archived?: boolean;
   controls?: ExecutionControls | null;
   test_execution_id: string;
   test_cycle_id: string;

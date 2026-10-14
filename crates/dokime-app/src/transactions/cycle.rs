@@ -90,7 +90,6 @@ pub enum CycleResetAction {
         test_case_id: CaseId,
         execution_id: TestExecutionId,
     },
-    Clear,
 }
 
 /* === Traits === */
@@ -103,11 +102,11 @@ impl Transaction<RuntimeState> for UpdateCyclePolicy {
         if state.shutting_down {
             return Err("runtime is shutting down".to_owned());
         }
-        let cycle = state
+        state
             .cycles
             .get(&self.test_cycle_id)
-            .ok_or_else(|| "cycle not found".to_owned())?;
-        ensure_policy_mutable(cycle.lifecycle)
+            .map(|_| ())
+            .ok_or_else(|| "cycle not found".to_owned())
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -115,8 +114,6 @@ impl Transaction<RuntimeState> for UpdateCyclePolicy {
             .cycles
             .get_mut(&self.test_cycle_id)
             .expect("Harmos checked the cycle before applying its policy");
-        ensure_policy_mutable(cycle.lifecycle)
-            .expect("Harmos checked the policy transition before applying it");
         cycle.continue_on_failure = self.continue_on_failure;
         cycle.touch_at(self.occurred_at.clone());
     }
@@ -212,15 +209,6 @@ pub fn apply_cycle_reset(
             )
             .map_err(conflict)?;
             Vec::new()
-        }
-        CycleResetAction::Clear => {
-            let ids = cycle
-                .test_executions
-                .iter()
-                .map(|execution| execution.test_execution_id.clone())
-                .collect();
-            clear_cycle(&mut cycle, reset.occurred_at.clone()).map_err(conflict)?;
-            ids
         }
     };
     state.replace_cycle(cycle).map_err(conflict)?;
@@ -345,14 +333,6 @@ fn prepare_cycle_control(
     Ok(CycleControlPlan::new(state, control, cycle, records))
 }
 
-fn ensure_policy_mutable(status: CycleStatus) -> Result<(), String> {
-    if status == CycleStatus::Cleared {
-        Err("cleared cycles cannot update runtime policy".to_owned())
-    } else {
-        Ok(())
-    }
-}
-
 fn ensure_runtime_active(state: &RuntimeState) -> Result<(), String> {
     if state.shutting_down {
         Err("runtime is shutting down".to_owned())
@@ -393,7 +373,6 @@ fn stop_cycle(cycle: &mut CycleView, at: Timestamp) -> Result<(), String> {
             | CycleStatus::Blocked
             | CycleStatus::Stopping
             | CycleStatus::Stopped
-            | CycleStatus::Cleared
     ) {
         return Err("cycle cannot be stopped from its current state".to_owned());
     }
@@ -519,24 +498,6 @@ fn rerun_case(
     Ok(())
 }
 
-fn clear_cycle(cycle: &mut CycleView, at: Timestamp) -> Result<(), String> {
-    if matches!(
-        cycle.lifecycle,
-        CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping
-    ) {
-        return Err("running cycles must be stopped before clearing".to_owned());
-    }
-    cycle.lifecycle = cycle
-        .lifecycle
-        .try_transition(CycleStatus::Cleared)
-        .map_err(|error| error.to_string())?;
-    cycle.test_executions.clear();
-    cycle.saved = None;
-    cycle.result = None;
-    cycle.touch_at(at);
-    Ok(())
-}
-
 pub(crate) fn ensure_case_deletable(
     cycle: &CycleView,
     test_case_id: &CaseId,
@@ -560,7 +521,7 @@ pub(crate) fn ensure_case_deletable(
 pub(crate) fn ensure_cycle_mutable(cycle: &CycleView) -> Result<(), String> {
     if matches!(
         cycle.lifecycle,
-        CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping | CycleStatus::Cleared
+        CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping
     ) {
         Err("cycle cannot be edited in its current state".to_owned())
     } else {
@@ -575,9 +536,6 @@ pub(crate) fn ensure_case_restartable(
 ) -> Result<(), String> {
     if cycle.lifecycle == CycleStatus::Running {
         return Err(format!("running cycles cannot {operation}"));
-    }
-    if cycle.lifecycle == CycleStatus::Cleared {
-        return Err(format!("cleared cycles cannot {operation}"));
     }
     if !cycle
         .cases()

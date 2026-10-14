@@ -53,10 +53,6 @@ import { Row1Schema as contentDownloadArtifactRequest } from "../../../../.gener
 import { Row3Schema as contentDownloadArtifactResponse } from "../../../../.generated/dokime/v1/ContentMessages/DownloadArtifact/messages_pb.js";
 import { ContentDownloadArtifactOutputSchema as contentDownloadArtifactEnvelope } from "../../../../.generated/dokime/v1/Content_pb.js";
 export const contentDownloadArtifact = (session: SessionIdentity, request: Parameters<typeof openStream<typeof contentDownloadArtifactRequest, typeof contentDownloadArtifactResponse>>[4]) => openStream("/dokime.v1.Content/DownloadArtifact", contentDownloadArtifactRequest, contentDownloadArtifactResponse, session, request, contentDownloadArtifactEnvelope, 300000);
-import { Row1Schema as contentDownloadCycleBundleRequest } from "../../../../.generated/dokime/v1/ContentMessages/DownloadCycleBundle/messages_pb.js";
-import { Row3Schema as contentDownloadCycleBundleResponse } from "../../../../.generated/dokime/v1/ContentMessages/DownloadCycleBundle/messages_pb.js";
-import { ContentDownloadCycleBundleOutputSchema as contentDownloadCycleBundleEnvelope } from "../../../../.generated/dokime/v1/Content_pb.js";
-export const contentDownloadCycleBundle = (session: SessionIdentity, request: Parameters<typeof openStream<typeof contentDownloadCycleBundleRequest, typeof contentDownloadCycleBundleResponse>>[4]) => openStream("/dokime.v1.Content/DownloadCycleBundle", contentDownloadCycleBundleRequest, contentDownloadCycleBundleResponse, session, request, contentDownloadCycleBundleEnvelope, 300000);
 import { Row1Schema as contentDownloadExecutionFileRequest } from "../../../../.generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb.js";
 import { Row3Schema as contentDownloadExecutionFileResponse } from "../../../../.generated/dokime/v1/ContentMessages/DownloadExecutionFile/messages_pb.js";
 import { ContentDownloadExecutionFileOutputSchema as contentDownloadExecutionFileEnvelope } from "../../../../.generated/dokime/v1/Content_pb.js";
@@ -65,9 +61,6 @@ import { Row1Schema as contentFollowExecutionFileRequest } from "../../../../.ge
 import { Row3Schema as contentFollowExecutionFileResponse } from "../../../../.generated/dokime/v1/ContentMessages/FollowExecutionFile/messages_pb.js";
 import { ContentFollowExecutionFileOutputSchema as contentFollowExecutionFileEnvelope } from "../../../../.generated/dokime/v1/Content_pb.js";
 export const contentFollowExecutionFile = (session: SessionIdentity, request: Parameters<typeof openStream<typeof contentFollowExecutionFileRequest, typeof contentFollowExecutionFileResponse>>[4]) => openStream("/dokime.v1.Content/FollowExecutionFile", contentFollowExecutionFileRequest, contentFollowExecutionFileResponse, session, request, contentFollowExecutionFileEnvelope, 86400000);
-import { Row1Schema as contentGetCycleFolderPathRequest } from "../../../../.generated/dokime/v1/ContentMessages/GetCycleFolderPath/messages_pb.js";
-import { Row2Schema as contentGetCycleFolderPathResponse } from "../../../../.generated/dokime/v1/ContentMessages/GetCycleFolderPath/messages_pb.js";
-export const contentGetCycleFolderPath = (session: SessionIdentity, request: Parameters<typeof unary<typeof contentGetCycleFolderPathRequest, typeof contentGetCycleFolderPathResponse>>[4]) => unary("/dokime.v1.Content/GetCycleFolderPath", contentGetCycleFolderPathRequest, contentGetCycleFolderPathResponse, session, request, 10000);
 import { Row1Schema as contentListArtifactsRequest } from "../../../../.generated/dokime/v1/ContentMessages/ListArtifacts/messages_pb.js";
 import { Row2Schema as contentListArtifactsResponse } from "../../../../.generated/dokime/v1/ContentMessages/ListArtifacts/messages_pb.js";
 export const contentListArtifacts = (session: SessionIdentity, request: Parameters<typeof unary<typeof contentListArtifactsRequest, typeof contentListArtifactsResponse>>[4]) => unary("/dokime.v1.Content/ListArtifacts", contentListArtifactsRequest, contentListArtifactsResponse, session, request, 10000);
@@ -101,9 +94,6 @@ export const evidenceWatchRecords = (session: SessionIdentity, request: Paramete
 import { Row1Schema as executionAppendPlannedCasesRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/AppendPlannedCases/messages_pb.js";
 import { Row2Schema as executionAppendPlannedCasesResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/AppendPlannedCases/messages_pb.js";
 export const executionAppendPlannedCases = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionAppendPlannedCasesRequest, typeof executionAppendPlannedCasesResponse>>[4]) => unary("/dokime.v1.Execution/AppendPlannedCases", executionAppendPlannedCasesRequest, executionAppendPlannedCasesResponse, session, request, 10000);
-import { Row1Schema as executionClearCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/ClearCycle/messages_pb.js";
-import { Row2Schema as executionClearCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/ClearCycle/messages_pb.js";
-export const executionClearCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionClearCycleRequest, typeof executionClearCycleResponse>>[4]) => unary("/dokime.v1.Execution/ClearCycle", executionClearCycleRequest, executionClearCycleResponse, session, request, 10000);
 import { Row1Schema as executionCopyCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/CopyCycle/messages_pb.js";
 import { Row2Schema as executionCopyCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/CopyCycle/messages_pb.js";
 export const executionCopyCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionCopyCycleRequest, typeof executionCopyCycleResponse>>[4]) => unary("/dokime.v1.Execution/CopyCycle", executionCopyCycleRequest, executionCopyCycleResponse, session, request, 10000);
@@ -173,6 +163,12 @@ export const executionRunExecution = (session: SessionIdentity, request: Paramet
 import { Row1Schema as executionScheduleCaseRerunRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/ScheduleCaseRerun/messages_pb.js";
 import { Row2Schema as executionScheduleCaseRerunResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/ScheduleCaseRerun/messages_pb.js";
 export const executionScheduleCaseRerun = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionScheduleCaseRerunRequest, typeof executionScheduleCaseRerunResponse>>[4]) => unary("/dokime.v1.Execution/ScheduleCaseRerun", executionScheduleCaseRerunRequest, executionScheduleCaseRerunResponse, session, request, 10000);
+import { Row1Schema as executionSetCycleArchivedRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/SetCycleArchived/messages_pb.js";
+import { Row2Schema as executionSetCycleArchivedResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/SetCycleArchived/messages_pb.js";
+export const executionSetCycleArchived = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionSetCycleArchivedRequest, typeof executionSetCycleArchivedResponse>>[4]) => unary("/dokime.v1.Execution/SetCycleArchived", executionSetCycleArchivedRequest, executionSetCycleArchivedResponse, session, request, 10000);
+import { Row1Schema as executionSetExecutionArchivedRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/SetExecutionArchived/messages_pb.js";
+import { Row2Schema as executionSetExecutionArchivedResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/SetExecutionArchived/messages_pb.js";
+export const executionSetExecutionArchived = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionSetExecutionArchivedRequest, typeof executionSetExecutionArchivedResponse>>[4]) => unary("/dokime.v1.Execution/SetExecutionArchived", executionSetExecutionArchivedRequest, executionSetExecutionArchivedResponse, session, request, 10000);
 import { Row1Schema as executionStopCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/StopCycle/messages_pb.js";
 import { Row2Schema as executionStopCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/StopCycle/messages_pb.js";
 export const executionStopCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionStopCycleRequest, typeof executionStopCycleResponse>>[4]) => unary("/dokime.v1.Execution/StopCycle", executionStopCycleRequest, executionStopCycleResponse, session, request, 10000);
@@ -321,9 +317,10 @@ import { Row1Schema as reportsDownloadCycleReportRequest } from "../../../../.ge
 import { Row3Schema as reportsDownloadCycleReportResponse } from "../../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb.js";
 import { ReportsDownloadCycleReportOutputSchema as reportsDownloadCycleReportEnvelope } from "../../../../.generated/dokime/v1/Reports_pb.js";
 export const reportsDownloadCycleReport = (session: SessionIdentity, request: Parameters<typeof openStream<typeof reportsDownloadCycleReportRequest, typeof reportsDownloadCycleReportResponse>>[4]) => openStream("/dokime.v1.Reports/DownloadCycleReport", reportsDownloadCycleReportRequest, reportsDownloadCycleReportResponse, session, request, reportsDownloadCycleReportEnvelope, 300000);
-import { Row1Schema as reportsRenderCheckpointReportRequest } from "../../../../.generated/dokime/v1/ReportsMessages/RenderCheckpointReport/messages_pb.js";
-import { Row2Schema as reportsRenderCheckpointReportResponse } from "../../../../.generated/dokime/v1/ReportsMessages/RenderCheckpointReport/messages_pb.js";
-export const reportsRenderCheckpointReport = (session: SessionIdentity, request: Parameters<typeof unary<typeof reportsRenderCheckpointReportRequest, typeof reportsRenderCheckpointReportResponse>>[4]) => unary("/dokime.v1.Reports/RenderCheckpointReport", reportsRenderCheckpointReportRequest, reportsRenderCheckpointReportResponse, session, request, 300000);
+import { Row1Schema as reportsDownloadExecutionReportRequest } from "../../../../.generated/dokime/v1/ReportsMessages/DownloadExecutionReport/messages_pb.js";
+import { Row3Schema as reportsDownloadExecutionReportResponse } from "../../../../.generated/dokime/v1/ReportsMessages/DownloadExecutionReport/messages_pb.js";
+import { ReportsDownloadExecutionReportOutputSchema as reportsDownloadExecutionReportEnvelope } from "../../../../.generated/dokime/v1/Reports_pb.js";
+export const reportsDownloadExecutionReport = (session: SessionIdentity, request: Parameters<typeof openStream<typeof reportsDownloadExecutionReportRequest, typeof reportsDownloadExecutionReportResponse>>[4]) => openStream("/dokime.v1.Reports/DownloadExecutionReport", reportsDownloadExecutionReportRequest, reportsDownloadExecutionReportResponse, session, request, reportsDownloadExecutionReportEnvelope, 300000);
 import { Row1Schema as runtimeGetHealthRequest } from "../../../../.generated/dokime/v1/RuntimeMessages/GetHealth/messages_pb.js";
 import { Row2Schema as runtimeGetHealthResponse } from "../../../../.generated/dokime/v1/RuntimeMessages/GetHealth/messages_pb.js";
 export const runtimeGetHealth = (session: SessionIdentity, request: Parameters<typeof unary<typeof runtimeGetHealthRequest, typeof runtimeGetHealthResponse>>[4]) => unary("/dokime.v1.Runtime/GetHealth", runtimeGetHealthRequest, runtimeGetHealthResponse, session, request, 5000);

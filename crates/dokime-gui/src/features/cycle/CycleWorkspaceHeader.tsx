@@ -10,11 +10,11 @@
 /* The execution cockpit: the full-width band above the document that says
  * what the selected node is and asks what its run needs.
  *
- * 1. Identity — one row on `--page-bar-height` with one anatomy on both
- *    pages: title, status pill, progress, and the node's own "…" menu. The
- *    cycle page names the cycle, its case progress and the cycle menu; the
- *    execution page names the execution, its step progress and the execution
- *    menu. Nothing of one node appears on the other's page.
+ * 1. Identity — one row on `--page-bar-height`: the title and the node's own
+ *    "…" menu. The cycle page adds its status pill and case progress between
+ *    them; the execution page shows only its title and menu, because the
+ *    sidebar glyph states its status and the Steps card its progress. Nothing
+ *    of one node appears on the other's page.
  * 2. Prompts — the questions the run is waiting on, full width, answered in
  *    place.
  *
@@ -27,16 +27,16 @@
 /* === External Imports === */
 
 import {
+  Archive,
+  ArchiveRestore,
   Copy,
-  Download,
   Ellipsis,
   FileText,
   Plus,
   RotateCcw,
   Settings2,
-  Trash2,
 } from "lucide-react";
-import { type ComponentProps, type ReactNode, useId } from "react";
+import { type ComponentProps, Fragment, type ReactNode } from "react";
 
 /* === Local Imports === */
 
@@ -47,42 +47,57 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SEALED_EVIDENCE_PENDING, STATUS_PILL_CLASS } from "./cycle-workspace-model";
+import { type NodeMenuItem, nodeMenuGroups, STATUS_PILL_CLASS } from "./cycle-workspace-model";
 
 /* === Types === */
 
 /** One node's identity: what the cockpit row states about it. */
 export type CockpitIdentity = {
   title: string;
-  statusLabel: string;
-  statusVariant: ComponentProps<typeof Badge>["variant"];
-  progress: string;
-  /** The case and step the progress stream reports while the node runs. */
-  activity?: string | null;
+  /** The cycle's lifecycle pill and case progress. The execution row carries
+   *  neither: the sidebar glyph states its status and the Steps card its
+   *  progress. */
+  status?: {
+    label: string;
+    variant: ComponentProps<typeof Badge>["variant"];
+    progress: string;
+    /** The case and step the progress stream reports while the node runs. */
+    activity?: string | null;
+  };
+};
+
+/** Archive or Unarchive, as the node's menu offers it. */
+export type ArchiveAction = {
+  archived: boolean;
+  onToggle: () => void;
+  /** Why the node cannot be archived yet; archiving waits for a terminal run. */
+  refusal?: string;
 };
 
 /** The cycle page's "…" menu. */
 export type CycleMenu = {
   kind: "cycle";
+  archive: ArchiveAction;
   followActive: boolean;
-  /** Bundle and report are cut from the sealed cycle; in flight they wait. */
-  evidencePending: boolean;
   onAddCases: () => void;
-  onClearCycle: () => void;
   onCopyCycle: () => void;
-  onDownloadBundle: () => void;
+  /** Opens the report the cycle has now: current, sealed or regenerated. */
+  onOpenReport: () => void;
   onRuntimePolicy: () => void;
   onToggleFollowActive: () => void;
-  onWriteReport: () => void;
 };
 
 /** The execution page's "…" menu. */
 export type ExecutionMenu = {
   kind: "execution";
+  /** `null` for a case that has not run, which has no execution to archive. */
+  archive: ArchiveAction | null;
+  /** Opens the report the execution has now: current, sealed or regenerated;
+   *  `null` for a case that has not run, which has no report of its own. */
+  onOpenReport: (() => void) | null;
   /** Re-Run the execution's case; `null` while the attempt has not ended. */
   onRerun: (() => void) | null;
   /** Why the runtime refuses the re-run, when it does. */
@@ -119,18 +134,27 @@ export function CycleWorkspaceHeader({
         >
           {identity.title}
         </h1>
-        <Badge className={STATUS_PILL_CLASS} variant={identity.statusVariant}>
-          {identity.statusLabel}
-        </Badge>
-        <p className="min-w-0 truncate text-xs leading-6 text-muted-foreground">
-          <span className="whitespace-nowrap tabular-nums">{identity.progress}</span>
-          {identity.activity ? (
-            <span aria-live="polite">
-              {" · "}
-              {identity.activity}
-            </span>
-          ) : null}
-        </p>
+        {identity.status ? (
+          <>
+            <Badge className={STATUS_PILL_CLASS} variant={identity.status.variant}>
+              {identity.status.label}
+            </Badge>
+            <p className="min-w-0 truncate text-xs leading-6 text-muted-foreground">
+              <span className="whitespace-nowrap tabular-nums">{identity.status.progress}</span>
+              {identity.status.activity ? (
+                <span aria-live="polite">
+                  {" · "}
+                  {identity.status.activity}
+                </span>
+              ) : null}
+            </p>
+          </>
+        ) : (
+          <>
+            <span />
+            <span />
+          </>
+        )}
         {live ? <NodeMenu menu={menu} /> : <span />}
       </div>
 
@@ -145,7 +169,6 @@ export function CycleWorkspaceHeader({
 
 /** The selected node's own menu, behind one trigger of one size on both pages. */
 function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
-  const evidencePendingId = useId();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -158,73 +181,91 @@ function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
           <Ellipsis />
         </Button>
       </DropdownMenuTrigger>
-      {menu.kind === "cycle" ? (
-        <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem onSelect={menu.onCopyCycle}>
-            <Copy />
-            Copy Cycle
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={menu.onAddCases}>
-            <Plus />
-            Add Cases
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={menu.onRuntimePolicy}>
-            <Settings2 />
-            Runtime Policy
-          </DropdownMenuItem>
-          <DropdownMenuCheckboxItem
-            checked={menu.followActive}
-            onSelect={(event) => {
-              event.preventDefault();
-              menu.onToggleFollowActive();
-            }}
-          >
-            Follow Active
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuSeparator />
-          {/* A disabled menu item takes no pointer, so a hover title alone
-              would never show; the reason is visible text both items name. */}
-          <DropdownMenuItem
-            aria-describedby={menu.evidencePending ? evidencePendingId : undefined}
-            disabled={menu.evidencePending}
-            onSelect={menu.onDownloadBundle}
-            title={menu.evidencePending ? SEALED_EVIDENCE_PENDING : undefined}
-          >
-            <Download />
-            Download Bundle
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            aria-describedby={menu.evidencePending ? evidencePendingId : undefined}
-            disabled={menu.evidencePending}
-            onSelect={menu.onWriteReport}
-            title={menu.evidencePending ? SEALED_EVIDENCE_PENDING : undefined}
-          >
-            <FileText />
-            Write Report
-          </DropdownMenuItem>
-          {menu.evidencePending ? (
-            <DropdownMenuLabel className="font-normal" id={evidencePendingId}>
-              {SEALED_EVIDENCE_PENDING}
-            </DropdownMenuLabel>
-          ) : null}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={menu.onClearCycle} variant="destructive">
-            <Trash2 />
-            Clear Cycle
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      ) : (
-        <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem
-            disabled={!menu.onRerun || Boolean(menu.rerunRefusal)}
-            onSelect={() => menu.onRerun?.()}
-            title={menu.rerunRefusal}
-          >
-            <RotateCcw />
-            Re-Run
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      )}
+      {/* The groups and their order are the model's, so a test can read
+          what each page's menu offers without rendering it. */}
+      <DropdownMenuContent align="end" className="w-52">
+        {nodeMenuGroups(menu.kind, menu.archive?.archived ?? false).map((group, index) => (
+          <Fragment key={group[0]}>
+            {index > 0 ? <DropdownMenuSeparator /> : null}
+            {group.map((item) => (
+              <NodeMenuEntry item={item} key={item} menu={menu} />
+            ))}
+          </Fragment>
+        ))}
+      </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** One menu entry, wired to the handler its node supplies. */
+function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | ExecutionMenu }) {
+  switch (item) {
+    case "Archive":
+    case "Unarchive":
+      return (
+        <DropdownMenuItem
+          disabled={!menu.archive || Boolean(menu.archive.refusal)}
+          onSelect={() => menu.archive?.onToggle()}
+          title={menu.archive?.refusal}
+        >
+          {item === "Archive" ? <Archive /> : <ArchiveRestore />}
+          {item}
+        </DropdownMenuItem>
+      );
+    case "Open Report":
+      return (
+        <DropdownMenuItem disabled={!menu.onOpenReport} onSelect={() => menu.onOpenReport?.()}>
+          <FileText />
+          Open Report
+        </DropdownMenuItem>
+      );
+    case "Re-Run":
+      if (menu.kind !== "execution") return null;
+      return (
+        <DropdownMenuItem
+          disabled={!menu.onRerun || Boolean(menu.rerunRefusal)}
+          onSelect={() => menu.onRerun?.()}
+          title={menu.rerunRefusal}
+        >
+          <RotateCcw />
+          Re-Run
+        </DropdownMenuItem>
+      );
+  }
+  if (menu.kind !== "cycle") return null;
+  switch (item) {
+    case "Copy Cycle":
+      return (
+        <DropdownMenuItem onSelect={menu.onCopyCycle}>
+          <Copy />
+          Copy Cycle
+        </DropdownMenuItem>
+      );
+    case "Add Cases":
+      return (
+        <DropdownMenuItem onSelect={menu.onAddCases}>
+          <Plus />
+          Add Cases
+        </DropdownMenuItem>
+      );
+    case "Runtime Policy":
+      return (
+        <DropdownMenuItem onSelect={menu.onRuntimePolicy}>
+          <Settings2 />
+          Runtime Policy
+        </DropdownMenuItem>
+      );
+    case "Follow Active":
+      return (
+        <DropdownMenuCheckboxItem
+          checked={menu.followActive}
+          onSelect={(event) => {
+            event.preventDefault();
+            menu.onToggleFollowActive();
+          }}
+        >
+          Follow Active
+        </DropdownMenuCheckboxItem>
+      );
+  }
 }

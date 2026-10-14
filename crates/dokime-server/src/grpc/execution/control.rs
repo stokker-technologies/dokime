@@ -58,7 +58,11 @@ struct Rerun {
     runtime: Arc<RuntimeHandle>,
 }
 
-struct Clear {
+struct ArchiveCycle {
+    runtime: Arc<RuntimeHandle>,
+}
+
+struct ArchiveExecution {
     runtime: Arc<RuntimeHandle>,
 }
 
@@ -98,7 +102,8 @@ enum Operations {
     Append(Append),
     Delete(Delete),
     Rerun(Rerun),
-    Clear(Clear),
+    ArchiveCycle(ArchiveCycle),
+    ArchiveExecution(ArchiveExecution),
     Policy(Policy),
     PauseCycle(PauseCycle),
     ResumeCycle(ResumeCycle),
@@ -304,8 +309,8 @@ impl Operation for Rerun {
     }
 }
 
-impl Operation for Clear {
-    type Declaration = wire::ClearCycle;
+impl Operation for ArchiveCycle {
+    type Declaration = wire::SetCycleArchived;
     type Resources = RuntimeHandle;
     type Error = Status;
     type Context<'a> = Context<'a>;
@@ -321,15 +326,53 @@ impl Operation for Clear {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        request: &mut wire::CycleControlRequest,
+        request: &mut wire::SetCycleArchivedRequest,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<wire::ArchiveReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime
-            .clear_cycle(cycle_id(&request.cycle_id)?, context)
+            .set_cycle_archived(cycle_id(&request.cycle_id)?, request.archived, context)
             .await
             .map_err(status)?;
-        Ok((observed(&self.runtime)).into())
+        Ok(wire::ArchiveReply {
+            archived: request.archived,
+        }
+        .into())
+    }
+}
+
+impl Operation for ArchiveExecution {
+    type Declaration = wire::SetExecutionArchived;
+    type Resources = RuntimeHandle;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
+        Ok(Self { runtime })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        context: Self::Context<'a>,
+        request: &mut wire::SetExecutionArchivedRequest,
+        _: &mut (),
+    ) -> Result<harmos::operations::Response<wire::ArchiveReply>, Status> {
+        let context = command_context(&context, request.context.as_ref())?;
+        value::text(&request.execution_id)?;
+        let execution = TestExecutionId::from_uuid(request.execution_id.clone())
+            .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+        self.runtime
+            .set_execution_archived(execution, request.archived, context)
+            .await
+            .map_err(status)?;
+        Ok(wire::ArchiveReply {
+            archived: request.archived,
+        }
+        .into())
     }
 }
 

@@ -424,7 +424,6 @@ fn cycle_status(status: CycleStatus) -> &'static str {
         CycleStatus::Failed => "failed",
         CycleStatus::Blocked => "blocked",
         CycleStatus::Stopped => "stopped",
-        CycleStatus::Cleared => "cleared",
     }
 }
 fn object_memory(values: &BTreeMap<String, Value>, depth: usize) -> Result<usize> {

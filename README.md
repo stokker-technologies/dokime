@@ -480,10 +480,11 @@ can also add parameter-based reference bands; the
 [soak starter](crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
 
-Export the captured result as a **self-contained report** to share the plots,
-verdicts, and context without requiring access to the testbench. Completed cycles also
-export a ZIP containing the sealed reports, frozen documents, notes, records,
-samples, and output files, with a SHA-256 manifest for the included evidence.
+Open or download a cycle's or an execution's **self-contained report** to share
+the plots, verdicts, and context without requiring access to the testbench. A
+running cycle's report is generated from the evidence so far; a finished one is
+the report sealed at finalization, generated again from its sealed evidence if
+the file has gone missing.
 
 ## Cargo Features
 

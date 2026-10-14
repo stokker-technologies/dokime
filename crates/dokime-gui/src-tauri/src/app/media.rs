@@ -167,9 +167,6 @@ fn cache_key(source: &ArtifactSource) -> Result<String, String> {
                 .collect::<String>();
             Ok(format!("exec-{id}-{digest}"))
         }
-        ArtifactSource::CycleBundle { .. } => {
-            Err("cycle bundles are not previewed through the media cache".into())
-        }
     }
 }
 

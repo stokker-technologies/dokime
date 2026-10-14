@@ -621,7 +621,6 @@ pub(crate) fn append_checks_execution() {
         CycleStatus::Running,
         CycleStatus::Paused,
         CycleStatus::Stopping,
-        CycleStatus::Cleared,
     ] {
         state.cycles.get_mut(&cycle_id).unwrap().lifecycle = lifecycle;
         assert!(append.check(&state).is_err());

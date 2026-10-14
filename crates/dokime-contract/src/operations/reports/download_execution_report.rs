@@ -17,7 +17,7 @@
 // Third Party Imports
 
 // Local Imports
-use super::{CycleBundleFrame, DownloadCycleBundleRequest, TRANSFER};
+use super::{DownloadExecutionReportRequest, ReportHtmlFrame, TRANSFER};
 
 /* === Constants === */
 
@@ -26,11 +26,12 @@ use super::{CycleBundleFrame, DownloadCycleBundleRequest, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-// Reserves cycle bundle export. The native runtime currently refuses it as unsupported.
-#[harmos::operation(request = DownloadCycleBundleRequest, response = (), output = CycleBundleFrame, id = "dokime.content.download_cycle_bundle", version = 1,
+// Streams one execution's report: the one its finalization sealed, or one
+// generated from its current or stored evidence when there is none to read.
+#[harmos::operation(request = DownloadExecutionReportRequest, response = (), output = ReportHtmlFrame, id = "dokime.reports.download_execution_report", version = 1,
         policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
-        grpc(package = "dokime.v1", service = "Content", method = "DownloadCycleBundle"))]
-pub struct DownloadCycleBundle;
+        grpc(package = "dokime.v1", service = "Reports", method = "DownloadExecutionReport"))]
+pub struct DownloadExecutionReport;
 
 /* === Enums === */
 

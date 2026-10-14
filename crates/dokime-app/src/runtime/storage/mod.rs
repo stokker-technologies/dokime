@@ -30,6 +30,7 @@ pub(crate) mod record_capture;
 pub(crate) mod record_pages;
 pub(crate) mod records;
 mod report_capture;
+pub(crate) mod report_open;
 pub(crate) mod requests;
 pub(crate) mod telemetry;
 pub(crate) mod telemetry_pages;

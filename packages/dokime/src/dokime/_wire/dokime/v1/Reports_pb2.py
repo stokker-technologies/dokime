@@ -22,7 +22,7 @@ from google.protobuf.internal import builder as _builder
 from dokime._wire import _pool
 # @@protoc_insertion_point(imports)
 from dokime._wire.dokime.v1.ReportsMessages.DownloadCycleReport import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_ReportsMessages_dot_DownloadCycleReport_dot_messages__pb2
-from dokime._wire.dokime.v1.ReportsMessages.RenderCheckpointReport import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_ReportsMessages_dot_RenderCheckpointReport_dot_messages__pb2
+from dokime._wire.dokime.v1.ReportsMessages.DownloadExecutionReport import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_ReportsMessages_dot_DownloadExecutionReport_dot_messages__pb2
 
 # Type Checking Imports
 
@@ -47,17 +47,19 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n$dokime/_wire/dokime/v1/Reports.proto\x12\tdokime.v1\x1aIdokime/_wire/dokime/v1/ReportsMessages/DownloadCycleReport/messages.proto\x1aLdokime/_wire/dokime/v1/ReportsMessages/RenderCheckpointReport/messages.proto\"\xc9\x01\n ReportsDownloadCycleReportOutput\x12I\n\x04item\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row3H\x00R\x04item\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row2H\x00R\x08responseB\x07\n\x05value2\x8f\x02\n\x07Reports\x12y\n\x13\x44ownloadCycleReport\x12\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row1\x1a+.dokime.v1.ReportsDownloadCycleReportOutput0\x01\x12\x88\x01\n\x16RenderCheckpointReport\x12\x36.dokime.v1.ReportsMessages.RenderCheckpointReport.Row1\x1a\x36.dokime.v1.ReportsMessages.RenderCheckpointReport.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n$dokime/_wire/dokime/v1/Reports.proto\x12\tdokime.v1\x1aIdokime/_wire/dokime/v1/ReportsMessages/DownloadCycleReport/messages.proto\x1aMdokime/_wire/dokime/v1/ReportsMessages/DownloadExecutionReport/messages.proto\"\xc9\x01\n ReportsDownloadCycleReportOutput\x12I\n\x04item\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row3H\x00R\x04item\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row2H\x00R\x08responseB\x07\n\x05value\"\xd5\x01\n$ReportsDownloadExecutionReportOutput\x12M\n\x04item\x18\x01 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row3H\x00R\x04item\x12U\n\x08response\x18\x02 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row2H\x00R\x08responseB\x07\n\x05value2\x8c\x02\n\x07Reports\x12y\n\x13\x44ownloadCycleReport\x12\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row1\x1a+.dokime.v1.ReportsDownloadCycleReportOutput0\x01\x12\x85\x01\n\x17\x44ownloadExecutionReport\x12\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row1\x1a/.dokime.v1.ReportsDownloadExecutionReportOutput0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime._wire.dokime.v1.Reports_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_start=205
-  _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_end=406
-  _globals['_REPORTS']._serialized_start=409
-  _globals['_REPORTS']._serialized_end=680
+  _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_start=206
+  _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_end=407
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_start=410
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_end=623
+  _globals['_REPORTS']._serialized_start=626
+  _globals['_REPORTS']._serialized_end=894
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

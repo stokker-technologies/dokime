@@ -109,6 +109,32 @@ export type RunControlVisibility = {
   stop: boolean;
 };
 
+/** One entry of a node's "…" menu. */
+export type NodeMenuItem =
+  | "Copy Cycle"
+  | "Add Cases"
+  | "Runtime Policy"
+  | "Follow Active"
+  | "Open Report"
+  | "Archive"
+  | "Unarchive"
+  | "Re-Run";
+
+/** One control of the execution page's page-bar group, in its order. */
+export type ExecutionControl =
+  | "Start"
+  | "Re-Run"
+  | "Pause Execution"
+  | "Resume Execution"
+  | "Stop Execution";
+
+/** The page bar's Download Report button as it stands. */
+export type ReportDownloadState = {
+  disabled: boolean;
+  label: "Download Report";
+  title: string;
+};
+
 /* === Constants === */
 
 /**
@@ -121,6 +147,9 @@ export type RunControlVisibility = {
  * short one the same space, and in the sidebar that space came out of the case
  * names, which are what the operator is actually reading.
  */
+/** Characters no saved report's name carries, whichever desktop saves it. */
+const UNSAFE_FILENAME_CHARACTERS = '\\/:*?"<>|';
+
 export const STATUS_PILL_CLASS = "justify-center rounded-4xl";
 
 /**
@@ -397,15 +426,65 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
 }
 
 /**
- * Why the bundle and the report are unavailable while a cycle is in flight.
- *
- * Both are cut from the sealed cycle, and a running, paused or stopping cycle
- * has no seal yet. The backend refuses both with `FAILED_PRECONDITION` while
- * the cycle is in flight, so the CLI and the Python client get the answer the
- * disabled menu items state.
+ * A node's "…" menu, as groups a separator divides. Open Report is always
+ * there and always enabled: the runtime answers with the sealed report, the
+ * one regenerated from sealed evidence, or one rendered from the run so far.
+ * The last group archives the node, or unarchives one already archived.
  */
-export const SEALED_EVIDENCE_PENDING =
-  "The bundle and the report become available when the cycle is terminal.";
+export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
+  const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
+  return kind === "cycle"
+    ? [["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"], ["Open Report"], [archive]]
+    : [["Re-Run"], ["Open Report"], [archive]];
+}
+
+/** Why a node cannot be archived yet, or `undefined` once it can. */
+export function archiveRefusal(terminal: boolean): string | undefined {
+  return terminal ? undefined : "Archiving becomes available once the run has ended.";
+}
+
+/**
+ * The execution page's run controls, in order: Start | Re-Run | Pause or
+ * Resume | Stop Execution.
+ *
+ * Start belongs to an attempt that has not started — planned, or queued and
+ * not yet dispatched — and leaves once it runs or ends. Re-Run belongs to an
+ * ended attempt; Pause or Resume and Stop to one an execution-addressed run
+ * controls, as the runtime's own `controls` admit.
+ */
+export function executionControlSet(
+  status: TestExecution["status"],
+  controls: TestExecution["controls"],
+): ExecutionControl[] {
+  if (isUnstartedExecution(status)) return ["Start"];
+  const set: ExecutionControl[] = [];
+  if (isTerminalExecutionStatus(status) && !controls) set.push("Re-Run");
+  if (controls && (controls.canPause || controls.canResume)) {
+    set.push(controls.paused ? "Resume Execution" : "Pause Execution");
+  }
+  if (controls && (controls.canStop || controls.stopRequested)) set.push("Stop Execution");
+  return set;
+}
+
+/** Download Report waits only for a save already in progress. */
+export function reportDownloadState(saving: boolean): ReportDownloadState {
+  return {
+    disabled: saving,
+    label: "Download Report",
+    title: saving ? "Saving the report…" : "Download Report",
+  };
+}
+
+/** The file a saved report is offered as, named after its cycle or execution. */
+export function reportFilename(label: string): string {
+  const name = Array.from(label, (char) =>
+    char.charCodeAt(0) < 32 || UNSAFE_FILENAME_CHARACTERS.includes(char) ? "-" : char,
+  )
+    .join("")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s.-]+|[\s.-]+$/g, "");
+  return `${name || "report"}.html`;
+}
 
 /** Whether the cycle is still producing evidence: running, paused or stopping. */
 export function isCycleInFlight(status: CycleLifecycle): boolean {

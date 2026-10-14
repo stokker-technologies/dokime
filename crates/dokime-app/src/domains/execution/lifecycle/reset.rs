@@ -63,15 +63,6 @@ impl RuntimeHandle {
         .await
     }
 
-    pub async fn clear_cycle(
-        &self,
-        test_cycle_id: TestCycleId,
-        context: CommandContext,
-    ) -> Result<(), Error> {
-        self.reset_cycle(test_cycle_id, Action::Clear, context)
-            .await
-    }
-
     async fn reset_cycle(
         &self,
         test_cycle_id: TestCycleId,

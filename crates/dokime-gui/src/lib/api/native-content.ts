@@ -430,42 +430,6 @@ export async function fetchNativeArtifacts(session: SessionIdentity): Promise<Ar
   throw new NativeApiLimitError("Content.ListArtifacts", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-/**
- * Save a generated cycle ZIP through the native file picker.
- *
- * Unlike the deleted `fetchNativeCycleBundle`, the bundle's bytes never
- * cross the webview: `desktop_artifact_deliver` captures the cycle export
- * and streams it straight to the chosen destination, scaling past the
- * 32 MiB base64 JSON bound this used to share with HTML reports.
- */
-export async function downloadNativeCycleBundle(
-  session: NativeContentSession,
-  cycleId: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  const id = cycleId.trim();
-  if (!id) throw new Error("Content.DownloadCycleBundle requires a cycle ID.");
-  if (signal?.aborted) throw new Error("Content.DownloadCycleBundle was cancelled.");
-  await deliverNativeArtifact(session, {
-    source: { kind: "cycle_bundle", cycleId: id },
-    kind: "cycle_bundle",
-    filename: `test-cycle-${id}.zip`,
-    action: "save",
-  });
-}
-
-export async function fetchNativeCycleFolderPath(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<string> {
-  const id = cycleId.trim();
-  if (!id) throw new Error("Content.GetCycleFolderPath requires a cycle ID.");
-  const response = await rpc.contentGetCycleFolderPath(session, { cycleId: id });
-  const path = response.path.trim();
-  if (!path) throw new Error("Content.GetCycleFolderPath returned an empty path.");
-  return path;
-}
-
 /** Shared with `ArtifactUploader.tsx`'s native recording sink, which builds an
  * `UploadArtifactHeader` directly rather than through `uploadNativeArtifact`. */
 export function uploadScope(scope: ArtifactRecord["scope"]): ArtifactScope {

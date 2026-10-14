@@ -20,8 +20,6 @@ export type SubmittingPrompt = { action: string; correlationId: string } | null;
 
 type HubStoreState = {
   connection: ConnectionState;
-  cycleBundleBusy: boolean;
-  cycleBundleError: string | null;
   error: string | null;
   /** Wall-clock ms of the last frame received on the runtime stream (shell, notice, or heartbeat). */
   lastStreamFrameAt: number | null;
@@ -38,8 +36,6 @@ type HubStore = HubStoreState & {
 
 const initialHubStoreState: HubStoreState = {
   connection: "connecting",
-  cycleBundleBusy: false,
-  cycleBundleError: null,
   error: null,
   lastStreamFrameAt: null,
   runtimePolicyBusy: false,

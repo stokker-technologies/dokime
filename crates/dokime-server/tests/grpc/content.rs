@@ -8,8 +8,6 @@
  */
 
 /* === Modules === */
-#[path = "content/bundle.rs"]
-mod bundle;
 
 /* === Re-Exports === */
 
@@ -519,22 +517,6 @@ async fn artifact_transfer_budget(message_bytes: usize) {
     .await
     .expect("artifact downloads exceed the transfer budget");
     eprintln!("artifact transfer: {:?}", transfer_started.elapsed());
-    let archive = tokio::time::timeout(transfer_budget, bundle::download(&content, &cycle_id))
-        .await
-        .expect("cycle bundle download exceeds the transfer budget");
-    bundle::verify(&archive, &cycle_id);
-    assert_eq!(
-        content
-            .unary::<contracts::content::GetCycleFolderPath>(authenticated(
-                contracts::content::GetCycleFolderPathRequest {
-                    cycle_id: cycle_id.clone(),
-                }
-            ))
-            .await
-            .unwrap_err()
-            .code(),
-        Code::Unimplemented
-    );
     let mut stalled = content
         .download::<contracts::content::DownloadArtifact>(authenticated(
             contracts::content::DownloadArtifactRequest {
@@ -1254,50 +1236,31 @@ pub(crate) async fn artifact_upload_completion() {
     finish_completion_harness(execution, cycle_id, gate, owner, server).await;
 }
 
-pub(crate) async fn cycle_evidence_settled() {
-    let (_root, mut owner, server, execution, _content, gate, cycle_id, _scope) =
+pub(crate) async fn open_report_states() {
+    let (_root, mut owner, server, execution, _content, gate, cycle_id, scope) =
         completion_harness().await;
     let cycle = dokime_app::core::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
+    let execution_id = scope
+        .execution_id
+        .clone()
+        .expect("captured execution scope");
     wait_for_watched_lifecycle(&owner, &cycle, dokime_app::execution::CycleStatus::Running).await;
 
-    // Running: Both Cycle-Wide Products Refuse With A Readable Precondition
-    let bundle = execution
-        .download::<contracts::content::DownloadCycleBundle>(authenticated(
-            contracts::content::DownloadCycleBundleRequest {
-                cycle_id: cycle_id.clone(),
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .message()
-        .await
-        .unwrap_err();
-    assert_eq!(bundle.code(), Code::FailedPrecondition);
+    // Running: Both Reports Are Rendered From The Current Evidence
+    let (metadata, html) = cycle_report(&execution, &cycle_id).await;
+    assert_eq!(metadata.origin, contracts::reports::ReportOrigin::Current);
+    assert_eq!(metadata.test_execution_id, None);
+    assert!(String::from_utf8_lossy(&html).contains("<!doctype html>"));
+    let (metadata, html) = execution_report(&execution, &execution_id).await;
+    assert_eq!(metadata.origin, contracts::reports::ReportOrigin::Current);
+    assert_eq!(metadata.test_cycle_id, cycle_id);
     assert_eq!(
-        bundle.message(),
-        "The evidence bundle becomes available when the cycle is terminal; this cycle is still running."
+        metadata.test_execution_id.as_deref(),
+        Some(execution_id.as_str())
     );
-    let report = execution
-        .download::<contracts::reports::DownloadCycleReport>(authenticated(
-            contracts::reports::DownloadCycleReportRequest {
-                cycle_id: cycle_id.clone(),
-                identifier: String::new(),
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .message()
-        .await
-        .unwrap_err();
-    assert_eq!(report.code(), Code::FailedPrecondition);
-    assert_eq!(
-        report.message(),
-        "The final report becomes available when the cycle is terminal; this cycle is still running."
-    );
+    assert!(String::from_utf8_lossy(&html).contains("<!doctype html>"));
 
-    // Terminal: Verify The Complete Archive And Exact Sealed Report Bytes
+    // Terminal: Both Reports Are The Sealed Bytes, Unchanged Across Reads
     gate.release.notify_one();
     wait_for_watched_lifecycle(
         &owner,
@@ -1305,36 +1268,75 @@ pub(crate) async fn cycle_evidence_settled() {
         dokime_app::execution::CycleStatus::Completed,
     )
     .await;
-    let first = bundle::download(&execution, &cycle_id).await;
-    let second = bundle::download(&execution, &cycle_id).await;
+    let (metadata, first) = cycle_report(&execution, &cycle_id).await;
+    assert_eq!(metadata.origin, contracts::reports::ReportOrigin::Sealed);
+    let (_, second) = cycle_report(&execution, &cycle_id).await;
     assert_eq!(
         first, second,
-        "the same sealed cycle must yield identical ZIP bytes"
+        "a sealed cycle report must read back unchanged"
     );
-    let final_report = bundle::verify(&first, &cycle_id);
-    let mut report = execution
+    let (metadata, _) = execution_report(&execution, &execution_id).await;
+    assert_eq!(metadata.origin, contracts::reports::ReportOrigin::Sealed);
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
+async fn cycle_report(
+    client: &WireClient,
+    cycle_id: &str,
+) -> (contracts::reports::ReportMetadata, Vec<u8>) {
+    let stream = client
         .download::<contracts::reports::DownloadCycleReport>(authenticated(
             contracts::reports::DownloadCycleReportRequest {
-                cycle_id: cycle_id.clone(),
+                cycle_id: cycle_id.to_owned(),
                 identifier: String::new(),
             },
         ))
         .await
         .unwrap()
         .into_inner();
-    let mut report_bytes = Vec::new();
-    while let Some(frame) = report.message().await.unwrap() {
-        if let Some(contracts::reports::ReportHtmlFramePayload::Chunk(chunk)) = frame.payload {
-            assert_eq!(chunk.offset, report_bytes.len() as u64);
-            report_bytes.extend_from_slice(&chunk.data);
+    report_frames(stream).await
+}
+
+async fn execution_report(
+    client: &WireClient,
+    execution_id: &str,
+) -> (contracts::reports::ReportMetadata, Vec<u8>) {
+    let stream = client
+        .download::<contracts::reports::DownloadExecutionReport>(authenticated(
+            contracts::reports::DownloadExecutionReportRequest {
+                execution_id: execution_id.to_owned(),
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    report_frames(stream).await
+}
+
+async fn report_frames(
+    mut stream: WireStream<contracts::reports::ReportHtmlFrame>,
+) -> (contracts::reports::ReportMetadata, Vec<u8>) {
+    let mut metadata = None;
+    let mut html = Vec::new();
+    let mut complete = false;
+    while let Some(frame) = stream.message().await.unwrap() {
+        match frame.payload.expect("report payload") {
+            contracts::reports::ReportHtmlFramePayload::Report(report) => {
+                assert!(metadata.replace(*report).is_none(), "one metadata frame");
+            }
+            contracts::reports::ReportHtmlFramePayload::Chunk(chunk) => {
+                assert_eq!(chunk.offset, html.len() as u64);
+                html.extend_from_slice(&chunk.data);
+            }
+            contracts::reports::ReportHtmlFramePayload::Complete(done) => {
+                assert_eq!(done.size_bytes, html.len() as u64);
+                complete = true;
+            }
         }
     }
-    assert_eq!(
-        final_report, report_bytes,
-        "bundle must retain the sealed HTML bytes"
-    );
-    server.shutdown().await.unwrap();
-    owner.shutdown().await.unwrap();
+    assert!(complete, "report stream must complete");
+    (metadata.expect("report metadata"), html)
 }
 
 pub(crate) async fn large_artifact_buffering() {

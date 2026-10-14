@@ -222,6 +222,7 @@ fn execution_filter(filter: Option<wire::ExecutionFilter>) -> Result<ExecutionFi
             .started_before
             .map(canonical::decoded_timestamp)
             .transpose()?,
+        archive: crate::grpc::execution::archive_scope(filter.archive),
     })
 }
 

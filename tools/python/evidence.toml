@@ -37,6 +37,7 @@ command = [
   "crates/dokime-gui/tests/plot-auto.test.mjs",
   "crates/dokime-gui/tests/histogram-axes.test.mjs",
   "crates/dokime-gui/tests/execution-list.test.mjs",
+  "crates/dokime-gui/tests/cycle-menus.test.mjs",
   "crates/dokime-gui/tests/storage-reset.test.mjs",
 ]
 

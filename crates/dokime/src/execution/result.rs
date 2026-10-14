@@ -200,7 +200,6 @@ pub enum CycleStatus {
     Failed,
     Blocked,
     Stopped,
-    Cleared,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -673,8 +672,7 @@ impl CycleView {
 impl CycleStatus {
     fn allows(self, target: CycleStatus) -> bool {
         use CycleStatus::{
-            Blocked, Cleared, Completed, Failed, Paused, Previewed, Ready, Running, Stopped,
-            Stopping,
+            Blocked, Completed, Failed, Paused, Previewed, Ready, Running, Stopped, Stopping,
         };
         if self == target {
             return true;
@@ -687,10 +685,6 @@ impl CycleStatus {
                 | (Running | Paused, Stopping)
                 | (Previewed | Ready | Running | Stopping, Stopped)
                 | (Running | Stopping, Completed | Failed | Blocked)
-                | (
-                    Previewed | Ready | Completed | Failed | Blocked | Stopped,
-                    Cleared
-                )
         )
     }
 

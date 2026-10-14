@@ -108,39 +108,6 @@ impl Client {
         result
     }
 
-    pub async fn download_cycle_bundle(
-        &self,
-        request: contracts::content::DownloadCycleBundleRequest,
-        destination: PathBuf,
-    ) -> Result<Download<contracts::content::CycleBundleMetadata>, Error> {
-        let identity = request.cycle_id.clone();
-        let stream = self
-            .content_download_cycle_bundle(request)
-            .await
-            .map_err(Error::Request)?;
-        let result = receive(
-            || stream.message(),
-            destination,
-            |frame| {
-                use contracts::content::CycleBundleFramePayload as Payload;
-                Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
-                    Payload::Metadata(metadata) => {
-                        if metadata.cycle_id != identity {
-                            return Err(Error::Invalid("download identity changed"));
-                        }
-                        let expected = Some((metadata.size_bytes, metadata.sha256.clone()));
-                        Frame::Header(metadata, expected)
-                    }
-                    Payload::Chunk(chunk) => Frame::Chunk(chunk.offset, chunk.data),
-                    Payload::Complete(done) => Frame::Complete(done.size_bytes, done.sha256),
-                })
-            },
-        )
-        .await;
-        stream.close().await;
-        result
-    }
-
     pub async fn download_execution_file(
         &self,
         request: contracts::content::DownloadExecutionFileRequest,
@@ -234,6 +201,38 @@ impl Client {
                     Payload::Report(metadata) => {
                         if metadata.test_cycle_id != id {
                             return Err(Error::Invalid("report belongs to another cycle"));
+                        }
+                        Frame::Header(*metadata, None)
+                    }
+                    Payload::Chunk(chunk) => Frame::Chunk(chunk.offset, chunk.data),
+                    Payload::Complete(done) => Frame::Complete(done.size_bytes, done.sha256),
+                })
+            },
+        )
+        .await;
+        stream.close().await;
+        result
+    }
+
+    pub async fn download_execution_report(
+        &self,
+        request: contracts::reports::DownloadExecutionReportRequest,
+        destination: PathBuf,
+    ) -> Result<Download<contracts::reports::ReportMetadata>, Error> {
+        let id = request.execution_id.clone();
+        let stream = self
+            .reports_download_execution_report(request)
+            .await
+            .map_err(Error::Request)?;
+        let result = receive(
+            || stream.message(),
+            destination,
+            |frame| {
+                use contracts::reports::ReportHtmlFramePayload as Payload;
+                Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
+                    Payload::Report(metadata) => {
+                        if metadata.test_execution_id.as_deref() != Some(id.as_str()) {
+                            return Err(Error::Invalid("report belongs to another execution"));
                         }
                         Frame::Header(*metadata, None)
                     }

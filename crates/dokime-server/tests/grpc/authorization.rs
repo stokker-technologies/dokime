@@ -108,9 +108,7 @@ matrix! {
     "/dokime.v1.Catalog/ListTelemetrySchemas", unary, contracts::catalog::ListTelemetrySchemas;
     "/dokime.v1.Content/DownloadAppearanceAsset", download, contracts::content::DownloadAppearanceAsset;
     "/dokime.v1.Content/DownloadArtifact", download, contracts::content::DownloadArtifact;
-    "/dokime.v1.Content/DownloadCycleBundle", download, contracts::content::DownloadCycleBundle;
     "/dokime.v1.Content/DownloadExecutionFile", download, contracts::content::DownloadExecutionFile;
-    "/dokime.v1.Content/GetCycleFolderPath", unary, contracts::content::GetCycleFolderPath;
     "/dokime.v1.Content/ListArtifacts", unary, contracts::content::ListArtifacts;
     "/dokime.v1.Content/ListExecutionFiles", unary, contracts::content::ListExecutionFiles;
     "/dokime.v1.Content/ReadExecutionFile", unary, contracts::content::ReadExecutionFile;
@@ -126,7 +124,6 @@ matrix! {
     "/dokime.v1.Evidence/ListRecords", unary, contracts::evidence::ListRecords;
     "/dokime.v1.Evidence/WatchRecords", download, contracts::evidence::WatchRecords;
     "/dokime.v1.Execution/AppendPlannedCases", unary, contracts::execution::AppendPlannedCases;
-    "/dokime.v1.Execution/ClearCycle", unary, contracts::execution::ClearCycle;
     "/dokime.v1.Execution/CopyCycle", unary, contracts::execution::CopyCycle;
     "/dokime.v1.Execution/CreateCycle", unary, contracts::execution::CreateCycle;
     "/dokime.v1.Execution/DeleteCase", unary, contracts::execution::DeleteCase;
@@ -169,6 +166,8 @@ matrix! {
     };
     "/dokime.v1.Execution/RunCycle", unary, contracts::execution::RunCycle;
     "/dokime.v1.Execution/ScheduleCaseRerun", unary, contracts::execution::ScheduleCaseRerun;
+    "/dokime.v1.Execution/SetCycleArchived", unary, contracts::execution::SetCycleArchived;
+    "/dokime.v1.Execution/SetExecutionArchived", unary, contracts::execution::SetExecutionArchived;
     "/dokime.v1.Execution/StopCycle", unary, contracts::execution::StopCycle;
     "/dokime.v1.Execution/UpdateCyclePolicy", unary, contracts::execution::UpdateCyclePolicy;
     "/dokime.v1.Files/FileWatch", download, contracts::files::FileWatch = contracts::files::FileWatchRequest {
@@ -228,7 +227,7 @@ matrix! {
         limit: 0,
     };
     "/dokime.v1.Reports/DownloadCycleReport", download, contracts::reports::DownloadCycleReport;
-    "/dokime.v1.Reports/RenderCheckpointReport", unary, contracts::reports::RenderCheckpointReport;
+    "/dokime.v1.Reports/DownloadExecutionReport", download, contracts::reports::DownloadExecutionReport;
     "/dokime.v1.Settings/GetPluginSettings", unary, contracts::settings::GetPluginSettings;
     "/dokime.v1.Settings/GetSettings", unary, contracts::settings::GetSettings;
     "/dokime.v1.Settings/ReadApplicationSettings", unary, contracts::settings::ReadApplicationSettings;
@@ -446,7 +445,6 @@ pub(crate) async fn remote_refuses_local() {
         "/dokime.v1.Media/ScreenRecording",
         "/dokime.v1.Media/CameraRecording",
         "/dokime.v1.Files/FileWatch",
-        "/dokime.v1.Content/GetCycleFolderPath",
     ];
     for case in cases().filter(|case| local_only.contains(&case.path)) {
         let refusal = (case.call)(channel.clone(), Some(TOKEN))

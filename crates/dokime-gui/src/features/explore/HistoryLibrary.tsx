@@ -9,7 +9,7 @@
 
 /* === External Imports === */
 
-import { Cloud, Database, GitCompare, HardDrive } from "lucide-react";
+import { ArchiveRestore, Cloud, Database, GitCompare, HardDrive } from "lucide-react";
 import { useMemo } from "react";
 
 /* === Local Imports === */
@@ -33,9 +33,13 @@ import { cn } from "@/lib/utils";
 /* === Types === */
 
 type HistoryLibraryProps = {
+  /** The Archived view: archived rows only, each with Unarchive. */
+  archived: boolean;
   cycles: ExploreEntry[];
   loading: boolean;
   onCompare: () => void;
+  onToggleArchived: () => void;
+  onUnarchive: (entry: ExploreEntry) => void;
   onOpenEntry: (target: ExploreTarget) => void;
   onQueryChange: (query: string) => void;
   onToggleSelected: (entryKey: string) => void;
@@ -102,9 +106,12 @@ function entryKey(entry: ExploreEntry): string {
 /* === Components === */
 
 export function HistoryLibrary({
+  archived,
   cycles,
   loading,
   onCompare,
+  onToggleArchived,
+  onUnarchive,
   onOpenEntry,
   onQueryChange,
   onToggleSelected,
@@ -127,6 +134,51 @@ export function HistoryLibrary({
     [onToggleSelected, selectedIds],
   );
 
+  const columns = useMemo(
+    () =>
+      archived
+        ? column.columns([
+            ...COLUMNS,
+            column.display({
+              cell: ({ row }) => (
+                <Button
+                  className="h-[var(--control-height)]"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onUnarchive(row.original);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <ArchiveRestore data-icon="inline-start" />
+                  Unarchive
+                </Button>
+              ),
+              header: "",
+              id: "unarchive",
+              meta: { align: "end", label: "Unarchive", width: "w-36" },
+            }),
+          ])
+        : COLUMNS,
+    [archived, onUnarchive],
+  );
+
+  /* The view toggle sits on the toolbar beside Compare: pressed, the table
+     lists only what was archived. */
+  const toggle = (
+    <Button
+      aria-pressed={archived}
+      className="h-[var(--control-height)]"
+      onClick={onToggleArchived}
+      size="sm"
+      type="button"
+      variant={archived ? "secondary" : "outline"}
+    >
+      Archived
+    </Button>
+  );
+
   const compare = (
     <Button
       className="h-[var(--control-height)]"
@@ -144,10 +196,17 @@ export function HistoryLibrary({
 
   return (
     <DataTable
-      actions={compare}
-      columns={COLUMNS}
+      actions={
+        <>
+          {toggle}
+          {compare}
+        </>
+      }
+      columns={columns}
       data={cycles}
-      emptyText={loading ? "Loading history…" : "No history matches."}
+      emptyText={
+        loading ? "Loading history…" : archived ? "No archived history." : "No history matches."
+      }
       getRowId={entryKey}
       onRowClick={(entry) => onOpenEntry(entry.target)}
       search={search}

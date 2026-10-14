@@ -23,10 +23,10 @@
 //   b. library      suite expansion, the template dialog, two templates added
 //   c. cycle        the workspace: sidebar, run, prompts, focus, console, overflow
 //   c'. execution-stop  a copy: Stop Execution stops one, its siblings finish
-//   d. cycles-home  the groups after a run, Show Cleared, the filter box
+//   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
-//   g. report       Write Report, then the written file loaded in this WebView
+//   g. report       Download Report, then the saved file rendered in headless Chrome
 //   h. touch        the same surfaces at touch density: collapsed rail, Executions sheet
 //
 // Windows Requires An Interactive Disposable Account, WebView2 And A Version-
@@ -39,12 +39,11 @@
 // Two deliberate substitutions, both of the operating system rather than of the
 // product:
 //
-//   * `xdg-open` is a no-op script on PATH, so "Open Folder" cannot spawn a file
-//     manager over the session.
+//   * `xdg-open` is a no-op script on PATH, so Open Report and "Open Folder"
+//     cannot spawn a browser or a file manager over the session.
 //   * `desktop_save_document` opens a native GTK/portal save dialog no WebDriver
-//     session can reach, which would hang the gate on Download Bundle and Write
-//     Report. The gate taps that one command at the Tauri IPC boundary and
-//     writes the bytes the application produced into `<evidence>/downloads`
+//     session can reach, which would hang the gate on Download Report. The gate
+//     taps that one command at the Tauri IPC boundary and writes the bytes the application produced into `<evidence>/downloads`
 //     itself, which is what the picker would have done. Every domain RPC still
 //     crosses the real transport, and so does `desktop_save_diagnostics_bundle`,
 //     which needs no picker: the throwaway home is given an xdg-user-dirs
@@ -649,7 +648,7 @@ async function sizeViewport(session, target) {
  * as `writable: false, configurable: false`, so assignment fails silently and
  * `Object.defineProperty` throws on both; the previous shim never installed
  * and every save this gate ever made reached a real GTK dialog that never
- * returns, which is what hung Write Report in every run. One layer down,
+ * returns, which is what hung the report save in every run. One layer down,
  * `ipc-protocol.js` sends each command as `POST` to
  * `convertFileSrc(cmd, 'ipc')` and reads the reply's `Tauri-Response` header,
  * and `window.fetch` is an ordinary writable property. So the tap answers that
@@ -1435,9 +1434,9 @@ async function cycleJourney(session, cycleId) {
     }
   }
 
-  /* Sealed evidence while the cycle is in flight: Download Bundle and Write
-     Report are cut from the sealed cycle, so they stay disabled and say why
-     rather than failing with the backend's refusal after a click. */
+  /* Open Report while the cycle is in flight: no seal yet, so the runtime
+     renders one from the run so far and the shell hands it to the opener
+     (`xdg-open` is a no-op here). It is never disabled and never refused. */
   const inFlight = await until(
     "the cycle header to show an in-flight lifecycle",
     async () => /\b(Running|Paused|Stopping)\b/.test(normalize(await session.text())),
@@ -1445,32 +1444,28 @@ async function cycleJourney(session, cycleId) {
   ).catch(() => false);
   if (inFlight) {
     await openMenu(session, "Cycle Actions");
-    const evidence = await session.execute(`
-      const items = [...document.querySelectorAll('[role=menu] [role=menuitem]')];
-      const state = (name) => {
-        const item = items.find((candidate) => candidate.innerText.trim() === name);
-        if (!item) return null;
-        const reason = document.getElementById(item.getAttribute('aria-describedby') ?? '');
-        return {
-          disabled: item.getAttribute('aria-disabled') === 'true' || item.hasAttribute('data-disabled'),
-          reason: reason ? reason.innerText.trim() : '',
-        };
-      };
-      return { bundle: state('Download Bundle'), report: state('Write Report') };
+    const items = await session.execute(`
+      return [...document.querySelectorAll('[role=menu] [role=menuitem]')].map((item) => ({
+        disabled: item.getAttribute('aria-disabled') === 'true' || item.hasAttribute('data-disabled'),
+        name: item.innerText.trim(),
+      }));
     `);
-    await closeAnyMenu(session);
-    for (const [name, item] of [
-      ["Download Bundle", evidence.bundle],
-      ["Write Report", evidence.report],
-    ]) {
-      assert.ok(item, `The overflow menu must offer ${name} while the cycle runs`);
-      assert.ok(item.disabled, `${name} must be disabled while the cycle is in flight`);
-      assert.match(
-        item.reason,
-        /become available when the cycle is terminal/,
-        `${name} must state why it is unavailable while the cycle is in flight`,
+    const open = items.find((item) => item.name === "Open Report");
+    assert.ok(open, "The overflow menu must offer Open Report while the cycle runs");
+    assert.ok(!open.disabled, "Open Report must stay enabled while the cycle is in flight");
+    await session.clickNamed("menuitem", "Open Report");
+    const opened = await until(
+      "the in-flight report to open",
+      async () => /Report Opened/.test(await toastText(session).catch(() => "")),
+      60000,
+    ).catch(() => false);
+    if (!opened) {
+      defect(
+        "cycle/open-report",
+        `Open Report did not open a report while the cycle ran: ${await toastText(session).catch(() => "")}`,
       );
     }
+    await closeAnyMenu(session);
     assert.equal(
       await session.execute("return document.body.style.pointerEvents || '';"),
       "",
@@ -1478,8 +1473,8 @@ async function cycleJourney(session, cycleId) {
     );
   } else {
     defect(
-      "cycle/sealed-evidence",
-      "The admitted cycle never showed Running, Paused or Stopping, so Download Bundle and Write Report could not be checked while it was in flight.",
+      "cycle/open-report",
+      "The admitted cycle never showed Running, Paused or Stopping, so Open Report could not be checked while it was in flight.",
     );
   }
 
@@ -1742,8 +1737,8 @@ async function cycleJourney(session, cycleId) {
     "A closed console must leave the page interactive",
   );
 
-  /* The overflow menu names every whole-cycle command, and Clear Cycle asks.
-     The trigger is pressed again if the first press produced no menu: a real
+  /* The overflow menu names every whole-cycle command; Archive replaces
+     clearing and changes nothing but the archive mark. The trigger is pressed again if the first press produced no menu: a real
      WebView occasionally drops the pointer sequence a dropdown opens on, and
      one silent miss is not a product defect. A second miss is, and fails. */
   await session.execute(
@@ -1757,56 +1752,20 @@ async function cycleJourney(session, cycleId) {
     "Add Cases",
     "Runtime Policy",
     "Follow Active",
-    "Download Bundle",
-    "Write Report",
-    "Clear Cycle",
+    "Open Report",
+    "Archive",
   ]) {
     assert.ok(hasText(items, item), `The overflow menu must offer ${item}`);
   }
-  await session.clickNamed("menuitem", "Clear Cycle");
-  const confirm = await until("clear confirm", () => session.find("css selector", "[role=dialog]"));
-  assert.ok(
-    hasText(await session.textOf(confirm), "Clearing stops this cycle"),
-    "Clear Cycle must state what it removes",
-  );
-  await session.clickNamed("button", "Cancel");
-  /* Cancelling must leave the cycle where it was and give the page back.
-     Radix keeps a dismissed dialog mounted while its exit animation runs, and
-     in this WebView that node can outlive the animation it waits on — so the
-     open layers are what this counts, and the page's own interactivity is the
-     promise that actually matters. Whatever stays behind is written into the
-     evidence, because a bare timeout names the condition and not the cause. */
-  await until(
-    "confirm cancelled",
-    async () => {
-      const layers = await session.modalLayers();
-      return (
-        layers.pathname === `/cycles/${cycleId}` &&
-        layers.dialogs.every((dialog) => dialog.state !== "open") &&
-        layers.bodyPointerEvents === ""
-      );
-    },
-    20000,
-  ).catch(async (failure) => {
-    const target = await session.dump("cycle-confirm-cancelled", {
-      expectedPathname: `/cycles/${cycleId}`,
-      layers: await session.modalLayers(),
-    });
-    throw new Error(`${failure.message} (layers written to ${target})`);
-  });
-  /* A dismissed dialog that stays in the document is the WebView not
-     delivering the animation end its exit waits on. It holds nothing — the
-     page is interactive and the layer is closed — but it is why counting
-     `[role=dialog]` nodes rather than open ones made this step time out, so
-     each run records whether it happened. */
-  const dismissed = await session.modalLayers();
-  if (dismissed.dialogs.length) {
-    notes.push(
-      `cycle: cancelling Clear Cycle left ${dismissed.dialogs.length} dismissed dialog node(s) in the document (${dismissed.dialogs
-        .map((dialog) => `${dialog.slot || "dialog"}:${dialog.state}`)
-        .join(", ")})`,
-    );
+  for (const item of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
+    assert.ok(!hasText(items, item), `The overflow menu must no longer offer ${item}`);
   }
+  await closeAnyMenu(session);
+  assert.equal(
+    await session.execute("return document.body.style.pointerEvents || '';"),
+    "",
+    "A closed overflow menu must leave the page interactive",
+  );
   return selection;
 }
 
@@ -1941,7 +1900,7 @@ async function executionStopJourney(session, cycleId) {
   return copyId;
 }
 
-/** Cycles home after the run: the Recent row, Show Cleared, and the filter. */
+/** Cycles home after the run: the Recent row, the Archived view, and the filter. */
 async function cyclesHomeJourney(session) {
   await session.goto("/cycles");
   const body = await until(
@@ -1956,12 +1915,19 @@ async function cyclesHomeJourney(session) {
   assert.ok(/\d+ \/ \d+/.test(normalize(body)), "A row must state executions over cases");
   assert.ok(/\d+[smhd] Ago/.test(normalize(body)), "A row must state when the cycle last moved");
 
-  await session.clickNamed("button", "Show Cleared");
+  /* Nothing is archived yet, so the Archived view is one empty group, and
+     leaving it brings the run's cycle back. */
+  await session.clickNamed("button", "Archived");
   assert.ok(
-    await until("hide cleared", () => session.exists("button", "Hide Cleared")),
-    "Show Cleared must become Hide Cleared",
+    await until("archived view", async () => hasText(await session.text(), "No Archived Cycles")),
+    "The Archived view must say when nothing is archived",
   );
-  await session.clickNamed("button", "Hide Cleared");
+  await session.clickNamed("button", "Archived");
+  await until(
+    "default view",
+    async () => !hasText(await session.text(), "No Archived Cycles"),
+    20000,
+  );
 
   const filter = await session.find("css selector", "input[aria-label='Filter Cycles']");
   await session.type(filter, "zzz-no-such-cycle");
@@ -2260,7 +2226,7 @@ async function settingsJourney(session, notes, work) {
 }
 
 /**
- * The frozen report: written by the application, then read back in this WebView.
+ * The frozen report: saved by the application's Download Report, then read back.
  *
  * The same component set renders it with `live={false}`, so the assertions are
  * about what a file can honour: identity, provenance, the outline and the
@@ -2270,13 +2236,12 @@ async function reportJourney(session, cycleId) {
   await session.goto(`/cycles/${cycleId}?view=cycle`);
   await until("cycle workspace", () => session.exists("button", "Cycle Actions"), 60000);
   await installSaveTap(session);
-  await session.clickNamed("button", "Cycle Actions");
-  await session.clickNamed("menuitem", "Write Report");
-  /* The toast carries the backend's own words when generation fails, and a
-     report that is never written is otherwise five silent minutes. */
+  await session.clickNamed("button", "Download Report");
+  /* The toast carries the backend's own words when the report fails, and a
+     report that is never saved is otherwise five silent minutes. */
   let announcement = "";
   const written = await until(
-    "report written",
+    "report saved",
     async () => {
       announcement = (await toastText(session)) || announcement;
       const saved = await drainSavedDocuments(session);

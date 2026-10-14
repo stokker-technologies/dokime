@@ -65,7 +65,7 @@ function mapCycleHistorySummary(
   const caseCount = safeNumber(cycle.caseCount, "Execution.ListCycles case count");
   const executionCount = safeNumber(cycle.executionCount, "Execution.ListCycles execution count");
   const result = cycle.result;
-  const terminal = ["Completed", "Failed", "Blocked", "Stopped", "Cleared"].includes(
+  const terminal = ["Completed", "Failed", "Blocked", "Stopped"].includes(
     cycle.status?.HarmosVariant.case ?? "",
   );
   const startedAt = timestampIso(cycle.startedAt);
@@ -121,8 +121,6 @@ function cycleLifecycle(status: CycleStatus): string {
       return "blocked";
     case "Stopped":
       return "stopped";
-    case "Cleared":
-      return "cleared";
     default:
       return "unspecified";
   }

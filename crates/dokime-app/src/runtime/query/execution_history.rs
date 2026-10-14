@@ -42,11 +42,19 @@ pub struct ExecutionBrowseQuery {
     pub order: ExecutionOrder,
 }
 
+/// The archive marks a browse reads once, for every row it selects.
+struct Archived {
+    cycles: std::collections::BTreeSet<dokime::core::TestCycleId>,
+    executions: std::collections::BTreeSet<TestExecutionId>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionBrowseEntry {
     pub metadata: ExecutionMetadata,
     pub checkpoint: Option<ExecutionCheckpoint>,
     pub availability: ExecutionAvailability,
+    /// Whether an operator archived this execution or its cycle.
+    pub archived: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -115,6 +123,13 @@ pub enum ExecutionAvailability {
 /* === Traits === */
 
 /* === Implementations === */
+impl Archived {
+    /// An execution reads as archived when it, or its whole cycle, is.
+    fn covers(&self, metadata: &ExecutionMetadata) -> bool {
+        self.executions.contains(&metadata.execution_id) || self.cycles.contains(&metadata.cycle_id)
+    }
+}
+
 impl MemorySize for ExecutionCheckpointEvidence {
     fn memory_size(&self) -> usize {
         let fields = [
@@ -460,13 +475,21 @@ impl RuntimeHandle {
                         } else {
                             ExecutionAvailability::Uncheckpointed
                         },
+                        archived: false,
                     });
                 }
             }
             Ok(live)
         })?;
+        let archived = {
+            let state = self.state_read();
+            Archived {
+                cycles: state.archived_cycles.clone(),
+                executions: state.archived_executions.clone(),
+            }
+        };
         let page = reader.project(&rows, |rows, allowance| {
-            browse_page(rows, &live, &query, limit, allowance)
+            browse_page(rows, &live, &query, &archived, limit, allowance)
         })?;
         reader.project(&page, |page, allowance| map(page, allowance))
     }
@@ -677,6 +700,7 @@ fn stored_rows(
                 ExecutionAvailability::Interrupted
             },
             checkpoint,
+            archived: false,
         });
     }
     Ok(entries)
@@ -686,9 +710,14 @@ fn browse_page(
     rows: &BrowseRows,
     live: &[ExecutionBrowseEntry],
     query: &ExecutionBrowseQuery,
+    archived: &Archived,
     limit: usize,
     allowance: NonZeroUsize,
 ) -> harmos::Result<ExecutionBrowsePage> {
+    let admitted = |row: &ExecutionBrowseEntry| {
+        executions::matches(&row.metadata, &query.filter)
+            && query.filter.archive.admits(archived.covers(&row.metadata))
+    };
     let count = rows.pages.iter().try_fold(live.len(), |count, page| {
         count.checked_add(page.len()).ok_or_else(overflow)
     })?;
@@ -712,7 +741,7 @@ fn browse_page(
     // Native Checkpoints Preserve Their Exact Revision Even When The Live Row Wins.
     for row in rows.pages.iter().flat_map(|page| page.iter()) {
         checkpoints.insert(&row.metadata.execution_id, row.checkpoint.as_ref());
-        if executions::matches(&row.metadata, &query.filter) {
+        if admitted(row) {
             candidates.insert(&row.metadata.execution_id, row);
         }
     }
@@ -721,7 +750,7 @@ fn browse_page(
         if candidates.contains_key(id) && !matches!(row.availability, ExecutionAvailability::Live) {
             continue;
         }
-        if executions::matches(&row.metadata, &query.filter) {
+        if admitted(row) {
             candidates.insert(id, row);
         } else {
             candidates.remove(id);
@@ -781,6 +810,7 @@ fn browse_page(
     }
     for row in selected.into_iter().skip(start).take(returned) {
         let mut entry = (*row).clone();
+        entry.archived = archived.covers(&entry.metadata);
         if entry.checkpoint.is_none() {
             entry.checkpoint = checkpoints
                 .get(&entry.metadata.execution_id)

@@ -17,7 +17,7 @@
 // Third Party Imports
 
 // Local Imports
-use super::{RenderCheckpointReportRequest, RenderedReport, TRANSFER};
+use super::{ArchiveReply, ORDINARY, SetCycleArchivedRequest};
 
 /* === Constants === */
 
@@ -26,10 +26,11 @@ use super::{RenderCheckpointReportRequest, RenderedReport, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = RenderCheckpointReportRequest, response = RenderedReport, id = "dokime.reports.render_checkpoint_report", version = 1,
-        policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
-        grpc(package = "dokime.v1", service = "Reports", method = "RenderCheckpointReport"))]
-pub struct RenderCheckpointReport;
+// Archives or unarchives one terminal cycle, live or retired to history.
+#[harmos::operation(request = SetCycleArchivedRequest, response = ArchiveReply, id = "dokime.execution.set_cycle_archived", version = 1,
+        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
+        grpc(package = "dokime.v1", service = "Execution", method = "SetCycleArchived"))]
+pub struct SetCycleArchived;
 
 /* === Enums === */
 

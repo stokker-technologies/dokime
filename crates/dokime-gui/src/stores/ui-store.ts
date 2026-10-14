@@ -64,7 +64,6 @@ type UiStoreState = {
   cycleSummaryCardMarkdown: string;
   cycleSummaryCardTitle: string;
   clearDialogOpen: boolean;
-  clearCycleError: string | null;
   clearingCycle: boolean;
   density: DensityPreference;
   desktopUpdateDialogOpen: boolean;
@@ -113,7 +112,6 @@ const initialUiStoreState: UiStoreState = {
   cycleSummaryCardMarkdown: "",
   cycleSummaryCardTitle: "Cycle Summary Note",
   clearDialogOpen: false,
-  clearCycleError: null,
   clearingCycle: false,
   density: "comfortable",
   desktopUpdateDialogOpen: false,

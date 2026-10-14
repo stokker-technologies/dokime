@@ -442,6 +442,7 @@ impl Resources {
             .ok_or_else(|| Status::not_found("cycle not found"))?;
         let mut bounds = detail::Bounds::new(self.max_message_bytes);
         let value = execution_page(
+            snapshot.state(),
             snapshot.state().executions_for_cycle(cycle),
             &request.after_execution_id,
             limit,
@@ -532,8 +533,8 @@ pub(super) fn summary(
             CycleStatus::Failed => wire::CycleStatus::Failed,
             CycleStatus::Blocked => wire::CycleStatus::Blocked,
             CycleStatus::Stopped => wire::CycleStatus::Stopped,
-            CycleStatus::Cleared => wire::CycleStatus::Cleared,
         },
+        archived: state.archived_cycles.contains(&cycle.test_cycle_id),
         case_count: state.cases_for_cycle(cycle).count() as u64,
         execution_count: cycle.execution_ids.len() as u64,
         continue_on_failure: cycle.continue_on_failure,
@@ -683,6 +684,7 @@ fn cycle_filter(filter: Option<&wire::CycleFilter>) -> Result<CycleFilter, Statu
             .created_before
             .map(canonical::decoded_timestamp)
             .transpose()?,
+        archive: archive_scope(filter.archive),
     })
 }
 
@@ -703,6 +705,18 @@ fn cycle_order(order: Option<&wire::CycleOrder>) -> CycleOrder {
     }
 }
 
+/// The archive selection a list request asks for; absent lists unarchived rows.
+pub(super) fn archive_scope(
+    scope: Option<wire::ArchiveScope>,
+) -> dokime_app::runtime::query::executions::ArchiveScope {
+    use dokime_app::runtime::query::executions::ArchiveScope;
+    match scope {
+        None | Some(wire::ArchiveScope::Unarchived) => ArchiveScope::Unarchived,
+        Some(wire::ArchiveScope::Archived) => ArchiveScope::Archived,
+        Some(wire::ArchiveScope::All) => ArchiveScope::All,
+    }
+}
+
 fn cycle_status(status: wire::CycleStatus) -> Result<CycleStatus, Status> {
     match status {
         wire::CycleStatus::Unspecified => Err(Status::invalid_argument("unspecified cycle status")),
@@ -715,7 +729,6 @@ fn cycle_status(status: wire::CycleStatus) -> Result<CycleStatus, Status> {
         wire::CycleStatus::Failed => Ok(CycleStatus::Failed),
         wire::CycleStatus::Blocked => Ok(CycleStatus::Blocked),
         wire::CycleStatus::Stopped => Ok(CycleStatus::Stopped),
-        wire::CycleStatus::Cleared => Ok(CycleStatus::Cleared),
     }
 }
 
@@ -819,6 +832,7 @@ fn case_page(
 }
 
 fn execution_page<'a>(
+    state: &RuntimeState,
     members: impl ExactSizeIterator<Item = &'a dokime_app::execution::TestExecution> + Clone,
     after: &str,
     limit: usize,
@@ -840,7 +854,7 @@ fn execution_page<'a>(
         bounds.bytes(std::mem::size_of::<wire::ExecutionSummary>())?;
         bounds.text(execution.test_execution_id.as_str())?;
         bounds.text(execution.test_case_id.as_str())?;
-        executions.push(execution_summary(execution, ordinal));
+        executions.push(execution_summary(state, execution, ordinal));
     }
     let next_after_execution_id = if start + executions.len() < count {
         let last = executions
@@ -858,11 +872,15 @@ fn execution_page<'a>(
     })
 }
 
-fn execution_summary(
+pub(super) fn execution_summary(
+    state: &RuntimeState,
     execution: &dokime_app::execution::TestExecution,
     ordinal: usize,
 ) -> wire::ExecutionSummary {
     wire::ExecutionSummary {
+        archived: state
+            .archived_executions
+            .contains(&execution.test_execution_id),
         execution_id: execution.test_execution_id.to_string(),
         case_id: execution.test_case_id.to_string(),
         status: execution_status(&execution.status),

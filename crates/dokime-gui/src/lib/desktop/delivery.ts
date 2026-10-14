@@ -23,7 +23,7 @@ import type { RpcError } from "./rpc";
  * Keeping the kind in the typed contract prevents a caller from selecting a
  * larger limit by changing a filename suffix.
  *
- * `cycle_bundle` and `artifact` no longer cross IPC as base64 JSON: they are
+ * `artifact` does not cross IPC as base64 JSON: it is
  * delivered through `desktopArtifactDeliver`'s verified server pull. The
  * support archive does: it is assembled in the webview from
  * `Backend.CollectDiagnostics` frames and so has no artifact, execution-file or
@@ -34,12 +34,7 @@ import type { RpcError } from "./rpc";
  * traceability; it crosses inline under the same bound, and the shell appends
  * `.json` when the name lacks it.
  */
-export type DesktopSaveKind =
-  | "html_report"
-  | "diagnostics_bundle"
-  | "json_document"
-  | "cycle_bundle"
-  | "artifact";
+export type DesktopSaveKind = "html_report" | "diagnostics_bundle" | "json_document" | "artifact";
 
 /** A verified document handed to the desktop shell for bounded native delivery. */
 export type DesktopSaveDocument = {
@@ -55,15 +50,14 @@ export type DesktopSaveDocument = {
  */
 export type ArtifactSource =
   | { kind: "artifact"; artifactId: string }
-  | { kind: "execution_file"; executionId: string; relativePath: string }
-  | { kind: "cycle_bundle"; cycleId: string };
+  | { kind: "execution_file"; executionId: string; relativePath: string };
 
 /** Whether a verified pull is handed to the save dialog or the OS opener. */
 export type DeliveryAction = "save" | "open";
 
 /**
- * A request to stream one verified artifact, execution output, or cycle
- * bundle to a native destination without routing its bytes through the
+ * A request to stream one verified artifact or execution output to a native
+ * destination without routing its bytes through the
  * webview.
  */
 export type ArtifactDeliveryRequest = {

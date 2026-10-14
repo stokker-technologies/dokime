@@ -35,6 +35,7 @@ pub struct CycleFilter {
     pub suite_ids: Vec<String>,
     pub created_after: Option<Timestamp>,
     pub created_before: Option<Timestamp>,
+    pub archive: super::executions::ArchiveScope,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +111,12 @@ pub fn cycle_page<'a>(
 
 /* === Private Functions === */
 fn matches_filter(state: &RuntimeState, cycle: &TestCycle, filter: &CycleFilter) -> bool {
+    if !filter
+        .archive
+        .admits(state.archived_cycles.contains(&cycle.test_cycle_id))
+    {
+        return false;
+    }
     if !filter.statuses.is_empty() && !filter.statuses.contains(&cycle.lifecycle) {
         return false;
     }

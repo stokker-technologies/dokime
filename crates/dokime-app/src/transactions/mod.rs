@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod archive;
 pub mod cycle;
 pub mod documents;
 pub mod evidence;
@@ -29,6 +30,7 @@ mod suite_sets;
 pub mod traceability;
 
 /* === Re-Exports === */
+pub use archive::{ArchiveSubject, SetArchived};
 pub use cycle::{
     ControlCycle, CycleControlAction, CycleResetAction, ResetCycle, UpdateCyclePolicy,
 };
@@ -116,6 +118,7 @@ pub enum Transactions {
     FinalizeExecutionOutputs(FinalizeExecutionOutputs),
     ResetCycle(ResetCycle),
     UpdateCyclePolicy(UpdateCyclePolicy),
+    SetArchived(SetArchived),
     AppendCycle(AppendCycle),
     CreateCycle(CreateCycle),
     CopyCycle(CopyCycle),

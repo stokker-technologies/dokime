@@ -19,7 +19,7 @@ type CycleSummary = Wire<GeneratedCycleSummary>;
 
 /* === Types === */
 
-export type CycleGroupId = "attention" | "active" | "recent";
+export type CycleGroupId = "attention" | "active" | "recent" | "archived";
 
 export type CycleRow = {
   attentionCount: number;
@@ -59,7 +59,7 @@ const ACTIVE_STATUSES = ["Running", "Paused", "Stopping"];
  * finished made every fresh cycle read as complete on this page, so they only
  * count once the cycle is sealed.
  */
-const SEALED_STATUSES = ["Completed", "Failed", "Stopped", "Cleared"];
+const SEALED_STATUSES = ["Completed", "Failed", "Stopped"];
 
 const STATUS_LABELS: Record<CycleRow["status"], string> = {
   Unspecified: "Unknown",
@@ -72,7 +72,6 @@ const STATUS_LABELS: Record<CycleRow["status"], string> = {
   Failed: "Failed",
   Blocked: "Blocked",
   Stopped: "Stopped",
-  Cleared: "Cleared",
 };
 
 /* === Public Functions === */
@@ -101,8 +100,8 @@ export function cycleRows(
 /**
  * The three fixed groups, over the rows the server selected.
  *
- * Selection, the Cleared lifecycle and newest-first order are the server's:
- * this read asks for `filter.text`, `statuses` and `order UPDATED_AT
+ * Selection, the archive view and newest-first order are the server's:
+ * this read asks for `filter.text`, `filter.archive` and `order UPDATED_AT
  * descending`, so the page cannot disagree with the pages after it and the
  * grouping does no filtering or sorting of its own. `filtered` is the one
  * thing the grouping cannot see from the rows: an empty Recent means "nothing
@@ -132,6 +131,18 @@ export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[]
       id: "recent",
       rows: recent,
       title: "Recent",
+    },
+  ];
+}
+
+/** The Archived view: one group over the archived rows the server selected. */
+export function archivedCycleGroups(rows: CycleRow[], filtered = false): CycleGroup[] {
+  return [
+    {
+      emptyText: filtered ? "No Archived Cycles Match This Filter" : "No Archived Cycles",
+      id: "archived",
+      rows,
+      title: "Archived",
     },
   ];
 }

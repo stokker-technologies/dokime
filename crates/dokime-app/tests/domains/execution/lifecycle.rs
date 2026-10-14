@@ -110,7 +110,9 @@ pub(crate) async fn rerun_fresh_started() {
     );
 }
 
-pub(crate) async fn stop_clear_state() {
+pub(crate) async fn stop_archive_state() {
+    use dokime_app::runtime::query::cycles::{CycleFilter, CycleOrder, select_cycles};
+    use dokime_app::runtime::query::executions::ArchiveScope;
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
     let suite = fixture_suite(&["passed"]);
@@ -126,22 +128,31 @@ pub(crate) async fn stop_clear_state() {
         .await
         .unwrap();
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let listed = |scope: ArchiveScope| {
+        let snapshot = runtime.watch_state().latest();
+        let filter = CycleFilter {
+            archive: scope,
+            ..CycleFilter::default()
+        };
+        select_cycles(snapshot.state(), &filter, CycleOrder::default())
+            .iter()
+            .any(|cycle| cycle.test_cycle_id == test_cycle_id)
+    };
+
+    // A Cycle That Can Still Run Is Not Terminal, So It Cannot Be Archived
+    let early = runtime
+        .set_cycle_archived(test_cycle_id.clone(), true, CommandContext::default())
+        .await;
+    assert!(early.is_err(), "a ready cycle must refuse archiving");
 
     let stop = runtime
         .stop_cycle(test_cycle_id.clone(), CommandContext::default())
         .await;
+    assert!(stop.is_ok());
     let run_stopped = runtime
         .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
         .await;
-    let clear = runtime
-        .clear_cycle(test_cycle_id.clone(), CommandContext::default())
-        .await;
-    let run_cleared = runtime
-        .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
-        .await;
-    let cycle = cycle_snapshot(&runtime, &test_cycle_id).await;
-
-    assert!(stop.is_ok());
+    assert_eq!(run_stopped.status, CommandStatus::Rejected);
     assert!(
         runtime
             .browse_executions(Default::default(), |page, _| Ok(page.clone()))
@@ -152,12 +163,70 @@ pub(crate) async fn stop_clear_state() {
             .all(|entry| entry.checkpoint.is_none()),
         "never-started execution must remain an unsealed draft"
     );
-    assert_eq!(run_stopped.status, CommandStatus::Rejected);
-    assert!(clear.is_ok());
-    assert_eq!(run_cleared.status, CommandStatus::Rejected);
-    assert_eq!(cycle.lifecycle, CycleStatus::Cleared);
-    assert!(cycle.cases().next().is_none());
-    assert!(cycle.test_executions.is_empty());
+
+    // Stopped And Unsealed Is Terminal: Archiving Hides It And Changes Nothing Else
+    let before = cycle_snapshot(&runtime, &test_cycle_id).await;
+    assert_eq!(before.lifecycle, CycleStatus::Stopped);
+    runtime
+        .set_cycle_archived(test_cycle_id.clone(), true, CommandContext::default())
+        .await
+        .unwrap();
+    let archived = cycle_snapshot(&runtime, &test_cycle_id).await;
+    assert_eq!(archived.lifecycle, CycleStatus::Stopped);
+    assert_eq!(archived.test_executions, before.test_executions);
+    assert!(!listed(ArchiveScope::Unarchived));
+    assert!(listed(ArchiveScope::Archived));
+    assert!(listed(ArchiveScope::All));
+
+    // An Execution Archives On Its Own, And History Lists It Only When Asked
+    let execution = archived.test_executions[0].test_execution_id.clone();
+    runtime
+        .set_execution_archived(execution.clone(), true, CommandContext::default())
+        .await
+        .unwrap();
+    let browse = |scope: ArchiveScope| {
+        let runtime = runtime.clone();
+        async move {
+            let mut query =
+                dokime_app::runtime::query::execution_history::ExecutionBrowseQuery::default();
+            query.filter.archive = scope;
+            runtime
+                .browse_executions(query, |page, _| Ok(page.clone()))
+                .await
+                .unwrap()
+                .entries
+                .clone()
+        }
+    };
+    assert!(
+        !browse(ArchiveScope::Unarchived)
+            .await
+            .iter()
+            .any(|entry| entry.metadata.execution_id == execution)
+    );
+    let shown = browse(ArchiveScope::Archived).await;
+    assert!(
+        shown
+            .iter()
+            .any(|entry| entry.metadata.execution_id == execution && entry.archived)
+    );
+
+    // Unarchive Restores Both Rows
+    runtime
+        .set_cycle_archived(test_cycle_id.clone(), false, CommandContext::default())
+        .await
+        .unwrap();
+    runtime
+        .set_execution_archived(execution.clone(), false, CommandContext::default())
+        .await
+        .unwrap();
+    assert!(listed(ArchiveScope::Unarchived));
+    assert!(
+        browse(ArchiveScope::Unarchived)
+            .await
+            .iter()
+            .any(|entry| entry.metadata.execution_id == execution && !entry.archived)
+    );
 }
 
 pub(crate) async fn stopped_cycles_telemetry() {

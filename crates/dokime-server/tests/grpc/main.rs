@@ -971,8 +971,8 @@ fn evidence_contract() {
         run_scenario(file_watch::file_watch_artifacts, false, None, false);
     }
     {
-        eprintln!("Scenario: content::cycle_evidence_settled");
-        run_scenario(content::cycle_evidence_settled, false, None, false);
+        eprintln!("Scenario: content::open_report_states");
+        run_scenario(content::open_report_states, false, None, false);
     }
     {
         eprintln!("Scenario: content::large_artifact_buffering");

@@ -163,17 +163,6 @@ pub(crate) async fn fetch_verified(
             .map(|download| {
                 VerifiedContent::from_download(download, |metadata| metadata.content_type)
             }),
-        ArtifactSource::CycleBundle { cycle_id } => client
-            .download_cycle_bundle(
-                v1::DownloadCycleBundleRequest {
-                    cycle_id: cycle_id.clone(),
-                },
-                destination,
-            )
-            .await
-            .map(|download| {
-                VerifiedContent::from_download(download, |metadata| Some(metadata.content_type))
-            }),
     };
     result.map_err(DeliveryError::from)
 }

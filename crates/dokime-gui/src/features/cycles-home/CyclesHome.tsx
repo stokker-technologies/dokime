@@ -9,11 +9,15 @@
 
 /* === External Imports === */
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { ArchiveRestore } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 /* === Local Imports === */
 
+import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +26,18 @@ import { Input } from "@/components/ui/input";
 import { LIST_STATUS_PILL_CLASS } from "@/features/cycle/cycle-workspace-model";
 import {
   applyFrozenOrder,
+  archivedCycleGroups,
   type CycleGroup,
   type CycleRow,
   cycleRows,
   groupCycleRows,
 } from "@/features/cycles-home/cycles-model";
-import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
+import {
+  cyclesHomeQueryKeys,
+  useCyclesQuery,
+  usePendingPromptsQuery,
+} from "@/features/cycles-home/cycles-queries";
+import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { compactAgeLabel } from "@/lib/time-format";
 import { usePageChrome } from "@/shell/page-chrome";
 
@@ -35,16 +45,23 @@ import { usePageChrome } from "@/shell/page-chrome";
 
 /**
  * Home. Three fixed groups over every loaded cycle, a filter box, and one way
- * into a cycle: its row.
+ * into a cycle: its row. The Archived view lists the archived cycles instead,
+ * each with Unarchive.
  */
 export function CyclesHome() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState("");
-  const [showCleared, setShowCleared] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const session = useNativeSession();
+  const queryClient = useQueryClient();
+  const unarchive = useMutation({
+    mutationFn: (cycleId: string) => setNativeCycleArchived(session.identity, cycleId, false),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: cyclesHomeQueryKeys.all }),
+  });
   /* The box types faster than a round trip; the request follows the operator
      rather than every keystroke, and the box itself never lags. */
   const [selection, setSelection] = useState("");
-  const cycles = useCyclesQuery({ includeCleared: showCleared, text: selection });
+  const cycles = useCyclesQuery({ archived: showArchived, text: selection });
   const prompts = usePendingPromptsQuery();
   const [frozenIds, setFrozenIds] = useState<readonly string[]>([]);
   const frozen = useRef(false);
@@ -90,11 +107,14 @@ export function CyclesHome() {
     [attentionByCycleId, cycles.data],
   );
   const groups = useMemo(() => {
-    const grouped = groupCycleRows(rows, selection.trim().length > 0);
+    const filtered = selection.trim().length > 0;
+    const grouped = showArchived
+      ? archivedCycleGroups(rows, filtered)
+      : groupCycleRows(rows, filtered);
     return frozenIds.length
       ? grouped.map((group) => ({ ...group, rows: applyFrozenOrder(group.rows, frozenIds) }))
       : grouped;
-  }, [frozenIds, rows, selection]);
+  }, [frozenIds, rows, selection, showArchived]);
 
   // Row order is frozen while the pointer is down so a refresh cannot move the
   // row out from under the operator mid-click. Only the id sequence is held;
@@ -129,13 +149,13 @@ export function CyclesHome() {
           value={filter}
         />
         <Button
-          aria-pressed={showCleared}
+          aria-pressed={showArchived}
           className="h-[var(--bar-control-height)]"
-          onClick={() => setShowCleared((current) => !current)}
+          onClick={() => setShowArchived((current) => !current)}
           type="button"
-          variant="outline"
+          variant={showArchived ? "secondary" : "outline"}
         >
-          {showCleared ? "Hide Cleared" : "Show Cleared"}
+          Archived
         </Button>
       </div>
 
@@ -152,6 +172,19 @@ export function CyclesHome() {
           loading={cycles.isPending}
           now={now}
           onOpen={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
+          onUnarchive={
+            showArchived
+              ? (cycleId) =>
+                  unarchive
+                    .mutateAsync(cycleId)
+                    .then(() => toast.success("Unarchived"))
+                    .catch((error: unknown) =>
+                      toast.error("The archive mark could not be removed.", {
+                        description: error instanceof Error ? error.message : String(error),
+                      }),
+                    )
+              : null
+          }
         />
       ))}
     </div>
@@ -163,13 +196,16 @@ function CycleGroupSection({
   loading,
   now,
   onOpen,
+  onUnarchive,
 }: {
   group: CycleGroup;
   loading: boolean;
   now: number;
   onOpen: (cycleId: string) => void;
+  /** Present in the Archived view: each row offers Unarchive. */
+  onUnarchive: ((cycleId: string) => void) | null;
 }) {
-  const columns = useMemo(() => cycleColumns(now), [now]);
+  const columns = useMemo(() => cycleColumns(now, onUnarchive), [now, onUnarchive]);
 
   // Every group heads with one row — title and count at the start, the empty
   // statement at the end — so the three headings align whatever they hold.
@@ -241,9 +277,37 @@ function rowId(row: CycleRow): string {
   return row.cycleId;
 }
 
-/** The five columns every group shares; `now` ages the Updated column. */
-function cycleColumns(now: number): DataTableColumns<CycleRow> {
+/** The five columns every group shares; `now` ages the Updated column. The
+    Archived view adds Unarchive as the last column. */
+function cycleColumns(
+  now: number,
+  onUnarchive: ((cycleId: string) => void) | null,
+): DataTableColumns<CycleRow> {
   const column = dataTableColumns<CycleRow>();
+  const unarchive = onUnarchive
+    ? [
+        column.display({
+          cell: ({ row }) => (
+            <Button
+              className="h-[var(--control-height)]"
+              onClick={(event) => {
+                event.stopPropagation();
+                onUnarchive(row.original.cycleId);
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <ArchiveRestore data-icon="inline-start" />
+              Unarchive
+            </Button>
+          ),
+          header: "",
+          id: "unarchive",
+          meta: { align: "end", label: "Unarchive", width: "w-36" },
+        }),
+      ]
+    : [];
   return column.columns([
     column.accessor("label", {
       cell: ({ row }) => <CycleTitle row={row.original} />,
@@ -294,6 +358,7 @@ function cycleColumns(now: number): DataTableColumns<CycleRow> {
       id: "updated",
       meta: { align: "end", label: "Updated", width: "w-28" },
     }),
+    ...unarchive,
   ]);
 }
 

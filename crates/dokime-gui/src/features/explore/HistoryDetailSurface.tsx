@@ -8,7 +8,7 @@
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Package, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +26,8 @@ import {
   deleteNativeExecution,
   executionStatusLabel,
 } from "@/lib/api/native-checkpoints";
-import { downloadNativeCycleBundle } from "@/lib/api/native-content";
 import { mapStepStatus } from "@/lib/api/native-planning";
+import { downloadNativeCycleReport, openNativeReport } from "@/lib/api/native-reports";
 import { timestampIso } from "@/lib/api/native-values";
 import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
 import { usePageChrome } from "@/shell/page-chrome";
@@ -56,7 +56,7 @@ export function HistoryDetailSurface(props: HistoryDetailProps) {
 }
 
 function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProps) {
-  const query = useExploreHistoryQuery();
+  const query = useExploreHistoryQuery("", "All");
   const session = useNativeSession();
   const queryClient = useQueryClient();
   const entry = query.data?.find(
@@ -124,7 +124,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
       ? `${execution.metadata.title} was deleted from execution history.`
       : `${execution.metadata.title} was removed from history. Local cleanup is still in progress.`;
     setDeleteNotice(notice);
-    await queryClient.invalidateQueries({ queryKey: exploreQueryKeys.history() }).catch(() => {
+    await queryClient.invalidateQueries({ queryKey: exploreQueryKeys.all }).catch(() => {
       if (session.identity.isCurrent()) {
         setDeleteNotice(`${notice} History could not refresh; reload to confirm the latest state.`);
       }
@@ -134,7 +134,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
   return (
     <div className="grid content-start">
       <div className="grid w-full gap-[var(--section-gap)] p-[var(--shell-inset)]">
-        {/* One toolbar row: Back on the left column, the bundle action on the
+        {/* One toolbar row: Back on the left column, the report action on the
             right, both on the same fixed control height. */}
         <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[var(--shell-gap)]">
           <Button className="h-[var(--control-height)]" variant="ghost" onClick={onBack}>
@@ -142,7 +142,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
             History Library
           </Button>
           <span />
-          {target.kind === "cycle" ? <CycleBundleActions cycleId={target.id} /> : null}
+          {target.kind === "cycle" ? <CycleReportActions cycleId={target.id} /> : null}
         </div>
         {query.isPending ? <p>Loading executions…</p> : null}
         {query.isError ? (
@@ -392,19 +392,24 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
   );
 }
 
-function CycleBundleActions({ cycleId }: { cycleId: string }) {
+/** Opens the cycle's report: the sealed one, or one generated when it is missing. */
+function CycleReportActions({ cycleId }: { cycleId: string }) {
   const session = useNativeSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function downloadBundle() {
+  async function openReport() {
     if (busy) {
       return;
     }
     setBusy(true);
     try {
       setError(null);
-      await downloadNativeCycleBundle({ ...session.identity, own: session.own }, cycleId);
+      const report = await downloadNativeCycleReport(
+        { ...session.identity, own: session.own },
+        cycleId,
+      );
+      await openNativeReport(report, session.identity);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -414,13 +419,13 @@ function CycleBundleActions({ cycleId }: { cycleId: string }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={busy} onClick={() => void downloadBundle()} size="sm" variant="outline">
+      <Button disabled={busy} onClick={() => void openReport()} size="sm" variant="outline">
         {busy ? (
           <Loader2 className="animate-spin" data-icon="inline-start" />
         ) : (
-          <Package data-icon="inline-start" />
+          <FileText data-icon="inline-start" />
         )}
-        {busy ? "Bundling…" : "Cycle ZIP"}
+        {busy ? "Opening…" : "Open Report"}
       </Button>
       {error ? <span className="text-xs text-destructive">{error}</span> : null}
     </div>

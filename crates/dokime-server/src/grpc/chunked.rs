@@ -48,7 +48,6 @@ pub(super) struct Download<F> {
 pub(super) enum Source {
     Bytes { data: CapturedBytes, read: usize },
     Artifact(Box<ArtifactReader>),
-    Native(Box<harmos::storage::StorageFileReader>),
 }
 
 pub(super) enum CapturedBytes {
@@ -132,7 +131,6 @@ impl Source {
     ) -> Result<Option<harmos::storage::FileChunk>, dokime_app::Error> {
         match self {
             Self::Artifact(reader) => reader.next_chunk(maximum).await,
-            Self::Native(reader) => reader.next_chunk(maximum).await.map_err(Into::into),
             Self::Bytes { .. } => unreachable!("captured byte sources use direct bounded slices"),
         }
     }
@@ -193,7 +191,7 @@ impl<F: Frames> Download<F> {
                     *read = end;
                     offset = next;
                 }
-                Source::Artifact(_) | Source::Native(_) => {
+                Source::Artifact(_) => {
                     let Some(chunk) = self
                         .source
                         .next_chunk(maximum)

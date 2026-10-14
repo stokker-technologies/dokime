@@ -22,15 +22,15 @@ import type {
   ExecutionBrowsePage,
   ExecutionCheckpoint,
 } from "@/lib/types/view-contracts";
-import type { Row20 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import type { Row19 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import type {
-  Row12 as GeneratedExecutionAvailability,
+  Row13 as GeneratedExecutionAvailability,
   Row7 as GeneratedExecutionStatus,
-  Row10 as GeneratedHistoricalExecutionMetadata,
+  Row11 as GeneratedHistoricalExecutionMetadata,
   Row6 as GeneratedHistoryIssue,
   Row2 as GeneratedNativeExecutionBrowsePage,
-  Row11 as GeneratedNativeExecutionCheckpoint,
-  Row28 as GeneratedNativeStorageCursor,
+  Row12 as GeneratedNativeExecutionCheckpoint,
+  Row32 as GeneratedNativeStorageCursor,
 } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type {
   Row3 as GeneratedArtifactFrame,
@@ -287,6 +287,7 @@ function mapBrowseEntry(entry: NativeExecutionBrowsePage["entries"][number]): Ex
     metadata: mapExecutionMetadata(metadata),
     checkpoint: entry.checkpoint ? mapCheckpoint(entry.checkpoint) : null,
     availability: mapAvailability(entry.availability),
+    archived: entry.archived,
   };
 }
 

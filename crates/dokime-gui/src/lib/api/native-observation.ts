@@ -606,9 +606,7 @@ function mapRunStatus(status?: CycleStatus): RunStatus {
 }
 
 function isTerminalCycle(status: CycleStatus): boolean {
-  return ["Completed", "Failed", "Blocked", "Stopped", "Cleared"].includes(
-    status?.HarmosVariant.case ?? "",
-  );
+  return ["Completed", "Failed", "Blocked", "Stopped"].includes(status?.HarmosVariant.case ?? "");
 }
 
 function mapResult(

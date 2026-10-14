@@ -22,11 +22,7 @@ import {
   fetchNativeHealth,
   fetchNativeNotes,
 } from "@/lib/api/native-annotations";
-import {
-  fetchNativeArtifacts,
-  fetchNativeCycleFolderPath,
-  fetchNativeExecutionFiles,
-} from "@/lib/api/native-content";
+import { fetchNativeArtifacts, fetchNativeExecutionFiles } from "@/lib/api/native-content";
 import { fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import { fetchNativeCycleRecords, fetchNativeRecords } from "@/lib/api/native-evidence";
 import { fetchNativeTestExecutionDetail } from "@/lib/api/native-execution";
@@ -79,8 +75,6 @@ export const workflowQueryKeys = {
   notes: () => [...workflowQueryKeys.all, "notes"] as const,
   prompts: () => [...workflowQueryKeys.all, "prompts"] as const,
   runtimeShell: () => [...workflowQueryKeys.all, "runtime-shell"] as const,
-  testCycleFolderPath: (cycleId: string | null | undefined) =>
-    [...workflowQueryKeys.all, "test-cycle-folder-path", cycleId ?? "current"] as const,
   traceability: (scope?: RecordScope | null) =>
     scope
       ? ([...workflowQueryKeys.all, "traceability", scope] as const)
@@ -349,18 +343,6 @@ export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }),
     queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "execution-files"] }),
   ]);
-}
-
-export function fetchTestCycleFolderPathQuery(
-  queryClient: QueryClient,
-  session: ReturnType<typeof useNativeSession>,
-  cycleId: string,
-): Promise<string> {
-  return queryClient.fetchQuery({
-    queryFn: () => fetchNativeCycleFolderPath(session.identity, cycleId),
-    queryKey: [...workflowQueryKeys.testCycleFolderPath(cycleId), session.identity.generation],
-    staleTime: 5_000,
-  });
 }
 
 /* === Mutation Hooks === */

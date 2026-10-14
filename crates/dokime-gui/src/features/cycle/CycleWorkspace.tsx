@@ -43,15 +43,15 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { TestExecution } from "@/lib/types";
 import { useFocusMode } from "@/shell/focus-mode";
 import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
 import { CycleEvidencePane } from "./CycleEvidencePane";
 import { CycleExecutionControls } from "./CycleExecutionControls";
 import { CyclePromptBanner } from "./CyclePromptBanner";
+import { CycleReportButton } from "./CycleReportButton";
 import { CycleRunControls } from "./CycleRunControls";
-import { CycleWorkspaceHeader } from "./CycleWorkspaceHeader";
+import { type ArchiveAction, CycleWorkspaceHeader } from "./CycleWorkspaceHeader";
 import {
   useCycleCommands,
   useCycleDetailQuery,
@@ -60,28 +60,23 @@ import {
   useRerunCase,
 } from "./cycle-queries";
 import {
+  archiveRefusal,
   buildCycleCases,
   buildCycleExecutionRows,
   type CycleExecutionRow,
   type CycleSelection,
   caseActionTooltip,
-  caseStatusLabel,
-  caseStatusVariant,
   cycleStatusLabel,
   cycleStatusVariant,
-  executionStatusLabel,
-  executionStatusVariant,
   finishedCaseCount,
   followSelection,
   isActiveExecutionStatus,
-  isCycleInFlight,
   isCycleTerminal,
   isTerminalExecutionStatus,
   progressStepLabel,
   selectedCycleRow,
 } from "./cycle-workspace-model";
 import { answerablePrompts } from "./prompt-banner-model";
-import { useExecutionDetailQuery } from "./server-state";
 
 /* === Types === */
 
@@ -96,7 +91,7 @@ export type CycleWorkspaceProps = {
   onSelectionChange: (next: CycleSelection) => void;
 };
 
-type PendingConfirm = { kind: "clear" } | { kind: "stop" } | null;
+type PendingConfirm = { kind: "stop" } | null;
 
 /* === Components === */
 
@@ -136,10 +131,6 @@ export function CycleWorkspace({
     executions.find((execution) => execution.status === "running")?.test_execution_id ??
     null;
   const progress = useExecutionProgress(activeExecutionId);
-  const selectedDetail = useExecutionDetailQuery(
-    selectedRow?.execution?.test_execution_id ?? null,
-    Boolean(selectedRow?.execution),
-  );
   /* Only prompts whose owner still runs are offered: a prompt never outlives
      its execution, here as in the runtime that settles it. */
   const prompts = useMemo(() => {
@@ -169,6 +160,19 @@ export function CycleWorkspace({
      them. The node is memoized on identities, so it is published only when
      the selection, focus or liveness changes. */
   const executionSelected = selectedRow !== null;
+  /* The node whose report Download Report saves: the selected execution, or
+     the cycle. A case that has not run yet has no report of its own. */
+  const selectedExecutionId = selectedRow?.execution?.test_execution_id ?? null;
+  const selectedLabel = selectedRow ? executionTitle(selectedRow) : null;
+  const cycleTitle = plan?.test_cycle.title ?? null;
+  const reportSubject = useMemo(() => {
+    if (selectedLabel !== null) {
+      return selectedExecutionId
+        ? { executionId: selectedExecutionId, label: selectedLabel }
+        : null;
+    }
+    return cycleTitle !== null ? { executionId: null, label: cycleTitle } : null;
+  }, [cycleTitle, selectedExecutionId, selectedLabel]);
   const toggleFocus = focus.setFocused;
   const focused = focus.focused;
   const pageActions = useMemo(
@@ -184,6 +188,13 @@ export function CycleWorkspace({
           ) : (
             <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} />
           )}
+          {reportSubject ? (
+            <CycleReportButton
+              cycleId={cycleId}
+              executionId={reportSubject.executionId}
+              label={reportSubject.label}
+            />
+          ) : null}
           <Button
             aria-label={focused ? "Leave Focus" : "Focus"}
             aria-pressed={focused}
@@ -197,7 +208,16 @@ export function CycleWorkspace({
           </Button>
         </div>
       ) : null,
-    [cycleId, executionSelected, focused, live, onSelectionChange, selection, toggleFocus],
+    [
+      cycleId,
+      executionSelected,
+      focused,
+      live,
+      onSelectionChange,
+      reportSubject,
+      selection,
+      toggleFocus,
+    ],
   );
   /* The page bar names the selected node as a breadcrumb; Back from an
      execution returns to the cycle (see `useParentRoute`). */
@@ -239,6 +259,41 @@ export function CycleWorkspace({
 
   /* A command reports what happened, not what was attempted: the operator
      needs the outcome and, when it failed, what the backend said. */
+  const openReport = (executionId: string | null) => {
+    commands.openReport
+      .mutateAsync(executionId)
+      .then((origin) =>
+        toast.success("Report Opened", {
+          description:
+            origin === "Current"
+              ? "Generated from the run so far."
+              : origin === "Regenerated"
+                ? "The sealed report was missing, so it was generated again from its evidence."
+                : undefined,
+        }),
+      )
+      .catch((error: unknown) =>
+        toast.error("The report could not be opened.", {
+          description: error instanceof Error ? error.message : String(error),
+        }),
+      );
+  };
+  /* Archive and Unarchive say what they did; neither changes the lifecycle. */
+  const archiveAction = (
+    archived: boolean,
+    terminal: boolean,
+    commit: (next: boolean) => Promise<unknown>,
+  ): ArchiveAction => ({
+    archived,
+    onToggle: () =>
+      run(
+        archived
+          ? { done: "Unarchived", failed: "The archive mark could not be removed." }
+          : { done: "Archived", failed: "The archive mark could not be set." },
+        () => commit(!archived),
+      ),
+    refusal: archiveRefusal(terminal),
+  });
   const run = (report: { done: string; failed: string }, action: () => Promise<unknown>) => {
     action()
       .then(() => toast.success(report.done))
@@ -269,7 +324,7 @@ export function CycleWorkspace({
     ) : (
       <WorkspaceNotice
         action={{ label: "Go To Cycles", onClick: () => void navigate({ to: "/cycles" }) }}
-        message="This cycle is no longer loaded. It may have been cleared."
+        message="This cycle is no longer loaded. A sealed cycle leaves the runtime when the next one starts; History keeps it."
         title="Cycle Not Found"
       />
     );
@@ -280,12 +335,14 @@ export function CycleWorkspace({
       <CycleWorkspaceHeader
         identity={
           selectedRow
-            ? cockpitSubject(selectedRow, selectedDetail.data ?? null)
+            ? { title: executionTitle(selectedRow) }
             : {
-                activity,
-                progress: `${finished} of ${cases.length} cases finished`,
-                statusLabel: cycleStatusLabel(status),
-                statusVariant: cycleStatusVariant(status),
+                status: {
+                  activity,
+                  label: cycleStatusLabel(status),
+                  progress: `${finished} of ${cases.length} cases finished`,
+                  variant: cycleStatusVariant(status),
+                },
                 title: plan.test_cycle.title,
               }
         }
@@ -294,6 +351,20 @@ export function CycleWorkspace({
           selectedRow
             ? {
                 kind: "execution",
+                archive: selectedRow.execution
+                  ? archiveAction(
+                      Boolean(selectedRow.execution.archived),
+                      isTerminalExecutionStatus(selectedRow.execution.status),
+                      (archived) =>
+                        commands.archiveExecution.mutateAsync({
+                          archived,
+                          executionId: selectedRow.execution?.test_execution_id ?? "",
+                        }),
+                    )
+                  : null,
+                onOpenReport: selectedRow.execution
+                  ? () => openReport(selectedRow.execution?.test_execution_id ?? null)
+                  : null,
                 onRerun:
                   selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
                     ? () =>
@@ -311,11 +382,14 @@ export function CycleWorkspace({
                     : undefined,
               }
             : {
-                evidencePending: isCycleInFlight(status),
+                archive: archiveAction(
+                  Boolean(plan.test_cycle.archived),
+                  isCycleTerminal(status),
+                  (archived) => commands.archiveCycle.mutateAsync(archived),
+                ),
                 followActive,
                 kind: "cycle",
                 onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
-                onClearCycle: () => setConfirm({ kind: "clear" }),
                 onCopyCycle: () =>
                   run(
                     { done: "Cycle copied", failed: "The cycle could not be copied." },
@@ -327,16 +401,9 @@ export function CycleWorkspace({
                       });
                     },
                   ),
-                onDownloadBundle: () =>
-                  run({ done: "Bundle saved", failed: "The bundle could not be saved." }, () =>
-                    commands.downloadBundle.mutateAsync(),
-                  ),
+                onOpenReport: () => openReport(null),
                 onRuntimePolicy: () => setPolicyOpen(true),
                 onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
-                onWriteReport: () =>
-                  run({ done: "Report written", failed: "The report could not be written." }, () =>
-                    commands.writeReport.mutateAsync(),
-                  ),
               }
         }
         prompts={<CyclePromptBanner prompts={prompts} />}
@@ -368,48 +435,26 @@ export function CycleWorkspace({
       <Dialog onOpenChange={(next) => !next && setConfirm(null)} open={live && confirm !== null}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{confirm?.kind === "stop" ? "Stop Cycle" : "Clear Cycle"}</DialogTitle>
+            <DialogTitle>Stop Cycle</DialogTitle>
             <DialogDescription>
-              {confirm?.kind === "stop"
-                ? `Stopping the cycle stops every running and queued execution of its ${cases.length} cases. To stop only one execution, select it and use Stop Execution.`
-                : confirm?.kind === "clear"
-                  ? `Clearing stops this cycle and removes its ${cases.length} cases, every attempt, and the evidence they produced from the loaded runtime. Saved bundles and written reports are not affected.`
-                  : ""}
+              {`Stopping the cycle stops every running and queued execution of its ${cases.length} cases. To stop only one execution, select it and use Stop Execution.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setConfirm(null)} variant="outline">
               Cancel
             </Button>
-            {confirm?.kind === "stop" ? (
-              <Button
-                onClick={() => {
-                  setConfirm(null);
-                  run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () =>
-                    commands.stopCycle.mutateAsync(),
-                  );
-                }}
-                variant="danger"
-              >
-                Stop Cycle
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  setConfirm(null);
-                  run(
-                    { done: "Cycle cleared", failed: "The cycle could not be cleared." },
-                    async () => {
-                      await commands.clearCycle.mutateAsync();
-                      await navigate({ to: "/cycles" });
-                    },
-                  );
-                }}
-                variant="danger"
-              >
-                Clear Cycle
-              </Button>
-            )}
+            <Button
+              onClick={() => {
+                setConfirm(null);
+                run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () =>
+                  commands.stopCycle.mutateAsync(),
+                );
+              }}
+              variant="danger"
+            >
+              Stop Cycle
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -420,25 +465,9 @@ export function CycleWorkspace({
 /* === Private Functions === */
 
 /** The execution page's identity: its case, its status and its steps. */
-function cockpitSubject(row: CycleExecutionRow, detail: TestExecution | null) {
-  const execution = detail ?? row.execution;
-  const title = `Execution ${row.ordinal} · ${row.case.label}`;
-  if (!execution) {
-    return {
-      progress: "Not run yet",
-      statusLabel: caseStatusLabel(row.case.status),
-      statusVariant: caseStatusVariant(row.case.status),
-      title,
-    };
-  }
-  const steps = execution.steps ?? [];
-  const done = steps.filter((step) => !["pending", "running"].includes(step.status)).length;
-  return {
-    progress: steps.length ? `${done} of ${steps.length} steps finished` : "No steps recorded",
-    statusLabel: executionStatusLabel(execution.status),
-    statusVariant: executionStatusVariant(execution.status),
-    title,
-  };
+/** The execution page's cockpit title: its ordinal and its case. */
+function executionTitle(row: CycleExecutionRow): string {
+  return `Execution ${row.ordinal} · ${row.case.label}`;
 }
 
 /* === Private Components === */
