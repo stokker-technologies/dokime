@@ -98,6 +98,7 @@ impl Streams {
         }
     }
 
+    /// Deregisters Before Cancelling, So Every Removed Stream Ends Cancelled.
     pub(super) fn cancel_owner(&self, owner: &str) {
         let mut registry = self.registry.lock().expect("RPC stream registry poisoned");
         registry.entries.retain(|_, entry| {
@@ -161,9 +162,18 @@ impl Streams {
                     opening.deadline,
                 )) => result,
             };
-            // The terminal frame precedes deregistration, so a send that finds
-            // the stream gone can always learn why from the channel. A WebView
-            // that already cancelled ignores it; one that is gone drops it.
+            // Cancelling deregisters under this lock, so the outcome is settled
+            // here: a stream a caller removed first ends cancelled, whatever
+            // its call reached meanwhile; one still registered ends with its
+            // own result and refuses any later cancel as unknown. The lock is
+            // held until the terminal frame is out, so a send that finds the
+            // stream gone can always learn why from the channel. A WebView that
+            // already cancelled ignores it; one that is gone drops it.
+            let mut registry = registry.lock().expect("RPC stream registry poisoned");
+            let result = match registry.entries.remove(&id) {
+                Some(_) => result,
+                None => Err(RpcError::Cancelled),
+            };
             let terminal = match result {
                 Ok(()) => frame(generation, FRAME_END, &[]),
                 Err(error) => frame(
@@ -173,11 +183,6 @@ impl Streams {
                 ),
             };
             let _ = channel.send(Response::new(terminal));
-            registry
-                .lock()
-                .expect("RPC stream registry poisoned")
-                .entries
-                .remove(&id);
         });
         Ok(response)
     }

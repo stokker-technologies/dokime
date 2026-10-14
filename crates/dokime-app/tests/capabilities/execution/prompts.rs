@@ -874,6 +874,112 @@ pub(crate) async fn stopped_run_question() {
     }
 }
 
+// a cycle stopped while its sidecar-served step waits on an operator ends
+// Stopped, settles the question once and refuses a late answer.
+pub(crate) async fn stopped_sidecar_question() {
+    use dokime::execution::StepStatus;
+    use dokime_app::capabilities::execution::requests::RunPhase;
+    use dokime_app::execution::ExecutionStatus;
+
+    // === Run A Sidecar Step That Waits On An Operator === //
+
+    let root = tempdir().unwrap();
+    let (mut owner, runtime) =
+        started(config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")]))
+            .await;
+    let suite = runtime
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|suite| suite.source == "fixture-suites" && suite.suite_id == "fixture.questions")
+        .expect("the sidecar serves its asking suite")
+        .suite;
+    let cycle = runtime
+        .start_cycle(
+            CycleDefinition {
+                cases: crate::support::suites::materialize_cases("fixture.questions", &suite),
+                suite,
+                metadata: Metadata::new(
+                    Identifier::new("fixture.questions.cycle").unwrap(),
+                    "Sidecar Asking Cycle",
+                    None,
+                ),
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let receipt = runtime
+        .run_cycle_cases(cycle.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    let id = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        loop {
+            if let Some(prompt) = runtime.pending_prompt_projection().await.into_iter().next() {
+                break prompt.prompt_id;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the sidecar step asks its question");
+
+    // === Stop The Cycle While The Question Is Open === //
+
+    runtime
+        .stop_cycle(cycle.clone(), CommandContext::default())
+        .await
+        .unwrap();
+
+    // === The Run Ends Stopped, Not Failed === //
+
+    let ended = wait_for_cycle_lifecycle(&runtime, &cycle, CycleStatus::Stopped).await;
+    let execution = &ended.test_executions[0];
+    assert_eq!(
+        execution.status,
+        ExecutionStatus::Cancelled,
+        "a question the stop settled is a cancellation, not a step failure"
+    );
+    assert!(
+        !execution.steps.is_empty()
+            && execution
+                .steps
+                .iter()
+                .all(|step| step.status != StepStatus::Failed),
+        "no step fails when the stop settles its question: {:?}",
+        execution.steps
+    );
+    let settled = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        loop {
+            let receipt = runtime
+                .run_request(&receipt.command_id)
+                .await
+                .unwrap()
+                .unwrap();
+            if receipt.summary.phase.terminal() {
+                break receipt;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the stopped run settles");
+    assert_eq!(settled.summary.phase, RunPhase::Stopped, "{settled:?}");
+    assert_eq!(settled.summary.failed, 0, "{settled:?}");
+    assert_eq!(
+        settlement_records(&runtime, &id).await,
+        vec![(
+            "prompt.response.cancelled".to_owned(),
+            Value::from("execution_stopped")
+        )],
+        "the stop settles the question once; winding the sidecar down adds nothing"
+    );
+    assert_late_answer_refused(&runtime, &id).await;
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 async fn check_stopped_question(stop_cycle: bool) {
     use dokime_app::execution::ExecutionStatus;
 

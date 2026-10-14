@@ -717,6 +717,15 @@ fn execution_contract() {
         run_scenario(execution::prompts::stopped_run_question, true, None, false);
     }
     {
+        eprintln!("Scenario: execution::prompts::stopped_sidecar_question");
+        run_scenario(
+            execution::prompts::stopped_sidecar_question,
+            true,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: execution::prompts::requests_refuses_scopes");
         run_scenario(
             execution::prompts::requests_refuses_scopes,

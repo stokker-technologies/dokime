@@ -159,6 +159,15 @@ struct GetBehaviour {
     config: Arc<Config>,
 }
 
+/// A suite whose one step waits on an operator, apart from `fixture.checks` so
+/// the stories that run every check never meet an unanswered question.
+struct Questions;
+
+struct Hold;
+
+#[dokime::prompt(id = "fixture.questions.hold", label = "Hold the charger")]
+struct HoldQuestion;
+
 /* === Enums === */
 #[dokime::catalog]
 pub enum Streams {
@@ -179,6 +188,7 @@ enum Operations {
 #[dokime::catalog]
 enum Suites {
     Checks(Checks),
+    Questions(Questions),
 }
 
 #[dokime::catalog]
@@ -189,6 +199,16 @@ enum ChecksTemplates {
 #[dokime::catalog]
 enum SmokeRequires {
     GetBehaviour(GetBehaviour),
+}
+
+#[dokime::catalog]
+enum QuestionsTemplates {
+    Hold(Hold),
+}
+
+#[dokime::catalog]
+enum HoldPrompts {
+    HoldQuestion(HoldQuestion),
 }
 
 /* === Traits === */
@@ -434,6 +454,28 @@ impl Smoke {
                 .iter()
                 .enumerate()
                 .all(|(index, value)| *value == index as f64))
+    }
+}
+
+#[dokime::suite(
+    id = "fixture.questions",
+    label = "Fixture Questions",
+    templates = QuestionsTemplates
+)]
+impl Questions {}
+
+#[dokime::template(id = "fixture.questions.hold", label = "Fixture Hold", prompts = HoldPrompts)]
+impl Hold {
+    async fn initialize(
+        _: &mut dokime::execution::InitializationContext<'_>,
+    ) -> Result<Self, Error> {
+        Ok(Self)
+    }
+
+    #[dokime::step(label = "Ask")]
+    async fn ask(&mut self, ctx: &mut dokime::execution::StepContext<'_>) -> Result<(), Error> {
+        ctx.ask(HoldQuestion).await?;
+        Ok(())
     }
 }
 
