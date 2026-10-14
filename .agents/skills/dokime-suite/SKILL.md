@@ -47,17 +47,17 @@ async fn move_tool(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
 
     let job = ListControlPointsRequest { point_type: PointType::Control };
     let points = ctx.call::<ListControlPoints>(job).await?.points;
-    dokime::info!(ctx, "loaded {} control points", points.len());
+    ctx.info("loaded {} control points", points.len());
 
     // === Prompt Operator / Move Tool === //
 
     let accepted = ctx.ask::<MoveToolCheckpoint>().await?;
     if !accepted {
-        dokime::warn!(ctx, "operator declined the move");
+        ctx.warn("operator declined the move");
         return Ok(());
     }
     ctx.resources().arm.lock().await.move_to(&points).await?;
-    dokime::info!(ctx, "tool moved through {} points", points.len());
+    ctx.info("tool moved through {} points", points.len());
 
     Ok(())
 }
@@ -67,7 +67,7 @@ async fn move_tool(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
   both sides. It names what the phase does for the operator — `Load Control
   Points`, `Prompt Operator / Move Tool` — not the mechanism. A step with one
   phase carries no banner.
-- Each phase ends by saying what it learned: a `dokime::info!`/`debug!` line,
+- Each phase ends by saying what it learned: a `ctx.info(…)`/`ctx.debug(…)` line,
   a `ctx.publish`, or an artifact write. The execution log then reads as the
   same list of phases the source does.
 - Keep the happy path shallow and readable; no universal indentation cap is required.
@@ -80,9 +80,37 @@ async fn move_tool(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
 - The same banners apply to `resources`, `traceability` and `cleanup` when a
   hook has more than one phase. A criterion is one read over captured evidence
   and takes none.
-- Log through the `dokime::trace!` … `dokime::error!` macros, never
+- Log through the context methods `ctx.trace(…)` … `ctx.error(…)`, never
   `tracing::*` inside a template: only the context reaches the execution log.
 
+
+## Template File Style
+
+A template file is one Rust file in the suite module, laid out in the repository skeleton with every marker kept, even empty. Its items appear in this order and nowhere else:
+
+- `Type Aliases`: an optional `type Context<'a> = StepContext<'a, Template, Resources, Parameters>;` when the full context type is spelled more than once.
+- `Structs`: the `Template` struct first, holding the run's own state as plain `pub` fields; then `#[dokime::parameters] pub struct Parameters`; then each `#[dokime::prompt(id, label, description)] pub struct …` as a unit struct; then each `#[dokime::stream(id, label, window)] pub struct …Row`.
+- `Enums`: the catalogs, always named `Required`, `Subscriptions`, `Streams`, `Prompts`, listed in that order and only when non-empty. Catalog variants are grouped under `// <Group> Operations` comment lines (`// Navigation Operations`, `// Measurement Operations`) with a blank line between groups, and a variant is named after the operation type it wraps.
+- `Implementations`: the one `#[dokime::template(...)]` impl with hooks in lifecycle order: `initialize`, `traceability`, the steps in execution order, the criteria, `cleanup`, `document`. Private helpers go under `Private Functions`.
+
+Declarations:
+
+- `#[parameter(label = "Title Case", unit = "s", default = 30, min = 1, max = 60)]` on every parameter, one blank line between fields. The label is what the operator reads; the unit is a symbol.
+- A stream row groups its fields under short Title Case comment lines (`// Reconnection Timing`, `// Measurement`), gives every physical column `#[row(unit = "…")]`, and types a measurement that can be missing as `Option<T>`; never a sentinel value.
+- `#[dokime::template]` carries `id = "<suite>.<segment>"`, a `label` whose hierarchy reads `"Area / Name"`, a `description` written as full sentences for the operator, lowercase `tags`, and the four catalog bindings by name.
+- A prompt's `description` tells the operator what to do and when to continue, in full sentences.
+
+Bodies:
+
+- Every operation call builds its request first and passes it by name: `let operation = StartMeasurementRequest { … };` then `ctx.call::<StartMeasurement>(operation).await?;`, with the reply bound as `let result = …`. Fields are listed one per line.
+- A step's phases are banners as described under Step Bodies. Inside a loop body, shorter Title Case comment lines (`// Move To Reference Angles`, `// Emit Result`) mark its sub-steps; banners stay at phase level.
+- Iterate with `ctx.progress("Label", range)` so the cockpit shows the loop's progress.
+- A measurement that may legitimately fail inside a loop is matched: the `Ok` arm yields `Some(value)`, the `Err` arm warns through `ctx.warn(format!(…))` and yields `None`, and the row is published either way.
+- Rows and records are published with `ctx.publish(row).await`, the one infallible verb.
+- Log through the context methods `ctx.trace(…)` … `ctx.error(…)`; `format!` only when a value is interpolated.
+- A criterion's label states the rule the way an operator would (`"Reconnection Time < 30s"`). Its body reads the evidence once, returns `Ok(false)` when there is none, then applies one iterator predicate or one aggregate.
+- `cleanup` logs the reason from `ctx.reason()` and restores the bench through operations, in the reverse order of what the steps changed.
+- `traceability` builds each section by statements (`let mut dut = TraceabilitySection::new(…); dut.row(…);`) under one banner per section and returns the sections in order.
 
 ## Layout
 
