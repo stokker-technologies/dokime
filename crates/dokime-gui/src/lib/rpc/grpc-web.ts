@@ -1,5 +1,9 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 
+/* The browser-build transport: gRPC-Web straight from the page to a backend
+   that serves it (`dokime-server --grpc-web`). The desktop never selects it;
+   its WebView reaches the backend only through the shell's IPC bridge. */
+
 /* === External Imports === */
 import {
   create,
@@ -11,10 +15,10 @@ import {
 } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
-import type { BrowserAccess } from "../desktop/connection";
+import type { BackendLimits } from "../desktop/connection";
 import { isReportBuild } from "../ui-mode";
 import { normalizeRpcError } from "./errors";
-import type { NativeStream, SessionIdentity } from "./transport";
+import type { NativeClientStream, NativeStream, SessionIdentity } from "./transport";
 
 /* === Constants === */
 // Keyed by connection generation: callers legitimately pass derived session
@@ -24,6 +28,17 @@ const maxFrameBytes = 4 * 1024 * 1024;
 const text = new TextDecoder("utf-8", { fatal: true });
 
 /* === Types === */
+/** Ephemeral access for one browser connection; never persist it. */
+export type BrowserAccess = {
+  generation: string;
+  endpoint: string;
+  authorization: string | null;
+  backendId: string;
+  epoch: string;
+  limits: BackendLimits;
+  methods: string[];
+};
+
 interface Connection {
   access: BrowserAccess;
   cancellation: AbortController;
@@ -236,6 +251,18 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
     },
   };
   return { cancel, [Symbol.asyncIterator]: () => iterator };
+}
+
+export async function openClientStream<I extends DescMessage, O extends DescMessage>(
+  _path: string,
+  _input: I,
+  _output: O,
+  _session: SessionIdentity,
+  _request: MessageInitShape<I>,
+  _envelope: DescMessage,
+  _timeoutMs?: number,
+): Promise<NativeClientStream<I, O>> {
+  throw new Error("gRPC-Web cannot carry client streams.");
 }
 
 /* === Private Functions === */

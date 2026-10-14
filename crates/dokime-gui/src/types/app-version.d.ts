@@ -9,5 +9,7 @@
 
 declare const __APP_VERSION__: string;
 declare const __DOKIME_UI_MODE__: "live" | "report";
+/** The desktop binds `ipc`; only a browser build selects `grpc-web`. */
+declare const __DOKIME_TRANSPORT__: "ipc" | "grpc-web";
 
 declare module "*.css" {}

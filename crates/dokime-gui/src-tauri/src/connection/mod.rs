@@ -107,43 +107,6 @@ impl ConnectionSession {
         state.lease.clone().ok_or(ConnectionError::NotConnected)
     }
 
-    pub(crate) fn browser_access(
-        &self,
-        generation: &str,
-    ) -> Result<BrowserAccess, ConnectionError> {
-        let state = self.inner.lock().expect("connection state poisoned");
-        if state.snapshot.generation != generation {
-            return Err(ConnectionError::Superseded);
-        }
-        let lease = state.lease.as_ref().ok_or(ConnectionError::NotConnected)?;
-        let backend = state
-            .snapshot
-            .backend
-            .as_ref()
-            .ok_or(ConnectionError::NotConnected)?;
-        let endpoint = state
-            .snapshot
-            .endpoint
-            .clone()
-            .ok_or(ConnectionError::NotConnected)?;
-        let request = lease.client.request(());
-        let authorization = request
-            .metadata()
-            .get("authorization")
-            .map(|value| value.to_str().map(str::to_owned))
-            .transpose()
-            .map_err(|_| ConnectionError::AuthenticationRequired)?;
-        Ok(BrowserAccess {
-            generation: generation.into(),
-            endpoint,
-            authorization,
-            backend_id: backend.backend_id.clone(),
-            epoch: backend.epoch.clone(),
-            limits: backend.limits.clone(),
-            methods: backend.methods.clone(),
-        })
-    }
-
     pub fn disconnect(&self) -> Result<ConnectionSnapshot, ConnectionError> {
         let mut state = self.inner.lock().expect("connection state poisoned");
         state.advance()?;
@@ -339,22 +302,3 @@ impl SessionLease {
 /* === Private Functions === */
 
 /* === Tests === */
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn browser_access_requires_connected_generation() {
-        let session = super::ConnectionSession::default();
-        assert!(matches!(
-            session.browser_access("1"),
-            Err(super::ConnectionError::Superseded)
-        ));
-        assert!(matches!(
-            session.browser_access("0"),
-            Err(super::ConnectionError::NotConnected)
-        ));
-        let snapshot = serde_json::to_value(session.status()).unwrap();
-        assert!(snapshot.get("authorization").is_none());
-        assert!(snapshot.get("token").is_none());
-    }
-}

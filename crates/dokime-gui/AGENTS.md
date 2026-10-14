@@ -39,13 +39,16 @@ live operator shell and the self-contained report renderer.
   that same export. Rust `dokime-contract::operations` declarations own the wire
   shape; do not maintain parallel domain DTOs or a second codec. Generation does
   not compile the GUI or runtime.
-- Ordinary calls and subscriptions in `src/lib/rpc/generated/client.ts` use direct,
-  authenticated gRPC-web. Native session controls provide a private, ephemeral
-  main-window transport handoff tied to the active generation. Credentials never
-  belong in status, logs, profiles, persisted browser storage or report output.
-- `src-tauri/src/uploads` is the narrow native adapter for bounded artifact and
-  recording bytes and plugin staging through the shared Rust client. Do not add
-  ordinary unary calls or server-stream dispatch to that adapter.
+- Calls and subscriptions in `src/lib/rpc/generated/client.ts` go through the
+  seam in `src/lib/rpc/transport.ts`. The desktop binds it to `ipc.ts`, the opaque
+  bridge in `src-tauri/src/rpc/calls.rs`: path and protobuf bytes in, bytes or a
+  typed status out, one Tauri channel per stream, fenced by the connection
+  generation. The bridge never decodes or dispatches per operation; keep it so.
+  `grpc-web.ts` serves only a browser build (`DOKIME_TRANSPORT=grpc-web`). The
+  WebView holds no endpoint or credential; they never belong in status, logs,
+  profiles, persisted browser storage or report output.
+- `src-tauri/src/rpc/artifact_upload.rs` is the native file-backed adapter for
+  artifact and recording bytes. Do not add ordinary calls to it.
 - Desktop controls and transport errors are hand-written in `src/lib/desktop/`,
   matching their native owner modules. Change both sides together.
 - `src/lib/types/` holds GUI projection contracts. API adapters map generated

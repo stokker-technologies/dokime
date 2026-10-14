@@ -20,6 +20,9 @@ import { createLogger, defineConfig } from "vite";
 
 const apiPort = process.env.DOKIME_API_PORT ?? "8765";
 const frontendPort = Number(process.env.DOKIME_DEV_PORT ?? "5173");
+// The desktop reaches its backend only through the shell's IPC bridge; a
+// browser build opts into direct gRPC-Web with DOKIME_TRANSPORT=grpc-web.
+const transport = process.env.DOKIME_TRANSPORT === "grpc-web" ? "grpc-web" : "ipc";
 const apiHttpTarget = `http://127.0.0.1:${apiPort}`;
 const apiWsTarget = `ws://127.0.0.1:${apiPort}`;
 const projectRoot = fileURLToPath(new URL(".", import.meta.url));
@@ -85,6 +88,7 @@ export default defineConfig(() => ({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
     __DOKIME_UI_MODE__: JSON.stringify("live"),
+    __DOKIME_TRANSPORT__: JSON.stringify(transport),
   },
   plugins: [
     tanstackRouter({

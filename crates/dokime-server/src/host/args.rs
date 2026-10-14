@@ -51,7 +51,13 @@ pub struct NetworkArgs {
     #[arg(long, default_value_t = 2)]
     pub message_limit_mib: usize,
     #[arg(
+        long,
+        help = "Also serve gRPC-Web over HTTP/1.1 for browser clients. The desktop never needs it."
+    )]
+    pub grpc_web: bool,
+    #[arg(
         long = "allowed-origin",
+        requires = "grpc_web",
         help = "Allow This Exact Browser Origin For gRPC-Web; Repeat For Multiple Origins."
     )]
     pub allowed_origins: Vec<String>,

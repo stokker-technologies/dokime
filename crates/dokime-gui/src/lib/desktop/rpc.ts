@@ -7,7 +7,7 @@
  * ***
  */
 
-/* Native RPC failures, mirroring `RpcError` in `src-tauri/src/uploads/mod.rs`. */
+/* Native RPC failures, mirroring `Error` in `src-tauri/src/error.rs`. */
 
 /* === Local Imports === */
 

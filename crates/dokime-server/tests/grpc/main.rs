@@ -36,6 +36,9 @@ pub(crate) mod planning;
 #[path = "appearance.rs"]
 pub(crate) mod appearance;
 
+#[path = "file_watch.rs"]
+pub(crate) mod file_watch;
+
 #[path = "media.rs"]
 pub(crate) mod media;
 
@@ -962,6 +965,10 @@ fn evidence_contract() {
     {
         eprintln!("Scenario: media::media_capture_artifacts");
         run_scenario(media::media_capture_artifacts, false, None, false);
+    }
+    {
+        eprintln!("Scenario: file_watch::file_watch_artifacts");
+        run_scenario(file_watch::file_watch_artifacts, false, None, false);
     }
     {
         eprintln!("Scenario: content::cycle_evidence_settled");

@@ -109,11 +109,13 @@ for (const file of set.file)
       const path = `/${file.package}.${service.name}/${method.name}`;
       let input = method.inputType;
       let output = method.outputType;
+      let envelope;
+      if (method.clientStreaming && method.serverStreaming)
+        throw new Error(`${path}: bidirectional operations have no generated binding yet`);
       if (method.clientStreaming) {
-        if (path !== "/dokime.v1.Plugins/Stage") continue;
+        envelope = input;
         input = fieldType(input, "item");
       }
-      let envelope;
       if (method.serverStreaming) {
         envelope = output;
         output = fieldType(output, "item");
@@ -126,9 +128,8 @@ for (const file of set.file)
         : method.serverStreaming
           ? "openStream"
           : "unary";
-      const transportPath = method.clientStreaming ? "plugin_stage_open" : path;
       lines.push(
-        `export const ${name} = (session: SessionIdentity, request: Parameters<typeof ${call}<typeof ${requestSchema}, typeof ${responseSchema}>>[4]) => ${call}(${JSON.stringify(transportPath)}, ${requestSchema}, ${responseSchema}, session, request${method.clientStreaming ? "" : envelope ? `, ${name}Envelope, ${deadlines.get(path)}` : `, ${deadlines.get(path)}`});`,
+        `export const ${name} = (session: SessionIdentity, request: Parameters<typeof ${call}<typeof ${requestSchema}, typeof ${responseSchema}>>[4]) => ${call}(${JSON.stringify(path)}, ${requestSchema}, ${responseSchema}, session, request${envelope ? `, ${name}Envelope` : ""}, ${deadlines.get(path)});`,
       );
     }
 emit(resolve(gui, "src/lib/rpc/generated/client.ts"), `${lines.join("\n")}\n`);

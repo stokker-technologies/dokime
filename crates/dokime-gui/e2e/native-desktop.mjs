@@ -258,7 +258,6 @@ async function startBackend(work, evidence, endpoint, label = "backend") {
     backendBinary,
     [
       "--shutdown-stdin",
-      ...(windows ? ["--allowed-origin", "http://tauri.localhost"] : []),
       "--plugin",
       pluginBundle,
       "--port",
@@ -682,32 +681,42 @@ async function installSaveTap(session) {
       const shim = function (input, init) {
         const url = String(typeof input === 'string' ? input : (input && input.url) || '');
         const command = decodeURIComponent(url.split('/').pop() || '');
-        if (!url.includes('ipc')) return original(input, init).then((response) => {
-          if (!response.body || !response.headers.get('content-type')?.startsWith('application/grpc-web')) return response;
-          const streams = globalThis.__dokimeStreams;
-          if (streams.length >= 128) streams.shift();
-          const entry = { path: new URL(url, location.href).pathname, reads: 0, bytes: 0, done: false };
-          streams.push(entry);
-          const getReader = response.body.getReader.bind(response.body);
-          response.body.getReader = (...args) => {
-            const reader = getReader(...args);
-            const read = reader.read.bind(reader);
-            reader.read = async (...args) => {
-              const result = await read(...args);
-              entry.done = result.done;
-              if (result.value) {
-                entry.reads += 1;
-                entry.bytes += result.value.byteLength;
-                globalThis.__dokimeStreamReads += 1;
+        /* The WebView reaches the backend only through the IPC bridge; any
+           other request is a regression this gate names rather than serves. */
+        if (!url.includes('ipc')) {
+          if (/^(https?|wss?):/i.test(url)) globalThis.__dokimeNetwork = (globalThis.__dokimeNetwork ?? 0) + 1;
+          return original(input, init);
+        }
+        /* Each bridge stream delivers on its own Tauri channel. Wrapping that
+           channel's registered callback counts what the application actually
+           received, frame by frame, before its transport decodes it. */
+        if (command === 'rpc_stream_open') {
+          const headers = (init && init.headers) || {};
+          const header = (name) => (typeof headers.get === 'function' ? headers.get(name) : headers[name]);
+          const channel = Number(String(header('dokime-rpc-channel') || '').split(':')[1]);
+          const callbacks = globalThis.__TAURI_INTERNALS__.callbacks;
+          const deliver = callbacks && callbacks.get(channel);
+          if (deliver) {
+            const streams = globalThis.__dokimeStreams;
+            if (streams.length >= 128) streams.shift();
+            const stream = { path: header('dokime-rpc-path'), reads: 0, bytes: 0, done: false };
+            streams.push(stream);
+            const open = streams.filter((entry) => !entry.done).length;
+            globalThis.__dokimeStreamPeak = Math.max(globalThis.__dokimeStreamPeak ?? 0, open);
+            callbacks.set(channel, (data) => {
+              const frame = data && data.message instanceof ArrayBuffer ? new Uint8Array(data.message) : null;
+              if (frame && frame.length > 8) {
+                if (frame[8] === 0) {
+                  stream.reads += 1;
+                  stream.bytes += frame.length - 9;
+                  globalThis.__dokimeStreamReads += 1;
+                } else stream.done = true;
               }
-              return result;
-            };
-            const cancel = reader.cancel.bind(reader);
-            reader.cancel = (...args) => { entry.done = true; return cancel(...args); };
-            return reader;
-          };
-          return response;
-        });
+              if (data && data.end) stream.done = true;
+              return deliver(data);
+            });
+          }
+        }
         if (ledger.length >= 2000) ledger.shift();
         const entry = { command: command, at: Date.now(), state: 'pending' };
         ledger.push(entry);
@@ -834,6 +843,8 @@ async function drainInvokeLedger(session) {
       return {
         recorded: entries.length,
         streams: globalThis.__dokimeStreams ?? [],
+        peakStreams: globalThis.__dokimeStreamPeak ?? 0,
+        network: globalThis.__dokimeNetwork ?? 0,
         commands: [...rows.values()].sort((left, right) => right.calls - left.calls),
       };
     `)
@@ -1517,7 +1528,12 @@ async function cycleJourney(session, cycleId) {
 
   assert.ok(
     listened,
-    "the native application consumes live gRPC-web updates while the execution is active",
+    "the native application consumes live bridge stream updates while the execution is active",
+  );
+  assert.equal(
+    await session.execute("return globalThis.__dokimeNetwork ?? 0"),
+    0,
+    "the WebView reaches its backend only through the IPC bridge",
   );
   await session.dump(
     `listening-${cycleId}`,

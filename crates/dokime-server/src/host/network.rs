@@ -66,6 +66,13 @@ impl NetworkArgs {
             return Err(input("at most 32 exact browser origins are allowed"));
         }
         let origins = self.allowed_origins.iter().map(|value| harmos::grpc::Origin::parse(value).map_err(|_| input("browser origins require a scheme and authority without path, credentials or wildcard"))).collect::<Result<Vec<_>, _>>()?;
+        if origins
+            .iter()
+            .enumerate()
+            .any(|(index, origin)| origins[..index].contains(origin))
+        {
+            return Err(input("each browser origin may be allowed only once"));
+        }
         let grants = self.auth_file.as_deref().map(read_grants).transpose()?;
         let address = SocketAddr::new(self.host, self.port);
         let config = if self.allow_remote {
@@ -93,9 +100,12 @@ impl NetworkArgs {
                 None => config,
             }
         };
-        Ok(config
-            .with_max_message_bytes(bytes)
-            .with_allowed_origins(origins)?)
+        let config = config.with_max_message_bytes(bytes);
+        if self.grpc_web {
+            Ok(config.with_grpc_web(origins)?)
+        } else {
+            Ok(config)
+        }
     }
 }
 

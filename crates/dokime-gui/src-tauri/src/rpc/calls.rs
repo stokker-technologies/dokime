@@ -1,0 +1,557 @@
+/* ***
+ *
+ * Dokime
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * ***
+ */
+
+/* === Modules === */
+
+/* === Re-Exports === */
+
+/* === Imports === */
+// Standard Library Imports
+use std::{str::FromStr, time::Duration};
+// Third Party Imports
+use tauri::ipc::{Channel, JavaScriptChannelId, Response};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+// Local Imports
+use super::*;
+
+/* === Constants === */
+/// The Method Path, `/package.Service/Method`.
+pub const PATH_HEADER: &str = "dokime-rpc-path";
+/// The Call Deadline In Milliseconds.
+pub const DEADLINE_HEADER: &str = "dokime-rpc-deadline-ms";
+/// The Tauri Channel A Stream Delivers Its Frames To.
+pub const CHANNEL_HEADER: &str = "dokime-rpc-channel";
+/// `open` Keeps A Stream's Input Open After The Opening Frame.
+pub const INPUT_HEADER: &str = "dokime-rpc-input";
+/// The Stream A Send, Finish, Cancel Or Acknowledgement Addresses.
+pub const STREAM_HEADER: &str = "dokime-rpc-stream";
+/// How Many Delivered Messages An Acknowledgement Releases.
+pub const CREDIT_HEADER: &str = "dokime-rpc-credit";
+/// Messages A Stream May Deliver Before The WebView Acknowledges Them.
+pub const STREAM_CREDIT: usize = 32;
+/// Channel Frame Kinds Following The Eight-Byte Generation.
+pub const FRAME_MESSAGE: u8 = 0;
+pub const FRAME_END: u8 = 1;
+pub const FRAME_ERROR: u8 = 2;
+
+const UNARY_DEADLINE: Duration = Duration::from_secs(10);
+const STREAM_DEADLINE: Duration = Duration::from_secs(86_400);
+const INPUT_BUFFER: usize = 2;
+
+/* === Macros === */
+
+/* === Type Aliases === */
+
+/* === Structs === */
+#[derive(Clone)]
+pub(super) struct Streams {
+    budget: Arc<Semaphore>,
+    registry: Arc<Mutex<Registry>>,
+}
+
+#[derive(Default)]
+struct Registry {
+    next_id: u64,
+    entries: HashMap<u64, Arc<Entry>>,
+}
+
+struct Entry {
+    owner: String,
+    generation: u64,
+    cancel: CancellationToken,
+    input: tokio::sync::Mutex<Option<mpsc::Sender<Vec<u8>>>>,
+    max_request_bytes: usize,
+    credit: Arc<Semaphore>,
+    delivery: Mutex<Delivery>,
+}
+
+#[derive(Default)]
+struct Delivery {
+    sent: u64,
+    acknowledged: u64,
+}
+
+struct Opening {
+    path: String,
+    deadline: Duration,
+    payload: Vec<u8>,
+    keep_input: bool,
+}
+
+/* === Enums === */
+
+/* === Traits === */
+
+/* === Implementations === */
+impl Streams {
+    pub(super) fn new(capacity: usize) -> Self {
+        Self {
+            budget: Arc::new(Semaphore::new(capacity)),
+            registry: Arc::default(),
+        }
+    }
+
+    pub(super) fn cancel_owner(&self, owner: &str) {
+        let mut registry = self.registry.lock().expect("RPC stream registry poisoned");
+        registry.entries.retain(|_, entry| {
+            if entry.owner != owner {
+                return true;
+            }
+            entry.cancel.cancel();
+            false
+        });
+    }
+
+    fn open(
+        &self,
+        context: Context,
+        channel: Channel<Response>,
+        opening: Opening,
+    ) -> Result<Response, RpcError> {
+        context.check()?;
+        let client = context.client();
+        let max_request_bytes = client.max_request_bytes();
+        if opening.payload.len() > max_request_bytes {
+            return Err(RpcError::LimitExceeded);
+        }
+        let (sender, receiver) = mpsc::channel(INPUT_BUFFER);
+        sender
+            .try_send(opening.payload)
+            .map_err(|_| RpcError::Busy)?;
+        let entry = Arc::new(Entry {
+            owner: context.owner.clone(),
+            generation: context.generation,
+            cancel: CancellationToken::new(),
+            input: tokio::sync::Mutex::new(opening.keep_input.then_some(sender)),
+            max_request_bytes,
+            credit: Arc::new(Semaphore::new(STREAM_CREDIT)),
+            delivery: Mutex::default(),
+        });
+        let id = {
+            let mut registry = self.registry.lock().expect("RPC stream registry poisoned");
+            registry.next_id = registry
+                .next_id
+                .checked_add(1)
+                .ok_or(RpcError::LimitExceeded)?;
+            let id = registry.next_id;
+            registry.entries.insert(id, Arc::clone(&entry));
+            id
+        };
+        let response = context.reply_bytes(&id.to_le_bytes())?;
+        let registry = Arc::clone(&self.registry);
+        tokio::spawn(async move {
+            let generation = context.generation;
+            let result = tokio::select! {
+                biased;
+                _ = entry.cancel.cancelled() => Err(RpcError::Cancelled),
+                result = context.execute(forward(
+                    &entry,
+                    &context,
+                    &client,
+                    &channel,
+                    &opening.path,
+                    receiver,
+                    opening.deadline,
+                )) => result,
+            };
+            // The terminal frame precedes deregistration, so a send that finds
+            // the stream gone can always learn why from the channel. A WebView
+            // that already cancelled ignores it; one that is gone drops it.
+            let terminal = match result {
+                Ok(()) => frame(generation, FRAME_END, &[]),
+                Err(error) => frame(
+                    generation,
+                    FRAME_ERROR,
+                    &serde_json::to_vec(&error).expect("RPC errors serialize"),
+                ),
+            };
+            let _ = channel.send(Response::new(terminal));
+            registry
+                .lock()
+                .expect("RPC stream registry poisoned")
+                .entries
+                .remove(&id);
+        });
+        Ok(response)
+    }
+
+    fn get(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Entry>, RpcError> {
+        self.registry
+            .lock()
+            .expect("RPC stream registry poisoned")
+            .entries
+            .get(&id)
+            .filter(|entry| entry.owner == owner && entry.generation == generation)
+            .cloned()
+            .ok_or(RpcError::UnknownStream)
+    }
+
+    fn remove(&self, owner: &str, generation: u64, id: u64) -> Result<Arc<Entry>, RpcError> {
+        let mut registry = self.registry.lock().expect("RPC stream registry poisoned");
+        match registry.entries.get(&id) {
+            Some(entry) if entry.owner == owner && entry.generation == generation => Ok(registry
+                .entries
+                .remove(&id)
+                .expect("the stream is registered")),
+            _ => Err(RpcError::UnknownStream),
+        }
+    }
+
+    pub(super) fn budget(&self) -> &Arc<Semaphore> {
+        &self.budget
+    }
+}
+
+impl Entry {
+    async fn send(&self, payload: Vec<u8>) -> Result<(), RpcError> {
+        if payload.len() > self.max_request_bytes {
+            return Err(RpcError::LimitExceeded);
+        }
+        let sender = self
+            .input
+            .lock()
+            .await
+            .clone()
+            .ok_or(RpcError::UnknownStream)?;
+        tokio::select! {
+            biased;
+            _ = self.cancel.cancelled() => Err(RpcError::Cancelled),
+            sent = sender.send(payload) => sent.map_err(|_| RpcError::UnknownStream),
+        }
+    }
+
+    fn acknowledge(&self, count: u64) -> Result<(), RpcError> {
+        let mut delivery = self.delivery.lock().expect("RPC stream credit poisoned");
+        let acknowledged = delivery
+            .acknowledged
+            .checked_add(count)
+            .filter(|acknowledged| *acknowledged <= delivery.sent)
+            .ok_or(RpcError::InvalidAck)?;
+        delivery.acknowledged = acknowledged;
+        drop(delivery);
+        self.credit.add_permits(count as usize);
+        Ok(())
+    }
+}
+
+/* === Public Functions === */
+/// Forwards One Unary Call: Path And Request Bytes In, Response Bytes Out.
+#[tauri::command]
+pub async fn rpc<R: tauri::Runtime>(
+    session: tauri::State<'_, ConnectionSession>,
+    bridge: tauri::State<'_, Bridge>,
+    webview: tauri::WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<Response, RpcError> {
+    let (generation, payload) = super::request(request.body())?;
+    let path = path(request.headers())?;
+    let deadline = deadline(request.headers(), UNARY_DEADLINE)?;
+    // Unary calls wait for their budget: they are short, and a burst of
+    // queries must not fail because a few others are still in flight.
+    let permit = Arc::clone(&bridge.calls)
+        .acquire_owned()
+        .await
+        .map_err(|_| RpcError::Cancelled)?;
+    let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
+    let client = context.client();
+    let response = context
+        .execute(client.call_raw(path, payload.to_vec(), deadline))
+        .await?;
+    context.reply_bytes(&response)
+}
+
+/// Opens One Stream Whose Frames Are Delivered Through A Tauri Channel.
+///
+/// The reply carries the stream identifier. Messages, the final status and
+/// any failure all arrive on the channel, each fenced by the generation.
+#[tauri::command]
+pub async fn rpc_stream_open<R: tauri::Runtime>(
+    session: tauri::State<'_, ConnectionSession>,
+    bridge: tauri::State<'_, Bridge>,
+    webview: tauri::WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<Response, RpcError> {
+    let (generation, payload) = super::request(request.body())?;
+    let headers = request.headers();
+    let opening = Opening {
+        path: path(headers)?.to_owned(),
+        deadline: deadline(headers, STREAM_DEADLINE)?,
+        payload: payload.to_vec(),
+        keep_input: match header(headers, INPUT_HEADER)? {
+            None | Some("closed") => false,
+            Some("open") => true,
+            Some(_) => return Err(RpcError::InvalidRequest),
+        },
+    };
+    let channel = JavaScriptChannelId::from_str(
+        header(headers, CHANNEL_HEADER)?.ok_or(RpcError::InvalidRequest)?,
+    )
+    .map_err(|_| RpcError::InvalidRequest)?
+    .channel_on(webview.as_ref().clone());
+    let permit = bridge.admit(bridge.streams.budget())?;
+    let context = bridge.context(&session, webview.label(), generation, Some(permit))?;
+    bridge.streams.open(context, channel, opening)
+}
+
+/// Sends One Input Frame On A Stream Opened With Its Input Kept Open.
+#[tauri::command]
+pub async fn rpc_stream_send<R: tauri::Runtime>(
+    session: tauri::State<'_, ConnectionSession>,
+    bridge: tauri::State<'_, Bridge>,
+    webview: tauri::WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), RpcError> {
+    let (generation, payload) = super::request(request.body())?;
+    session.lease(&generation.to_string())?;
+    let entry = bridge
+        .streams
+        .get(webview.label(), generation, stream(request.headers())?)?;
+    entry.send(payload.to_vec()).await
+}
+
+/// Closes A Stream's Input; Its Response Still Arrives On The Channel.
+#[tauri::command]
+pub async fn rpc_stream_finish<R: tauri::Runtime>(
+    session: tauri::State<'_, ConnectionSession>,
+    bridge: tauri::State<'_, Bridge>,
+    webview: tauri::WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), RpcError> {
+    let (generation, _) = super::request(request.body())?;
+    session.lease(&generation.to_string())?;
+    let entry = bridge
+        .streams
+        .get(webview.label(), generation, stream(request.headers())?)?;
+    entry
+        .input
+        .lock()
+        .await
+        .take()
+        .map(drop)
+        .ok_or(RpcError::UnknownStream)
+}
+
+/// Cancels A Stream: The Backend Call Is Reset And Nothing More Is Delivered.
+#[tauri::command]
+pub async fn rpc_stream_cancel<R: tauri::Runtime>(
+    session: tauri::State<'_, ConnectionSession>,
+    bridge: tauri::State<'_, Bridge>,
+    webview: tauri::WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), RpcError> {
+    let (generation, _) = super::request(request.body())?;
+    session.lease(&generation.to_string())?;
+    bridge
+        .streams
+        .remove(webview.label(), generation, stream(request.headers())?)?
+        .cancel
+        .cancel();
+    Ok(())
+}
+
+/// Releases Delivery Credit For Messages The WebView Has Consumed.
+#[tauri::command]
+pub async fn rpc_stream_ack<R: tauri::Runtime>(
+    session: tauri::State<'_, ConnectionSession>,
+    bridge: tauri::State<'_, Bridge>,
+    webview: tauri::WebviewWindow<R>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), RpcError> {
+    let (generation, _) = super::request(request.body())?;
+    session.lease(&generation.to_string())?;
+    let headers = request.headers();
+    let count = header(headers, CREDIT_HEADER)?
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|count| (1..=STREAM_CREDIT as u64).contains(count))
+        .ok_or(RpcError::InvalidAck)?;
+    bridge
+        .streams
+        .get(webview.label(), generation, stream(headers)?)?
+        .acknowledge(count)
+}
+
+/* === Private Functions === */
+/// Relays Every Response Message In Order Within The Stream's Credit.
+async fn forward(
+    entry: &Entry,
+    context: &Context,
+    client: &dokime_client::Client,
+    channel: &Channel<Response>,
+    path: &str,
+    receiver: mpsc::Receiver<Vec<u8>>,
+    deadline: Duration,
+) -> Result<(), RpcError> {
+    let mut incoming = client
+        .stream_raw(path, ReceiverStream::new(receiver), deadline)
+        .await?;
+    loop {
+        entry
+            .credit
+            .acquire()
+            .await
+            .map_err(|_| RpcError::Cancelled)?
+            .forget();
+        let Some(message) = incoming.message().await? else {
+            return Ok(());
+        };
+        context.check()?;
+        entry
+            .delivery
+            .lock()
+            .expect("RPC stream credit poisoned")
+            .sent += 1;
+        channel
+            .send(Response::new(frame(
+                context.generation,
+                FRAME_MESSAGE,
+                &message,
+            )))
+            .map_err(|_| RpcError::Cancelled)?;
+    }
+}
+
+fn frame(generation: u64, kind: u8, payload: &[u8]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(9 + payload.len());
+    bytes.extend_from_slice(&generation.to_le_bytes());
+    bytes.push(kind);
+    bytes.extend_from_slice(payload);
+    bytes
+}
+
+fn header<'a>(
+    headers: &'a tauri::http::HeaderMap,
+    name: &str,
+) -> Result<Option<&'a str>, RpcError> {
+    headers
+        .get(name)
+        .map(|value| value.to_str().map_err(|_| RpcError::InvalidRequest))
+        .transpose()
+}
+
+/// Accepts Only `/package.Service/Method`; The Backend Decides If It Exists.
+fn path(headers: &tauri::http::HeaderMap) -> Result<&str, RpcError> {
+    let path = header(headers, PATH_HEADER)?.ok_or(RpcError::InvalidRequest)?;
+    let (service, method) = path
+        .strip_prefix('/')
+        .and_then(|path| path.split_once('/'))
+        .ok_or(RpcError::InvalidRequest)?;
+    let valid = !service.is_empty()
+        && !method.is_empty()
+        && service
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'.'))
+        && method
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
+    valid.then_some(path).ok_or(RpcError::InvalidRequest)
+}
+
+fn deadline(headers: &tauri::http::HeaderMap, default: Duration) -> Result<Duration, RpcError> {
+    let Some(value) = header(headers, DEADLINE_HEADER)? else {
+        return Ok(default);
+    };
+    value
+        .parse::<u64>()
+        .ok()
+        .filter(|milliseconds| *milliseconds > 0)
+        .map(|milliseconds| Duration::from_millis(milliseconds).min(STREAM_DEADLINE))
+        .ok_or(RpcError::InvalidRequest)
+}
+
+fn stream(headers: &tauri::http::HeaderMap) -> Result<u64, RpcError> {
+    header(headers, STREAM_HEADER)?
+        .and_then(|value| value.parse().ok())
+        .ok_or(RpcError::UnknownStream)
+}
+
+/* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn headers(pairs: &[(&'static str, &'static str)]) -> tauri::http::HeaderMap {
+        pairs
+            .iter()
+            .map(|(name, value)| {
+                (
+                    tauri::http::HeaderName::from_static(name),
+                    tauri::http::HeaderValue::from_static(value),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn paths_name_one_method() {
+        for valid in ["/dokime.v1.Plots/Watch", "/a/b"] {
+            assert_eq!(path(&headers(&[(PATH_HEADER, valid)])).unwrap(), valid);
+        }
+        for invalid in [
+            "",
+            "/",
+            "dokime.v1.Plots/Watch",
+            "/dokime.v1.Plots/",
+            "//Watch",
+            "/dokime.v1.Plots/Watch/extra",
+            "/dokime.v1.Plots/Wa.tch",
+            "/dokime v1/Watch",
+        ] {
+            assert!(
+                path(&headers(&[(PATH_HEADER, invalid)])).is_err(),
+                "{invalid}"
+            );
+        }
+        assert!(path(&headers(&[])).is_err());
+    }
+
+    #[test]
+    fn deadlines_are_positive_and_bounded() {
+        assert_eq!(
+            deadline(&headers(&[]), UNARY_DEADLINE).unwrap(),
+            UNARY_DEADLINE
+        );
+        assert_eq!(
+            deadline(&headers(&[(DEADLINE_HEADER, "1500")]), UNARY_DEADLINE).unwrap(),
+            Duration::from_millis(1500)
+        );
+        assert_eq!(
+            deadline(
+                &headers(&[(DEADLINE_HEADER, "999999999999")]),
+                UNARY_DEADLINE
+            )
+            .unwrap(),
+            STREAM_DEADLINE
+        );
+        for invalid in ["0", "-1", "soon"] {
+            assert!(deadline(&headers(&[(DEADLINE_HEADER, invalid)]), UNARY_DEADLINE).is_err());
+        }
+    }
+
+    #[test]
+    fn acknowledgements_never_exceed_delivery() {
+        let entry = Entry {
+            owner: "main".into(),
+            generation: 1,
+            cancel: CancellationToken::new(),
+            input: tokio::sync::Mutex::new(None),
+            max_request_bytes: 1,
+            credit: Arc::new(Semaphore::new(0)),
+            delivery: Mutex::new(Delivery {
+                sent: 3,
+                acknowledged: 0,
+            }),
+        };
+        entry.acknowledge(2).unwrap();
+        assert_eq!(entry.credit.available_permits(), 2);
+        assert!(matches!(entry.acknowledge(2), Err(RpcError::InvalidAck)));
+        entry.acknowledge(1).unwrap();
+        assert_eq!(entry.credit.available_permits(), 3);
+    }
+}

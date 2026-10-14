@@ -69,11 +69,6 @@ native_commands! {
         () -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
         => crate::native_session::desktop_session_status;
 
-    // Secrets Are Returned Only To The Trusted Main Window's Current Generation.
-    sync desktop_session_transport
-        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>]
-        (generation: String) -> Result<crate::connection::BrowserAccess, crate::connection::ConnectionError>
-        => crate::native_session::desktop_session_transport;
 
     sync desktop_profiles_list
         []
@@ -136,7 +131,7 @@ native_commands! {
 
     // Patch an MP4 recording's duration in place and upload it; returns the artifact id.
     async desktop_recording_finish
-        [window: tauri::WebviewWindow, bridge: tauri::State<'_, crate::uploads::Bridge>]
+        [window: tauri::WebviewWindow, bridge: tauri::State<'_, crate::rpc::Bridge>]
         (generation: String, duration_ms: u64, media_type: String) -> Result<String, String>
         => crate::app::recording::desktop_recording_finish;
 

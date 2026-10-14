@@ -94,14 +94,3 @@ export type BackendProfiles = {
     credential: "none" | "keyring";
   }[];
 };
-
-/** Ephemeral Access; Never Persist Or Add To A Session Snapshot. */
-export type BrowserAccess = {
-  generation: string;
-  endpoint: string;
-  authorization: string | null;
-  backendId: string;
-  epoch: string;
-  limits: BackendLimits;
-  methods: string[];
-};

@@ -122,12 +122,10 @@ interface StageStallBoundsMs {
 }
 
 /**
- * Matches the native side's own bounds: the bridge's 30 s idle timeout on
- * each `client_stream_write`/open frame (`client_streams.rs::IDLE_TIMEOUT`),
- * and the server's 300 s deadline on the whole `Plugins.Stage` call
- * (`grpc/deadline.rs::Deadlines::upload`). Nothing on the client enforces
- * either today, so an invoke that never resolves — the failure this module
- * exists to diagnose — spins "Inspecting …" forever.
+ * Bounds each staging phase on the client. The bridge forwards the whole
+ * `Plugins.Stage` call under its 300 s operation deadline; nothing else bounds a
+ * single open or write invoke, so one that never resolves — the failure this
+ * module exists to diagnose — would spin "Inspecting …" forever.
  */
 const DEFAULT_STAGE_STALL_MS: StageStallBoundsMs = {
   open: 30_000,
@@ -137,7 +135,7 @@ const DEFAULT_STAGE_STALL_MS: StageStallBoundsMs = {
 
 /**
  * Bound on the cancel invoke itself. `cancel` is what every stall path above
- * falls back on; without its own bound, a stalled `client_stream_cancel`
+ * falls back on; without its own bound, a stalled `rpc_stream_cancel`
  * would let the cleanup this module runs on the way out re-create the exact
  * hang it exists to end.
  */

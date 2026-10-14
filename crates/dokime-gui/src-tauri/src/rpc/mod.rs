@@ -9,15 +9,15 @@
 
 /* === Modules === */
 mod artifact_upload;
-mod client_streams;
+mod calls;
 
 /* === Re-Exports === */
 pub use crate::Error as RpcError;
-pub use artifact_upload::{
-    RecordingHandle, artifact_upload_cancel, artifact_upload_finish, artifact_upload_open,
-    artifact_upload_write, recording_cancel, recording_open, recording_write,
+pub use artifact_upload::RecordingHandle;
+pub use calls::{
+    CHANNEL_HEADER, CREDIT_HEADER, DEADLINE_HEADER, FRAME_END, FRAME_ERROR, FRAME_MESSAGE,
+    INPUT_HEADER, PATH_HEADER, STREAM_CREDIT, STREAM_HEADER,
 };
-pub use client_streams::{client_stream_cancel, client_stream_finish, client_stream_write};
 
 /* === Imports === */
 // Standard Library Imports
@@ -34,13 +34,35 @@ use tokio_util::sync::CancellationToken;
 // Local Imports
 use crate::connection::{ConnectionError, ConnectionSession, SessionLease};
 use artifact_upload::{ArtifactUploads, RecordingSinks};
-use client_streams::ClientStreams;
+use calls::Streams;
 
 /* === Constants === */
 pub const FILE_DESCRIPTOR_SET: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/grpc/operations/descriptors.bin"));
 pub const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
-const MAX_CALLS: usize = 32;
+/// Every Raw-Body Command This Module Answers; The Shell Routes Them Here.
+pub const COMMANDS: &[&str] = &[
+    "rpc",
+    "rpc_stream_open",
+    "rpc_stream_send",
+    "rpc_stream_finish",
+    "rpc_stream_cancel",
+    "rpc_stream_ack",
+    "artifact_upload_open",
+    "artifact_upload_write",
+    "artifact_upload_finish",
+    "artifact_upload_cancel",
+    "recording_open",
+    "recording_write",
+    "recording_cancel",
+];
+// Every call shares the session's single HTTP/2 connection, and a backend
+// listener admits 32 concurrent calls on it. Long-lived calls, streams and
+// uploads alike, own most of that budget and are refused beyond it rather than
+// queued behind each other; unary calls queue for the rest, so long-lived calls
+// never starve them.
+const MAX_CALLS: usize = 8;
+const MAX_STREAMS: usize = 24;
 const REQUEST_HEADER: usize = 40;
 
 /* === Macros === */
@@ -48,21 +70,14 @@ const REQUEST_HEADER: usize = 40;
 /* === Type Aliases === */
 
 /* === Structs === */
+/// Forwards Opaque Protobuf Calls From The WebView To The Session's Client.
 #[derive(Clone)]
 pub struct Bridge {
     owners: Arc<Mutex<HashMap<String, CancellationToken>>>,
     calls: Arc<Semaphore>,
-    client_streams: ClientStreams,
+    streams: Streams,
     uploads: ArtifactUploads,
     recordings: RecordingSinks,
-}
-
-struct Owner {
-    generation: u64,
-    owner: String,
-    owner_cancel: CancellationToken,
-    session_cancel: CancellationToken,
-    _permit: Option<OwnedSemaphorePermit>,
 }
 
 struct Context {
@@ -70,7 +85,7 @@ struct Context {
     owner: String,
     owner_cancel: CancellationToken,
     lease: SessionLease,
-    permit: Option<OwnedSemaphorePermit>,
+    _permit: Option<OwnedSemaphorePermit>,
 }
 
 /* === Enums === */
@@ -83,63 +98,9 @@ impl Default for Bridge {
         Self {
             owners: Arc::default(),
             calls: Arc::new(Semaphore::new(MAX_CALLS)),
-            client_streams: ClientStreams::default(),
+            streams: Streams::new(MAX_STREAMS),
             uploads: ArtifactUploads::default(),
             recordings: RecordingSinks::default(),
-        }
-    }
-}
-
-impl Owner {
-    fn check(&self) -> Result<(), RpcError> {
-        if self.owner_cancel.is_cancelled() {
-            return Err(RpcError::Cancelled);
-        }
-        if self.session_cancel.is_cancelled() {
-            return Err(ConnectionError::Superseded.into());
-        }
-        Ok(())
-    }
-
-    async fn execute<T, E: Into<RpcError>>(
-        &self,
-        future: impl Future<Output = Result<T, E>>,
-    ) -> Result<T, RpcError> {
-        let result = tokio::select! {
-            biased;
-            _ = self.owner_cancel.cancelled() => Err(RpcError::Cancelled),
-            _ = self.session_cancel.cancelled() => Err(ConnectionError::Superseded.into()),
-            result = future => {
-                if self.session_cancel.is_cancelled() {
-                    return Err(ConnectionError::Superseded.into());
-                }
-                result.map_err(Into::into)
-            },
-        };
-        if let Err(error) = &result {
-            tracing::debug!(owner = %self.owner, generation = self.generation, error = ?error, "rpc call failed");
-        }
-        result
-    }
-    fn reply_bytes(&self, payload: &[u8]) -> Result<tauri::ipc::Response, RpcError> {
-        self.check()?;
-        if payload.len() > MAX_FRAME_BYTES {
-            return Err(RpcError::LimitExceeded);
-        }
-        let mut bytes = self.generation.to_le_bytes().to_vec();
-        bytes.extend_from_slice(payload);
-        Ok(tauri::ipc::Response::new(bytes))
-    }
-}
-
-impl From<Context> for Owner {
-    fn from(context: Context) -> Self {
-        Self {
-            generation: context.generation,
-            owner: context.owner,
-            owner_cancel: context.owner_cancel,
-            session_cancel: context.lease.cancellation(),
-            _permit: context.permit,
         }
     }
 }
@@ -185,6 +146,7 @@ impl Context {
         }
         result
     }
+
     fn check(&self) -> Result<(), RpcError> {
         if self.owner_cancel.is_cancelled() {
             return Err(RpcError::Cancelled);
@@ -194,6 +156,7 @@ impl Context {
         }
         Ok(())
     }
+
     fn reply(&self, message: impl Protobuf) -> Result<tauri::ipc::Response, RpcError> {
         self.check()?;
         if message.encoded_len() > MAX_FRAME_BYTES {
@@ -203,6 +166,7 @@ impl Context {
         message.encode_into(&mut bytes);
         Ok(tauri::ipc::Response::new(bytes))
     }
+
     fn reply_bytes(&self, payload: &[u8]) -> Result<tauri::ipc::Response, RpcError> {
         self.check()?;
         if payload.len() > MAX_FRAME_BYTES {
@@ -224,10 +188,11 @@ impl Bridge {
         {
             token.cancel();
         }
-        self.client_streams.cancel_owner(owner);
+        self.streams.cancel_owner(owner);
         self.uploads.cancel_owner(owner);
         self.recordings.cancel_owner(owner);
     }
+
     pub async fn take_recording(
         &self,
         owner: &str,
@@ -235,18 +200,19 @@ impl Bridge {
     ) -> Result<artifact_upload::RecordingHandle, RpcError> {
         self.recordings.take(owner, generation).await
     }
+
+    /// Binds One Call To The Main Window's Current Generation.
     fn context(
         &self,
         session: &ConnectionSession,
         owner: &str,
         generation: u64,
+        permit: Option<OwnedSemaphorePermit>,
     ) -> Result<Context, RpcError> {
+        if owner != "main" {
+            return Err(ConnectionError::PermissionDenied.into());
+        }
         let lease = session.lease(&generation.to_string())?;
-        let permit = self
-            .calls
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| RpcError::Busy)?;
         let owner_cancel = self
             .owners
             .lock()
@@ -259,43 +225,41 @@ impl Bridge {
             owner: owner.into(),
             owner_cancel,
             lease,
-            permit: Some(permit),
+            _permit: permit,
         })
     }
+
+    /// Takes A Permit Without Waiting: An Exhausted Budget Answers `Busy`.
+    fn admit(&self, budget: &Arc<Semaphore>) -> Result<OwnedSemaphorePermit, RpcError> {
+        Arc::clone(budget)
+            .try_acquire_owned()
+            .map_err(|_| RpcError::Busy)
+    }
+
     fn prepare<M: Protobuf + MemorySize>(
         &self,
         session: &ConnectionSession,
         owner: &str,
         body: &tauri::ipc::InvokeBody,
     ) -> Result<(Context, M), RpcError> {
-        if owner != "main" {
-            return Err(ConnectionError::PermissionDenied.into());
-        }
         let (generation, payload) = request(body)?;
-        let context = self.context(session, owner, generation)?;
+        let permit = self.admit(self.streams.budget())?;
+        let context = self.context(session, owner, generation, Some(permit))?;
         let message = decode(payload)?;
         Ok((context, message))
-    }
-    fn open_client<M, O, F, Fut>(
-        &self,
-        context: Context,
-        first: M,
-        call: F,
-    ) -> Result<tauri::ipc::Response, RpcError>
-    where
-        M: Protobuf + MemorySize + Send + Sync + 'static,
-        O: Protobuf + MemorySize + Send + Sync + 'static,
-        F: FnOnce(client_streams::ClientWireStream<M>) -> Fut + Send + 'static,
-        Fut: Future<Output = Result<O, RpcError>> + Send + 'static,
-    {
-        self.client_streams.open(context, first, call)
     }
 }
 
 /* === Public Functions === */
-pub fn artifact_upload_handler<R: tauri::Runtime>()
--> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+pub fn handler<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static
+{
     tauri::generate_handler![
+        calls::rpc,
+        calls::rpc_stream_open,
+        calls::rpc_stream_send,
+        calls::rpc_stream_finish,
+        calls::rpc_stream_cancel,
+        calls::rpc_stream_ack,
         artifact_upload::artifact_upload_open,
         artifact_upload::artifact_upload_write,
         artifact_upload::artifact_upload_finish,
@@ -303,10 +267,6 @@ pub fn artifact_upload_handler<R: tauri::Runtime>()
         artifact_upload::recording_open,
         artifact_upload::recording_write,
         artifact_upload::recording_cancel,
-        plugin_stage_open,
-        client_streams::client_stream_write,
-        client_streams::client_stream_finish,
-        client_streams::client_stream_cancel,
     ]
 }
 
@@ -322,6 +282,10 @@ fn rpc_error(status: tonic::Status) -> RpcError {
     }
 }
 
+/// Splits A Fenced Request Into Its Connection Generation And Payload.
+///
+/// Every raw request starts with the generation the WebView believes is
+/// current and the SHA-256 of the descriptor set its client was generated from.
 fn request(body: &tauri::ipc::InvokeBody) -> Result<(u64, &[u8]), RpcError> {
     let tauri::ipc::InvokeBody::Raw(bytes) = body else {
         return Err(RpcError::InvalidRequest);
@@ -357,25 +321,6 @@ fn decode<M: Protobuf + MemorySize>(bytes: &[u8]) -> Result<M, RpcError> {
         return Err(RpcError::LimitExceeded);
     }
     M::decode(bytes).map_err(|_| RpcError::InvalidRequest)
-}
-
-#[tauri::command]
-async fn plugin_stage_open<R: tauri::Runtime>(
-    session: tauri::State<'_, ConnectionSession>,
-    bridge: tauri::State<'_, Bridge>,
-    webview: tauri::WebviewWindow<R>,
-    request: tauri::ipc::Request<'_>,
-) -> Result<tauri::ipc::Response, RpcError> {
-    let (context, first) = bridge
-        .prepare::<dokime_contract::operations::plugins::StagePluginFrame>(
-            &session,
-            webview.label(),
-            request.body(),
-        )?;
-    let client = context.client();
-    bridge.open_client(context, first, move |stream| async move {
-        client.plugins_stage(stream).await.map_err(RpcError::from)
-    })
 }
 
 /* === Tests === */

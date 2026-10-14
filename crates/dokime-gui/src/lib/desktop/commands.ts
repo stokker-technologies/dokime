@@ -20,7 +20,7 @@ import { invoke as invokeCommand } from "@tauri-apps/api/core";
 
 import { isReportBuild } from "@/lib/ui-mode";
 
-import type { BackendProfiles, BrowserAccess } from "./connection";
+import type { BackendProfiles } from "./connection";
 import type { ArtifactDeliveryRequest, ArtifactSource, DesktopSaveDocument } from "./delivery";
 import type { GitlabAuthStatus, GitlabInstallResult, GitlabUpdateCheck } from "./gitlab";
 import type { BackendSelection, DesktopLaunch, DesktopSessionSnapshot } from "./session";
@@ -55,8 +55,6 @@ export const commands = {
     invoke<DesktopSessionSnapshot>("desktop_session_select", { selection }),
   desktopSessionDisconnect: () => invoke<DesktopSessionSnapshot>("desktop_session_disconnect"),
   desktopSessionStatus: () => invoke<DesktopSessionSnapshot>("desktop_session_status"),
-  desktopSessionTransport: (generation: string) =>
-    invoke<BrowserAccess>("desktop_session_transport", { generation }),
   desktopProfilesList: () => invoke<BackendProfiles>("desktop_profiles_list"),
   /** Open the failed owned start's log; the shell supplies the path. */
   desktopOpenBackendLog: () => invoke<null>("desktop_open_backend_log"),

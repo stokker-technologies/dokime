@@ -41,17 +41,52 @@ export async function openHarness() {
   mkdirSync(cache, { recursive: true });
   const temporary = mkdtempSync(resolve(cache, "dokime-rpc-interop-"));
   const lines = createInterface({ input: process.stdin });
-  const replies = lines[Symbol.asyncIterator]();
-  async function invoke(cmd, bytes) {
-    process.stdout.write(`${JSON.stringify({ cmd, bytes: [...bytes] })}\n`);
-    const line = await replies.next();
-    assert.equal(line.done, false);
-    const result = JSON.parse(line.value);
-    if (result.error) throw result.error;
-    return result.bytes ? Uint8Array.from(result.bytes).buffer : result.value;
+  const pending = new Map();
+  const callbacks = new Map();
+  let nextInvoke = 0;
+  let nextCallback = 1;
+  // Replies and channel frames interleave: every reply names its invoke, and
+  // every frame names the channel callback it belongs to.
+  const reading = (async () => {
+    for await (const line of lines) {
+      const message = JSON.parse(line);
+      if ("channel" in message) {
+        callbacks.get(message.channel)?.({ message: buffer(message.bytes), index: message.index });
+        continue;
+      }
+      const call = pending.get(message.id);
+      assert.ok(call, `unexpected reply ${message.id}`);
+      pending.delete(message.id);
+      if (message.error !== undefined) call.reject(message.error);
+      else call.resolve(message.bytes !== undefined ? buffer(message.bytes) : message.value);
+    }
+  })();
+  function invoke(cmd, args, options) {
+    const id = nextInvoke++;
+    const bytes = args instanceof Uint8Array ? args : new Uint8Array(0);
+    const headers = options?.headers ?? {};
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      process.stdout.write(
+        `${JSON.stringify({ id, cmd, bytes: Buffer.from(bytes).toString("base64"), headers })}\n`,
+      );
+    });
   }
   globalThis.__DOKIME_UI_MODE__ = "live";
-  globalThis.window = { __TAURI_INTERNALS__: { invoke } };
+  globalThis.__DOKIME_TRANSPORT__ = "ipc";
+  globalThis.window = {
+    __TAURI_INTERNALS__: {
+      invoke,
+      transformCallback(callback) {
+        const id = nextCallback++;
+        callbacks.set(id, callback);
+        return id;
+      },
+      unregisterCallback(id) {
+        callbacks.delete(id);
+      },
+    },
+  };
   // Preserve The GUI Tree So Canonical Descriptor Imports Resolve Unchanged.
   function resolvableSpecifiers(source, destination) {
     return source.replace(/(from\s+["'])([^"']+)(["'])/g, (match, prefix, specifier, suffix) => {
@@ -97,13 +132,24 @@ export async function openHarness() {
     invoke,
     load: (path) => import(pathToFileURL(resolve(rpc, path))),
     loadCanonical: (path) => import(pathToFileURL(resolve(canonical, path))),
-    close() {
+    /** Report one observation to the driving test without awaiting a reply. */
+    report(value) {
+      process.stdout.write(`${JSON.stringify(value)}\n`);
+    },
+    async close() {
+      process.stdout.end();
       lines.close();
+      await reading.catch(() => undefined);
       rmSync(temporary, { recursive: true, force: true });
     },
   };
 }
 
 /* === Private Functions === */
+
+function buffer(text) {
+  const bytes = Buffer.from(text, "base64");
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
 
 /* === Entry Point === */

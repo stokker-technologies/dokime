@@ -86,15 +86,15 @@ fn start_tauri_app() -> tauri::Result<()> {
     let retained = Arc::new(Mutex::new(None::<crate::native_session::DesktopSession>));
     let setup_owner = Arc::clone(&retained);
     let controls = bindings::invoke_handler();
-    let artifact_uploads = crate::uploads::artifact_upload_handler();
+    let rpc = crate::rpc::handler();
     let builder = tauri::Builder::default()
-        .manage(crate::uploads::Bridge::default())
+        .manage(crate::rpc::Bridge::default())
         .manage(crate::connection::ConnectionSession::default())
         .manage(launch)
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 window
-                    .state::<crate::uploads::Bridge>()
+                    .state::<crate::rpc::Bridge>()
                     .cancel_owner(window.label());
                 // No single generation is authoritative at window teardown;
                 // drop the whole media preview cache rather than one slice
@@ -103,6 +103,15 @@ fn start_tauri_app() -> tauri::Result<()> {
                 tauri::async_runtime::spawn(async move {
                     media::release_all(&app).await;
                 });
+            }
+        })
+        // A page that navigates or reloads abandons every call it made; its
+        // streams and uploads end with it rather than holding bridge capacity.
+        .on_page_load(|webview, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                webview
+                    .state::<crate::rpc::Bridge>()
+                    .cancel_owner(webview.label());
             }
         })
         .plugin(tauri_plugin_deep_link::init())
@@ -140,21 +149,8 @@ fn start_tauri_app() -> tauri::Result<()> {
             Ok(())
         })
         .invoke_handler(move |invoke| {
-            if matches!(
-                invoke.message.command(),
-                "artifact_upload_open"
-                    | "artifact_upload_write"
-                    | "artifact_upload_finish"
-                    | "artifact_upload_cancel"
-                    | "recording_open"
-                    | "recording_write"
-                    | "recording_cancel"
-                    | "plugin_stage_open"
-                    | "client_stream_write"
-                    | "client_stream_finish"
-                    | "client_stream_cancel"
-            ) {
-                artifact_uploads(invoke)
+            if crate::rpc::COMMANDS.contains(&invoke.message.command()) {
+                rpc(invoke)
             } else {
                 controls(invoke)
             }

@@ -42,15 +42,11 @@ const watchdog = setTimeout(() => {
   process.exit(1);
 }, 35000);
 const harness = await openHarness();
-let releaseConnection;
 try {
   const contract = JSON.parse(readFileSync(process.argv[2], "utf8"));
   const scenario = contract.scenarios.find((item) => item.name === process.argv[3]);
   const api = await harness.load("generated/client.js");
-  const access = JSON.parse(process.env.DOKIME_TEST_BROWSER_ACCESS);
-  const session = { generation: access.generation, isCurrent: () => true };
-  const transport = await harness.load("grpc-web.js");
-  releaseConnection = transport.bindConnection(session, access);
+  const session = { generation: process.env.DOKIME_TEST_GENERATION, isCurrent: () => true };
   const suite = await api.catalogGetSuite(session, { suiteId: contract.suite });
   const template = suite.templates.find((item) => item.metadata.identifier === contract.template);
   assert.ok(template);
@@ -266,6 +262,5 @@ try {
   );
 } finally {
   clearTimeout(watchdog);
-  releaseConnection?.();
-  harness.close();
+  await harness.close();
 }

@@ -133,7 +133,7 @@ pub(crate) async fn fetch_verified(
             .map_err(|error| DeliveryError::local(DeliveryStage::Write, error.to_string()))?;
     }
     let client = lease.client().with_frame_limit(
-        std::num::NonZeroUsize::new(crate::uploads::MAX_FRAME_BYTES).expect("desktop frame limit"),
+        std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit"),
     );
     let destination = destination.to_path_buf();
     let result = match source {
@@ -186,8 +186,7 @@ pub(crate) async fn push_verified(
     lease
         .client()
         .with_frame_limit(
-            std::num::NonZeroUsize::new(crate::uploads::MAX_FRAME_BYTES)
-                .expect("desktop frame limit"),
+            std::num::NonZeroUsize::new(crate::rpc::MAX_FRAME_BYTES).expect("desktop frame limit"),
         )
         .upload_artifact_file(source, header)
         .await

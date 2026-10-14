@@ -14,7 +14,7 @@ pub mod connection;
 mod error;
 pub mod native_session;
 pub mod parameters;
-pub mod uploads;
+pub mod rpc;
 
 /* === Re-Exports === */
 pub use app::run;

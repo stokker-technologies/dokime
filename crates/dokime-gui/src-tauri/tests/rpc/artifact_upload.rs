@@ -22,7 +22,7 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
 use dokime_contract::operations::content;
-use dokime_gui::uploads::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, artifact_upload_handler};
+use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, handler};
 
 /* === Constants === */
 
@@ -71,7 +71,7 @@ fn app_and_window(
     let app = tauri::test::mock_builder()
         .manage(session.clone())
         .manage(Bridge::default())
-        .invoke_handler(artifact_upload_handler())
+        .invoke_handler(handler())
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .unwrap();
     let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())

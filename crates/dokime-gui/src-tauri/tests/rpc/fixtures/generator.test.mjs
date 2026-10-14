@@ -114,12 +114,12 @@ test("Canonical Methods And Descriptor Identity", () => {
     for (const service of file.service) {
       for (const method of service.method) {
         const path = `/${file.package}.${service.name}/${method.name}`;
-        if (method.clientStreaming) {
-          if (path === "/dokime.v1.Plugins/Stage") assert.ok(client.includes('"plugin_stage_open"'));
-          continue;
-        }
         assert.ok(client.includes(JSON.stringify(path)), `Missing canonical method: ${path}`);
-        const call = method.serverStreaming ? "openStream" : "unary";
+        const call = method.clientStreaming
+          ? "openClientStream"
+          : method.serverStreaming
+            ? "openStream"
+            : "unary";
         assert.ok(client.includes(`=> ${call}(${JSON.stringify(path)},`));
       }
     }

@@ -2,8 +2,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createDokimeQueryClient } from "@/app/query-client";
 import { commands } from "@/lib/desktop/commands";
-import type { BrowserAccess } from "@/lib/desktop/connection";
-import { bindConnection } from "@/lib/rpc/grpc-web";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { BackendSelection, DesktopSessionSnapshot } from "@/lib/desktop/session";
 import type { SessionIdentity } from "@/lib/rpc/transport";
@@ -11,7 +9,6 @@ import type { SessionIdentity } from "@/lib/rpc/transport";
 export interface SessionControls {
   select(selection: BackendSelection): Promise<DesktopSessionSnapshot>;
   disconnect(): Promise<DesktopSessionSnapshot>;
-  transport(generation: string): Promise<BrowserAccess>;
 }
 export interface ConnectedSession {
   snapshot: DesktopSessionSnapshot;
@@ -27,7 +24,6 @@ export type SessionState =
 const nativeControls: SessionControls = {
   select: (selection) => commands.desktopSessionSelect(selection),
   disconnect: () => commands.desktopSessionDisconnect(),
-  transport: (generation) => commands.desktopSessionTransport(generation),
 };
 
 /** One owner per desktop window. Inputs containing secrets are never retained. */
@@ -58,20 +54,9 @@ export class NativeSession {
     try {
       const snapshot = await this.controls.select(selection);
       if (revision !== this.revision) return;
-      if (snapshot.connection.phase !== "connected" || !snapshot.connection.backend)
+      const backend = snapshot.connection.backend;
+      if (snapshot.connection.phase !== "connected" || !backend)
         throw new Error("Native connection did not negotiate a backend");
-      const access = await this.controls.transport(snapshot.connection.generation);
-      if (revision !== this.revision) {
-        access.authorization = null;
-        return;
-      }
-      if (
-        access.backendId !== snapshot.connection.backend.backendId ||
-        access.epoch !== snapshot.connection.backend.epoch
-      ) {
-        access.authorization = null;
-        throw new Error("Backend identity changed during desktop connection.");
-      }
       const queryClient = createDokimeQueryClient();
       const disposers = new Set<() => void>();
       const session: ConnectedSession = {
@@ -92,17 +77,15 @@ export class NativeSession {
           };
         },
       };
-      const releaseTransport = bindConnection(session.identity, access);
       this.release = () => {
-        releaseTransport();
         void queryClient.cancelQueries();
         queryClient.clear();
         for (const dispose of disposers) dispose();
         disposers.clear();
       };
       const identity = await rpc.backendGetIdentity(session.identity, {});
-      if (identity.backendId !== access.backendId || identity.epoch !== access.epoch) {
-        throw new Error("The browser connected to a different backend identity or epoch.");
+      if (identity.backendId !== backend.backendId || identity.epoch !== backend.epoch) {
+        throw new Error("The bridge reached a different backend identity or epoch.");
       }
       if (revision !== this.revision) return;
       this.publish({ phase: "connected", session });

@@ -8,6 +8,10 @@
  */
 
 /* === Modules === */
+// The acceptance driver needs only the harness's invoke loop.
+#[allow(dead_code)]
+#[path = "../support/bridge.rs"]
+mod bridge;
 
 /* === Re-Exports === */
 
@@ -15,7 +19,7 @@
 // Standard Library Imports
 use std::{
     fs::OpenOptions,
-    io::{BufRead, BufReader, Write},
+    io::Write,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Arc,
@@ -33,10 +37,8 @@ use dokime::{
 };
 use dokime_app::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
 use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
-use dokime_gui::{
-    connection::ConnectionSession,
-    uploads::{Bridge, artifact_upload_handler},
-};
+use bridge::{Harness, Local};
+use dokime_gui::connection::ConnectionSession;
 use dokime_server::grpc::{Config, Server};
 
 /* === Constants === */
@@ -221,31 +223,6 @@ impl EmbeddedProvider for Provider {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn invoke(
-    window: &tauri::WebviewWindow<tauri::test::MockRuntime>,
-    cmd: &str,
-    bytes: Vec<u8>,
-) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
-    tauri::test::get_ipc_response(
-        window,
-        tauri::webview::InvokeRequest {
-            cmd: cmd.into(),
-            callback: tauri::ipc::CallbackFn(0),
-            error: tauri::ipc::CallbackFn(1),
-            url: if cfg!(windows) {
-                "http://tauri.localhost"
-            } else {
-                "tauri://localhost"
-            }
-            .parse()
-            .unwrap(),
-            body: tauri::ipc::InvokeBody::Raw(bytes),
-            headers: Default::default(),
-            invoke_key: tauri::test::INVOKE_KEY.into(),
-        },
-    )
-}
-
 fn root() -> PathBuf {
     ROOT.lock()
         .unwrap()
@@ -290,68 +267,26 @@ async fn desktop(root: &Path, endpoint: &str, scenario: &str) -> Value {
         })
         .await
         .unwrap();
-    let app = tauri::test::mock_builder()
-        .manage(session.clone())
-        .manage(Bridge::default())
-        .invoke_handler(artifact_upload_handler())
-        .build(tauri::test::mock_context(tauri::test::noop_assets()))
-        .unwrap();
-    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
-    let snapshot = session.status();
-    let backend = snapshot
-        .backend
-        .as_ref()
-        .expect("the desktop fixture has negotiated a backend");
-    let browser_access = json!({
-        "generation": snapshot.generation,
-        "endpoint": snapshot.endpoint,
-        "authorization": null,
-        "backendId": backend.backend_id,
-        "epoch": backend.epoch,
-        "limits": backend.limits,
-        "methods": backend.methods,
-    });
-    let mut child =
-        Process(
-            Command::new("node")
-                .env("DOKIME_TEST_BROWSER_ACCESS", browser_access.to_string())
-                .arg(root.join(
-                    "crates/dokime-gui/src-tauri/tests/rpc/fixtures/test-execution-matrix.mjs",
-                ))
-                .arg(root.join("crates/dokime-gui/src-tauri/tests/rpc/fixtures/execution.json"))
-                .arg(scenario)
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::inherit())
-                .spawn()
-                .unwrap(),
-        );
-    let mut input = child.0.stdin.take().unwrap();
-    let output = BufReader::new(child.0.stdout.take().unwrap());
-    let mut result = None;
-    for line in output.lines() {
-        let request: Value = serde_json::from_str(&line.unwrap()).unwrap();
-        if let Some(value) = request.get("result") {
-            result = Some(value.clone());
-            continue;
-        }
-        let bytes = serde_json::from_value(request["bytes"].clone()).unwrap();
-        let response = match invoke(&window, request["cmd"].as_str().unwrap(), bytes) {
-            Ok(tauri::ipc::InvokeResponseBody::Raw(bytes)) => json!({"bytes":bytes}),
-            Ok(tauri::ipc::InvokeResponseBody::Json(value)) => {
-                json!({"value":serde_json::from_str::<Value>(&value).unwrap()})
-            }
-            Err(error) => json!({"error":error}),
-        };
-        writeln!(input, "{response}").unwrap();
-        input.flush().unwrap();
-    }
-    assert!(
-        child.0.wait().unwrap().success(),
-        "desktop scenario {scenario} failed"
+    let harness = Harness::new(session.clone());
+    let mut child = Process(
+        Command::new("node")
+            .env("DOKIME_TEST_GENERATION", session.status().generation)
+            .arg(root.join("crates/dokime-gui/src-tauri/tests/rpc/fixtures/test-execution-matrix.mjs"))
+            .arg(root.join("crates/dokime-gui/src-tauri/tests/rpc/fixtures/execution.json"))
+            .arg(scenario)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap(),
     );
+    let mut result = None;
+    let status = harness.drive(
+        &mut child.0,
+        |_, _| Local::Dispatch,
+        |line| result = line.get("result").cloned(),
+    );
+    assert!(status.success(), "desktop scenario {scenario} failed");
     session.disconnect().unwrap();
     result.expect("desktop returned its observations")
 }

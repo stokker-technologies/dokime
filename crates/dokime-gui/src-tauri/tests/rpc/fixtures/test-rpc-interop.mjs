@@ -12,14 +12,21 @@ try {
   const api = await load("generated/client.js");
   const value = await harness.loadCanonical("dokime/v1/CatalogMessages/GetSuite/messages_pb.js");
   const execution = await harness.loadCanonical("dokime/v1/ExecutionMessages/RunCycle/messages_pb.js");
-  const { bindConnection } = await load("grpc-web.js");
-  const access = JSON.parse(process.env.DOKIME_TEST_BROWSER_ACCESS);
+  const generation = process.env.DOKIME_TEST_GENERATION;
   function connected(isCurrent = () => true) {
-    const session = { generation: access.generation, isCurrent };
-    bindConnection(session, { ...access });
-    return session;
+    return { generation, isCurrent };
   }
   const session = connected();
+  // The WebView holds no endpoint and no credential: every call crosses the
+  // bridge, and the only fetches left are of blobs this page created.
+  const pageFetch = globalThis.fetch;
+  globalThis.fetch = (input, init) => {
+    const url = String(input?.url ?? input);
+    if (!url.startsWith("blob:")) throw new Error(`The desktop transport fetched ${url}`);
+    return pageFetch(input, init);
+  };
+  const identity = await api.backendGetIdentity(session, {});
+  assert.equal(identity.backendId, process.env.DOKIME_TEST_BACKEND_ID);
   const { loadAppearance } = await load("appearance.js");
   const appearance = await loadAppearance(session);
   assert.equal(appearance.appearance.appName, "Dokime");
@@ -102,6 +109,23 @@ try {
     lateRead,
     (error) => error.kind === "session" && error.detail.kind === "superseded",
   );
+  // Client streams cross the same bridge; this caller may not stage plugins.
+  // Whether the refusal lands on the first write or on finish, it is the
+  // backend's own status that surfaces.
+  await assert.rejects(
+    (async () => {
+      const staging = await api.pluginsStage(session, {
+        frame: {
+          HarmosVariant: {
+            case: "Header",
+            value: { field0: { sizeBytes: 1n, sha256: "0".repeat(64) } },
+          },
+        },
+      });
+      await staging.finish();
+    })(),
+    (error) => error.kind === "grpc" && error.detail.code === 7,
+  );
   // A download opens with the artifact's metadata, so the stream is the only
   // request needed to learn what it is about to deliver.
   const download = await api.contentDownloadArtifact(session, {
@@ -172,5 +196,5 @@ try {
   );
   assert.deepEqual(admissionReply, admission);
 } finally {
-  harness.close();
+  await harness.close();
 }

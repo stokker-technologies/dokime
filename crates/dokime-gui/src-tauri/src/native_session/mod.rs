@@ -72,26 +72,13 @@ pub fn desktop_session_status(
     Ok(state.0.status())
 }
 
-pub fn desktop_session_transport<R: tauri::Runtime>(
-    window: tauri::WebviewWindow<R>,
-    state: tauri::State<'_, crate::connection::ConnectionSession>,
-    generation: String,
-) -> Result<crate::connection::BrowserAccess, crate::connection::ConnectionError> {
-    use tauri::Manager;
-    let url = window
-        .url()
-        .map_err(|_| crate::connection::ConnectionError::PermissionDenied)?;
-    if window.label() != "main" || !trusted_application_url(&url, window.app_handle().config()) {
-        return Err(crate::connection::ConnectionError::PermissionDenied);
-    }
-    state.browser_access(&generation)
-}
-
 pub(crate) fn trusted_application_url(url: &url::Url, config: &tauri::Config) -> bool {
     if !url.username().is_empty() || url.password().is_some() {
         return false;
     }
-    if cfg!(debug_assertions)
+    // Only a shell that serves its frontend from the development server trusts
+    // that origin; a debug build with embedded assets loads them like a release.
+    if tauri::is_dev()
         && let Some(dev_url) = &config.build.dev_url
     {
         return url.origin() == dev_url.origin();
@@ -148,7 +135,7 @@ pub fn desktop_profiles_list() -> Result<dokime_client::profiles::Document, Stri
 #[cfg(test)]
 mod tests {
     #[test]
-    fn credentials_require_application_origin() {
+    fn navigation_requires_application_origin() {
         let config = tauri::Config::default();
         assert!(super::trusted_application_url(
             &url::Url::parse("tauri://localhost/index.html").unwrap(),

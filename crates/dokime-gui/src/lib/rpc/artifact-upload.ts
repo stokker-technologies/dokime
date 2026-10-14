@@ -14,7 +14,8 @@ import {
   Row2Schema as ArtifactMetadataSchema,
   Row15Schema as UploadArtifactHeaderSchema,
 } from "../../../.generated/dokime/v1/ContentMessages/UploadArtifact/messages_pb";
-import { invokeOwned, requestBytes, responseBytes, type SessionIdentity } from "./transport";
+import { invokeOwned, requestBytes, responseBytes } from "./ipc";
+import type { SessionIdentity } from "./transport";
 
 /* === Public Types === */
 

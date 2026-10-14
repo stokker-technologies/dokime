@@ -22,6 +22,7 @@ mod enums;
 mod error;
 mod evidence;
 mod execution;
+mod files;
 mod history;
 mod logs;
 mod media;

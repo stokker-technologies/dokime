@@ -47,22 +47,32 @@ async fn ready_then_shutdown() {
 fn browser_origins_are_validated_before_runtime_start() {
     let root = tempfile::tempdir().unwrap();
     let application = root.path().join("application");
-    for origins in [
-        vec!["*".to_owned()],
-        vec!["null".to_owned()],
-        vec!["https://frontend.example/path".to_owned()],
-        vec!["https://user@frontend.example".to_owned()],
-        vec![
-            "tauri://localhost".to_owned(),
-            "tauri://localhost".to_owned(),
-        ],
-        (0..33)
-            .map(|index| format!("https://frontend{index}.example"))
-            .collect(),
+    for (web, origins) in [
+        (false, vec!["tauri://localhost".to_owned()]),
+        (true, vec!["*".to_owned()]),
+        (true, vec!["null".to_owned()]),
+        (true, vec!["https://frontend.example/path".to_owned()]),
+        (true, vec!["https://user@frontend.example".to_owned()]),
+        (
+            true,
+            vec![
+                "tauri://localhost".to_owned(),
+                "tauri://localhost".to_owned(),
+            ],
+        ),
+        (
+            true,
+            (0..33)
+                .map(|index| format!("https://frontend{index}.example"))
+                .collect(),
+        ),
     ] {
         let mut command = Command::new(super::executable());
         command.args(["--color", "never", "--application-root"]);
         command.arg(&application);
+        if web {
+            command.arg("--grpc-web");
+        }
         for origin in origins {
             command.arg("--allowed-origin").arg(origin);
         }

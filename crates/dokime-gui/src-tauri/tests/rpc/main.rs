@@ -11,14 +11,16 @@
 #[path = "../support/rpc_artifact.rs"]
 pub(crate) mod artifact_fixture;
 pub(crate) mod artifact_upload;
+#[path = "../support/bridge.rs"]
+pub(crate) mod bridge;
 
 /* === Re-Exports === */
 
 /* === Imports === */
 // Standard Library Imports
 use std::{
-    io::{BufRead, BufReader, Write},
     process::{Command, Stdio},
+    time::Duration,
 };
 // Third Party Imports
 
@@ -28,16 +30,19 @@ use dokime_app::{
     core::{Identifier, Metadata},
 };
 use dokime_contract::operations::{backend, execution, plugins, value};
+use bridge::{Harness, Local, fenced};
 use dokime_gui::{
     connection::ConnectionSession,
-    uploads::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, artifact_upload_handler as handler},
+    rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES},
 };
 use dokime_server::grpc::{Config, Server};
 use harmos::Protobuf;
-use sha2::{Digest, Sha256};
+use serde_json::json;
+use sha2::Digest;
 use std::sync::Arc;
 
 /* === Constants === */
+const STAGE: &str = "/dokime.v1.Plugins/Stage";
 
 /* === Macros === */
 
@@ -159,6 +164,10 @@ impl Fixture {
             artifacts,
         }
     }
+    pub fn generation(&self) -> u64 {
+        self.session.status().generation.parse().unwrap()
+    }
+
     pub async fn close(mut self) {
         self.session.disconnect().unwrap();
         self.server.shutdown().await.unwrap();
@@ -170,7 +179,7 @@ impl Fixture {
 
 /* === Private Functions === */
 
-pub(crate) async fn typescript_facade_grpc() {
+pub(crate) async fn typescript_facade_bridge() {
     let fixture = Fixture::new().await;
     fixture.runtime.handle().set_brand(Some(
         dokime_app::capabilities::installed_plugins::load_brand(
@@ -179,28 +188,14 @@ pub(crate) async fn typescript_facade_grpc() {
         .unwrap(),
     ));
     let artifact_id = artifact_fixture::seed(&fixture.runtime.handle(), &fixture.artifacts).await;
-    let app = tauri::test::mock_builder()
-        .manage(fixture.session.clone())
-        .manage(Bridge::default())
-        .invoke_handler(handler())
-        .build(tauri::test::mock_context(tauri::test::noop_assets()))
-        .unwrap();
-    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
+    let harness = Harness::new(fixture.session.clone());
     let snapshot = fixture.session.status();
-    let backend = snapshot.backend.as_ref().unwrap();
-    let access = serde_json::json!({
-        "generation": snapshot.generation,
-        "endpoint": fixture.server.local_endpoint(),
-        "authorization": "Bearer rpc-test-token-012345678901234567890123456789",
-        "backendId": backend.backend_id,
-        "epoch": backend.epoch,
-        "limits": backend.limits,
-        "methods": backend.methods,
-    });
     let mut child = Command::new("node")
-        .env("DOKIME_TEST_BROWSER_ACCESS", access.to_string())
+        .env("DOKIME_TEST_GENERATION", &snapshot.generation)
+        .env(
+            "DOKIME_TEST_BACKEND_ID",
+            &snapshot.backend.as_ref().unwrap().backend_id,
+        )
         .env("DOKIME_TEST_ARTIFACT_ID", artifact_id)
         .arg(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -211,21 +206,17 @@ pub(crate) async fn typescript_facade_grpc() {
         .stderr(Stdio::inherit())
         .spawn()
         .unwrap();
-    let mut input = child.stdin.take().unwrap();
-    let output = BufReader::new(child.stdout.take().unwrap());
-    for line in output.lines() {
-        let request: serde_json::Value = serde_json::from_str(&line.unwrap()).unwrap();
-        let cmd = request["cmd"].as_str().unwrap();
-        let bytes: Vec<u8> = serde_json::from_value(request["bytes"].clone()).unwrap();
-        let response = match cmd {
+    let status = harness.drive(
+        &mut child,
+        |command, bytes| match command {
             "fixture_cancel_streams" => {
                 use tauri::Manager;
-                app.state::<Bridge>().cancel_owner("main");
-                serde_json::json!({"value": null})
+                harness.app.state::<Bridge>().cancel_owner("main");
+                Local::Reply(json!({"value": null}))
             }
             // These fixtures exercise TS-generated message semantics against canonical Harmos types.
             "fixture_value" => {
-                let value = value::Value::decode(bytes.as_slice()).unwrap();
+                let value = value::Value::decode(bytes).unwrap();
                 assert_eq!(value.nodes.len(), 5);
                 let Some(value::ValueKind::Object(fields)) = &value.nodes[0].kind else {
                     panic!("the fixture value has an object root");
@@ -248,32 +239,20 @@ pub(crate) async fn typescript_facade_grpc() {
                 ));
                 assert!(matches!(value.nodes[3].kind, Some(value::ValueKind::Null)));
                 assert!(value.nodes[4].kind.is_none());
-                serde_json::json!({ "bytes": value.encode_to_vec() })
+                Local::Reply(json!({ "bytes": base64(&value.encode_to_vec()) }))
             }
             "fixture_admission" => {
-                let value = execution::Admission::decode(bytes.as_slice()).unwrap();
+                let value = execution::Admission::decode(bytes).unwrap();
                 assert_eq!(value.cursor.as_ref().unwrap().position, u64::MAX);
                 assert_eq!(value.accepted_at.as_ref().unwrap().seconds, -1);
                 assert_eq!(value.accepted_at.as_ref().unwrap().nanos, 999_999_999);
-                serde_json::json!({ "bytes": value.encode_to_vec() })
+                Local::Reply(json!({ "bytes": base64(&value.encode_to_vec()) }))
             }
-            _ => match invoke(&window, cmd, bytes) {
-                Ok(tauri::ipc::InvokeResponseBody::Raw(bytes)) => {
-                    serde_json::json!({ "bytes": bytes })
-                }
-                Ok(tauri::ipc::InvokeResponseBody::Json(json)) => {
-                    serde_json::json!({ "value": serde_json::from_str::<serde_json::Value>(&json).unwrap() })
-                }
-                Err(error) => serde_json::json!({ "error": error }),
-            },
-        };
-        writeln!(input, "{response}").unwrap();
-        input.flush().unwrap();
-    }
-    assert!(
-        child.wait().unwrap().success(),
-        "TypeScript/native interop failed"
+            _ => Local::Dispatch,
+        },
+        |line| panic!("unexpected observation {line}"),
     );
+    assert!(status.success(), "TypeScript/native interop failed");
     fixture.close().await;
 }
 
@@ -343,62 +322,214 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
 }
 
 fn invoke(
-    window: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+    window: &bridge::Window,
     cmd: &str,
     bytes: Vec<u8>,
 ) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
-    tauri::test::get_ipc_response(
-        window,
-        tauri::webview::InvokeRequest {
-            cmd: cmd.into(),
-            callback: tauri::ipc::CallbackFn(0),
-            error: tauri::ipc::CallbackFn(1),
-            url: if cfg!(windows) {
-                "http://tauri.localhost"
-            } else {
-                "tauri://localhost"
-            }
-            .parse()
-            .unwrap(),
-            body: tauri::ipc::InvokeBody::Raw(bytes),
-            headers: Default::default(),
-            invoke_key: tauri::test::INVOKE_KEY.into(),
-        },
+    bridge::invoke(window, cmd, bytes, &serde_json::Value::Null)
+}
+
+fn base64(bytes: &[u8]) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+/// Encodes One `oneof value` Arm Of A Client-Stream Input Envelope.
+fn envelope(field: u8, message: &[u8]) -> Vec<u8> {
+    let mut bytes = vec![(field << 3) | 2];
+    let mut length = message.len();
+    while length >= 0x80 {
+        bytes.push((length as u8) | 0x80);
+        length >>= 7;
+    }
+    bytes.push(length as u8);
+    bytes.extend_from_slice(message);
+    bytes
+}
+
+fn stage_header(size_bytes: u64, sha256: String) -> Vec<u8> {
+    envelope(
+        2,
+        &plugins::StagePluginFrame {
+            frame: Some(plugins::StagePluginFrameFrame::Header(
+                plugins::StagePluginHeader { size_bytes, sha256 },
+            )),
+        }
+        .encode_to_vec(),
     )
 }
 
-pub(crate) async fn refuses_invalid_dispatch() {
-    let fixture = Fixture::new().await;
-    let app = tauri::test::mock_builder()
-        .manage(fixture.session.clone())
-        .manage(Bridge::default())
-        .invoke_handler(handler())
-        .build(tauri::test::mock_context(tauri::test::noop_assets()))
-        .unwrap();
-    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
-    for (bytes, kind) in [
-        (vec![], "invalid_request"),
-        (vec![0; 40], "incompatible_descriptor"),
-        (vec![0; MAX_FRAME_BYTES + 40 + 1], "limit_exceeded"),
-    ] {
-        assert_eq!(
-            invoke(&window, "plugin_stage_open", bytes).unwrap_err()["kind"],
-            kind
-        );
+/// Streams A Bundle Through The Generic Bridge And Returns Its Channel Frames.
+fn stage(harness: &Harness, generation: u64, bytes: &[u8], label: &str) -> Vec<Vec<u8>> {
+    const CHUNK_BYTES: usize = 256 * 1024;
+    let sha256 = hex(&sha2::Sha256::digest(bytes));
+    let chunk_count = bytes.len().div_ceil(CHUNK_BYTES);
+    eprintln!("[bridge]{label} bundle bytes: {}, chunks: {chunk_count}", bytes.len());
+
+    let open_started = std::time::Instant::now();
+    let (stream, channel) = harness
+        .open(generation, STAGE, &envelope(1, &[]), true)
+        .expect("the bridge admits the stage stream");
+    harness
+        .control(
+            "rpc_stream_send",
+            generation,
+            stream,
+            &stage_header(bytes.len() as u64, sha256),
+            json!({}),
+        )
+        .expect("the header is accepted");
+    let open_elapsed = open_started.elapsed();
+
+    let writes_started = std::time::Instant::now();
+    for (index, offset) in (0..bytes.len()).step_by(CHUNK_BYTES).enumerate() {
+        let end = (offset + CHUNK_BYTES).min(bytes.len());
+        let chunk = plugins::StagePluginFrame {
+            frame: Some(plugins::StagePluginFrameFrame::Chunk(
+                plugins::StagePluginChunk {
+                    offset: offset as u64,
+                    data: bytes[offset..end].to_vec(),
+                },
+            )),
+        };
+        harness
+            .control(
+                "rpc_stream_send",
+                generation,
+                stream,
+                &envelope(2, &chunk.encode_to_vec()),
+                json!({}),
+            )
+            .unwrap_or_else(|error| panic!("write {} failed: {error:?}", index + 1));
     }
-    let mut bytes = 1_u64.to_le_bytes().to_vec();
-    bytes.extend(Sha256::digest(FILE_DESCRIPTOR_SET));
-    bytes.push(0xff);
+    let writes_elapsed = writes_started.elapsed();
+
+    let finish_started = std::time::Instant::now();
+    harness
+        .control("rpc_stream_finish", generation, stream, &[], json!({}))
+        .expect("the input closes");
+    let frames = harness.settle(channel, Duration::from_secs(60));
+    let finish_elapsed = finish_started.elapsed();
+    eprintln!("[bridge]{label} open: {open_elapsed:?}");
+    eprintln!("[bridge]{label} writes ({chunk_count} x <= {CHUNK_BYTES}B): {writes_elapsed:?}");
+    eprintln!("[bridge]{label} finish: {finish_elapsed:?}");
+    frames
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+pub(crate) async fn refuses_invalid_dispatch() {
+    let fixture = Fixture::with_role(dokime_server::grpc::access::Role::Admin).await;
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    for command in ["rpc", "rpc_stream_open"] {
+        for (bytes, kind) in [
+            (vec![], "invalid_request"),
+            (vec![0; 40], "incompatible_descriptor"),
+            (vec![0; MAX_FRAME_BYTES + 40 + 1], "limit_exceeded"),
+        ] {
+            assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
+        }
+        for path in [None, Some("dokime.v1.Backend/GetHealth"), Some("/a/b/c")] {
+            let headers = path.map_or(json!({}), |path| json!({"dokime-rpc-path": path}));
+            assert_eq!(
+                bridge::invoke(&harness.window, command, fenced(generation, &[]), &headers)
+                    .unwrap_err()["kind"],
+                "invalid_request",
+                "{command} {path:?}"
+            );
+        }
+    }
+    // A stream needs a channel to deliver to.
     assert_eq!(
-        invoke(&window, "plugin_stage_open", bytes).unwrap_err()["kind"],
+        bridge::invoke(
+            &harness.window,
+            "rpc_stream_open",
+            fenced(generation, &[]),
+            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
+        )
+        .unwrap_err()["kind"],
         "invalid_request"
     );
+    // A superseded generation is refused before anything reaches the backend.
+    assert_eq!(
+        bridge::invoke(
+            &harness.window,
+            "rpc",
+            fenced(generation + 1, &[]),
+            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
+        )
+        .unwrap_err()["detail"]["kind"],
+        "superseded"
+    );
+    for command in ["rpc_stream_send", "rpc_stream_finish", "rpc_stream_cancel"] {
+        assert_eq!(
+            harness
+                .control(command, generation, 99, &[], json!({}))
+                .unwrap_err()["kind"],
+            "unknown_stream"
+        );
+    }
+    let (stream, channel) = harness
+        .open(generation, STAGE, &envelope(1, &[]), true)
+        .unwrap();
+    for credit in ["0", "33", "x", "1"] {
+        assert_eq!(
+            harness
+                .control(
+                    "rpc_stream_ack",
+                    generation,
+                    stream,
+                    &[],
+                    json!({"dokime-rpc-credit": credit}),
+                )
+                .unwrap_err()["kind"],
+            "invalid_ack",
+            "credit {credit} exceeds what was delivered"
+        );
+    }
+    harness
+        .control("rpc_stream_cancel", generation, stream, &[], json!({}))
+        .unwrap();
+    let frames = harness.settle(channel, Duration::from_secs(10));
+    assert_eq!(frames.last().unwrap()[8], FRAME_ERROR);
     fixture.close().await;
 }
 
-/* === Tests === */
+pub(crate) async fn unary_bridge() {
+    let fixture = Fixture::new().await;
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let reply = bridge::invoke(
+        &harness.window,
+        "rpc",
+        fenced(generation, &backend::GetIdentityRequest {}.encode_to_vec()),
+        &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetIdentity"}),
+    )
+    .unwrap();
+    let tauri::ipc::InvokeResponseBody::Raw(reply) = reply else {
+        panic!("a unary reply is raw bytes");
+    };
+    assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
+    let identity = backend::BackendIdentity::decode(&reply[8..]).unwrap();
+    assert_eq!(
+        identity.backend_id,
+        fixture.session.status().backend.unwrap().backend_id
+    );
+    // A typed backend status crosses unchanged.
+    let missing = bridge::invoke(
+        &harness.window,
+        "rpc",
+        fenced(generation, &[]),
+        &json!({"dokime-rpc-path": "/dokime.v1.Missing/Call"}),
+    )
+    .unwrap_err();
+    assert_eq!(missing["kind"], "grpc");
+    assert_eq!(missing["detail"]["code"], tonic::Code::PermissionDenied as i32);
+    fixture.close().await;
+}
 
 pub(crate) fn client_stream_runtime() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -406,38 +537,14 @@ pub(crate) fn client_stream_runtime() {
         .build()
         .unwrap();
     let fixture = runtime.block_on(Fixture::new());
-    let app = tauri::test::mock_builder()
-        .manage(fixture.session.clone())
-        .manage(Bridge::default())
-        .invoke_handler(handler())
-        .build(tauri::test::mock_context(tauri::test::noop_assets()))
-        .unwrap();
-    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
-
-    let generation: u64 = fixture.session.status().generation.parse().unwrap();
-    let header = plugins::StagePluginFrame {
-        frame: Some(plugins::StagePluginFrameFrame::Header(
-            plugins::StagePluginHeader {
-                size_bytes: 1,
-                sha256: "0".repeat(64),
-            },
-        )),
-    };
-    let mut bytes = generation.to_le_bytes().to_vec();
-    bytes.extend(Sha256::digest(FILE_DESCRIPTOR_SET));
-    bytes.extend(header.encode_to_vec());
-
-    let response =
-        invoke(&window, "plugin_stage_open", bytes).expect("the stage opener admits the stream");
-    let tauri::ipc::InvokeResponseBody::Raw(handle) = response else {
-        panic!("the stage opener replies with a raw stream handle");
-    };
-    assert_eq!(handle.len(), 16);
-
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let (stream, _channel) = harness
+        .open(generation, STAGE, &envelope(1, &[]), true)
+        .expect("the bridge admits the stream");
+    assert!(stream > 0);
     use tauri::Manager;
-    app.state::<Bridge>().cancel_owner("main");
+    harness.app.state::<Bridge>().cancel_owner("main");
     runtime.block_on(fixture.close());
 }
 
@@ -447,101 +554,18 @@ pub(crate) fn stages_seventy_bridge() {
         .build()
         .unwrap();
     let fixture = runtime.block_on(Fixture::with_role(dokime_server::grpc::access::Role::Admin));
-    let app = tauri::test::mock_builder()
-        .manage(fixture.session.clone())
-        .manage(Bridge::default())
-        .invoke_handler(handler())
-        .build(tauri::test::mock_context(tauri::test::noop_assets()))
-        .unwrap();
-    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
-    let generation: u64 = fixture.session.status().generation.parse().unwrap();
-    let descriptor_sha256 = Sha256::digest(FILE_DESCRIPTOR_SET);
-
-    const CHUNK_BYTES: usize = 256 * 1024;
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
     let bytes = large_bundle(70 * 1024 * 1024);
-    let sha256 = Sha256::digest(&bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    let chunk_count = bytes.len().div_ceil(CHUNK_BYTES);
-    eprintln!(
-        "[bridge] bundle bytes: {}, chunks: {chunk_count}",
-        bytes.len()
-    );
-
-    let header = plugins::StagePluginFrame {
-        frame: Some(plugins::StagePluginFrameFrame::Header(
-            plugins::StagePluginHeader {
-                size_bytes: bytes.len() as u64,
-                sha256: sha256.clone(),
-            },
-        )),
-    };
-    let mut open_bytes = generation.to_le_bytes().to_vec();
-    open_bytes.extend(descriptor_sha256);
-    open_bytes.extend(header.encode_to_vec());
-
-    let open_started = std::time::Instant::now();
-    let response = invoke(&window, "plugin_stage_open", open_bytes)
-        .expect("the stage opener admits the stream");
-    let open_elapsed = open_started.elapsed();
-    let tauri::ipc::InvokeResponseBody::Raw(handle) = response else {
-        panic!("the stage opener replies with a raw stream handle");
-    };
-    assert_eq!(handle.len(), 16);
-    let stream_id = u64::from_le_bytes(handle[8..16].try_into().unwrap());
-
-    let writes_started = std::time::Instant::now();
-    for (index, offset) in (0..bytes.len()).step_by(CHUNK_BYTES).enumerate() {
-        let sequence = (index + 1) as u64;
-        let end = (offset + CHUNK_BYTES).min(bytes.len());
-        let chunk = plugins::StagePluginFrame {
-            frame: Some(plugins::StagePluginFrameFrame::Chunk(
-                plugins::StagePluginChunk {
-                    offset: offset as u64,
-                    data: bytes[offset..end].to_vec(),
-                },
-            )),
-        };
-        let mut payload = generation.to_le_bytes().to_vec();
-        payload.extend(descriptor_sha256);
-        payload.extend(stream_id.to_le_bytes());
-        payload.extend(sequence.to_le_bytes());
-        payload.extend(chunk.encode_to_vec());
-        invoke(&window, "client_stream_write", payload)
-            .unwrap_or_else(|error| panic!("write {sequence} failed: {error:?}"));
-    }
-    let writes_elapsed = writes_started.elapsed();
-
-    let mut finish_payload = generation.to_le_bytes().to_vec();
-    finish_payload.extend(descriptor_sha256);
-    finish_payload.extend(stream_id.to_le_bytes());
-    let finish_started = std::time::Instant::now();
-    let finish_response = invoke(&window, "client_stream_finish", finish_payload)
-        .expect("finish settles the staged plugin");
-    let finish_elapsed = finish_started.elapsed();
-
-    let tauri::ipc::InvokeResponseBody::Raw(reply) = finish_response else {
-        panic!("finish replies with the encoded PluginInstallation");
-    };
-    // `reply_bytes` prefixes the payload with the 8-byte generation, exactly
-    // like the stream handle `plugin_stage_open` returned above.
-    let installation = plugins::PluginInstallation::decode(&reply[8..])
-        .expect("finish replies with a valid PluginInstallation");
-    assert_eq!(installation.sha256, sha256);
-
-    eprintln!("[bridge] open: {open_elapsed:?}");
-    eprintln!("[bridge] writes ({chunk_count} x <= {CHUNK_BYTES}B): {writes_elapsed:?}");
-    eprintln!("[bridge] finish: {finish_elapsed:?}");
-    eprintln!(
-        "[bridge] total: {:?}",
-        open_elapsed + writes_elapsed + finish_elapsed
-    );
-
+    let frames = stage(&harness, generation, &bytes, "");
+    assert_eq!(frames.len(), 2, "one reply, then the final status");
+    assert_eq!(frames[0][8], FRAME_MESSAGE);
+    assert_eq!(frames[1][8], FRAME_END);
+    let installation = plugins::PluginInstallation::decode(&frames[0][9..])
+        .expect("the reply is a PluginInstallation");
+    assert_eq!(installation.sha256, hex(&sha2::Sha256::digest(&bytes)));
     use tauri::Manager;
-    app.state::<Bridge>().cancel_owner("main");
+    harness.app.state::<Bridge>().cancel_owner("main");
     runtime.block_on(fixture.close());
 }
 
@@ -551,118 +575,29 @@ pub(crate) fn stages_foreign_finish() {
     } else {
         "x86_64-pc-windows-msvc"
     };
-    let bytes = bundle_for_target(1024, target);
-
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap();
     let fixture = runtime.block_on(Fixture::with_role(dokime_server::grpc::access::Role::Admin));
-    let app = tauri::test::mock_builder()
-        .manage(fixture.session.clone())
-        .manage(Bridge::default())
-        .invoke_handler(handler())
-        .build(tauri::test::mock_context(tauri::test::noop_assets()))
-        .unwrap();
-    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
-    let generation: u64 = fixture.session.status().generation.parse().unwrap();
-    let descriptor_sha256 = Sha256::digest(FILE_DESCRIPTOR_SET);
-
-    const CHUNK_BYTES: usize = 256 * 1024;
-    let sha256 = Sha256::digest(&bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    let chunk_count = bytes.len().div_ceil(CHUNK_BYTES);
-    eprintln!(
-        "[bridge][owner-bundle] bundle bytes: {}, chunks: {chunk_count}",
-        bytes.len()
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let frames = stage(
+        &harness,
+        generation,
+        &bundle_for_target(1024, target),
+        "[owner-bundle]",
     );
-
-    let header = plugins::StagePluginFrame {
-        frame: Some(plugins::StagePluginFrameFrame::Header(
-            plugins::StagePluginHeader {
-                size_bytes: bytes.len() as u64,
-                sha256: sha256.clone(),
-            },
-        )),
-    };
-    let mut open_bytes = generation.to_le_bytes().to_vec();
-    open_bytes.extend(descriptor_sha256);
-    open_bytes.extend(header.encode_to_vec());
-
-    let open_started = std::time::Instant::now();
-    let response = invoke(&window, "plugin_stage_open", open_bytes)
-        .expect("the stage opener admits the stream");
-    let open_elapsed = open_started.elapsed();
-    let tauri::ipc::InvokeResponseBody::Raw(handle) = response else {
-        panic!("the stage opener replies with a raw stream handle");
-    };
-    assert_eq!(handle.len(), 16);
-    let stream_id = u64::from_le_bytes(handle[8..16].try_into().unwrap());
-
-    let writes_started = std::time::Instant::now();
-    for (index, offset) in (0..bytes.len()).step_by(CHUNK_BYTES).enumerate() {
-        let sequence = (index + 1) as u64;
-        let end = (offset + CHUNK_BYTES).min(bytes.len());
-        let chunk = plugins::StagePluginFrame {
-            frame: Some(plugins::StagePluginFrameFrame::Chunk(
-                plugins::StagePluginChunk {
-                    offset: offset as u64,
-                    data: bytes[offset..end].to_vec(),
-                },
-            )),
-        };
-        let mut payload = generation.to_le_bytes().to_vec();
-        payload.extend(descriptor_sha256);
-        payload.extend(stream_id.to_le_bytes());
-        payload.extend(sequence.to_le_bytes());
-        payload.extend(chunk.encode_to_vec());
-        invoke(&window, "client_stream_write", payload)
-            .unwrap_or_else(|error| panic!("write {sequence} failed: {error:?}"));
-    }
-    let writes_elapsed = writes_started.elapsed();
-
-    let mut finish_payload = generation.to_le_bytes().to_vec();
-    finish_payload.extend(descriptor_sha256);
-    finish_payload.extend(stream_id.to_le_bytes());
-    let finish_started = std::time::Instant::now();
-    // A timeout here (rather than a bounded wait) is deliberate: the whole
-    // point of this test is to prove `finish` no longer hangs forever the
-    // way it did before the `client.ready().await` fix.
-    let finish_result = std::thread::scope(|scope| {
-        let handle = scope.spawn(|| invoke(&window, "client_stream_finish", finish_payload));
-        for _ in 0..600 {
-            if handle.is_finished() {
-                return handle.join().unwrap();
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-        panic!("client_stream_finish did not return within 60s; it hung");
-    });
-    let finish_elapsed = finish_started.elapsed();
-
-    let error = finish_result.expect_err("a foreign-targeted bundle must be refused on this host");
-    let message = error.to_string();
+    let terminal = frames.last().unwrap();
+    assert_eq!(terminal[8], FRAME_ERROR);
+    let error: serde_json::Value = serde_json::from_slice(&terminal[9..]).unwrap();
+    let message = error["detail"]["message"].as_str().unwrap_or_default();
     assert!(
         message.contains("no executable for this host"),
-        "expected a host-target refusal, got: {message}"
+        "expected a host-target refusal, got: {error}"
     );
-
-    eprintln!("[bridge][owner-bundle] open: {open_elapsed:?}");
-    eprintln!(
-        "[bridge][owner-bundle] writes ({chunk_count} x <= {CHUNK_BYTES}B): {writes_elapsed:?}"
-    );
-    eprintln!("[bridge][owner-bundle] finish (refusal): {finish_elapsed:?}");
-    eprintln!(
-        "[bridge][owner-bundle] total: {:?}",
-        open_elapsed + writes_elapsed + finish_elapsed
-    );
-
     use tauri::Manager;
-    app.state::<Bridge>().cancel_owner("main");
+    harness.app.state::<Bridge>().cancel_owner("main");
     runtime.block_on(fixture.close());
 }
 
@@ -670,57 +605,28 @@ pub(crate) async fn owner_cancellation_health() {
     use tauri::Manager;
 
     let fixture = Fixture::new().await;
-    let app = tauri::test::mock_builder()
-        .manage(fixture.session.clone())
-        .manage(Bridge::default())
-        .invoke_handler(handler())
-        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let (stream, channel) = harness
+        .open(generation, STAGE, &envelope(1, &[]), true)
         .unwrap();
-    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
-        .build()
-        .unwrap();
-    let snapshot = fixture.session.status();
-    let generation: u64 = snapshot.generation.parse().unwrap();
-    let descriptor = Sha256::digest(FILE_DESCRIPTOR_SET);
-    let mut request = generation.to_le_bytes().to_vec();
-    request.extend(descriptor);
-    request.extend(
-        plugins::StagePluginFrame {
-            frame: Some(plugins::StagePluginFrameFrame::Header(
-                plugins::StagePluginHeader {
-                    size_bytes: 1,
-                    sha256: "0".repeat(64),
-                },
-            )),
-        }
-        .encode_to_vec(),
-    );
-    let tauri::ipc::InvokeResponseBody::Raw(opened) =
-        invoke(&window, "plugin_stage_open", request).unwrap()
-    else {
-        panic!("the native upload returns its owner handle");
-    };
-    assert_eq!(opened.len(), 16);
-    app.state::<Bridge>().cancel_owner("main");
-    let mut write = generation.to_le_bytes().to_vec();
-    write.extend(descriptor);
-    write.extend_from_slice(&opened[8..16]);
-    write.extend(1_u64.to_le_bytes());
-    write.extend(
-        plugins::StagePluginFrame {
-            frame: Some(plugins::StagePluginFrameFrame::Chunk(
-                plugins::StagePluginChunk {
-                    offset: 0,
-                    data: vec![0],
-                },
-            )),
-        }
-        .encode_to_vec(),
-    );
+    harness.app.state::<Bridge>().cancel_owner("main");
     assert_eq!(
-        invoke(&window, "client_stream_write", write).unwrap_err()["kind"],
+        harness
+            .control(
+                "rpc_stream_send",
+                generation,
+                stream,
+                &stage_header(1, "0".repeat(64)),
+                json!({}),
+            )
+            .unwrap_err()["kind"],
         "unknown_stream"
     );
+    let frames = harness.settle(channel, Duration::from_secs(10));
+    let error: serde_json::Value =
+        serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
+    assert_eq!(error["kind"], "cancelled");
     let client = dokime_client::Client::connect(
         dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(),
         Some("rpc-test-token-012345678901234567890123456789"),
@@ -733,6 +639,40 @@ pub(crate) async fn owner_cancellation_health() {
             .backend_get_health(backend::GetHealthRequest {})
             .await
             .is_ok()
+    );
+    fixture.close().await;
+}
+
+/// A Session Advance Ends Every Stream Of The Old Generation.
+pub(crate) async fn generation_fences_streams() {
+    let fixture = Fixture::new().await;
+    let harness = Harness::new(fixture.session.clone());
+    let generation = fixture.generation();
+    let (_stream, channel) = harness
+        .open(
+            generation,
+            "/dokime.v1.Observation/WatchRuntime",
+            &[],
+            false,
+        )
+        .unwrap();
+    fixture.session.disconnect().unwrap();
+    let frames = harness.settle(channel, Duration::from_secs(10));
+    for frame in &frames {
+        assert_eq!(u64::from_le_bytes(frame[..8].try_into().unwrap()), generation);
+    }
+    let error: serde_json::Value =
+        serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
+    assert_eq!(error["detail"]["kind"], "superseded");
+    assert_eq!(
+        bridge::invoke(
+            &harness.window,
+            "rpc",
+            fenced(generation, &[]),
+            &json!({"dokime-rpc-path": "/dokime.v1.Backend/GetHealth"}),
+        )
+        .unwrap_err()["detail"]["kind"],
+        "superseded"
     );
     fixture.close().await;
 }
@@ -814,12 +754,20 @@ fn domain_contract() {
         artifact_upload::upload_sink_runtime();
     }
     {
-        eprintln!("Scenario: typescript_facade_grpc");
-        run_scenario(typescript_facade_grpc, true, Some(2), false);
+        eprintln!("Scenario: typescript_facade_bridge");
+        run_scenario(typescript_facade_bridge, true, Some(2), false);
     }
     {
         eprintln!("Scenario: refuses_invalid_dispatch");
-        run_scenario(refuses_invalid_dispatch, false, None, false);
+        run_scenario(refuses_invalid_dispatch, true, Some(2), false);
+    }
+    {
+        eprintln!("Scenario: unary_bridge");
+        run_scenario(unary_bridge, true, Some(2), false);
+    }
+    {
+        eprintln!("Scenario: generation_fences_streams");
+        run_scenario(generation_fences_streams, true, Some(2), false);
     }
     {
         eprintln!("Scenario: client_stream_runtime");

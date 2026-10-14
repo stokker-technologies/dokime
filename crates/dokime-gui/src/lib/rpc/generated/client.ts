@@ -77,6 +77,10 @@ export const contentListExecutionFiles = (session: SessionIdentity, request: Par
 import { Row1Schema as contentReadExecutionFileRequest } from "../../../../.generated/dokime/v1/ContentMessages/ReadExecutionFile/messages_pb.js";
 import { Row2Schema as contentReadExecutionFileResponse } from "../../../../.generated/dokime/v1/ContentMessages/ReadExecutionFile/messages_pb.js";
 export const contentReadExecutionFile = (session: SessionIdentity, request: Parameters<typeof unary<typeof contentReadExecutionFileRequest, typeof contentReadExecutionFileResponse>>[4]) => unary("/dokime.v1.Content/ReadExecutionFile", contentReadExecutionFileRequest, contentReadExecutionFileResponse, session, request, 10000);
+import { Row3Schema as contentUploadArtifactRequest } from "../../../../.generated/dokime/v1/ContentMessages/UploadArtifact/messages_pb.js";
+import { Row2Schema as contentUploadArtifactResponse } from "../../../../.generated/dokime/v1/ContentMessages/UploadArtifact/messages_pb.js";
+import { ContentUploadArtifactInputSchema as contentUploadArtifactEnvelope } from "../../../../.generated/dokime/v1/Content_pb.js";
+export const contentUploadArtifact = (session: SessionIdentity, request: Parameters<typeof openClientStream<typeof contentUploadArtifactRequest, typeof contentUploadArtifactResponse>>[4]) => openClientStream("/dokime.v1.Content/UploadArtifact", contentUploadArtifactRequest, contentUploadArtifactResponse, session, request, contentUploadArtifactEnvelope, 300000);
 import { Row1Schema as documentsCaptureCurrentDocumentRequest } from "../../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb.js";
 import { Row3Schema as documentsCaptureCurrentDocumentResponse } from "../../../../.generated/dokime/v1/DocumentsMessages/CaptureCurrentDocument/messages_pb.js";
 import { DocumentsCaptureCurrentDocumentOutputSchema as documentsCaptureCurrentDocumentEnvelope } from "../../../../.generated/dokime/v1/Documents_pb.js";
@@ -181,6 +185,10 @@ export const executionSubmitExecutionCommand = (session: SessionIdentity, reques
 import { Row1Schema as executionUpdateCyclePolicyRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/UpdateCyclePolicy/messages_pb.js";
 import { Row2Schema as executionUpdateCyclePolicyResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/UpdateCyclePolicy/messages_pb.js";
 export const executionUpdateCyclePolicy = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionUpdateCyclePolicyRequest, typeof executionUpdateCyclePolicyResponse>>[4]) => unary("/dokime.v1.Execution/UpdateCyclePolicy", executionUpdateCyclePolicyRequest, executionUpdateCyclePolicyResponse, session, request, 10000);
+import { Row1Schema as filesFileWatchRequest } from "../../../../.generated/dokime/v1/FilesMessages/FileWatch/messages_pb.js";
+import { Row3Schema as filesFileWatchResponse } from "../../../../.generated/dokime/v1/FilesMessages/FileWatch/messages_pb.js";
+import { FilesFileWatchOutputSchema as filesFileWatchEnvelope } from "../../../../.generated/dokime/v1/Files_pb.js";
+export const filesFileWatch = (session: SessionIdentity, request: Parameters<typeof openStream<typeof filesFileWatchRequest, typeof filesFileWatchResponse>>[4]) => openStream("/dokime.v1.Files/FileWatch", filesFileWatchRequest, filesFileWatchResponse, session, request, filesFileWatchEnvelope, 86400000);
 import { Row1Schema as healthListHealthRequest } from "../../../../.generated/dokime/v1/HealthMessages/ListHealth/messages_pb.js";
 import { Row2Schema as healthListHealthResponse } from "../../../../.generated/dokime/v1/HealthMessages/ListHealth/messages_pb.js";
 export const healthListHealth = (session: SessionIdentity, request: Parameters<typeof unary<typeof healthListHealthRequest, typeof healthListHealthResponse>>[4]) => unary("/dokime.v1.Health/ListHealth", healthListHealthRequest, healthListHealthResponse, session, request, 10000);
@@ -289,7 +297,8 @@ import { Row2Schema as pluginsSetEnabledResponse } from "../../../../.generated/
 export const pluginsSetEnabled = (session: SessionIdentity, request: Parameters<typeof unary<typeof pluginsSetEnabledRequest, typeof pluginsSetEnabledResponse>>[4]) => unary("/dokime.v1.Plugins/SetEnabled", pluginsSetEnabledRequest, pluginsSetEnabledResponse, session, request, 10000);
 import { Row3Schema as pluginsStageRequest } from "../../../../.generated/dokime/v1/PluginsMessages/Stage/messages_pb.js";
 import { Row2Schema as pluginsStageResponse } from "../../../../.generated/dokime/v1/PluginsMessages/Stage/messages_pb.js";
-export const pluginsStage = (session: SessionIdentity, request: Parameters<typeof openClientStream<typeof pluginsStageRequest, typeof pluginsStageResponse>>[4]) => openClientStream("plugin_stage_open", pluginsStageRequest, pluginsStageResponse, session, request);
+import { PluginsStageInputSchema as pluginsStageEnvelope } from "../../../../.generated/dokime/v1/Plugins_pb.js";
+export const pluginsStage = (session: SessionIdentity, request: Parameters<typeof openClientStream<typeof pluginsStageRequest, typeof pluginsStageResponse>>[4]) => openClientStream("/dokime.v1.Plugins/Stage", pluginsStageRequest, pluginsStageResponse, session, request, pluginsStageEnvelope, 300000);
 import { Row1Schema as promptsGetDefinitionRequest } from "../../../../.generated/dokime/v1/PromptsMessages/GetDefinition/messages_pb.js";
 import { Row2Schema as promptsGetDefinitionResponse } from "../../../../.generated/dokime/v1/PromptsMessages/GetDefinition/messages_pb.js";
 export const promptsGetDefinition = (session: SessionIdentity, request: Parameters<typeof unary<typeof promptsGetDefinitionRequest, typeof promptsGetDefinitionResponse>>[4]) => unary("/dokime.v1.Prompts/GetDefinition", promptsGetDefinitionRequest, promptsGetDefinitionResponse, session, request, 10000);

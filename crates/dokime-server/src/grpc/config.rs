@@ -41,7 +41,7 @@ pub struct Config {
     pub(crate) tls: Option<TlsIdentity>,
     pub(crate) max_message_bytes: usize,
     remote: bool,
-    allowed_origins: Vec<harmos::grpc::Origin>,
+    web: Option<Vec<harmos::grpc::Origin>>,
 }
 
 /* === Enums === */
@@ -82,7 +82,7 @@ impl Config {
             tls: None,
             max_message_bytes: 1024 * 1024,
             remote: false,
-            allowed_origins: Vec::new(),
+            web: None,
         }
     }
 
@@ -97,7 +97,7 @@ impl Config {
             tls: Some(tls),
             max_message_bytes: 1024 * 1024,
             remote: true,
-            allowed_origins: Vec::new(),
+            web: None,
         })
     }
 
@@ -116,10 +116,12 @@ impl Config {
         self
     }
 
-    pub fn with_allowed_origins(
-        mut self,
-        origins: Vec<harmos::grpc::Origin>,
-    ) -> Result<Self, Error> {
+    /// Also Serves gRPC-Web Over HTTP/1.1, For Browser Clients Only.
+    ///
+    /// Native clients, the desktop among them, speak gRPC over HTTP/2 and
+    /// never need it. `origins` lists the exact cross-origin pages allowed to
+    /// call; an empty list emits no CORS headers.
+    pub fn with_grpc_web(mut self, origins: Vec<harmos::grpc::Origin>) -> Result<Self, Error> {
         if origins.len() > 32
             || origins
                 .iter()
@@ -130,7 +132,7 @@ impl Config {
                 "allowed origins require at most 32 distinct exact origins",
             ));
         }
-        self.allowed_origins = origins;
+        self.web = Some(origins);
         Ok(self)
     }
 
@@ -166,8 +168,8 @@ impl Config {
                 opening_timeout: Duration::from_secs(5),
             },
             reflection: false,
-            web: true,
-            allowed_origins: self.allowed_origins,
+            web: self.web.is_some(),
+            allowed_origins: self.web.unwrap_or_default(),
             tls,
             connections: NonZeroUsize::new(64).unwrap(),
             calls_per_connection: NonZeroUsize::new(32).unwrap(),

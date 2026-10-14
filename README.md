@@ -48,7 +48,8 @@ happened, with the inputs, measurements, and decisions that explain the result.
 - **Traceability**
 
   Capture specimen identity, resolved inputs, and execution context. Keep logs,
-  structured records, and attached files alongside the measurements they explain.
+  structured records, and attached files alongside the measurements they explain,
+  including files watched in a local or FTPS folder while the execution runs.
 
 - **Self-Contained Reports**
 
@@ -147,20 +148,22 @@ it through the application's plugin settings, then restart:
 cargo run -p cargo-dokime -- build --package mini-sidecar --output target/debug/plugins/mini-sidecar.dokime
 ```
 
-## Browser Origins
+## Browser Clients
 
-A browser client requires its exact origin in the server configuration:
+The desktop never needs gRPC-Web: its WebView reaches the backend only through
+the shell. A browser client is the one caller that does, so a backend serves it
+only when asked, together with each exact page origin allowed to call:
 
 ```sh
-dokime-server --allowed-origin tauri://localhost
+dokime-server --grpc-web --allowed-origin https://frontend.example
 ```
 
 Repeat `--allowed-origin` for additional origins. An origin contains only its
-scheme and authority; paths, credentials and wildcards are refused. The desktop
-sets its own platform origin when starting an owned local backend. Development
-builds also select the configured `http://127.0.0.1:5173` frontend origin.
-Remote listeners still require explicit remote configuration, TLS and bearer
-credentials; browser-origin permission does not grant operation access.
+scheme and authority; paths, credentials and wildcards are refused, and an
+origin without `--grpc-web` is an error. Remote listeners still require
+explicit remote configuration, TLS and bearer credentials; browser-origin
+permission does not grant operation access. A GUI built with
+`DOKIME_TRANSPORT=grpc-web` is such a browser client.
 
 ## Plugin Operation Permissions
 
@@ -579,11 +582,16 @@ uses prepared files and requires no Rust compiler or contract generation.
 revision, compiler inputs and binary hash. Binding generation refuses a missing
 or mismatched receipt. CI consumers use the prepared tool artifact and never rebuild it.
 
-Desktop requests and live listeners use authenticated gRPC-web. File-backed uploads,
-plugin staging and recordings use a narrow native transfer adapter through the
-shared Rust client, because browser gRPC-web does not provide client streaming.
-Credentials stay with the active desktop session; ordinary requests do not use a
-native RPC bridge.
+The desktop WebView never talks to the network. Every call from the generated
+client crosses one opaque IPC bridge into the shell, which forwards the
+protobuf bytes undecoded to the session's Rust client, owned backend or
+attached: one `rpc` command for unary calls, and one Tauri channel per server,
+client or bidirectional stream. The bridge knows paths and bytes only, fences
+every request and reply with the connection generation, cancels a stream when
+its subscription or session ends, and bounds messages by the limits the backend
+advertises. Endpoints and credentials stay in the shell. Artifact uploads and
+recordings keep a native file-backed adapter, because their bytes are hashed and
+patched in the shell rather than framed by the WebView.
 
 ## Contributing
 
