@@ -1744,8 +1744,11 @@ async fn independent_sidecar_modes() {
         .call_operation(ids[0], Some(OWNER), b"{\"value\":0}", vec![])
         .await
         .unwrap();
+    // The JSON projection omits a proto3 field at its default, so zero reads as absent.
+    let completion = counter.message().await.unwrap();
     assert!(
-        matches!(counter.message().await.unwrap(), Some(Event::Completion(value)) if value["value"] == 0)
+        matches!(&completion, Some(Event::Completion(value)) if value.get("value").is_none_or(|value| *value == 0)),
+        "{completion:?}"
     );
     assert!(counter.message().await.unwrap().is_none());
     counter.close().await;
