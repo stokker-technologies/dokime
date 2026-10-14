@@ -440,6 +440,9 @@ impl RuntimeHandle {
                 })?;
 
             for plugin in installed_plugins.into_values() {
+                if runtime.state_read().host_plugin_current(&plugin) {
+                    continue;
+                }
                 runtime
                     .commit(crate::transactions::InstallHostPlugin {
                         installation: plugin,

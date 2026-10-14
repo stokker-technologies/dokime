@@ -156,8 +156,10 @@ impl ExecutionPluginIdentity {
 }
 
 impl ExecutionSnapshot {
+    /// Reassembles a snapshot from parts captured earlier without materializing
+    /// them again; they were validated when the snapshot was first built.
     #[cfg(feature = "storage")]
-    pub(crate) fn from_captured(
+    pub fn from_captured(
         case: TestCase,
         template: Option<TestCaseTemplate>,
         parameter_definitions: Vec<ParameterDefinition>,
