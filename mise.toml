@@ -432,20 +432,35 @@ depends = ["prepare:tools"]
 description = "Validate Tauri Installer Configuration Without Building Platform Packages."
 run = "uv run --no-sync python -m dokime_tools.installer check"
 
+# The report and the desktop web build import the generated GUI contracts
+# under `crates/dokime-gui/.generated/`, which are not tracked, so a
+# standalone installer build prepares the contracts and generates them in
+# order before the report is built, as `build:release` and `build:dev` do.
 [tasks."installer:release"]
 description = "Build Windows NSIS or Linux DEB/RPM Packages, and Dokime'S Native Product Package."
-depends = ["prepare:report"]
-run = "uv run --no-sync python -m dokime_tools.installer build"
+run = [
+  { task = "contracts:prepare:release" },
+  { task = "bindings:generate" },
+  { task = "prepare:report" },
+  "uv run --no-sync python -m dokime_tools.installer build",
+]
 # Verifies the collected desktop release artifacts once the NSIS build lands.
 run_windows = [
+  { task = "contracts:prepare:release" },
+  { task = "bindings:generate" },
+  { task = "prepare:report" },
   "uv run --no-sync python -m dokime_tools.installer build",
   "uv run --no-sync python -m dokime_tools.installer package",
 ]
 
 [tasks."installer:dev"]
 description = "Build a Dev-profile Windows NSIS or Linux DEB/RPM Package for Fast Local Iteration on the Installer. Lands Beside, and Never Overwrites, the Release Artifact."
-depends = ["prepare:report"]
-run = "uv run --no-sync python -m dokime_tools.installer build --profile dev"
+run = [
+  { task = "contracts:prepare:dev" },
+  { task = "bindings:generate" },
+  { task = "prepare:report" },
+  "uv run --no-sync python -m dokime_tools.installer build --profile dev",
+]
 
 [tasks."build:release"]
 description = "Build All Release Targets"
