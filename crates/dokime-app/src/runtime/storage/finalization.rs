@@ -160,7 +160,7 @@ impl RuntimeHandle {
     async fn saved_seal(&self, id: &TestExecutionId) -> Result<bool> {
         let view = self
             .storage()
-            .view_with_limits(self.config().storage_reads.execution)
+            .view_with_limits(self.config().storage_reads.finalization())
             .await?;
         let limit = view.decoded_bytes()?;
         let latest = ExecutionView::open(
@@ -356,7 +356,7 @@ impl RuntimeHandle {
             )
         };
         if let Some(asset) = logo {
-            let captured = super::presentation::capture_logo(self.storage(), &asset).await?;
+            let captured = super::presentation::capture_logo(self.storage(), &view, &asset).await?;
             if let Some(logo) = &mut context.appearance.logo {
                 logo.url = (*captured).clone();
             }
@@ -378,10 +378,10 @@ impl RuntimeHandle {
         let inspection = ExecutionView::captured(
             self.storage(),
             view.clone(),
-            self.config().storage_reads.execution,
             captured.clone(),
             &owner_node_id,
             limit,
+            self.config().storage_reads.finalization_read_stall,
         )
         .await?;
         Ok(inspection)

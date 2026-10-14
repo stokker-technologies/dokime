@@ -314,8 +314,6 @@ impl RuntimeHandle {
             .storage()
             .view_with_limits(self.config().storage_reads.finalization())
             .await?;
-        // Object reads admit only the default limits, each under its own view.
-        let objects = self.config().storage_reads.execution;
         let limit = view.decoded_bytes()?;
         let mut revisions = self
             .storage()
@@ -369,10 +367,9 @@ impl RuntimeHandle {
                 computation.check()?;
                 continue;
             }
-            let inspection = ExecutionView::open_through(
+            let inspection = ExecutionView::open(
                 self.storage(),
                 view.clone(),
-                objects,
                 id,
                 ObjectVersion::Latest,
                 limit,
@@ -419,13 +416,15 @@ impl RuntimeHandle {
         }
         let appearance = match appearance {
             Some(appearance) => appearance,
-            None => self.report_appearance(limit).await?.try_into_shared()?,
+            None => self
+                .report_appearance(&view, limit)
+                .await?
+                .try_into_shared()?,
         };
         let revisions = revisions.try_into_shared()?;
         let snapshot = CycleSnapshot::capture(
             self.storage(),
             view,
-            objects,
             source.clone(),
             revisions,
             appearance,

@@ -175,8 +175,11 @@ impl RuntimeHandle {
         self.capture_execution_view(cycle, &inputs).await
     }
 
+    /// The runtime's report appearance, its logo read through `view` and so
+    /// under that view's budget.
     pub(super) async fn report_appearance(
         &self,
+        view: &harmos::storage::StorageView,
         limit: NonZeroUsize,
     ) -> Result<QueryValue<crate::installed_plugins::RuntimeAppearanceFrame>> {
         let memory = self.storage().prepare_production(limit)?;
@@ -185,7 +188,7 @@ impl RuntimeHandle {
             .map_err(|_| invalid("report appearance exceeds its source budget"))?;
         let mut frame = appearance.frame;
         if let Some(asset) = appearance.logo {
-            let url = super::presentation::capture_logo(self.storage(), &asset).await?;
+            let url = super::presentation::capture_logo(self.storage(), view, &asset).await?;
             drop(asset);
             bounded(frame.memory_size().saturating_add(url.memory_size()), limit)?;
             if let Some(logo) = &mut frame.logo {

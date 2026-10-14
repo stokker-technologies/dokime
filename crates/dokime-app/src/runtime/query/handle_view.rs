@@ -56,7 +56,7 @@ impl RuntimeHandle {
         let resolution = &query.resolution;
         let payload = if let Some(mut payload) = state_payload(query, snapshot) {
             if let RuntimeViewPayload::Overview { frame } = &mut payload {
-                frame.artifacts = self.execution_storage.artifact_count().await?;
+                frame.artifacts = self.execution_storage.artifact_count(None).await?;
                 if matches!(resolution, RuntimeResolution::Raw) {
                     frame.shell = Some(self.runtime_overview().await?);
                 }

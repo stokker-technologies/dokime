@@ -85,6 +85,11 @@ pub struct StorageReadSettings {
     /// their inputs in it while point reads and rendering reserve scratch.
     #[serde(default = "default_read_pool_bytes")]
     pub pool_bytes: std::num::NonZeroUsize,
+    /// Test hook: how long each native-output read finalization performs
+    /// stalls within its read budget. Zero outside tests.
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub finalization_read_stall: Duration,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -223,6 +228,7 @@ impl Default for StorageReadSettings {
                 ..settings.query_execution_ceiling
             },
             pool_bytes: default_read_pool_bytes(),
+            finalization_read_stall: Duration::ZERO,
         }
     }
 }

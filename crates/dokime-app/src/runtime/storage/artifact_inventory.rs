@@ -19,7 +19,10 @@ use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
 // Third Party Imports
 use harmos::{
     MemorySize,
-    storage::{ObjectComparison, ObjectQuery, ObjectScalar, QueryOptions, QueryValue, ReadLimits},
+    storage::{
+        ObjectComparison, ObjectQuery, ObjectScalar, QueryLimits, QueryOptions, QueryValue,
+        ReadLimits,
+    },
 };
 use tokio::sync::Mutex;
 
@@ -70,15 +73,20 @@ impl MemorySize for Owners {
 }
 
 /* === Public Functions === */
-pub(super) async fn count(storage: &ExecutionStorage) -> Result<usize> {
-    inspect(storage, |_, _| Ok(())).await
+/// Counts every artifact, scanning under `budget` or the interactive default.
+pub(super) async fn count(
+    storage: &ExecutionStorage,
+    budget: Option<QueryLimits>,
+) -> Result<usize> {
+    let count = project(storage, budget, |_, _| Ok(()), |count, _| Ok(count as u64)).await?;
+    Ok(*count as usize)
 }
 
 pub(super) async fn inspect(
     storage: &ExecutionStorage,
     visit: impl FnMut(&TestExecutionId, &ExecutionOutput) -> harmos::Result<()>,
 ) -> Result<usize> {
-    let count = project(storage, visit, |count, _| Ok(count as u64)).await?;
+    let count = project(storage, None, visit, |count, _| Ok(count as u64)).await?;
     Ok(*count as usize)
 }
 
@@ -112,6 +120,7 @@ pub(super) async fn project_records<T: MemorySize>(
     let records = std::sync::Mutex::new(Records { values, bytes });
     project(
         storage,
+        None,
         |_, output| {
             let ExecutionOutputContent::Artifact { record, .. } = &output.content else {
                 unreachable!("inventory visits only artifact descriptors");
@@ -147,8 +156,11 @@ pub(super) async fn project_records<T: MemorySize>(
     .await
 }
 
+/// Scans every finished execution's artifacts under `budget`; every read
+/// inherits the scan view's budget, the interactive default when `None`.
 async fn project<T: MemorySize>(
     storage: &ExecutionStorage,
+    budget: Option<QueryLimits>,
     mut visit: impl FnMut(&TestExecutionId, &ExecutionOutput) -> harmos::Result<()>,
     finish: impl FnOnce(usize, NonZeroUsize) -> harmos::Result<T>,
 ) -> Result<QueryValue<T>> {
@@ -167,10 +179,9 @@ async fn project<T: MemorySize>(
         decoded_bytes: Some(allowance),
         ..QueryOptions::default()
     };
-    let mut anchor = storage
-        .storage
-        .query(ObjectQuery::<Execution>::new())
-        .await?;
+    let mut anchored = ObjectQuery::<Execution>::new();
+    anchored.options.execution = budget;
+    let mut anchor = storage.storage.query(anchored).await?;
     anchor.retain_view()?;
     let view = anchor
         .view()

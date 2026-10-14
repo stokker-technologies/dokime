@@ -20,8 +20,8 @@ use std::num::NonZeroUsize;
 use harmos::{
     MemorySize,
     storage::{
-        FileReference, ObjectRevision, ObjectVersion, ObjectVersionToken, QueryLimits, QueryValue,
-        ReadLimits, SharedQueryValue, StorageCursor, StorageFileReader, StorageView,
+        FileReference, ObjectRevision, ObjectVersion, ObjectVersionToken, QueryValue, ReadLimits,
+        SharedQueryValue, StorageCursor, StorageFileReader, StorageView,
     },
 };
 
@@ -75,29 +75,6 @@ impl ExecutionView {
         else {
             return Ok(None);
         };
-        Self::opened(view, execution)
-    }
-
-    /// Opens an execution revision as evidence of `view`, read under `objects`.
-    /// Object reads admit only the storage manager's default limits, so a view
-    /// carrying the finalization budget reads its revision through its own
-    /// default view; the revision must still be visible to `view`.
-    pub(crate) async fn open_through(
-        storage: &Manager,
-        view: StorageView,
-        objects: QueryLimits,
-        id: &TestExecutionId,
-        version: ObjectVersion,
-        limit: NonZeroUsize,
-    ) -> Result<Option<Self>> {
-        let Some(execution) = read_detached(storage, objects, id, version, limit).await? else {
-            return Ok(None);
-        };
-        if !view.saved()?.covers(&execution.position)? {
-            return Err(Error::Storage(dokime::storage::Error::Invalid(
-                "execution revision exceeds its evidence view",
-            )));
-        }
         Self::opened(view, execution)
     }
 
@@ -225,17 +202,17 @@ impl ExecutionView {
         Ok(checkpoint)
     }
 
-    /// Binds a captured source to the evidence `view` it reads under. The exact
-    /// pre-report revision is read through `objects`, a view acquired with the
-    /// storage manager's default limits: object reads admit no other, while
-    /// `view` may carry the finalization budget.
+    /// Binds a captured source to the evidence `view` it reads under. Every
+    /// read, the exact pre-report revision and each output included, inherits
+    /// `view`'s budget. `stall` is a test hook: each output read stalls that
+    /// long within its budget.
     pub(crate) async fn captured(
         storage: &Manager,
         view: StorageView,
-        objects: QueryLimits,
         captured: SharedQueryValue<CapturedSource>,
         owner: &NodeId,
         limit: NonZeroUsize,
+        stall: std::time::Duration,
     ) -> Result<Self> {
         let validation = view.begin_computation()?;
         captured.check_origin(storage)?;
@@ -297,9 +274,9 @@ impl ExecutionView {
         let version = ObjectVersion::Exact(captured.execution.version.clone());
         validation.check()?;
         drop(validation);
-        let execution = read_detached(
+        let execution = dokime::storage::objects::execution::read_in(
             storage,
-            objects,
+            &view,
             &captured.execution.execution_id,
             version,
             limit,
@@ -351,6 +328,11 @@ impl ExecutionView {
             captured: Some(captured),
         };
         for output in inspection.outputs()? {
+            if !stall.is_zero() {
+                let read = inspection.view.begin_computation()?;
+                tokio::time::sleep(stall).await;
+                read.check()?;
+            }
             verify_file(inspection.read_file(&output.file).await?).await?;
         }
         Ok(inspection)
@@ -582,33 +564,4 @@ pub(crate) fn check_seal_position(
 }
 
 /* === Private Functions === */
-/// Reads one execution revision under its own view acquired with `objects`,
-/// the storage manager's default limits, and copies it out so that view and its
-/// read reservation close before the caller retains the revision.
-async fn read_detached(
-    storage: &Manager,
-    objects: QueryLimits,
-    id: &TestExecutionId,
-    version: ObjectVersion,
-    limit: NonZeroUsize,
-) -> Result<Option<QueryValue<ObjectRevision<TestExecution>>>> {
-    let objects = storage.view_with_limits(objects).await?;
-    let Some(read) =
-        dokime::storage::objects::execution::read_in(storage, &objects, id, version, limit).await?
-    else {
-        return Ok(None);
-    };
-    let bytes = NonZeroUsize::new(read.memory_size()).ok_or_else(|| {
-        Error::Storage(dokime::storage::Error::Invalid(
-            "execution revision memory overflow",
-        ))
-    })?;
-    let detached = storage
-        .produce(bytes, |_| Ok((*read).clone()))?
-        .try_into_value()?;
-    drop(read);
-    drop(objects);
-    Ok(Some(detached))
-}
-
 /* === Tests === */
