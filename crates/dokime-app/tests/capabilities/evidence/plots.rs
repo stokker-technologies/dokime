@@ -97,7 +97,10 @@ pub(crate) async fn snapshot_query_samples() {
         )
         .await
         .unwrap();
-    assert_eq!(default[0].payload.max_points, 1500);
+    assert_eq!(
+        default[0].payload.max_points,
+        dokime::document::DEFAULT_PLOT_MAX_POINTS
+    );
 }
 
 pub(crate) async fn batch_request_cursors() {
