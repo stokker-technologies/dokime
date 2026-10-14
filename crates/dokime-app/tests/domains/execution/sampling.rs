@@ -56,6 +56,13 @@ const OVERSIZED_SPECTRUM_ROWS: u32 = 8_192;
 const UNSEALED: &str = "final execution report was not sealed";
 const EXHAUSTED: &str = "final report materialization memory";
 
+/// A storage read pool that admits running a case but never holds its final
+/// report, as the 256 MiB production pool cannot hold a large enough cycle.
+const REFUSING_POOL_BYTES: usize = 120 * 1024 * 1024;
+
+/// How finalization names a report the read pool refused on every attempt.
+const POOL_REFUSED: &str = "the report does not fit the storage read pool";
+
 /// How much slower the last case may settle than the first. Work that grows
 /// with the store's history settles the sixth case several times slower.
 const GROWTH: u32 = 3;
@@ -432,6 +439,96 @@ pub(crate) async fn oversized_report_settles() {
     assert!(
         cycle.saved.is_none(),
         "an unproduced report is never sealed"
+    );
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// A report the storage read pool refuses on every attempt settles its
+// execution and cycle Failed in bounded time, the pool named as the cause,
+// instead of retrying while the cycle stays Running.
+pub(crate) async fn pool_refusal_settles() {
+    let root = tempdir().unwrap();
+    let mut refusing =
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({ "spectrum_rows": SPECTRUM_ROWS }),
+            )
+            .unwrap()]);
+    refusing.storage_reads.pool_bytes = std::num::NonZeroUsize::new(REFUSING_POOL_BYTES).unwrap();
+    let (mut runtime, handle) = started(refusing).await;
+    let suite = handle
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|suite| suite.source == "fixture-suites")
+        .unwrap()
+        .suite;
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite: suite.clone(),
+                metadata: Metadata::new(
+                    Identifier::new("spectrum.refused").unwrap(),
+                    "Refused",
+                    None,
+                ),
+                cases: materialize_cases("fixture.checks", &suite),
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let receipt = handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    let settled = tokio::time::timeout(Duration::from_secs(120), async {
+        loop {
+            let receipt = handle
+                .run_request(&receipt.command_id)
+                .await
+                .unwrap()
+                .unwrap();
+            if receipt.summary.phase.terminal() {
+                break receipt;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("a report the pool refuses settles its run in bounded time");
+    assert_eq!(settled.summary.phase, RunPhase::Failed);
+    assert!(
+        settled
+            .interruption
+            .as_deref()
+            .is_some_and(|cause| cause.starts_with(UNSEALED) && cause.contains(POOL_REFUSED)),
+        "the receipt names the refusing pool: {:?}",
+        settled.interruption
+    );
+    let cycle = handle
+        .cycles()
+        .await
+        .into_iter()
+        .find(|cycle| cycle.test_cycle_id == cycle_id)
+        .unwrap();
+    assert_eq!(cycle.lifecycle, CycleStatus::Failed);
+    assert!(cycle.saved.is_none(), "a refused report is never sealed");
+    let evidence = handle.evidence_snapshot().await.unwrap();
+    let recorded = evidence
+        .records
+        .iter()
+        .find(|record| record.record_type.as_str() == "test.execution.finalization.failed")
+        .expect("the unsealed execution records its cause");
+    assert!(
+        recorded
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains(POOL_REFUSED)),
+        "the execution evidence names the refusing pool: {recorded:?}"
     );
     drop(handle);
     runtime.shutdown().await.unwrap();

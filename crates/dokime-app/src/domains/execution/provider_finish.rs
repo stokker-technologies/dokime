@@ -26,10 +26,16 @@ use crate::{
 };
 
 /* === Constants === */
-/// How many times one finalization may exhaust its computation budget before
-/// that exhaustion is final. A slow or loaded host can overrun the budget once;
-/// overrunning it repeatedly means the report cannot be produced here.
+/// How many times one finalization may exhaust its computation budget or be
+/// refused by the storage read pool before that is final. A slow or loaded host
+/// can overrun the budget or fill the pool once; doing so repeatedly means the
+/// report cannot be produced here.
 const EXHAUSTED_ATTEMPTS: u32 = 3;
+/// The wait before the first retry of an exhausted finalization; each later
+/// retry waits twice as long, so other captures can release the pool.
+const EXHAUSTED_BACKOFF: std::time::Duration = std::time::Duration::from_secs(1);
+/// The wait before retrying any other transient finalization failure.
+const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
 
 /* === Macros === */
 
@@ -164,44 +170,47 @@ impl RuntimeHandle {
             let failures = match self.finish_saved_executions(&cycle, pending.clone()).await {
                 Ok(failures) => failures,
                 Err(error) if self.is_shutting_down() => return Err(error),
-                Err(error) if is_final(&error, &mut exhausted) => {
-                    tracing::debug!(%error, %cycle_id, "final execution saves failed");
-                    cause.get_or_insert_with(|| {
-                        format!("final execution report was not sealed: {error}")
-                    });
-                    unsealed.extend(
-                        pending
-                            .drain(..)
-                            .map(|execution| execution.test_execution_id),
-                    );
-                    continue;
-                }
-                Err(error) => {
-                    tracing::debug!(%error, %cycle_id, "final execution saves will retry");
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                    continue;
-                }
+                Err(error) => match retry_after(&error, &mut exhausted) {
+                    Some(wait) => {
+                        tracing::debug!(%error, %cycle_id, "final execution saves will retry");
+                        tokio::time::sleep(wait).await;
+                        continue;
+                    }
+                    None => {
+                        tracing::debug!(%error, %cycle_id, "final execution saves failed");
+                        cause.get_or_insert_with(|| unsealed_cause("execution", &error));
+                        unsealed.extend(
+                            pending
+                                .drain(..)
+                                .map(|execution| execution.test_execution_id),
+                        );
+                        continue;
+                    }
+                },
             };
             let mut retry = Vec::new();
+            let mut wait = None;
             for (id, error) in failures {
                 if self.is_shutting_down() {
                     return Err(error);
                 }
                 tracing::debug!(%error, %cycle_id, execution_id = %id, "final execution save failed");
-                if is_final(&error, exhausted_members.entry(id.clone()).or_default()) {
-                    cause.get_or_insert_with(|| {
-                        format!("final execution report was not sealed: {error}")
-                    });
-                    unsealed.push(id);
-                } else {
-                    retry.push(id);
+                match retry_after(&error, exhausted_members.entry(id.clone()).or_default()) {
+                    Some(after) => {
+                        wait = wait.max(Some(after));
+                        retry.push(id);
+                    }
+                    None => {
+                        cause.get_or_insert_with(|| unsealed_cause("execution", &error));
+                        unsealed.push(id);
+                    }
                 }
             }
             pending.retain(|execution| retry.contains(&execution.test_execution_id));
-            if !pending.is_empty() {
+            if let Some(wait) = wait {
                 // Retry checkpoint publication only. Provider dispatch and outcome
                 // folds are outside this loop and cannot be executed again.
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(wait).await;
             }
         }
         let terminal = matches!(
@@ -218,18 +227,22 @@ impl RuntimeHandle {
                 match self.finish_saved_cycle(&cycle).await {
                     Ok(cycle) => break Some(cycle),
                     Err(error) if self.is_shutting_down() => return Err(error),
-                    Err(error) if is_final(&error, &mut exhausted) => {
-                        tracing::debug!(%error, %cycle_id, "final cycle save failed");
-                        cause = Some(format!("final cycle report was not sealed: {error}"));
-                        break None;
-                    }
-                    Err(error) => {
-                        tracing::debug!(%error, %cycle_id, "final cycle save will retry");
-                        if computation_exhausted(&error) {
-                            self.execution_storage.restart_cycle_report(&cycle_id).await;
+                    Err(error) => match retry_after(&error, &mut exhausted) {
+                        Some(wait) => {
+                            tracing::debug!(%error, %cycle_id, "final cycle save will retry");
+                            // An exhausted report restarts under a fresh view and
+                            // budget, releasing every member it retained meanwhile.
+                            if exhausts_finalization(&error) {
+                                self.execution_storage.restart_cycle_report(&cycle_id).await;
+                            }
+                            tokio::time::sleep(wait).await;
                         }
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                    }
+                        None => {
+                            tracing::debug!(%error, %cycle_id, "final cycle save failed");
+                            cause = Some(unsealed_cause("cycle", &error));
+                            break None;
+                        }
+                    },
                 }
             }
         } else {
@@ -441,14 +454,35 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Whether a finalization failure is final. An exhausted computation budget is
-/// transient until it recurs `EXHAUSTED_ATTEMPTS` times for the same save.
-fn is_final(error: &Error, exhausted: &mut u32) -> bool {
-    if !computation_exhausted(error) {
-        return cannot_retry_save(error);
+/// How long to wait before retrying a failed finalization save, or `None` when
+/// the failure is final. An exhausted computation budget or a read pool refusal
+/// is transient until it recurs `EXHAUSTED_ATTEMPTS` times for the same save,
+/// each retry waiting twice as long as the one before.
+fn retry_after(error: &Error, exhausted: &mut u32) -> Option<std::time::Duration> {
+    if !exhausts_finalization(error) {
+        return (!cannot_retry_save(error)).then_some(RETRY_INTERVAL);
     }
     *exhausted += 1;
-    *exhausted >= EXHAUSTED_ATTEMPTS
+    (*exhausted < EXHAUSTED_ATTEMPTS).then(|| EXHAUSTED_BACKOFF * (1 << (*exhausted - 1)))
+}
+
+/// Failures that exhaust what one finalization may use: its computation budget
+/// or the storage read pool every report is held in.
+fn exhausts_finalization(error: &Error) -> bool {
+    computation_exhausted(error) || crate::runtime::storage::record_capture::read_capacity(error)
+}
+
+/// The permanent cause recorded against an unsealed `subject` report. A pool
+/// refusal names the pool, since retrying alone never fits the report in it.
+fn unsealed_cause(subject: &str, error: &Error) -> String {
+    if crate::runtime::storage::record_capture::read_capacity(error) {
+        format!(
+            "final {subject} report was not sealed: {error} after {EXHAUSTED_ATTEMPTS} attempts; \
+             the report does not fit the storage read pool"
+        )
+    } else {
+        format!("final {subject} report was not sealed: {error}")
+    }
 }
 
 fn computation_exhausted(error: &Error) -> bool {

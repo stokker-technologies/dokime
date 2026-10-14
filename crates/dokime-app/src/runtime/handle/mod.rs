@@ -249,9 +249,6 @@ impl RuntimeHandle {
             // Canonical Batch Framing Is Larger Than Native Object Payloads.
             // The Backend Independently Enforces Its Per-Entry Payload Bound.
             max_batch_bytes: backend_limits.batch_bytes,
-            // Live Readers And Report Captures Share One Bounded Ledger.
-            // Captures Retain Inputs While Point Reads And Rendering Reserve Scratch.
-            read_memory_bytes: std::num::NonZeroUsize::new(256 * 1024 * 1024).unwrap(),
             ..Default::default()
         };
         config.storage_reads.apply(&mut settings);
