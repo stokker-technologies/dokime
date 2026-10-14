@@ -17,8 +17,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::core::Value;
-use dokime::document::{Column, DocumentFilter, FilterOperator, PlotDefinition};
+use dokime::document::{Column, PlotDefinition};
 use dokime::prelude::*;
 
 /* === Constants === */
@@ -120,32 +119,10 @@ pub fn section(owner: &str) -> Section {
         0,
         [host::Wifi::wifi_rssi_dbm()],
     ));
-    // A scan emits one row per channel; only the row of the channel the host
-    // is associated with is drawn, so each scan contributes one point.
-    let mut occupancy = series(
-        owner,
-        "wifi_channel_occupancy",
-        "Wi-Fi Channel Occupancy",
-        "networks",
-        1,
-        [
-            host::WifiChannelOccupancy::same_channel_network_count(),
-            host::WifiChannelOccupancy::overlapping_network_count(),
-            host::WifiChannelOccupancy::overlap_weighted_network_count(),
-        ],
-    );
-    occupancy.filter(active_channel());
+    // The Scan Itself: Every Channel With Its Network Count And Strongest Signal
+    let mut occupancy = Plot::wifi_channel_occupancy("Wi-Fi Channel Occupancy");
+    occupancy.id(format!("{owner}.system.wifi_channel_occupancy"));
     section.plot(occupancy);
-    let mut signal = series(
-        owner,
-        "wifi_channel_signal",
-        "Wi-Fi Active Channel Signal",
-        "%",
-        0,
-        [host::WifiChannelOccupancy::max_signal_percent()],
-    );
-    signal.filter(active_channel());
-    section.plot(signal);
     section.plot(series(
         owner,
         "wifi_latency",
@@ -159,14 +136,6 @@ pub fn section(owner: &str) -> Section {
 }
 
 /* === Private Functions === */
-fn active_channel() -> DocumentFilter {
-    DocumentFilter {
-        expression: host::WifiChannelOccupancy::active_channel().into(),
-        operator: FilterOperator::Eq,
-        value: Some(Value::from(true)),
-    }
-}
-
 fn series<R: TelemetryStream>(
     owner: &str,
     metric: &str,
