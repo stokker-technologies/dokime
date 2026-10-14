@@ -30,8 +30,16 @@ import type { RpcError } from "./rpc";
  * cycle id to pull it by, so `diagnostics_bundle` crosses inline under the
  * same 32 MiB bound as `html_report`. Its extension is required rather than
  * appended: a `diagnostics_bundle` filename must already name a `.zip`.
+ * `json_document` is JSON assembled in the webview, such as an execution's
+ * traceability; it crosses inline under the same bound, and the shell appends
+ * `.json` when the name lacks it.
  */
-export type DesktopSaveKind = "html_report" | "diagnostics_bundle" | "cycle_bundle" | "artifact";
+export type DesktopSaveKind =
+  | "html_report"
+  | "diagnostics_bundle"
+  | "json_document"
+  | "cycle_bundle"
+  | "artifact";
 
 /** A verified document handed to the desktop shell for bounded native delivery. */
 export type DesktopSaveDocument = {

@@ -47,6 +47,8 @@ const MAX_REPORT_BASE64_CHARS: usize = MAX_REPORT_BYTES.div_ceil(3) * 4;
 const MAX_REPORT_FILENAME_CHARS: usize = 128;
 const MAX_DIAGNOSTICS_BUNDLE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_DIAGNOSTICS_BUNDLE_BASE64_CHARS: usize = MAX_DIAGNOSTICS_BUNDLE_BYTES.div_ceil(3) * 4;
+const MAX_JSON_DOCUMENT_BYTES: usize = 32 * 1024 * 1024;
+const MAX_JSON_DOCUMENT_BASE64_CHARS: usize = MAX_JSON_DOCUMENT_BYTES.div_ceil(3) * 4;
 
 /* === Macros === */
 
@@ -76,6 +78,8 @@ pub struct ArtifactDeliveryRequest {
 pub enum DesktopSaveKind {
     HtmlReport,
     DiagnosticsBundle,
+    /// JSON assembled in the webview, such as an execution's traceability.
+    JsonDocument,
     CycleBundle,
     Artifact,
 }
@@ -388,6 +392,11 @@ fn validate_save_document(
             MAX_DIAGNOSTICS_BUNDLE_BYTES,
             "Diagnostics bundle",
         ),
+        DesktopSaveKind::JsonDocument => (
+            MAX_JSON_DOCUMENT_BASE64_CHARS,
+            MAX_JSON_DOCUMENT_BYTES,
+            "JSON document",
+        ),
         DesktopSaveKind::CycleBundle => {
             return Err("Cycle bundle is delivered through desktop_artifact_deliver".into());
         }
@@ -420,6 +429,7 @@ fn apply_dialog_filter(
         // Unreachable while `ensure_picker_kind` gates every picker route; kept
         // truthful so a future route cannot pick up a wrong filter by default.
         DesktopSaveKind::DiagnosticsBundle => dialog.add_filter("Diagnostics bundle", &["zip"]),
+        DesktopSaveKind::JsonDocument => dialog.add_filter("JSON document", &["json"]),
         DesktopSaveKind::CycleBundle => dialog.add_filter("Cycle bundle", &["zip"]),
         DesktopSaveKind::Artifact => dialog,
     }
@@ -429,6 +439,7 @@ fn extension_policy(kind: DesktopSaveKind) -> ExtensionPolicy {
     match kind {
         DesktopSaveKind::HtmlReport => ExtensionPolicy::Append(".html"),
         DesktopSaveKind::DiagnosticsBundle => ExtensionPolicy::Require(".zip"),
+        DesktopSaveKind::JsonDocument => ExtensionPolicy::Append(".json"),
         DesktopSaveKind::CycleBundle => ExtensionPolicy::Append(".zip"),
         DesktopSaveKind::Artifact => ExtensionPolicy::Free,
     }
@@ -579,3 +590,57 @@ async fn move_verified_file(source: PathBuf, destination: PathBuf) -> Result<(),
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn json_document(filename: &str, bytes: &[u8]) -> DesktopSaveDocument {
+        serde_json::from_value(serde_json::json!({
+            "kind": "json_document",
+            "filename": filename,
+            "bytesBase64": BASE64.encode(bytes),
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn json_document_saves_through_the_picker() {
+        let bytes = br#"{"groups":[]}"#;
+        let document = json_document("Cycle-A-3-traceability.json", bytes);
+
+        ensure_picker_kind(document.kind).unwrap();
+        let (filename, decoded, kind) = validate_save_document("7", &document).unwrap();
+
+        assert_eq!(kind, DesktopSaveKind::JsonDocument);
+        assert_eq!(filename, "Cycle-A-3-traceability.json");
+        assert_eq!(decoded, bytes);
+    }
+
+    #[test]
+    fn json_document_names_a_json_file() {
+        let (filename, _, _) =
+            validate_save_document("7", &json_document("trace:ability", b"{}")).unwrap();
+        assert_eq!(filename, "trace_ability.json");
+
+        let kind = DesktopSaveKind::JsonDocument;
+        assert_eq!(
+            ensure_selected_extension(PathBuf::from("/tmp/trace"), kind).unwrap(),
+            PathBuf::from("/tmp/trace.json")
+        );
+        assert_eq!(
+            ensure_selected_extension(PathBuf::from("/tmp/trace.JSON"), kind).unwrap(),
+            PathBuf::from("/tmp/trace.JSON")
+        );
+        assert!(ensure_selected_extension(PathBuf::from("/tmp/trace.txt"), kind).is_err());
+    }
+
+    #[test]
+    fn json_document_stays_bounded() {
+        let mut document = json_document("trace.json", b"{}");
+        document.bytes_base64 = "A".repeat(MAX_JSON_DOCUMENT_BASE64_CHARS + 4);
+
+        let error = validate_save_document("7", &document).unwrap_err();
+
+        assert!(error.contains("JSON document"), "{error}");
+    }
+}

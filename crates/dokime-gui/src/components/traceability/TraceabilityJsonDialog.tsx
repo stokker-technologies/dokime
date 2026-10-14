@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 /* === Local Imports === */
 
+import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import { copyTraceabilityText } from "@/components/traceability/clipboard";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,12 +27,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { saveNativeDocument } from "@/lib/api/native-delivery";
+import type { SessionIdentity } from "@/lib/rpc/transport";
 import {
   type TraceabilityExportName,
   traceabilityJson,
   traceabilityJsonFilename,
 } from "@/lib/traceability";
 import type { TraceabilitySnapshot } from "@/lib/types";
+import { isReportBuild } from "@/lib/ui-mode";
 
 /* === Constants === */
 
@@ -47,13 +51,29 @@ type TraceabilityJsonDialogProps = {
 /**
  * The traceability card's header action: the whole traceability as JSON.
  *
- * Everything works from the snapshot already in memory, so the frozen report
- * copies and downloads exactly as the live view does, with no backend.
+ * Everything works from the snapshot already in memory. Download goes through
+ * the shell's native save on the desktop; the frozen report has no shell, so
+ * there it is a browser download.
  */
 export function TraceabilityJsonDialog({ exportName, traceability }: TraceabilityJsonDialogProps) {
   const [open, setOpen] = useState(false);
   const json = open ? traceabilityJson(traceability) : "";
   const filename = traceabilityJsonFilename(exportName);
+  const session = useNativeSessionOptional();
+  const [saving, setSaving] = useState(false);
+
+  const download = async () => {
+    setSaving(true);
+    try {
+      await saveTraceabilityJson(json, filename, session?.identity ?? null);
+    } catch (error) {
+      toast.error("Could not download traceability", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -90,7 +110,7 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
             <Copy data-icon="inline-start" />
             Copy
           </Button>
-          <Button onClick={() => downloadJson(json, filename)} size="sm" type="button">
+          <Button disabled={saving} onClick={() => void download()} size="sm" type="button">
             <Download data-icon="inline-start" />
             Download
           </Button>
@@ -103,26 +123,40 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
 /* === Private Functions === */
 
 /**
- * Hand the in-memory JSON to the browser as a file.
- *
- * The shell's native save accepts only HTML reports and diagnostics bundles,
- * so a JSON export goes through a Blob download in both the desktop and the
- * frozen report, neither of which needs a backend for it.
+ * Save the JSON where this surface can: the native picker on the desktop, a
+ * browser download in the frozen report. Resolves quietly when the operator
+ * cancels the picker; throws when neither route is available.
  */
-function downloadJson(json: string, filename: string): void {
-  try {
-    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.rel = "noopener";
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    // The click starts the download synchronously; the URL is released after
-    // the browser has had a turn to read it.
-    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-  } catch {
-    toast.error("Could not download traceability");
+async function saveTraceabilityJson(
+  json: string,
+  filename: string,
+  session: SessionIdentity | null,
+): Promise<void> {
+  if (isReportBuild()) {
+    browserDownload(json, filename);
+    return;
   }
+  if (!session) {
+    throw new Error("Saving needs a connected desktop session.");
+  }
+  await saveNativeDocument(session, {
+    kind: "json_document",
+    filename,
+    bytes: new TextEncoder().encode(json),
+  });
+}
+
+/** Hand the in-memory JSON to the browser as a file. */
+function browserDownload(json: string, filename: string): void {
+  const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  // The click starts the download synchronously; the URL is released after
+  // the browser has had a turn to read it.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
