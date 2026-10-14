@@ -139,13 +139,16 @@ export function HistoryLibrary({
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="font-medium">{cycle.title}</div>
-                    {cycle.target.kind === "execution" ? (
-                      <Badge variant="outline">Standalone execution</Badge>
-                    ) : null}
-                    {cycle.lifecycle !== "completed" ? (
-                      <Badge variant="outline">{cycle.lifecycle}</Badge>
-                    ) : null}
+                    {/* Title and its qualifiers share one line. */}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-medium">{cycle.title}</span>
+                      {cycle.target.kind === "execution" ? (
+                        <Badge variant="outline">Standalone execution</Badge>
+                      ) : null}
+                      {cycle.lifecycle !== "completed" ? (
+                        <Badge variant="outline">{cycle.lifecycle}</Badge>
+                      ) : null}
+                    </div>
                     {/* Secondary detail only when it adds information: the
                         raw id here simply repeated the title. */}
                     {cycle.suite_name ? (

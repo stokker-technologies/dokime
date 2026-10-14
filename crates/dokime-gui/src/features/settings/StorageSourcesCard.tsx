@@ -9,10 +9,10 @@
 
 /* Storage sources, in priority order.
  *
- * One aligned grid, not a table: `Source | State | Priority` on the same row
- * height as every other settings row. The switch writes the moment it moves
- * and the arrow pair writes the moment it is pressed; the card states the
- * outcome once rather than once per row.
+ * The same table as every other list: `Source | State | Priority`, the state
+ * beside its source rather than across the card from it. The switch writes
+ * the moment it moves and the arrow pair writes the moment it is pressed; the
+ * card states the outcome once rather than once per row.
  */
 
 /* === External Imports === */
@@ -26,6 +26,14 @@ import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProv
 import type { ConnectedSession } from "@/app/native-session/session";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import {
@@ -33,34 +41,11 @@ import {
   reorderStorageSources,
   setStorageSourceEnabled,
 } from "@/lib/api/native-storage-settings";
-import { cn } from "@/lib/utils";
 
 /* === Constants === */
 
-/**
- * The storage columns, shared by the header row and every source.
- *
- * The column count is the source count's business: one source has no priority
- * to argue about, so the pair is not drawn and the column it would take does
- * not exist. A placeholder cell is not an option here — `display: contents`
- * puts every cell on this one grid and auto-placement flows straight through
- * the row boundaries, so a header with three cells over rows with two (or a
- * screen-reader-only cell, which is absolutely positioned and therefore skipped
- * by placement) walks the whole list one column out of line.
- */
-const TABLE_CLASS = "grid gap-x-6 text-left text-sm";
-
-const COLUMNS: Record<"one" | "many", string> = {
-  many: "minmax(0,1fr) auto auto",
-  one: "minmax(0,1fr) auto",
-};
-
-const CELL_CLASS = "flex min-w-0 items-center";
-
-const HEAD_CLASS = "pb-1 text-xs tracking-wide text-muted-foreground uppercase";
-
 /** 40px rows, 48px at touch, cells centred on them. */
-const ROW_HEIGHT = "min-h-[var(--settings-row-height)]";
+const ROW_HEIGHT = "h-[var(--settings-row-height)]";
 
 /* === Types === */
 
@@ -145,88 +130,83 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
       ) : null}
 
       {sources.length > 0 ? (
-        /* A real table laid out as one grid: `display: contents` on the row
-           groups puts every cell on the table's own columns, so the three
-           columns line up down the list without losing table semantics. */
-        <table
-          aria-label="Storage source priority"
-          className={cn(TABLE_CLASS, "px-4 [[data-density=touch]_&]:px-6")}
-          style={{ gridTemplateColumns: COLUMNS[ranked ? "many" : "one"] }}
-        >
-          <thead className="contents">
-            <tr className="contents">
-              <th className={cn(CELL_CLASS, HEAD_CLASS)} scope="col">
-                Source
-              </th>
-              <th className={cn(CELL_CLASS, HEAD_CLASS)} scope="col">
-                State
-              </th>
-              {ranked ? (
-                <th className={cn(CELL_CLASS, HEAD_CLASS)} scope="col">
-                  Priority
-                </th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody className="contents">
-            {sources.map((source, index) => {
-              const label = sourceLabel(source.identifier);
-              const locked = source.identifier === "local" || !canEnable;
-              return (
-                <tr className="contents" key={source.identifier}>
-                  <th className={cn(CELL_CLASS, ROW_HEIGHT, "font-medium")} scope="row">
-                    <span className="truncate">{label}</span>
-                  </th>
-                  <td className={cn(CELL_CLASS, ROW_HEIGHT, "gap-2")}>
-                    <Switch
-                      aria-label={`${source.enabled ? "Disable" : "Enable"} ${label}`}
-                      checked={source.enabled}
-                      disabled={locked || mutation.isPending}
-                      onCheckedChange={(enabled) =>
-                        mutation.mutate({ kind: "enabled", identifier: source.identifier, enabled })
-                      }
-                    />
-                    <span className="text-muted-foreground">
-                      {source.enabled ? "Enabled" : "Disabled"}
-                    </span>
-                    {changedIdentifier === source.identifier ? (
-                      <span
-                        className="text-xs text-muted-foreground"
-                        role={mutation.isPending ? "status" : undefined}
-                      >
-                        {mutation.isPending ? "Saving" : mutation.isSuccess ? "Saved" : null}
-                      </span>
+        <div className="px-2 [[data-density=touch]_&]:px-4">
+          <Table aria-label="Storage source priority">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-full">Source</TableHead>
+                <TableHead>State</TableHead>
+                {/* One source has no priority to argue about, so neither the
+                    pair nor its column is drawn. */}
+                {ranked ? <TableHead>Priority</TableHead> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sources.map((source, index) => {
+                const label = sourceLabel(source.identifier);
+                const locked = source.identifier === "local" || !canEnable;
+                return (
+                  <TableRow className={ROW_HEIGHT} key={source.identifier}>
+                    <TableCell className="font-medium">{label}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          aria-label={`${source.enabled ? "Disable" : "Enable"} ${label}`}
+                          checked={source.enabled}
+                          disabled={locked || mutation.isPending}
+                          onCheckedChange={(enabled) =>
+                            mutation.mutate({
+                              kind: "enabled",
+                              identifier: source.identifier,
+                              enabled,
+                            })
+                          }
+                        />
+                        <span className="text-muted-foreground">
+                          {source.enabled ? "Enabled" : "Disabled"}
+                        </span>
+                        {changedIdentifier === source.identifier ? (
+                          <span
+                            className="text-xs text-muted-foreground"
+                            role={mutation.isPending ? "status" : undefined}
+                          >
+                            {mutation.isPending ? "Saving" : mutation.isSuccess ? "Saved" : null}
+                          </span>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    {ranked ? (
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            aria-label={`Move ${label} Up`}
+                            disabled={!canReorder || mutation.isPending || index === 0}
+                            onClick={() => move(index, -1)}
+                            size="icon-sm"
+                            variant="outline"
+                          >
+                            <ChevronUp />
+                          </Button>
+                          <Button
+                            aria-label={`Move ${label} Down`}
+                            disabled={
+                              !canReorder || mutation.isPending || index === sources.length - 1
+                            }
+                            onClick={() => move(index, 1)}
+                            size="icon-sm"
+                            variant="outline"
+                          >
+                            <ChevronDown />
+                          </Button>
+                        </div>
+                      </TableCell>
                     ) : null}
-                  </td>
-                  {/* One source has no priority to argue about, so neither the
-                      pair nor the column it would sit in is drawn. */}
-                  {ranked ? (
-                    <td className={cn(CELL_CLASS, ROW_HEIGHT, "gap-1")}>
-                      <Button
-                        aria-label={`Move ${label} Up`}
-                        disabled={!canReorder || mutation.isPending || index === 0}
-                        onClick={() => move(index, -1)}
-                        size="icon-sm"
-                        variant="outline"
-                      >
-                        <ChevronUp />
-                      </Button>
-                      <Button
-                        aria-label={`Move ${label} Down`}
-                        disabled={!canReorder || mutation.isPending || index === sources.length - 1}
-                        onClick={() => move(index, 1)}
-                        size="icon-sm"
-                        variant="outline"
-                      >
-                        <ChevronDown />
-                      </Button>
-                    </td>
-                  ) : null}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       ) : null}
 
       {/* An unavailable capability is a note, not a row with an empty value. */}
