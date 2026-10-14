@@ -239,25 +239,19 @@ impl Hold {
         // at: the reply is all a template knows about the process serving it.
         let bench = ctx.call::<ReadChamber>(()).await?;
 
-        Ok(vec![
-            TraceabilitySection::new("dut", "Device under test")
-                .row(TraceabilityRow::text(
-                    "serial_number",
-                    "Serial number",
-                    identity.serial,
-                ))
-                .row(TraceabilityRow::text(
-                    "firmware",
-                    "Firmware",
-                    identity.firmware,
-                )),
-            TraceabilitySection::new("bench", "Bench")
-                .row(TraceabilityRow::text("sensor", "Sensor", bench.sensor))
-                .row(
-                    TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c)
-                        .unit("°C"),
-                ),
-        ])
+        // Device Under Test
+        let mut dut = TraceabilitySection::new("dut", "Device under test");
+        dut.row(TraceabilityRow::text("serial_number", "Serial number", identity.serial));
+        dut.row(TraceabilityRow::text("firmware", "Firmware", identity.firmware));
+
+        // Bench
+        let mut bench_section = TraceabilitySection::new("bench", "Bench");
+        bench_section.row(TraceabilityRow::text("sensor", "Sensor", bench.sensor));
+        bench_section.row(
+            TraceabilityRow::number("target_c", "Target", ctx.parameters().target_c).unit("°C"),
+        );
+
+        Ok(vec![dut, bench_section])
     }
 
                                                                 #[step(label = "Wait for the Unit", description = "Waits for somebody else to say the unit is on the bench.\n`ctx.listen::<T>()` is the one way a step waits, and it answers a standard stream — so `.timeout(…)`, `.next()` and the rest are the adapters Rust already has, imported once from `dokime::prelude`. [`ToolConnectionAcquired`] is the host's own record type, so this step names no id and reads no detail map: the unit's identity is a field of the fact it waited for.\nAn execution's record inbox starts where the run started, so a unit that came online before this step reached its await still satisfies it.\nA bench with no gateway beside it is told about no unit, so a deadline here is a note rather than a failure. Make it a `?` the day another plugin is responsible for saying so.")]

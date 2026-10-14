@@ -38,6 +38,7 @@ document cards, or plots.
 
 ## One Ordered Document
 
+- A traceability section grows by statements like a document `Section`: `let mut dut = TraceabilitySection::new("dut", "Device Under Test");` then `dut.row(TraceabilityRow::text("serial_number", "Serial", serial));`, one row per statement, and the hook returns the sections in order. A row is one expression, with `.unit(…)` and `.source(…)` on the row value; there is no chained section builder.
 - A document is one ordered list of sections. Every section is visible all the time, in the live GUI and in the report. There are no views, no view tabs and no per-view card exclusion: order is the layout.
 - The host's default document is composed, not tagged: the result built-ins first (`execution.result` — steps, criteria — then Operator Notes), then the authored sections in composition order, then the evidence built-ins — Records, Artifacts, Media, Traceability. A cycle document has Records, Artifacts and Media; it has no steps, criteria, traceability or notes of its own.
 - Use document id `default` for the autoregistered runtime document. Do not introduce additional document ids unless the product has a document selector and a concrete workflow for multiple documents.

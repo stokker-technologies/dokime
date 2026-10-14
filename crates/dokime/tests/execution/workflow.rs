@@ -500,15 +500,14 @@ impl Probe {
             return Ok(Vec::new());
         }
 
-        Ok(vec![
-            TraceabilitySection::new("dut", "Device Under Test")
-                .row(TraceabilityRow::text(
-                    "serial_number",
-                    "Serial number",
-                    "SN-7",
-                ))
-                .row(TraceabilityRow::number("target_c", "Target", 60.0).unit("°C")),
-        ])
+        let mut dut = TraceabilitySection::new("dut", "Device Under Test");
+        dut.row(TraceabilityRow::text(
+            "serial_number",
+            "Serial number",
+            "SN-7",
+        ));
+        dut.row(TraceabilityRow::number("target_c", "Target", 60.0).unit("°C"));
+        Ok(vec![dut])
     }
 
     async fn cleaned_up(

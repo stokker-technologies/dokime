@@ -198,56 +198,59 @@ impl Steady {
             .map_err(|_| Error::DeviceResourcePoisoned)?
             .supply;
 
-        Ok(vec![
-            TraceabilitySection::new("dut", "Device Under Test")
-                .row(TraceabilityRow::text(
-                    "model",
-                    "Model",
-                    "MiniSidecar AC load",
-                ))
-                .row(
-                    TraceabilityRow::number(
-                        "nominal_voltage_rms_v",
-                        "Nominal Supply",
-                        supply.voltage_rms_v,
-                    )
-                    .unit("V")
-                    .source("device"),
-                )
-                .row(
-                    TraceabilityRow::number("load_ohm", "Load Impedance", supply.load_ohm)
-                        .unit("ohm")
-                        .source("device"),
-                )
-                .row(
-                    TraceabilityRow::number("frequency_hz", "Line Frequency", supply.frequency_hz)
-                        .unit("Hz")
-                        .source("device"),
-                )
-                .row(
-                    TraceabilityRow::number(
-                        "current_limit_a",
-                        "Protection Limit",
-                        supply.current_limit_a,
-                    )
-                    .unit("A")
-                    .source("device"),
-                ),
-            TraceabilitySection::new("bench", "Bench")
-                .row(TraceabilityRow::text(
-                    "application",
-                    "Application",
-                    "MiniSidecar testbench",
-                ))
-                .row(
-                    TraceabilityRow::number(
-                        "sample_interval_s",
-                        "Sample Interval",
-                        ctx.resources().interval_s,
-                    )
-                    .unit("s"),
-                ),
-        ])
+        // Device Under Test
+        let mut dut = TraceabilitySection::new("dut", "Device Under Test");
+        dut.row(TraceabilityRow::text(
+            "model",
+            "Model",
+            "MiniSidecar AC load",
+        ));
+        dut.row(
+            TraceabilityRow::number(
+                "nominal_voltage_rms_v",
+                "Nominal Supply",
+                supply.voltage_rms_v,
+            )
+            .unit("V")
+            .source("device"),
+        );
+        dut.row(
+            TraceabilityRow::number("load_ohm", "Load Impedance", supply.load_ohm)
+                .unit("ohm")
+                .source("device"),
+        );
+        dut.row(
+            TraceabilityRow::number("frequency_hz", "Line Frequency", supply.frequency_hz)
+                .unit("Hz")
+                .source("device"),
+        );
+        dut.row(
+            TraceabilityRow::number(
+                "current_limit_a",
+                "Protection Limit",
+                supply.current_limit_a,
+            )
+            .unit("A")
+            .source("device"),
+        );
+
+        // Bench
+        let mut bench = TraceabilitySection::new("bench", "Bench");
+        bench.row(TraceabilityRow::text(
+            "application",
+            "Application",
+            "MiniSidecar testbench",
+        ));
+        bench.row(
+            TraceabilityRow::number(
+                "sample_interval_s",
+                "Sample Interval",
+                ctx.resources().interval_s,
+            )
+            .unit("s"),
+        );
+
+        Ok(vec![dut, bench])
     }
 
     fn document() -> Document {

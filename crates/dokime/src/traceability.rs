@@ -124,16 +124,14 @@ impl TraceabilitySection {
         }
     }
 
-    #[must_use]
-    pub fn row(mut self, row: TraceabilityRow) -> Self {
+    // Sections grow by statements, as a document `Section` does; a row is
+    // built in one expression and appended.
+    pub fn row(&mut self, row: TraceabilityRow) {
         self.rows.push(row);
-        self
     }
 
-    #[must_use]
-    pub fn rows(mut self, rows: impl IntoIterator<Item = TraceabilityRow>) -> Self {
+    pub fn rows(&mut self, rows: impl IntoIterator<Item = TraceabilityRow>) {
         self.rows.extend(rows);
-        self
     }
 }
 
