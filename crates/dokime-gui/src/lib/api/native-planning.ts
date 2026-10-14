@@ -16,6 +16,7 @@
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
+import { defaultCycleLabel } from "@/lib/time-format";
 import type {
   CaseActions,
   ExecutionQueueItem,
@@ -133,7 +134,7 @@ export async function createNativeTestCycle(
     plan: { caseIds: registered.cases.map((item) => item.caseId) },
     metadata: {
       identifier: `cycle.${firstSuite.suite_id.replaceAll(".", "_")}`,
-      label: request.title ?? firstSuite.name,
+      label: request.title ?? defaultCycleLabel(),
       description: firstSuite.description ?? undefined,
     },
     continueOnFailure: request.continue_on_failure ?? firstSuite.continue_on_failure,

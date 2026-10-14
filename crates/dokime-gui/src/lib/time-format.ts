@@ -129,6 +129,22 @@ export function timeOfDayLabel(timestamp: string | null | undefined): string {
   return new Date(parsed).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+/**
+ * The name a new cycle gets when the operator gives none: the moment it was
+ * created, written the way the user's locale writes dates and times, so the
+ * list reads as a timeline rather than as the suite name repeated.
+ */
+export function defaultCycleLabel(now: Date = new Date()): string {
+  const formatted = new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(now);
+  return `Test Cycle - ${formatted}`;
+}
+
 /* === Private Functions === */
 
 function compactDurationLabel(thenMs: number, now: number): string {
