@@ -57,7 +57,7 @@ const STEADY_HOST_SYSTEM: &str = "host.system";
 const STEADY_SAMPLE_COUNT: u64 = 240;
 const STEADY_PROMPT: &str = "mini.charger.steady.check";
 const STEADY_ACCEPTANCE: &str = "mini.charger.steady.acceptance";
-const STEADY_SUMMARY: &str = "steady-state-summary.json";
+const STEADY_SUMMARY: &str = "charger/steady-state-summary.json";
 
 /* === Macros === */
 
