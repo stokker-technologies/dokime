@@ -37,11 +37,12 @@ use dokime_app::plugins::PluginStore;
 
 /* === Private Functions === */
 fn fixture_bytes() -> Vec<u8> {
-    std::fs::read(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/fixtures/dokime-route-plugin/dokime-route-plugin.dokime"),
-    )
-    .expect("run mise run build:plugins:dev to build the standalone fixture")
+    use crate::fixtures::{PREPARE, prepared_directory, require_current};
+    let directory = prepared_directory();
+    require_current(&directory, PREPARE);
+    let bundle = directory.join("dokime-route-plugin/dokime-route-plugin.dokime");
+    std::fs::read(&bundle)
+        .unwrap_or_else(|error| panic!("{PREPARE}: {}: {error}", bundle.display()))
 }
 
 /* === Tests === */

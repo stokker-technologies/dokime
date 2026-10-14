@@ -13,6 +13,7 @@ pub mod bundles;
 pub mod contracts;
 pub mod evidence;
 pub mod executors;
+pub mod fixtures;
 pub mod native;
 pub mod plugins;
 pub mod reports;

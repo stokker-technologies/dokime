@@ -401,10 +401,14 @@ pub(crate) fn fixture_catalog_repeatable() {
                 "dokime-app-suite-sidecar-fixture{}",
                 std::env::consts::EXE_SUFFIX,
             ));
+        // `mise run build:plugins:dev` compiles this fixture and stamps its build.
+        let plugins =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/plugins");
+        crate::support::fixtures::require_current(&plugins, crate::support::fixtures::DEV_PLUGINS);
         let output = std::process::Command::new(executable)
             .arg(harmos::sidecar::CATALOG_EXPORT_FLAG)
             .output()
-            .expect("mise run fixtures:prepare prepares the native fixture");
+            .unwrap_or_else(|error| panic!("{}: {error}", crate::support::fixtures::DEV_PLUGINS));
         assert!(output.status.success());
         serde_json::from_slice::<Vec<harmos::sidecar::Registration>>(&output.stdout).unwrap()
     };

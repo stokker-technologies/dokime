@@ -280,10 +280,13 @@ run = "cargo build --timings -p dokime-server --bin dokime-server"
 
 [tasks."build:plugins:dev"]
 description = "Build Development Demo Plugin Packages"
+depends = ["prepare:tools"]
 # The suite fixture gives a development session runnable suites beside Mini.
+# The stamp lets tests refuse bundles compiled against other contracts.
 run = [
   "cargo run --locked -p cargo-dokime -- build --package mini-sidecar --output target/debug/plugins/mini-sidecar.dokime",
   "cargo run --locked -p cargo-dokime -- build --package dokime-route-plugin --bin dokime-app-suite-sidecar-fixture --output target/debug/plugins/fixture-suites.dokime",
+  "uv run --no-sync python -m dokime_tools.fixtures --stamp-only --output target/debug/plugins",
 ]
 
 [tasks."build:desktop:dev"]

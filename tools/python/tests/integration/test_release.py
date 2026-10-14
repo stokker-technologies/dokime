@@ -655,6 +655,10 @@ def _release(source: Path) -> Path:
                 f"{checks.FIXTURE_BUNDLES}/{name}/{name}.dokime",
                 name.encode(),
             )
+        files[f"fixture:{stage.STAMP}"] = (
+            f"{checks.FIXTURE_BUNDLES}/{stage.STAMP}",
+            f"revision {COMMIT}\ncontracts fixture\n".encode("ascii"),
+        )
         coverage_suites = (
             "integration-rust",
             "acceptance-rust",

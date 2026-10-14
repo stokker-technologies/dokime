@@ -8,6 +8,8 @@
  */
 
 /* === Modules === */
+#[path = "../../../dokime-app/tests/support/fixtures.rs"]
+mod fixtures;
 mod host;
 
 /* === Re-Exports === */
@@ -106,7 +108,8 @@ impl NativeHub {
         config.application_root = Some(root.path().join("application"));
         // The first-party bundles `mise run build:plugins:dev` exports are the
         // compositions these scenarios exercise; nothing loads them implicitly.
-        let bundles = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/fixtures");
+        let bundles = fixtures::prepared_directory();
+        fixtures::require_current(&bundles, fixtures::PREPARE);
         config.explicit_plugins = ["mini-sidecar", "dokime-route-plugin"]
             .into_iter()
             .map(|package| bundles.join(package).join(format!("{package}.dokime")))

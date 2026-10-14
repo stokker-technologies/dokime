@@ -10,6 +10,9 @@
 /* === Modules === */
 pub(crate) mod cycles;
 
+#[path = "../support/fixtures.rs"]
+pub(crate) mod fixtures;
+
 pub(crate) mod notes;
 
 pub(crate) mod records;

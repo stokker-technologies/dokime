@@ -38,7 +38,8 @@ pub fn fixture_bundle_bytes(fixture: &str) -> Vec<u8> {
     let prepared = prepared_bundle(fixture);
     std::fs::read(&prepared).unwrap_or_else(|error| {
         panic!(
-            "run mise run build:plugins:dev to prepare {}: {error}",
+            "{}: {}: {error}",
+            super::fixtures::PREPARE,
             prepared.display()
         )
     })
@@ -88,11 +89,11 @@ pub fn plugin_store(root: &Path) -> PluginStore {
     PluginStore::new(dokime_app::config::Settings::load(root.join("application")).unwrap())
 }
 
+/// A bundle `mise run fixtures:prepare` compiled from this tree's contracts.
 pub fn prepared_bundle(fixture: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/fixtures")
-        .join(fixture)
-        .join(format!("{fixture}.dokime"))
+    let directory = super::fixtures::prepared_directory();
+    super::fixtures::require_current(&directory, super::fixtures::PREPARE);
+    directory.join(fixture).join(format!("{fixture}.dokime"))
 }
 
 /* === Tests === */
