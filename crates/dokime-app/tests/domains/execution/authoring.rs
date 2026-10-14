@@ -22,7 +22,6 @@ use dokime::core::{Identifier, Metadata, RecordScope, Value};
 use dokime_app::definition::ParameterSource;
 use tempfile::tempdir;
 // Local Imports
-use dokime_app::RuntimeConfig;
 use dokime_app::domains::evidence::RecordSelection;
 use dokime_app::domains::execution::authoring::{
     RuntimeResource, SidecarStepContext, StepContextError,
@@ -56,7 +55,7 @@ fn identifier(value: impl Into<String>) -> Identifier {
 pub(crate) async fn resource_store_handle() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
+        let runtime_config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(identifier("runtime.authoring"), "Runtime Authoring", None),
         );
@@ -114,7 +113,7 @@ pub(crate) async fn resource_store_handle() {
 pub(crate) async fn resource_store_removal() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
+        let runtime_config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(identifier("runtime.authoring"), "Runtime Authoring", None),
         );
@@ -156,7 +155,7 @@ pub(crate) async fn resource_store_removal() {
 pub(crate) async fn wait_completes_duration() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
+        let runtime_config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(identifier("runtime.wait"), "Runtime Wait", None),
         );
@@ -179,7 +178,7 @@ pub(crate) async fn wait_completes_duration() {
 pub(crate) async fn wait_until_shutdown() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
+        let runtime_config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(identifier("runtime.wait"), "Runtime Wait", None),
         );
@@ -200,7 +199,7 @@ pub(crate) async fn wait_until_shutdown() {
 pub(crate) async fn file_helpers_scope() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
+        let runtime_config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(identifier("runtime.files"), "Runtime Files", None),
         );
@@ -227,7 +226,7 @@ pub(crate) async fn file_helpers_scope() {
 pub(crate) async fn param_helpers_values() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
+        let runtime_config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(identifier("runtime.parameters"), "Runtime Parameters", None),
         );
@@ -262,7 +261,7 @@ pub(crate) async fn param_helpers_values() {
 pub(crate) async fn traceability_param_group() {
     let root = tempdir().unwrap();
     let mut runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
+        let runtime_config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(
                 identifier("runtime.traceability"),

@@ -44,7 +44,10 @@ async fn fixture(root: &std::path::Path) -> (Runtime, CreateNoteRequest) {
     let metadata = Metadata::new(Identifier::new("notes.fixture").unwrap(), "Notes", None);
     let owner = tokio::time::timeout(
         std::time::Duration::from_secs(5),
-        Runtime::start(RuntimeConfig::new(root, metadata.clone())),
+        Runtime::start(crate::support::budgets::runtime_config(
+            root,
+            metadata.clone(),
+        )),
     )
     .await
     .expect("runtime boot stalled")

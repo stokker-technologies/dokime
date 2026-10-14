@@ -1,5 +1,16 @@
-# The evidence runner writes its own `stkr` profile under target/validation/;
-# this file only supplies the defaults for ad hoc `cargo nextest` runs.
+# The evidence runner layers its own `stkr` profile beneath this file, so the
+# test groups and overrides here apply to it and to ad hoc `cargo nextest` runs.
 [profile.default]
 retries = 0
 fail-fast = false
+
+# Stories that prove the shipped read and report budgets by moving more than
+# they hold run one at a time; every other story gets the story budget in
+# crates/dokime-app/tests/support/budgets.rs.
+[test-groups]
+whole-read-budget = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = '''package(dokime-server) & binary(grpc) & test(=evidence_contract)
+  | package(dokime-app) & binary(domains) & test(/^execution_(large_case|whole_capture)_contract$/)'''
+test-group = 'whole-read-budget'

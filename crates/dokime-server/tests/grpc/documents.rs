@@ -218,7 +218,10 @@ pub(crate) async fn summary_complete_telemetry() {
     let root = tempfile::tempdir().unwrap();
     let gate = std::sync::Arc::new(Gate::default());
     let mut owner = Runtime::with_execution_fixture(
-        RuntimeConfig::new(root.path(), common::metadata("grpc.summary", "Summary")),
+        crate::common::budgets::runtime_config(
+            root.path(),
+            common::metadata("grpc.summary", "Summary"),
+        ),
         "fixture",
         gate.clone(),
     )

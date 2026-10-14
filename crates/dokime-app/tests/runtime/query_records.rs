@@ -46,7 +46,7 @@ use dokime_app::{Runtime, RuntimeConfig, RuntimeHandle};
 /* === Tests === */
 
 fn runtime_config(root: &std::path::Path) -> RuntimeConfig {
-    RuntimeConfig::new(
+    crate::support::budgets::runtime_config(
         root,
         Metadata::new(
             Identifier::new("fixture.records").unwrap(),
@@ -589,7 +589,7 @@ pub(crate) async fn capture_failure_provider() {
         "Shutdown",
         None,
     );
-    let config = RuntimeConfig::new(root.path(), metadata.clone());
+    let config = crate::support::budgets::runtime_config(root.path(), metadata.clone());
     let provider = Arc::new(BlockingProvider::default());
     let mut owner = Runtime::with_execution_fixture(config, "testdb", provider.clone())
         .await
@@ -666,7 +666,7 @@ pub(crate) async fn primary_capture_boots() {
     let mut expected = Vec::new();
     let mut primary = None;
     for _ in 0..2 {
-        let config = RuntimeConfig::new(
+        let config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(
                 Identifier::new("fixture.records").unwrap(),
@@ -813,7 +813,7 @@ pub(crate) async fn native_entry_independent() {
         .unwrap();
     let view = handle
         .storage()
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
         .unwrap();
     let restored = cycle::read_in(

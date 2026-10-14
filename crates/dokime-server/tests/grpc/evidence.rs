@@ -47,7 +47,7 @@ async fn start(root: &std::path::Path) -> (Runtime, Server, WireClient) {
 }
 
 async fn start_bounded(root: &std::path::Path, maximum: usize) -> (Runtime, Server, WireClient) {
-    let config = RuntimeConfig::new(
+    let config = crate::common::budgets::runtime_config(
         root,
         Metadata::new(
             Identifier::new("evidence.fixture").unwrap(),
@@ -272,7 +272,7 @@ pub(crate) async fn filtered_scans_resync() {
 
 pub(crate) async fn capture_cursors_restarts() {
     let root = tempfile::tempdir().unwrap();
-    let config = RuntimeConfig::new(
+    let config = crate::common::budgets::runtime_config(
         root.path(),
         Metadata::new(
             Identifier::new("evidence.restart").unwrap(),
@@ -441,7 +441,7 @@ pub(crate) async fn capture_cursors_restarts() {
 
 pub(crate) async fn oversized_delivery_evidence() {
     let root = tempfile::tempdir().unwrap();
-    let config = RuntimeConfig::new(
+    let config = crate::common::budgets::runtime_config(
         root.path(),
         super::common::metadata("evidence.fixture", "Evidence fixture"),
     );

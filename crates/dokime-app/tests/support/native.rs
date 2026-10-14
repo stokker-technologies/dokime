@@ -52,14 +52,14 @@ pub async fn checkpoint(handle: &RuntimeHandle, id: &TestExecutionId) -> Executi
 pub async fn open(handle: &RuntimeHandle, checkpoint: &ExecutionCheckpoint) -> ExecutionView {
     let view = handle
         .storage()
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
         .unwrap();
     ExecutionView::open_checkpoint(
         handle.storage(),
         view,
         checkpoint,
-        dokime_app::config::StorageReadSettings::default().decoded_bytes,
+        crate::support::budgets::story_settings().decoded_bytes,
     )
     .await
     .unwrap()

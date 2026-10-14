@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod budgets;
 pub mod bundles;
 pub mod contracts;
 pub mod evidence;
@@ -92,7 +93,7 @@ use dokime_app::{Runtime, RuntimeConfig, RuntimeHandle};
 
 /* === Public Functions === */
 pub fn config(root: impl Into<PathBuf>) -> RuntimeConfig {
-    RuntimeConfig::new(root.into(), metadata("runtime.hub", "Runtime Hub"))
+    budgets::runtime_config(root, metadata("runtime.hub", "Runtime Hub"))
 }
 
 pub fn wifi_config(root: impl Into<PathBuf>) -> RuntimeConfig {

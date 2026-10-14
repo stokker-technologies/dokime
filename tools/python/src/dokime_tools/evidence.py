@@ -2312,8 +2312,9 @@ def _rust(
     units = ["--lib", "--bins"] if category == "unit" else []
     runner += [
         *(archived or [*cargo_selection(selection), *units]),
-        "--config-file",
-        str(native),
+        # Layer The Profile Under The Repository Config So Its Test Groups Apply.
+        "--tool-config-file",
+        f"stkr:{native.resolve()}",
         "--profile",
         "stkr",
         "--no-tests",

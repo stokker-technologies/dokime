@@ -69,7 +69,8 @@ pub(crate) async fn native_history_index() {
         expected = Some(current);
         drop(history);
         let view = if attempt == 0 {
-            let available = 256 * 1024 * 1024 - handle.storage().status().read_bytes;
+            let available = crate::support::budgets::STORY_READ_MEMORY.get()
+                - handle.storage().status().read_bytes;
             let reservation = handle
                 .storage()
                 .prepare_production(

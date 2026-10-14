@@ -73,6 +73,10 @@ pub struct RuntimeConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StorageReadSettings {
+    /// The one ledger live readers and report captures share: captures retain
+    /// inputs while point reads and rendering reserve scratch.
+    #[serde(default = "default_read_memory")]
+    pub memory_bytes: std::num::NonZeroUsize,
     pub page_rows: std::num::NonZeroUsize,
     pub page_bytes: std::num::NonZeroUsize,
     pub page_rows_ceiling: std::num::NonZeroUsize,
@@ -198,6 +202,7 @@ impl Default for StorageReadSettings {
         // Keep Each Read Bounded And Charge It To The Shared Budget.
         let execution_memory = std::num::NonZeroUsize::new(32 * 1024 * 1024).unwrap();
         Self {
+            memory_bytes: default_read_memory(),
             page_rows: settings.query_page.rows,
             page_bytes: settings.query_page.bytes,
             page_rows_ceiling: settings.query_page_ceiling.rows,
@@ -250,6 +255,7 @@ impl StorageReadSettings {
         Ok(())
     }
     pub(crate) fn apply(&self, settings: &mut harmos::storage::StorageSettings) {
+        settings.read_memory_bytes = self.memory_bytes;
         settings.query_page = harmos::storage::ReadLimits {
             rows: self.page_rows,
             bytes: self.page_bytes,
@@ -300,6 +306,10 @@ impl Default for RuntimeCredentialConfig {
 /* === Private Functions === */
 fn default_save_interval() -> Duration {
     Duration::from_millis(super::policy::DEFAULT_SAVE_INTERVAL_MS)
+}
+
+fn default_read_memory() -> std::num::NonZeroUsize {
+    std::num::NonZeroUsize::new(256 * 1024 * 1024).unwrap()
 }
 
 fn default_compaction_interval() -> Duration {

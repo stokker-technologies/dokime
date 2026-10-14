@@ -986,7 +986,7 @@ async fn check_stopped_question(stop_cycle: bool) {
     // === Run A Step That Waits On An Operator === //
 
     let root = tempdir().unwrap();
-    let config = RuntimeConfig::new(
+    let config = crate::support::budgets::runtime_config(
         root.path(),
         Metadata::new(
             Identifier::new("fixture.asking.host").unwrap(),

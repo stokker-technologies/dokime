@@ -552,9 +552,10 @@ async fn prompt_runtime(
             &[definition],
         )
         .unwrap();
-    let config = RuntimeConfig::new(root, common::metadata("grpc.prompts", "Questions"))
-        .with_declared_plugin("prompt.fixture", "1.0.0", "Questions", declarations)
-        .unwrap();
+    let config =
+        crate::common::budgets::runtime_config(root, common::metadata("grpc.prompts", "Questions"))
+            .with_declared_plugin("prompt.fixture", "1.0.0", "Questions", declarations)
+            .unwrap();
     Runtime::start(config).await.unwrap()
 }
 

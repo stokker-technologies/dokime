@@ -364,7 +364,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
 }
 
 async fn fixture(root: &std::path::Path) -> Runtime {
-    let mut config = RuntimeConfig::new(
+    let mut config = crate::common::budgets::runtime_config(
         root,
         Metadata::new(Identifier::new("plugins.fixture").unwrap(), "Plugins", None),
     );

@@ -663,6 +663,10 @@ fn execution_contract() {
         eprintln!("Scenario: execution::planning::preview_start_plans");
         run_scenario(execution::planning::preview_start_plans, false, None, false);
     }
+}
+
+#[test]
+fn execution_prompts_contract() {
     {
         eprintln!("Scenario: execution::prompts::prompt_commands_records");
         run_scenario(
@@ -803,6 +807,10 @@ fn execution_contract() {
         eprintln!("Scenario: execution::reboot::live_telemetry_state");
         run_scenario(execution::reboot::live_telemetry_state, false, None, false);
     }
+}
+
+#[test]
+fn execution_runs_contract() {
     {
         eprintln!("Scenario: execution::run::cycle_exposes_rows");
         run_scenario(execution::run::cycle_exposes_rows, false, None, false);
@@ -864,15 +872,6 @@ fn execution_contract() {
         );
     }
     {
-        eprintln!("Scenario: execution::session::stopping_ignored_run_settles");
-        run_scenario(
-            execution::session::stopping_ignored_run_settles,
-            false,
-            None,
-            false,
-        );
-    }
-    {
         eprintln!("Scenario: execution::session::execution_scope_error");
         run_scenario(
             execution::session::execution_scope_error,
@@ -885,37 +884,6 @@ fn execution_contract() {
     {
         eprintln!("Scenario: execution::simulation::declaration_boots_runtime");
         execution::simulation::declaration_boots_runtime();
-    }
-    {
-        eprintln!("Scenario: execution::sampling::paged_evidence_settles");
-        run_scenario(
-            execution::sampling::paged_evidence_settles,
-            false,
-            None,
-            false,
-        );
-    }
-    {
-        eprintln!("Scenario: execution::sampling::large_case_seals");
-        run_scenario(execution::sampling::large_case_seals, false, None, false);
-    }
-    {
-        eprintln!("Scenario: execution::sampling::whole_capture_plot_seals");
-        run_scenario(
-            execution::sampling::whole_capture_plot_seals,
-            false,
-            None,
-            false,
-        );
-    }
-    {
-        eprintln!("Scenario: execution::sampling::oversized_report_settles");
-        run_scenario(
-            execution::sampling::oversized_report_settles,
-            false,
-            None,
-            false,
-        );
     }
     {
         eprintln!("Scenario: execution::sampling::logged_cycle_terminal");
@@ -1037,6 +1005,81 @@ fn execution_contract() {
         eprintln!("Scenario: telemetry::declared::conflicting_prompt_refused");
         run_scenario(
             telemetry::declared::conflicting_prompt_refused,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+// Each mode waits out the 30 s host stop budget, so each runs as its own entry.
+#[test]
+fn execution_ignored_stop_contract() {
+    {
+        eprintln!("Scenario: execution::session::stopping_ignored_run_settles");
+        run_scenario(
+            execution::session::stopping_ignored_run_settles,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+#[test]
+fn execution_ignored_signal_contract() {
+    {
+        eprintln!("Scenario: execution::session::stopping_ignored_signal_settles");
+        run_scenario(
+            execution::session::stopping_ignored_signal_settles,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+// Sampling-heavy stories seal or refuse whole reports; each is its own entry.
+#[test]
+fn execution_paged_evidence_contract() {
+    {
+        eprintln!("Scenario: execution::sampling::paged_evidence_settles");
+        run_scenario(
+            execution::sampling::paged_evidence_settles,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+#[test]
+fn execution_large_case_contract() {
+    {
+        eprintln!("Scenario: execution::sampling::large_case_seals");
+        run_scenario(execution::sampling::large_case_seals, false, None, false);
+    }
+}
+
+#[test]
+fn execution_whole_capture_contract() {
+    {
+        eprintln!("Scenario: execution::sampling::whole_capture_plot_seals");
+        run_scenario(
+            execution::sampling::whole_capture_plot_seals,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+#[test]
+fn execution_oversized_report_contract() {
+    {
+        eprintln!("Scenario: execution::sampling::oversized_report_settles");
+        run_scenario(
+            execution::sampling::oversized_report_settles,
             false,
             None,
             false,

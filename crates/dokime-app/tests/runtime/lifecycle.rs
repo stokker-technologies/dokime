@@ -157,7 +157,7 @@ pub(crate) async fn boot_reboots_intact() {
 }
 
 async fn start_bundled_composition(root: &std::path::Path, metadata: Metadata) -> Runtime {
-    let config = RuntimeConfig::new(root, metadata)
+    let config = crate::support::budgets::runtime_config(root, metadata)
         .with_installed_plugins([dokime_host::installed_plugin()]);
     Runtime::start(config)
         .await

@@ -59,7 +59,7 @@ async fn snapshot_records(
     handle: &RuntimeHandle,
     snapshot: &dokime_app::runtime::ExecutionView,
 ) -> Vec<dokime_app::runtime::ContextRecord> {
-    let settings = dokime_app::config::StorageReadSettings::default();
+    let settings = crate::support::budgets::story_settings();
     let page = harmos::storage::ReadLimits {
         rows: settings.page_rows,
         bytes: settings.page_bytes,
@@ -82,7 +82,7 @@ async fn snapshot_samples(
     handle: &RuntimeHandle,
     snapshot: &dokime_app::runtime::ExecutionView,
 ) -> Vec<dokime::telemetry::TelemetrySample> {
-    let settings = dokime_app::config::StorageReadSettings::default();
+    let settings = crate::support::budgets::story_settings();
     let page = harmos::storage::ReadLimits {
         rows: settings.page_rows,
         bytes: settings.page_bytes,
