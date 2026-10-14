@@ -100,7 +100,10 @@ pub(crate) async fn deletion_validates_unsupported() {
         common::fixture_provider_outcome(cycle, false)
     }));
     let mut owner = Runtime::with_execution_fixture(
-        RuntimeConfig::new(root.path(), common::metadata("grpc.history", "History")),
+        crate::common::budgets::runtime_config(
+            root.path(),
+            common::metadata("grpc.history", "History"),
+        ),
         "fixture",
         gate.clone(),
     )

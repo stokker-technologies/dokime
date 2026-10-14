@@ -895,9 +895,7 @@ pub(crate) async fn execution_file_buffer() {
     // transfer runs inside one query computation (5 s by default), and the
     // earlier 300 MiB workload needed 3.5 to 6.4 s under machine load, so a
     // larger file measures the machine instead of the boundary.
-    let size_bytes = 2 * dokime_app::config::StorageReadSettings::default()
-        .decoded_bytes
-        .get() as u64;
+    let size_bytes = 2 * crate::common::budgets::story_settings().decoded_bytes.get() as u64;
 
     let Gated {
         root: _root,

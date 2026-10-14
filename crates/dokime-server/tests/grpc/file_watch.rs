@@ -49,7 +49,10 @@ pub(crate) async fn file_watch_artifacts() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
     let mut owner = Runtime::with_execution_fixture(
-        RuntimeConfig::new(root.path(), common::metadata("grpc.files", "Files")),
+        crate::common::budgets::runtime_config(
+            root.path(),
+            common::metadata("grpc.files", "Files"),
+        ),
         "fixture",
         gate.clone(),
     )

@@ -661,3 +661,22 @@ pub(crate) fn app_roots_independent() {
     assert_eq!(ids(&first), [a]);
     assert_eq!(ids(&second), [b]);
 }
+
+// A prepared bundle set is current only when its stamp records this tree's
+// contract fingerprint; a missing, foreign or malformed stamp is stale.
+pub(crate) fn fixture_stamp_freshness() {
+    use crate::support::fixtures::current;
+    let contracts = "6fd5feb5";
+    let stamp = format!("revision becc491d\ncontracts {contracts}\n");
+    assert!(current(Some(&stamp), contracts));
+    assert!(current(Some("contracts 6fd5feb5"), contracts));
+    assert!(!current(None, contracts));
+    assert!(!current(Some(""), contracts));
+    assert!(!current(
+        Some("revision becc491d\ncontracts 0badf00d\n"),
+        contracts
+    ));
+    assert!(!current(Some("contracts 6fd5feb5ff\n"), contracts));
+    assert!(!current(Some("revision 6fd5feb5\n"), contracts));
+    assert!(!current(Some("contracts  6fd5feb5\n"), contracts));
+}

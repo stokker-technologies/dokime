@@ -10,6 +10,8 @@
 #![allow(dead_code)]
 
 /* === Modules === */
+#[path = "../../../dokime-app/tests/support/budgets.rs"]
+pub mod budgets;
 
 /* === Re-Exports === */
 
@@ -44,7 +46,7 @@ use dokime_app::transport::{
     ProviderExecutionFailure, ProviderExecutionOutcome, ProviderPhaseOutcome,
     ProviderStatusOutcome, ProviderTelemetryOutcome,
 };
-use dokime_app::{InstalledPlugin, Runtime, RuntimeConfig, RuntimeCredentialConfig, RuntimeHandle};
+use dokime_app::{InstalledPlugin, Runtime, RuntimeCredentialConfig, RuntimeHandle};
 
 /* === Constants === */
 
@@ -93,7 +95,7 @@ impl TestEnvironment {
     ) -> Self {
         let root = tempdir().unwrap();
         let mut runtime_config =
-            RuntimeConfig::new(root.path(), metadata("runtime.hub", "Runtime Hub"))
+            budgets::runtime_config(root.path(), metadata("runtime.hub", "Runtime Hub"))
                 .with_credential_backend(RuntimeCredentialConfig {
                     backend: CredentialBackendKind::Memory,
                     local_file: None,

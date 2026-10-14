@@ -286,7 +286,7 @@ pub(crate) async fn saturated_reads_plot() {
     let mut held = Vec::new();
     while let Ok(view) = runtime
         .storage()
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
     {
         held.push(view);

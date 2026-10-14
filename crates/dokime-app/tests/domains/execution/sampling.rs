@@ -31,7 +31,7 @@ use dokime_app::transactions::CycleDefinition;
 
 /* === Constants === */
 /// Rows each case pushes onto its own stream: many storage pages per case.
-const PULSE_ROWS: u32 = 2_000;
+const PULSE_ROWS: u32 = 640;
 
 /// Cases run back to back in one store. Before the pager kept its cursor in
 /// the index range, every page of a later case rescanned the earlier cases'
@@ -39,7 +39,9 @@ const PULSE_ROWS: u32 = 2_000;
 const CASES: usize = 6;
 
 /// Rows one large case pushes: more than the report could hold as samples
-/// under its 32 MiB materialization budget.
+/// under its 32 MiB materialization budget. The stories proving that run as
+/// their own entries in the serial `whole-read-budget` group, at the shipped
+/// read ledger.
 const LARGE_PULSE_ROWS: u32 = 20_000;
 
 /// Points the fixture's pulse plot declares it shows.
@@ -105,6 +107,20 @@ const LOGGED_LINES: u32 = 3;
 /* === Public Functions === */
 
 /* === Private Functions === */
+// A runtime with the suite fixture pushing the given rows.
+fn sampling_config(root: &Path, settings: serde_json::Value) -> RuntimeConfig {
+    config(root).with_plugins([fixture_bundle(root, "fixture-suites")
+        .configured("fixture-suites", settings)
+        .unwrap()])
+}
+
+// The budget-edge stories prove the shipped report budget at the shipped ledger.
+fn budget_edge_config(root: &Path, settings: serde_json::Value) -> RuntimeConfig {
+    let mut config = sampling_config(root, settings);
+    crate::support::budgets::whole_read_budget(&mut config.storage_reads);
+    config
+}
+
 async fn run_case(handle: &RuntimeHandle, label: &str) -> Duration {
     run_case_execution(handle, label, Duration::from_secs(60))
         .await
@@ -150,7 +166,7 @@ async fn run_case_execution(
                 .unwrap()
                 .unwrap();
             if receipt.summary.phase.terminal() {
-                break receipt.summary.phase;
+                break receipt;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
@@ -158,7 +174,12 @@ async fn run_case_execution(
     .await
     .unwrap_or_else(|_| panic!("{label} records its terminal provider state"));
     let settled = started.elapsed();
-    assert_eq!(phase, RunPhase::Completed, "{label}");
+    assert_eq!(
+        phase.summary.phase,
+        RunPhase::Completed,
+        "{label}: {:?}",
+        phase.interruption
+    );
     let execution = handle
         .cycles()
         .await
@@ -315,14 +336,10 @@ pub(crate) async fn logged_cycle_terminal() {
 // one case far larger than the report budget seals a reduced plot over every row.
 pub(crate) async fn large_case_seals() {
     let root = tempdir().unwrap();
-    let (mut runtime, handle) = started(
-        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
-            .configured(
-                "fixture-suites",
-                serde_json::json!({ "pulse_rows": LARGE_PULSE_ROWS }),
-            )
-            .unwrap()]),
-    )
+    let (mut runtime, handle) = started(budget_edge_config(
+        root.path(),
+        serde_json::json!({ "pulse_rows": LARGE_PULSE_ROWS }),
+    ))
     .await;
     let (_, execution_id) =
         run_case_execution(&handle, "pulse.large", Duration::from_secs(300)).await;
@@ -351,17 +368,13 @@ pub(crate) async fn large_case_seals() {
 // case whose other stream would overflow the report budget still seals both.
 pub(crate) async fn whole_capture_plot_seals() {
     let root = tempdir().unwrap();
-    let (mut runtime, handle) = started(
-        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
-            .configured(
-                "fixture-suites",
-                serde_json::json!({
-                    "pulse_rows": LARGE_PULSE_ROWS,
-                    "spectrum_rows": SPECTRUM_ROWS,
-                }),
-            )
-            .unwrap()]),
-    )
+    let (mut runtime, handle) = started(budget_edge_config(
+        root.path(),
+        serde_json::json!({
+            "pulse_rows": LARGE_PULSE_ROWS,
+            "spectrum_rows": SPECTRUM_ROWS,
+        }),
+    ))
     .await;
     let (_, execution_id) =
         run_case_execution(&handle, "spectrum.whole", Duration::from_secs(300)).await;
@@ -386,14 +399,10 @@ pub(crate) async fn whole_capture_plot_seals() {
 // Failed with that permanent cause instead of retrying forever.
 pub(crate) async fn oversized_report_settles() {
     let root = tempdir().unwrap();
-    let (mut runtime, handle) = started(
-        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
-            .configured(
-                "fixture-suites",
-                serde_json::json!({ "spectrum_rows": OVERSIZED_SPECTRUM_ROWS }),
-            )
-            .unwrap()]),
-    )
+    let (mut runtime, handle) = started(sampling_config(
+        root.path(),
+        serde_json::json!({ "spectrum_rows": OVERSIZED_SPECTRUM_ROWS }),
+    ))
     .await;
     let suite = handle
         .test_suites()

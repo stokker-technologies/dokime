@@ -181,7 +181,10 @@ async fn artifact_transfer_budget(message_bytes: usize) {
     let root = tempfile::tempdir().unwrap();
     let artifacts = Arc::new(Artifacts::default());
     let mut owner = Runtime::with_execution_fixture(
-        RuntimeConfig::new(root.path(), common::metadata("grpc.content", "Content")),
+        crate::common::budgets::runtime_config(
+            root.path(),
+            common::metadata("grpc.content", "Content"),
+        ),
         "fixture",
         artifacts.clone(),
     )
@@ -582,7 +585,7 @@ pub(crate) async fn artifact_upload_owned() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
     let mut owner = Runtime::with_execution_fixture(
-        RuntimeConfig::new(
+        crate::common::budgets::runtime_config(
             root.path(),
             common::metadata("grpc.content.upload", "Content"),
         ),
@@ -944,7 +947,7 @@ async fn completion_harness() -> (
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
     let owner = Runtime::with_execution_fixture(
-        RuntimeConfig::new(
+        crate::common::budgets::runtime_config(
             root.path(),
             common::metadata("grpc.content.completion", "Content"),
         ),
@@ -1348,15 +1351,12 @@ pub(crate) async fn large_artifact_buffering() {
     }
     // Stream 300 MiB through the existing native file contract.
     let root = tempfile::tempdir().unwrap();
-    let mut config = RuntimeConfig::new(
+    let mut config = crate::common::budgets::runtime_config(
         root.path(),
         common::metadata("grpc.content.bundle", "Content"),
     );
-    // Coverage Charges Instrumented Digest Verification To The Read Budget.
-    // Retain Ordinary Reads, Memory Bounds, And The 60-Second Completion Deadline.
-    if std::env::var("STKR_COVERAGE").as_deref() == Ok("1") {
-        config.storage_reads.execution.timeout = config.storage_reads.execution_ceiling.timeout;
-    }
+    // Streaming 300 MiB Moves More Than One Story's Share Of Reads.
+    crate::common::budgets::whole_read_budget(&mut config.storage_reads);
     let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact))
         .await
         .unwrap();

@@ -41,7 +41,7 @@ use dokime_app::{Runtime, RuntimeConfig};
 
 /* === Private Functions === */
 fn config(root: &Path, application: &Path) -> RuntimeConfig {
-    RuntimeConfig::new(
+    crate::support::budgets::runtime_config(
         root,
         Metadata::new(
             Identifier::new("fixture.identity").unwrap(),

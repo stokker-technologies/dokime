@@ -218,6 +218,10 @@ fn distribution_contract() {
         eprintln!("Scenario: store::app_roots_independent");
         store::app_roots_independent();
     }
+    {
+        eprintln!("Scenario: store::fixture_stamp_freshness");
+        store::fixture_stamp_freshness();
+    }
 }
 
 #[inline(never)]

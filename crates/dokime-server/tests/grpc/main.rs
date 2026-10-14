@@ -87,7 +87,7 @@ use tonic::{
 // Local Imports
 use dokime::domains::ExecutionProviderTarget;
 use dokime_app::{
-    ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture, Runtime, RuntimeConfig,
+    ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture, Runtime,
     core::{Identifier, Metadata},
     execution::{CycleView, ExecutionStatus},
     transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome},
@@ -473,7 +473,7 @@ impl ExecutionFixture for Gate {
 
 /* === Private Functions === */
 async fn runtime(root: &std::path::Path) -> Runtime {
-    let config = RuntimeConfig::new(
+    let config = crate::common::budgets::runtime_config(
         root,
         Metadata::new(
             Identifier::new("grpc.fixture").unwrap(),

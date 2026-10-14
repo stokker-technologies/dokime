@@ -49,7 +49,7 @@ from dokime_tools.check.release import (
 )
 from dokime_tools.check.wheel import verify_wheel
 from dokime_tools.ci.artifacts import job_id
-from dokime_tools.fixtures import FIXTURES
+from dokime_tools.fixtures import FIXTURES, STAMP
 from dokime_tools.package.wheel import select_wheel
 
 # Type Checking Imports
@@ -447,6 +447,11 @@ def _products(root: Path) -> dict[str, tuple[Path, str]]:
             root / "target/fixtures" / name / f"{name}.dokime",
             f"{FIXTURE_BUNDLES}/{name}/{name}.dokime",
         )
+    # Restored bundles keep the stamp that tells tests which contracts built them.
+    products[f"fixture:{STAMP}"] = (
+        root / "target/fixtures" / STAMP,
+        f"{FIXTURE_BUNDLES}/{STAMP}",
+    )
     for source, _ in products.values():
         if not source.is_file() or source.is_symlink():
             raise ValueError(f"missing native build artifact: {source}")

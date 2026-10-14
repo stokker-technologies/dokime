@@ -71,7 +71,7 @@ pub(crate) async fn report_save_receipt() {
     use harmos::storage::{ObjectVersion, StorageBackends, StorageSettings};
     use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
-    let reads = dokime_app::config::StorageReadSettings::default();
+    let reads = crate::support::budgets::story_settings();
     let root = tempfile::tempdir().unwrap();
     let primary = Arc::new(
         Backend::primary(root.path().join("primary"), Limits::default())
@@ -290,7 +290,7 @@ pub(crate) async fn report_save_receipt() {
     sealed_execution.saved = Some((*original).clone());
     let sealed = Execution::try_from(&sealed_execution).unwrap();
     let before_seal = manager
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
         .unwrap();
     let receipt = manager.write_object(&sealed).await.unwrap();
@@ -298,7 +298,7 @@ pub(crate) async fn report_save_receipt() {
         .await
         .unwrap();
     let view = manager
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
         .unwrap();
     let restored = execution::read_in(
@@ -476,7 +476,7 @@ pub(crate) async fn report_save_receipt() {
     drop(view);
 
     let view = manager
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
         .unwrap();
     let unchanged = execution::read_in(
@@ -720,7 +720,7 @@ pub(crate) async fn cycle_report_reboot() {
     );
     let view = handle
         .storage()
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
         .unwrap();
     let stored = dokime::storage::objects::cycle::read_in(

@@ -432,9 +432,12 @@ pub(crate) async fn stopping_cycle_execution() {
 }
 
 pub(crate) async fn stopping_ignored_run_settles() {
-    for mode in ["cancel_ignored", "cancel_signal_ignored"] {
-        check_ignored_stop(mode).await;
-    }
+    check_ignored_stop("cancel_ignored").await;
+}
+
+// The same settlement when the run also ignores the stop signal.
+pub(crate) async fn stopping_ignored_signal_settles() {
+    check_ignored_stop("cancel_signal_ignored").await;
 }
 
 async fn check_ignored_stop(mode: &str) {

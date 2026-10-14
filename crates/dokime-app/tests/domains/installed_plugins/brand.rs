@@ -254,12 +254,12 @@ mime_type = "image/svg+xml"
 
 pub(crate) async fn runtime_appearance_brand() {
     use dokime::core::{Identifier, Metadata};
-    use dokime_app::{Runtime, RuntimeConfig};
+    use dokime_app::Runtime;
 
     let root = tempdir().unwrap();
     write_brand(root.path(), NEUTRAL_BRAND);
     let brand = load_brand(root.path()).unwrap();
-    let mut owner = Runtime::start(RuntimeConfig::new(
+    let mut owner = Runtime::start(crate::support::budgets::runtime_config(
         root.path().join("runtime"),
         Metadata::new(
             Identifier::new("fixture.appearance").unwrap(),

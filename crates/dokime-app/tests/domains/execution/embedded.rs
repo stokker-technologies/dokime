@@ -162,7 +162,7 @@ pub(crate) async fn registration_replaces_failed() {
     use dokime::core::Metadata;
 
     let root = tempfile::tempdir().unwrap();
-    let config = dokime_app::RuntimeConfig::new(
+    let config = crate::support::budgets::runtime_config(
         root.path(),
         Metadata::new(
             Identifier::new("fixture.embedded.host").unwrap(),
@@ -289,7 +289,7 @@ pub(crate) async fn cancelled_registration_until() {
     use dokime::core::Metadata;
 
     let root = tempfile::tempdir().unwrap();
-    let config = dokime_app::RuntimeConfig::new(
+    let config = crate::support::budgets::runtime_config(
         root.path(),
         Metadata::new(
             Identifier::new("fixture.cancelled.host").unwrap(),
@@ -354,7 +354,7 @@ pub(crate) async fn replacement_settles_generation() {
     use dokime::core::Metadata;
 
     let root = tempfile::tempdir().unwrap();
-    let config = dokime_app::RuntimeConfig::new(
+    let config = crate::support::budgets::runtime_config(
         root.path(),
         Metadata::new(
             Identifier::new("fixture.cancelled.replacement").unwrap(),
@@ -457,7 +457,7 @@ impl EmbeddedProvider for ShutdownProbe {
 }
 
 fn shutdown_config(root: &std::path::Path) -> dokime_app::RuntimeConfig {
-    dokime_app::RuntimeConfig::new(
+    crate::support::budgets::runtime_config(
         root,
         dokime::core::Metadata::new(
             Identifier::new("fixture.shutdown.host").unwrap(),

@@ -25,7 +25,7 @@ use dokime::domains::{
 };
 // Local Imports
 use dokime_app::domains::settings::RuntimeSettingsCardState;
-use dokime_app::{RuntimeConfig, RuntimeCredentialConfig, RuntimeHandle};
+use dokime_app::{RuntimeCredentialConfig, RuntimeHandle};
 
 use dokime::settings::{
     SecretReference, SecretSetting, SettingValues, Settings, SettingsEntry, TextArea,
@@ -83,12 +83,15 @@ async fn fixture_runtime_with_dispatcher(
     let artifact_id = module
         .as_ref()
         .map(|module| Identifier::new(&module.source).unwrap());
-    let mut config = RuntimeConfig::new(root.path(), metadata("runtime.fixture", "Runtime"))
-        .with_credential_backend(RuntimeCredentialConfig {
-            backend: CredentialBackendKind::Memory,
-            local_file: None,
-        })
-        .with_installed_plugins(module);
+    let mut config = crate::support::budgets::runtime_config(
+        root.path(),
+        metadata("runtime.fixture", "Runtime"),
+    )
+    .with_credential_backend(RuntimeCredentialConfig {
+        backend: CredentialBackendKind::Memory,
+        local_file: None,
+    })
+    .with_installed_plugins(module);
     if let (Some(artifact_id), Some(dispatcher)) = (artifact_id, dispatcher) {
         config = config.with_action_dispatcher(artifact_id, dispatcher);
     }
@@ -420,12 +423,15 @@ pub(crate) async fn local_credentials_state() {
             default: None,
         })],
     };
-    let config = RuntimeConfig::new(root.path(), metadata("runtime.credentials", "Credentials"))
-        .with_credential_backend(RuntimeCredentialConfig {
-            backend: CredentialBackendKind::LocalFile,
-            local_file: Some(path.clone()),
-        })
-        .with_installed_plugins([artifact]);
+    let config = crate::support::budgets::runtime_config(
+        root.path(),
+        metadata("runtime.credentials", "Credentials"),
+    )
+    .with_credential_backend(RuntimeCredentialConfig {
+        backend: CredentialBackendKind::LocalFile,
+        local_file: Some(path.clone()),
+    })
+    .with_installed_plugins([artifact]);
     let mut runtime = dokime_app::Runtime::start(config.clone()).await.unwrap();
     let settings = runtime
         .handle()
@@ -470,7 +476,7 @@ pub(crate) async fn local_credentials_state() {
 
 pub(crate) async fn source_settings_absent() {
     let root = tempfile::tempdir().unwrap();
-    let config = dokime_app::RuntimeConfig::new(
+    let config = crate::support::budgets::runtime_config(
         root.path(),
         dokime::core::Metadata::new(
             dokime::core::Identifier::new("storage.settings").unwrap(),

@@ -46,7 +46,10 @@ pub(crate) async fn media_capture_artifacts() {
     let root = tempfile::tempdir().unwrap();
     let gate = Arc::new(UploadGate::default());
     let mut owner = Runtime::with_execution_fixture(
-        RuntimeConfig::new(root.path(), common::metadata("grpc.media", "Media")),
+        crate::common::budgets::runtime_config(
+            root.path(),
+            common::metadata("grpc.media", "Media"),
+        ),
         "fixture",
         gate.clone(),
     )

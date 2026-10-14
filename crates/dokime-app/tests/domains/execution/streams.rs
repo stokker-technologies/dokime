@@ -202,7 +202,7 @@ pub(crate) async fn live_rows_paths() {
     use dokime_app::transactions::CycleDefinition;
 
     let root = tempfile::tempdir().unwrap();
-    let config = dokime_app::RuntimeConfig::new(
+    let config = crate::support::budgets::runtime_config(
         root.path(),
         Metadata::new(
             Identifier::new("fixture.live.host").unwrap(),

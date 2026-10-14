@@ -178,7 +178,7 @@ async fn fixture_with_provider(
     provider: Arc<dyn ExecutionFixture>,
 ) -> Runtime {
     let owner = Runtime::with_execution_fixture(
-        RuntimeConfig::new(root, common::metadata("grpc.fixture", "Fixture")),
+        crate::common::budgets::runtime_config(root, common::metadata("grpc.fixture", "Fixture")),
         "fixture",
         provider,
     )
@@ -1035,7 +1035,7 @@ pub(crate) async fn historical_checkpoint_content() {
 
     // A restarted runtime renders the captured definitions without installed plugins.
     // Report bytes belong only to each request.
-    let mut rebooted = Runtime::start(RuntimeConfig::new(
+    let mut rebooted = Runtime::start(crate::common::budgets::runtime_config(
         root.path(),
         common::metadata("grpc.fixture", "Fixture"),
     ))

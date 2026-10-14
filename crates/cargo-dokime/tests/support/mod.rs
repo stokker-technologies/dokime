@@ -35,11 +35,12 @@
 /* === Public Functions === */
 pub fn tool() -> std::path::PathBuf {
     let path = std::path::PathBuf::from(
-        std::env::var_os("DOKIME_TEST_TOOL").expect("mise selects the exact release tool"),
+        std::env::var_os("DOKIME_TEST_TOOL")
+            .unwrap_or_else(|| panic!("DOKIME_TEST_TOOL is unset: run mise run test:acceptance")),
     );
     assert!(
         path.is_file(),
-        "run mise run build:release first: {}",
+        "release tool is missing: run mise run build:release ({})",
         path.display()
     );
     path

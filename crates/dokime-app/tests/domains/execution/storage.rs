@@ -74,7 +74,7 @@ pub(crate) async fn execution_save_sealing() {
     handle.storage().flush().await.unwrap();
     let view = handle
         .storage()
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
         .unwrap();
     let running = dokime::storage::objects::execution::read_in(
@@ -82,7 +82,7 @@ pub(crate) async fn execution_save_sealing() {
         &view,
         &id,
         harmos::storage::ObjectVersion::Latest,
-        dokime_app::config::StorageReadSettings::default().decoded_bytes,
+        crate::support::budgets::story_settings().decoded_bytes,
     )
     .await
     .unwrap()
@@ -203,7 +203,7 @@ pub(crate) async fn execution_save_sealing() {
     );
     let view = handle
         .storage()
-        .view_with_limits(dokime_app::config::StorageReadSettings::default().execution)
+        .view_with_limits(crate::support::budgets::story_settings().execution)
         .await
         .unwrap();
     let saved_cycle = dokime::storage::objects::cycle::read_in(
@@ -211,7 +211,7 @@ pub(crate) async fn execution_save_sealing() {
         &view,
         &cycle_id,
         harmos::storage::ObjectVersion::Latest,
-        dokime_app::config::StorageReadSettings::default().decoded_bytes,
+        crate::support::budgets::story_settings().decoded_bytes,
     )
     .await
     .unwrap()

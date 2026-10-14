@@ -26,7 +26,7 @@ from xml.etree import ElementTree
 # Local Imports
 from dokime_tools import contracts, release
 from dokime_tools.check.wheel import verify_wheel
-from dokime_tools.fixtures import FIXTURES
+from dokime_tools.fixtures import FIXTURES, STAMP
 
 # Type Checking Imports
 
@@ -315,7 +315,7 @@ def _artifacts(
         "wheel-audit",
     }
     required |= {"deb", "rpm"} if platform == "linux" else {"installer"}
-    required |= {f"fixture:{name}" for name, _, _ in FIXTURES}
+    required |= {f"fixture:{name}" for name, _, _ in FIXTURES} | {f"fixture:{STAMP}"}
     required |= {f"proto:{name}" for name in contracts.CORE_MEMBERS}
     if not required <= by_role.keys():
         raise ValueError(f"incomplete {platform} release artifact roles")

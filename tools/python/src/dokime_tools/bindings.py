@@ -13,6 +13,7 @@
 
 # Standard Library Imports
 import argparse
+import hashlib
 import os
 import subprocess
 import sys
@@ -44,6 +45,8 @@ _FILES = {
     "contracts.json",
     "descriptors.bin",
 }
+# The Generated Files Whose Bytes Identify The Contract Set, In Hash Order.
+CONTRACT_SET = ("contracts.json", "descriptors.bin")
 
 # === Types === #
 
@@ -161,6 +164,14 @@ def generate(
             for path in obsolete:
                 path.unlink()
     print("Python contracts match the selected Cargo build.")
+
+
+def fingerprint(root: Path = ROOT) -> str:
+    """The SHA-256 of the committed contract set this tree's bindings carry."""
+    digest = hashlib.sha256()
+    for name in CONTRACT_SET:
+        digest.update((root / "packages/dokime/src/dokime" / name).read_bytes())
+    return digest.hexdigest()
 
 
 def _skeleton(source: str) -> str:

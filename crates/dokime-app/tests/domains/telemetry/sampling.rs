@@ -31,7 +31,7 @@ use tempfile::TempDir;
 
 // Local Imports
 use dokime_app::domains::telemetry::{Sampler, SamplerSession, SettlementError};
-use dokime_app::{Runtime, RuntimeConfig, RuntimeHandle};
+use dokime_app::{Runtime, RuntimeHandle};
 
 /* === Constants === */
 
@@ -97,7 +97,7 @@ impl Drop for CountingSession {
 async fn test_runtime() -> (TempDir, Runtime, RuntimeHandle) {
     let root = tempfile::tempdir().unwrap();
     let runtime_owner = {
-        let runtime_config = RuntimeConfig::new(
+        let runtime_config = crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(
                 Identifier::new("runtime.sampling.test").unwrap(),
@@ -272,7 +272,7 @@ pub(crate) async fn host_collector_stream() {
     let artifact = dokime_host::installed_plugin();
     let source = artifact.source.clone();
     let mut owner = Runtime::start(
-        RuntimeConfig::new(
+        crate::support::budgets::runtime_config(
             root.path(),
             Metadata::new(
                 Identifier::new("fixture.host.sampling").unwrap(),
