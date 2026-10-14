@@ -25,6 +25,8 @@ include = [
 
 [features]
 default = []
+# Fault hooks the crate's own stories reach through the self dev-dependency.
+fault-injection = []
 fft = ["harmos/signal-fft"]
 # Captures screenshots, camera stills and audio on the host. Linux builds need the
 # ALSA development package, V4L2 kernel headers and libclang; Linux screenshots go
@@ -115,6 +117,7 @@ ashpd = { workspace = true, optional = true, features = ["screenshot"] }
 xcap = { workspace = true, optional = true }
 
 [dev-dependencies]
+dokime-app = { path = ".", features = ["fault-injection"] }
 
 # Logging
 tracing-subscriber = { workspace = true }

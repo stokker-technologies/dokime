@@ -59,7 +59,7 @@ impl RuntimeHandle {
 
     /// Fault injection for stories: commits a record whose type no contract
     /// declares, through `PublishRecord::undeclared`.
-    #[doc(hidden)]
+    #[cfg(feature = "fault-injection")]
     pub async fn publish_undeclared_record(
         &self,
         request: RecordPublishRequest,
