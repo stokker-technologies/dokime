@@ -313,7 +313,9 @@ pub(super) fn validate(
             .find(|stream| stream.id == contract.stream.as_str())
             .ok_or_else(|| {
                 format!(
-                    "telemetry `{}` has no native stream owned by `{}`",
+                    "telemetry `{}` is declared by a template of `{}` but the plugin does not \
+                     register it as a native stream: list its row type in the plugin's \
+                     `streams(...)`",
                     contract.stream, artifact.source
                 )
             })?;
