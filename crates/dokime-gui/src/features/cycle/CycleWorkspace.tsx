@@ -255,7 +255,6 @@ export function CycleWorkspace({
         cycleId={cycleId}
         live={live}
         focused={focus.focused}
-        onSelectExecution={(next) => onSelectionChange({ executionId: next })}
         onToggleFocus={() => focus.setFocused(!focus.focused)}
         plan={plan}
         row={selectedRow}
