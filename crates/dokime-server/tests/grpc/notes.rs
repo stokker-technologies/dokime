@@ -18,6 +18,7 @@
 
 // Local Imports
 use super::*;
+use dokime_app::RuntimeConfig;
 use dokime_app::core::{RecordScope, TestCycleId};
 use dokime_app::domains::evidence::OperatorNoteRequest;
 use dokime_app::execution::HealthSeverity;
