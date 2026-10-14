@@ -176,10 +176,13 @@ function CycleGroupSection({
   const heading = (
     <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-[var(--bar-gap)]">
       <p className="flex items-baseline gap-2">
-        <span className="font-heading font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
+        <span
+          className="font-heading text-lg font-semibold tracking-wide"
+          id={`cycle-group-${group.id}`}
+        >
           {group.title}
         </span>
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="font-mono text-sm tabular-nums text-muted-foreground">
           {group.rows.length}
         </span>
       </p>
@@ -224,13 +227,9 @@ function CycleTitle({ row }: { row: CycleRow }) {
 
   return (
     <span className="flex min-w-0 items-baseline gap-2">
-      <span className="truncate font-medium" title={row.label}>
-        {row.label}
-      </span>
+      <span className="truncate">{row.label}</span>
       {suite ? (
-        <span className="min-w-0 truncate text-xs text-muted-foreground" title={suite}>
-          {suite}
-        </span>
+        <span className="min-w-0 truncate text-xs text-muted-foreground">{suite}</span>
       ) : null}
     </span>
   );

@@ -162,16 +162,12 @@ export function HistoryLibrary({
 function EntryTitle({ entry }: { entry: ExploreEntry }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <span className="truncate font-medium" title={entry.title}>
-        {entry.title}
-      </span>
+      <span className="truncate">{entry.title}</span>
       {entry.target.kind === "execution" ? (
         <Badge variant="outline">Standalone Execution</Badge>
       ) : null}
       {entry.suite_name ? (
-        <span className="min-w-0 truncate text-xs text-muted-foreground" title={entry.suite_name}>
-          {entry.suite_name}
-        </span>
+        <span className="min-w-0 truncate text-xs text-muted-foreground">{entry.suite_name}</span>
       ) : null}
     </span>
   );
