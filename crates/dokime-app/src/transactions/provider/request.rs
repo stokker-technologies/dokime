@@ -11,7 +11,7 @@
 mod completion;
 
 /* === Re-Exports === */
-pub use completion::{CompleteRun, SettleRun};
+pub use completion::{CompleteRun, SettleRun, Unsealed};
 pub use dokime::execution::request::{RunPhase, RunSummary};
 
 /* === Imports === */

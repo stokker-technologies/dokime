@@ -23,6 +23,7 @@ use crate::{
     Error, Result, RuntimeHandle,
     execution::{CycleView, TestExecution, context::source::CapturedSource},
 };
+use dokime::{core::TestExecutionId, execution::ExecutionStatus};
 
 /* === Constants === */
 
@@ -43,11 +44,14 @@ struct FinalizationOrder {
 
 /* === Implementations === */
 impl RuntimeHandle {
+    /// Seals each execution's final report and returns those that failed,
+    /// each with its own cause. One execution's failure never stops its
+    /// siblings from sealing.
     pub(crate) async fn finish_saved_executions(
         &self,
         cycle: &CycleView,
         executions: Vec<TestExecution>,
-    ) -> Result<()> {
+    ) -> Result<Vec<(TestExecutionId, Error)>> {
         let memory = self.storage().prepare_production(bound(
             std::mem::size_of::<FinalizationOrder>() + 2 * std::mem::size_of::<usize>(),
         )?)?;
@@ -58,53 +62,128 @@ impl RuntimeHandle {
         });
         // Keep Four Independent Captures Active Until The Original Set Settles.
         let Some(first) = executions.first() else {
-            return Ok(());
+            return Ok(Vec::new());
         };
-        let capture = self.finish_saved_execution_ordered(cycle, first, order.clone());
+        let capture = self.finish_saved_execution_attributed(cycle, first, order.clone());
         let capture_bytes = std::mem::size_of_val(&capture)
             .checked_add(256)
             .and_then(|bytes| bytes.checked_mul(4))
             .ok_or_else(|| invalid("terminal capture pool memory overflows"))?;
         let _captures = self.storage().prepare_production(bound(capture_bytes)?)?;
         drop(capture);
+        let mut failures = Vec::new();
+        let mut pending = executions.iter().collect::<Vec<_>>();
         let mut concurrency = 4;
         loop {
-            let mut remaining = executions.iter();
+            let mut remaining = pending.iter();
             let mut active = FuturesUnordered::new();
             for execution in remaining.by_ref().take(concurrency) {
-                active.push(self.finish_saved_execution_ordered(cycle, execution, order.clone()));
+                active.push(self.finish_saved_execution_attributed(
+                    cycle,
+                    execution,
+                    order.clone(),
+                ));
             }
-            let mut failure = None;
-            while let Some(result) = active.next().await {
-                if let Err(error) = result {
-                    // Drain Accepted Captures Before Retrying. Preserve A Permanent
-                    // Failure Even If Another Capture First Refused Shared Capacity.
-                    if failure
-                        .as_ref()
-                        .is_none_or(super::record_capture::read_capacity)
+            let mut refused = Vec::new();
+            while let Some((execution, result)) = active.next().await {
+                match result {
+                    Ok(()) => {}
+                    // Large Reports May Fit Individually But Not As A Parallel Group.
+                    Err(error)
+                        if concurrency > 1 && super::record_capture::read_capacity(&error) =>
                     {
-                        failure = Some(error);
+                        refused.push(execution);
                     }
+                    Err(error) => failures.push((execution.test_execution_id.clone(), error)),
                 }
-                if failure.is_none()
-                    && let Some(execution) = remaining.next()
-                {
-                    active.push(self.finish_saved_execution_ordered(
+                if let Some(execution) = remaining.next() {
+                    active.push(self.finish_saved_execution_attributed(
                         cycle,
                         execution,
                         order.clone(),
                     ));
                 }
             }
-            match failure {
-                Some(error) if concurrency > 1 && super::record_capture::read_capacity(&error) => {
-                    // Large Reports May Fit Individually But Not As A Parallel Group.
-                    concurrency = 1;
+            if refused.is_empty() {
+                return Ok(failures);
+            }
+            concurrency = 1;
+            pending = refused;
+        }
+    }
+
+    /// Earlier settled attempts of this cycle whose final report was never
+    /// produced. The cycle seal still requires them, so the next finalization
+    /// seals them too. Attempts a restart interrupted are not sealed here. A
+    /// member whose seal cannot be read is left to the cycle seal, which
+    /// reports it.
+    pub(crate) async fn unsealed_members(
+        &self,
+        cycle: &CycleView,
+        selected: &[TestExecution],
+    ) -> Vec<TestExecution> {
+        let candidates = cycle
+            .test_executions
+            .iter()
+            .filter(|execution| {
+                execution.saved.is_none()
+                    && execution.finished_at.is_some()
+                    && matches!(
+                        execution.status,
+                        ExecutionStatus::Passed
+                            | ExecutionStatus::Failed
+                            | ExecutionStatus::Blocked
+                            | ExecutionStatus::Cancelled
+                    )
+                    && !selected
+                        .iter()
+                        .any(|chosen| chosen.test_execution_id == execution.test_execution_id)
+            })
+            .collect::<Vec<_>>();
+        let mut unsealed = Vec::new();
+        for execution in candidates {
+            let id = &execution.test_execution_id;
+            if self.execution_storage.has_final_report(id).await {
+                continue;
+            }
+            match self.saved_seal(id).await {
+                Ok(false) => unsealed.push(execution.clone()),
+                Ok(true) => {}
+                Err(error) => {
+                    tracing::debug!(%error, execution_id = %id, "earlier attempt seal is unreadable");
                 }
-                Some(error) => return Err(error),
-                None => return Ok(()),
             }
         }
+        unsealed
+    }
+
+    async fn saved_seal(&self, id: &TestExecutionId) -> Result<bool> {
+        let view = self
+            .storage()
+            .view_with_limits(self.config().storage_reads.execution)
+            .await?;
+        let limit = view.decoded_bytes()?;
+        let latest = ExecutionView::open(
+            self.storage(),
+            view,
+            id,
+            harmos::storage::ObjectVersion::Latest,
+            limit,
+        )
+        .await?;
+        Ok(latest.is_some_and(|latest| latest.execution().saved.is_some()))
+    }
+
+    async fn finish_saved_execution_attributed<'a>(
+        &self,
+        cycle: &CycleView,
+        execution: &'a TestExecution,
+        order: Arc<FinalizationOrder>,
+    ) -> (&'a TestExecution, Result<()>) {
+        let result = self
+            .finish_saved_execution_ordered(cycle, execution, order)
+            .await;
+        (execution, result)
     }
 
     pub(crate) async fn finish_saved_execution(

@@ -295,6 +295,10 @@ fn evidence_contract() {
         run_scenario(evidence::notes::empty_cycle_datasets, false, None, false);
     }
     {
+        eprintln!("Scenario: evidence::plots::saturated_reads_plot");
+        run_scenario(evidence::plots::saturated_reads_plot, true, None, false);
+    }
+    {
         eprintln!("Scenario: evidence::plots::snapshot_query_samples");
         run_scenario(evidence::plots::snapshot_query_samples, false, None, false);
     }
@@ -682,6 +686,37 @@ fn execution_contract() {
         );
     }
     {
+        eprintln!("Scenario: execution::prompts::cycle_stop_settles_prompts");
+        run_scenario(
+            execution::prompts::cycle_stop_settles_prompts,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: execution::prompts::execution_stop_settles_prompts");
+        run_scenario(
+            execution::prompts::execution_stop_settles_prompts,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: execution::prompts::interruption_settles_prompts");
+        run_scenario(
+            execution::prompts::interruption_settles_prompts,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: execution::prompts::stopped_run_question");
+        run_scenario(execution::prompts::stopped_run_question, true, None, false);
+    }
+    {
         eprintln!("Scenario: execution::prompts::requests_refuses_scopes");
         run_scenario(
             execution::prompts::requests_refuses_scopes,
@@ -836,6 +871,24 @@ fn execution_contract() {
     {
         eprintln!("Scenario: execution::sampling::large_case_seals");
         run_scenario(execution::sampling::large_case_seals, false, None, false);
+    }
+    {
+        eprintln!("Scenario: execution::sampling::logged_cycle_terminal");
+        run_scenario(
+            execution::sampling::logged_cycle_terminal,
+            true,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: execution::storage::permanent_finalization_settles");
+        run_scenario(
+            execution::storage::permanent_finalization_settles,
+            true,
+            None,
+            false,
+        );
     }
     {
         eprintln!("Scenario: execution::storage::execution_save_sealing");

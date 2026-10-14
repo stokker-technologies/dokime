@@ -278,6 +278,7 @@ fn settle_request(state: &mut RuntimeState, id: &CommandId) {
         at: settle.at,
         sealed_cycle: None,
         sealed_executions: Vec::new(),
+        unsealed: None,
     };
     complete.check(state).unwrap();
     complete.apply(state);
@@ -912,6 +913,7 @@ pub(crate) fn settlement_replay_timestamp() {
         at: later,
         sealed_cycle: None,
         sealed_executions: Vec::new(),
+        unsealed: None,
     };
     assert_eq!(
         complete.check(&state).unwrap_err(),
