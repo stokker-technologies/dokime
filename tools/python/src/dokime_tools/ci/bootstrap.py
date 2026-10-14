@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import urllib.parse
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -204,7 +205,10 @@ def harmos_pin(root: Path) -> dict[str, str]:
     if branch is None and _is_revision(revision):
         return {"git": url, "rev": revision, "package": "cargo-harmos"}
     if revision is None and isinstance(branch, str) and branch:
-        locked = _locked_revision(root, f"git+{url}?branch={branch}#")
+        # Cargo Percent-Encodes The Branch In Its Lockfile Source
+        locked = _locked_revision(
+            root, f"git+{url}?branch={urllib.parse.quote(branch, safe='')}#"
+        )
         return {"git": url, "branch": branch, "rev": locked, "package": "cargo-harmos"}
     raise ValueError(
         "Harmos tools require the exact declared public Git revision or a branch"

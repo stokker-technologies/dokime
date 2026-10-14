@@ -223,7 +223,7 @@ def test_harmos_branch(tmp_path: Path) -> None:
 
     (tmp_path / "Cargo.lock").write_text(
         '[[package]]\nname = "harmos"\nversion = "0.2.0"\n'
-        + f'source = "git+{repository}?branch=refactor/streamline#{"c" * 40}"\n'
+        + f'source = "git+{repository}?branch=refactor%2Fstreamline#{"c" * 40}"\n'
     )
     assert bootstrap.harmos_pin(tmp_path) == {
         "git": repository,
