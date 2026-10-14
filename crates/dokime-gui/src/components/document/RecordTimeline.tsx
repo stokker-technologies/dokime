@@ -28,7 +28,6 @@ import { useMemo, useState } from "react";
 
 /* === Local Imports === */
 
-import { RECORD_ROW_COLUMNS, RecordRowPanel } from "@/components/document/RecordRowPanel";
 import { RecordDetailsDialog } from "@/components/RecordDetailsDialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -54,6 +53,9 @@ import { cn } from "@/lib/utils";
 /** One control height for every filter, whatever its primitive's own default. */
 const FILTER_CONTROL_CLASS = "h-[var(--bar-control-height)]";
 
+/** The record row's column tracks: time, level, source, message, type. */
+const RECORD_ROW_COLUMNS = "grid grid-cols-[6rem_5.5rem_10rem_minmax(0,1fr)_auto] gap-x-3";
+
 /* === Components === */
 
 export function RecordTimeline({
@@ -66,7 +68,6 @@ export function RecordTimeline({
 }) {
   const [recordType, setRecordType] = useState("all");
   const [query, setQuery] = useState("");
-  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<HubRecord | null>(null);
   const recordSearchId = "record-timeline-search";
   const recordTypeId = "record-timeline-type";
@@ -165,13 +166,11 @@ export function RecordTimeline({
           /* One dense grid, live and frozen: time, level, source, message, and
              the technical record type where it belongs — at the row's end,
              muted, for the reader who needs it. The row keeps its message to
-             one line; expanding it opens the panel with the full message and
-             the payload behind it. */
+             one line; opening it shows the whole record in the dialog. */
           /* The Records card already owns the only border around this list;
              a second one here would be a card inside a card. */
           <ol className="grid border-t" data-testid="record-rows">
             {visibleRecords.map((record) => {
-              const expanded = expandedRecordId === record.record_id;
               return (
                 <li
                   className={cn(
@@ -181,16 +180,12 @@ export function RecordTimeline({
                   key={record.record_id}
                 >
                   <button
-                    aria-expanded={expanded}
+                    aria-haspopup="dialog"
                     className={cn(
                       RECORD_ROW_COLUMNS,
                       "w-full items-start px-3 py-1.5 text-left font-mono text-xs tabular-nums hover:bg-muted/40",
                     )}
-                    onClick={() =>
-                      setExpandedRecordId((current) =>
-                        current === record.record_id ? null : record.record_id,
-                      )
-                    }
+                    onClick={() => setSelectedRecord(record)}
                     type="button"
                   >
                     <time className="truncate text-muted-foreground" dateTime={record.timestamp}>
@@ -206,13 +201,6 @@ export function RecordTimeline({
                     <span className="min-w-0 truncate">{recordLine(record)}</span>
                     <span className="truncate text-muted-foreground">{record.record_type}</span>
                   </button>
-                  {expanded ? (
-                    <RecordRowPanel
-                      live={live}
-                      onInspect={() => setSelectedRecord(record)}
-                      record={record}
-                    />
-                  ) : null}
                 </li>
               );
             })}
