@@ -13,13 +13,14 @@
 
 /* === Imports === */
 // Standard Library Imports
+use std::collections::BTreeMap;
 
 // Third Party Imports
 
 // Local Imports
-use crate::records::{ProductRecordDraft, Record};
+use crate::records::{BuiltinRecordType, Record, RecordSeverity};
 use crate::state::RuntimeState;
-use dokime::core::{RecordId, Timestamp};
+use dokime::core::{RecordId, RecordScope, Timestamp, Value};
 
 /* === Constants === */
 
@@ -28,6 +29,17 @@ use dokime::core::{RecordId, Timestamp};
 /* === Type Aliases === */
 
 /* === Structs === */
+/// A record the host drafts itself. Its type is a declared built-in, so it
+/// always has a registered contract and is never published unregistered.
+pub(crate) struct BuiltinDraft {
+    pub record_type: BuiltinRecordType,
+    pub source: String,
+    pub severity: RecordSeverity,
+    pub message: Option<String>,
+    pub details: BTreeMap<String, Value>,
+    pub scope: Option<RecordScope>,
+}
+
 #[derive(Default)]
 pub(crate) struct Drafts {
     session: dokime::core::SessionId,
@@ -74,13 +86,13 @@ impl Drafts {
         self.records.push((record, Some(owner.to_owned())));
     }
 
-    pub(crate) fn draft(&mut self, draft: ProductRecordDraft, at: Timestamp) {
+    pub(crate) fn draft(&mut self, draft: BuiltinDraft, at: Timestamp) {
         self.push(Record {
             record_id: self.next_id(),
             received_at: at.clone(),
             timestamp: at,
-            record_type: draft.record_type,
-            schema_version: 1,
+            record_type: draft.record_type.identifier(),
+            schema_version: draft.record_type.schema_version(),
             source: draft.source,
             severity: draft.severity,
             message: draft.message,

@@ -19,7 +19,9 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleStatus, ExecutionStatus, StepRecord, StepStatus};
+use crate::records::BuiltinRecordType;
 use crate::traceability::derived_traceability_group_named;
+use crate::transactions::records::draft::BuiltinDraft;
 use crate::{Error, state::RuntimeState};
 use dokime::core::{Identifier, Metadata, RecordScope, StepId, Timestamp};
 use dokime::traceability::TraceabilitySection;
@@ -166,8 +168,8 @@ impl UpdateExecutionPhase {
             && phase_step_status(&self.status) != StepStatus::Pending
         {
             records.draft(
-                crate::records::ProductRecordDraft {
-                    record_type: Identifier::new("test.execution.started").expect("builtin"),
+                BuiltinDraft {
+                    record_type: BuiltinRecordType::TestExecutionStarted,
                     source: "runtime".into(),
                     severity: crate::records::RecordSeverity::Info,
                     message: Some("Test execution started.".into()),

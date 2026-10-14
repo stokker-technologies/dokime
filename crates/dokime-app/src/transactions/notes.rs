@@ -23,9 +23,11 @@ use crate::execution::notes::{
     NOTE_CHECKPOINT_LIMIT, NOTE_EDIT_NOT_AUTHOR, NOTE_OWNER_SEALED, NOTE_RECEIPT_BYTES,
     NOTE_RECEIPT_LIMIT, NoteAdmission, note_identity,
 };
-use crate::records::{ProductRecordDraft, RecordSeverity};
+use crate::records::BuiltinRecordType;
+use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
-use dokime::core::{Identifier, NoteId, Timestamp, Value};
+use crate::transactions::records::draft::BuiltinDraft;
+use dokime::core::{NoteId, Timestamp, Value};
 
 /* === Constants === */
 
@@ -88,9 +90,8 @@ impl AddOperatorNote {
         let note = self.note.clone();
         let mut records = crate::transactions::records::draft::Drafts::new(state);
         records.draft(
-            ProductRecordDraft {
-                record_type: Identifier::new("operator.note_added")
-                    .expect("built-in event identifier is valid"),
+            BuiltinDraft {
+                record_type: BuiltinRecordType::OperatorNoteAdded,
                 source: "operator".to_owned(),
                 severity: RecordSeverity::Info,
                 message: Some("Operator note added.".to_owned()),
@@ -238,9 +239,8 @@ impl EditOperatorNote {
         let mut records = crate::transactions::records::draft::Drafts::new(state);
         if let Some(note) = state.find_note(&self.note_id) {
             records.draft(
-                ProductRecordDraft {
-                    record_type: Identifier::new("operator.note_edited")
-                        .expect("built-in event identifier is valid"),
+                BuiltinDraft {
+                    record_type: BuiltinRecordType::OperatorNoteEdited,
                     source: "operator".to_owned(),
                     severity: RecordSeverity::Info,
                     message: Some("Operator note edited.".to_owned()),

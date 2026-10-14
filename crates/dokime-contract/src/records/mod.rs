@@ -13,10 +13,11 @@ pub mod contract;
 /* === Re-Exports === */
 pub use crate::core::{CompatibilityStatus, ValidationMode};
 pub use contract::{
-    PRODUCT_CALIBRATION_KINDS, PRODUCT_CALIBRATION_PHASES, PRODUCT_CONNECTION_STATES,
-    PRODUCT_READINESS_STATES, PRODUCT_TARGET_LOCK_STATES, RecordCondition,
-    RecordConditionEvaluation, RecordContract, RecordDisplay, RecordField, RecordIconKey,
-    RecordPattern, RecordSeverity, RecordTone, builtin_record_contracts, builtin_record_types,
+    BuiltinRecordType, PRODUCT_CALIBRATION_KINDS, PRODUCT_CALIBRATION_PHASES,
+    PRODUCT_CONNECTION_STATES, PRODUCT_READINESS_STATES, PRODUCT_TARGET_LOCK_STATES,
+    RecordCondition, RecordConditionEvaluation, RecordContract, RecordDisplay, RecordField,
+    RecordIconKey, RecordPattern, RecordSeverity, RecordTone, builtin_record_contracts,
+    builtin_record_types,
 };
 
 /* === Imports === */

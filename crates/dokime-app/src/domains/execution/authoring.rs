@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 // Local Imports
 use crate::definition::ParameterSource;
+use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::{
     error::Error,
@@ -439,7 +440,7 @@ impl RuntimeResourceStore {
         let (metadata, value) = resource.into_parts();
         let receipt = self
             .publish_resource_record(
-                "resource.registered",
+                BuiltinRecordType::ResourceRegistered,
                 RecordSeverity::Info,
                 format!("Resource {} registered.", metadata.resource_name),
                 &metadata,
@@ -465,7 +466,7 @@ impl RuntimeResourceStore {
         self.mark_lifecycle(
             resource_id,
             crate::records::ResourceLifecycle::Opened,
-            "resource.opened",
+            BuiltinRecordType::ResourceOpened,
             RecordSeverity::Info,
             details,
         )
@@ -482,7 +483,7 @@ impl RuntimeResourceStore {
         self.mark_lifecycle(
             resource_id,
             crate::records::ResourceLifecycle::Failed,
-            "resource.failed",
+            BuiltinRecordType::ResourceFailed,
             RecordSeverity::Error,
             details,
         )
@@ -497,7 +498,7 @@ impl RuntimeResourceStore {
         self.mark_lifecycle(
             resource_id,
             crate::records::ResourceLifecycle::Closed,
-            "resource.closed",
+            BuiltinRecordType::ResourceClosed,
             RecordSeverity::Info,
             details,
         )
@@ -521,7 +522,7 @@ impl RuntimeResourceStore {
         let mut metadata = existing.metadata.clone();
         merge_details(&mut metadata.details, details);
         self.publish_resource_record(
-            "resource.removed",
+            BuiltinRecordType::ResourceRemoved,
             RecordSeverity::Info,
             format!("Resource {} removed.", metadata.resource_name),
             &metadata,
@@ -543,7 +544,7 @@ impl RuntimeResourceStore {
         &mut self,
         resource_id: &str,
         lifecycle: crate::records::ResourceLifecycle,
-        record_type: &'static str,
+        record_type: BuiltinRecordType,
         severity: RecordSeverity,
         details: BTreeMap<String, Value>,
     ) -> Result<PublishReceipt, StepContextError> {
@@ -581,12 +582,12 @@ impl RuntimeResourceStore {
 
     async fn publish_resource_record(
         &self,
-        record_type: &'static str,
+        record_type: BuiltinRecordType,
         severity: RecordSeverity,
         message: String,
         metadata: &RuntimeResourceMetadata,
     ) -> Result<PublishReceipt, StepContextError> {
-        let mut request = RecordPublishRequest::new(identifier(record_type), severity);
+        let mut request = RecordPublishRequest::new(record_type.identifier(), severity);
         request.scope = Some(self.scope.clone());
         request.message = Some(message);
         request.details = resource_record_details(metadata);

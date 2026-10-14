@@ -228,12 +228,12 @@ impl RuntimeHandle {
                 .collect::<Vec<_>>();
             for scope in scopes {
                 let mut request = crate::records::RecordPublishRequest::new(
-                    dokime::core::Identifier::new(if matches!(action, Action::Pause) {
-                        "test.execution.paused"
+                    if matches!(action, Action::Pause) {
+                        crate::records::BuiltinRecordType::TestExecutionPaused
                     } else {
-                        "test.execution.resumed"
-                    })
-                    .expect("builtin"),
+                        crate::records::BuiltinRecordType::TestExecutionResumed
+                    }
+                    .identifier(),
                     crate::records::RecordSeverity::Info,
                 );
                 let key = RequestKey::new(format!(

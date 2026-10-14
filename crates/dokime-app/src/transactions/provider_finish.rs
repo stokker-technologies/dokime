@@ -23,6 +23,7 @@ use crate::execution::{
     CriterionResult, CriterionStatus, CycleStatus, CycleView, ExecutionStatus, HealthSeverity,
     ResultStatus, ResultSummary, StepRecord, StepStatus, TestExecution,
 };
+use crate::records::BuiltinRecordType;
 use crate::records::{
     Record, RecordSeverity, ValidationMode as RecordValidationMode, validate_record,
 };
@@ -30,6 +31,7 @@ use crate::state::RuntimeState;
 use crate::transactions::prompts::{
     PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
 };
+use crate::transactions::records::draft::BuiltinDraft;
 use crate::transactions::records::draft::Drafts;
 use dokime::core::{
     CriterionId, DebugLevel, ErrorCause, Identifier, Metadata, RecordScope, SessionId, StepId,
@@ -472,14 +474,14 @@ fn prepare_provider_outcome(
     let scope = request_scope(state, &cycle.test_cycle_id);
     if !bounded {
         plan.terminal.draft(
-            crate::records::ProductRecordDraft {
-                record_type: identifier(if stopped {
-                    "test.cycle.stopped"
+            BuiltinDraft {
+                record_type: if stopped {
+                    BuiltinRecordType::TestCycleStopped
                 } else if succeeded {
-                    "test.cycle.completed"
+                    BuiltinRecordType::TestCycleCompleted
                 } else {
-                    "test.cycle.failed"
-                }),
+                    BuiltinRecordType::TestCycleFailed
+                },
                 source: "runtime".to_owned(),
                 severity: if succeeded || stopped {
                     RecordSeverity::Info
@@ -500,14 +502,14 @@ fn prepare_provider_outcome(
         );
     }
     plan.terminal.draft(
-        crate::records::ProductRecordDraft {
-            record_type: identifier(if succeeded {
-                "provider.execution.completed"
+        BuiltinDraft {
+            record_type: if succeeded {
+                BuiltinRecordType::ProviderExecutionCompleted
             } else if stopped {
-                "test.execution.stopped"
+                BuiltinRecordType::TestExecutionStopped
             } else {
-                "provider.execution.failed"
-            }),
+                BuiltinRecordType::ProviderExecutionFailed
+            },
             source: "provider".to_owned(),
             severity: if succeeded || stopped {
                 RecordSeverity::Info
@@ -616,12 +618,12 @@ fn prepare_provider_error(
     }
     if !bounded {
         plan.terminal.draft(
-            crate::records::ProductRecordDraft {
-                record_type: identifier(if stopped {
-                    "test.cycle.stopped"
+            BuiltinDraft {
+                record_type: if stopped {
+                    BuiltinRecordType::TestCycleStopped
                 } else {
-                    "test.cycle.failed"
-                }),
+                    BuiltinRecordType::TestCycleFailed
+                },
                 source: "runtime".to_owned(),
                 severity: if stopped {
                     RecordSeverity::Info
@@ -643,12 +645,12 @@ fn prepare_provider_error(
         );
     }
     plan.terminal.draft(
-        crate::records::ProductRecordDraft {
-            record_type: identifier(if stopped {
-                "test.execution.stopped"
+        BuiltinDraft {
+            record_type: if stopped {
+                BuiltinRecordType::TestExecutionStopped
             } else {
-                "provider.execution.failed"
-            }),
+                BuiltinRecordType::ProviderExecutionFailed
+            },
             source: "provider".to_owned(),
             severity: if stopped {
                 RecordSeverity::Info
@@ -1217,21 +1219,30 @@ fn finish_execution(
     execution.refresh_step_records();
 }
 
-fn terminal_execution_record(
-    execution: &TestExecution,
-    label: &str,
-) -> Option<crate::records::ProductRecordDraft> {
+fn terminal_execution_record(execution: &TestExecution, label: &str) -> Option<BuiltinDraft> {
     let (record_type, severity, status) = match execution.status {
         ExecutionStatus::Passed => (
-            "test.execution.completed",
+            BuiltinRecordType::TestExecutionCompleted,
             RecordSeverity::Info,
             "completed",
         ),
-        ExecutionStatus::Failed => ("test.execution.failed", RecordSeverity::Error, "failed"),
-        ExecutionStatus::Blocked => ("test.execution.blocked", RecordSeverity::Warning, "blocked"),
-        ExecutionStatus::Cancelled => ("test.execution.stopped", RecordSeverity::Info, "stopped"),
+        ExecutionStatus::Failed => (
+            BuiltinRecordType::TestExecutionFailed,
+            RecordSeverity::Error,
+            "failed",
+        ),
+        ExecutionStatus::Blocked => (
+            BuiltinRecordType::TestExecutionBlocked,
+            RecordSeverity::Warning,
+            "blocked",
+        ),
+        ExecutionStatus::Cancelled => (
+            BuiltinRecordType::TestExecutionStopped,
+            RecordSeverity::Info,
+            "stopped",
+        ),
         ExecutionStatus::Interrupted => (
-            "test.execution.interrupted",
+            BuiltinRecordType::TestExecutionInterrupted,
             RecordSeverity::Warning,
             "interrupted",
         ),
@@ -1242,8 +1253,8 @@ fn terminal_execution_record(
             return None;
         }
     };
-    Some(crate::records::ProductRecordDraft {
-        record_type: identifier(record_type),
+    Some(BuiltinDraft {
+        record_type,
         source: "runtime".to_owned(),
         severity,
         message: Some(format!("Test execution {label} {status}.")),

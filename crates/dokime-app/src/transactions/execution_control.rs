@@ -21,17 +21,19 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use crate::execution::{CycleStatus, ExecutionStatus};
-use crate::records::{ProductRecordDraft, RecordSeverity};
+use crate::records::BuiltinRecordType;
+use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
 use crate::transactions::prompts::{
     PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
 };
+use crate::transactions::records::draft::BuiltinDraft;
 use crate::transactions::records::draft::Drafts;
 use crate::transactions::{
     CycleControlAction,
     provider::request::{RunPhase, RunRequest},
 };
-use dokime::core::{Identifier, TestExecutionId, Timestamp};
+use dokime::core::{TestExecutionId, Timestamp};
 
 /* === Constants === */
 
@@ -149,21 +151,21 @@ impl ControlExecution {
         let execution = &state.executions[&self.test_execution_id];
         let (name, message) = match self.action {
             CycleControlAction::Pause => (
-                "test.execution.pause_requested",
+                BuiltinRecordType::TestExecutionPauseRequested,
                 "Execution request paused.",
             ),
             CycleControlAction::Resume => (
-                "test.execution.resume_requested",
+                BuiltinRecordType::TestExecutionResumeRequested,
                 "Execution request resumed.",
             ),
             CycleControlAction::Stop => (
-                "test.execution.stop_requested",
+                BuiltinRecordType::TestExecutionStopRequested,
                 "Execution request stop requested.",
             ),
         };
         records.draft(
-            ProductRecordDraft {
-                record_type: Identifier::new(name).expect("builtin record"),
+            BuiltinDraft {
+                record_type: name,
                 source: "runtime".into(),
                 severity: RecordSeverity::Info,
                 message: Some(message.into()),

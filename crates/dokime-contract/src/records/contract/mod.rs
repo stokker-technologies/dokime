@@ -16,9 +16,9 @@ mod severity;
 
 /* === Re-Exports === */
 pub use builtins::{
-    PRODUCT_CALIBRATION_KINDS, PRODUCT_CALIBRATION_PHASES, PRODUCT_CONNECTION_STATES,
-    PRODUCT_READINESS_STATES, PRODUCT_TARGET_LOCK_STATES, builtin_record_contracts,
-    builtin_record_types,
+    BuiltinRecordType, PRODUCT_CALIBRATION_KINDS, PRODUCT_CALIBRATION_PHASES,
+    PRODUCT_CONNECTION_STATES, PRODUCT_READINESS_STATES, PRODUCT_TARGET_LOCK_STATES,
+    builtin_record_contracts, builtin_record_types,
 };
 pub use conditions::{RecordCondition, RecordConditionEvaluation};
 pub use pattern::RecordPattern;

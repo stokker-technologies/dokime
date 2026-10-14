@@ -19,13 +19,11 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::Error;
-use crate::records::{
-    Record, RecordSeverity, ValidationMode, builtin_record_contracts, validate_record,
-};
+use crate::records::{BuiltinRecordType, Record, RecordSeverity, ValidationMode, validate_record};
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::Drafts;
 use dokime::core::{
-    CommandId, Identifier, PromptId, RecordScope, Timestamp, ValidationIssue, Value, ValueType,
+    CommandId, PromptId, RecordScope, Timestamp, ValidationIssue, Value, ValueType,
 };
 use dokime::prompts::{
     PromptAction, PromptActionEmphasis, PromptDefinition, PromptField, PromptFieldKind,
@@ -89,10 +87,10 @@ impl PromptSettlement {
         }
     }
 
-    fn record_type(self) -> &'static str {
+    fn record_type(self) -> BuiltinRecordType {
         match self {
-            Self::Stopped => "prompt.response.cancelled",
-            Self::Ended | Self::Interrupted => "prompt.response.expired",
+            Self::Stopped => BuiltinRecordType::PromptResponseCancelled,
+            Self::Ended | Self::Interrupted => BuiltinRecordType::PromptResponseExpired,
         }
     }
 
@@ -211,10 +209,7 @@ pub(crate) fn settle_prompts(
     at: &Timestamp,
     owned: impl Fn(&RecordScope) -> bool,
 ) -> SettledPrompts {
-    let contract = builtin_record_contracts()
-        .into_iter()
-        .find(|contract| contract.record_type.as_str() == settlement.record_type())
-        .expect("prompt settlement records have built-in contracts");
+    let contract = settlement.record_type().contract();
     let mut settled = SettledPrompts {
         ids: Vec::new(),
         at: Some(at.clone()),
@@ -233,7 +228,7 @@ pub(crate) fn settle_prompts(
         details.insert("reason".to_owned(), Value::from(settlement.reason()));
         let mut record = Record::new(
             at.clone(),
-            identifier(settlement.record_type()),
+            settlement.record_type().identifier(),
             contract.schema_version,
             "runtime",
             settlement.severity(),
@@ -468,9 +463,9 @@ fn prepare_response(
         accepted: response.accepted,
     };
     let record_type = if response.accepted {
-        identifier("prompt.response.submitted")
+        BuiltinRecordType::PromptResponseSubmitted
     } else {
-        identifier("prompt.response.cancelled")
+        BuiltinRecordType::PromptResponseCancelled
     };
     let mut details = prompt_response_details(&answer);
     if !response.accepted {
@@ -490,26 +485,17 @@ fn prepare_response(
 
 fn prepare_prompt_record(
     state: &RuntimeState,
-    record_type: Identifier,
+    record_type: BuiltinRecordType,
     severity: RecordSeverity,
     message: Option<String>,
     scope: Option<RecordScope>,
     details: BTreeMap<String, Value>,
     at: Timestamp,
 ) -> Result<crate::transactions::records::draft::Drafts, Error> {
-    let contract = builtin_record_contracts()
-        .into_iter()
-        .find(|contract| contract.record_type == record_type)
-        .ok_or_else(|| {
-            Error::validation(
-                "prompt_event_contract_missing",
-                format!("missing prompt record contract {}", record_type.as_str()),
-                vec![],
-            )
-        })?;
+    let contract = record_type.contract();
     let mut record = Record::new(
         at,
-        record_type,
+        record_type.identifier(),
         contract.schema_version,
         "runtime",
         severity,
@@ -574,14 +560,14 @@ fn unsupported_action(prompt: &PromptInstance, action: &str) -> Error {
     )
 }
 
-fn request_record_type(kind: &PromptKind) -> Identifier {
+fn request_record_type(kind: &PromptKind) -> BuiltinRecordType {
     match kind {
         PromptKind::Confirmation | PromptKind::Verification => {
-            identifier("prompt.request.confirmation")
+            BuiltinRecordType::PromptRequestConfirmation
         }
-        PromptKind::Form => identifier("prompt.request.form"),
-        PromptKind::Choice => identifier("prompt.request.choice"),
-        PromptKind::Status => identifier("prompt.request.status"),
+        PromptKind::Form => BuiltinRecordType::PromptRequestForm,
+        PromptKind::Choice => BuiltinRecordType::PromptRequestChoice,
+        PromptKind::Status => BuiltinRecordType::PromptRequestStatus,
     }
 }
 
@@ -810,10 +796,6 @@ fn value_type_wire(value_type: &ValueType) -> &'static str {
         ValueType::Object => "object",
         ValueType::File => "file",
     }
-}
-
-fn identifier(value: &str) -> Identifier {
-    Identifier::new(value).expect("built-in prompt identifiers are valid")
 }
 
 fn ensure_runtime_active(state: &RuntimeState) -> Result<(), String> {
