@@ -838,6 +838,15 @@ fn execution_contract() {
         run_scenario(execution::sampling::large_case_seals, false, None, false);
     }
     {
+        eprintln!("Scenario: execution::sampling::logged_cycle_terminal");
+        run_scenario(
+            execution::sampling::logged_cycle_terminal,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: execution::storage::execution_save_sealing");
         run_scenario(
             execution::storage::execution_save_sealing,
