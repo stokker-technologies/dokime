@@ -19,10 +19,11 @@
 // Local Imports
 use super::RuntimeState;
 use crate::execution::notes::{
-    NOTE_ACTOR_BYTES, NOTE_OWNER_BYTES, NOTE_SCAN_LIMIT, NOTE_TEXT_BYTES, NoteOwner,
+    NOTE_ACTOR_BYTES, NOTE_OWNER_BYTES, NOTE_OWNER_SEALED, NOTE_SCAN_LIMIT, NOTE_TEXT_BYTES,
+    NoteOwner,
 };
 use crate::execution::{HealthItem, OperatorNote};
-use dokime::core::RecordScope;
+use dokime::core::{NoteId, RecordScope};
 
 /* === Constants === */
 
@@ -208,7 +209,29 @@ impl RuntimeState {
         if self.canonical_note_scope(&note.scope)? != note.scope {
             return Err("note scope is not canonical".into());
         }
+        if self.note_scope_sealed(&note.scope) {
+            return Err(NOTE_OWNER_SEALED.into());
+        }
         Ok(())
+    }
+
+    // A Sealed Cycle Or Execution Keeps The Notes Its Report Froze
+    pub fn note_scope_sealed(&self, scope: &RecordScope) -> bool {
+        let cycle_sealed = scope
+            .test_cycle_id
+            .as_ref()
+            .and_then(|id| self.cycles.get(id))
+            .is_some_and(|cycle| cycle.saved.is_some());
+        let execution_sealed = scope
+            .test_execution_id
+            .as_ref()
+            .and_then(|id| self.executions.get(id))
+            .is_some_and(|execution| execution.saved.is_some());
+        cycle_sealed || execution_sealed
+    }
+
+    pub fn find_note(&self, id: &NoteId) -> Option<&OperatorNote> {
+        self.iter_notes().find(|note| &note.note_id == id)
     }
 
     pub fn iter_notes(&self) -> impl Iterator<Item = &OperatorNote> {

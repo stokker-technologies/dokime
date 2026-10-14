@@ -198,6 +198,7 @@ matrix! {
     "/dokime.v1.Media/ScreenRecording", download, contracts::media::ScreenRecording;
     "/dokime.v1.Media/Screenshot", unary, contracts::media::Screenshot;
     "/dokime.v1.Notes/CreateNote", unary, contracts::notes::CreateNote;
+    "/dokime.v1.Notes/EditNote", unary, contracts::notes::EditNote;
     "/dokime.v1.Notes/ListNotes", unary, contracts::notes::ListNotes;
     "/dokime.v1.Observation/GetRuntimeShell", unary, contracts::observation::GetRuntimeShell;
     "/dokime.v1.Observation/GetTraceability", unary, contracts::observation::GetTraceability;

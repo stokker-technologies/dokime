@@ -85,6 +85,7 @@ struct ExecutionMetadata<'a> {
 #[derive(Serialize)]
 struct NoteRow<'a> {
     note_id: &'a str,
+    author: Option<&'a str>,
     text: &'a str,
     timestamp: &'a Timestamp,
     scope: &'a RecordScope,

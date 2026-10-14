@@ -77,6 +77,15 @@ fn documents_contract() {
         );
     }
     {
+        eprintln!("Scenario: documents::capture::operator_notes_until_seal");
+        run_scenario(
+            documents::capture::operator_notes_until_seal,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: documents::construction::default_document_order");
         run_scenario(
             documents::construction::default_document_order,

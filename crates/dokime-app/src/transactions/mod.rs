@@ -42,7 +42,7 @@ pub use invalidation::InvalidateExecutions;
 pub use lifecycle::{
     EstablishNodeIdentity, MarkRuntimeStarted, RecoverInterruptedCycles, StartShutdown,
 };
-pub use notes::{AddOperatorNote, CreateOperatorNote};
+pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
 pub use parameters::UpsertScopedParameter;
 pub use planning::{
@@ -110,6 +110,7 @@ pub enum Transactions {
     FinishProvider(FinishProvider),
     AddOperatorNote(AddOperatorNote),
     CreateOperatorNote(CreateOperatorNote),
+    EditOperatorNote(EditOperatorNote),
     MarkRuntimeStarted(MarkRuntimeStarted),
     RecoverInterruptedCycles(RecoverInterruptedCycles),
     EstablishNodeIdentity(EstablishNodeIdentity),

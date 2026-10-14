@@ -240,6 +240,9 @@ export const mediaScreenshot = (session: SessionIdentity, request: Parameters<ty
 import { Row1Schema as notesCreateNoteRequest } from "../../../../.generated/dokime/v1/NotesMessages/CreateNote/messages_pb.js";
 import { Row2Schema as notesCreateNoteResponse } from "../../../../.generated/dokime/v1/NotesMessages/CreateNote/messages_pb.js";
 export const notesCreateNote = (session: SessionIdentity, request: Parameters<typeof unary<typeof notesCreateNoteRequest, typeof notesCreateNoteResponse>>[4]) => unary("/dokime.v1.Notes/CreateNote", notesCreateNoteRequest, notesCreateNoteResponse, session, request, 10000);
+import { Row1Schema as notesEditNoteRequest } from "../../../../.generated/dokime/v1/NotesMessages/EditNote/messages_pb.js";
+import { Row2Schema as notesEditNoteResponse } from "../../../../.generated/dokime/v1/NotesMessages/EditNote/messages_pb.js";
+export const notesEditNote = (session: SessionIdentity, request: Parameters<typeof unary<typeof notesEditNoteRequest, typeof notesEditNoteResponse>>[4]) => unary("/dokime.v1.Notes/EditNote", notesEditNoteRequest, notesEditNoteResponse, session, request, 10000);
 import { Row1Schema as notesListNotesRequest } from "../../../../.generated/dokime/v1/NotesMessages/ListNotes/messages_pb.js";
 import { Row2Schema as notesListNotesResponse } from "../../../../.generated/dokime/v1/NotesMessages/ListNotes/messages_pb.js";
 export const notesListNotes = (session: SessionIdentity, request: Parameters<typeof unary<typeof notesListNotesRequest, typeof notesListNotesResponse>>[4]) => unary("/dokime.v1.Notes/ListNotes", notesListNotesRequest, notesListNotesResponse, session, request, 10000);

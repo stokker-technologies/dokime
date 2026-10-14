@@ -9,11 +9,13 @@
 
 /* === Modules === */
 mod create_note;
+mod edit_note;
 mod list_health;
 mod list_notes;
 
 /* === Re-Exports === */
 pub use create_note::CreateNote;
+pub use edit_note::EditNote;
 pub use list_health::ListHealth;
 pub use list_notes::ListNotes;
 
@@ -119,6 +121,25 @@ pub struct CreateNoteRequest {
     pub message: String,
 }
 
+// Replaces an unsealed note's message. Only its author may edit it.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct EditNoteRequest {
+    // Explicit process epoch from discovery.
+    #[row(description = "Explicit process epoch from discovery.")]
+    pub epoch: String,
+    pub note_id: String,
+    // nonblank, at most 16 KiB UTF-8. Actor comes from authentication.
+    #[row(description = "nonblank, at most 16 KiB UTF-8. Actor comes from authentication.")]
+    pub message: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct EditNoteResponse {
+    pub note: Option<OperatorNote>,
+}
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct NoteReceipt {
@@ -177,6 +198,7 @@ pub enum AnnotationOwnerOwner {
 pub enum Operations {
     ListNotes(ListNotes),
     CreateNote(CreateNote),
+    EditNote(EditNote),
     ListHealth(ListHealth),
 }
 
@@ -190,6 +212,11 @@ impl Endpoint for ListNotes {
 
 impl Endpoint for CreateNote {
     const PATH: &'static str = "/dokime.v1.Notes/CreateNote";
+    const ACCESS: Access = Access::Control;
+}
+
+impl Endpoint for EditNote {
+    const PATH: &'static str = "/dokime.v1.Notes/EditNote";
     const ACCESS: Access = Access::Control;
 }
 

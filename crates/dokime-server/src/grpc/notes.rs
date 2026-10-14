@@ -27,8 +27,8 @@ use tonic::Status;
 use super::access::Principal;
 use dokime_app::{
     RuntimeHandle,
-    core::{CommandId, SessionId},
-    domains::evidence::notes::{CreateNoteRequest, NoteError},
+    core::{CommandId, NoteId, SessionId},
+    domains::evidence::notes::{CreateNoteRequest, EditNoteRequest, NoteError},
 };
 use dokime_contract::operations::notes as contract;
 
@@ -52,6 +52,9 @@ struct ListHealth {
 struct CreateNote {
     resources: Arc<Resources>,
 }
+struct EditNote {
+    resources: Arc<Resources>,
+}
 
 /* === Enums === */
 #[harmos::catalog]
@@ -59,6 +62,7 @@ enum Operations {
     ListNotes(ListNotes),
     ListHealth(ListHealth),
     CreateNote(CreateNote),
+    EditNote(EditNote),
 }
 
 /* === Traits === */
@@ -239,6 +243,56 @@ impl Operation for CreateNote {
     }
 }
 
+impl Operation for EditNote {
+    type Declaration = contract::EditNote;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        context: Self::Context<'a>,
+        request: &mut contract::EditNoteRequest,
+        _: &mut (),
+    ) -> Result<Response<contract::EditNoteResponse>, Status> {
+        let actor = context
+            .context()
+            .get::<Principal>()
+            .ok_or_else(|| Status::unauthenticated("authentication required"))?
+            .subject()
+            .to_owned();
+        let note = self
+            .resources
+            .runtime
+            .edit_current_note(EditNoteRequest {
+                epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
+                    .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
+                note_id: NoteId::from_uuid(std::mem::take(&mut request.note_id))
+                    .map_err(|_| Status::invalid_argument("invalid note identity"))?,
+                actor,
+                message: std::mem::take(&mut request.message),
+            })
+            .await
+            .map_err(status)?;
+        let bytes = wire::note_memory(&note)
+            .map_err(memory_failure)?
+            .saturating_add(std::mem::size_of::<contract::EditNoteResponse>());
+        self.resources.produce(bytes, || {
+            Ok(contract::EditNoteResponse {
+                note: Some(wire::note(&note)?),
+            })
+        })
+    }
+}
+
 impl Resources {
     fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
         &self,
@@ -292,6 +346,11 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime.operations().register_wire_operation::<CreateNote>(
         "dokime",
         dokime_app::app::Lanes::Open,
+        resources.clone(),
+    )?;
+    runtime.operations().register_wire_operation::<EditNote>(
+        "dokime",
+        dokime_app::app::Lanes::Open,
         resources,
     )?;
     Ok(())
@@ -319,6 +378,9 @@ fn status(error: NoteError) -> Status {
         NoteError::Epoch => Status::failed_precondition(error.to_string()),
         NoteError::Conflict => Status::already_exists(error.to_string()),
         NoteError::Overloaded => Status::resource_exhausted(error.to_string()),
+        NoteError::Sealed => Status::failed_precondition(error.to_string()),
+        NoteError::Absent => Status::not_found(error.to_string()),
+        NoteError::NotAuthor => Status::permission_denied(error.to_string()),
         NoteError::Unavailable(_) => {
             Status::unavailable("note operation could not be confirmed; Get resolves commitment")
         }

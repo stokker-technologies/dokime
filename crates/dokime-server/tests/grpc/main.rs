@@ -1243,6 +1243,10 @@ fn protocol_contract() {
         run_scenario(notes::scoped_annotation_workflow, false, None, false);
     }
     {
+        eprintln!("Scenario: notes::sealed_cycle_refuses_notes");
+        run_scenario(notes::sealed_cycle_refuses_notes, false, None, false);
+    }
+    {
         eprintln!("Scenario: workflow::pagination::large_cycles_order");
         run_scenario(workflow::pagination::large_cycles_order, false, None, false);
     }

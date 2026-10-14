@@ -21,9 +21,10 @@ pub(crate) use crate::transactions::AddOperatorNote;
 use crate::RuntimeHandle;
 use crate::execution::OperatorNote;
 use crate::execution::notes::{
-    NOTE_ACTOR_BYTES, NOTE_TEXT_BYTES, NoteAdmission, NoteOwner, note_identity,
+    NOTE_ACTOR_BYTES, NOTE_EDIT_NOT_AUTHOR, NOTE_OWNER_SEALED, NOTE_TEXT_BYTES, NoteAdmission,
+    NoteOwner, note_identity,
 };
-use crate::transactions::notes::{CreateOperatorNote, admission_fits};
+use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
 use dokime::core::{CommandId, NoteId, SessionId, TestExecutionId, Timestamp};
 
 /* === Constants === */
@@ -38,6 +39,14 @@ pub struct CreateNoteRequest {
     pub epoch: SessionId,
     pub mutation_id: CommandId,
     pub owner: NoteOwner,
+    pub actor: String,
+    pub message: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct EditNoteRequest {
+    pub epoch: SessionId,
+    pub note_id: NoteId,
     pub actor: String,
     pub message: String,
 }
@@ -69,6 +78,12 @@ pub enum NoteError {
     Conflict,
     #[error("note creation capacity exhausted")]
     Overloaded,
+    #[error("{NOTE_OWNER_SEALED}")]
+    Sealed,
+    #[error("note is absent from current evidence")]
+    Absent,
+    #[error("{NOTE_EDIT_NOT_AUTHOR}")]
+    NotAuthor,
     #[error("{0}")]
     Unavailable(String),
 }
@@ -115,6 +130,18 @@ impl RuntimeHandle {
         &self,
         request: CreateNoteRequest,
     ) -> Result<NoteCreation, NoteError> {
+        // A sealed owner refuses before anything is written; a retry still answers.
+        {
+            let state = self.state_read();
+            let id = note_identity(&request.epoch, &request.actor, &request.mutation_id);
+            if !state.note_admissions.contains_key(&id)
+                && state
+                    .note_owner_scope(&request.owner)
+                    .is_ok_and(|scope| state.note_scope_sealed(&scope))
+            {
+                return Err(NoteError::Sealed);
+            }
+        }
         // Save native membership before selecting the annotation targets.
         self.execution_storage
             .save_cycle(request.owner.cycle_id().clone())
@@ -198,6 +225,65 @@ impl RuntimeHandle {
             admission,
             publication,
         })
+    }
+
+    pub async fn edit_current_note(
+        &self,
+        request: EditNoteRequest,
+    ) -> Result<OperatorNote, NoteError> {
+        if request.message.trim().is_empty() || request.message.len() > NOTE_TEXT_BYTES {
+            return Err(NoteError::Invalid(
+                "note text exceeds bounds or is empty".into(),
+            ));
+        }
+        if self.is_shutting_down() {
+            return Err(NoteError::Unavailable("runtime is shutting down".into()));
+        }
+        let runtime = self.clone();
+        tokio::spawn(async move {
+            let _admission = runtime.evidence_admission.lock().await;
+            runtime.edit_note_owned(request).await
+        })
+        .await
+        .map_err(|error| NoteError::Unavailable(error.to_string()))?
+    }
+
+    async fn edit_note_owned(&self, request: EditNoteRequest) -> Result<OperatorNote, NoteError> {
+        let scope = {
+            let state = self.state_read();
+            if state.process_epoch() != &request.epoch {
+                return Err(NoteError::Epoch);
+            }
+            let note = state.find_note(&request.note_id).ok_or(NoteError::Absent)?;
+            if note.author.as_deref() != Some(request.actor.as_str()) {
+                return Err(NoteError::NotAuthor);
+            }
+            if state.note_scope_sealed(&note.scope) {
+                return Err(NoteError::Sealed);
+            }
+            note.scope.clone()
+        };
+        let guards = self
+            .execution_storage
+            .admit_annotations(&scope)
+            .await
+            .map_err(|error| NoteError::Owner(error.to_string()))?;
+        self.commit(EditOperatorNote {
+            note_id: request.note_id.clone(),
+            actor: request.actor,
+            message: request.message,
+            edited_at: Timestamp::now_utc(),
+        })
+        .await
+        .map_err(|error| NoteError::Unavailable(error.to_string()))?;
+        drop(guards);
+        if let Err(error) = self.checkpoint_evidence_scope(&scope).await {
+            tracing::warn!(%error, note_id=%request.note_id, "edited note checkpoint failed");
+        }
+        self.state_read()
+            .find_note(&request.note_id)
+            .cloned()
+            .ok_or(NoteError::Absent)
     }
 
     pub async fn get_note_creation(

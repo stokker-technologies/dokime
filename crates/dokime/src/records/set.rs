@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{RecordId, RecordScope};
+use crate::core::{NoteId, RecordId, RecordScope};
 use crate::execution::{HealthItem, OperatorNote};
 
 /* === Constants === */
@@ -124,6 +124,15 @@ impl TestRecordSet {
 
     pub fn push_note(&mut self, note: OperatorNote) {
         self.notes.push(note);
+    }
+
+    // Replace One Note's Message In Place; Its Identity, Author And Filing Time Stay
+    pub fn revise_note(&mut self, id: &NoteId, message: String) -> bool {
+        let Some(note) = self.notes.iter_mut().find(|note| &note.note_id == id) else {
+            return false;
+        };
+        note.message = message;
+        true
     }
 }
 
