@@ -31,7 +31,10 @@ export type ConsoleLevel = "trace" | "debug" | "info" | "warning" | "error";
 export type ConsoleScope = "instance" | "cycle" | "execution";
 
 export type ConsoleState = {
-  /** Auto-scroll to the newest row. */
+  /**
+   * Keep the newest row in view. Scrolling up releases it for the session;
+   * never persisted, so every window starts on the tail.
+   */
   follow: boolean;
   /** Drawer height in pixels, dragged by the operator. */
   height: number;
@@ -128,7 +131,6 @@ const initialUiStoreState: UiStoreState = {
 
 const persistedConsoleSchema = z
   .object({
-    follow: z.boolean().catch(INITIAL_CONSOLE_STATE.follow),
     height: z.number().min(120).max(900).catch(INITIAL_CONSOLE_STATE.height),
     level: z
       .enum(["trace", "debug", "info", "warning", "error"])
@@ -136,7 +138,6 @@ const persistedConsoleSchema = z
     scope: z.enum(["instance", "cycle", "execution"]).catch(INITIAL_CONSOLE_STATE.scope),
   })
   .catch({
-    follow: INITIAL_CONSOLE_STATE.follow,
     height: INITIAL_CONSOLE_STATE.height,
     level: INITIAL_CONSOLE_STATE.level,
     scope: INITIAL_CONSOLE_STATE.scope,
@@ -144,7 +145,6 @@ const persistedConsoleSchema = z
 
 const persistedUiStateSchema = z.object({
   console: persistedConsoleSchema.default({
-    follow: INITIAL_CONSOLE_STATE.follow,
     height: INITIAL_CONSOLE_STATE.height,
     level: INITIAL_CONSOLE_STATE.level,
     scope: INITIAL_CONSOLE_STATE.scope,
@@ -227,7 +227,6 @@ export const useUiStore = create<UiStore>()(
       name: "dokime-test-hub.ui",
       partialize: (state) => ({
         console: {
-          follow: state.console.follow,
           height: state.console.height,
           level: state.console.level,
           scope: state.console.scope,

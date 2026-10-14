@@ -21,7 +21,7 @@
 
 /* === External Imports === */
 
-import { Eraser, X } from "lucide-react";
+import { ArrowDownToLine, Eraser, X } from "lucide-react";
 import {
   type UIEvent,
   useCallback,
@@ -43,12 +43,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { recordClockLabel, recordLevelTextClass } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type ConsoleLevel, type ConsoleScope, useUiStore } from "@/stores/ui-store";
+import { consoleTailPinned } from "./console-follow";
 import { useConsoleRecords } from "./console-records";
 
 /* === Types === */
@@ -196,7 +196,7 @@ function LiveConsole({
   return (
     <section
       aria-label="Console"
-      className="grid shrink-0 grid-rows-[auto_auto_minmax(0,1fr)] border-t bg-card"
+      className="grid max-h-[80%] min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] border-t bg-card"
       style={{ height: `${drawer.height}px` }}
     >
       <HeightHandle
@@ -204,7 +204,7 @@ function LiveConsole({
         onHeightChange={(height) => setConsoleState({ height })}
       />
 
-      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-3 border-b px-[var(--shell-inset)] py-1.5">
+      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-b px-[var(--shell-inset)] py-1.5">
         <ToggleGroup
           onValueChange={(next) => next && setConsoleState({ scope: next as ConsoleScope })}
           type="single"
@@ -246,15 +246,6 @@ function LiveConsole({
           value={filter}
         />
 
-        <span className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Switch
-            aria-label="Follow"
-            checked={drawer.follow}
-            onCheckedChange={(follow) => setConsoleState({ follow })}
-          />
-          Follow
-        </span>
-
         <Button
           onClick={() => setClearedThrough(streamed.records.at(-1)?.record_id ?? null)}
           size="sm"
@@ -284,7 +275,12 @@ function LiveConsole({
             </p>
           ) : null}
         </div>
-        <RecordWindow follow={drawer.follow} rows={rows} />
+        <RecordWindow
+          empty="No records at this level yet."
+          follow={drawer.follow}
+          onFollowChange={(follow) => setConsoleState({ follow })}
+          rows={rows}
+        />
       </div>
     </section>
   );
@@ -293,6 +289,8 @@ function LiveConsole({
 /**
  * The same rows, frozen: no scope, no follow, no clear, no stream. The level
  * threshold stays because it is a way of reading, not a control over a run.
+ * The window is the live one, bounded, so a long attempt scrolls in place
+ * instead of pushing the rest of the case past the page.
  */
 function FrozenConsole({ records }: { records: HubRecord[] }) {
   const [level, setLevel] = useState<ConsoleLevel>("info");
@@ -317,15 +315,14 @@ function FrozenConsole({ records }: { records: HubRecord[] }) {
           </SelectContent>
         </Select>
       </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No records at this level.</p>
-      ) : (
-        <div className="rounded-md border">
-          {rows.map((record) => (
-            <ConsoleRow key={record.record_id} record={record} />
-          ))}
-        </div>
-      )}
+      <div className="rounded-md border">
+        <RecordWindow
+          className="max-h-96"
+          empty="No records at this level."
+          follow={false}
+          rows={rows}
+        />
+      </div>
     </section>
   );
 }
@@ -337,8 +334,24 @@ function FrozenConsole({ records }: { records: HubRecord[] }) {
  * measurement, and a cycle with fifty thousand records costs the same as one
  * with fifty. No virtualisation dependency: the repository has none, and one
  * fixed row height does not need one.
+ *
+ * With `onFollowChange` the list keeps its newest row in view until the
+ * operator scrolls up, and offers the way back while they read.
  */
-function RecordWindow({ follow, rows }: { follow: boolean; rows: HubRecord[] }) {
+function RecordWindow({
+  className,
+  empty,
+  follow,
+  onFollowChange,
+  rows,
+}: {
+  /** Classes for the scrolling viewport, such as a height bound. */
+  className?: string;
+  empty: string;
+  follow: boolean;
+  onFollowChange?: (follow: boolean) => void;
+  rows: HubRecord[];
+}) {
   const viewport = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(0);
@@ -355,38 +368,54 @@ function RecordWindow({ follow, rows }: { follow: boolean; rows: HubRecord[] }) 
     return () => observer.disconnect();
   }, [populated]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a resize re-pins a following list
   useLayoutEffect(() => {
     const node = viewport.current;
     if (node && follow && tail) node.scrollTop = node.scrollHeight;
-  }, [follow, tail]);
+  }, [follow, height, tail]);
 
   const first = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
   const last = Math.min(rows.length, Math.ceil((scrollTop + height) / ROW_HEIGHT) + OVERSCAN);
   const visible = rows.slice(first, last);
 
-  const onScroll = (event: UIEvent<HTMLDivElement>) => setScrollTop(event.currentTarget.scrollTop);
+  const onScroll = (event: UIEvent<HTMLDivElement>) => {
+    const node = event.currentTarget;
+    setScrollTop(node.scrollTop);
+    if (!onFollowChange) return;
+    const next = consoleTailPinned(node);
+    if (next !== follow) onFollowChange(next);
+  };
 
   if (rows.length === 0) {
-    return (
-      <p className="px-[var(--shell-inset)] py-4 text-sm text-muted-foreground">
-        No records at this level yet.
-      </p>
-    );
+    return <p className="px-[var(--shell-inset)] py-4 text-sm text-muted-foreground">{empty}</p>;
   }
 
   return (
-    <div
-      className="min-h-0 overflow-y-auto [overflow-anchor:none]"
-      onScroll={onScroll}
-      ref={viewport}
-    >
-      <div className="relative" style={{ height: `${rows.length * ROW_HEIGHT}px` }}>
-        <div className="absolute inset-x-0" style={{ top: `${first * ROW_HEIGHT}px` }}>
-          {visible.map((record) => (
-            <ConsoleRow key={record.record_id} record={record} />
-          ))}
+    <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)]">
+      <div
+        className={cn("min-h-0 overflow-y-auto [overflow-anchor:none]", className)}
+        onScroll={onScroll}
+        ref={viewport}
+      >
+        <div className="relative" style={{ height: `${rows.length * ROW_HEIGHT}px` }}>
+          <div className="absolute inset-x-0" style={{ top: `${first * ROW_HEIGHT}px` }}>
+            {visible.map((record) => (
+              <ConsoleRow key={record.record_id} record={record} />
+            ))}
+          </div>
         </div>
       </div>
+      {onFollowChange && !follow ? (
+        <Button
+          className="absolute right-[var(--shell-inset)] bottom-2 shadow-sm"
+          onClick={() => onFollowChange(true)}
+          size="sm"
+          variant="secondary"
+        >
+          <ArrowDownToLine data-icon="inline-start" />
+          Jump to Latest
+        </Button>
+      ) : null}
     </div>
   );
 }
