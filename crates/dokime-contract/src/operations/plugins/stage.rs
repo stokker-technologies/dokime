@@ -17,7 +17,7 @@
 // Third Party Imports
 
 // Local Imports
-use super::{PluginInstallation, StagePluginFrame, TRANSFER};
+use super::{INSTALLATION, PluginInstallation, StagePluginFrame};
 
 /* === Constants === */
 
@@ -27,7 +27,7 @@ use super::{PluginInstallation, StagePluginFrame, TRANSFER};
 
 /* === Structs === */
 #[harmos::operation(request = (), response = PluginInstallation, input = StagePluginFrame, id = "dokime.plugins.stage", version = 1,
-        policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
+        policy = INSTALLATION, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plugins", method = "Stage"))]
 pub struct Stage;
 

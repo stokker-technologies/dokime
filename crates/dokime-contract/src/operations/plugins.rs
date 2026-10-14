@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 #[allow(unused_imports)]
 use super::common::*;
-use super::{Access, Endpoint, ORDINARY, TRANSFER};
+use super::{Access, Endpoint, INSTALLATION, ORDINARY};
 
 /* === Constants === */
 

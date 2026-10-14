@@ -108,11 +108,8 @@ impl Client {
                 ))
             },
         );
-        let installation = self
-            .inner
-            .with_timeout(Duration::from_secs(300))
-            .plugins_stage(frames)
-            .await?;
+        // Staging Has No Client Deadline: Only Ctrl+C Ends A Slow Installation
+        let installation = self.inner.plugins_stage(frames).await?;
         Ok(installation)
     }
 

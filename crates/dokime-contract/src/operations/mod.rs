@@ -61,6 +61,11 @@ pub const ORDINARY: OperationPolicy = policy(Duration::from_secs(10));
 // Bounds A Transfer, Including Every Streamed Item.
 pub const TRANSFER: OperationPolicy = policy(Duration::from_secs(300));
 
+// Bounds A Plugin Installation, Which Ends When It Settles Or The Caller Cancels:
+// A Slow Machine May Take Minutes To Stage And Activate A Debug Plugin, So The
+// Hour Is A Safety Net Rather Than A Practical Limit.
+pub const INSTALLATION: OperationPolicy = policy(Duration::from_secs(3_600));
+
 // Bounds A Follow Stream, Which Ends When The Caller Cancels Or The Runtime Stops.
 pub const FOLLOW: OperationPolicy = policy(Duration::from_secs(86_400));
 

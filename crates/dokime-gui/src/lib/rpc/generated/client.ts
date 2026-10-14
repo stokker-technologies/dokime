@@ -298,7 +298,7 @@ export const pluginsSetEnabled = (session: SessionIdentity, request: Parameters<
 import { Row3Schema as pluginsStageRequest } from "../../../../.generated/dokime/v1/PluginsMessages/Stage/messages_pb.js";
 import { Row2Schema as pluginsStageResponse } from "../../../../.generated/dokime/v1/PluginsMessages/Stage/messages_pb.js";
 import { PluginsStageInputSchema as pluginsStageEnvelope } from "../../../../.generated/dokime/v1/Plugins_pb.js";
-export const pluginsStage = (session: SessionIdentity, request: Parameters<typeof openClientStream<typeof pluginsStageRequest, typeof pluginsStageResponse>>[4]) => openClientStream("/dokime.v1.Plugins/Stage", pluginsStageRequest, pluginsStageResponse, session, request, pluginsStageEnvelope, 300000);
+export const pluginsStage = (session: SessionIdentity, request: Parameters<typeof openClientStream<typeof pluginsStageRequest, typeof pluginsStageResponse>>[4]) => openClientStream("/dokime.v1.Plugins/Stage", pluginsStageRequest, pluginsStageResponse, session, request, pluginsStageEnvelope, 3600000);
 import { Row1Schema as promptsGetDefinitionRequest } from "../../../../.generated/dokime/v1/PromptsMessages/GetDefinition/messages_pb.js";
 import { Row2Schema as promptsGetDefinitionResponse } from "../../../../.generated/dokime/v1/PromptsMessages/GetDefinition/messages_pb.js";
 export const promptsGetDefinition = (session: SessionIdentity, request: Parameters<typeof unary<typeof promptsGetDefinitionRequest, typeof promptsGetDefinitionResponse>>[4]) => unary("/dokime.v1.Prompts/GetDefinition", promptsGetDefinitionRequest, promptsGetDefinitionResponse, session, request, 10000);
