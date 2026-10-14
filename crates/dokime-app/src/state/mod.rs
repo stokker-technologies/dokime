@@ -82,6 +82,11 @@ pub struct RuntimeState {
     pub prompt_responses: BTreeMap<PromptId, PromptResponse>,
     /// Prompts the runtime settled when their owner ended, and when.
     pub closed_prompts: BTreeMap<PromptId, Timestamp>,
+    /// Terminal cycles an operator archived. Kept apart from the cycle so a
+    /// sealed cycle, live or retired to native history, is never rewritten.
+    pub archived_cycles: std::collections::BTreeSet<TestCycleId>,
+    /// Terminal executions an operator archived, live or retired.
+    pub archived_executions: std::collections::BTreeSet<dokime::core::TestExecutionId>,
 }
 
 /* === Enums === */
@@ -228,7 +233,6 @@ impl RuntimeState {
                             view.lifecycle,
                             dokime::execution::CycleStatus::Ready
                                 | dokime::execution::CycleStatus::Previewed
-                                | dokime::execution::CycleStatus::Cleared
                         ))
             })
         {
@@ -326,6 +330,8 @@ impl RuntimeState {
             prompt_requests: BTreeMap::new(),
             prompt_responses: BTreeMap::new(),
             closed_prompts: BTreeMap::new(),
+            archived_cycles: std::collections::BTreeSet::new(),
+            archived_executions: std::collections::BTreeSet::new(),
         }
     }
 

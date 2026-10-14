@@ -686,13 +686,26 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn execution_clear_cycle(
+    pub async fn execution_set_cycle_archived(
         &self,
-        message: contracts::execution::CycleControlRequest,
-    ) -> Result<contracts::execution::ControlReply> {
+        message: contracts::execution::SetCycleArchivedRequest,
+    ) -> Result<contracts::execution::ArchiveReply> {
         let reply = self
-            .unary::<contracts::execution::ClearCycle>(
-                contracts::execution::ClearCycle::PATH,
+            .unary::<contracts::execution::SetCycleArchived>(
+                contracts::execution::SetCycleArchived::PATH,
+                message,
+            )
+            .await?;
+        super::transport::value(reply)
+    }
+
+    pub async fn execution_set_execution_archived(
+        &self,
+        message: contracts::execution::SetExecutionArchivedRequest,
+    ) -> Result<contracts::execution::ArchiveReply> {
+        let reply = self
+            .unary::<contracts::execution::SetExecutionArchived>(
+                contracts::execution::SetExecutionArchived::PATH,
                 message,
             )
             .await?;

@@ -15,7 +15,7 @@ mod executions;
 
 /* === Imports === */
 // Standard Library Imports
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 // Local Imports
@@ -66,6 +66,8 @@ struct Encoded<'a> {
     prompt_requests: &'a BTreeMap<PromptId, PromptInstance>,
     prompt_responses: &'a BTreeMap<PromptId, PromptResponse>,
     closed_prompts: &'a BTreeMap<PromptId, Timestamp>,
+    archived_cycles: &'a BTreeSet<TestCycleId>,
+    archived_executions: &'a BTreeSet<TestExecutionId>,
 }
 
 #[derive(Deserialize)]
@@ -97,6 +99,8 @@ struct Decoded {
     prompt_requests: BTreeMap<PromptId, PromptInstance>,
     prompt_responses: BTreeMap<PromptId, PromptResponse>,
     closed_prompts: BTreeMap<PromptId, Timestamp>,
+    archived_cycles: BTreeSet<TestCycleId>,
+    archived_executions: BTreeSet<TestExecutionId>,
 }
 
 /* === Enums === */
@@ -130,6 +134,8 @@ impl Serialize for RuntimeState {
             prompt_requests,
             prompt_responses,
             closed_prompts,
+            archived_cycles,
+            archived_executions,
         } = self;
 
         // Collect The Shared Catalog Before Encoding Its Owners
@@ -165,6 +171,8 @@ impl Serialize for RuntimeState {
             prompt_requests,
             prompt_responses,
             closed_prompts,
+            archived_cycles,
+            archived_executions,
         }
         .serialize(serializer)
     }
@@ -209,6 +217,8 @@ impl Decoded {
             prompt_requests,
             prompt_responses,
             closed_prompts,
+            archived_cycles,
+            archived_executions,
         } = self;
         let record_history =
             record_history::RecordHistory::from_contracts(catalog.history(record_history)?);
@@ -237,6 +247,8 @@ impl Decoded {
             prompt_requests,
             prompt_responses,
             closed_prompts,
+            archived_cycles,
+            archived_executions,
         })
     }
 }

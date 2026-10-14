@@ -94,9 +94,6 @@ export const evidenceWatchRecords = (session: SessionIdentity, request: Paramete
 import { Row1Schema as executionAppendPlannedCasesRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/AppendPlannedCases/messages_pb.js";
 import { Row2Schema as executionAppendPlannedCasesResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/AppendPlannedCases/messages_pb.js";
 export const executionAppendPlannedCases = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionAppendPlannedCasesRequest, typeof executionAppendPlannedCasesResponse>>[4]) => unary("/dokime.v1.Execution/AppendPlannedCases", executionAppendPlannedCasesRequest, executionAppendPlannedCasesResponse, session, request, 10000);
-import { Row1Schema as executionClearCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/ClearCycle/messages_pb.js";
-import { Row2Schema as executionClearCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/ClearCycle/messages_pb.js";
-export const executionClearCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionClearCycleRequest, typeof executionClearCycleResponse>>[4]) => unary("/dokime.v1.Execution/ClearCycle", executionClearCycleRequest, executionClearCycleResponse, session, request, 10000);
 import { Row1Schema as executionCopyCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/CopyCycle/messages_pb.js";
 import { Row2Schema as executionCopyCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/CopyCycle/messages_pb.js";
 export const executionCopyCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionCopyCycleRequest, typeof executionCopyCycleResponse>>[4]) => unary("/dokime.v1.Execution/CopyCycle", executionCopyCycleRequest, executionCopyCycleResponse, session, request, 10000);
@@ -166,6 +163,12 @@ export const executionRunExecution = (session: SessionIdentity, request: Paramet
 import { Row1Schema as executionScheduleCaseRerunRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/ScheduleCaseRerun/messages_pb.js";
 import { Row2Schema as executionScheduleCaseRerunResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/ScheduleCaseRerun/messages_pb.js";
 export const executionScheduleCaseRerun = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionScheduleCaseRerunRequest, typeof executionScheduleCaseRerunResponse>>[4]) => unary("/dokime.v1.Execution/ScheduleCaseRerun", executionScheduleCaseRerunRequest, executionScheduleCaseRerunResponse, session, request, 10000);
+import { Row1Schema as executionSetCycleArchivedRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/SetCycleArchived/messages_pb.js";
+import { Row2Schema as executionSetCycleArchivedResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/SetCycleArchived/messages_pb.js";
+export const executionSetCycleArchived = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionSetCycleArchivedRequest, typeof executionSetCycleArchivedResponse>>[4]) => unary("/dokime.v1.Execution/SetCycleArchived", executionSetCycleArchivedRequest, executionSetCycleArchivedResponse, session, request, 10000);
+import { Row1Schema as executionSetExecutionArchivedRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/SetExecutionArchived/messages_pb.js";
+import { Row2Schema as executionSetExecutionArchivedResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/SetExecutionArchived/messages_pb.js";
+export const executionSetExecutionArchived = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionSetExecutionArchivedRequest, typeof executionSetExecutionArchivedResponse>>[4]) => unary("/dokime.v1.Execution/SetExecutionArchived", executionSetExecutionArchivedRequest, executionSetExecutionArchivedResponse, session, request, 10000);
 import { Row1Schema as executionStopCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/StopCycle/messages_pb.js";
 import { Row2Schema as executionStopCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/StopCycle/messages_pb.js";
 export const executionStopCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionStopCycleRequest, typeof executionStopCycleResponse>>[4]) => unary("/dokime.v1.Execution/StopCycle", executionStopCycleRequest, executionStopCycleResponse, session, request, 10000);

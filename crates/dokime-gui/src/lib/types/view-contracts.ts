@@ -8,9 +8,9 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import type {
-  Row11 as GeneratedNativeExecutionCheckpoint,
-  Row28 as GeneratedNativeStorageCursor,
-  Row35 as GeneratedNativeStoreHistory,
+  Row12 as GeneratedNativeExecutionCheckpoint,
+  Row32 as GeneratedNativeStorageCursor,
+  Row39 as GeneratedNativeStoreHistory,
 } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { ValueFormat } from "./format";
 
@@ -153,6 +153,8 @@ export type ExecutionBrowseEntry = {
   metadata: ExecutionMetadata;
   checkpoint: ExecutionCheckpoint | null;
   availability: ExecutionAvailability;
+  /** The execution, or its whole cycle, is archived. */
+  archived: boolean;
 };
 
 export type ExecutionBrowseIssue = {

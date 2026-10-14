@@ -27,7 +27,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import {
-  clearNativeTestCycle,
   deleteNativeTestCycleCases,
   fetchNativeTestCycleDetail,
   pauseNativeTestCycle,
@@ -39,6 +38,8 @@ import {
   resumeNativeTestExecution,
   runNativeQueuedTestCycle,
   runNativeQueuedTestExecution,
+  setNativeCycleArchived,
+  setNativeExecutionArchived,
   stopNativeTestCycle,
   stopNativeTestExecution,
   updateNativeTestCyclePolicy,
@@ -140,8 +141,14 @@ export function useCycleCommands(cycleId: string) {
   };
 
   return {
-    clearCycle: useMutation({
-      mutationFn: () => clearNativeTestCycle(session().identity, cycleId),
+    archiveCycle: useMutation({
+      mutationFn: (archived: boolean) =>
+        setNativeCycleArchived(session().identity, cycleId, archived),
+      onSettled: invalidateAll,
+    }),
+    archiveExecution: useMutation({
+      mutationFn: ({ archived, executionId }: { archived: boolean; executionId: string }) =>
+        setNativeExecutionArchived(session().identity, executionId, archived),
       onSettled: invalidateAll,
     }),
     copyCycle: useMutation({

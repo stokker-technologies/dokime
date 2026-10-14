@@ -199,7 +199,6 @@ fn cycle_status(value: CycleStatus) -> execution_wire::CycleStatus {
         CycleStatus::Failed => execution_wire::CycleStatus::Failed,
         CycleStatus::Blocked => execution_wire::CycleStatus::Blocked,
         CycleStatus::Stopped => execution_wire::CycleStatus::Stopped,
-        CycleStatus::Cleared => execution_wire::CycleStatus::Cleared,
     }
 }
 

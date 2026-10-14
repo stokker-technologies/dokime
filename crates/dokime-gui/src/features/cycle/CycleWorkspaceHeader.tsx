@@ -26,7 +26,16 @@
 
 /* === External Imports === */
 
-import { Copy, Ellipsis, FileText, Plus, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  Ellipsis,
+  FileText,
+  Plus,
+  RotateCcw,
+  Settings2,
+} from "lucide-react";
 import { type ComponentProps, Fragment, type ReactNode } from "react";
 
 /* === Local Imports === */
@@ -55,12 +64,20 @@ export type CockpitIdentity = {
   activity?: string | null;
 };
 
+/** Archive or Unarchive, as the node's menu offers it. */
+export type ArchiveAction = {
+  archived: boolean;
+  onToggle: () => void;
+  /** Why the node cannot be archived yet; archiving waits for a terminal run. */
+  refusal?: string;
+};
+
 /** The cycle page's "…" menu. */
 export type CycleMenu = {
   kind: "cycle";
+  archive: ArchiveAction;
   followActive: boolean;
   onAddCases: () => void;
-  onClearCycle: () => void;
   onCopyCycle: () => void;
   /** Opens the report the cycle has now: current, sealed or regenerated. */
   onOpenReport: () => void;
@@ -71,6 +88,8 @@ export type CycleMenu = {
 /** The execution page's "…" menu. */
 export type ExecutionMenu = {
   kind: "execution";
+  /** `null` for a case that has not run, which has no execution to archive. */
+  archive: ArchiveAction | null;
   /** Opens the report the execution has now: current, sealed or regenerated;
    *  `null` for a case that has not run, which has no report of its own. */
   onOpenReport: (() => void) | null;
@@ -151,7 +170,7 @@ function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
       {/* The groups and their order are the model's, so a test can read
           what each page's menu offers without rendering it. */}
       <DropdownMenuContent align="end" className="w-52">
-        {nodeMenuGroups(menu.kind).map((group, index) => (
+        {nodeMenuGroups(menu.kind, menu.archive?.archived ?? false).map((group, index) => (
           <Fragment key={group[0]}>
             {index > 0 ? <DropdownMenuSeparator /> : null}
             {group.map((item) => (
@@ -167,6 +186,18 @@ function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
 /** One menu entry, wired to the handler its node supplies. */
 function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | ExecutionMenu }) {
   switch (item) {
+    case "Archive":
+    case "Unarchive":
+      return (
+        <DropdownMenuItem
+          disabled={!menu.archive || Boolean(menu.archive.refusal)}
+          onSelect={() => menu.archive?.onToggle()}
+          title={menu.archive?.refusal}
+        >
+          {item === "Archive" ? <Archive /> : <ArchiveRestore />}
+          {item}
+        </DropdownMenuItem>
+      );
     case "Open Report":
       return (
         <DropdownMenuItem disabled={!menu.onOpenReport} onSelect={() => menu.onOpenReport?.()}>
@@ -221,13 +252,6 @@ function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | E
         >
           Follow Active
         </DropdownMenuCheckboxItem>
-      );
-    case "Clear Cycle":
-      return (
-        <DropdownMenuItem onSelect={menu.onClearCycle} variant="destructive">
-          <Trash2 />
-          Clear Cycle
-        </DropdownMenuItem>
       );
   }
 }

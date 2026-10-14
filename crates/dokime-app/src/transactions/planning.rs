@@ -365,7 +365,7 @@ fn build_cycle(
 fn append_lifecycle(cycle: &CycleView, has_new_cases: bool) -> Result<CycleStatus, String> {
     if matches!(
         cycle.lifecycle,
-        CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping | CycleStatus::Cleared
+        CycleStatus::Running | CycleStatus::Paused | CycleStatus::Stopping
     ) {
         return Err("cycle cannot be modified from its current state".to_owned());
     }

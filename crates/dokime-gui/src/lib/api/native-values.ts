@@ -44,8 +44,6 @@ export const NATIVE_PAGE_SIZE = 100;
 export const NATIVE_MAX_PAGES = 100;
 /** Keep aggregate reads below the bridge's in-flight call limit. */
 export const NATIVE_MAX_CONCURRENT_READS = 4;
-/** Bound lifecycle polling after an asynchronous stop request. */
-export const NATIVE_MAX_SETTLE_ATTEMPTS = 120;
 
 /* === Errors === */
 

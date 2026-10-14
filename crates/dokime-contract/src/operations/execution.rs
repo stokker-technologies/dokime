@@ -9,7 +9,6 @@
 
 /* === Modules === */
 mod append_planned_cases;
-mod clear_cycle;
 mod copy_cycle;
 mod create_cycle;
 mod delete_case;
@@ -33,6 +32,8 @@ mod run_case;
 mod run_cycle;
 mod run_execution;
 mod schedule_case_rerun;
+mod set_cycle_archived;
+mod set_execution_archived;
 mod stop_cycle;
 mod stop_execution;
 mod submit_execution_command;
@@ -40,7 +41,6 @@ mod update_cycle_policy;
 
 /* === Re-Exports === */
 pub use append_planned_cases::AppendPlannedCases;
-pub use clear_cycle::ClearCycle;
 pub use copy_cycle::CopyCycle;
 pub use create_cycle::CreateCycle;
 pub use delete_case::DeleteCase;
@@ -64,6 +64,8 @@ pub use run_case::RunCase;
 pub use run_cycle::RunCycle;
 pub use run_execution::RunExecution;
 pub use schedule_case_rerun::ScheduleCaseRerun;
+pub use set_cycle_archived::SetCycleArchived;
+pub use set_execution_archived::SetExecutionArchived;
 pub use stop_cycle::StopCycle;
 pub use stop_execution::StopExecution;
 pub use submit_execution_command::SubmitExecutionCommand;
@@ -166,6 +168,9 @@ pub struct CycleFilter {
     pub suite_ids: Vec<String>,
     pub created_after: Option<Timestamp>,
     pub created_before: Option<Timestamp>,
+    // Absent lists only unarchived cycles.
+    #[row(description = "Absent lists only unarchived cycles.")]
+    pub archive: Option<ArchiveScope>,
 }
 
 #[harmos::message]
@@ -211,10 +216,34 @@ pub struct ExecutionControlRequest {
     pub context: Option<MutationContext>,
 }
 
+// Archiving is orthogonal to the lifecycle and admitted only on a terminal
+// cycle or execution: it hides the row from lists that do not ask for archived
+// rows and changes nothing else.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct SetCycleArchivedRequest {
+    pub cycle_id: String,
+    pub archived: bool,
+    pub context: Option<MutationContext>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct SetExecutionArchivedRequest {
+    pub execution_id: String,
+    pub archived: bool,
+    pub context: Option<MutationContext>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArchiveReply {
+    pub archived: bool,
+}
+
 // DeleteCase only removes an unexecuted case. ScheduleCaseRerun makes the
 // cycle ready without altering prior attempts or starting execution. A subsequent
 // RunCase dispatches the next attempt; prior attempts and evidence remain retained.
-// ClearCycle removes the live case/attempt lists after execution has stopped.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CaseControlRequest {
@@ -411,6 +440,7 @@ pub struct CycleSummary {
     pub started_at: Option<Timestamp>,
     pub updated_at: Option<Timestamp>,
     pub result: Option<ResultSummary>,
+    pub archived: bool,
     // The admitted suite identity is retained in the bounded summary so shell
     // consumers need not embed every case/execution just to render its title.
     #[row(
@@ -510,6 +540,7 @@ pub struct ExecutionSummary {
     pub case_id: String,
     pub status: ExecutionStatus,
     pub ordinal: u64,
+    pub archived: bool,
 }
 
 // Current-runtime detail. Published historical checkpoints are a separate API.
@@ -825,7 +856,15 @@ pub enum CycleStatus {
     Failed,
     Blocked,
     Stopped,
-    Cleared,
+}
+
+// Which rows a list admits by their archive mark.
+#[harmos::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ArchiveScope {
+    Unarchived,
+    Archived,
+    All,
 }
 
 // A case's state, derived from its latest attempt. This is a projection of the
@@ -982,7 +1021,8 @@ pub enum Operations {
     StopCycle(StopCycle),
     DeleteCase(DeleteCase),
     ScheduleCaseRerun(ScheduleCaseRerun),
-    ClearCycle(ClearCycle),
+    SetCycleArchived(SetCycleArchived),
+    SetExecutionArchived(SetExecutionArchived),
     UpdateCyclePolicy(UpdateCyclePolicy),
 }
 
@@ -1124,8 +1164,13 @@ impl Endpoint for ScheduleCaseRerun {
     const ACCESS: Access = Access::Control;
 }
 
-impl Endpoint for ClearCycle {
-    const PATH: &'static str = "/dokime.v1.Execution/ClearCycle";
+impl Endpoint for SetCycleArchived {
+    const PATH: &'static str = "/dokime.v1.Execution/SetCycleArchived";
+    const ACCESS: Access = Access::Control;
+}
+
+impl Endpoint for SetExecutionArchived {
+    const PATH: &'static str = "/dokime.v1.Execution/SetExecutionArchived";
     const ACCESS: Access = Access::Control;
 }
 

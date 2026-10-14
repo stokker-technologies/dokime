@@ -23,7 +23,7 @@
 //   b. library      suite expansion, the template dialog, two templates added
 //   c. cycle        the workspace: sidebar, run, prompts, focus, console, overflow
 //   c'. execution-stop  a copy: Stop Execution stops one, its siblings finish
-//   d. cycles-home  the groups after a run, Show Cleared, the filter box
+//   d. cycles-home  the groups after a run, the Archived view, the filter box
 //   e. history      rows, one execution, its checkpoint views, the Back chevron
 //   f. settings     every section, the density switch, storage, plugins, diagnostics
 //   g. report       Download Report, then the saved file rendered in headless Chrome
@@ -1737,8 +1737,8 @@ async function cycleJourney(session, cycleId) {
     "A closed console must leave the page interactive",
   );
 
-  /* The overflow menu names every whole-cycle command, and Clear Cycle asks.
-     The trigger is pressed again if the first press produced no menu: a real
+  /* The overflow menu names every whole-cycle command; Archive replaces
+     clearing and changes nothing but the archive mark. The trigger is pressed again if the first press produced no menu: a real
      WebView occasionally drops the pointer sequence a dropdown opens on, and
      one silent miss is not a product defect. A second miss is, and fails. */
   await session.execute(
@@ -1753,57 +1753,19 @@ async function cycleJourney(session, cycleId) {
     "Runtime Policy",
     "Follow Active",
     "Open Report",
-    "Clear Cycle",
+    "Archive",
   ]) {
     assert.ok(hasText(items, item), `The overflow menu must offer ${item}`);
   }
-  for (const item of ["Download Bundle", "Write Report", "Open Folder"]) {
+  for (const item of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
     assert.ok(!hasText(items, item), `The overflow menu must no longer offer ${item}`);
   }
-  await session.clickNamed("menuitem", "Clear Cycle");
-  const confirm = await until("clear confirm", () => session.find("css selector", "[role=dialog]"));
-  assert.ok(
-    hasText(await session.textOf(confirm), "Clearing stops this cycle"),
-    "Clear Cycle must state what it removes",
+  await closeAnyMenu(session);
+  assert.equal(
+    await session.execute("return document.body.style.pointerEvents || '';"),
+    "",
+    "A closed overflow menu must leave the page interactive",
   );
-  await session.clickNamed("button", "Cancel");
-  /* Cancelling must leave the cycle where it was and give the page back.
-     Radix keeps a dismissed dialog mounted while its exit animation runs, and
-     in this WebView that node can outlive the animation it waits on — so the
-     open layers are what this counts, and the page's own interactivity is the
-     promise that actually matters. Whatever stays behind is written into the
-     evidence, because a bare timeout names the condition and not the cause. */
-  await until(
-    "confirm cancelled",
-    async () => {
-      const layers = await session.modalLayers();
-      return (
-        layers.pathname === `/cycles/${cycleId}` &&
-        layers.dialogs.every((dialog) => dialog.state !== "open") &&
-        layers.bodyPointerEvents === ""
-      );
-    },
-    20000,
-  ).catch(async (failure) => {
-    const target = await session.dump("cycle-confirm-cancelled", {
-      expectedPathname: `/cycles/${cycleId}`,
-      layers: await session.modalLayers(),
-    });
-    throw new Error(`${failure.message} (layers written to ${target})`);
-  });
-  /* A dismissed dialog that stays in the document is the WebView not
-     delivering the animation end its exit waits on. It holds nothing — the
-     page is interactive and the layer is closed — but it is why counting
-     `[role=dialog]` nodes rather than open ones made this step time out, so
-     each run records whether it happened. */
-  const dismissed = await session.modalLayers();
-  if (dismissed.dialogs.length) {
-    notes.push(
-      `cycle: cancelling Clear Cycle left ${dismissed.dialogs.length} dismissed dialog node(s) in the document (${dismissed.dialogs
-        .map((dialog) => `${dialog.slot || "dialog"}:${dialog.state}`)
-        .join(", ")})`,
-    );
-  }
   return selection;
 }
 
@@ -1938,7 +1900,7 @@ async function executionStopJourney(session, cycleId) {
   return copyId;
 }
 
-/** Cycles home after the run: the Recent row, Show Cleared, and the filter. */
+/** Cycles home after the run: the Recent row, the Archived view, and the filter. */
 async function cyclesHomeJourney(session) {
   await session.goto("/cycles");
   const body = await until(
@@ -1953,12 +1915,19 @@ async function cyclesHomeJourney(session) {
   assert.ok(/\d+ \/ \d+/.test(normalize(body)), "A row must state executions over cases");
   assert.ok(/\d+[smhd] Ago/.test(normalize(body)), "A row must state when the cycle last moved");
 
-  await session.clickNamed("button", "Show Cleared");
+  /* Nothing is archived yet, so the Archived view is one empty group, and
+     leaving it brings the run's cycle back. */
+  await session.clickNamed("button", "Archived");
   assert.ok(
-    await until("hide cleared", () => session.exists("button", "Hide Cleared")),
-    "Show Cleared must become Hide Cleared",
+    await until("archived view", async () => hasText(await session.text(), "No Archived Cycles")),
+    "The Archived view must say when nothing is archived",
   );
-  await session.clickNamed("button", "Hide Cleared");
+  await session.clickNamed("button", "Archived");
+  await until(
+    "default view",
+    async () => !hasText(await session.text(), "No Archived Cycles"),
+    20000,
+  );
 
   const filter = await session.find("css selector", "input[aria-label='Filter Cycles']");
   await session.type(filter, "zzz-no-such-cycle");

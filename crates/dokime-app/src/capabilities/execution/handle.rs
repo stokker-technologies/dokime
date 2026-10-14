@@ -133,7 +133,6 @@ fn cycle_is_stopped(lifecycle: Option<CycleStatus>) -> bool {
                 | CycleStatus::Completed
                 | CycleStatus::Failed
                 | CycleStatus::Blocked
-                | CycleStatus::Cleared
         )
     )
 }

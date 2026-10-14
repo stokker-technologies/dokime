@@ -116,7 +116,8 @@ export type NodeMenuItem =
   | "Runtime Policy"
   | "Follow Active"
   | "Open Report"
-  | "Clear Cycle"
+  | "Archive"
+  | "Unarchive"
   | "Re-Run";
 
 /** The page bar's Download Report button as it stands. */
@@ -416,20 +417,22 @@ export function finishedCaseCount(cases: readonly CycleCase[]): number {
   return cases.reduce((total, item) => total + (item.finished ? 1 : 0), 0);
 }
 
-/** Whether the cycle is still producing evidence: running, paused or stopping. */
 /**
  * A node's "…" menu, as groups a separator divides. Open Report is always
  * there and always enabled: the runtime answers with the sealed report, the
  * one regenerated from sealed evidence, or one rendered from the run so far.
+ * The last group archives the node, or unarchives one already archived.
  */
-export function nodeMenuGroups(kind: "cycle" | "execution"): NodeMenuItem[][] {
+export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): NodeMenuItem[][] {
+  const archive: NodeMenuItem = archived ? "Unarchive" : "Archive";
   return kind === "cycle"
-    ? [
-        ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"],
-        ["Open Report"],
-        ["Clear Cycle"],
-      ]
-    : [["Re-Run"], ["Open Report"]];
+    ? [["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"], ["Open Report"], [archive]]
+    : [["Re-Run"], ["Open Report"], [archive]];
+}
+
+/** Why a node cannot be archived yet, or `undefined` once it can. */
+export function archiveRefusal(terminal: boolean): string | undefined {
+  return terminal ? undefined : "Archiving becomes available once the run has ended.";
 }
 
 /** Download Report waits only for a save already in progress. */
@@ -452,6 +455,7 @@ export function reportFilename(label: string): string {
   return `${name || "report"}.html`;
 }
 
+/** Whether the cycle is still producing evidence: running, paused or stopping. */
 export function isCycleInFlight(status: CycleLifecycle): boolean {
   return status === "running" || status === "paused" || status === "stopping";
 }

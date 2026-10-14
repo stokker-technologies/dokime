@@ -12,6 +12,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  archiveRefusal,
   nodeMenuGroups,
   reportDownloadState,
   reportFilename,
@@ -19,20 +20,30 @@ import {
 
 /* === Tests === */
 
-test("the cycle menu opens its report and offers no bundle, folder or written report", () => {
-  const items = nodeMenuGroups("cycle").flat();
-  assert.deepEqual(nodeMenuGroups("cycle"), [
+test("the cycle menu opens its report and archives, with no bundle, folder or clearing", () => {
+  const items = nodeMenuGroups("cycle", false).flat();
+  assert.deepEqual(nodeMenuGroups("cycle", false), [
     ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active"],
     ["Open Report"],
-    ["Clear Cycle"],
+    ["Archive"],
   ]);
-  for (const removed of ["Download Bundle", "Write Report", "Open Folder"]) {
+  for (const removed of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
     assert.ok(!items.includes(removed), removed);
   }
 });
 
-test("the execution menu offers Re-Run and Open Report", () => {
-  assert.deepEqual(nodeMenuGroups("execution"), [["Re-Run"], ["Open Report"]]);
+test("the execution menu offers Re-Run, Open Report and Archive", () => {
+  assert.deepEqual(nodeMenuGroups("execution", false), [["Re-Run"], ["Open Report"], ["Archive"]]);
+});
+
+test("an archived node offers Unarchive in place of Archive", () => {
+  assert.deepEqual(nodeMenuGroups("cycle", true).at(-1), ["Unarchive"]);
+  assert.deepEqual(nodeMenuGroups("execution", true).at(-1), ["Unarchive"]);
+});
+
+test("archiving waits for a terminal run and says so", () => {
+  assert.equal(archiveRefusal(true), undefined);
+  assert.match(archiveRefusal(false), /once the run has ended/);
 });
 
 test("Download Report waits only for a save in progress", () => {
@@ -55,4 +66,14 @@ test("a saved report is named after its cycle or execution", () => {
   );
   assert.equal(reportFilename(' a:b*c? "d" '), "a-b-c- -d.html");
   assert.equal(reportFilename("..."), "report.html");
+});
+
+test("the Archived view lists every archived cycle in one group", async () => {
+  const { archivedCycleGroups } = await import("../src/features/cycles-home/cycles-model.ts");
+  const rows = [{ cycleId: "one" }, { cycleId: "two" }];
+  const [group, ...rest] = archivedCycleGroups(rows);
+  assert.equal(rest.length, 0);
+  assert.equal(group.title, "Archived");
+  assert.deepEqual(group.rows, rows);
+  assert.equal(archivedCycleGroups([], true)[0].emptyText, "No Archived Cycles Match This Filter");
 });

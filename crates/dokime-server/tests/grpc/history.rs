@@ -213,11 +213,6 @@ pub(crate) async fn deletion_validates_unsupported() {
         "native storage has no deletion contract"
     );
 
-    handle
-        .clear_cycle(cycle_id, CommandContext::default())
-        .await
-        .unwrap();
-
     assert_eq!(
         history
             .unary::<contracts::history::DeleteExecution>(auth(request, ADMIN_TOKEN))

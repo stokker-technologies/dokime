@@ -49,6 +49,7 @@ pub struct ExecutionFilter {
     pub cycle_ids: Vec<String>,
     pub started_after: Option<Timestamp>,
     pub started_before: Option<Timestamp>,
+    pub archive: ArchiveScope,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +59,17 @@ pub struct ExecutionOrder {
 }
 
 /* === Enums === */
+/// Which rows a list admits by their archive mark. Unarchived rows are the
+/// default; archived ones appear only when a request asks for them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveScope {
+    #[default]
+    Unarchived,
+    Archived,
+    All,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionOrderKey {
@@ -70,6 +82,17 @@ pub enum ExecutionOrderKey {
 /* === Traits === */
 
 /* === Implementations === */
+impl ArchiveScope {
+    /// Whether a row with this archive mark belongs in the list.
+    pub fn admits(self, archived: bool) -> bool {
+        match self {
+            Self::Unarchived => !archived,
+            Self::Archived => archived,
+            Self::All => true,
+        }
+    }
+}
+
 impl ExecutionFilter {
     pub fn is_empty(&self) -> bool {
         self == &Self::default()

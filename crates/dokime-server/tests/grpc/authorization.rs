@@ -124,7 +124,6 @@ matrix! {
     "/dokime.v1.Evidence/ListRecords", unary, contracts::evidence::ListRecords;
     "/dokime.v1.Evidence/WatchRecords", download, contracts::evidence::WatchRecords;
     "/dokime.v1.Execution/AppendPlannedCases", unary, contracts::execution::AppendPlannedCases;
-    "/dokime.v1.Execution/ClearCycle", unary, contracts::execution::ClearCycle;
     "/dokime.v1.Execution/CopyCycle", unary, contracts::execution::CopyCycle;
     "/dokime.v1.Execution/CreateCycle", unary, contracts::execution::CreateCycle;
     "/dokime.v1.Execution/DeleteCase", unary, contracts::execution::DeleteCase;
@@ -167,6 +166,8 @@ matrix! {
     };
     "/dokime.v1.Execution/RunCycle", unary, contracts::execution::RunCycle;
     "/dokime.v1.Execution/ScheduleCaseRerun", unary, contracts::execution::ScheduleCaseRerun;
+    "/dokime.v1.Execution/SetCycleArchived", unary, contracts::execution::SetCycleArchived;
+    "/dokime.v1.Execution/SetExecutionArchived", unary, contracts::execution::SetExecutionArchived;
     "/dokime.v1.Execution/StopCycle", unary, contracts::execution::StopCycle;
     "/dokime.v1.Execution/UpdateCyclePolicy", unary, contracts::execution::UpdateCyclePolicy;
     "/dokime.v1.Files/FileWatch", download, contracts::files::FileWatch = contracts::files::FileWatchRequest {

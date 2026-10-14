@@ -6,34 +6,26 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Row1(_message.Message):
-    __slots__ = ("cycle_id", "context")
-    CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("execution_id", "archived", "context")
+    EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
+    ARCHIVED_FIELD_NUMBER: _ClassVar[int]
     CONTEXT_FIELD_NUMBER: _ClassVar[int]
-    cycle_id: str
+    execution_id: str
+    archived: bool
     context: Row3
-    def __init__(self, cycle_id: _Optional[str] = ..., context: _Optional[_Union[Row3, _Mapping]] = ...) -> None: ...
+    def __init__(self, execution_id: _Optional[str] = ..., archived: _Optional[bool] = ..., context: _Optional[_Union[Row3, _Mapping]] = ...) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("observed_cursor",)
-    OBSERVED_CURSOR_FIELD_NUMBER: _ClassVar[int]
-    observed_cursor: Row4
-    def __init__(self, observed_cursor: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
+    __slots__ = ("archived",)
+    ARCHIVED_FIELD_NUMBER: _ClassVar[int]
+    archived: bool
+    def __init__(self, archived: _Optional[bool] = ...) -> None: ...
 
 class Row3(_message.Message):
     __slots__ = ("correlation_id",)
     CORRELATION_ID_FIELD_NUMBER: _ClassVar[int]
     correlation_id: str
     def __init__(self, correlation_id: _Optional[str] = ...) -> None: ...
-
-class Row4(_message.Message):
-    __slots__ = ("epoch", "stream", "position")
-    EPOCH_FIELD_NUMBER: _ClassVar[int]
-    STREAM_FIELD_NUMBER: _ClassVar[int]
-    POSITION_FIELD_NUMBER: _ClassVar[int]
-    epoch: str
-    stream: str
-    position: int
-    def __init__(self, epoch: _Optional[str] = ..., stream: _Optional[str] = ..., position: _Optional[int] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response")

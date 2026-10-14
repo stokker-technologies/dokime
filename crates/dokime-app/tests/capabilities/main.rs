@@ -620,8 +620,8 @@ fn execution_contract() {
         );
     }
     {
-        eprintln!("Scenario: execution::lifecycle::stop_clear_state");
-        run_scenario(execution::lifecycle::stop_clear_state, false, None, false);
+        eprintln!("Scenario: execution::lifecycle::stop_archive_state");
+        run_scenario(execution::lifecycle::stop_archive_state, false, None, false);
     }
     {
         eprintln!("Scenario: execution::lifecycle::stopped_cycles_telemetry");

@@ -190,7 +190,7 @@ pub(super) fn get_execution(
             bounds.bytes(canonical::execution_plugin_memory(current)?)?;
         }
     }
-    let summary = Some(execution_summary(execution, ordinal));
+    let summary = Some(execution_summary(snapshot.state(), execution, ordinal));
     reply(
         service,
         wire::ExecutionDetail {

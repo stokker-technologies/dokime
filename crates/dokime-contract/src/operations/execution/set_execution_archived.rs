@@ -17,7 +17,7 @@
 // Third Party Imports
 
 // Local Imports
-use super::{ControlReply, CycleControlRequest, ORDINARY};
+use super::{ArchiveReply, ORDINARY, SetExecutionArchivedRequest};
 
 /* === Constants === */
 
@@ -26,10 +26,11 @@ use super::{ControlReply, CycleControlRequest, ORDINARY};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::operation(request = CycleControlRequest, response = ControlReply, id = "dokime.execution.clear_cycle", version = 1,
+// Archives or unarchives one terminal execution, live or retired to history.
+#[harmos::operation(request = SetExecutionArchivedRequest, response = ArchiveReply, id = "dokime.execution.set_execution_archived", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
-        grpc(package = "dokime.v1", service = "Execution", method = "ClearCycle"))]
-pub struct ClearCycle;
+        grpc(package = "dokime.v1", service = "Execution", method = "SetExecutionArchived"))]
+pub struct SetExecutionArchived;
 
 /* === Enums === */
 

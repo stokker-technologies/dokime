@@ -9,17 +9,21 @@
 
 /* === External Imports === */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 /* === Local Imports === */
 
+import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
 import { Button } from "@/components/ui/button";
-import { useExploreHistoryQuery } from "@/features/explore/explore-queries";
+import { exploreQueryKeys, useExploreHistoryQuery } from "@/features/explore/explore-queries";
 import { HistoryComparisonView } from "@/features/explore/HistoryComparisonView";
 import { HistoryLibrary } from "@/features/explore/HistoryLibrary";
+import { setNativeCycleArchived, setNativeExecutionArchived } from "@/lib/api/native-execution";
 import type { ExecutionBrowsePage } from "@/lib/types/view-contracts";
 import { usePageChrome } from "@/shell/page-chrome";
-import { type ExploreTarget, exploreEntryKey } from "./explore-contracts";
+import { type ExploreEntry, type ExploreTarget, exploreEntryKey } from "./explore-contracts";
 
 /* === Types === */
 
@@ -52,7 +56,41 @@ export function ExploreSurface({
   /* The box types faster than a round trip; the read follows the operator
      rather than every keystroke, and the box itself never lags. */
   const [selection, setSelection] = useState("");
-  const cyclesQuery = useExploreHistoryQuery(selection);
+  const [archived, setArchived] = useState(false);
+  const cyclesQuery = useExploreHistoryQuery(selection, archived ? "Archived" : "Unarchived");
+  const session = useNativeSession();
+  const queryClient = useQueryClient();
+  /* A row reads archived when its executions or its whole cycle are, so
+     Unarchive clears both marks for everything the row lists. */
+  const unarchive = useMutation({
+    mutationFn: async (entry: ExploreEntry) => {
+      if (entry.target.kind === "cycle") {
+        await setNativeCycleArchived(session.identity, entry.target.id, false);
+      }
+      for (const execution of [...entry.executions, ...entry.unrun]) {
+        if (execution.archived) {
+          await setNativeExecutionArchived(
+            session.identity,
+            execution.metadata.execution_id,
+            false,
+          );
+        }
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: exploreQueryKeys.all }),
+  });
+  const onUnarchive = useCallback(
+    (entry: ExploreEntry) =>
+      void unarchive
+        .mutateAsync(entry)
+        .then(() => toast.success("Unarchived"))
+        .catch((error: unknown) =>
+          toast.error("The archive mark could not be removed.", {
+            description: error instanceof Error ? error.message : String(error),
+          }),
+        ),
+    [unarchive.mutateAsync],
+  );
   const cycles = cyclesQuery.data ?? [];
 
   useEffect(() => {
@@ -81,9 +119,12 @@ export function ExploreSurface({
         <HistoryComparisonView cycles={selectedCycles} onBack={onBack} />
       ) : (
         <HistoryLibrary
+          archived={archived}
           cycles={cycles}
           loading={cyclesQuery.isPending}
           onCompare={onCompare}
+          onToggleArchived={() => setArchived((current) => !current)}
+          onUnarchive={onUnarchive}
           onOpenEntry={onOpenEntry}
           onQueryChange={setQuery}
           onToggleSelected={onToggleSelected}

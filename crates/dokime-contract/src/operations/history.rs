@@ -116,6 +116,9 @@ pub struct ExecutionFilter {
     pub cycle_ids: Vec<String>,
     pub started_after: Option<Timestamp>,
     pub started_before: Option<Timestamp>,
+    // Absent lists only unarchived executions.
+    #[row(description = "Absent lists only unarchived executions.")]
+    pub archive: Option<super::execution::ArchiveScope>,
 }
 
 #[harmos::message]
@@ -156,6 +159,7 @@ pub struct ExecutionBrowseEntry {
     pub metadata: Option<HistoricalExecutionMetadata>,
     pub checkpoint: Option<ExecutionCheckpoint>,
     pub availability: ExecutionAvailability,
+    pub archived: bool,
 }
 
 #[harmos::message]

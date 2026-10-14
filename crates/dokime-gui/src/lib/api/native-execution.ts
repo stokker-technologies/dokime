@@ -59,7 +59,6 @@ import {
   mapBounded,
   metadataJson,
   NATIVE_MAX_PAGES,
-  NATIVE_MAX_SETTLE_ATTEMPTS,
   NATIVE_PAGE_SIZE,
   NativeApiLimitError,
   nativeValueToJson,
@@ -245,16 +244,22 @@ export async function stopNativeTestCycle(
   );
 }
 
-export async function clearNativeTestCycle(
+/** Archives or unarchives a terminal cycle; its lifecycle is unchanged. */
+export async function setNativeCycleArchived(
   session: SessionIdentity,
   cycleId: string,
+  archived: boolean,
 ): Promise<void> {
-  const cycle = await rpc.executionGetCycle(session, { cycleId });
-  if (["Running", "Paused", "Stopping"].includes(cycle.status?.HarmosVariant.case ?? "")) {
-    await rpc.executionStopCycle(session, { cycleId });
-    await waitForNativeCycleSettled(session, cycleId);
-  }
-  await rpc.executionClearCycle(session, { cycleId });
+  await rpc.executionSetCycleArchived(session, { cycleId, archived });
+}
+
+/** Archives or unarchives a terminal execution; its lifecycle is unchanged. */
+export async function setNativeExecutionArchived(
+  session: SessionIdentity,
+  executionId: string,
+  archived: boolean,
+): Promise<void> {
+  await rpc.executionSetExecutionArchived(session, { executionId, archived });
 }
 
 export async function reopenNativeTestCycle(
@@ -326,23 +331,6 @@ async function controlNativeCycle(
   return plan ? { plan } : null;
 }
 
-async function waitForNativeCycleSettled(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<CycleSummary> {
-  for (let attempt = 0; attempt < NATIVE_MAX_SETTLE_ATTEMPTS; attempt++) {
-    const cycle = await rpc.executionGetCycle(session, { cycleId });
-    if (!["Running", "Paused", "Stopping"].includes(cycle.status?.HarmosVariant.case ?? "")) {
-      return cycle;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new NativeApiLimitError(
-    "Execution.StopCycle",
-    `cycle ${cycleId} did not settle after ${NATIVE_MAX_SETTLE_ATTEMPTS} observations`,
-  );
-}
-
 async function loadNativeExecution(
   session: SessionIdentity,
   executionId: string,
@@ -398,6 +386,7 @@ function mapNativeExecution(
                 : null,
         }
       : null,
+    archived: item.archived,
     test_execution_id: item.executionId,
     test_cycle_id: detail.cycleId,
     queue_item_id: item.caseId,

@@ -350,8 +350,8 @@ pub(crate) async fn stop_holds_unwind() {
         .stop_cycle(test_cycle_id.clone(), CommandContext::default())
         .await;
     let stopping = wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Stopping).await;
-    let clear = runtime
-        .clear_cycle(test_cycle_id.clone(), CommandContext::default())
+    let archive = runtime
+        .set_cycle_archived(test_cycle_id.clone(), true, CommandContext::default())
         .await;
     executor.release();
 
@@ -361,7 +361,7 @@ pub(crate) async fn stop_holds_unwind() {
 
     assert!(stop.is_ok());
     assert_eq!(stopping.lifecycle, CycleStatus::Stopping);
-    assert!(clear.is_err());
+    assert!(archive.is_err(), "a stopping cycle is not terminal yet");
     assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Cancelled);
     assert_eq!(
         cycle.result.as_ref().unwrap().status,

@@ -30,11 +30,11 @@ type CycleSummary = Wire<GeneratedCycleSummary>;
 export type CyclesQuerySelection = {
   /** Matched server-side against label, identifier and admitted suite label. */
   text?: string;
-  /* False names the other lifecycles; an empty `statuses` is no constraint.
-     False is the default so the status bar and an unfiltered Cycles home ask
-     the identical question and share one cached read rather than paginating
-     the whole list twice every five seconds. */
-  includeCleared?: boolean;
+  /* True lists only archived cycles, false only the others. False is the
+     default so the status bar and an unfiltered Cycles home ask the identical
+     question and share one cached read rather than paginating the whole list
+     twice every five seconds. */
+  archived?: boolean;
 };
 
 /* === Query Keys === */
@@ -46,32 +46,13 @@ export const cyclesHomeQueryKeys = {
       ...cyclesHomeQueryKeys.all,
       "cycles",
       generation,
-      { includeCleared: selection.includeCleared ?? false, text: selection.text ?? "" },
+      { archived: selection.archived ?? false, text: selection.text ?? "" },
     ] as const,
   pendingPrompts: (generation: string) =>
     [...cyclesHomeQueryKeys.all, "pending-prompts", generation] as const,
 };
 
 /* === Constants === */
-
-/**
- * The lifecycles a list without Show Cleared admits.
- *
- * An empty `statuses` is no constraint, so excluding one lifecycle means
- * naming the other ten. UNSPECIFIED is not among them: it is not a lifecycle
- * a cycle can be in.
- */
-const UNCLEARED_STATUSES: NonNullable<NativeCycleSelection["filter"]>["statuses"] = [
-  { HarmosVariant: { case: "Previewed", value: {} } },
-  { HarmosVariant: { case: "Ready", value: {} } },
-  { HarmosVariant: { case: "Running", value: {} } },
-  { HarmosVariant: { case: "Paused", value: {} } },
-  { HarmosVariant: { case: "Stopping", value: {} } },
-  { HarmosVariant: { case: "Completed", value: {} } },
-  { HarmosVariant: { case: "Failed", value: {} } },
-  { HarmosVariant: { case: "Blocked", value: {} } },
-  { HarmosVariant: { case: "Stopped", value: {} } },
-];
 
 /* === Public Functions === */
 
@@ -85,7 +66,12 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
   return {
     filter: {
       text: selection.text?.trim() ?? "",
-      statuses: selection.includeCleared === false ? UNCLEARED_STATUSES : [],
+      statuses: [],
+      archive: {
+        HarmosVariant: selection.archived
+          ? { case: "Archived", value: {} }
+          : { case: "Unarchived", value: {} },
+      },
       suiteIds: [],
     },
     order: { key: { HarmosVariant: { case: "UpdatedAt", value: {} } }, descending: true },
@@ -105,11 +91,11 @@ export function useCyclesQuery(
   selection: CyclesQuerySelection = {},
 ): UseQueryResult<CycleSummary[]> {
   const session = useNativeSession();
-  const includeCleared = selection.includeCleared ?? false;
+  const archived = selection.archived ?? false;
   const text = selection.text ?? "";
   return useQuery({
-    queryFn: () => listNativeCycles(session.identity, cycleListSelection({ includeCleared, text })),
-    queryKey: cyclesHomeQueryKeys.cycles(session.identity.generation, { includeCleared, text }),
+    queryFn: () => listNativeCycles(session.identity, cycleListSelection({ archived, text })),
+    queryKey: cyclesHomeQueryKeys.cycles(session.identity.generation, { archived, text }),
     refetchInterval: 5_000,
     staleTime: 2_000,
   });

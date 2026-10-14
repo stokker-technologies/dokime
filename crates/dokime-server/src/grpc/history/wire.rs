@@ -292,6 +292,7 @@ fn browse_entry(
     value: &ExecutionBrowseEntry,
 ) -> Result<history_wire::ExecutionBrowseEntry, Status> {
     Ok(history_wire::ExecutionBrowseEntry {
+        archived: value.archived,
         metadata: Some(metadata(&value.metadata)?),
         checkpoint: value
             .checkpoint

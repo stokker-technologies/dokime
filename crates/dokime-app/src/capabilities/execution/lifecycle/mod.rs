@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub(crate) mod archive;
 pub(crate) mod control;
 pub(crate) mod reset;
 

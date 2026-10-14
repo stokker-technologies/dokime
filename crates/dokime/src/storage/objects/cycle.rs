@@ -360,7 +360,6 @@ impl TryFrom<Cycle> for TestCycle {
             "failed" => CycleStatus::Failed,
             "blocked" => CycleStatus::Blocked,
             "stopped" => CycleStatus::Stopped,
-            "cleared" => CycleStatus::Cleared,
             _ => return Err(Error::Invalid("invalid cycle lifecycle")),
         };
         let created_at = Timestamp::new(row.created_at);
@@ -693,7 +692,6 @@ fn lifecycle_text(value: &CycleStatus) -> &'static str {
         CycleStatus::Failed => "failed",
         CycleStatus::Blocked => "blocked",
         CycleStatus::Stopped => "stopped",
-        CycleStatus::Cleared => "cleared",
     }
 }
 

@@ -56,7 +56,7 @@ export function HistoryDetailSurface(props: HistoryDetailProps) {
 }
 
 function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProps) {
-  const query = useExploreHistoryQuery();
+  const query = useExploreHistoryQuery("", "All");
   const session = useNativeSession();
   const queryClient = useQueryClient();
   const entry = query.data?.find(
@@ -124,7 +124,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
       ? `${execution.metadata.title} was deleted from execution history.`
       : `${execution.metadata.title} was removed from history. Local cleanup is still in progress.`;
     setDeleteNotice(notice);
-    await queryClient.invalidateQueries({ queryKey: exploreQueryKeys.history() }).catch(() => {
+    await queryClient.invalidateQueries({ queryKey: exploreQueryKeys.all }).catch(() => {
       if (session.identity.isCurrent()) {
         setDeleteNotice(`${notice} History could not refresh; reload to confirm the latest state.`);
       }

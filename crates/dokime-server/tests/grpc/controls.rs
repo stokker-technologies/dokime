@@ -108,7 +108,7 @@ pub(crate) async fn cycle_edits_state() {
         .await
         .unwrap();
     let error = client
-        .unary::<contracts::execution::ClearCycle>(authenticated(control(&id)))
+        .unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, true)))
         .await
         .unwrap_err();
     assert_eq!(error.code(), Code::FailedPrecondition);
@@ -161,6 +161,61 @@ pub(crate) async fn cycle_edits_state() {
     assert_eq!(second.len(), 2);
     assert_eq!(second[0], first[0]);
     assert_ne!(second[0].execution_id, second[1].execution_id);
+
+    // A Completed Cycle Archives: Hidden From The Default List, Shown When Asked
+    client
+        .unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, true)))
+        .await
+        .unwrap();
+    let archived = client
+        .unary::<contracts::execution::GetCycle>(authenticated(
+            contracts::execution::GetCycleRequest {
+                cycle_id: id.clone(),
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(archived.archived);
+    assert_eq!(
+        archived.status,
+        contracts::execution::CycleStatus::Completed
+    );
+    assert!(!listed(&mut client, &id, None).await);
+    assert!(
+        listed(
+            &mut client,
+            &id,
+            Some(contracts::execution::ArchiveScope::Archived)
+        )
+        .await
+    );
+    client
+        .unary::<contracts::execution::SetExecutionArchived>(authenticated(
+            contracts::execution::SetExecutionArchivedRequest {
+                execution_id: second[1].execution_id.clone(),
+                archived: true,
+                context: None,
+            },
+        ))
+        .await
+        .unwrap();
+    assert!(attempts(&mut client, &id).await[1].archived);
+    client
+        .unary::<contracts::execution::SetExecutionArchived>(authenticated(
+            contracts::execution::SetExecutionArchivedRequest {
+                execution_id: second[1].execution_id.clone(),
+                archived: false,
+                context: None,
+            },
+        ))
+        .await
+        .unwrap();
+    client
+        .unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, false)))
+        .await
+        .unwrap();
+    assert!(listed(&mut client, &id, None).await);
     client
         .unary::<contracts::execution::ScheduleCaseRerun>(authenticated(case.clone()))
         .await
@@ -186,30 +241,10 @@ pub(crate) async fn cycle_edits_state() {
             .code(),
         Code::FailedPrecondition
     );
-    client
-        .unary::<contracts::execution::ClearCycle>(authenticated(control(&id)))
-        .await
-        .unwrap();
-    let cleared = client
-        .unary::<contracts::execution::GetCycle>(authenticated(
-            contracts::execution::GetCycleRequest {
-                cycle_id: id.clone(),
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(cleared.status, contracts::execution::CycleStatus::Cleared);
-    assert_eq!(cleared.case_count, 0);
+    // A Re-Run Makes The Cycle Ready Again, Which Is Not Terminal
     assert_eq!(
         client
-            .unary::<contracts::execution::UpdateCyclePolicy>(authenticated(
-                contracts::execution::UpdateCyclePolicyRequest {
-                    cycle_id: id,
-                    continue_on_failure: false,
-                    context: None
-                }
-            ))
+            .unary::<contracts::execution::SetCycleArchived>(authenticated(archive(&id, true)))
             .await
             .unwrap_err()
             .code(),
@@ -217,6 +252,37 @@ pub(crate) async fn cycle_edits_state() {
     );
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
+}
+
+fn archive(id: &str, archived: bool) -> contracts::execution::SetCycleArchivedRequest {
+    contracts::execution::SetCycleArchivedRequest {
+        cycle_id: id.into(),
+        archived,
+        context: None,
+    }
+}
+
+async fn listed(
+    client: &mut WireClient,
+    id: &str,
+    archive: Option<contracts::execution::ArchiveScope>,
+) -> bool {
+    client
+        .unary::<contracts::execution::ListCycles>(authenticated(
+            contracts::execution::ListCyclesRequest {
+                filter: Some(contracts::execution::CycleFilter {
+                    archive,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .cycles
+        .iter()
+        .any(|cycle| cycle.cycle_id == id)
 }
 
 async fn attempts(

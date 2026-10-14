@@ -253,6 +253,7 @@ async function assembleNativeCyclePlan(
       duration_delta_s: null,
       metadata: metadataJson(summary.metadata),
       generated_at: generatedAt,
+      archived: summary.archived,
     },
     templates,
     cases: mappedCases,
@@ -290,6 +291,7 @@ export function mapNativeExecutionSummary(
 ): TestExecution {
   const testCase = cases.find((candidate) => candidate.case_id === item.caseId);
   return {
+    archived: item.archived,
     test_execution_id: item.executionId,
     test_cycle_id: cycle.cycleId,
     queue_item_id: item.caseId,
@@ -785,5 +787,5 @@ export function mapCriterionStatus(
 }
 
 export function isFinishedCycle(status: CycleStatus | undefined): boolean {
-  return ["Completed", "Failed", "Stopped", "Cleared"].includes(status?.HarmosVariant.case ?? "");
+  return ["Completed", "Failed", "Stopped"].includes(status?.HarmosVariant.case ?? "");
 }
