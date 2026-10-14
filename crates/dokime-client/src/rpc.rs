@@ -1311,6 +1311,19 @@ impl Client {
         super::transport::value(reply)
     }
 
+    pub async fn settings_update_report_defaults(
+        &self,
+        message: contracts::settings::UpdateReportDefaultsRequest,
+    ) -> Result<contracts::settings::ApplicationSettings> {
+        let reply = self
+            .unary::<contracts::settings::UpdateReportDefaults>(
+                contracts::settings::UpdateReportDefaults::PATH,
+                message,
+            )
+            .await?;
+        super::transport::value(reply)
+    }
+
     pub async fn settings_update_data_root(
         &self,
         message: contracts::settings::UpdateDataRootRequest,

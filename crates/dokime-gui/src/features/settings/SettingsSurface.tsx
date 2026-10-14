@@ -21,6 +21,7 @@ import { useEffect } from "react";
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
+import { ReportDefaultsCard } from "@/features/settings/ReportDefaultsCard";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsGrid } from "@/features/settings/SettingsGrid";
 import { StorageSourcesCard } from "@/features/settings/StorageSourcesCard";
@@ -116,6 +117,7 @@ function SectionContent({
     return (
       <>
         <GeneralSection />
+        <ReportDefaultsCard />
         <StorageSourcesCard />
       </>
     );

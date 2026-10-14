@@ -355,6 +355,12 @@ impl RuntimeHandle {
                 telemetry,
             )
         };
+        // A plot nobody configured draws with the application defaults, frozen
+        // here so a report rendered again from this capture draws the same.
+        let defaults = self.settings().read(|document| document.report);
+        for document in context.execution_documents.values_mut() {
+            defaults.apply(document);
+        }
         if let Some(asset) = logo {
             let captured = super::presentation::capture_logo(self.storage(), &asset).await?;
             if let Some(logo) = &mut context.appearance.logo {

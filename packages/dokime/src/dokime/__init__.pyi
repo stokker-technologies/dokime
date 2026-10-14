@@ -128,9 +128,10 @@ import dokime._wire.dokime.v1.SettingsMessages.UpdateAppearance.messages_pb2 as 
 import dokime._wire.dokime.v1.SettingsMessages.UpdateDataRoot.messages_pb2 as _wire_121
 import dokime._wire.dokime.v1.SettingsMessages.UpdatePluginCredential.messages_pb2 as _wire_122
 import dokime._wire.dokime.v1.SettingsMessages.UpdatePluginSettings.messages_pb2 as _wire_123
-import dokime._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy.messages_pb2 as _wire_124
-import dokime._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_125
-import dokime._wire.harmos.host.v1.HostMessages.Operations.messages_pb2 as _wire_126
+import dokime._wire.dokime.v1.SettingsMessages.UpdateReportDefaults.messages_pb2 as _wire_124
+import dokime._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy.messages_pb2 as _wire_125
+import dokime._wire.dokime.v1.TelemetryMessages.ListSamples.messages_pb2 as _wire_126
+import dokime._wire.harmos.host.v1.HostMessages.Operations.messages_pb2 as _wire_127
 
 # Local Imports
 from .operation import Invoker as Invoker
@@ -1216,8 +1217,18 @@ DOKIME_SETTINGS_UPDATE_PLUGIN_SETTINGS: Operation[
     Message,
 ]
 
-DokimeSettingsUpdateStoragePolicyRequest = _wire_124.Row1
-DokimeSettingsUpdateStoragePolicyResponse = _wire_124.Row2
+DokimeSettingsUpdateReportDefaultsRequest = _wire_124.Row1
+DokimeSettingsUpdateReportDefaultsResponse = _wire_124.Row2
+
+DOKIME_SETTINGS_UPDATE_REPORT_DEFAULTS: Operation[
+    DokimeSettingsUpdateReportDefaultsRequest,
+    DokimeSettingsUpdateReportDefaultsResponse,
+    Message,
+    Message,
+]
+
+DokimeSettingsUpdateStoragePolicyRequest = _wire_125.Row1
+DokimeSettingsUpdateStoragePolicyResponse = _wire_125.Row2
 
 DOKIME_SETTINGS_UPDATE_STORAGE_POLICY: Operation[
     DokimeSettingsUpdateStoragePolicyRequest,
@@ -1226,8 +1237,8 @@ DOKIME_SETTINGS_UPDATE_STORAGE_POLICY: Operation[
     Message,
 ]
 
-DokimeTelemetryListSamplesRequest = _wire_125.Row1
-DokimeTelemetryListSamplesResponse = _wire_125.Row2
+DokimeTelemetryListSamplesRequest = _wire_126.Row1
+DokimeTelemetryListSamplesResponse = _wire_126.Row2
 
 DOKIME_TELEMETRY_LIST_SAMPLES: Operation[
     DokimeTelemetryListSamplesRequest,
@@ -1236,8 +1247,8 @@ DOKIME_TELEMETRY_LIST_SAMPLES: Operation[
     Message,
 ]
 
-HostOperationsRequest = _wire_126.Row1
-HostOperationsResponse = _wire_126.Row2
+HostOperationsRequest = _wire_127.Row1
+HostOperationsResponse = _wire_127.Row2
 
 HOST_OPERATIONS: Operation[
     HostOperationsRequest, HostOperationsResponse, Message, Message

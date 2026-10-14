@@ -9,7 +9,8 @@ from dokime._wire.dokime.v1.SettingsMessages.UpdateAppearance import messages_pb
 from dokime._wire.dokime.v1.SettingsMessages.UpdateDataRoot import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1
 from dokime._wire.dokime.v1.SettingsMessages.UpdatePluginCredential import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1
 from dokime._wire.dokime.v1.SettingsMessages.UpdatePluginSettings import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1
-from dokime._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.SettingsMessages.UpdateReportDefaults import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1
+from dokime._wire.dokime.v1.SettingsMessages.UpdateStoragePolicy import messages_pb2 as _messages_pb2_1_1_1_1_1_1_1_1_1_1_1_1
 from google.protobuf import descriptor as _descriptor
 from typing import ClassVar as _ClassVar
 
