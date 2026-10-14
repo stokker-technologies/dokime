@@ -22,8 +22,8 @@ use std::time::Duration;
 use dokime::harmos::operations::{
     OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
 };
-use dokime::harmos::plugin::contract::{Attachment, Declared};
-use dokime::harmos::plugin::sidecar::{ObserverAttachment, Publisher};
+use dokime::harmos::plugin::{Attachment, Declared};
+use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 // Local Imports
 use dokime::{Refusal, Supervisor};
 use error::Error;

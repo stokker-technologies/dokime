@@ -16,7 +16,7 @@
 use std::collections::BTreeSet;
 // Third Party Imports
 use harmos::operations::{NativeError, OperationManager};
-use harmos::plugin::sidecar::operations::Definition;
+use harmos::sidecar::operations::Definition;
 // Local Imports
 use crate::InstalledPlugin;
 use dokime::domains::{
@@ -262,10 +262,8 @@ fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
             ) {
                 return ActionDispatcherError::Unavailable;
             }
-            let refusal = source
-                .downcast_ref::<harmos::plugin::sidecar::Refusal>()
-                .cloned();
-            let refusal = refusal.unwrap_or_else(|| harmos::plugin::sidecar::Refusal::of(error));
+            let refusal = source.downcast_ref::<harmos::sidecar::Refusal>().cloned();
+            let refusal = refusal.unwrap_or_else(|| harmos::sidecar::Refusal::of(error));
             ActionDispatcherError::Refused {
                 code: refusal.code(),
                 message: refusal.message().to_owned(),
@@ -275,14 +273,14 @@ fn dispatch_error(error: harmos::Error) -> ActionDispatcherError {
             ActionDispatcherError::Malformed(source.to_string())
         }
         harmos::Error::OperationUnauthorized { .. } | harmos::Error::OperationLaneCycle { .. } => {
-            let refusal = harmos::plugin::sidecar::Refusal::new(-32_604, error);
+            let refusal = harmos::sidecar::Refusal::new(-32_604, error);
             ActionDispatcherError::Refused {
                 code: refusal.code(),
                 message: refusal.message().to_owned(),
             }
         }
         error => {
-            let refusal = harmos::plugin::sidecar::Refusal::of(error);
+            let refusal = harmos::sidecar::Refusal::of(error);
             ActionDispatcherError::Refused {
                 code: refusal.code(),
                 message: refusal.message().to_owned(),

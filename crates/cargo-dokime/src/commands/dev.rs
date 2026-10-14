@@ -20,7 +20,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 // Third Party Imports
-use harmos::plugin::bundle::{Bundle, Limits};
+use harmos::bundle::{Bundle, Limits};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},

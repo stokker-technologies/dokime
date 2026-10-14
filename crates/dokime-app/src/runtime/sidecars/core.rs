@@ -27,9 +27,9 @@ use crate::{InstalledSidecar, RuntimeHandle};
 /* === Macros === */
 
 /* === Type Aliases === */
-type NativePublication = harmos::plugin::sidecar::Publish<
+type NativePublication = harmos::sidecar::Publish<
     crate::Dokime,
-    harmos::plugin::sidecar::Executable,
+    harmos::sidecar::Executable,
     crate::SidecarNoticeHandler,
 >;
 

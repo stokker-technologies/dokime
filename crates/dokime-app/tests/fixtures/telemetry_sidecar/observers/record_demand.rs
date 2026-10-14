@@ -19,7 +19,7 @@
 
 // Local Imports
 use crate::{Error, Resources, TelemetrySidecar};
-use dokime::harmos::plugin::sidecar::{DemandKey, ObserverContext, Publisher};
+use dokime::harmos::sidecar::{DemandKey, ObserverContext, Publisher};
 
 /* === Constants === */
 const STARTED: DemandKey = DemandKey::new("dokime.record", "validation-telemetry.started");

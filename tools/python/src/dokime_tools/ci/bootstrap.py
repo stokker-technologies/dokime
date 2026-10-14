@@ -60,6 +60,7 @@ GUI_PACKAGES = (
     "linux-libc-dev",
     "libclang-dev",
 )
+HARMOS_REPOSITORY = "https://github.com/stokker-technologies/harmos.git"
 VC_TOOLSET_COMPONENT = "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
 VSWHERE_RELATIVE_PATH = Path("Microsoft Visual Studio/Installer/vswhere.exe")
 
@@ -183,23 +184,31 @@ def prepare_tools(role: str) -> None:
 
 
 def harmos_pin(root: Path) -> dict[str, str]:
+    """Resolve the one Harmos dependency to its exact public Git revision.
+
+    A `rev` source is exact as declared; a `branch` source resolves to the
+    revision Cargo.lock locked it to, so the prepared tool stays exact.
+    """
     manifest = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
-    dependency = manifest["workspace"]["dependencies"]["harmos"]
-    url, revision = dependency.get("git"), dependency.get("rev")
-    if (
-        url != "https://github.com/stokker-technologies/harmos.git"
-        or not isinstance(revision, str)
-        or len(revision) != 40
-        or any(character not in "0123456789abcdef" for character in revision)
-    ):
-        raise ValueError("Harmos tools require the exact declared public Git revision")
-    for name in ("harmos-contract", "harmos-signal"):
-        companion = manifest["workspace"]["dependencies"].get(name, {})
-        if companion.get("git") != url or companion.get("rev") != revision:
-            raise ValueError(
-                "all Harmos dependencies must share the exact public Git revision"
-            )
-    return {"git": url, "rev": revision, "package": "cargo-harmos"}
+    dependencies = manifest["workspace"]["dependencies"]
+    if any(name in dependencies for name in ("harmos-contract", "harmos-signal")):
+        raise ValueError("Dokime depends on the harmos crate alone")
+    dependency = dependencies["harmos"]
+    url, revision, branch = (
+        dependency.get("git"),
+        dependency.get("rev"),
+        dependency.get("branch"),
+    )
+    if url != HARMOS_REPOSITORY:
+        raise ValueError("Harmos tools require the public Harmos Git source")
+    if branch is None and _is_revision(revision):
+        return {"git": url, "rev": revision, "package": "cargo-harmos"}
+    if revision is None and isinstance(branch, str) and branch:
+        locked = _locked_revision(root, f"git+{url}?branch={branch}#")
+        return {"git": url, "branch": branch, "rev": locked, "package": "cargo-harmos"}
+    raise ValueError(
+        "Harmos tools require the exact declared public Git revision or a branch"
+    )
 
 
 def prepare_harmos(root: Path, *, allow_install: bool) -> None:
@@ -382,6 +391,28 @@ def verify_visual_cpp_toolset() -> None:
 
 
 # === Private Functions === #
+
+
+def _is_revision(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 40
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _locked_revision(root: Path, source: str) -> str:
+    # A Local Path Override Leaves No Git Source In The Lockfile
+    lock = tomllib.loads((root / "Cargo.lock").read_text(encoding="utf-8"))
+    for package in lock.get("package", []):
+        locked = package.get("source", "")
+        if package.get("name") == "harmos" and locked.startswith(source):
+            revision = locked.removeprefix(source)
+            if _is_revision(revision):
+                return revision
+    raise ValueError(
+        "the Harmos branch has no locked public revision; a local path override is active"
+    )
 
 
 def _create_temporary_directory() -> None:

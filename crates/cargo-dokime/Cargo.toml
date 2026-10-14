@@ -52,7 +52,6 @@ url = { workspace = true, default-features = true }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "grpc"] }
-harmos-contract = { workspace = true }
 
 # Parsing
 cargo_metadata = { workspace = true, default-features = true }

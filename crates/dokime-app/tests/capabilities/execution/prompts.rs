@@ -402,9 +402,9 @@ fn prompt_config(root: impl Into<std::path::PathBuf>) -> RuntimeConfig {
 
 fn prompts(
     definitions: impl IntoIterator<Item = dokime::prompts::PromptDefinition>,
-) -> harmos::plugin::sidecar::Registrar {
+) -> harmos::sidecar::Registrar {
     use dokime::plugin::registration::{PROMPTS_NAMESPACE, domain_schema};
-    let mut registrar = harmos::plugin::sidecar::Registrar::new();
+    let mut registrar = harmos::sidecar::Registrar::new();
     registrar
         .register(
             PROMPTS_NAMESPACE,

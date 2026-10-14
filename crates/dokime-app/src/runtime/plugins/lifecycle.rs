@@ -390,11 +390,11 @@ impl Sidecar {
         let executable = &program.executable.0;
         let source = program.executable.id().to_owned();
         let logged_by = source.clone();
-        let sidecar: InstalledSidecar = harmos::plugin::sidecar::Supervised::new(
+        let sidecar: InstalledSidecar = harmos::sidecar::Supervised::new(
             executable.clone(),
             Box::new(
                 move |_context: &harmos::services::Service<crate::Dokime>, value| {
-                    if let harmos::plugin::sidecar::Notice::Logged { line } = &value {
+                    if let harmos::sidecar::Notice::Logged { line } = &value {
                         forward_plugin_line(&logged_by, line);
                     }
                 },

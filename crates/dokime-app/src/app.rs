@@ -40,7 +40,7 @@ pub(crate) type StateManager = harmos::state::StateManager<Dokime>;
 pub(crate) type Streams = harmos::streams::StreamManager<Dokime>;
 
 #[cfg(feature = "sim")]
-pub type Simulated = harmos::sim::SimulatedRuntime<Dokime>;
+pub type Simulated = harmos::simulation::SimulatedRuntime<Dokime>;
 
 /* === Structs === */
 

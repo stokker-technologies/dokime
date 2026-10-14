@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::plugin::contract::Contribution;
+use harmos::plugin::Contribution;
 
 // Local Imports
 use dokime::analysis::{

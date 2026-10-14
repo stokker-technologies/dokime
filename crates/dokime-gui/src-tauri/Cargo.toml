@@ -94,7 +94,6 @@ dokime-server = { path = "../../dokime-server" }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
-harmos-contract = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true, default-features = true }

@@ -185,11 +185,11 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                 <Self>::definition()
             }
 
-            fn bind<__DokimePlugin: #sdk::__harmos::plugin::contract::Declared>(
-                table: &mut #sdk::__harmos::plugin::sidecar::operations::WireTable<#sdk::Supervisor>,
+            fn bind<__DokimePlugin: #sdk::__harmos::plugin::Declared>(
+                table: &mut #sdk::__harmos::sidecar::operations::WireTable<#sdk::Supervisor>,
                 _: &str,
                 _: &[#sdk::records::RecordContract],
-            ) -> ::core::result::Result<(), #sdk::__harmos::plugin::sidecar::operations::ServingError> {
+            ) -> ::core::result::Result<(), #sdk::__harmos::sidecar::operations::ServingError> {
                 let contracts = <Self>::definition().record_contracts;
                 for bind in <#templates as #sdk::catalog::Catalog<#sdk::catalog::TemplateBindings<__DokimePlugin>>>::ENTRIES {
                     bind(table, #identifier, &contracts)?;

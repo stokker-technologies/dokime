@@ -10,7 +10,7 @@
 /*
  * Time-aware point reduction for live plots.
  *
- * The host reduces a snapshot with `harmos_signal::lttb`; the live append path
+ * The host reduces a snapshot with `harmos::signal::lttb`; the live append path
  * reduces the same way here so a frame that grew past its budget between two
  * server snapshots keeps the shape of the signal instead of its last N samples.
  * This module has no application imports so a node test can load it directly.

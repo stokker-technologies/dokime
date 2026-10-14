@@ -40,9 +40,7 @@ repository = "https://github.com/stokker-technologies/dokime"
 
 [workspace.dependencies]
 # Git
-harmos = { git = "https://github.com/stokker-technologies/harmos.git", rev = "a7dbbfecf707b4e9ef307aadc74cf6f4acddfed3", default-features = false }
-harmos-contract = { git = "https://github.com/stokker-technologies/harmos.git", rev = "a7dbbfecf707b4e9ef307aadc74cf6f4acddfed3", default-features = false }
-harmos-signal = { git = "https://github.com/stokker-technologies/harmos.git", rev = "a7dbbfecf707b4e9ef307aadc74cf6f4acddfed3", default-features = false }
+harmos = { git = "https://github.com/stokker-technologies/harmos.git", branch = "refactor/streamline", default-features = false }
 
 # Error Handling
 anyhow = { version = "1.0.104", default-features = false }
@@ -189,26 +187,12 @@ codegen-units = 1
 lto = "thin"
 strip = "symbols"
 
-# Development hosts inspect complete plugin executables during packaging and
-# admission. Keep their byte scanners optimized without optimizing authored
-# plugin code or disabling debug information across the workspace.
-[profile.dev.package.harmos-contract]
-opt-level = 2
-
-[profile.dev.package.harmos-sidecar]
-opt-level = 2
-
 # Plugin packaging and admission hash complete executable images repeatedly.
 # Match installed-tool hash throughput without optimizing authored plugin code.
 [profile.dev.package.sha2]
 opt-level = 3
 
-# TEMPORARY fast-dev override: local Harmos worktree instead of the published pin.
-# Remove before publication; sync:harmos re-pins the git revision.
+# Local Harmos worktree for development on this machine; comment the line out
+# anywhere the sibling `harmos.wt/streamline` checkout does not exist.
 [patch."https://github.com/stokker-technologies/harmos.git"]
 harmos = { path = "../../harmos.wt/streamline/crates/harmos" }
-harmos-bundle = { path = "../../harmos.wt/streamline/crates/harmos-bundle" }
-harmos-contract = { path = "../../harmos.wt/streamline/crates/harmos-contract" }
-harmos-macros = { path = "../../harmos.wt/streamline/crates/harmos-macros" }
-harmos-sidecar = { path = "../../harmos.wt/streamline/crates/harmos-sidecar" }
-harmos-signal = { path = "../../harmos.wt/streamline/crates/harmos-signal" }

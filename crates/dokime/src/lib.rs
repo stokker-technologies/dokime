@@ -110,10 +110,11 @@ pub use publication::Publishable;
 // reach the host as Harmos contributions.
 pub use contributions::{Evidence, Prompts, Records, Settings, Suites};
 pub use harmos::Plugin;
+pub use harmos::catalog::RequirementEntry as Requirement;
 pub use harmos::operations::{CallContext, Declares, Operation};
-pub use harmos::plugin::contract::{Contribution, Grant, Requirement};
+pub use harmos::plugin::{Contribution, Grant};
 #[cfg(feature = "native")]
-pub use harmos::plugin::sidecar::{Refusal, Supervisor};
+pub use harmos::sidecar::{Refusal, Supervisor};
 
 pub use harmos;
 pub use values::{FieldError, FieldValue};

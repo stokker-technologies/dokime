@@ -587,33 +587,33 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
         serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos_contract::PREFIX).unwrap()
+        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
     );
     let resource = vec![0xCDu8; resource_bytes];
-    harmos::plugin::bundle::Bundle::build(
-        harmos::plugin::bundle::Identity {
+    harmos::bundle::Bundle::build(
+        harmos::bundle::Identity {
             name: "fixture".into(),
             version: "1.0.0".parse().unwrap(),
             description: "A fixture.".into(),
             package: Default::default(),
         },
         &[
-            harmos::plugin::bundle::Source {
+            harmos::bundle::Source {
                 path: "bin/fixture",
                 bytes: executable.as_bytes(),
-                executable: Some(harmos::plugin::bundle::Executable {
-                    facility: harmos::plugin::bundle::Facility::Sidecar,
+                executable: Some(harmos::bundle::Executable {
+                    facility: harmos::bundle::Facility::Sidecar,
                     target: target.into(),
                     registrations: vec![],
                 }),
             },
-            harmos::plugin::bundle::Source {
+            harmos::bundle::Source {
                 path: "resources/payload.bin",
                 bytes: &resource,
                 executable: None,
             },
         ],
-        harmos::plugin::bundle::Limits::default(),
+        harmos::bundle::Limits::default(),
     )
     .unwrap()
     .bytes()

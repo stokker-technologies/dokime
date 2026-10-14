@@ -26,7 +26,7 @@ use std::{
 };
 // Third Party Imports
 use async_trait::async_trait;
-use harmos::plugin::sidecar::StreamDeclaration;
+use harmos::sidecar::StreamDeclaration;
 use serde_json::{Value, json};
 // Local Imports
 use bridge::{Harness, Local};

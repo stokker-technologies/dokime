@@ -19,7 +19,7 @@ use sysinfo::{Pid, System as Machine};
 // Local Imports
 // Third-Party Imports
 use crate::{MiniSidecar, Resources};
-use dokime::harmos::plugin::sidecar::{ObserverContext, PublishError, Publisher};
+use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 
 /* === Constants === */
 

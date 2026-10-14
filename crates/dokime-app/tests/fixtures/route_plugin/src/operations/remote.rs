@@ -105,12 +105,12 @@ impl harmos::operations::OperationDeclaration for DynamicUnary {
         Some(visitor.unary::<Self>())
     }
 
-    fn grant(request: &DynamicNumber) -> Option<harmos::plugin::contract::Grant> {
+    fn grant(request: &DynamicNumber) -> Option<harmos::plugin::Grant> {
         match request.value {
-            20 => Some(harmos::plugin::contract::Grant::Egress(
+            20 => Some(harmos::plugin::Grant::Egress(
                 "fixture.remote.allowed".into(),
             )),
-            21 => Some(harmos::plugin::contract::Grant::Egress(
+            21 => Some(harmos::plugin::Grant::Egress(
                 "fixture.remote.refused".into(),
             )),
             _ => None,

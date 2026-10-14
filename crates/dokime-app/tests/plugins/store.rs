@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::{collections::BTreeSet, fs, path::Path, time::Instant};
 // Third Party Imports
-use harmos::plugin::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+use harmos::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
 // Local Imports
 use crate::support::bundles::bundle;
 use dokime_app::config::Settings;
@@ -80,7 +80,7 @@ fn large_bundle(package: &str, owner: &str, version: &str, resource_bytes: usize
         serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos_contract::PREFIX).unwrap()
+        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
     );
     let resource = vec![0xABu8; resource_bytes];
     Bundle::build(

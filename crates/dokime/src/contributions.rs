@@ -55,7 +55,7 @@ pub struct Settings<S>(PhantomData<fn() -> S>);
 /* === Traits === */
 
 /* === Implementations === */
-impl<S> harmos::plugin::contract::Contribution for Suites<S>
+impl<S> harmos::plugin::Contribution for Suites<S>
 where
     S: Catalog<catalog::Suites> + 'static,
 {
@@ -78,7 +78,7 @@ where
     }
 }
 
-impl<R, L> harmos::plugin::contract::Contribution for Records<R, L>
+impl<R, L> harmos::plugin::Contribution for Records<R, L>
 where
     R: Catalog<catalog::Records> + 'static,
     L: Catalog<catalog::Listeners> + 'static,
@@ -120,7 +120,7 @@ where
     }
 }
 
-impl<P> harmos::plugin::contract::Contribution for Prompts<P>
+impl<P> harmos::plugin::Contribution for Prompts<P>
 where
     P: Catalog<catalog::Prompts> + 'static,
 {
@@ -139,7 +139,7 @@ where
     }
 }
 
-impl<S, A> harmos::plugin::contract::Contribution for Evidence<S, A>
+impl<S, A> harmos::plugin::Contribution for Evidence<S, A>
 where
     S: Catalog<catalog::StreamContracts> + 'static,
     A: Catalog<crate::analysis::Definitions> + 'static,
@@ -167,7 +167,7 @@ where
     }
 }
 
-impl<S> harmos::plugin::contract::Contribution for Settings<S>
+impl<S> harmos::plugin::Contribution for Settings<S>
 where
     S: PluginSettings,
 {

@@ -18,11 +18,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::plugin::sidecar::{Attach, Notice, Supervised};
 use harmos::plugin::{
     PluginArtifact, PluginBackend, PluginContributions, PluginDefinition, PluginDefinitions,
     PluginLifecycle, PluginLifecycleAuthority, PluginManager, PluginTransition, Router,
 };
+use harmos::sidecar::{Attach, Notice, Supervised};
 
 // Local Imports
 use dokime::records::{PublishRecord, RecordPublication, RecordPublishRequest};
@@ -80,7 +80,7 @@ pub(super) struct Fixture;
 
 pub(super) struct Native<A: Attach> {
     pub(super) runtime: harmos::Runtime<Fixture>,
-    pub(super) demands: harmos::plugin::sidecar::DemandSource,
+    pub(super) demands: harmos::sidecar::DemandSource,
     pub(super) host: Arc<HostLog>,
     plugins: PluginManager<(), Backend, ()>,
     lifecycle: Host<A>,
@@ -91,7 +91,7 @@ struct Host<A: Attach> {
     attach: A,
     notices: Notices,
     demand_keys: Vec<String>,
-    demands: Option<harmos::plugin::sidecar::DemandSource>,
+    demands: Option<harmos::sidecar::DemandSource>,
     operations: harmos::operations::OperationManager,
     publications: Arc<Publications>,
 }
@@ -400,7 +400,11 @@ where
 {
     fn prepare<'a>(self: Arc<Self>, context: harmos::operations::Context<'a>) -> PreparedCall<'a> {
         Box::pin(async move {
-            let call = <harmos::plugin::sidecar::Publish<App, S, H> as harmos::operations::Operation>::initialize(self, context).await?;
+            let call =
+                <harmos::sidecar::Publish<App, S, H> as harmos::operations::Operation>::initialize(
+                    self, context,
+                )
+                .await?;
             Ok(Box::new(call) as Box<dyn PublicationCall>)
         })
     }
@@ -654,12 +658,11 @@ impl harmos::operations::Operation for Lease {
 }
 
 /* === Public Functions === */
-pub(super) fn attach<P>() -> harmos::plugin::sidecar::PluginNative<P>
+pub(super) fn attach<P>() -> harmos::sidecar::PluginNative<P>
 where
-    P: harmos::Plugin<Context = harmos::plugin::sidecar::Supervisor>
-        + harmos::plugin::contract::Declared,
+    P: harmos::Plugin<Context = harmos::sidecar::Supervisor> + harmos::plugin::Declared,
 {
-    harmos::plugin::sidecar::PluginNative::<P>::new(NonZeroUsize::new(128).unwrap()).unwrap()
+    harmos::sidecar::PluginNative::<P>::new(NonZeroUsize::new(128).unwrap()).unwrap()
 }
 
 pub(super) async fn call_wire<O>(

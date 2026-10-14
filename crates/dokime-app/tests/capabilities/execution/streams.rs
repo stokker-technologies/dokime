@@ -24,7 +24,7 @@ use dokime::execution::Runnable;
 use dokime::schema::Described;
 use dokime_app::runtime::EmbeddedProvider;
 use dokime_app::{InstalledPlugin, Result};
-use harmos::plugin::sidecar::StreamDeclaration;
+use harmos::sidecar::StreamDeclaration;
 use std::sync::{Arc, Mutex};
 
 /* === Constants === */

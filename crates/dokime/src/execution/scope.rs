@@ -72,13 +72,13 @@ impl ExecutionScope {
     }
 
     #[cfg(feature = "native")]
-    pub fn current(host: &harmos::plugin::sidecar::Supervisor) -> Option<Self> {
+    pub fn current(host: &harmos::sidecar::Supervisor) -> Option<Self> {
         host.context().value::<Self>().ok().flatten()
     }
 
     #[cfg(feature = "native")]
     pub fn serving<O: harmos::operations::Declares>(
-        host: &harmos::plugin::sidecar::Supervisor,
+        host: &harmos::sidecar::Supervisor,
     ) -> Option<Self> {
         Self::current(host).map(|scope| {
             scope.routed(<O::Declaration as harmos::operations::OperationDeclaration>::ID)

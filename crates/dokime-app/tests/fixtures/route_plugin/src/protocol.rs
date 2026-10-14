@@ -28,7 +28,7 @@ use dokime::harmos::operations::{
     Host, OperationDeclaration, OperationPolicy, Response, RestartPolicy, RetryPolicy,
     ServingError, Visibility, WireOperation, WireTable,
 };
-use dokime::harmos::plugin::contract::Contribution;
+use dokime::harmos::plugin::Contribution;
 use dokime::harmos::plugin::{Registrar, RegistrationError, inventory::Section};
 // Local Imports
 use dokime::core::{

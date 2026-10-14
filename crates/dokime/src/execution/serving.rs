@@ -22,8 +22,8 @@ use std::time::Duration;
 use harmos::operations::{
     Host, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility,
 };
-use harmos::plugin::sidecar::operations::{ServingError, WireTable};
-use harmos::plugin::sidecar::{Refusal, Supervisor};
+use harmos::sidecar::operations::{ServingError, WireTable};
+use harmos::sidecar::{Refusal, Supervisor};
 
 // Local Imports
 use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
@@ -455,7 +455,7 @@ pub fn contracts(
 /* === Public Functions === */
 pub fn serve<P, S>(table: &mut WireTable<Supervisor>) -> Result<(), ServingError>
 where
-    P: harmos::plugin::contract::Declared,
+    P: harmos::plugin::Declared,
     S: crate::catalog::Catalog<crate::catalog::SuiteBindings<P>>,
 {
     for bind in crate::catalog::entries::<S, crate::catalog::SuiteBindings<P>>() {
@@ -488,7 +488,7 @@ pub fn bind<T, P>(
 ) -> Result<(), ServingError>
 where
     T: SidecarTemplate,
-    P: harmos::plugin::contract::Declared,
+    P: harmos::plugin::Declared,
 {
     let workflow = Arc::new(
         Workflow::<T>::new(workflow, P::ID)

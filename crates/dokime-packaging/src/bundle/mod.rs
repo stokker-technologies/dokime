@@ -35,10 +35,7 @@ pub(crate) mod files;
 
 /* === Public Functions === */
 pub fn read(path: &std::path::Path) -> Result<Vec<u8>, crate::Error> {
-    files::read(
-        path,
-        harmos::plugin::bundle::Limits::default().archive_bytes,
-    )
+    files::read(path, harmos::bundle::Limits::default().archive_bytes)
 }
 
 /* === Private Functions === */

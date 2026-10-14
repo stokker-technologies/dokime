@@ -64,7 +64,7 @@ impl RuntimeHandle {
                 .map(|bundle| {
                     let bytes = read_bounded(
                         &bundle.path,
-                        harmos::plugin::bundle::Limits::default().archive_bytes,
+                        harmos::bundle::Limits::default().archive_bytes,
                     )?;
                     inspect(&bytes).map(|(_, metadata)| metadata)
                 })

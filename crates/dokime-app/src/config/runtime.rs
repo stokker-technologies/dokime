@@ -27,14 +27,11 @@ use dokime::domains::ActionDispatcher;
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type InstalledSidecar = harmos::plugin::sidecar::Supervised<
-    Dokime,
-    harmos::plugin::sidecar::Executable,
-    SidecarNoticeHandler,
->;
+pub type InstalledSidecar =
+    harmos::sidecar::Supervised<Dokime, harmos::sidecar::Executable, SidecarNoticeHandler>;
 
 pub type SidecarNoticeHandler =
-    Box<dyn Fn(&harmos::services::Service<Dokime>, harmos::plugin::sidecar::Notice) + Send + Sync>;
+    Box<dyn Fn(&harmos::services::Service<Dokime>, harmos::sidecar::Notice) + Send + Sync>;
 
 /* === Structs === */
 #[derive(Clone, Serialize, Deserialize)]
@@ -149,7 +146,7 @@ impl RuntimeConfig {
         source: &str,
         version: &str,
         description: &str,
-        registrar: harmos::plugin::sidecar::Registrar,
+        registrar: harmos::sidecar::Registrar,
     ) -> crate::Result<Self> {
         let plugin = crate::capabilities::installed_plugins::contributions::decode_registrations(
             source,

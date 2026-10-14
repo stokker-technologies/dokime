@@ -35,7 +35,7 @@ pub type Handle = harmos::runtime::Handle<ChargerBench>;
 pub type State = harmos::state::ManagedState<ChargerBench>;
 
 #[cfg(feature = "sim")]
-pub type Simulated = harmos::sim::SimulatedRuntime<ChargerBench>;
+pub type Simulated = harmos::simulation::SimulatedRuntime<ChargerBench>;
 
 /* === Structs === */
 #[derive(Clone, Copy, Debug)]

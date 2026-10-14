@@ -30,7 +30,7 @@ pub(crate) mod catalog_lifecycle {
             SpikeChecks::definition()
         }
 
-        fn bind<P: dokime::harmos::plugin::contract::Declared>(
+        fn bind<P: dokime::harmos::plugin::Declared>(
             _: &mut WireTable<dokime::Supervisor>,
             _: &str,
             _: &[dokime::records::RecordContract],
@@ -51,7 +51,7 @@ pub(crate) mod catalog_lifecycle {
     }
 
     pub(crate) fn registration_inert_once() {
-        use dokime::harmos::plugin::contract::Contribution;
+        use dokime::harmos::plugin::Contribution;
 
         let mut registrar = dokime::harmos::plugin::Registrar::new();
         dokime::Suites::<CountedSuites>::register(&mut registrar).unwrap();
@@ -93,8 +93,8 @@ use dokime::definition::{
 use dokime::execution::{CriterionContext, ObserverContext, StepContext};
 use dokime::execution::{Run, Signal, Workflow};
 use dokime::harmos::operations::OperationDeclaration;
+use dokime::harmos::plugin::Contribution;
 use dokime::harmos::plugin::Registrar;
-use dokime::harmos::plugin::contract::Contribution;
 use dokime::plugin::registration::{SUITES_NAMESPACE, TELEMETRY_NAMESPACE};
 use dokime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use dokime::transport::{

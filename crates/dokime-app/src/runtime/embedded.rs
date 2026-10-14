@@ -18,7 +18,7 @@ use std::sync::Arc;
 // Third Party Imports
 use async_trait::async_trait;
 use harmos::Message;
-use harmos::plugin::sidecar::StreamDeclaration;
+use harmos::sidecar::StreamDeclaration;
 // Local Imports
 use super::{RuntimeHandle, native_telemetry};
 use crate::state::ProviderCatalog;
@@ -302,7 +302,7 @@ impl harmos::operations::Operation for EmbeddedRun {
     type Declaration = dokime::execution::Run<()>;
     type Resources = Served;
     type Endpoints = ();
-    type Error = harmos::plugin::sidecar::Refusal;
+    type Error = harmos::sidecar::Refusal;
     type Context<'a> = harmos::operations::Context<'a>;
 
     async fn initialize<'ctx>(
@@ -343,7 +343,7 @@ impl harmos::operations::Operation for EmbeddedSignal {
     type Declaration = dokime::execution::Signal<()>;
     type Resources = Served;
     type Endpoints = ();
-    type Error = harmos::plugin::sidecar::Refusal;
+    type Error = harmos::sidecar::Refusal;
     type Context<'a> = harmos::operations::Context<'a>;
 
     async fn initialize<'ctx>(
@@ -445,7 +445,7 @@ impl EmbeddedPublisher for Publisher {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::plugin::sidecar::Registration>> {
+fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::sidecar::Registration>> {
     use dokime::plugin::registration::{
         APPEARANCE_NAMESPACE, AppearanceRegistration, LISTENERS_NAMESPACE, OPTIONS_NAMESPACE,
         PERMISSIONS_NAMESPACE, PROMPTS_NAMESPACE, RECORDS_NAMESPACE, SETTINGS_NAMESPACE,
@@ -487,7 +487,7 @@ fn registrations(catalog: &InstalledPlugin) -> Result<Vec<harmos::plugin::sideca
     values
         .into_iter()
         .map(|(namespace, payload)| {
-            Ok(harmos::plugin::sidecar::Registration {
+            Ok(harmos::sidecar::Registration {
                 namespace: namespace.into(),
                 schema: domain_schema(namespace),
                 payload: payload.map_err(operation)?,

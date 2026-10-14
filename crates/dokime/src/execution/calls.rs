@@ -24,7 +24,7 @@ use harmos::operations::{
     CallContext, Callable, ContextError, ContextValue, Declares, Host, OperationDeclaration,
     Response,
 };
-use harmos::plugin::sidecar::{CallError, Supervisor};
+use harmos::sidecar::{CallError, Supervisor};
 
 // Local Imports
 

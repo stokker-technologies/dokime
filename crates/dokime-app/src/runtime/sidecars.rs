@@ -40,11 +40,11 @@ pub(crate) struct PublicationIngest {
 #[derive(Default)]
 pub(crate) struct RecordDemands {
     sources: BTreeMap<String, RecordDemandSource>,
-    listeners: BTreeMap<(String, String, String), harmos::plugin::sidecar::DemandLease>,
+    listeners: BTreeMap<(String, String, String), harmos::sidecar::DemandLease>,
 }
 
 struct RecordDemandSource {
-    demands: harmos::plugin::sidecar::DemandSource,
+    demands: harmos::sidecar::DemandSource,
     ready: tokio::sync::watch::Receiver<bool>,
     _watch: BackgroundTask,
 }
@@ -58,7 +58,7 @@ impl RuntimeHandle {
     pub(crate) fn register_record_demand_source(
         &self,
         source: String,
-        demands: harmos::plugin::sidecar::DemandSource,
+        demands: harmos::sidecar::DemandSource,
         ready: tokio::sync::watch::Receiver<bool>,
     ) {
         let owned = std::sync::Arc::downgrade(&self.record_demands);
@@ -111,7 +111,7 @@ impl RuntimeHandle {
     pub(crate) fn hold_record_demand(
         &self,
         records: &[Identifier],
-    ) -> crate::Result<Vec<harmos::plugin::sidecar::DemandLease>> {
+    ) -> crate::Result<Vec<harmos::sidecar::DemandLease>> {
         let artifacts = self.installed_plugins();
         let unavailable = self
             .unavailable_plugins

@@ -25,7 +25,7 @@ include = [
 
 [features]
 default = []
-fft = ["harmos-signal/fft"]
+fft = ["harmos/signal-fft"]
 # Captures screenshots, camera stills and audio on the host. Linux builds need the
 # ALSA development package, V4L2 kernel headers and libclang; Linux screenshots go
 # through the desktop portal.
@@ -50,8 +50,7 @@ dokime-host = { path = "../dokime-host" }
 dokime-theme = { path = "../dokime-theme" }
 
 # Git
-harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
-harmos-signal = { workspace = true, default-features = false }
+harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc", "signal"] }
 
 # Error Handling
 thiserror = { workspace = true, default-features = true }
@@ -116,9 +115,6 @@ ashpd = { workspace = true, optional = true, features = ["screenshot", "tokio"] 
 xcap = { workspace = true, optional = true }
 
 [dev-dependencies]
-
-# Git
-harmos-contract = { workspace = true }
 
 # Logging
 tracing-subscriber = { workspace = true, default-features = true }

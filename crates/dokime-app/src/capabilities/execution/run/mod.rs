@@ -107,7 +107,7 @@ struct HostCapture {
 
 struct ExecutionCleanup {
     _publication_admission: crate::runtime::ExecutionPublicationAdmission,
-    _record_demand: Vec<harmos::plugin::sidecar::DemandLease>,
+    _record_demand: Vec<harmos::sidecar::DemandLease>,
     execution: TestExecution,
     session: Arc<Session>,
     _progress: ProgressCleanup,

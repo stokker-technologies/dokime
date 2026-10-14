@@ -21,8 +21,8 @@ use std::sync::{
 use std::time::Duration;
 // Third Party Imports
 use dokime::harmos::operations::{Host as _, ServingError, WireTable};
-use dokime::harmos::plugin::contract::Declared;
-use dokime::harmos::plugin::sidecar::{ObserverAttachment, Publisher};
+use dokime::harmos::plugin::Declared;
+use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use tokio_stream::StreamExt;
 // Local Imports
 use dokime::core::Value;
@@ -158,9 +158,9 @@ struct GetProbeResponse {
 #[derive(Debug, thiserror::Error)]
 enum WatchError {
     #[error(transparent)]
-    Publish(#[from] dokime::harmos::plugin::sidecar::PublishError),
+    Publish(#[from] dokime::harmos::sidecar::PublishError),
     #[error(transparent)]
-    Call(#[from] dokime::harmos::plugin::sidecar::CallError),
+    Call(#[from] dokime::harmos::sidecar::CallError),
     #[error(transparent)]
     Sdk(#[from] dokime::Error),
 }
@@ -309,12 +309,9 @@ impl dokime::Plugin for Owner {
             .bind::<OwnerObserveControl>(table)
     }
 
-    fn attachment(
-        &self,
-    ) -> Option<Arc<dyn dokime::harmos::plugin::contract::Attachment<Supervisor>>> {
+    fn attachment(&self) -> Option<Arc<dyn dokime::harmos::plugin::Attachment<Supervisor>>> {
         self.observers.as_ref().map(|observers| {
-            Arc::clone(observers)
-                as Arc<dyn dokime::harmos::plugin::contract::Attachment<Supervisor>>
+            Arc::clone(observers) as Arc<dyn dokime::harmos::plugin::Attachment<Supervisor>>
         })
     }
 
@@ -339,7 +336,7 @@ impl dokime::Plugin for Owner {
 impl StatelessWatch {
     async fn observe(
         &mut self,
-        ctx: &dokime::harmos::plugin::sidecar::ObserverContext<'_, Shared, Publishing>,
+        ctx: &dokime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>,
     ) -> Result<(), WatchError> {
         let _ = (ctx.resources(), ctx.tick());
         Ok(())
@@ -355,7 +352,7 @@ impl Watch {
 
     async fn observe(
         &mut self,
-        ctx: &dokime::harmos::plugin::sidecar::ObserverContext<'_, Shared, Publishing>,
+        ctx: &dokime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>,
     ) -> Result<(), WatchError> {
         let host = ctx.capabilities().supervisor();
         let credentials = host

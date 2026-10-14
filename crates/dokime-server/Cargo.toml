@@ -86,9 +86,6 @@ dokime-contract = { path = "../dokime-contract", features = ["descriptors"] }
 dokime-client = { path = "../dokime-client" }
 dokime-host = { path = "../dokime-host" }
 
-# Git
-harmos-contract = { workspace = true }
-
 # Error Handling
 anyhow = { workspace = true, default-features = true }
 

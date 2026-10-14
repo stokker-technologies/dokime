@@ -16,7 +16,7 @@
 use std::sync::Arc;
 // Third Party Imports
 use dokime::harmos::operations::{ServingError, WireTable};
-use dokime::harmos::plugin::contract::Declared;
+use dokime::harmos::plugin::Declared;
 // Local Imports
 use dokime::{Refusal, Supervisor};
 

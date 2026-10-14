@@ -22,7 +22,7 @@ use dokime::Message;
 use dokime::core::Identifier;
 use dokime::execution::Runnable;
 use dokime::transport::{ExecutionSignal, SignalReply, TransportFuture};
-use harmos::plugin::sidecar::StreamDeclaration;
+use harmos::sidecar::StreamDeclaration;
 
 // Local Imports
 use dokime_app::InstalledPlugin;

@@ -298,7 +298,7 @@ impl Decoder {
 /* === Public Functions === */
 pub(super) fn validate(
     artifact: &crate::InstalledPlugin,
-    streams: &[harmos::plugin::sidecar::StreamDeclaration],
+    streams: &[harmos::sidecar::StreamDeclaration],
 ) -> Result<(), String> {
     let contracts = artifact.telemetry_contracts.iter().chain(
         artifact

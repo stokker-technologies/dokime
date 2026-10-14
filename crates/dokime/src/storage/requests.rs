@@ -583,7 +583,7 @@ fn reject_embedded_commands(bytes: &[u8]) -> Result<()> {
             "request command prefix differs from its schema",
         ));
     }
-    let mut input = harmos::__private::PostcardReader::new(bytes);
+    let mut input = harmos::message::postcard::Reader::new(bytes);
     for _ in 0..5 {
         let _: &str = input.value()?;
     }

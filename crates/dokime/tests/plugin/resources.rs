@@ -21,7 +21,7 @@ use std::sync::{
 use std::time::Duration;
 // Third Party Imports
 use dokime::harmos::operations::{ServingError, WireTable};
-use dokime::harmos::plugin::contract::Declared;
+use dokime::harmos::plugin::Declared;
 // Local Imports
 use dokime::execution::{
     Caller, CleanupContext, InitializationContext, Run, StepContext, Workflow,
@@ -469,7 +469,7 @@ fn harnessed(device: &Arc<Device>) -> Harness {
 
 async fn opened(
     observations: &Arc<Observations>,
-) -> super::native::Native<dokime::harmos::plugin::sidecar::PluginNative<Owner>> {
+) -> super::native::Native<dokime::harmos::sidecar::PluginNative<Owner>> {
     let configuration = Configuration {
         settings: BTreeMap::from([(
             "token".to_owned(),
@@ -788,7 +788,7 @@ pub(crate) async fn harness_caller_settles() {
 pub(crate) fn catalog_is_inert() {
     // A plugin whose preparation panics still exports its registration: the
     // declaration pass reads what was declared and opens nothing.
-    let mut registrar = dokime::harmos::plugin::sidecar::Registrar::new();
+    let mut registrar = dokime::harmos::sidecar::Registrar::new();
     <CatalogOnly as dokime::Plugin>::register(&mut registrar)
         .expect("a catalog is exported without opening the plugin");
     let registrations = registrar.finish();

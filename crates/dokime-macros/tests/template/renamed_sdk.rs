@@ -37,8 +37,8 @@ use std::sync::Arc;
 use sdk::harmos::operations::{
     OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
 };
-use sdk::harmos::plugin::contract::{Attachment, Declared};
-use sdk::harmos::plugin::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
+use sdk::harmos::plugin::{Attachment, Declared};
+use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
 // Local Imports
 
@@ -475,9 +475,9 @@ extern crate sdk;
 
 use std::sync::Arc;
 
-use sdk::harmos::plugin::contract::{Attachment, Declared};
+use sdk::harmos::plugin::{Attachment, Declared};
 use sdk::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable};
-use sdk::harmos::plugin::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
+use sdk::harmos::sidecar::{ObserverAttachment, ObserverContext, PublishError, Publisher};
 
 const POLICY: OperationPolicy = OperationPolicy {
     timeout: std::time::Duration::from_secs(5),

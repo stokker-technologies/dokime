@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 // Third Party Imports
 // Third-Party Imports
-use harmos::plugin::sidecar::Refusal;
+use harmos::sidecar::Refusal;
 // Local Imports
 use crate::core::{RecordScope, TestCycleId, TestExecutionId, Timestamp, Value};
 use crate::definition::{

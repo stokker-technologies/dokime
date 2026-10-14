@@ -140,14 +140,10 @@ impl harmos::operations::OperationDeclaration for DynamicUnary {
         Some(visitor.unary::<Self>())
     }
 
-    fn grant(request: &DynamicNumber) -> Option<harmos::plugin::contract::Grant> {
+    fn grant(request: &DynamicNumber) -> Option<harmos::plugin::Grant> {
         match request.value {
-            20 => Some(harmos::plugin::contract::Grant::Egress(
-                "fixture.allowed".into(),
-            )),
-            21 => Some(harmos::plugin::contract::Grant::Egress(
-                "fixture.refused".into(),
-            )),
+            20 => Some(harmos::plugin::Grant::Egress("fixture.allowed".into())),
+            21 => Some(harmos::plugin::Grant::Egress("fixture.refused".into())),
             _ => None,
         }
     }
@@ -311,7 +307,7 @@ fn bundle() -> Vec<u8> {
 }
 
 fn bundle_description(description: &str) -> Vec<u8> {
-    use harmos::plugin::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+    use harmos::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
     let owner = "grpc-plugin";
     let version = "1.0.0";
     let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":version,"description":"A fixture.","config":"()"});
@@ -342,7 +338,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
         serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{contributions}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos_contract::PREFIX).unwrap()
+        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
     );
     Bundle::build(
         Identity {
@@ -547,9 +543,7 @@ async fn dynamic_plugin_cardinalities() {
     let mut capability = permission(DYNAMIC_OWNER, DynamicUnary::ID);
     capability
         .grants
-        .push(harmos::plugin::contract::Grant::Egress(
-            "fixture.allowed".into(),
-        ));
+        .push(harmos::plugin::Grant::Egress("fixture.allowed".into()));
     let grants = vec![
         BearerGrant::new(
             "conditional-capability".into(),
@@ -600,7 +594,7 @@ async fn dynamic_plugin_cardinalities() {
     let mut wildcard = permission(DYNAMIC_OWNER, DynamicUnary::ID);
     wildcard
         .grants
-        .push(harmos::plugin::contract::Grant::Egress("*".into()));
+        .push(harmos::plugin::Grant::Egress("*".into()));
     assert!(grant(Role::Admin).with_operations(vec![wildcard]).is_err());
     let root = tempfile::tempdir().unwrap();
     let mut owner = fixture(root.path()).await;

@@ -20,8 +20,8 @@ use std::{
     time::{Duration, Instant},
 };
 // Third Party Imports
+use harmos::bundle::Bundle;
 use harmos::operations::{Context, Operation, OperationDeclaration, Response, StreamInput};
-use harmos::plugin::bundle::Bundle;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use sha2::{Digest, Sha256};
 // Local Imports
@@ -317,7 +317,7 @@ operation!(
 
 /* === Private Functions === */
 fn review_bundle(schema: u32) -> Bundle {
-    use harmos::plugin::bundle::{Executable, Facility, Identity, Limits, Source};
+    use harmos::bundle::{Executable, Facility, Identity, Limits, Source};
     let owner = "fixture.worker";
     let declaration = serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Review fixture","config":"()"});
     let policy = harmos::operations::OperationPolicy {
@@ -346,9 +346,9 @@ fn review_bundle(schema: u32) -> Bundle {
         serde_json::json!({"kind":"observers","facility":"sidecar","owner":owner,"observers":[]});
     let executable = format!(
         "inert{prefix}{declaration}\0{prefix}{contracts}\0{prefix}{restart}\0{prefix}{publications}\0{prefix}{observers}\0",
-        prefix = std::str::from_utf8(harmos_contract::PREFIX).unwrap()
+        prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
     );
-    let mut registrations = harmos::plugin::sidecar::Registrar::new();
+    let mut registrations = harmos::sidecar::Registrar::new();
     registrations
         .register(
             "dokime.settings",

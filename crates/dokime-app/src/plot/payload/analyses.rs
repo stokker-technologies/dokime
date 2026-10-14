@@ -161,7 +161,7 @@ pub(super) fn reduce_spectrum(points: Vec<PlotPoint>, max_points: usize) -> (Vec
                 .unwrap_or(f64::NEG_INFINITY)
         })
         .collect::<Vec<_>>();
-    let mut selected = harmos_signal::extrema(&magnitudes, (max_points / 2).max(1));
+    let mut selected = harmos::signal::extrema(&magnitudes, (max_points / 2).max(1));
     selected.sort_unstable();
     selected.dedup();
     let reduced = selected
@@ -210,7 +210,7 @@ fn histogram(entry: &PlotSeries, bins: usize) -> HistogramSeries {
 
 fn histogram_statistics(mut values: Vec<f64>) -> Option<HistogramStatistics> {
     // Harmos Folds Moments; Quantiles Have No Harmos Aggregate Yet.
-    let summary = harmos_signal::Summary::of(&values);
+    let summary = harmos::signal::Summary::of(&values);
     values.sort_by(f64::total_cmp);
     Some(HistogramStatistics {
         mean: summary.mean()?,
@@ -333,7 +333,7 @@ fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
         .into_iter()
         .map(|(index, values)| {
             let count = values.len();
-            let summary = harmos_signal::Summary::of(&values);
+            let summary = harmos::signal::Summary::of(&values);
             let mean = summary.mean().unwrap_or(0.0);
             let sigma = summary.deviation().unwrap_or(0.0);
             let mut lower = mean - options.sigma * sigma;
@@ -432,7 +432,7 @@ pub(super) fn fft(entry: &mut PlotSeries, request: &PlotPayloadRequest) -> Resul
         windowed[index] = (sample - mean) * weight;
     }
     // Window Before Padding; Preserve The Original Sample Coherent Gain.
-    let spectrum = harmos_signal::transform(&windowed, rate, harmos_signal::Taper::Rectangular);
+    let spectrum = harmos::signal::transform(&windowed, rate, harmos::signal::Taper::Rectangular);
     entry.points = spectrum
         .real
         .iter()

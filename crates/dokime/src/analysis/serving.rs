@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 // Third Party Imports
-use harmos::plugin::sidecar::{Refusal, Supervisor};
+use harmos::sidecar::{Refusal, Supervisor};
 
 // Local Imports
 use super::{Analysis, Error, Operation, Request, Response};

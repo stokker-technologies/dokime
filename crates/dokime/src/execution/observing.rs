@@ -152,7 +152,7 @@ pub(super) fn start<T: SidecarTemplate>(
             )
             .instrument(span)
             .with_current_subscriber();
-            match harmos::plugin::sidecar::__private::spawn_observer(name.clone(), async move {
+            match harmos::sidecar::__private::spawn_observer(name.clone(), async move {
                 work.await;
                 let _ = completed.send(());
             }) {

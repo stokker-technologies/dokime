@@ -1343,7 +1343,7 @@ fn value_contains(actual: &Value, expected: &Value) -> bool {
 }
 
 fn stride_downsample(points: Vec<PlotPoint>, max_points: usize) -> (Vec<PlotPoint>, bool) {
-    let indices = harmos_signal::decimate(points.len(), max_points);
+    let indices = harmos::signal::decimate(points.len(), max_points);
     let mut selected = indices.into_iter().peekable();
     let sampled = points
         .into_iter()
@@ -1368,7 +1368,7 @@ fn numeric_downsample(
         .map(|point| point.y.filter(|value| value.is_finite()))
         .collect::<Option<Vec<f64>>>()?;
     let mut indices = match technique {
-        DownsampleTechnique::MinMax => harmos_signal::extrema(&values, (max_points / 2).max(1)),
+        DownsampleTechnique::MinMax => harmos::signal::extrema(&values, (max_points / 2).max(1)),
         DownsampleTechnique::Lttb => {
             let x = points
                 .iter()
@@ -1377,7 +1377,7 @@ fn numeric_downsample(
             if max_points < 3 {
                 return None;
             }
-            harmos_signal::lttb(&x, &values, max_points)
+            harmos::signal::lttb(&x, &values, max_points)
         }
         DownsampleTechnique::Raw | DownsampleTechnique::Auto | DownsampleTechnique::Unspecified => {
             return None;

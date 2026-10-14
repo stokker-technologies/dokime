@@ -167,10 +167,7 @@ def test_harmos_pin(tmp_path: Path, revision: str) -> None:
 def test_harmos_consumer(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "Cargo.toml").write_text(
         "[workspace.dependencies]\n"
-        + "".join(
-            f'{name} = {{ git = "https://github.com/stokker-technologies/harmos.git", rev = "{"a" * 40}" }}\n'
-            for name in ("harmos", "harmos-contract", "harmos-signal")
-        )
+        + f'harmos = {{ git = "https://github.com/stokker-technologies/harmos.git", rev = "{"a" * 40}" }}\n'
     )
     monkeypatch.setattr(
         bootstrap.subprocess, "check_output", lambda *args, **kwargs: "pinned rustc"
@@ -204,17 +201,36 @@ def test_harmos_consumer(tmp_path: Path, monkeypatch) -> None:
     assert len(calls) == 1
 
     manifest = tmp_path / "Cargo.toml"
-    lines = manifest.read_text().splitlines()
     manifest.write_text(
-        "\n".join(
-            line.replace("a" * 40, "b" * 40)
-            if line.startswith("harmos-contract =")
-            else line
-            for line in lines
-        )
+        manifest.read_text()
+        + f'harmos-contract = {{ git = "https://github.com/stokker-technologies/harmos.git", rev = "{"a" * 40}" }}\n'
     )
-    with pytest.raises(ValueError, match="all Harmos dependencies"):
+    with pytest.raises(ValueError, match="harmos crate alone"):
         bootstrap.harmos_pin(tmp_path)
+
+
+def test_harmos_branch(tmp_path: Path) -> None:
+    repository = "https://github.com/stokker-technologies/harmos.git"
+    (tmp_path / "Cargo.toml").write_text(
+        "[workspace.dependencies]\n"
+        + f'harmos = {{ git = "{repository}", branch = "refactor/streamline" }}\n'
+    )
+    (tmp_path / "Cargo.lock").write_text(
+        '[[package]]\nname = "harmos"\nversion = "0.2.0"\n'
+    )
+    with pytest.raises(ValueError, match="local path override"):
+        bootstrap.harmos_pin(tmp_path)
+
+    (tmp_path / "Cargo.lock").write_text(
+        '[[package]]\nname = "harmos"\nversion = "0.2.0"\n'
+        + f'source = "git+{repository}?branch=refactor/streamline#{"c" * 40}"\n'
+    )
+    assert bootstrap.harmos_pin(tmp_path) == {
+        "git": repository,
+        "branch": "refactor/streamline",
+        "rev": "c" * 40,
+        "package": "cargo-harmos",
+    }
 
 
 # === Private Functions === #

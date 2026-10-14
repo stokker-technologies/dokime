@@ -16,7 +16,7 @@
 use std::path::Path;
 use std::process::{Command, Output};
 // Third Party Imports
-use harmos::plugin::bundle::{Bundle, Limits};
+use harmos::bundle::{Bundle, Limits};
 // Local Imports
 
 /* === Constants === */

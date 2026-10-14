@@ -18,7 +18,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 // Third Party Imports
 // Third-Party Imports
-use harmos::plugin::sidecar::{Frame, Refusal};
+use harmos::sidecar::{Frame, Refusal};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 // Local Imports

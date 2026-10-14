@@ -316,7 +316,7 @@ impl Prepared {
                 let indices = match budget {
                     1 => vec![0],
                     2 => vec![0, output.values.len() - 1],
-                    _ => harmos_signal::lttb(&output.axis, &output.values, budget),
+                    _ => harmos::signal::lttb(&output.axis, &output.values, budget),
                 };
                 display_indices.insert(
                     output.key.clone(),

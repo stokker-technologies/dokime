@@ -7,7 +7,7 @@
 #
 # ***
 
-"""Pin the SDK and workspace lockfile to the current Harmos dev revision."""
+"""Advance the workspace lockfile, and a pinned revision, to the current Harmos source."""
 
 # === Imports === #
 
@@ -41,6 +41,14 @@ MANIFEST = pathlib.Path(__file__).resolve().parents[5] / "Cargo.toml"
 def main() -> None:
     dependency = harmos_pin(MANIFEST.parent)
 
+    # A Branch Source Advances Through The Lockfile Alone
+    if "branch" in dependency:
+        subprocess.run(["cargo", "update", "-p", "harmos"], check=True)
+        locked = harmos_pin(MANIFEST.parent)["rev"]
+        print(f"harmos lockfile follows {dependency['branch']} at {locked}")
+        return
+
+    # A Revision Source Is Re-Pinned To The Dev Tip
     tip = subprocess.run(
         ["git", "ls-remote", REPOSITORY, "refs/heads/dev"],
         check=True,
@@ -53,10 +61,10 @@ def main() -> None:
 
     source = MANIFEST.read_text(encoding="utf-8")
     previous = dependency["rev"]
-    pattern = rf'(harmos(?:-contract|-signal)? = \{{[^\n]*rev = ")({previous})(")'
+    pattern = rf'(harmos = \{{[^\n]*rev = ")({previous})(")'
     updated, count = re.subn(pattern, rf"\g<1>{tip}\g<3>", source)
-    if count != 3:
-        raise SystemExit("Could not locate all three pinned Harmos dependencies")
+    if count != 1:
+        raise SystemExit("Could not locate the pinned Harmos dependency")
 
     MANIFEST.write_text(updated, encoding="utf-8")
     subprocess.run(["cargo", "update", "-p", "harmos", "--precise", tip], check=True)

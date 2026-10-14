@@ -48,7 +48,7 @@ fn fixture_bytes() -> Vec<u8> {
 // frozen catalog cannot bind missing reserved or multiply claimed routes.
 
 pub(crate) fn frozen_catalog_multiply() {
-    use harmos::plugin::bundle::{Bundle, Limits, Source};
+    use harmos::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
     for (namespace, pointer, method, reason) in [
@@ -112,7 +112,7 @@ pub(crate) fn frozen_catalog_multiply() {
 // legacy and unknown domain carriers are refused before admission.
 
 pub(crate) fn legacy_unknown_refused() {
-    use harmos::plugin::bundle::{Bundle, Limits, Source};
+    use harmos::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
     for namespace in ["dokime.options", "dokime.settings"] {

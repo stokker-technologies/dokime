@@ -35,8 +35,8 @@ use std::time::Duration;
 use dokime::harmos::operations::{
     OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
 };
-use dokime::harmos::plugin::contract::{Attachment, Declared};
-use dokime::harmos::plugin::sidecar::{ObserverAttachment, Publisher};
+use dokime::harmos::plugin::{Attachment, Declared};
+use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
 use mini_runtime::app;
 use mini_runtime::{Stop, Testbench};

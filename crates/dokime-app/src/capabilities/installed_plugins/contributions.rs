@@ -50,7 +50,7 @@ pub(crate) fn decode_registrations(
     source: &str,
     version: &str,
     description: &str,
-    registrations: &[harmos::plugin::sidecar::Registration],
+    registrations: &[harmos::sidecar::Registration],
 ) -> Result<InstalledPlugin> {
     if registrations.iter().any(|registration| {
         matches!(
@@ -122,7 +122,7 @@ pub(crate) fn decode_registrations(
 
 /* === Private Functions === */
 fn decode_once<T: DeserializeOwned>(
-    registrations: &[harmos::plugin::sidecar::Registration],
+    registrations: &[harmos::sidecar::Registration],
     source: &str,
     namespace: &str,
 ) -> Result<Option<T>> {

@@ -435,7 +435,7 @@ pub(crate) fn selection(length: usize) -> Vec<usize> {
     let mut indices = if length <= dokime::document::DEFAULT_PLOT_MAX_POINTS {
         (0..length).collect::<Vec<_>>()
     } else {
-        harmos_signal::decimate(length, 1_999)
+        harmos::signal::decimate(length, 1_999)
     };
     if let Some(last) = length.checked_sub(1)
         && indices.last() != Some(&last)

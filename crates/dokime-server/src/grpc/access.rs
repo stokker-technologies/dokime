@@ -16,7 +16,7 @@ pub use dokime::operations::Access as Role;
 // Standard Library Imports
 use std::{collections::BTreeSet, sync::Arc};
 // Third Party Imports
-use harmos::plugin::contract::Grant;
+use harmos::plugin::Grant;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;

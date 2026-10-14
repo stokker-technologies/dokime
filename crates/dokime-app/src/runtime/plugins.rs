@@ -66,7 +66,7 @@ struct Program {
 }
 
 #[derive(Clone)]
-struct Executable(harmos::plugin::sidecar::Executable);
+struct Executable(harmos::sidecar::Executable);
 
 struct Running {
     source: String,
@@ -1016,11 +1016,8 @@ fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {
 }
 
 fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadBundle> {
-    let bytes = read_bounded(
-        &input.path,
-        harmos::plugin::bundle::Limits::default().archive_bytes,
-    )
-    .map_err(operation)?;
+    let bytes = read_bounded(&input.path, harmos::bundle::Limits::default().archive_bytes)
+        .map_err(operation)?;
     let content_digest = match cached_digest {
         Some(digest) => digest.to_owned(),
         None => digest(&bytes),
@@ -1111,9 +1108,8 @@ async fn prepare(
         let bindings =
             crate::plugins::dispatch::Bindings::inspect(&plugin, operations).map_err(operation)?;
         plugins.push(plugin.clone());
-        let mut executable =
-            harmos::plugin::sidecar::Executable::at(directory.path().join(&file.path))
-                .map_err(operation)?;
+        let mut executable = harmos::sidecar::Executable::at(directory.path().join(&file.path))
+            .map_err(operation)?;
         if executable.declaration() != declaration {
             return Err(operation(format!(
                 "extracted executable `{id}` has a different declaration than its verified bundle"
@@ -1125,7 +1121,7 @@ async fn prepare(
 
         let bytes = read_bounded(
             executable.path(),
-            harmos::plugin::bundle::Limits::default().file_bytes,
+            harmos::bundle::Limits::default().file_bytes,
         )
         .map_err(operation)?;
         let hash = Sha256::digest(&bytes);

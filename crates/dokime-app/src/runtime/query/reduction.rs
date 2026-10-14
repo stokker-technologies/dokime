@@ -141,7 +141,7 @@ fn downsample<T>(items: Vec<T>, count: usize) -> Vec<T> {
     if items.len() <= count {
         return items;
     }
-    let mut selected = harmos_signal::decimate(items.len(), count)
+    let mut selected = harmos::signal::decimate(items.len(), count)
         .into_iter()
         .peekable();
     items

@@ -24,11 +24,9 @@ use std::{
 };
 // Third Party Imports
 use cargo_metadata::{Message, MetadataCommand, Package};
-use harmos::plugin::bundle::{
-    Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source,
-};
+use harmos::bundle::{Bundle, Executable, Facility, Identity, Limits, PackageMetadata, Source};
 use harmos::plugin::inventory::Declaration;
-use harmos::plugin::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
+use harmos::sidecar::{CATALOG_EXPORT_FLAG, CATALOG_EXPORT_LIMIT, Registration};
 // Local Imports
 use crate::{Error, bundle::files, process};
 

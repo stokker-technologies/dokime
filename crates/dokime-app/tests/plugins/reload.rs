@@ -230,7 +230,7 @@ pub(crate) async fn incompatible_stream_stopping() {
         "reload-suite",
         "changed-stream",
     );
-    let inspected = harmos::plugin::bundle::Bundle::inspect(
+    let inspected = harmos::bundle::Bundle::inspect(
         &std::fs::read(&candidate.path).unwrap(),
         Default::default(),
     )
@@ -267,13 +267,13 @@ pub(crate) async fn incompatible_stream_stopping() {
         .files
         .iter()
         .zip(&payloads)
-        .map(|(file, bytes)| harmos::plugin::bundle::Source {
+        .map(|(file, bytes)| harmos::bundle::Source {
             path: &file.path,
             bytes,
             executable: file.executable.clone(),
         })
         .collect();
-    let replacement = harmos::plugin::bundle::Bundle::build(
+    let replacement = harmos::bundle::Bundle::build(
         inspected.manifest().identity.clone(),
         &files,
         Default::default(),

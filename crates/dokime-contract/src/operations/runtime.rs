@@ -98,7 +98,7 @@ impl WireOperation for GetHealth {
     const GRPC: Option<harmos::operations::Grpc> =
         Some(harmos::operations::Grpc::new(PACKAGE, SERVICE, "GetHealth"));
 
-    harmos::__private::with_protobuf! {
+    harmos::with_protobuf! {
         fn visit_grpc<V: harmos::operations::GrpcVisitor>(visitor: V) -> Option<V::Entry> {
             Some(visitor.unary::<Self>())
         }
@@ -136,7 +136,7 @@ impl WireOperation for GetIdentity {
         "GetIdentity",
     ));
 
-    harmos::__private::with_protobuf! {
+    harmos::with_protobuf! {
         fn visit_grpc<V: harmos::operations::GrpcVisitor>(visitor: V) -> Option<V::Entry> {
             Some(visitor.unary::<Self>())
         }

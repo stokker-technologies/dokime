@@ -21,8 +21,8 @@ use std::sync::{
 use std::time::Duration;
 // Third Party Imports
 use dokime::harmos::operations::{Host, ServingError, WireTable};
-use dokime::harmos::plugin::contract::Declared;
-use dokime::harmos::plugin::sidecar::{ActivationId, ObserverAttachment, ObserverContext};
+use dokime::harmos::plugin::Declared;
+use dokime::harmos::sidecar::{ActivationId, ObserverAttachment, ObserverContext};
 // Local Imports
 use dokime::execution::{CriterionContext, InitializationContext, StepContext};
 use dokime::plugin::Configuration;
@@ -295,12 +295,9 @@ impl dokime::Plugin for Bench {
             .bind::<BenchObserveControl>(table)
     }
 
-    fn attachment(
-        &self,
-    ) -> Option<Arc<dyn dokime::harmos::plugin::contract::Attachment<Supervisor>>> {
+    fn attachment(&self) -> Option<Arc<dyn dokime::harmos::plugin::Attachment<Supervisor>>> {
         self.observers.as_ref().map(|observers| {
-            Arc::clone(observers)
-                as Arc<dyn dokime::harmos::plugin::contract::Attachment<Supervisor>>
+            Arc::clone(observers) as Arc<dyn dokime::harmos::plugin::Attachment<Supervisor>>
         })
     }
 
@@ -319,16 +316,14 @@ impl dokime::Plugin for Bench {
     description = "A plugin observer reaches its own plugin's operations the way a step does."
 )]
 impl Watch {
-    async fn initialize(
-        shared: &Shared,
-    ) -> Result<Self, dokime::harmos::plugin::sidecar::CallError> {
+    async fn initialize(shared: &Shared) -> Result<Self, dokime::harmos::sidecar::CallError> {
         Ok(Self(shared.observer_ticks.clone()))
     }
 
     async fn observe(
         &mut self,
         ctx: &ObserverContext<'_, Shared>,
-    ) -> Result<(), dokime::harmos::plugin::sidecar::CallError> {
+    ) -> Result<(), dokime::harmos::sidecar::CallError> {
         let reading = ctx.call_as::<GetReadingDeclaration>(()).await?;
         assert!(reading.reads >= 1, "the operation answered the observer");
         if ctx.tick().ordinal() <= 2

@@ -574,11 +574,12 @@ mise exec -- uv run --no-sync python -m dokime_tools.bindings --build-json targe
 The selected `dokime-contract-export` build exports the `operations` catalog under Cargo's output
 directory. Preparation invokes Harmos's shared `cargo harmos bindings python`
 exporter and copies its exact generated `dokime` package assets alongside the
-maintained client subpackage. The exporter must match the published Harmos
-revision pinned by this checkout. Ordinary wheel and source-package installation
+maintained client subpackage. The exporter must match the Harmos revision this
+checkout depends on: a pinned `rev`, or the revision `Cargo.lock` locks a
+`branch` source to. Ordinary wheel and source-package installation
 uses prepared files and requires no Rust compiler or contract generation.
 
-`prepare:harmos` installs the pinned CLI in this checkout's cache and verifies its
+`prepare:harmos` installs that exact CLI in this checkout's cache and verifies its
 revision, compiler inputs and binary hash. Binding generation refuses a missing
 or mismatched receipt. CI consumers use the prepared tool artifact and never rebuild it.
 

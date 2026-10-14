@@ -20,7 +20,7 @@ use std::{
     path::PathBuf,
 };
 // Third Party Imports
-use harmos::plugin::bundle::{Bundle, Limits};
+use harmos::bundle::{Bundle, Limits};
 use harmos::plugin::inventory::CarrierSection;
 use sha2::{Digest, Sha256};
 // Local Imports

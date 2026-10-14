@@ -1122,8 +1122,8 @@ fn engine(
                 })
             }
 
-            fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::plugin::contract::Declared>(
-                host: &'a #sdk::__harmos::plugin::sidecar::Supervisor,
+            fn publish_sample<'a, __DokimePlugin: #sdk::__harmos::plugin::Declared>(
+                host: &'a #sdk::__harmos::sidecar::Supervisor,
                 token: &'a str,
                 stream: &'a #sdk::core::Identifier,
                 values: &'a ::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
