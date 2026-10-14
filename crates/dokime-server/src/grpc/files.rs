@@ -68,7 +68,10 @@ impl Operation for FileWatch {
     type Context<'a> = Context<'a>;
     type Endpoints = StreamOutput<contract::FileWatchFrame>;
 
-    fn new(resources: Arc<Resources>) -> Result<Self, Status> {
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
         Ok(Self {
             resources,
             watch: None,
