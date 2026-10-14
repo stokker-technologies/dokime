@@ -152,6 +152,10 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
       try {
         while (true) {
           const payload = await call.next();
+          /* A frame can reach the channel before the open reply, so `next`
+             may take it without waiting; the session is judged when the read
+             settles, as a unary reply is. */
+          current(session);
           if (payload === undefined) {
             if (envelope && !completion)
               throw new Error("Backend closed without operation completion.");
@@ -249,6 +253,10 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
     inputClosed = true;
     try {
       await call.finish();
+    } catch (error) {
+      throw normalizeRpcError(await failure(error));
+    }
+    try {
       const payload = await call.next();
       if (payload === undefined) throw new Error("Backend returned no client-stream reply.");
       const response = fromBinary(output, payload);
