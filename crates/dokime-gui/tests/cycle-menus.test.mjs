@@ -77,3 +77,30 @@ test("the Archived view lists every archived cycle in one group", async () => {
   assert.deepEqual(group.rows, rows);
   assert.equal(archivedCycleGroups([], true)[0].emptyText, "No Archived Cycles Match This Filter");
 });
+
+test("an execution that has not started offers Start and nothing else", async () => {
+  const { executionControlSet } = await import("../src/features/cycle/cycle-workspace-model.ts");
+  assert.deepEqual(executionControlSet("planned", null), ["Start"]);
+  assert.deepEqual(executionControlSet("created", null), ["Start"]);
+});
+
+test("Start leaves once the execution runs or ends, in Start | Re-Run | Stop order", async () => {
+  const { executionControlSet } = await import("../src/features/cycle/cycle-workspace-model.ts");
+  const running = {
+    canPause: false,
+    canResume: false,
+    canStop: true,
+    mode: null,
+    paused: false,
+    requestId: "r",
+    stopRequested: false,
+  };
+  assert.deepEqual(executionControlSet("running", running), ["Stop Execution"]);
+  assert.deepEqual(executionControlSet("running", { ...running, canPause: true }), [
+    "Pause Execution",
+    "Stop Execution",
+  ]);
+  assert.deepEqual(executionControlSet("passed", null), ["Re-Run"]);
+  assert.deepEqual(executionControlSet("failed", null), ["Re-Run"]);
+  assert.deepEqual(executionControlSet("running", null), []);
+});

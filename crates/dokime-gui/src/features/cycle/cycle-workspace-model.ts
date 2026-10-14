@@ -120,6 +120,14 @@ export type NodeMenuItem =
   | "Unarchive"
   | "Re-Run";
 
+/** One control of the execution page's page-bar group, in its order. */
+export type ExecutionControl =
+  | "Start"
+  | "Re-Run"
+  | "Pause Execution"
+  | "Resume Execution"
+  | "Stop Execution";
+
 /** The page bar's Download Report button as it stands. */
 export type ReportDownloadState = {
   disabled: boolean;
@@ -433,6 +441,29 @@ export function nodeMenuGroups(kind: "cycle" | "execution", archived: boolean): 
 /** Why a node cannot be archived yet, or `undefined` once it can. */
 export function archiveRefusal(terminal: boolean): string | undefined {
   return terminal ? undefined : "Archiving becomes available once the run has ended.";
+}
+
+/**
+ * The execution page's run controls, in order: Start | Re-Run | Pause or
+ * Resume | Stop Execution.
+ *
+ * Start belongs to an attempt that has not started — planned, or queued and
+ * not yet dispatched — and leaves once it runs or ends. Re-Run belongs to an
+ * ended attempt; Pause or Resume and Stop to one an execution-addressed run
+ * controls, as the runtime's own `controls` admit.
+ */
+export function executionControlSet(
+  status: TestExecution["status"],
+  controls: TestExecution["controls"],
+): ExecutionControl[] {
+  if (isUnstartedExecution(status)) return ["Start"];
+  const set: ExecutionControl[] = [];
+  if (isTerminalExecutionStatus(status) && !controls) set.push("Re-Run");
+  if (controls && (controls.canPause || controls.canResume)) {
+    set.push(controls.paused ? "Resume Execution" : "Pause Execution");
+  }
+  if (controls && (controls.canStop || controls.stopRequested)) set.push("Stop Execution");
+  return set;
 }
 
 /** Download Report waits only for a save already in progress. */

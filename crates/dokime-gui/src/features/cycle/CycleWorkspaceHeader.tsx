@@ -10,11 +10,11 @@
 /* The execution cockpit: the full-width band above the document that says
  * what the selected node is and asks what its run needs.
  *
- * 1. Identity — one row on `--page-bar-height` with one anatomy on both
- *    pages: title, status pill, progress, and the node's own "…" menu. The
- *    cycle page names the cycle, its case progress and the cycle menu; the
- *    execution page names the execution, its step progress and the execution
- *    menu. Nothing of one node appears on the other's page.
+ * 1. Identity — one row on `--page-bar-height`: the title and the node's own
+ *    "…" menu. The cycle page adds its status pill and case progress between
+ *    them; the execution page shows only its title and menu, because the
+ *    sidebar glyph states its status and the Steps card its progress. Nothing
+ *    of one node appears on the other's page.
  * 2. Prompts — the questions the run is waiting on, full width, answered in
  *    place.
  *
@@ -57,11 +57,16 @@ import { type NodeMenuItem, nodeMenuGroups, STATUS_PILL_CLASS } from "./cycle-wo
 /** One node's identity: what the cockpit row states about it. */
 export type CockpitIdentity = {
   title: string;
-  statusLabel: string;
-  statusVariant: ComponentProps<typeof Badge>["variant"];
-  progress: string;
-  /** The case and step the progress stream reports while the node runs. */
-  activity?: string | null;
+  /** The cycle's lifecycle pill and case progress. The execution row carries
+   *  neither: the sidebar glyph states its status and the Steps card its
+   *  progress. */
+  status?: {
+    label: string;
+    variant: ComponentProps<typeof Badge>["variant"];
+    progress: string;
+    /** The case and step the progress stream reports while the node runs. */
+    activity?: string | null;
+  };
 };
 
 /** Archive or Unarchive, as the node's menu offers it. */
@@ -129,18 +134,27 @@ export function CycleWorkspaceHeader({
         >
           {identity.title}
         </h1>
-        <Badge className={STATUS_PILL_CLASS} variant={identity.statusVariant}>
-          {identity.statusLabel}
-        </Badge>
-        <p className="min-w-0 truncate text-xs leading-6 text-muted-foreground">
-          <span className="whitespace-nowrap tabular-nums">{identity.progress}</span>
-          {identity.activity ? (
-            <span aria-live="polite">
-              {" · "}
-              {identity.activity}
-            </span>
-          ) : null}
-        </p>
+        {identity.status ? (
+          <>
+            <Badge className={STATUS_PILL_CLASS} variant={identity.status.variant}>
+              {identity.status.label}
+            </Badge>
+            <p className="min-w-0 truncate text-xs leading-6 text-muted-foreground">
+              <span className="whitespace-nowrap tabular-nums">{identity.status.progress}</span>
+              {identity.status.activity ? (
+                <span aria-live="polite">
+                  {" · "}
+                  {identity.status.activity}
+                </span>
+              ) : null}
+            </p>
+          </>
+        ) : (
+          <>
+            <span />
+            <span />
+          </>
+        )}
         {live ? <NodeMenu menu={menu} /> : <span />}
       </div>
 

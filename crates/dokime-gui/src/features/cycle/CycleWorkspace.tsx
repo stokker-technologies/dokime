@@ -43,7 +43,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { TestExecution } from "@/lib/types";
 import { useFocusMode } from "@/shell/focus-mode";
 import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -67,12 +66,8 @@ import {
   type CycleExecutionRow,
   type CycleSelection,
   caseActionTooltip,
-  caseStatusLabel,
-  caseStatusVariant,
   cycleStatusLabel,
   cycleStatusVariant,
-  executionStatusLabel,
-  executionStatusVariant,
   finishedCaseCount,
   followSelection,
   isActiveExecutionStatus,
@@ -82,7 +77,6 @@ import {
   selectedCycleRow,
 } from "./cycle-workspace-model";
 import { answerablePrompts } from "./prompt-banner-model";
-import { useExecutionDetailQuery } from "./server-state";
 
 /* === Types === */
 
@@ -137,10 +131,6 @@ export function CycleWorkspace({
     executions.find((execution) => execution.status === "running")?.test_execution_id ??
     null;
   const progress = useExecutionProgress(activeExecutionId);
-  const selectedDetail = useExecutionDetailQuery(
-    selectedRow?.execution?.test_execution_id ?? null,
-    Boolean(selectedRow?.execution),
-  );
   /* Only prompts whose owner still runs are offered: a prompt never outlives
      its execution, here as in the runtime that settles it. */
   const prompts = useMemo(() => {
@@ -173,9 +163,7 @@ export function CycleWorkspace({
   /* The node whose report Download Report saves: the selected execution, or
      the cycle. A case that has not run yet has no report of its own. */
   const selectedExecutionId = selectedRow?.execution?.test_execution_id ?? null;
-  const selectedLabel = selectedRow
-    ? `Execution ${selectedRow.ordinal} · ${selectedRow.case.label}`
-    : null;
+  const selectedLabel = selectedRow ? executionTitle(selectedRow) : null;
   const cycleTitle = plan?.test_cycle.title ?? null;
   const reportSubject = useMemo(() => {
     if (selectedLabel !== null) {
@@ -347,12 +335,14 @@ export function CycleWorkspace({
       <CycleWorkspaceHeader
         identity={
           selectedRow
-            ? cockpitSubject(selectedRow, selectedDetail.data ?? null)
+            ? { title: executionTitle(selectedRow) }
             : {
-                activity,
-                progress: `${finished} of ${cases.length} cases finished`,
-                statusLabel: cycleStatusLabel(status),
-                statusVariant: cycleStatusVariant(status),
+                status: {
+                  activity,
+                  label: cycleStatusLabel(status),
+                  progress: `${finished} of ${cases.length} cases finished`,
+                  variant: cycleStatusVariant(status),
+                },
                 title: plan.test_cycle.title,
               }
         }
@@ -475,25 +465,9 @@ export function CycleWorkspace({
 /* === Private Functions === */
 
 /** The execution page's identity: its case, its status and its steps. */
-function cockpitSubject(row: CycleExecutionRow, detail: TestExecution | null) {
-  const execution = detail ?? row.execution;
-  const title = `Execution ${row.ordinal} · ${row.case.label}`;
-  if (!execution) {
-    return {
-      progress: "Not run yet",
-      statusLabel: caseStatusLabel(row.case.status),
-      statusVariant: caseStatusVariant(row.case.status),
-      title,
-    };
-  }
-  const steps = execution.steps ?? [];
-  const done = steps.filter((step) => !["pending", "running"].includes(step.status)).length;
-  return {
-    progress: steps.length ? `${done} of ${steps.length} steps finished` : "No steps recorded",
-    statusLabel: executionStatusLabel(execution.status),
-    statusVariant: executionStatusVariant(execution.status),
-    title,
-  };
+/** The execution page's cockpit title: its ordinal and its case. */
+function executionTitle(row: CycleExecutionRow): string {
+  return `Execution ${row.ordinal} · ${row.case.label}`;
 }
 
 /* === Private Components === */
