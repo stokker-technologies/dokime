@@ -322,11 +322,9 @@ fn data_transform(
     use dokime_app::expressions::DataTransform;
     use plots::DataTransformKind as Kind;
     let kind = match value {
-        DataTransform::Count => Kind::Count(plots::EmptyTransform {}),
-        DataTransform::Mean => Kind::Mean(plots::EmptyTransform {}),
-        DataTransform::Median => Kind::Median(plots::EmptyTransform {}),
-        DataTransform::Min => Kind::Min(plots::EmptyTransform {}),
-        DataTransform::Max => Kind::Max(plots::EmptyTransform {}),
+        DataTransform::Aggregate(aggregate) => Kind::Aggregate(plots::AggregateTransform {
+            aggregate: aggregate.name(),
+        }),
         DataTransform::TimeBetween {
             previous_record_type,
         } => {

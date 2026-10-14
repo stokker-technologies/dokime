@@ -299,7 +299,9 @@ impl Pulse {
             }
         }
 
-        Ok(samples.len() as u64 >= ctx.parameters().rows)
+        // A column is a Harmos series: every member of the vocabulary over it.
+        let values = samples.column(|row| row.value);
+        Ok(values.count() >= ctx.parameters().rows && values.all(|value| value >= 0.0))
     }
 
     #[dokime::observer(interval_ms = 20, streams = RowsStreams)]

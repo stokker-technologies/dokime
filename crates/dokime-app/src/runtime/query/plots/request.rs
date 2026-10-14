@@ -217,13 +217,7 @@ fn expression_needs_dimension_context(expression: &DataExpression) -> bool {
 fn is_stateful_transform(transform: &DataTransform) -> bool {
     matches!(
         transform,
-        DataTransform::Count
-            | DataTransform::Mean
-            | DataTransform::Median
-            | DataTransform::Min
-            | DataTransform::Max
-            | DataTransform::TimeBetween { .. }
-            | DataTransform::PerCase
+        DataTransform::Aggregate(_) | DataTransform::TimeBetween { .. } | DataTransform::PerCase
     )
 }
 

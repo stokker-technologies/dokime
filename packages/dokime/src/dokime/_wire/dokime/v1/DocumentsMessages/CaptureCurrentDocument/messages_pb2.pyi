@@ -871,26 +871,18 @@ class Row105(_message.Message):
     def __init__(self, field_0: _Optional[_Union[Row132, _Mapping]] = ...) -> None: ...
 
 class Row106(_message.Message):
-    __slots__ = ("Count", "Mean", "Median", "Min", "Max", "TimeBetween", "TelemetryAtOrBefore", "Detail", "PerCase")
-    COUNT_FIELD_NUMBER: _ClassVar[int]
-    MEAN_FIELD_NUMBER: _ClassVar[int]
-    MEDIAN_FIELD_NUMBER: _ClassVar[int]
-    MIN_FIELD_NUMBER: _ClassVar[int]
-    MAX_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("Aggregate", "TimeBetween", "TelemetryAtOrBefore", "Detail", "PerCase")
+    AGGREGATE_FIELD_NUMBER: _ClassVar[int]
     TIMEBETWEEN_FIELD_NUMBER: _ClassVar[int]
     TELEMETRYATORBEFORE_FIELD_NUMBER: _ClassVar[int]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
     PERCASE_FIELD_NUMBER: _ClassVar[int]
-    Count: Row133
-    Mean: Row134
-    Median: Row135
-    Min: Row136
-    Max: Row137
-    TimeBetween: Row138
-    TelemetryAtOrBefore: Row139
-    Detail: Row140
-    PerCase: Row141
-    def __init__(self, Count: _Optional[_Union[Row133, _Mapping]] = ..., Mean: _Optional[_Union[Row134, _Mapping]] = ..., Median: _Optional[_Union[Row135, _Mapping]] = ..., Min: _Optional[_Union[Row136, _Mapping]] = ..., Max: _Optional[_Union[Row137, _Mapping]] = ..., TimeBetween: _Optional[_Union[Row138, _Mapping]] = ..., TelemetryAtOrBefore: _Optional[_Union[Row139, _Mapping]] = ..., Detail: _Optional[_Union[Row140, _Mapping]] = ..., PerCase: _Optional[_Union[Row141, _Mapping]] = ...) -> None: ...
+    Aggregate: Row133
+    TimeBetween: Row134
+    TelemetryAtOrBefore: Row135
+    Detail: Row136
+    PerCase: Row137
+    def __init__(self, Aggregate: _Optional[_Union[Row133, _Mapping]] = ..., TimeBetween: _Optional[_Union[Row134, _Mapping]] = ..., TelemetryAtOrBefore: _Optional[_Union[Row135, _Mapping]] = ..., Detail: _Optional[_Union[Row136, _Mapping]] = ..., PerCase: _Optional[_Union[Row137, _Mapping]] = ...) -> None: ...
 
 class Row107(_message.Message):
     __slots__ = ("metadata", "request", "presentation", "z_expression")
@@ -899,10 +891,10 @@ class Row107(_message.Message):
     PRESENTATION_FIELD_NUMBER: _ClassVar[int]
     Z_EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     metadata: Row34
-    request: Row142
-    presentation: Row143
+    request: Row138
+    presentation: Row139
     z_expression: Row45
-    def __init__(self, metadata: _Optional[_Union[Row34, _Mapping]] = ..., request: _Optional[_Union[Row142, _Mapping]] = ..., presentation: _Optional[_Union[Row143, _Mapping]] = ..., z_expression: _Optional[_Union[Row45, _Mapping]] = ...) -> None: ...
+    def __init__(self, metadata: _Optional[_Union[Row34, _Mapping]] = ..., request: _Optional[_Union[Row138, _Mapping]] = ..., presentation: _Optional[_Union[Row139, _Mapping]] = ..., z_expression: _Optional[_Union[Row45, _Mapping]] = ...) -> None: ...
 
 class Row108(_message.Message):
     __slots__ = ("field_0",)
@@ -974,11 +966,11 @@ class Row116(_message.Message):
     COMPACT_FIELD_NUMBER: _ClassVar[int]
     NORMAL_FIELD_NUMBER: _ClassVar[int]
     SPACIOUS_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row144
-    Compact: Row145
-    Normal: Row146
-    Spacious: Row147
-    def __init__(self, Unspecified: _Optional[_Union[Row144, _Mapping]] = ..., Compact: _Optional[_Union[Row145, _Mapping]] = ..., Normal: _Optional[_Union[Row146, _Mapping]] = ..., Spacious: _Optional[_Union[Row147, _Mapping]] = ...) -> None: ...
+    Unspecified: Row140
+    Compact: Row141
+    Normal: Row142
+    Spacious: Row143
+    def __init__(self, Unspecified: _Optional[_Union[Row140, _Mapping]] = ..., Compact: _Optional[_Union[Row141, _Mapping]] = ..., Normal: _Optional[_Union[Row142, _Mapping]] = ..., Spacious: _Optional[_Union[Row143, _Mapping]] = ...) -> None: ...
 
 class Row117(_message.Message):
     __slots__ = ("Unspecified", "Main", "Right", "Left")
@@ -986,11 +978,11 @@ class Row117(_message.Message):
     MAIN_FIELD_NUMBER: _ClassVar[int]
     RIGHT_FIELD_NUMBER: _ClassVar[int]
     LEFT_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row148
-    Main: Row149
-    Right: Row150
-    Left: Row151
-    def __init__(self, Unspecified: _Optional[_Union[Row148, _Mapping]] = ..., Main: _Optional[_Union[Row149, _Mapping]] = ..., Right: _Optional[_Union[Row150, _Mapping]] = ..., Left: _Optional[_Union[Row151, _Mapping]] = ...) -> None: ...
+    Unspecified: Row144
+    Main: Row145
+    Right: Row146
+    Left: Row147
+    def __init__(self, Unspecified: _Optional[_Union[Row144, _Mapping]] = ..., Main: _Optional[_Union[Row145, _Mapping]] = ..., Right: _Optional[_Union[Row146, _Mapping]] = ..., Left: _Optional[_Union[Row147, _Mapping]] = ...) -> None: ...
 
 class Row118(_message.Message):
     __slots__ = ("Unspecified", "Text", "TelemetrySummary", "Plot", "Table", "Steps", "Criteria", "Traceability", "Notes", "Records", "Artifacts", "Media", "Health", "TelemetryContext")
@@ -1008,21 +1000,21 @@ class Row118(_message.Message):
     MEDIA_FIELD_NUMBER: _ClassVar[int]
     HEALTH_FIELD_NUMBER: _ClassVar[int]
     TELEMETRYCONTEXT_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row152
-    Text: Row153
-    TelemetrySummary: Row154
-    Plot: Row155
-    Table: Row156
-    Steps: Row157
-    Criteria: Row158
-    Traceability: Row159
-    Notes: Row160
-    Records: Row161
-    Artifacts: Row162
-    Media: Row163
-    Health: Row164
-    TelemetryContext: Row165
-    def __init__(self, Unspecified: _Optional[_Union[Row152, _Mapping]] = ..., Text: _Optional[_Union[Row153, _Mapping]] = ..., TelemetrySummary: _Optional[_Union[Row154, _Mapping]] = ..., Plot: _Optional[_Union[Row155, _Mapping]] = ..., Table: _Optional[_Union[Row156, _Mapping]] = ..., Steps: _Optional[_Union[Row157, _Mapping]] = ..., Criteria: _Optional[_Union[Row158, _Mapping]] = ..., Traceability: _Optional[_Union[Row159, _Mapping]] = ..., Notes: _Optional[_Union[Row160, _Mapping]] = ..., Records: _Optional[_Union[Row161, _Mapping]] = ..., Artifacts: _Optional[_Union[Row162, _Mapping]] = ..., Media: _Optional[_Union[Row163, _Mapping]] = ..., Health: _Optional[_Union[Row164, _Mapping]] = ..., TelemetryContext: _Optional[_Union[Row165, _Mapping]] = ...) -> None: ...
+    Unspecified: Row148
+    Text: Row149
+    TelemetrySummary: Row150
+    Plot: Row151
+    Table: Row152
+    Steps: Row153
+    Criteria: Row154
+    Traceability: Row155
+    Notes: Row156
+    Records: Row157
+    Artifacts: Row158
+    Media: Row159
+    Health: Row160
+    TelemetryContext: Row161
+    def __init__(self, Unspecified: _Optional[_Union[Row148, _Mapping]] = ..., Text: _Optional[_Union[Row149, _Mapping]] = ..., TelemetrySummary: _Optional[_Union[Row150, _Mapping]] = ..., Plot: _Optional[_Union[Row151, _Mapping]] = ..., Table: _Optional[_Union[Row152, _Mapping]] = ..., Steps: _Optional[_Union[Row153, _Mapping]] = ..., Criteria: _Optional[_Union[Row154, _Mapping]] = ..., Traceability: _Optional[_Union[Row155, _Mapping]] = ..., Notes: _Optional[_Union[Row156, _Mapping]] = ..., Records: _Optional[_Union[Row157, _Mapping]] = ..., Artifacts: _Optional[_Union[Row158, _Mapping]] = ..., Media: _Optional[_Union[Row159, _Mapping]] = ..., Health: _Optional[_Union[Row160, _Mapping]] = ..., TelemetryContext: _Optional[_Union[Row161, _Mapping]] = ...) -> None: ...
 
 class Row119(_message.Message):
     __slots__ = ()
@@ -1067,14 +1059,14 @@ class Row125(_message.Message):
 class Row126(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row166
-    def __init__(self, field_0: _Optional[_Union[Row166, _Mapping]] = ...) -> None: ...
+    field_0: Row162
+    def __init__(self, field_0: _Optional[_Union[Row162, _Mapping]] = ...) -> None: ...
 
 class Row127(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row167
-    def __init__(self, field_0: _Optional[_Union[Row167, _Mapping]] = ...) -> None: ...
+    field_0: Row163
+    def __init__(self, field_0: _Optional[_Union[Row163, _Mapping]] = ...) -> None: ...
 
 class Row128(_message.Message):
     __slots__ = ("stream", "field")
@@ -1111,26 +1103,26 @@ class Row132(_message.Message):
 class Row133(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row168
-    def __init__(self, field_0: _Optional[_Union[Row168, _Mapping]] = ...) -> None: ...
+    field_0: Row164
+    def __init__(self, field_0: _Optional[_Union[Row164, _Mapping]] = ...) -> None: ...
 
 class Row134(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row168
-    def __init__(self, field_0: _Optional[_Union[Row168, _Mapping]] = ...) -> None: ...
+    field_0: Row165
+    def __init__(self, field_0: _Optional[_Union[Row165, _Mapping]] = ...) -> None: ...
 
 class Row135(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row168
-    def __init__(self, field_0: _Optional[_Union[Row168, _Mapping]] = ...) -> None: ...
+    field_0: Row166
+    def __init__(self, field_0: _Optional[_Union[Row166, _Mapping]] = ...) -> None: ...
 
 class Row136(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row168
-    def __init__(self, field_0: _Optional[_Union[Row168, _Mapping]] = ...) -> None: ...
+    field_0: Row167
+    def __init__(self, field_0: _Optional[_Union[Row167, _Mapping]] = ...) -> None: ...
 
 class Row137(_message.Message):
     __slots__ = ("field_0",)
@@ -1139,30 +1131,6 @@ class Row137(_message.Message):
     def __init__(self, field_0: _Optional[_Union[Row168, _Mapping]] = ...) -> None: ...
 
 class Row138(_message.Message):
-    __slots__ = ("field_0",)
-    FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row169
-    def __init__(self, field_0: _Optional[_Union[Row169, _Mapping]] = ...) -> None: ...
-
-class Row139(_message.Message):
-    __slots__ = ("field_0",)
-    FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row170
-    def __init__(self, field_0: _Optional[_Union[Row170, _Mapping]] = ...) -> None: ...
-
-class Row140(_message.Message):
-    __slots__ = ("field_0",)
-    FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row171
-    def __init__(self, field_0: _Optional[_Union[Row171, _Mapping]] = ...) -> None: ...
-
-class Row141(_message.Message):
-    __slots__ = ("field_0",)
-    FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row168
-    def __init__(self, field_0: _Optional[_Union[Row168, _Mapping]] = ...) -> None: ...
-
-class Row142(_message.Message):
     __slots__ = ("plot_id", "plot_type", "x_scale", "y_scale", "stream", "y_keys", "marker_record_types", "filters", "x_key", "series_by", "x_expression", "y_expressions", "series_by_expression", "z_stream", "z_field", "unit", "max_points", "window_s", "scope", "cursor", "technique", "z_expression", "fft", "interval", "histogram", "analysis")
     PLOT_ID_FIELD_NUMBER: _ClassVar[int]
     PLOT_TYPE_FIELD_NUMBER: _ClassVar[int]
@@ -1191,9 +1159,9 @@ class Row142(_message.Message):
     HISTOGRAM_FIELD_NUMBER: _ClassVar[int]
     ANALYSIS_FIELD_NUMBER: _ClassVar[int]
     plot_id: str
-    plot_type: Row172
-    x_scale: Row173
-    y_scale: Row173
+    plot_type: Row169
+    x_scale: Row170
+    y_scale: Row170
     stream: str
     y_keys: _containers.RepeatedScalarFieldContainer[str]
     marker_record_types: _containers.RepeatedScalarFieldContainer[str]
@@ -1209,16 +1177,16 @@ class Row142(_message.Message):
     max_points: int
     window_s: float
     scope: Row35
-    cursor: Row174
-    technique: Row175
+    cursor: Row171
+    technique: Row172
     z_expression: Row45
-    fft: Row176
-    interval: Row177
-    histogram: Row178
-    analysis: Row179
-    def __init__(self, plot_id: _Optional[str] = ..., plot_type: _Optional[_Union[Row172, _Mapping]] = ..., x_scale: _Optional[_Union[Row173, _Mapping]] = ..., y_scale: _Optional[_Union[Row173, _Mapping]] = ..., stream: _Optional[str] = ..., y_keys: _Optional[_Iterable[str]] = ..., marker_record_types: _Optional[_Iterable[str]] = ..., filters: _Optional[_Iterable[_Union[Row38, _Mapping]]] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., x_expression: _Optional[_Union[Row45, _Mapping]] = ..., y_expressions: _Optional[_Iterable[_Union[Row45, _Mapping]]] = ..., series_by_expression: _Optional[_Union[Row45, _Mapping]] = ..., z_stream: _Optional[str] = ..., z_field: _Optional[str] = ..., unit: _Optional[str] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., scope: _Optional[_Union[Row35, _Mapping]] = ..., cursor: _Optional[_Union[Row174, _Mapping]] = ..., technique: _Optional[_Union[Row175, _Mapping]] = ..., z_expression: _Optional[_Union[Row45, _Mapping]] = ..., fft: _Optional[_Union[Row176, _Mapping]] = ..., interval: _Optional[_Union[Row177, _Mapping]] = ..., histogram: _Optional[_Union[Row178, _Mapping]] = ..., analysis: _Optional[_Union[Row179, _Mapping]] = ...) -> None: ...
+    fft: Row173
+    interval: Row174
+    histogram: Row175
+    analysis: Row176
+    def __init__(self, plot_id: _Optional[str] = ..., plot_type: _Optional[_Union[Row169, _Mapping]] = ..., x_scale: _Optional[_Union[Row170, _Mapping]] = ..., y_scale: _Optional[_Union[Row170, _Mapping]] = ..., stream: _Optional[str] = ..., y_keys: _Optional[_Iterable[str]] = ..., marker_record_types: _Optional[_Iterable[str]] = ..., filters: _Optional[_Iterable[_Union[Row38, _Mapping]]] = ..., x_key: _Optional[str] = ..., series_by: _Optional[str] = ..., x_expression: _Optional[_Union[Row45, _Mapping]] = ..., y_expressions: _Optional[_Iterable[_Union[Row45, _Mapping]]] = ..., series_by_expression: _Optional[_Union[Row45, _Mapping]] = ..., z_stream: _Optional[str] = ..., z_field: _Optional[str] = ..., unit: _Optional[str] = ..., max_points: _Optional[int] = ..., window_s: _Optional[float] = ..., scope: _Optional[_Union[Row35, _Mapping]] = ..., cursor: _Optional[_Union[Row171, _Mapping]] = ..., technique: _Optional[_Union[Row172, _Mapping]] = ..., z_expression: _Optional[_Union[Row45, _Mapping]] = ..., fft: _Optional[_Union[Row173, _Mapping]] = ..., interval: _Optional[_Union[Row174, _Mapping]] = ..., histogram: _Optional[_Union[Row175, _Mapping]] = ..., analysis: _Optional[_Union[Row176, _Mapping]] = ...) -> None: ...
 
-class Row143(_message.Message):
+class Row139(_message.Message):
     __slots__ = ("style", "fft", "interval", "histogram", "reference_lines", "reference_bands", "live_window_s", "x_format", "y_format", "x_axis", "x_axis_unit")
     STYLE_FIELD_NUMBER: _ClassVar[int]
     FFT_FIELD_NUMBER: _ClassVar[int]
@@ -1231,18 +1199,34 @@ class Row143(_message.Message):
     Y_FORMAT_FIELD_NUMBER: _ClassVar[int]
     X_AXIS_FIELD_NUMBER: _ClassVar[int]
     X_AXIS_UNIT_FIELD_NUMBER: _ClassVar[int]
-    style: Row180
-    fft: Row176
-    interval: Row177
-    histogram: Row178
-    reference_lines: _containers.RepeatedCompositeFieldContainer[Row181]
-    reference_bands: _containers.RepeatedCompositeFieldContainer[Row182]
+    style: Row177
+    fft: Row173
+    interval: Row174
+    histogram: Row175
+    reference_lines: _containers.RepeatedCompositeFieldContainer[Row178]
+    reference_bands: _containers.RepeatedCompositeFieldContainer[Row179]
     live_window_s: float
-    x_format: Row183
-    y_format: Row183
-    x_axis: Row184
+    x_format: Row180
+    y_format: Row180
+    x_axis: Row181
     x_axis_unit: str
-    def __init__(self, style: _Optional[_Union[Row180, _Mapping]] = ..., fft: _Optional[_Union[Row176, _Mapping]] = ..., interval: _Optional[_Union[Row177, _Mapping]] = ..., histogram: _Optional[_Union[Row178, _Mapping]] = ..., reference_lines: _Optional[_Iterable[_Union[Row181, _Mapping]]] = ..., reference_bands: _Optional[_Iterable[_Union[Row182, _Mapping]]] = ..., live_window_s: _Optional[float] = ..., x_format: _Optional[_Union[Row183, _Mapping]] = ..., y_format: _Optional[_Union[Row183, _Mapping]] = ..., x_axis: _Optional[_Union[Row184, _Mapping]] = ..., x_axis_unit: _Optional[str] = ...) -> None: ...
+    def __init__(self, style: _Optional[_Union[Row177, _Mapping]] = ..., fft: _Optional[_Union[Row173, _Mapping]] = ..., interval: _Optional[_Union[Row174, _Mapping]] = ..., histogram: _Optional[_Union[Row175, _Mapping]] = ..., reference_lines: _Optional[_Iterable[_Union[Row178, _Mapping]]] = ..., reference_bands: _Optional[_Iterable[_Union[Row179, _Mapping]]] = ..., live_window_s: _Optional[float] = ..., x_format: _Optional[_Union[Row180, _Mapping]] = ..., y_format: _Optional[_Union[Row180, _Mapping]] = ..., x_axis: _Optional[_Union[Row181, _Mapping]] = ..., x_axis_unit: _Optional[str] = ...) -> None: ...
+
+class Row140(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row141(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row142(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row143(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class Row144(_message.Message):
     __slots__ = ()
@@ -1317,44 +1301,30 @@ class Row161(_message.Message):
     def __init__(self) -> None: ...
 
 class Row162(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row163(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row164(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row165(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row166(_message.Message):
     __slots__ = ("items",)
     ITEMS_FIELD_NUMBER: _ClassVar[int]
     items: _containers.RepeatedScalarFieldContainer[int]
     def __init__(self, items: _Optional[_Iterable[int]] = ...) -> None: ...
 
-class Row167(_message.Message):
+class Row163(_message.Message):
     __slots__ = ("fields",)
     FIELDS_FIELD_NUMBER: _ClassVar[int]
-    fields: _containers.RepeatedCompositeFieldContainer[Row185]
-    def __init__(self, fields: _Optional[_Iterable[_Union[Row185, _Mapping]]] = ...) -> None: ...
+    fields: _containers.RepeatedCompositeFieldContainer[Row182]
+    def __init__(self, fields: _Optional[_Iterable[_Union[Row182, _Mapping]]] = ...) -> None: ...
 
-class Row168(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+class Row164(_message.Message):
+    __slots__ = ("aggregate",)
+    AGGREGATE_FIELD_NUMBER: _ClassVar[int]
+    aggregate: str
+    def __init__(self, aggregate: _Optional[str] = ...) -> None: ...
 
-class Row169(_message.Message):
+class Row165(_message.Message):
     __slots__ = ("previous_record_type",)
     PREVIOUS_RECORD_TYPE_FIELD_NUMBER: _ClassVar[int]
     previous_record_type: str
     def __init__(self, previous_record_type: _Optional[str] = ...) -> None: ...
 
-class Row170(_message.Message):
+class Row166(_message.Message):
     __slots__ = ("stream", "field")
     STREAM_FIELD_NUMBER: _ClassVar[int]
     FIELD_FIELD_NUMBER: _ClassVar[int]
@@ -1362,13 +1332,17 @@ class Row170(_message.Message):
     field: str
     def __init__(self, stream: _Optional[str] = ..., field: _Optional[str] = ...) -> None: ...
 
-class Row171(_message.Message):
+class Row167(_message.Message):
     __slots__ = ("name",)
     NAME_FIELD_NUMBER: _ClassVar[int]
     name: str
     def __init__(self, name: _Optional[str] = ...) -> None: ...
 
-class Row172(_message.Message):
+class Row168(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row169(_message.Message):
     __slots__ = ("Unspecified", "TimeSeries", "Bar", "GroupedBar", "StackedBar", "Pie", "Donut", "Pareto", "XyScatter", "XyLine", "XyInterval", "Trajectory", "Heatmap", "XyValueHeatmap", "WifiChannelOccupancy", "FrequencySeries", "Histogram", "BoxSummary", "AggregateTable")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     TIMESERIES_FIELD_NUMBER: _ClassVar[int]
@@ -1389,64 +1363,64 @@ class Row172(_message.Message):
     HISTOGRAM_FIELD_NUMBER: _ClassVar[int]
     BOXSUMMARY_FIELD_NUMBER: _ClassVar[int]
     AGGREGATETABLE_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row186
-    TimeSeries: Row187
-    Bar: Row188
-    GroupedBar: Row189
-    StackedBar: Row190
-    Pie: Row191
-    Donut: Row192
-    Pareto: Row193
-    XyScatter: Row194
-    XyLine: Row195
-    XyInterval: Row196
-    Trajectory: Row197
-    Heatmap: Row198
-    XyValueHeatmap: Row199
-    WifiChannelOccupancy: Row200
-    FrequencySeries: Row201
-    Histogram: Row202
-    BoxSummary: Row203
-    AggregateTable: Row204
-    def __init__(self, Unspecified: _Optional[_Union[Row186, _Mapping]] = ..., TimeSeries: _Optional[_Union[Row187, _Mapping]] = ..., Bar: _Optional[_Union[Row188, _Mapping]] = ..., GroupedBar: _Optional[_Union[Row189, _Mapping]] = ..., StackedBar: _Optional[_Union[Row190, _Mapping]] = ..., Pie: _Optional[_Union[Row191, _Mapping]] = ..., Donut: _Optional[_Union[Row192, _Mapping]] = ..., Pareto: _Optional[_Union[Row193, _Mapping]] = ..., XyScatter: _Optional[_Union[Row194, _Mapping]] = ..., XyLine: _Optional[_Union[Row195, _Mapping]] = ..., XyInterval: _Optional[_Union[Row196, _Mapping]] = ..., Trajectory: _Optional[_Union[Row197, _Mapping]] = ..., Heatmap: _Optional[_Union[Row198, _Mapping]] = ..., XyValueHeatmap: _Optional[_Union[Row199, _Mapping]] = ..., WifiChannelOccupancy: _Optional[_Union[Row200, _Mapping]] = ..., FrequencySeries: _Optional[_Union[Row201, _Mapping]] = ..., Histogram: _Optional[_Union[Row202, _Mapping]] = ..., BoxSummary: _Optional[_Union[Row203, _Mapping]] = ..., AggregateTable: _Optional[_Union[Row204, _Mapping]] = ...) -> None: ...
+    Unspecified: Row183
+    TimeSeries: Row184
+    Bar: Row185
+    GroupedBar: Row186
+    StackedBar: Row187
+    Pie: Row188
+    Donut: Row189
+    Pareto: Row190
+    XyScatter: Row191
+    XyLine: Row192
+    XyInterval: Row193
+    Trajectory: Row194
+    Heatmap: Row195
+    XyValueHeatmap: Row196
+    WifiChannelOccupancy: Row197
+    FrequencySeries: Row198
+    Histogram: Row199
+    BoxSummary: Row200
+    AggregateTable: Row201
+    def __init__(self, Unspecified: _Optional[_Union[Row183, _Mapping]] = ..., TimeSeries: _Optional[_Union[Row184, _Mapping]] = ..., Bar: _Optional[_Union[Row185, _Mapping]] = ..., GroupedBar: _Optional[_Union[Row186, _Mapping]] = ..., StackedBar: _Optional[_Union[Row187, _Mapping]] = ..., Pie: _Optional[_Union[Row188, _Mapping]] = ..., Donut: _Optional[_Union[Row189, _Mapping]] = ..., Pareto: _Optional[_Union[Row190, _Mapping]] = ..., XyScatter: _Optional[_Union[Row191, _Mapping]] = ..., XyLine: _Optional[_Union[Row192, _Mapping]] = ..., XyInterval: _Optional[_Union[Row193, _Mapping]] = ..., Trajectory: _Optional[_Union[Row194, _Mapping]] = ..., Heatmap: _Optional[_Union[Row195, _Mapping]] = ..., XyValueHeatmap: _Optional[_Union[Row196, _Mapping]] = ..., WifiChannelOccupancy: _Optional[_Union[Row197, _Mapping]] = ..., FrequencySeries: _Optional[_Union[Row198, _Mapping]] = ..., Histogram: _Optional[_Union[Row199, _Mapping]] = ..., BoxSummary: _Optional[_Union[Row200, _Mapping]] = ..., AggregateTable: _Optional[_Union[Row201, _Mapping]] = ...) -> None: ...
 
-class Row173(_message.Message):
+class Row170(_message.Message):
     __slots__ = ("Unspecified", "Linear", "Log")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     LINEAR_FIELD_NUMBER: _ClassVar[int]
     LOG_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row205
-    Linear: Row206
-    Log: Row207
-    def __init__(self, Unspecified: _Optional[_Union[Row205, _Mapping]] = ..., Linear: _Optional[_Union[Row206, _Mapping]] = ..., Log: _Optional[_Union[Row207, _Mapping]] = ...) -> None: ...
+    Unspecified: Row202
+    Linear: Row203
+    Log: Row204
+    def __init__(self, Unspecified: _Optional[_Union[Row202, _Mapping]] = ..., Linear: _Optional[_Union[Row203, _Mapping]] = ..., Log: _Optional[_Union[Row204, _Mapping]] = ...) -> None: ...
 
-class Row174(_message.Message):
+class Row171(_message.Message):
     __slots__ = ("telemetry_streams", "record_sequence", "epoch", "selection")
     TELEMETRY_STREAMS_FIELD_NUMBER: _ClassVar[int]
     RECORD_SEQUENCE_FIELD_NUMBER: _ClassVar[int]
     EPOCH_FIELD_NUMBER: _ClassVar[int]
     SELECTION_FIELD_NUMBER: _ClassVar[int]
-    telemetry_streams: _containers.RepeatedCompositeFieldContainer[Row208]
+    telemetry_streams: _containers.RepeatedCompositeFieldContainer[Row205]
     record_sequence: int
     epoch: str
     selection: str
-    def __init__(self, telemetry_streams: _Optional[_Iterable[_Union[Row208, _Mapping]]] = ..., record_sequence: _Optional[int] = ..., epoch: _Optional[str] = ..., selection: _Optional[str] = ...) -> None: ...
+    def __init__(self, telemetry_streams: _Optional[_Iterable[_Union[Row205, _Mapping]]] = ..., record_sequence: _Optional[int] = ..., epoch: _Optional[str] = ..., selection: _Optional[str] = ...) -> None: ...
 
-class Row175(_message.Message):
+class Row172(_message.Message):
     __slots__ = ("Unspecified", "Raw", "MinMax", "Lttb", "Auto")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     RAW_FIELD_NUMBER: _ClassVar[int]
     MINMAX_FIELD_NUMBER: _ClassVar[int]
     LTTB_FIELD_NUMBER: _ClassVar[int]
     AUTO_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row209
-    Raw: Row210
-    MinMax: Row211
-    Lttb: Row212
-    Auto: Row213
-    def __init__(self, Unspecified: _Optional[_Union[Row209, _Mapping]] = ..., Raw: _Optional[_Union[Row210, _Mapping]] = ..., MinMax: _Optional[_Union[Row211, _Mapping]] = ..., Lttb: _Optional[_Union[Row212, _Mapping]] = ..., Auto: _Optional[_Union[Row213, _Mapping]] = ...) -> None: ...
+    Unspecified: Row206
+    Raw: Row207
+    MinMax: Row208
+    Lttb: Row209
+    Auto: Row210
+    def __init__(self, Unspecified: _Optional[_Union[Row206, _Mapping]] = ..., Raw: _Optional[_Union[Row207, _Mapping]] = ..., MinMax: _Optional[_Union[Row208, _Mapping]] = ..., Lttb: _Optional[_Union[Row209, _Mapping]] = ..., Auto: _Optional[_Union[Row210, _Mapping]] = ...) -> None: ...
 
-class Row176(_message.Message):
+class Row173(_message.Message):
     __slots__ = ("sample_rate_hz", "window", "detrend", "level_unit", "include_dc", "min_frequency_hz", "max_frequency_hz")
     SAMPLE_RATE_HZ_FIELD_NUMBER: _ClassVar[int]
     WINDOW_FIELD_NUMBER: _ClassVar[int]
@@ -1456,15 +1430,15 @@ class Row176(_message.Message):
     MIN_FREQUENCY_HZ_FIELD_NUMBER: _ClassVar[int]
     MAX_FREQUENCY_HZ_FIELD_NUMBER: _ClassVar[int]
     sample_rate_hz: float
-    window: Row214
-    detrend: Row215
-    level_unit: Row216
+    window: Row211
+    detrend: Row212
+    level_unit: Row213
     include_dc: bool
     min_frequency_hz: float
     max_frequency_hz: float
-    def __init__(self, sample_rate_hz: _Optional[float] = ..., window: _Optional[_Union[Row214, _Mapping]] = ..., detrend: _Optional[_Union[Row215, _Mapping]] = ..., level_unit: _Optional[_Union[Row216, _Mapping]] = ..., include_dc: _Optional[bool] = ..., min_frequency_hz: _Optional[float] = ..., max_frequency_hz: _Optional[float] = ...) -> None: ...
+    def __init__(self, sample_rate_hz: _Optional[float] = ..., window: _Optional[_Union[Row211, _Mapping]] = ..., detrend: _Optional[_Union[Row212, _Mapping]] = ..., level_unit: _Optional[_Union[Row213, _Mapping]] = ..., include_dc: _Optional[bool] = ..., min_frequency_hz: _Optional[float] = ..., max_frequency_hz: _Optional[float] = ...) -> None: ...
 
-class Row177(_message.Message):
+class Row174(_message.Message):
     __slots__ = ("bin_width", "sigma", "clip_to_observed")
     BIN_WIDTH_FIELD_NUMBER: _ClassVar[int]
     SIGMA_FIELD_NUMBER: _ClassVar[int]
@@ -1474,7 +1448,7 @@ class Row177(_message.Message):
     clip_to_observed: bool
     def __init__(self, bin_width: _Optional[float] = ..., sigma: _Optional[float] = ..., clip_to_observed: _Optional[bool] = ...) -> None: ...
 
-class Row178(_message.Message):
+class Row175(_message.Message):
     __slots__ = ("bins", "unit")
     BINS_FIELD_NUMBER: _ClassVar[int]
     UNIT_FIELD_NUMBER: _ClassVar[int]
@@ -1482,7 +1456,7 @@ class Row178(_message.Message):
     unit: str
     def __init__(self, bins: _Optional[int] = ..., unit: _Optional[str] = ...) -> None: ...
 
-class Row179(_message.Message):
+class Row176(_message.Message):
     __slots__ = ("id", "version", "parameters")
     ID_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -1492,21 +1466,21 @@ class Row179(_message.Message):
     parameters: Row40
     def __init__(self, id: _Optional[str] = ..., version: _Optional[int] = ..., parameters: _Optional[_Union[Row40, _Mapping]] = ...) -> None: ...
 
-class Row180(_message.Message):
+class Row177(_message.Message):
     __slots__ = ("Unspecified", "Line", "Points", "LinePoints", "Step")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     LINE_FIELD_NUMBER: _ClassVar[int]
     POINTS_FIELD_NUMBER: _ClassVar[int]
     LINEPOINTS_FIELD_NUMBER: _ClassVar[int]
     STEP_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row217
-    Line: Row218
-    Points: Row219
-    LinePoints: Row220
-    Step: Row221
-    def __init__(self, Unspecified: _Optional[_Union[Row217, _Mapping]] = ..., Line: _Optional[_Union[Row218, _Mapping]] = ..., Points: _Optional[_Union[Row219, _Mapping]] = ..., LinePoints: _Optional[_Union[Row220, _Mapping]] = ..., Step: _Optional[_Union[Row221, _Mapping]] = ...) -> None: ...
+    Unspecified: Row214
+    Line: Row215
+    Points: Row216
+    LinePoints: Row217
+    Step: Row218
+    def __init__(self, Unspecified: _Optional[_Union[Row214, _Mapping]] = ..., Line: _Optional[_Union[Row215, _Mapping]] = ..., Points: _Optional[_Union[Row216, _Mapping]] = ..., LinePoints: _Optional[_Union[Row217, _Mapping]] = ..., Step: _Optional[_Union[Row218, _Mapping]] = ...) -> None: ...
 
-class Row181(_message.Message):
+class Row178(_message.Message):
     __slots__ = ("axis", "value", "source", "source_scale", "label", "color")
     AXIS_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -1514,15 +1488,15 @@ class Row181(_message.Message):
     SOURCE_SCALE_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     COLOR_FIELD_NUMBER: _ClassVar[int]
-    axis: Row222
+    axis: Row219
     value: float
     source: Row45
     source_scale: float
     label: str
     color: str
-    def __init__(self, axis: _Optional[_Union[Row222, _Mapping]] = ..., value: _Optional[float] = ..., source: _Optional[_Union[Row45, _Mapping]] = ..., source_scale: _Optional[float] = ..., label: _Optional[str] = ..., color: _Optional[str] = ...) -> None: ...
+    def __init__(self, axis: _Optional[_Union[Row219, _Mapping]] = ..., value: _Optional[float] = ..., source: _Optional[_Union[Row45, _Mapping]] = ..., source_scale: _Optional[float] = ..., label: _Optional[str] = ..., color: _Optional[str] = ...) -> None: ...
 
-class Row182(_message.Message):
+class Row179(_message.Message):
     __slots__ = ("axis", "min", "max", "label", "color", "center", "tolerance")
     AXIS_FIELD_NUMBER: _ClassVar[int]
     MIN_FIELD_NUMBER: _ClassVar[int]
@@ -1531,38 +1505,50 @@ class Row182(_message.Message):
     COLOR_FIELD_NUMBER: _ClassVar[int]
     CENTER_FIELD_NUMBER: _ClassVar[int]
     TOLERANCE_FIELD_NUMBER: _ClassVar[int]
-    axis: Row222
+    axis: Row219
     min: float
     max: float
     label: str
     color: str
     center: Row45
     tolerance: Row45
-    def __init__(self, axis: _Optional[_Union[Row222, _Mapping]] = ..., min: _Optional[float] = ..., max: _Optional[float] = ..., label: _Optional[str] = ..., color: _Optional[str] = ..., center: _Optional[_Union[Row45, _Mapping]] = ..., tolerance: _Optional[_Union[Row45, _Mapping]] = ...) -> None: ...
+    def __init__(self, axis: _Optional[_Union[Row219, _Mapping]] = ..., min: _Optional[float] = ..., max: _Optional[float] = ..., label: _Optional[str] = ..., color: _Optional[str] = ..., center: _Optional[_Union[Row45, _Mapping]] = ..., tolerance: _Optional[_Union[Row45, _Mapping]] = ...) -> None: ...
 
-class Row183(_message.Message):
+class Row180(_message.Message):
     __slots__ = ("kind",)
     KIND_FIELD_NUMBER: _ClassVar[int]
-    kind: Row223
-    def __init__(self, kind: _Optional[_Union[Row223, _Mapping]] = ...) -> None: ...
+    kind: Row220
+    def __init__(self, kind: _Optional[_Union[Row220, _Mapping]] = ...) -> None: ...
 
-class Row184(_message.Message):
+class Row181(_message.Message):
     __slots__ = ("Unspecified", "WallTime", "Elapsed")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     WALLTIME_FIELD_NUMBER: _ClassVar[int]
     ELAPSED_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row224
-    WallTime: Row225
-    Elapsed: Row226
-    def __init__(self, Unspecified: _Optional[_Union[Row224, _Mapping]] = ..., WallTime: _Optional[_Union[Row225, _Mapping]] = ..., Elapsed: _Optional[_Union[Row226, _Mapping]] = ...) -> None: ...
+    Unspecified: Row221
+    WallTime: Row222
+    Elapsed: Row223
+    def __init__(self, Unspecified: _Optional[_Union[Row221, _Mapping]] = ..., WallTime: _Optional[_Union[Row222, _Mapping]] = ..., Elapsed: _Optional[_Union[Row223, _Mapping]] = ...) -> None: ...
 
-class Row185(_message.Message):
+class Row182(_message.Message):
     __slots__ = ("key", "value")
     KEY_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     key: str
     value: int
     def __init__(self, key: _Optional[str] = ..., value: _Optional[int] = ...) -> None: ...
+
+class Row183(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row184(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row185(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class Row186(_message.Message):
     __slots__ = ()
@@ -1641,8 +1627,12 @@ class Row204(_message.Message):
     def __init__(self) -> None: ...
 
 class Row205(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("key", "value")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    value: int
+    def __init__(self, key: _Optional[str] = ..., value: _Optional[int] = ...) -> None: ...
 
 class Row206(_message.Message):
     __slots__ = ()
@@ -1653,12 +1643,8 @@ class Row207(_message.Message):
     def __init__(self) -> None: ...
 
 class Row208(_message.Message):
-    __slots__ = ("key", "value")
-    KEY_FIELD_NUMBER: _ClassVar[int]
-    VALUE_FIELD_NUMBER: _ClassVar[int]
-    key: str
-    value: int
-    def __init__(self, key: _Optional[str] = ..., value: _Optional[int] = ...) -> None: ...
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class Row209(_message.Message):
     __slots__ = ()
@@ -1669,49 +1655,49 @@ class Row210(_message.Message):
     def __init__(self) -> None: ...
 
 class Row211(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row212(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row213(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row214(_message.Message):
     __slots__ = ("Unspecified", "Hann", "Rectangular")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     HANN_FIELD_NUMBER: _ClassVar[int]
     RECTANGULAR_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row227
-    Hann: Row228
-    Rectangular: Row229
-    def __init__(self, Unspecified: _Optional[_Union[Row227, _Mapping]] = ..., Hann: _Optional[_Union[Row228, _Mapping]] = ..., Rectangular: _Optional[_Union[Row229, _Mapping]] = ...) -> None: ...
+    Unspecified: Row224
+    Hann: Row225
+    Rectangular: Row226
+    def __init__(self, Unspecified: _Optional[_Union[Row224, _Mapping]] = ..., Hann: _Optional[_Union[Row225, _Mapping]] = ..., Rectangular: _Optional[_Union[Row226, _Mapping]] = ...) -> None: ...
 
-class Row215(_message.Message):
+class Row212(_message.Message):
     __slots__ = ("Unspecified", "Mean")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     NONE_FIELD_NUMBER: _ClassVar[int]
     MEAN_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row230
-    Mean: Row232
-    def __init__(self, Unspecified: _Optional[_Union[Row230, _Mapping]] = ..., Mean: _Optional[_Union[Row232, _Mapping]] = ..., **kwargs) -> None: ...
+    Unspecified: Row227
+    Mean: Row229
+    def __init__(self, Unspecified: _Optional[_Union[Row227, _Mapping]] = ..., Mean: _Optional[_Union[Row229, _Mapping]] = ..., **kwargs) -> None: ...
 
-class Row216(_message.Message):
+class Row213(_message.Message):
     __slots__ = ("Unspecified", "Linear", "Db", "Dbu", "Dbm")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     LINEAR_FIELD_NUMBER: _ClassVar[int]
     DB_FIELD_NUMBER: _ClassVar[int]
     DBU_FIELD_NUMBER: _ClassVar[int]
     DBM_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row233
-    Linear: Row234
-    Db: Row235
-    Dbu: Row236
-    Dbm: Row237
-    def __init__(self, Unspecified: _Optional[_Union[Row233, _Mapping]] = ..., Linear: _Optional[_Union[Row234, _Mapping]] = ..., Db: _Optional[_Union[Row235, _Mapping]] = ..., Dbu: _Optional[_Union[Row236, _Mapping]] = ..., Dbm: _Optional[_Union[Row237, _Mapping]] = ...) -> None: ...
+    Unspecified: Row230
+    Linear: Row231
+    Db: Row232
+    Dbu: Row233
+    Dbm: Row234
+    def __init__(self, Unspecified: _Optional[_Union[Row230, _Mapping]] = ..., Linear: _Optional[_Union[Row231, _Mapping]] = ..., Db: _Optional[_Union[Row232, _Mapping]] = ..., Dbu: _Optional[_Union[Row233, _Mapping]] = ..., Dbm: _Optional[_Union[Row234, _Mapping]] = ...) -> None: ...
+
+class Row214(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row215(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row216(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class Row217(_message.Message):
     __slots__ = ()
@@ -1722,28 +1708,16 @@ class Row218(_message.Message):
     def __init__(self) -> None: ...
 
 class Row219(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row220(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row221(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row222(_message.Message):
     __slots__ = ("Unspecified", "X", "Y")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
     Y_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row238
-    X: Row239
-    Y: Row240
-    def __init__(self, Unspecified: _Optional[_Union[Row238, _Mapping]] = ..., X: _Optional[_Union[Row239, _Mapping]] = ..., Y: _Optional[_Union[Row240, _Mapping]] = ...) -> None: ...
+    Unspecified: Row235
+    X: Row236
+    Y: Row237
+    def __init__(self, Unspecified: _Optional[_Union[Row235, _Mapping]] = ..., X: _Optional[_Union[Row236, _Mapping]] = ..., Y: _Optional[_Union[Row237, _Mapping]] = ...) -> None: ...
 
-class Row223(_message.Message):
+class Row220(_message.Message):
     __slots__ = ("Normal", "Fixed", "Scientific", "Engineering", "SiPrefix", "AbsoluteTime", "ElapsedSinceRun", "ElapsedSinceCycle")
     NORMAL_FIELD_NUMBER: _ClassVar[int]
     FIXED_FIELD_NUMBER: _ClassVar[int]
@@ -1753,15 +1727,27 @@ class Row223(_message.Message):
     ABSOLUTETIME_FIELD_NUMBER: _ClassVar[int]
     ELAPSEDSINCERUN_FIELD_NUMBER: _ClassVar[int]
     ELAPSEDSINCECYCLE_FIELD_NUMBER: _ClassVar[int]
-    Normal: Row241
-    Fixed: Row242
-    Scientific: Row243
-    Engineering: Row244
-    SiPrefix: Row245
-    AbsoluteTime: Row246
-    ElapsedSinceRun: Row247
-    ElapsedSinceCycle: Row248
-    def __init__(self, Normal: _Optional[_Union[Row241, _Mapping]] = ..., Fixed: _Optional[_Union[Row242, _Mapping]] = ..., Scientific: _Optional[_Union[Row243, _Mapping]] = ..., Engineering: _Optional[_Union[Row244, _Mapping]] = ..., SiPrefix: _Optional[_Union[Row245, _Mapping]] = ..., AbsoluteTime: _Optional[_Union[Row246, _Mapping]] = ..., ElapsedSinceRun: _Optional[_Union[Row247, _Mapping]] = ..., ElapsedSinceCycle: _Optional[_Union[Row248, _Mapping]] = ...) -> None: ...
+    Normal: Row238
+    Fixed: Row239
+    Scientific: Row240
+    Engineering: Row241
+    SiPrefix: Row242
+    AbsoluteTime: Row243
+    ElapsedSinceRun: Row244
+    ElapsedSinceCycle: Row245
+    def __init__(self, Normal: _Optional[_Union[Row238, _Mapping]] = ..., Fixed: _Optional[_Union[Row239, _Mapping]] = ..., Scientific: _Optional[_Union[Row240, _Mapping]] = ..., Engineering: _Optional[_Union[Row241, _Mapping]] = ..., SiPrefix: _Optional[_Union[Row242, _Mapping]] = ..., AbsoluteTime: _Optional[_Union[Row243, _Mapping]] = ..., ElapsedSinceRun: _Optional[_Union[Row244, _Mapping]] = ..., ElapsedSinceCycle: _Optional[_Union[Row245, _Mapping]] = ...) -> None: ...
+
+class Row221(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row222(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row223(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class Row224(_message.Message):
     __slots__ = ()
@@ -1820,16 +1806,22 @@ class Row237(_message.Message):
     def __init__(self) -> None: ...
 
 class Row238(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("field_0",)
+    FIELD_0_FIELD_NUMBER: _ClassVar[int]
+    field_0: Row246
+    def __init__(self, field_0: _Optional[_Union[Row246, _Mapping]] = ...) -> None: ...
 
 class Row239(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("field_0",)
+    FIELD_0_FIELD_NUMBER: _ClassVar[int]
+    field_0: Row247
+    def __init__(self, field_0: _Optional[_Union[Row247, _Mapping]] = ...) -> None: ...
 
 class Row240(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    __slots__ = ("field_0",)
+    FIELD_0_FIELD_NUMBER: _ClassVar[int]
+    field_0: Row248
+    def __init__(self, field_0: _Optional[_Union[Row248, _Mapping]] = ...) -> None: ...
 
 class Row241(_message.Message):
     __slots__ = ("field_0",)
@@ -1858,94 +1850,76 @@ class Row244(_message.Message):
 class Row245(_message.Message):
     __slots__ = ("field_0",)
     FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row253
-    def __init__(self, field_0: _Optional[_Union[Row253, _Mapping]] = ...) -> None: ...
+    field_0: Row252
+    def __init__(self, field_0: _Optional[_Union[Row252, _Mapping]] = ...) -> None: ...
 
 class Row246(_message.Message):
-    __slots__ = ("field_0",)
-    FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row254
-    def __init__(self, field_0: _Optional[_Union[Row254, _Mapping]] = ...) -> None: ...
-
-class Row247(_message.Message):
-    __slots__ = ("field_0",)
-    FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row255
-    def __init__(self, field_0: _Optional[_Union[Row255, _Mapping]] = ...) -> None: ...
-
-class Row248(_message.Message):
-    __slots__ = ("field_0",)
-    FIELD_0_FIELD_NUMBER: _ClassVar[int]
-    field_0: Row255
-    def __init__(self, field_0: _Optional[_Union[Row255, _Mapping]] = ...) -> None: ...
-
-class Row249(_message.Message):
     __slots__ = ("max_fraction_digits",)
     MAX_FRACTION_DIGITS_FIELD_NUMBER: _ClassVar[int]
     max_fraction_digits: int
     def __init__(self, max_fraction_digits: _Optional[int] = ...) -> None: ...
 
-class Row250(_message.Message):
+class Row247(_message.Message):
     __slots__ = ("decimals",)
     DECIMALS_FIELD_NUMBER: _ClassVar[int]
     decimals: int
     def __init__(self, decimals: _Optional[int] = ...) -> None: ...
 
+class Row248(_message.Message):
+    __slots__ = ("significant_digits",)
+    SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
+    significant_digits: int
+    def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
+
+class Row249(_message.Message):
+    __slots__ = ("significant_digits",)
+    SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
+    significant_digits: int
+    def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
+
+class Row250(_message.Message):
+    __slots__ = ("significant_digits",)
+    SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
+    significant_digits: int
+    def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
+
 class Row251(_message.Message):
-    __slots__ = ("significant_digits",)
-    SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
-    significant_digits: int
-    def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
-
-class Row252(_message.Message):
-    __slots__ = ("significant_digits",)
-    SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
-    significant_digits: int
-    def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
-
-class Row253(_message.Message):
-    __slots__ = ("significant_digits",)
-    SIGNIFICANT_DIGITS_FIELD_NUMBER: _ClassVar[int]
-    significant_digits: int
-    def __init__(self, significant_digits: _Optional[int] = ...) -> None: ...
-
-class Row254(_message.Message):
     __slots__ = ("pattern",)
     PATTERN_FIELD_NUMBER: _ClassVar[int]
     pattern: str
     def __init__(self, pattern: _Optional[str] = ...) -> None: ...
 
-class Row255(_message.Message):
+class Row252(_message.Message):
     __slots__ = ("unit",)
     UNIT_FIELD_NUMBER: _ClassVar[int]
-    unit: Row256
-    def __init__(self, unit: _Optional[_Union[Row256, _Mapping]] = ...) -> None: ...
+    unit: Row253
+    def __init__(self, unit: _Optional[_Union[Row253, _Mapping]] = ...) -> None: ...
 
-class Row256(_message.Message):
+class Row253(_message.Message):
     __slots__ = ("Unspecified", "Seconds", "Milliseconds", "Minutes")
     UNSPECIFIED_FIELD_NUMBER: _ClassVar[int]
     SECONDS_FIELD_NUMBER: _ClassVar[int]
     MILLISECONDS_FIELD_NUMBER: _ClassVar[int]
     MINUTES_FIELD_NUMBER: _ClassVar[int]
-    Unspecified: Row257
-    Seconds: Row258
-    Milliseconds: Row259
-    Minutes: Row260
-    def __init__(self, Unspecified: _Optional[_Union[Row257, _Mapping]] = ..., Seconds: _Optional[_Union[Row258, _Mapping]] = ..., Milliseconds: _Optional[_Union[Row259, _Mapping]] = ..., Minutes: _Optional[_Union[Row260, _Mapping]] = ...) -> None: ...
+    Unspecified: Row254
+    Seconds: Row255
+    Milliseconds: Row256
+    Minutes: Row257
+    def __init__(self, Unspecified: _Optional[_Union[Row254, _Mapping]] = ..., Seconds: _Optional[_Union[Row255, _Mapping]] = ..., Milliseconds: _Optional[_Union[Row256, _Mapping]] = ..., Minutes: _Optional[_Union[Row257, _Mapping]] = ...) -> None: ...
+
+class Row254(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row255(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class Row256(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class Row257(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row258(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row259(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
-
-class Row260(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 

@@ -16,7 +16,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::{MemorySize, storage::QueryValue};
+use harmos::{Aggregate, MemorySize, storage::QueryValue};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{Result, RuntimeHandle};
@@ -48,7 +48,7 @@ pub struct AggregateFilter {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AggregateColumn {
-    pub function: AggregateFunction,
+    pub aggregate: Aggregate,
     pub column: String,
     pub alias: String,
 }
@@ -82,16 +82,6 @@ pub enum AggregateOperator {
     Lt,
     Lte,
     IsNull,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AggregateFunction {
-    Count,
-    Sum,
-    Mean,
-    Min,
-    Max,
 }
 
 /* === Traits === */

@@ -14,8 +14,10 @@ pub(crate) use crate::streams::AggregateOutput;
 
 /* === Imports === */
 // Standard Library Imports
-use std::cmp::Ordering;
+use std::borrow::Cow;
 // Third Party Imports
+use harmos::Aggregate;
+use harmos::signal::{Aggregates, Series};
 
 // Local Imports
 use dokime::core::{Identifier, Metadata, Value, ValueType};
@@ -74,53 +76,42 @@ pub(crate) fn project_samples(
 
 /* === Private Functions === */
 fn project_field(stream: &Identifier, field: &str, values: &[f64]) -> Vec<AggregateOutput> {
-    if values.is_empty() {
+    let (Some(first), Some(last)) = (values.first(), values.last()) else {
         return Vec::new();
-    }
-    let count = values.len() as f64;
-    let sum = values.iter().sum::<f64>();
-    let mean = sum / count;
-    let variance = values
+    };
+    let mut series = Series::new(values);
+    series.sort();
+    // `first`, `last` and `max_abs` read the capture order and magnitude, which
+    // no member of the vocabulary names; every statistic is the Harmos one.
+    let statistic = |aggregate: Aggregate| {
+        series
+            .aggregate(aggregate)
+            .map(|value| (Cow::Owned(aggregate.name()), value))
+    };
+    let max_abs = values
         .iter()
-        .map(|value| {
-            let delta = value - mean;
-            delta * delta
-        })
-        .sum::<f64>()
-        / count;
-    let rms = (values.iter().map(|value| value * value).sum::<f64>() / count).sqrt();
-    let mut ordered = values.to_vec();
-    ordered.sort_by(|left, right| left.partial_cmp(right).unwrap_or(Ordering::Equal));
+        .map(|value| value.abs())
+        .fold(0.0_f64, f64::max);
     let statistics = [
-        ("count", count),
-        ("first", values[0]),
-        ("last", values[values.len() - 1]),
-        ("min", ordered[0]),
-        ("max", ordered[ordered.len() - 1]),
-        ("mean", mean),
-        ("median", percentile(&ordered, 50)),
-        ("std", variance.sqrt()),
-        ("rms", rms),
-        (
-            "max_abs",
-            values
-                .iter()
-                .map(|value| value.abs())
-                .fold(0.0_f64, f64::max),
-        ),
-        ("sum", sum),
-        ("p95", percentile(&ordered, 95)),
-        ("p99", percentile(&ordered, 99)),
+        statistic(Aggregate::Count),
+        Some((Cow::Borrowed("first"), *first)),
+        Some((Cow::Borrowed("last"), *last)),
+        statistic(Aggregate::Min),
+        statistic(Aggregate::Max),
+        statistic(Aggregate::Mean),
+        statistic(Aggregate::Median),
+        statistic(Aggregate::Std),
+        statistic(Aggregate::Rms),
+        Some((Cow::Borrowed("max_abs"), max_abs)),
+        statistic(Aggregate::Sum),
+        statistic(Aggregate::Percentile(95)),
+        statistic(Aggregate::Percentile(99)),
     ];
     statistics
         .into_iter()
-        .map(|(stat, value)| output(stream, field, stat, value))
+        .flatten()
+        .map(|(stat, value)| output(stream, field, &stat, value))
         .collect()
-}
-
-fn percentile(ordered: &[f64], rank: usize) -> f64 {
-    let index = (ordered.len().saturating_sub(1) * rank + 50) / 100;
-    ordered[index]
 }
 
 fn output(stream: &Identifier, field: &str, stat: &str, value: f64) -> AggregateOutput {

@@ -18,7 +18,7 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 // Third Party Imports
 use harmos::{
-    Application, DefinitionId, Identified, Runtime,
+    Aggregate, Application, DefinitionId, Identified, Runtime,
     schema::Described,
     state::Never,
     storage::{
@@ -465,11 +465,16 @@ pub(crate) async fn stream_frames_charge() {
             }],
         );
         frame.group_by(
-            [Agg::Count, Agg::Min, Agg::Max, Agg::Median]
-                .into_iter()
-                .fold(GroupBy::new(scan), |group_by, agg| {
-                    group_by.agg(Expr::Col(0), agg)
-                }),
+            [
+                Agg::Of(Aggregate::Count),
+                Agg::Of(Aggregate::Min),
+                Agg::Of(Aggregate::Max),
+                Agg::Of(Aggregate::Median),
+            ]
+            .into_iter()
+            .fold(GroupBy::new(scan), |group_by, agg| {
+                group_by.agg(Expr::Col(0), agg)
+            }),
         );
         let query = FrameQuery {
             frame,

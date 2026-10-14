@@ -390,11 +390,13 @@ fn data_transform(
         .kind
         .ok_or_else(|| Status::invalid_argument("data transform kind is required"))?;
     Ok(match kind {
-        dokime_contract::operations::plots::DataTransformKind::Count(_) => DataTransform::Count,
-        dokime_contract::operations::plots::DataTransformKind::Mean(_) => DataTransform::Mean,
-        dokime_contract::operations::plots::DataTransformKind::Median(_) => DataTransform::Median,
-        dokime_contract::operations::plots::DataTransformKind::Min(_) => DataTransform::Min,
-        dokime_contract::operations::plots::DataTransformKind::Max(_) => DataTransform::Max,
+        dokime_contract::operations::plots::DataTransformKind::Aggregate(value) => {
+            DataTransform::Aggregate(
+                harmos::Aggregate::parse(&value.aggregate).ok_or_else(|| {
+                    Status::invalid_argument("data transform aggregate is unknown")
+                })?,
+            )
+        }
         dokime_contract::operations::plots::DataTransformKind::TimeBetween(value) => {
             DataTransform::TimeBetween {
                 previous_record_type: bounded_text(value.previous_record_type)?,

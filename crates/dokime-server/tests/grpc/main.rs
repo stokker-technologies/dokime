@@ -1280,6 +1280,10 @@ fn protocol_contract() {
         run_scenario(query::unknown_column_exist, false, None, false);
     }
     {
+        eprintln!("Scenario: query::unknown_aggregate_refused");
+        run_scenario(query::unknown_aggregate_refused, false, None, false);
+    }
+    {
         eprintln!("Scenario: query::unspecified_source_read");
         run_scenario(query::unspecified_source_read, false, None, false);
     }

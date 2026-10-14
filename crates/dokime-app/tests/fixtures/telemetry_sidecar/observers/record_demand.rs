@@ -59,7 +59,7 @@ impl RecordDemand {
         ctx: &ObserverContext<'_, Resources, Publisher<TelemetrySidecar>>,
     ) -> Result<(), Error> {
         if ctx.tick().ordinal() == 1 {
-            dokime::plugin::Publisher::new(ctx.capabilities().supervisor())
+            dokime::plugin::Publisher::new(ctx.host().supervisor())
                 .publish(Started { ordinal: 1 })
                 .await?;
         }

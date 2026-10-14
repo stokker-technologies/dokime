@@ -17,6 +17,7 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
+use harmos::signal::{Series, Summary};
 use serde::Serialize;
 
 // Local Imports
@@ -214,25 +215,16 @@ fn histogram(entry: &PlotSeries, bins: usize) -> HistogramSeries {
     }
 }
 
-fn histogram_statistics(mut values: Vec<f64>) -> Option<HistogramStatistics> {
-    // Harmos Folds Moments; Quantiles Have No Harmos Aggregate Yet.
-    let summary = harmos::signal::Summary::of(&values);
-    values.sort_by(f64::total_cmp);
+fn histogram_statistics(values: Vec<f64>) -> Option<HistogramStatistics> {
+    let series = Series::from(values);
     Some(HistogramStatistics {
-        mean: summary.mean()?,
-        median: quantile(&values, 0.5),
-        std: summary.deviation()?.max(0.0),
-        rms: summary.rms()?,
-        min: summary.min()?,
-        max: summary.max()?,
+        mean: series.mean()?,
+        median: series.median()?,
+        std: series.std()?,
+        rms: series.rms()?,
+        min: series.min()?,
+        max: series.max()?,
     })
-}
-
-fn quantile(values: &[f64], fraction: f64) -> f64 {
-    let position = (values.len() - 1) as f64 * fraction;
-    let lower = position.floor() as usize;
-    let upper = position.ceil() as usize;
-    values[lower] + (values[upper] - values[lower]) * position.fract()
 }
 
 fn grouped_boxes(entry: &PlotSeries, request: &PlotPayloadRequest) -> Vec<BoxSummary> {
@@ -268,13 +260,12 @@ fn grouped_boxes(entry: &PlotSeries, request: &PlotPayloadRequest) -> Vec<BoxSum
 }
 
 fn box_summary(entry: &PlotSeries) -> Option<BoxSummary> {
-    let mut values = values(entry);
-    if values.is_empty() {
-        return None;
-    }
-    values.sort_by(f64::total_cmp);
-    let q1 = quantile(&values, 0.25);
-    let q3 = quantile(&values, 0.75);
+    let mut series = Series::from(values(entry));
+    series.sort();
+    let q1 = series.percentile(25.0)?;
+    let median = series.median()?;
+    let q3 = series.percentile(75.0)?;
+    let values = series.values();
     let iqr = q3 - q1;
     let lower = values
         .iter()
@@ -293,11 +284,12 @@ fn box_summary(entry: &PlotSeries) -> Option<BoxSummary> {
         max: values[values.len() - 1],
         q1,
         q3,
-        median: quantile(&values, 0.5),
+        median,
         lower_whisker: lower,
         upper_whisker: upper,
         outliers: values
-            .into_iter()
+            .iter()
+            .copied()
             .filter(|value| *value < lower || *value > upper)
             .collect(),
     })
@@ -339,9 +331,9 @@ fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
         .into_iter()
         .map(|(index, values)| {
             let count = values.len();
-            let summary = harmos::signal::Summary::of(&values);
+            let summary = Summary::of(&values);
             let mean = summary.mean().unwrap_or(0.0);
-            let sigma = summary.deviation().unwrap_or(0.0);
+            let sigma = summary.std().unwrap_or(0.0);
             let mut lower = mean - options.sigma * sigma;
             let mut upper = mean + options.sigma * sigma;
             if options.clip_to_observed {

@@ -311,13 +311,11 @@ fn data_transform_wire(
 ) -> Result<dokime_contract::operations::plots::DataTransform, Status> {
     use dokime_contract::operations::plots::DataTransformKind as Kind;
     let kind = match transform {
-        DataTransform::Count => Kind::Count(dokime_contract::operations::plots::EmptyTransform {}),
-        DataTransform::Mean => Kind::Mean(dokime_contract::operations::plots::EmptyTransform {}),
-        DataTransform::Median => {
-            Kind::Median(dokime_contract::operations::plots::EmptyTransform {})
+        DataTransform::Aggregate(aggregate) => {
+            Kind::Aggregate(dokime_contract::operations::plots::AggregateTransform {
+                aggregate: aggregate.name(),
+            })
         }
-        DataTransform::Min => Kind::Min(dokime_contract::operations::plots::EmptyTransform {}),
-        DataTransform::Max => Kind::Max(dokime_contract::operations::plots::EmptyTransform {}),
         DataTransform::TimeBetween {
             previous_record_type,
         } => Kind::TimeBetween(dokime_contract::operations::plots::TimeBetweenTransform {

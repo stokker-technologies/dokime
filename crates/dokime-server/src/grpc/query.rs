@@ -24,8 +24,7 @@ use super::error::detailed;
 use super::value::{self, Budget, canonical};
 use dokime_app::RuntimeHandle;
 use dokime_app::runtime::query::aggregate::{
-    AggregateColumn, AggregateFilter, AggregateFunction, AggregateOperator, AggregateQuery,
-    AggregateSource,
+    AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource,
 };
 use dokime_contract::operations::query as wire;
 
@@ -149,20 +148,12 @@ fn decode(request: &mut wire::AggregateRequest) -> Result<AggregateQuery, Status
             value::text(&aggregate.column)?;
         }
         value::text(&aggregate.alias)?;
-        let function = match aggregate.function {
-            wire::AggregateFunction::Count => AggregateFunction::Count,
-            wire::AggregateFunction::Sum => AggregateFunction::Sum,
-            wire::AggregateFunction::Mean => AggregateFunction::Mean,
-            wire::AggregateFunction::Min => AggregateFunction::Min,
-            wire::AggregateFunction::Max => AggregateFunction::Max,
-            wire::AggregateFunction::Unspecified => {
-                return Err(Status::invalid_argument(
-                    "aggregate function is unspecified",
-                ));
-            }
-        };
+        value::text(&aggregate.aggregate)?;
+        let kind = harmos::Aggregate::parse(&aggregate.aggregate).ok_or_else(|| {
+            Status::invalid_argument("aggregate is not a member of the vocabulary")
+        })?;
         aggregates.push(AggregateColumn {
-            function,
+            aggregate: kind,
             column: aggregate.column,
             alias: aggregate.alias,
         });

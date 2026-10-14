@@ -147,7 +147,7 @@ impl BearerGrant {
             }
             let mut grants = BTreeSet::new();
             for grant in &permission.grants {
-                let selector = grant.selector();
+                let selector = grant.scope().unwrap_or_default();
                 if selector.trim().is_empty()
                     || selector.len() > 1024
                     || selector

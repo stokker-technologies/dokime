@@ -1643,9 +1643,9 @@ async fn independent_sidecar_modes() {
         grants: vec![],
     };
     let mut conditional = permission(ids[0]);
-    conditional.grants.push(harmos::plugin::Grant::Egress(
-        "fixture.remote.allowed".into(),
-    ));
+    conditional
+        .grants
+        .push(harmos::plugin::Grant::of(ids[0], "fixture.remote.allowed"));
     let grants = vec![
         BearerGrant::new("sidecar caller".into(), Role::Read, ALLOWED)
             .unwrap()

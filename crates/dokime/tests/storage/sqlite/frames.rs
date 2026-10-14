@@ -23,7 +23,7 @@ use std::{
 
 // Third Party Imports
 use harmos::{
-    Application, Message, Runtime,
+    Aggregate, Application, Message, Runtime,
     state::Never,
     storage::{
         frame::*,
@@ -240,16 +240,21 @@ fn request() -> FrameQuery {
             },
         ],
     );
-    let group_by = [Agg::Mean, Agg::Median, Agg::Last, Agg::Len]
-        .into_iter()
-        .fold(
-            GroupBy::new(scan).filter(Predicate::Compare {
-                expr: Expr::Col(1),
-                compare: Compare::Eq,
-                value: ScalarValue::Text(TestExecutionId::from_seed("execution-a").as_str().into()),
-            }),
-            |group_by, agg| group_by.agg(Expr::Col(0), agg),
-        );
+    let group_by = [
+        Agg::Of(Aggregate::Mean),
+        Agg::Of(Aggregate::Median),
+        Agg::Last,
+        Agg::Len,
+    ]
+    .into_iter()
+    .fold(
+        GroupBy::new(scan).filter(Predicate::Compare {
+            expr: Expr::Col(1),
+            compare: Compare::Eq,
+            value: ScalarValue::Text(TestExecutionId::from_seed("execution-a").as_str().into()),
+        }),
+        |group_by, agg| group_by.agg(Expr::Col(0), agg),
+    );
     frame.group_by(group_by);
     FrameQuery {
         frame,
@@ -383,7 +388,7 @@ pub(crate) async fn missing_null_distinct() {
             TestExecutionId::from_seed("execution-a").as_str().into(),
         )],
     ]);
-    group_by.aggs = [Agg::Last, Agg::Count, Agg::Len]
+    group_by.aggs = [Agg::Last, Agg::Of(Aggregate::Count), Agg::Len]
         .into_iter()
         .map(|agg| (Expr::Col(0), agg))
         .collect();
@@ -795,7 +800,10 @@ pub(crate) async fn postcard_frames_cut() {
     ];
     let group_by = &mut query.frame.group_bys[0];
     group_by.filter.clear();
-    group_by.aggs = vec![(Expr::Col(0), Agg::Mean), (Expr::Col(1), Agg::Last)];
+    group_by.aggs = vec![
+        (Expr::Col(0), Agg::Of(Aggregate::Mean)),
+        (Expr::Col(1), Agg::Last),
+    ];
     let mut reader = fixture.storage.query_in(&view, query).unwrap();
     let result = reader.read().await.unwrap();
     let mean = ScalarValue::Exact(ExactNumber::new(

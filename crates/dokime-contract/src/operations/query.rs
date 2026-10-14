@@ -56,15 +56,19 @@ pub struct QueryFilter {
     pub values: Vec<Value>,
 }
 
-// COUNT with an empty column counts rows; COUNT with a column counts its
-// non-null values. SUM, MEAN, MIN and MAX require a column. Null inputs are
-// skipped by every function, so MEAN over a nullable column is the mean of the
-// rows that have a value. `alias` names the output column and must be unique
-// across the request and distinct from every `group_by` name.
+// `aggregate` names one member of the Harmos aggregate vocabulary by its wire
+// name: `count`, `sum`, `mean`, `median`, `min`, `max`, `rms`, `std` or `p0`
+// to `p100` (`harmos::Aggregate::name`). `count` with an empty column counts
+// rows; `count` with a column counts its non-null values. Every other member
+// requires a column. Null inputs are skipped by every member, so `mean` over a
+// nullable column is the mean of the rows that have a value. `min` and `max`
+// order any one scalar type; the rest require numbers. `alias` names the
+// output column and must be unique across the request and distinct from every
+// `group_by` name.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryAggregate {
-    pub function: AggregateFunction,
+    pub aggregate: String,
     pub column: String,
     pub alias: String,
 }
@@ -121,17 +125,6 @@ pub enum QueryFilterOperator {
     Lt,
     Lte,
     IsNull,
-}
-
-#[harmos::message]
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AggregateFunction {
-    Unspecified,
-    Count,
-    Sum,
-    Mean,
-    Min,
-    Max,
 }
 
 #[harmos::catalog]
