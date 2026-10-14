@@ -186,8 +186,3 @@ strip = "symbols"
 # Match installed-tool hash throughput without optimizing authored plugin code.
 [profile.dev.package.sha2]
 opt-level = 3
-
-# Local Harmos worktree for development on this machine; comment the line out
-# anywhere the sibling `harmos.wt/streamline` checkout does not exist.
-[patch."https://github.com/stokker-technologies/harmos.git"]
-harmos = { path = "../../harmos.wt/streamline/crates/harmos" }
