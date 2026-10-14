@@ -24,26 +24,18 @@ import { useId, useRef, useState } from "react";
 
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import type { ConnectedSession } from "@/app/native-session/session";
-import {
-  readStoragePolicy,
-  updateStoragePolicy,
-  type StoragePolicy,
-} from "@/lib/api/native-storage-settings";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsPathField } from "@/features/settings/SettingsPathField";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { type Autosave, useAutosave } from "@/features/settings/settings-autosave";
+import {
+  readStoragePolicy,
+  type StoragePolicy,
+  updateStoragePolicy,
+} from "@/lib/api/native-storage-settings";
 import {
   applicationSettingsError,
   useApplicationSettings,
@@ -75,18 +67,15 @@ export function GeneralSection() {
 }
 
 export function DesktopOutputSettings() {
-  const brand = useBrand();
   const session = useNativeSessionOptional();
   const settings = useApplicationSettings();
   const save = useSaveDataRoot();
-  const [restartPrompt, setRestartPrompt] = useState(false);
   const pick = useMutation({
     mutationFn: async () => {
       const directory = await commands.desktopPickExecutionDirectory();
       if (directory !== null) await save.mutateAsync(directory);
     },
   });
-  const restart = useMutation({ mutationFn: () => commands.desktopRestart() });
   const view = settings.data;
   const error = settings.error ?? pick.error ?? save.error;
   const canEdit =
@@ -176,40 +165,6 @@ export function DesktopOutputSettings() {
             </SettingsRow>
           </>
         ) : null}
-
-        {view?.restartRequired ? (
-          <SettingsRow
-            description={`Restart ${brand.label} to use the new directory.`}
-            label="Restart"
-          >
-            <Button onClick={() => setRestartPrompt(true)}>Restart {brand.label}</Button>
-          </SettingsRow>
-        ) : null}
-
-        <Dialog open={restartPrompt} onOpenChange={setRestartPrompt}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Restart {brand.label}?</DialogTitle>
-              <DialogDescription>
-                Active work will stop and plugin resources will close before the application
-                restarts.
-              </DialogDescription>
-            </DialogHeader>
-            {restart.isError ? (
-              <p role="alert" className="text-destructive">
-                {applicationSettingsError(restart.error)}
-              </p>
-            ) : null}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setRestartPrompt(false)}>
-                Later
-              </Button>
-              <Button disabled={restart.isPending} onClick={() => restart.mutate()}>
-                {restart.isPending ? "Restarting…" : "Restart Now"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </SettingsCard>
       <BackendPolicySettings />
     </>
