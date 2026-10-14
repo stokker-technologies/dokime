@@ -81,6 +81,12 @@ native_commands! {
         () -> Result<(), String>
         => crate::native_session::desktop_open_backend_log;
 
+    // Development only: delete the owned backend's storage and restart it.
+    async desktop_reset_local_storage
+        [window: tauri::WebviewWindow, state: tauri::State<'_, crate::native_session::DesktopSessionControl>]
+        (directory: String) -> Result<crate::native_session::DesktopSessionSnapshot, crate::native_session::DesktopSessionError>
+        => crate::native_session::desktop_reset_local_storage;
+
     async desktop_open_path
         [app: tauri::AppHandle]
         (path: String) -> Result<(), String>

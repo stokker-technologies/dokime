@@ -13,6 +13,7 @@ mod contract;
 mod diagnostics;
 pub mod launch;
 mod owner;
+pub mod storage;
 
 /* === Re-Exports === */
 pub use contract::*;
@@ -70,6 +71,51 @@ pub fn desktop_session_status(
     state: tauri::State<'_, DesktopSessionControl>,
 ) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
     Ok(state.0.status())
+}
+
+/// Development only: stops the owned backend, deletes the contents of its data
+/// directory and starts it again on the empty root. `directory` is the path
+/// the operator confirmed; anything but this desktop's data root is refused.
+pub async fn desktop_reset_local_storage(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, DesktopSessionControl>,
+    directory: String,
+) -> Result<DesktopSessionSnapshot, DesktopSessionError> {
+    use tauri::Manager;
+
+    // Development Builds And The Main Window Only
+    let unavailable = |message: &str| DesktopSessionError::StorageReset {
+        reason: StorageResetReason::DevelopmentOnly,
+        message: message.to_owned(),
+    };
+    if !tauri::is_dev() {
+        return Err(unavailable(
+            "Local storage can be reset only from a development build.",
+        ));
+    }
+    let url = window
+        .url()
+        .map_err(|error| unavailable(&error.to_string()))?;
+    if window.label() != "main" || !trusted_application_url(&url, window.app_handle().config()) {
+        return Err(unavailable(
+            "Only the main application window may reset local storage.",
+        ));
+    }
+
+    // Resolve The Data Root The Owned Backend Opens
+    let failed = |message: String| DesktopSessionError::StorageReset {
+        reason: StorageResetReason::Failed,
+        message,
+    };
+    let application =
+        crate::app::settings::application_root(&window.app_handle().config().identifier)
+            .map_err(|error| failed(error.to_string()))?;
+    let root = storage::StorageRoot::resolve(application).map_err(failed)?;
+    tracing::warn!(directory, "local storage reset requested");
+    state
+        .0
+        .reset_local_storage(std::path::Path::new(&directory), root)
+        .await
 }
 
 pub(crate) fn trusted_application_url(url: &url::Url, config: &tauri::Config) -> bool {
