@@ -30,11 +30,11 @@ use super::content::{artifact_scope, content_failure, metadata, metadata_memory}
 use dokime_app::{
     Error, RuntimeHandle,
     artifacts::ArtifactRecord,
-    capabilities::media::{
+    core::RecordScope,
+    domains::media::{
         AudioRecording as Recording, DEFAULT_RECORDING_SECONDS, MAXIMUM_RECORDING_SECONDS,
         NOT_COMPILED, UNAVAILABLE,
     },
-    core::RecordScope,
 };
 use dokime_contract::operations::{content::ArtifactMetadata, media as contract};
 

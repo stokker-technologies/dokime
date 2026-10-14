@@ -24,8 +24,8 @@ use super::*;
 use crate::grpc::access::{Principal, Role};
 use dokime_app::runtime::command::{CommandContext, CommandReceipt, CommandStatus};
 use dokime_app::{
-    capabilities::execution::requests::{RunPhase, RunReceipt},
     core::{CaseId, CommandId},
+    domains::execution::requests::{RunPhase, RunReceipt},
 };
 use dokime_contract::operations::{common, cursor::Cursor, execution as wire};
 

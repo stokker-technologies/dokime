@@ -43,7 +43,7 @@ pub type Answering = Arc<
 #[derive(Clone, Default)]
 pub struct Caller(Road);
 
-// The host capability of one running stage: each call and submission is
+// The host surface of one running stage: each call and submission is
 // scoped to the execution and routed by the operation it names, exactly as
 // `Context::call` routes it.
 #[derive(Clone)]

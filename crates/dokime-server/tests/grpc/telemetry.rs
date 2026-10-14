@@ -96,7 +96,7 @@ pub(crate) async fn telemetry_pages_window() {
         .await
         .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let stream = dokime_app::capabilities::telemetry::telemetry_stream_id(None, &id);
+    let stream = dokime_app::domains::telemetry::telemetry_stream_id(None, &id);
     let base = contracts::telemetry::ListTelemetrySamplesRequest {
         streams: vec![id.to_string()],
         limit: 2,

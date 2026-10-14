@@ -19,7 +19,7 @@
 
 // Local Imports
 use crate::support::prelude::*;
-use dokime_app::capabilities::evidence::RecordSelection;
+use dokime_app::domains::evidence::RecordSelection;
 
 /* === Constants === */
 

@@ -574,7 +574,7 @@ pub(crate) async fn unchanged_installed_mismatch() {
 
 pub(crate) async fn installed_program_upgrades() {
     use dokime::core::Identifier;
-    use dokime_app::capabilities::installed_plugins::PluginSettingsUpdate;
+    use dokime_app::domains::installed_plugins::PluginSettingsUpdate;
 
     let root = tempfile::tempdir().unwrap();
     let store = crate::support::plugins::plugin_store(root.path());

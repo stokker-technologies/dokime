@@ -64,7 +64,7 @@ struct Running {
 struct Served {
     template: Arc<dyn Runnable>,
     publisher: Arc<Publisher>,
-    sessions: Arc<crate::capabilities::execution::run::Sessions>,
+    sessions: Arc<crate::domains::execution::run::Sessions>,
 }
 
 struct Publisher {
@@ -322,7 +322,7 @@ impl harmos::operations::Operation for EmbeddedRun {
         Self::Error,
     > {
         let request = std::mem::take(request);
-        let host = Arc::new(crate::capabilities::execution::run::host::Embedded::new(
+        let host = Arc::new(crate::domains::execution::run::host::Embedded::new(
             Arc::clone(&self.0.sessions),
             request.execution_token.clone(),
         ));

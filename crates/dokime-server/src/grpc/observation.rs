@@ -383,7 +383,7 @@ fn stream_failure(error: harmos::Error) -> Status {
 }
 
 fn progress_memory(
-    value: Option<&dokime_app::capabilities::execution::progress::LiveExecutionProgress>,
+    value: Option<&dokime_app::domains::execution::progress::LiveExecutionProgress>,
 ) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<wire::ExecutionProgressFrame>();
     if let Some(value) = value {
@@ -401,7 +401,7 @@ fn progress_memory(
 fn progress_frame(
     revision: u64,
     resynchronized: bool,
-    value: Option<&dokime_app::capabilities::execution::progress::LiveExecutionProgress>,
+    value: Option<&dokime_app::domains::execution::progress::LiveExecutionProgress>,
 ) -> wire::ExecutionProgressFrame {
     wire::ExecutionProgressFrame {
         revision,
@@ -435,9 +435,7 @@ fn after_cycle_position(
         .ok_or_else(|| Status::invalid_argument("after cycle ID not found"))
 }
 
-fn evidence_counts(
-    counts: &dokime_app::capabilities::evidence::EvidenceCounts,
-) -> wire::EvidenceCounts {
+fn evidence_counts(counts: &dokime_app::domains::evidence::EvidenceCounts) -> wire::EvidenceCounts {
     wire::EvidenceCounts {
         records: counts.records as u64,
         telemetry: counts.telemetry as u64,

@@ -343,10 +343,10 @@ pub(crate) async fn summary_complete_telemetry() {
 }
 
 pub(crate) async fn duration_x_axis() {
+    use dokime::domains::TestSuiteDefinition;
     use dokime_app::core::{Identifier, MeasurementUnit, Metadata, ValueType};
     use dokime_app::definition::SuiteSet;
     use dokime_app::document::Plot;
-    use dokime_app::domains::TestSuiteDefinition;
     use dokime_app::expressions::telemetry;
     use dokime_app::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 

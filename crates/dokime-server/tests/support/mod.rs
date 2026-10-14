@@ -24,9 +24,7 @@ use std::{
 use tempfile::tempdir;
 use tokio::time::{Instant, sleep};
 // Local Imports
-use dokime_app::capabilities::execution::provider::{
-    ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture,
-};
+use dokime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
 use dokime_app::core::{
     CaseId, CredentialBackendKind, Identifier, Metadata, ParameterId, TemplateId, TestCycleId,
     Value, ValueType,
@@ -35,7 +33,9 @@ use dokime_app::definition::{
     CriterionDefinition, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, TestCase,
     TestCaseTemplate, TestSuite,
 };
-use dokime_app::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
+use dokime_app::domains::execution::provider::{
+    ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture,
+};
 use dokime_app::execution::ExecutionStatus;
 use dokime_app::execution::{CycleStatus, CycleView};
 use dokime_app::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};

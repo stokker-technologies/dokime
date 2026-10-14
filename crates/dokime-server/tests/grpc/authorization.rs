@@ -83,7 +83,7 @@ matrix! {
     "/dokime.v1.Content/FollowExecutionFile", download, contracts::content::FollowExecutionFile;
     "/dokime.v1.Appearance/GetAppearance", unary, contracts::appearance::GetAppearance;
     "/dokime.v1.Backend/CollectDiagnostics", download, contracts::backend::CollectDiagnostics;
-    "/dokime.v1.Backend/GetCapabilities", unary, contracts::backend::GetCapabilities;
+    "/dokime.v1.Backend/GetAvailability", unary, contracts::backend::GetAvailability;
     "/dokime.v1.Backend/GetDiagnostics", unary, contracts::backend::GetDiagnostics;
     "/dokime.v1.Backend/GetHealth", unary, contracts::backend::GetHealth;
     "/dokime.v1.Backend/GetIdentity", unary, contracts::backend::GetIdentity;
@@ -373,8 +373,8 @@ pub(crate) async fn permission_matrix_enforcement() {
     // Distinct Credentials Exercise Every Insufficient Role On One Listener.
     for &(role, token) in PRINCIPALS {
         let advertised: std::collections::BTreeSet<_> = WireClient::new(channel.clone())
-            .unary::<contracts::backend::GetCapabilities>(credentialed(
-                contracts::backend::GetCapabilitiesRequest {},
+            .unary::<contracts::backend::GetAvailability>(credentialed(
+                contracts::backend::GetAvailabilityRequest {},
                 Some(token),
             ))
             .await

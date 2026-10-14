@@ -89,7 +89,7 @@ impl dokime_app::ExecutionFixture for ActiveFixture {
         &'a self,
         _context: dokime_app::ExecutionFixtureContext,
         cycle: &'a dokime_app::execution::CycleView,
-        _target: &'a dokime_app::domains::ExecutionProviderTarget,
+        _target: &'a dokime::domains::ExecutionProviderTarget,
     ) -> dokime_app::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             use dokime_app::transport::{
@@ -178,7 +178,7 @@ impl ScopedFixture {
         handle
             .set_suites(
                 "provider:fixture",
-                dokime_app::definition::SuiteSet::new([dokime_app::domains::TestSuiteDefinition {
+                dokime_app::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition {
                     suite_id: "rpc.artifact-upload".into(),
                     product: None,
                     tags: vec![],

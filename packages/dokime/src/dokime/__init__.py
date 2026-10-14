@@ -18,7 +18,7 @@ from google.protobuf.message import Message
 import dokime._wire.dokime.v1.AppearanceMessages.GetAppearance.messages_pb2 as _wire_0
 import dokime._wire.dokime.v1.Backend_pb2 as _wire_2
 import dokime._wire.dokime.v1.BackendMessages.CollectDiagnostics.messages_pb2 as _wire_1
-import dokime._wire.dokime.v1.BackendMessages.GetCapabilities.messages_pb2 as _wire_3
+import dokime._wire.dokime.v1.BackendMessages.GetAvailability.messages_pb2 as _wire_3
 import dokime._wire.dokime.v1.BackendMessages.GetDiagnostics.messages_pb2 as _wire_4
 import dokime._wire.dokime.v1.BackendMessages.GetHealth.messages_pb2 as _wire_5
 import dokime._wire.dokime.v1.BackendMessages.GetIdentity.messages_pb2 as _wire_6
@@ -207,28 +207,28 @@ DOKIME_BACKEND_COLLECT_DIAGNOSTICS: Operation[
     fingerprint="f2fa0aad3f27f546c3c3e2e5dddb6c51e1fe23c9a49dbb2c84fa4744ab5561ab",
 )
 
-DokimeBackendGetCapabilitiesRequest = _wire_3.Row1
-DokimeBackendGetCapabilitiesResponse = _wire_3.Row2
+DokimeBackendGetAvailabilityRequest = _wire_3.Row1
+DokimeBackendGetAvailabilityResponse = _wire_3.Row2
 
-DOKIME_BACKEND_GET_CAPABILITIES: Operation[
-    DokimeBackendGetCapabilitiesRequest,
-    DokimeBackendGetCapabilitiesResponse,
+DOKIME_BACKEND_GET_AVAILABILITY: Operation[
+    DokimeBackendGetAvailabilityRequest,
+    DokimeBackendGetAvailabilityResponse,
     Message,
     Message,
 ] = Operation(
-    id="dokime.backend.get_capabilities",
+    id="dokime.backend.get_availability",
     version=1,
     mode="unary",
     codec="protobuf",
-    request=DokimeBackendGetCapabilitiesRequest,
-    response=DokimeBackendGetCapabilitiesResponse,
+    request=DokimeBackendGetAvailabilityRequest,
+    response=DokimeBackendGetAvailabilityResponse,
     input=None,
     output=None,
-    grpc_path="/dokime.v1.Backend/GetCapabilities",
+    grpc_path="/dokime.v1.Backend/GetAvailability",
     rpc_request=_wire_3.Row1,
     rpc_response=_wire_3.Row2,
-    contract='{"operation":{"id":"dokime.backend.get_capabilities","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":3,"definitions":[[],[{"name":"backend_id","tag":314216639,"kind":{"type":"string"},"cardinality":"required"},{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"methods","tag":35937729,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"limits","tag":360978048,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"max_request_bytes","tag":21738781,"kind":{"type":"u64"},"cardinality":"required"},{"name":"max_response_bytes","tag":332916061,"kind":{"type":"u64"},"cardinality":"required"},{"name":"max_content_bytes","tag":283002951,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"max_chunk_bytes","tag":462379006,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"max_page_items","tag":18265974,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"max_stream_buffer_items","tag":84285475,"kind":{"type":"u32"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Backend","method":"GetCapabilities"}}',
-    fingerprint="889837ce3a984c80864fc9023f5ac6890df1676a26de8db3ee43c5a354f04650",
+    contract='{"operation":{"id":"dokime.backend.get_availability","description":"","policy":{"timeout":{"secs":10,"nanos":0},"attempt_timeout":{"secs":10,"nanos":0},"retries":"never","restart":"never"},"visibility":"host","replay":"unknown"},"version":1,"codec":"postcard","schema":{"root":3,"definitions":[[],[{"name":"backend_id","tag":314216639,"kind":{"type":"string"},"cardinality":"required"},{"name":"epoch","tag":425412933,"kind":{"type":"string"},"cardinality":"required"},{"name":"methods","tag":35937729,"kind":{"type":"string"},"cardinality":"repeated"},{"name":"limits","tag":360978048,"kind":{"type":"message","definition":2},"cardinality":"optional"}],[{"name":"max_request_bytes","tag":21738781,"kind":{"type":"u64"},"cardinality":"required"},{"name":"max_response_bytes","tag":332916061,"kind":{"type":"u64"},"cardinality":"required"},{"name":"max_content_bytes","tag":283002951,"kind":{"type":"u64"},"cardinality":"optional"},{"name":"max_chunk_bytes","tag":462379006,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"max_page_items","tag":18265974,"kind":{"type":"u32"},"cardinality":"optional"},{"name":"max_stream_buffer_items","tag":84285475,"kind":{"type":"u32"},"cardinality":"optional"}],[{"name":"request","tag":1,"kind":{"type":"message","definition":0},"cardinality":"required"},{"name":"response","tag":2,"kind":{"type":"message","definition":1},"cardinality":"required"}]]},"grpc":{"package":"dokime.v1","service":"Backend","method":"GetAvailability"}}',
+    fingerprint="cbeeb83ece5254ef63a7db5071cd49f40c5896f8dc210d6cd8a923316e5a499d",
 )
 
 DokimeBackendGetDiagnosticsRequest = _wire_4.Row1

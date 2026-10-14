@@ -20,7 +20,7 @@ use super::{memory, preferences::Resources, wire as projection};
 use crate::grpc::value::{self, Budget, canonical};
 use dokime_app::{
     RuntimeHandle,
-    capabilities::installed_plugins::{
+    domains::installed_plugins::{
         PluginCredentialSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings,
     },
 };

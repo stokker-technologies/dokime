@@ -346,7 +346,7 @@ impl Smoke {
 
     #[dokime::step(label = "Check")]
     async fn check(&mut self, ctx: &mut dokime::execution::StepContext<'_>) -> Result<(), Error> {
-        // The step's host capability reaches the same operation, once as a one
+        // The step's host surface reaches the same operation, once as a one
         // shot and once as a submitted instance it joins.
         let host = ctx.host();
         let called = host.call_as::<GetBehaviourDeclaration>(()).await?;

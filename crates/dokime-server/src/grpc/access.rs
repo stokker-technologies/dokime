@@ -142,21 +142,22 @@ impl BearerGrant {
             }
             if permission.grants.len() > 32 {
                 return Err(Error::Configuration(
-                    "at most 32 explicit capability grants are allowed per operation",
+                    "at most 32 scoped grants are allowed per operation",
                 ));
             }
             let mut grants = BTreeSet::new();
             for grant in &permission.grants {
-                let selector = grant.selector();
-                if selector.trim().is_empty()
-                    || selector.len() > 1024
-                    || selector
-                        .chars()
-                        .any(|character| character.is_control() || character == '*')
-                    || !grants.insert(grant)
-                {
+                let exact = grant.operation() == permission.id
+                    && grant.scope().is_some_and(|scope| {
+                        !scope.trim().is_empty()
+                            && scope.len() <= 1024
+                            && !scope
+                                .chars()
+                                .any(|character| character.is_control() || character == '*')
+                    });
+                if !exact || !grants.insert(grant) {
                     return Err(Error::Configuration(
-                        "capability grants require distinct bounded exact selectors",
+                        "scoped grants require distinct bounded exact scopes on the permitted operation",
                     ));
                 }
             }

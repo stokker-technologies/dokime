@@ -356,7 +356,7 @@ fn cycle_document(
 ) -> Result<SharedQueryValue<BTreeMap<DocumentId, Capture>>> {
     let source = snapshot.source();
     let session = snapshot.session_id();
-    let definition_bytes = crate::capabilities::documents::cycle_memory(&source.metadata.label)
+    let definition_bytes = crate::domains::documents::cycle_memory(&source.metadata.label)
         .saturating_add(std::mem::size_of::<crate::document::DocumentResolveInput>())
         .saturating_add(source.test_cycle_id.memory_size())
         .saturating_add(session.memory_size());
@@ -368,7 +368,7 @@ fn cycle_document(
                     dokime::core::RecordScope::default().with_cycle(cycle.test_cycle_id.clone());
                 scope.session_id = Some(session.clone());
                 Ok(crate::document::DocumentResolveInput {
-                    definition: crate::capabilities::documents::cycle_document(
+                    definition: crate::domains::documents::cycle_document(
                         cycle.metadata.label.clone(),
                     ),
                     selection: crate::document::DocumentSelection { scope },

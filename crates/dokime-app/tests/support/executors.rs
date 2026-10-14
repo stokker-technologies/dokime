@@ -25,7 +25,7 @@ use super::evidence::{
 };
 use dokime::domains::ExecutionProviderTarget;
 use dokime::transport::ProviderExecutionFailure;
-use dokime_app::capabilities::execution::provider::{
+use dokime_app::domains::execution::provider::{
     ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture,
 };
 

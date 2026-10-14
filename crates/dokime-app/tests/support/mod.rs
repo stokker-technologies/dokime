@@ -36,11 +36,11 @@ pub mod prelude {
 
     pub use dokime_app::document::DocumentCardBodyPayload;
 
-    pub use dokime_app::capabilities::evidence::{
+    pub use dokime_app::domains::evidence::{
         OperatorNoteRequest, PublishStatus, RecordPublishRequest, ScopeSelection,
         TelemetrySelection,
     };
-    pub use dokime_app::capabilities::execution::provider::ExecutionFixture;
+    pub use dokime_app::domains::execution::provider::ExecutionFixture;
     pub use dokime_app::{execution::CycleStatus, transactions::CycleDefinition};
 
     pub use dokime_app::runtime::command::{CommandContext, CommandStatus};
@@ -73,7 +73,7 @@ use std::sync::Arc;
 
 // Local Imports
 use dokime::core::{Identifier, Metadata, Value};
-use dokime_app::capabilities::execution::provider::ExecutionFixture;
+use dokime_app::domains::execution::provider::ExecutionFixture;
 use dokime_app::{Runtime, RuntimeConfig, RuntimeHandle};
 
 /* === Constants === */

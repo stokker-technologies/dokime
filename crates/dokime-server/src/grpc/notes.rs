@@ -27,8 +27,8 @@ use tonic::Status;
 use super::access::Principal;
 use dokime_app::{
     RuntimeHandle,
-    capabilities::evidence::notes::{CreateNoteRequest, NoteError},
     core::{CommandId, SessionId},
+    domains::evidence::notes::{CreateNoteRequest, NoteError},
 };
 use dokime_contract::operations::notes as contract;
 

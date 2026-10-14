@@ -237,21 +237,21 @@ operation!(
 );
 
 operation!(
-    Capabilities,
-    backend::GetCapabilities,
-    backend::GetCapabilitiesRequest,
+    Availability,
+    backend::GetAvailability,
+    backend::GetAvailabilityRequest,
     (),
     _host,
     _request,
     _input,
     {
-        Ok(backend::BackendCapabilities {
+        Ok(backend::BackendAvailability {
             backend_id: ID.into(),
             epoch: ID.into(),
             methods: [
                 backend::GetIdentity::PATH,
                 backend::GetHealth::PATH,
-                backend::GetCapabilities::PATH,
+                backend::GetAvailability::PATH,
                 runtime::GetIdentity::PATH,
                 runtime::GetHealth::PATH,
                 v1::Stage::PATH,
@@ -555,7 +555,7 @@ async fn scenario(
         .unwrap();
     runtime
         .operations
-        .register_wire_operation::<Capabilities>("dokime", Lanes::Open, host.clone())
+        .register_wire_operation::<Availability>("dokime", Lanes::Open, host.clone())
         .unwrap();
     runtime
         .operations

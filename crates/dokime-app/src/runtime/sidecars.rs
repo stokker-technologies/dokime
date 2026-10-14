@@ -469,7 +469,7 @@ async fn forward(handle: &RuntimeHandle, record: &crate::records::Record) {
     };
     for (template, execution, scope) in captured {
         let target =
-            crate::capabilities::execution::run::Target::of(handle.operations.clone(), &template);
+            crate::domains::execution::run::Target::of(handle.operations.clone(), &template);
         let signal = ExecutionSignal {
             execution_token: execution,
             record: Some(DeliverRecordRequest {

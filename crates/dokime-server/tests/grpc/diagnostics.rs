@@ -21,8 +21,8 @@ use sha2::Digest as _;
 use super::*;
 use dokime_app::{
     InstalledPlugin,
-    capabilities::installed_plugins::PluginCredentialSecretUpdate,
     core::{Identifier, Value},
+    domains::installed_plugins::PluginCredentialSecretUpdate,
     settings::{SecretSetting, SettingValues, Settings, SettingsEntry, TextArea},
 };
 

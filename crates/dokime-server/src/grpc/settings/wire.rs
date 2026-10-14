@@ -23,15 +23,15 @@ use super::super::{
 };
 use dokime_app::Error;
 use dokime_app::{
-    capabilities::{
+    core::{
+        HostCardBlock, HostCardBody, HostCardKeyValue, HostCardMetric, HostCardTone, Identifier,
+    },
+    domains::{
         installed_plugins::{RuntimePluginManagementError, RuntimePluginSettings},
         settings::{
             RuntimeSettingsCard, RuntimeSettingsCardState, RuntimeSettingsFrame,
             RuntimeSettingsSection, RuntimeSettingsSectionOwner, SettingsCardRefreshPolicy,
         },
-    },
-    core::{
-        HostCardBlock, HostCardBody, HostCardKeyValue, HostCardMetric, HostCardTone, Identifier,
     },
     settings::{
         Boolean, Choice, MultipleChoice, Number, Path, SecretReference, SecretSetting, Settings,
@@ -461,7 +461,7 @@ fn encode_secret_reference(
 }
 
 fn encode_credentials(
-    credentials: dokime_app::capabilities::installed_plugins::PluginRuntimeCredentialBindings,
+    credentials: dokime_app::domains::installed_plugins::PluginRuntimeCredentialBindings,
     _budget: &mut Budget,
 ) -> Result<wire::PluginRuntimeCredentialBindings, TonicStatus> {
     value::collection(credentials.bindings.len())?;

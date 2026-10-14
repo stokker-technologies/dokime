@@ -354,7 +354,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         .map(arguments::elements)
         .transpose()?
         .map(|tags| quote!(ctx.set_tags(::std::vec![#(#tags),*]);));
-    // Capabilities are declared here so the host can check them against the
+    // Prompts are declared here so the host can check them against the
     // installed suite. A run cannot widen its own grant once it is going.
     let prompts = crate::catalog::argument(&arguments, "prompts")?;
     let prompts = quote!(ctx.set_prompts(

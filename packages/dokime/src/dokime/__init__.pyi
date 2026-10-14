@@ -17,7 +17,7 @@ from google.protobuf.message import Message
 
 import dokime._wire.dokime.v1.AppearanceMessages.GetAppearance.messages_pb2 as _wire_0
 import dokime._wire.dokime.v1.BackendMessages.CollectDiagnostics.messages_pb2 as _wire_1
-import dokime._wire.dokime.v1.BackendMessages.GetCapabilities.messages_pb2 as _wire_3
+import dokime._wire.dokime.v1.BackendMessages.GetAvailability.messages_pb2 as _wire_3
 import dokime._wire.dokime.v1.BackendMessages.GetDiagnostics.messages_pb2 as _wire_4
 import dokime._wire.dokime.v1.BackendMessages.GetHealth.messages_pb2 as _wire_5
 import dokime._wire.dokime.v1.BackendMessages.GetIdentity.messages_pb2 as _wire_6
@@ -168,12 +168,12 @@ DOKIME_BACKEND_COLLECT_DIAGNOSTICS: Operation[
     DokimeBackendCollectDiagnosticsOutput,
 ]
 
-DokimeBackendGetCapabilitiesRequest = _wire_3.Row1
-DokimeBackendGetCapabilitiesResponse = _wire_3.Row2
+DokimeBackendGetAvailabilityRequest = _wire_3.Row1
+DokimeBackendGetAvailabilityResponse = _wire_3.Row2
 
-DOKIME_BACKEND_GET_CAPABILITIES: Operation[
-    DokimeBackendGetCapabilitiesRequest,
-    DokimeBackendGetCapabilitiesResponse,
+DOKIME_BACKEND_GET_AVAILABILITY: Operation[
+    DokimeBackendGetAvailabilityRequest,
+    DokimeBackendGetAvailabilityResponse,
     Message,
     Message,
 ]

@@ -17,11 +17,11 @@ use tonic::Status;
 // Local Imports
 use crate::grpc::value::{self, Budget, canonical};
 use dokime_app::{
-    capabilities::{
+    core::HostCardBlock,
+    domains::{
         installed_plugins::RuntimePluginSettings,
         settings::{RuntimeSettingsFrame, RuntimeSettingsSectionOwner},
     },
-    core::HostCardBlock,
     settings::{SecretReference, SettingsEntry},
 };
 use dokime_contract::operations::settings as wire;

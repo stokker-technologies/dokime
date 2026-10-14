@@ -81,13 +81,13 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn backend_get_capabilities(
+    pub async fn backend_get_availability(
         &self,
-        message: contracts::backend::GetCapabilitiesRequest,
-    ) -> Result<contracts::backend::BackendCapabilities> {
+        message: contracts::backend::GetAvailabilityRequest,
+    ) -> Result<contracts::backend::BackendAvailability> {
         let reply = self
-            .unary::<contracts::backend::GetCapabilities>(
-                contracts::backend::GetCapabilities::PATH,
+            .unary::<contracts::backend::GetAvailability>(
+                contracts::backend::GetAvailability::PATH,
                 message,
             )
             .await?;

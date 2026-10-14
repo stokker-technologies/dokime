@@ -85,10 +85,10 @@ use tonic::{
     transport::{Certificate, Channel, ClientTlsConfig, Endpoint},
 };
 // Local Imports
+use dokime::domains::ExecutionProviderTarget;
 use dokime_app::{
     ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture, Runtime, RuntimeConfig,
     core::{Identifier, Metadata},
-    domains::ExecutionProviderTarget,
     execution::{CycleView, ExecutionStatus},
     transport::{ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome},
 };
@@ -626,8 +626,8 @@ pub(crate) async fn discovery_shares_independently() {
     );
     assert!(managed.observed_at_nanoseconds < 1_000_000_000);
     native.close_and_wait().await;
-    let capabilities = client
-        .unary::<contracts::backend::GetCapabilities>(contracts::backend::GetCapabilitiesRequest {})
+    let availability = client
+        .unary::<contracts::backend::GetAvailability>(contracts::backend::GetAvailabilityRequest {})
         .await
         .unwrap()
         .into_inner();
@@ -648,18 +648,18 @@ pub(crate) async fn discovery_shares_independently() {
             })
         })
         .collect::<std::collections::BTreeSet<_>>();
-    let advertised = capabilities
+    let advertised = availability
         .methods
         .iter()
         .cloned()
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         advertised.len(),
-        capabilities.methods.len(),
+        availability.methods.len(),
         "duplicate advertised method"
     );
     assert_eq!(advertised, expected);
-    assert_eq!(capabilities.limits.unwrap().max_request_bytes, 1024 * 1024);
+    assert_eq!(availability.limits.unwrap().max_request_bytes, 1024 * 1024);
     tokio::time::timeout(Duration::from_secs(5), server.shutdown())
         .await
         .unwrap()
@@ -754,8 +754,8 @@ pub(crate) async fn malformed_credentials_wire() {
         .await
         .unwrap();
     client
-        .unary::<contracts::backend::GetCapabilities>(authenticated(
-            contracts::backend::GetCapabilitiesRequest {},
+        .unary::<contracts::backend::GetAvailability>(authenticated(
+            contracts::backend::GetAvailabilityRequest {},
         ))
         .await
         .unwrap();

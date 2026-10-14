@@ -29,7 +29,7 @@ const DYNAMIC_POLICY: harmos::operations::OperationPolicy = harmos::operations::
     retries: harmos::operations::RetryPolicy::Never,
     restart: harmos::operations::RestartPolicy::Never,
 };
-const DYNAMIC_CAPABILITY_TOKEN: &str = "fixture-capability-012345678901234567890";
+const DYNAMIC_SCOPED_TOKEN: &str = "fixture-scoped-012345678901234567890";
 const DYNAMIC_DENIED_TOKEN: &str = "fixture-unlisted-admin-012345678901234567890";
 const DYNAMIC_WRONG_OWNER_TOKEN: &str = "fixture-wrong-owner-012345678901234567890";
 const DYNAMIC_WRONG_ID_TOKEN: &str = "fixture-wrong-operation-012345678901234567890";
@@ -142,8 +142,8 @@ impl harmos::operations::OperationDeclaration for DynamicUnary {
 
     fn grant(request: &DynamicNumber) -> Option<harmos::plugin::Grant> {
         match request.value {
-            20 => Some(harmos::plugin::Grant::Egress("fixture.allowed".into())),
-            21 => Some(harmos::plugin::Grant::Egress("fixture.refused".into())),
+            20 => Some(harmos::plugin::Grant::of(Self::ID, "fixture.allowed")),
+            21 => Some(harmos::plugin::Grant::of(Self::ID, "fixture.refused")),
             _ => None,
         }
     }
@@ -540,19 +540,16 @@ async fn dynamic_plugin_cardinalities() {
         DynamicUpload::ID,
         DynamicDuplex::ID,
     ];
-    let mut capability = permission(DYNAMIC_OWNER, DynamicUnary::ID);
-    capability
-        .grants
-        .push(harmos::plugin::Grant::Egress("fixture.allowed".into()));
+    let mut scoped = permission(DYNAMIC_OWNER, DynamicUnary::ID);
+    scoped.grants.push(harmos::plugin::Grant::of(
+        DynamicUnary::ID,
+        "fixture.allowed",
+    ));
     let grants = vec![
-        BearerGrant::new(
-            "conditional-capability".into(),
-            Role::Read,
-            DYNAMIC_CAPABILITY_TOKEN,
-        )
-        .unwrap()
-        .with_operations(vec![capability])
-        .unwrap(),
+        BearerGrant::new("conditional-scope".into(), Role::Read, DYNAMIC_SCOPED_TOKEN)
+            .unwrap()
+            .with_operations(vec![scoped])
+            .unwrap(),
         grant(Role::Read)
             .with_operations(
                 operation_ids
@@ -594,8 +591,14 @@ async fn dynamic_plugin_cardinalities() {
     let mut wildcard = permission(DYNAMIC_OWNER, DynamicUnary::ID);
     wildcard
         .grants
-        .push(harmos::plugin::Grant::Egress("*".into()));
+        .push(harmos::plugin::Grant::of(DynamicUnary::ID, "*"));
     assert!(grant(Role::Admin).with_operations(vec![wildcard]).is_err());
+    let mut foreign = permission(DYNAMIC_OWNER, DynamicUnary::ID);
+    foreign.grants.push(harmos::plugin::Grant::of(
+        DynamicDownload::ID,
+        "fixture.allowed",
+    ));
+    assert!(grant(Role::Admin).with_operations(vec![foreign]).is_err());
     let root = tempfile::tempdir().unwrap();
     let mut owner = fixture(root.path()).await;
     let runtime = owner.handle();
@@ -807,9 +810,7 @@ async fn dynamic_plugin_cardinalities() {
     let mut wrong_grant = Request::new(DynamicNumber { value: 21 });
     wrong_grant.metadata_mut().insert(
         "authorization",
-        format!("Bearer {DYNAMIC_CAPABILITY_TOKEN}")
-            .parse()
-            .unwrap(),
+        format!("Bearer {DYNAMIC_SCOPED_TOKEN}").parse().unwrap(),
     );
     assert_eq!(
         direct
@@ -823,9 +824,7 @@ async fn dynamic_plugin_cardinalities() {
     let mut matched = Request::new(DynamicNumber { value: 20 });
     matched.metadata_mut().insert(
         "authorization",
-        format!("Bearer {DYNAMIC_CAPABILITY_TOKEN}")
-            .parse()
-            .unwrap(),
+        format!("Bearer {DYNAMIC_SCOPED_TOKEN}").parse().unwrap(),
     );
     assert_eq!(
         direct

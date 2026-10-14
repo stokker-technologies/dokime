@@ -71,7 +71,7 @@ struct Service {
     id: String,
     identity_epoch: Arc<Mutex<String>>,
     health_epoch: String,
-    capabilities_epoch: String,
+    availability_epoch: String,
     api_package: String,
     api_version: String,
     readiness: backend::Readiness,
@@ -139,7 +139,7 @@ impl Service {
             id: id.into(),
             identity_epoch: Arc::new(Mutex::new("epoch".into())),
             health_epoch: "epoch".into(),
-            capabilities_epoch: "epoch".into(),
+            availability_epoch: "epoch".into(),
             api_package: "dokime.v1".into(),
             api_version: backend::API_VERSION.into(),
             readiness: backend::Readiness::Ready,
@@ -149,7 +149,7 @@ impl Service {
             methods: vec![
                 "/dokime.v1.Backend/GetIdentity".into(),
                 "/dokime.v1.Backend/GetHealth".into(),
-                "/dokime.v1.Backend/GetCapabilities".into(),
+                "/dokime.v1.Backend/GetAvailability".into(),
                 runtime::GetIdentity::PATH.into(),
                 runtime::GetHealth::PATH.into(),
             ],
@@ -245,11 +245,11 @@ impl FixtureUnary for backend::GetHealth {
 }
 
 #[tonic::async_trait]
-impl FixtureUnary for backend::GetCapabilities {
-    async fn reply(service: Service) -> Result<backend::BackendCapabilities, Status> {
-        Ok(backend::BackendCapabilities {
+impl FixtureUnary for backend::GetAvailability {
+    async fn reply(service: Service) -> Result<backend::BackendAvailability, Status> {
+        Ok(backend::BackendAvailability {
             backend_id: service.id,
-            epoch: service.capabilities_epoch,
+            epoch: service.availability_epoch,
             methods: service.methods,
             limits: Some(backend::BackendLimits {
                 max_request_bytes: service.max_request_bytes,
@@ -475,8 +475,8 @@ impl tonic::codegen::Service<HttpRequest> for BackendService {
                 backend::GetHealth::PATH => {
                     serve_unary::<backend::GetHealth>(service, request).await
                 }
-                backend::GetCapabilities::PATH => {
-                    serve_unary::<backend::GetCapabilities>(service, request).await
+                backend::GetAvailability::PATH => {
+                    serve_unary::<backend::GetAvailability>(service, request).await
                 }
                 backend::GetDiagnostics::PATH => {
                     serve_unary::<backend::GetDiagnostics>(service, request).await
@@ -777,11 +777,11 @@ pub(crate) async fn switching_cancels_work() {
 }
 
 pub(crate) async fn identity_is_consistent() {
-    for fault in ["pin", "health", "capabilities", "api"] {
+    for fault in ["pin", "health", "availability", "api"] {
         let mut service = Service::new("backend");
         match fault {
             "health" => service.health_epoch = "restarted".into(),
-            "capabilities" => service.capabilities_epoch = "restarted".into(),
+            "availability" => service.availability_epoch = "restarted".into(),
             "api" => service.api_version = "2".into(),
             _ => {}
         }
@@ -818,7 +818,7 @@ pub(crate) async fn compatible_api_descriptor() {
     );
 }
 
-pub(crate) async fn api_negotiation_capabilities() {
+pub(crate) async fn api_negotiation_availability() {
     let mut wrong_package = Service::new("backend");
     wrong_package.api_package = "other.v1".into();
     let server = Listener::start(wrong_package, false, Ipv4Addr::LOCALHOST).await;
@@ -832,7 +832,7 @@ pub(crate) async fn api_negotiation_capabilities() {
     for missing in [
         "/dokime.v1.Backend/GetIdentity",
         "/dokime.v1.Backend/GetHealth",
-        "/dokime.v1.Backend/GetCapabilities",
+        "/dokime.v1.Backend/GetAvailability",
         runtime::GetIdentity::PATH,
         runtime::GetHealth::PATH,
     ] {
@@ -844,7 +844,7 @@ pub(crate) async fn api_negotiation_capabilities() {
                 .await
                 .unwrap_err(),
             ConnectionError::IncompatibleApi,
-            "missing required capability {missing}"
+            "missing required method {missing}"
         );
     }
 }
@@ -950,7 +950,7 @@ pub(crate) async fn shared_connection_scenarios() {
         service.max_request_bytes = case["max_request_bytes"].as_u64().unwrap_or(u64::MAX);
         service.max_response_bytes = case["max_response_bytes"].as_u64().unwrap_or(u64::MAX);
         service.health_epoch = case["health_epoch"].as_str().unwrap_or("epoch").into();
-        service.capabilities_epoch = case["capabilities_epoch"]
+        service.availability_epoch = case["availability_epoch"]
             .as_str()
             .unwrap_or("epoch")
             .into();
@@ -1317,8 +1317,8 @@ fn domain_contract() {
         run_scenario(compatible_api_descriptor, false, None, false);
     }
     {
-        eprintln!("Scenario: api_negotiation_capabilities");
-        run_scenario(api_negotiation_capabilities, false, None, false);
+        eprintln!("Scenario: api_negotiation_availability");
+        run_scenario(api_negotiation_availability, false, None, false);
     }
     {
         eprintln!("Scenario: credentials_endpoint_bound");

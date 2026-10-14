@@ -19,10 +19,8 @@ use prost::Message;
 // Local Imports
 use super::*;
 use dokime_app::{
-    capabilities::prompts::{
-        FormPrompt, Prompt, PromptField, PromptFieldKind, PromptRequest, Rule,
-    },
     core::{PromptId, RecordScope, TestCycleId, Value, ValueType},
+    domains::prompts::{FormPrompt, Prompt, PromptField, PromptFieldKind, PromptRequest, Rule},
     expressions::BooleanExpression,
     runtime::command::CommandContext,
 };
@@ -542,7 +540,7 @@ pub(crate) async fn settled_prompt_refused() {
 
 async fn prompt_runtime(
     root: &std::path::Path,
-    definition: dokime_app::capabilities::prompts::PromptDefinition,
+    definition: dokime_app::domains::prompts::PromptDefinition,
 ) -> Runtime {
     let mut declarations = harmos::sidecar::Registrar::new();
     declarations

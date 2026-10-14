@@ -1,5 +1,5 @@
 from dokime._wire.dokime.v1.BackendMessages.CollectDiagnostics import messages_pb2 as _messages_pb2
-from dokime._wire.dokime.v1.BackendMessages.GetCapabilities import messages_pb2 as _messages_pb2_1
+from dokime._wire.dokime.v1.BackendMessages.GetAvailability import messages_pb2 as _messages_pb2_1
 from dokime._wire.dokime.v1.BackendMessages.GetDiagnostics import messages_pb2 as _messages_pb2_1_1
 from dokime._wire.dokime.v1.BackendMessages.GetHealth import messages_pb2 as _messages_pb2_1_1_1
 from dokime._wire.dokime.v1.BackendMessages.GetIdentity import messages_pb2 as _messages_pb2_1_1_1_1

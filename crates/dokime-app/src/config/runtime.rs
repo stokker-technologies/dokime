@@ -148,7 +148,7 @@ impl RuntimeConfig {
         description: &str,
         registrar: harmos::sidecar::Registrar,
     ) -> crate::Result<Self> {
-        let plugin = crate::capabilities::installed_plugins::contributions::decode_registrations(
+        let plugin = crate::domains::installed_plugins::contributions::decode_registrations(
             source,
             version,
             description,

@@ -42,7 +42,7 @@ impl dokime_app::ExecutionFixture for Provider {
         &'a self,
         context: dokime_app::ExecutionFixtureContext,
         cycle: &'a dokime_app::execution::CycleView,
-        _target: &'a dokime_app::domains::ExecutionProviderTarget,
+        _target: &'a dokime::domains::ExecutionProviderTarget,
     ) -> dokime_app::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             let execution = &cycle.test_executions[0];
@@ -129,7 +129,7 @@ pub(super) async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String
     runtime
         .set_suites(
             "provider:fixture",
-            dokime_app::definition::SuiteSet::new([dokime_app::domains::TestSuiteDefinition {
+            dokime_app::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition {
                 suite_id: "rpc.artifact".into(),
                 product: None,
                 tags: vec![],

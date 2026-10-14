@@ -2,7 +2,6 @@
 name: dokime-plugin
 description: Author Dokime plugin ownership, operations, contributions, settings, and lifecycle boundaries.
 ---
-<!-- Generated from .agents/skills/dokime-plugin/SKILL.md; edit .agents/skills/dokime-plugin/SKILL.md and run `stkr project update` -->
 
 # Dokime Plugin
 
@@ -50,7 +49,7 @@ fn main() -> std::io::Result<()> { dokime::plugin::run::<Bench>() }
 
 - Payloads, records and reusable measurement rows use `#[dokime::message]`, `#[dokime::record(...)]` and `#[dokime::row]`. These wrappers use one shared message codec/schema implementation; record/row field annotations retain their domain meaning. Do not stack declarations or use the retired `TelemetryRow` derive.
 - Device behaviour is a `#[dokime::operation]` on an inherent impl with `async fn initialize(resources: Arc<Resources>, ctx: &Supervisor) -> Self` (or `Result<Self, Error>`) and `async fn run(&mut self, ctx: &Supervisor, request: &Req) -> Result<Resp, Refusal>`; `stop` and `cleanup` run only after a successful initialization, listed in a `#[dokime::catalog]` and named by `provides`. Requests and responses are `#[dokime::message]` values or `()`. There are no routes, route tables, handles or route contexts.
-- `requires(...)` names only operations another plugin or the host provides, with their grants. A plugin's own operations stay Private (the default) and are callable by its own runs without being listed; Harmos refuses a plugin that requires its own operation. Share an operation with other plugins with `visibility = Shared` on its declaration.
+- `requires(...)` names only operations another plugin or the host provides. Requiring an operation grants it; an operation whose request names a channel, stream or source also takes its scopes, `requires(Publish: scope("chamber"))`, and an unscoped operation needs nothing more. A plugin's own operations stay Private (the default) and are callable by its own runs without being listed; Harmos refuses a plugin that requires its own operation. Share an operation with other plugins with `visibility = Shared` on its declaration.
 - Contributions are inert, namespaced sections the host reads without running the plugin: `Suites`, `Records`, `Evidence`, `Settings`. List only the domains the plugin contributes.
 - Whatever a template declares, the plugin registers. `#[dokime::plugin]` derives the native stream grant from its suites' templates (`streams = Streams` and each template observer's streams), its plugin observers and `dokime::Evidence<Streams>`; the prompts and records a template declares reach the host through its suite. Never repeat them on the plugin: there is no `streams(...)` argument and no plugin-level prompt contribution. `Records` names only what no template declares (listener records, records published outside a run), `Evidence` only streams no template or observer publishes, plus analyses.
 - Several declarations may name one stream, record or prompt; identical ones register once. Two that disagree about one stream id (row type, schema version, window or metadata) stop the plugin's build; a disagreement the macro cannot see — a record's or prompt's fields, a stream's columns — is refused at admission.

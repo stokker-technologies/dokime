@@ -367,11 +367,11 @@ impl Probe {
             .host()
             .call_as::<EchoDeclaration>(SharedReading { value: 9 })
             .await
-            .expect("the host capability routes the same call");
+            .expect("the host surface routes the same call");
         assert_eq!(
             hosted.into_owned().value,
             9,
-            "the host capability reaches the operation it names"
+            "the host surface reaches the operation it names"
         );
 
         Ok(())

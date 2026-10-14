@@ -23,8 +23,8 @@ use std::{
 use sha2::{Digest, Sha256};
 use tempfile::{TempDir, tempdir};
 // Local Imports
-use dokime_app::capabilities::installed_plugins::load_brand;
 use dokime_app::core::Value;
+use dokime_app::domains::installed_plugins::load_brand;
 use dokime_app::{Runtime, RuntimeCredentialConfig, app, config};
 use dokime_client::{Client, Target, contracts};
 use dokime_server::grpc::{Config as ServerConfig, Server};
@@ -1630,7 +1630,7 @@ async fn independent_sidecar_modes() {
     const OWNER: &str = "route-fixture";
     const ALLOWED: &str = "sidecar-allowed-012345678901234567890123456789";
     const DENIED: &str = "sidecar-unlisted-012345678901234567890123456789";
-    const CAPABILITY: &str = "sidecar-capability-012345678901234567890123456789";
+    const SCOPED: &str = "sidecar-scoped-012345678901234567890123456789";
     let ids = [
         "route-fixture.remote.unary",
         "route-fixture.remote.download",
@@ -1643,16 +1643,16 @@ async fn independent_sidecar_modes() {
         grants: vec![],
     };
     let mut conditional = permission(ids[0]);
-    conditional.grants.push(harmos::plugin::Grant::Egress(
-        "fixture.remote.allowed".into(),
-    ));
+    conditional
+        .grants
+        .push(harmos::plugin::Grant::of(ids[0], "fixture.remote.allowed"));
     let grants = vec![
         BearerGrant::new("sidecar caller".into(), Role::Read, ALLOWED)
             .unwrap()
             .with_operations(ids.iter().map(|id| permission(id)).collect())
             .unwrap(),
         BearerGrant::new("unlisted admin".into(), Role::Admin, DENIED).unwrap(),
-        BearerGrant::new("explicit capability".into(), Role::Read, CAPABILITY)
+        BearerGrant::new("scoped grant".into(), Role::Read, SCOPED)
             .unwrap()
             .with_operations(vec![conditional])
             .unwrap(),
@@ -1668,9 +1668,7 @@ async fn independent_sidecar_modes() {
         .await
         .unwrap();
     let denied = Client::connect(target(), Some(DENIED), None).await.unwrap();
-    let capability = Client::connect(target(), Some(CAPABILITY), None)
-        .await
-        .unwrap();
+    let scoped = Client::connect(target(), Some(SCOPED), None).await.unwrap();
     let catalog = allowed.operations().await.unwrap();
     for id in ids {
         assert!(
@@ -1797,7 +1795,7 @@ async fn independent_sidecar_modes() {
             .is_err()
     );
     assert!(
-        capability
+        scoped
             .call_operation(ids[0], Some(OWNER), b"{\"value\":21}", vec![])
             .await
             .is_err()
@@ -1811,7 +1809,7 @@ async fn independent_sidecar_modes() {
     );
     assert!(counter.message().await.unwrap().is_none());
     counter.close().await;
-    let matched = capability
+    let matched = scoped
         .call_operation(ids[0], Some(OWNER), b"{\"value\":20}", vec![])
         .await
         .unwrap();
@@ -1822,7 +1820,7 @@ async fn independent_sidecar_modes() {
     matched.close().await;
     allowed.close_and_wait().await;
     denied.close_and_wait().await;
-    capability.close_and_wait().await;
+    scoped.close_and_wait().await;
     hub.shutdown().await;
 }
 

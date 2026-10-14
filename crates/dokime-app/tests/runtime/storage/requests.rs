@@ -26,7 +26,7 @@ use crate::support::prelude::*;
 use dokime::core::CommandId;
 use dokime::execution::request::RunSummary;
 use dokime::storage::{objects::Objects, requests::Request};
-use dokime_app::capabilities::execution::requests::{RunPhase, RunReceipt};
+use dokime_app::domains::execution::requests::{RunPhase, RunReceipt};
 
 /* === Constants === */
 

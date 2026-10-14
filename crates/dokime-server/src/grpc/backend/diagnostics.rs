@@ -23,7 +23,7 @@ use crate::diagnostics_assembly::{
 use crate::grpc::value::{self, canonical};
 use dokime_app::{
     RuntimeHandle,
-    capabilities::exports::storage::{
+    domains::exports::storage::{
         DiagnosticFileFormat, DiagnosticPathConvention, DiagnosticPathKey,
     },
 };
@@ -253,7 +253,7 @@ fn diagnostics_counts(counts: &diagnostics_assembly::DiagnosticsCounts) -> wire:
 }
 
 fn installed_plugin_error(
-    error: &dokime_app::capabilities::installed_plugins::InstalledPluginErrorRecord,
+    error: &dokime_app::domains::installed_plugins::InstalledPluginErrorRecord,
 ) -> Result<wire::InstalledPluginErrorRecord, Status> {
     value::text(error.plugin_id.as_str())?;
     if let Some(id) = error.contribution_id.as_ref() {
@@ -308,9 +308,9 @@ fn installed_plugin_error(
 }
 
 fn installed_plugin_phase(
-    phase: dokime_app::capabilities::installed_plugins::InstalledPluginPhase,
+    phase: dokime_app::domains::installed_plugins::InstalledPluginPhase,
 ) -> wire::InstalledPluginPhase {
-    use dokime_app::capabilities::installed_plugins::InstalledPluginPhase as Phase;
+    use dokime_app::domains::installed_plugins::InstalledPluginPhase as Phase;
     match phase {
         Phase::Entrypoint => wire::InstalledPluginPhase::Entrypoint,
         Phase::Action => wire::InstalledPluginPhase::Action,

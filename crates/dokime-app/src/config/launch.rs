@@ -18,9 +18,9 @@ use std::{fmt, path::PathBuf, sync::Arc};
 
 // Local Imports
 use crate::RuntimeCredentialConfig;
-use crate::capabilities::installed_plugins::{ResolvedBrand, builtin_plugins};
 use crate::config::RuntimeConfig;
 use crate::core::{Identifier, Metadata};
+use crate::domains::installed_plugins::{ResolvedBrand, builtin_plugins};
 use crate::plugins::PluginBundle;
 
 /* === Constants === */

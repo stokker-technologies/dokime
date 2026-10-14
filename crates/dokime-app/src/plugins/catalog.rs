@@ -20,7 +20,7 @@ use harmos::plugin::inventory::{CarrierSection, Declaration};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use super::PluginError;
-use crate::capabilities::installed_plugins::contributions::decode_registrations;
+use crate::domains::installed_plugins::contributions::decode_registrations;
 
 /* === Constants === */
 

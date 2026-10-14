@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::*;
-use dokime_app::{capabilities::execution::authoring::SidecarStepContext, core::Value};
+use dokime_app::{core::Value, domains::execution::authoring::SidecarStepContext};
 
 /* === Constants === */
 

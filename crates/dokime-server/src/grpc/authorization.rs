@@ -60,7 +60,7 @@ impl Authorization {
                 local_only: entry.local_only,
                 required: Required {
                     contract: entry.wire.contract()?,
-                    // Role Permission Does Not Confer A Request-Dependent Capability Grant.
+                    // Role Permission Does Not Confer A Request-Dependent Scoped Grant.
                     grants: Vec::new(),
                 },
             });

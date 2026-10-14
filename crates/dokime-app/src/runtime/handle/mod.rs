@@ -69,7 +69,7 @@ pub struct RuntimeHandle {
     grpc: harmos::grpc::GrpcManager,
     pub(crate) publication_core: Arc<super::sidecars::core::Publications>,
     pub(crate) record_ingress: Arc<super::sidecars::core::RecordIngress>,
-    pub(crate) execution_sessions: Arc<crate::capabilities::execution::run::Sessions>,
+    pub(crate) execution_sessions: Arc<crate::domains::execution::run::Sessions>,
 
     pub(crate) sampling: Arc<Sampling>,
     pub(crate) stream_leases: Arc<crate::telemetry_runtime::StreamLeases>,
@@ -80,7 +80,7 @@ pub struct RuntimeHandle {
     pub(crate) host_telemetry_source:
         Arc<RwLock<Option<Arc<crate::telemetry_runtime::HostTelemetrySource>>>>,
     pub(crate) providers: Arc<ProviderExecutorRegistry>,
-    pub(crate) progress: Arc<crate::capabilities::execution::progress::ProgressRegistry>,
+    pub(crate) progress: Arc<crate::domains::execution::progress::ProgressRegistry>,
     pub(crate) native_executions: super::native_telemetry::Executions,
     pub(crate) record_demands: Arc<Mutex<super::sidecars::RecordDemands>>,
     pub(crate) publication_ingest: Arc<std::sync::OnceLock<super::sidecars::PublicationIngest>>,
@@ -128,9 +128,7 @@ impl RuntimeHandle {
         &self.streams
     }
 
-    pub fn watch_execution_progress(
-        &self,
-    ) -> crate::capabilities::execution::progress::ProgressWatch {
+    pub fn watch_execution_progress(&self) -> crate::domains::execution::progress::ProgressWatch {
         self.progress.watch()
     }
 
@@ -305,9 +303,8 @@ impl RuntimeHandle {
                 Arc::new(storage.clone()),
             )?;
             crate::operations::provider::register(&harmos_runtime.operations)?;
-            let execution_sessions =
-                Arc::new(crate::capabilities::execution::run::Sessions::default());
-            crate::capabilities::execution::run::host::register(
+            let execution_sessions = Arc::new(crate::domains::execution::run::Sessions::default());
+            crate::domains::execution::run::host::register(
                 &harmos_runtime.operations,
                 &execution_sessions,
             )?;
@@ -400,9 +397,7 @@ impl RuntimeHandle {
                 stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::default()),
                 host_telemetry_source: Arc::new(RwLock::new(None)),
                 providers: Arc::new(providers),
-                progress: Arc::new(
-                    crate::capabilities::execution::progress::ProgressRegistry::new(),
-                ),
+                progress: Arc::new(crate::domains::execution::progress::ProgressRegistry::new()),
                 native_executions: Default::default(),
                 record_demands: Default::default(),
                 publication_ingest: Default::default(),
