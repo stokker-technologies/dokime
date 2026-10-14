@@ -73,8 +73,9 @@ pub struct RuntimeConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StorageReadSettings {
-    /// The one ledger live readers and report captures share: captures retain
-    /// inputs while point reads and rendering reserve scratch.
+    /// The storage read ledger (Harmos `read_memory_bytes`, 256 MiB by default).
+    /// Live readers, report captures and report production all reserve from it:
+    /// captures retain their inputs, point reads and rendering reserve scratch.
     #[serde(default = "default_read_memory")]
     pub memory_bytes: std::num::NonZeroUsize,
     pub page_rows: std::num::NonZeroUsize,
@@ -85,10 +86,6 @@ pub struct StorageReadSettings {
     pub decoded_bytes_ceiling: std::num::NonZeroUsize,
     pub execution: harmos::storage::QueryLimits,
     pub execution_ceiling: harmos::storage::QueryLimits,
-    /// The read pool live readers and report captures share. Captures retain
-    /// their inputs in it while point reads and rendering reserve scratch.
-    #[serde(default = "default_read_pool_bytes")]
-    pub pool_bytes: std::num::NonZeroUsize,
     /// Test hook: how long each native-output read finalization performs
     /// stalls within its read budget. Zero outside tests.
     #[doc(hidden)]
@@ -232,7 +229,6 @@ impl Default for StorageReadSettings {
                     .max(FINALIZATION_BUDGET),
                 ..settings.query_execution_ceiling
             },
-            pool_bytes: default_read_pool_bytes(),
             finalization_read_stall: Duration::ZERO,
         }
     }
@@ -265,6 +261,7 @@ impl StorageReadSettings {
         }
         Ok(())
     }
+
     pub(crate) fn apply(&self, settings: &mut harmos::storage::StorageSettings) {
         settings.read_memory_bytes = self.memory_bytes;
         settings.query_page = harmos::storage::ReadLimits {
@@ -279,7 +276,6 @@ impl StorageReadSettings {
         settings.query_decoded_bytes_ceiling = self.decoded_bytes_ceiling;
         settings.query_execution = self.execution;
         settings.query_execution_ceiling = self.execution_ceiling;
-        settings.read_memory_bytes = self.pool_bytes;
     }
 }
 
@@ -328,8 +324,43 @@ fn default_compaction_interval() -> Duration {
     Duration::from_secs(24 * 60 * 60)
 }
 
-fn default_read_pool_bytes() -> std::num::NonZeroUsize {
-    std::num::NonZeroUsize::new(256 * 1024 * 1024).unwrap()
-}
-
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bytes(mebibytes: usize) -> std::num::NonZeroUsize {
+        std::num::NonZeroUsize::new(mebibytes * 1024 * 1024).unwrap()
+    }
+
+    #[test]
+    fn apply_sets_each_configured_read_limit() {
+        let mut reads = StorageReadSettings {
+            memory_bytes: bytes(300),
+            page_bytes: bytes(3),
+            decoded_bytes: bytes(5),
+            ..StorageReadSettings::default()
+        };
+        reads.execution.memory_bytes = bytes(7);
+        reads.validate().unwrap();
+        let mut settings = harmos::storage::StorageSettings::default();
+
+        reads.apply(&mut settings);
+
+        assert_eq!(settings.read_memory_bytes, bytes(300));
+        assert_eq!(settings.query_page.rows, reads.page_rows);
+        assert_eq!(settings.query_page.bytes, bytes(3));
+        assert_eq!(settings.query_page_ceiling.rows, reads.page_rows_ceiling);
+        assert_eq!(settings.query_page_ceiling.bytes, reads.page_bytes_ceiling);
+        assert_eq!(settings.query_decoded_bytes, bytes(5));
+        assert_eq!(
+            settings.query_decoded_bytes_ceiling,
+            reads.decoded_bytes_ceiling
+        );
+        assert_eq!(settings.query_execution.memory_bytes, bytes(7));
+        assert_eq!(
+            settings.query_execution_ceiling.timeout,
+            reads.execution_ceiling.timeout
+        );
+    }
+}

@@ -482,7 +482,7 @@ pub(crate) async fn pool_refusal_settles() {
                 serde_json::json!({ "spectrum_rows": POOLED_SPECTRUM_ROWS }),
             )
             .unwrap()]);
-    refusing.storage_reads.pool_bytes = std::num::NonZeroUsize::new(REFUSING_POOL_BYTES).unwrap();
+    refusing.storage_reads.memory_bytes = std::num::NonZeroUsize::new(REFUSING_POOL_BYTES).unwrap();
     let (mut runtime, handle) = started(refusing).await;
     let suite = handle
         .test_suites()
