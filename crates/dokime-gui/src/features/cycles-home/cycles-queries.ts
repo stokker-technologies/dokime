@@ -20,8 +20,8 @@ import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
 import { listNativeCycles, type NativeCycleSelection } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import type { PromptRequest } from "@/lib/types";
+import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 
 type CycleSummary = Wire<GeneratedCycleSummary>;
 

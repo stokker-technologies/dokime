@@ -14,9 +14,11 @@
 /* === Local Imports === */
 
 import { fallbackRecordDisplay } from "@/lib/record-display";
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
+
 type Cursor = NonNullable<RecordPage["scanned"]>;
+
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type { HubRecord, RecordScope } from "@/lib/types";
 import {

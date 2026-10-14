@@ -14,29 +14,6 @@
 /* === Local Imports === */
 
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row11 as GeneratedNativeExecutionCheckpoint } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type { Row28 as GeneratedNativeStorageCursor } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type { Row10 as GeneratedSeverity } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
-import type { Row3 as GeneratedArtifactFrame } from "../../../.generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
-import type { Row11 as GeneratedArtifactMetadata } from "../../../.generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
-import type { Row15 as GeneratedArtifactState } from "../../../.generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
-import type { Row15 as GeneratedExecutionFileKind } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type { Row16 as GeneratedExecutionFileState } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type { Row5 as GeneratedExecutionFileMetadata } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type { Row4 as GeneratedExecutionFileWindow } from "../../../.generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
-import type { Row7 as GeneratedCapturedRecord } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
-import type { Row7 as GeneratedExecutionStatus } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type { Row20 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
-import type { Row2 as GeneratedCheckpointContext } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
-import type { Row2 as GeneratedCheckpointDocument } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointDocument/messages_pb";
-import type { Row2 as GeneratedCheckpointEvidence } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
-import type { Row2 as GeneratedCheckpointRecordPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
-import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
-import type { Row12 as GeneratedExecutionAvailability } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type { Row10 as GeneratedHistoricalExecutionMetadata } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type { Row6 as GeneratedHistoryIssue } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type { Row2 as GeneratedNativeExecutionBrowsePage } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-
 import * as rpc from "@/lib/rpc/generated/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type {
@@ -45,6 +22,36 @@ import type {
   ExecutionBrowsePage,
   ExecutionCheckpoint,
 } from "@/lib/types/view-contracts";
+import type { Row20 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import type {
+  Row12 as GeneratedExecutionAvailability,
+  Row7 as GeneratedExecutionStatus,
+  Row10 as GeneratedHistoricalExecutionMetadata,
+  Row6 as GeneratedHistoryIssue,
+  Row2 as GeneratedNativeExecutionBrowsePage,
+  Row11 as GeneratedNativeExecutionCheckpoint,
+  Row28 as GeneratedNativeStorageCursor,
+} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type {
+  Row3 as GeneratedArtifactFrame,
+  Row11 as GeneratedArtifactMetadata,
+  Row15 as GeneratedArtifactState,
+} from "../../../.generated/dokime/v1/HistoryMessages/DownloadCheckpointArtifact/messages_pb";
+import type { Row2 as GeneratedCheckpointContext } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointContext/messages_pb";
+import type { Row2 as GeneratedCheckpointDocument } from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointDocument/messages_pb";
+import type {
+  Row2 as GeneratedCheckpointEvidence,
+  Row15 as GeneratedExecutionFileKind,
+  Row5 as GeneratedExecutionFileMetadata,
+  Row16 as GeneratedExecutionFileState,
+} from "../../../.generated/dokime/v1/HistoryMessages/GetCheckpointEvidence/messages_pb";
+import type {
+  Row7 as GeneratedCapturedRecord,
+  Row2 as GeneratedCheckpointRecordPage,
+  Row10 as GeneratedSeverity,
+} from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
+import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
+import type { Row4 as GeneratedExecutionFileWindow } from "../../../.generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
 import {
   NATIVE_PAGE_SIZE,
   NativeApiLimitError,

@@ -24,8 +24,8 @@ import type {
 } from "./document-contracts";
 import { formatRecordValue } from "./record-display";
 import type {
-  DocumentViewCard,
   DocumentDataExpression,
+  DocumentViewCard,
   DocumentViewLayout,
   DocumentViewMetric,
   DocumentViewPayload,

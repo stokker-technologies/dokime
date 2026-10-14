@@ -12,13 +12,14 @@
 /* === Local Imports === */
 
 import { defaultBrand } from "@/lib/brand";
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
 export type RuntimeStateFrame = Wire<
   Awaited<ReturnType<typeof rpc.observationWatchRuntime>> extends NativeStream<infer Frame>
     ? Frame
     : never
 >;
+
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import { traceabilitySnapshotFromItems } from "@/lib/traceability";
 import type {

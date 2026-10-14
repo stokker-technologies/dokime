@@ -13,8 +13,9 @@
 
 /* === Local Imports === */
 
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
+
 type CycleSummary = Wire<Awaited<ReturnType<typeof rpc.executionGetCycle>>>;
 type ExecutionDetail = Wire<Awaited<ReturnType<typeof rpc.executionGetExecution>>>;
 type ExecutionStep = Wire<
@@ -32,6 +33,7 @@ type Value = NonNullable<
   >["value"]
 >;
 type WirePluginIdentity = NonNullable<ExecutionDetail["admittedPlugin"]>;
+
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   ExecutionPluginIdentity,

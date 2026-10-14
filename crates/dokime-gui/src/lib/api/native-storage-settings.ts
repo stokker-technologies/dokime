@@ -19,10 +19,12 @@
 
 // Local Imports
 import type { StorageSource } from "@/features/settings/settings-contracts";
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
+
 type WirePolicyView = Wire<Awaited<ReturnType<typeof rpc.settingsReadStoragePolicy>>>;
 type StorageSources = Wire<Awaited<ReturnType<typeof rpc.settingsListStorageSources>>>;
+
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import { safeNumber } from "./native-values";
 

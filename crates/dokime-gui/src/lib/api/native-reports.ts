@@ -14,14 +14,14 @@
 /* === Local Imports === */
 
 import { isTauriDesktop } from "@/lib/desktop-open";
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row3 as Checkpoint } from "../../../.generated/dokime/v1/ReportsMessages/RenderCheckpointReport/messages_pb";
-import type {
-  Row3 as ReportFrame,
-  Row8 as Metadata,
-} from "../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb";
+import * as rpc from "@/lib/rpc/generated/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
+import type {
+  Row8 as Metadata,
+  Row3 as ReportFrame,
+} from "../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb";
+import type { Row3 as Checkpoint } from "../../../.generated/dokime/v1/ReportsMessages/RenderCheckpointReport/messages_pb";
 import {
   NATIVE_HTML_DOCUMENT_BYTES,
   openNativeDocument,

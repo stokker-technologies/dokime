@@ -14,20 +14,6 @@
 /* === Local Imports === */
 
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row3 as GeneratedCursor } from "../../../.generated/dokime/v1/ExecutionMessages/ListCycles/messages_pb";
-import type { Row2 as GeneratedCaseDetail } from "../../../.generated/dokime/v1/ExecutionMessages/GetCase/messages_pb";
-import type { Row4 as GeneratedCaseSummary } from "../../../.generated/dokime/v1/ExecutionMessages/ListCases/messages_pb";
-import type { Row4 as GeneratedExecutionSummary } from "../../../.generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb";
-import type { Row2 as GeneratedCycleSummary } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
-import type { Row8 as GeneratedNativeCaseActions } from "../../../.generated/dokime/v1/ExecutionMessages/ListCases/messages_pb";
-import type { Row3 as GeneratedParameterCursor } from "../../../.generated/dokime/v1/ExecutionMessages/ListCaseParameters/messages_pb";
-import type { Row19 as GeneratedValue } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row4 as GeneratedCycleStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
-import type { Row6 as GeneratedCaseStatus } from "../../../.generated/dokime/v1/ExecutionMessages/ListCases/messages_pb";
-import type { Row5 as GeneratedExecutionStatus } from "../../../.generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb";
-import type { Row8 as GeneratedStepStatus } from "../../../.generated/dokime/v1/ExecutionMessages/ListExecutionSteps/messages_pb";
-import type { Row8 as GeneratedCriterionStatus } from "../../../.generated/dokime/v1/ExecutionMessages/ListStepCriteria/messages_pb";
-
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
@@ -45,6 +31,25 @@ import type {
   TestSuiteEntry,
   TestTemplateMetadata,
 } from "@/lib/types";
+import type { Row19 as GeneratedValue } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row2 as GeneratedCaseDetail } from "../../../.generated/dokime/v1/ExecutionMessages/GetCase/messages_pb";
+import type {
+  Row4 as GeneratedCycleStatus,
+  Row2 as GeneratedCycleSummary,
+} from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import type { Row3 as GeneratedParameterCursor } from "../../../.generated/dokime/v1/ExecutionMessages/ListCaseParameters/messages_pb";
+import type {
+  Row6 as GeneratedCaseStatus,
+  Row4 as GeneratedCaseSummary,
+  Row8 as GeneratedNativeCaseActions,
+} from "../../../.generated/dokime/v1/ExecutionMessages/ListCases/messages_pb";
+import type { Row3 as GeneratedCursor } from "../../../.generated/dokime/v1/ExecutionMessages/ListCycles/messages_pb";
+import type { Row8 as GeneratedStepStatus } from "../../../.generated/dokime/v1/ExecutionMessages/ListExecutionSteps/messages_pb";
+import type {
+  Row5 as GeneratedExecutionStatus,
+  Row4 as GeneratedExecutionSummary,
+} from "../../../.generated/dokime/v1/ExecutionMessages/ListExecutions/messages_pb";
+import type { Row8 as GeneratedCriterionStatus } from "../../../.generated/dokime/v1/ExecutionMessages/ListStepCriteria/messages_pb";
 import { fetchNativeSuite, fetchNativeSuites } from "./native-catalog";
 import {
   durationSeconds,

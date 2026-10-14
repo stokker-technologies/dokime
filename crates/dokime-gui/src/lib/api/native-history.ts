@@ -13,8 +13,8 @@
 
 /* === Local Imports === */
 
-import type * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import type * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CycleHistorySummary } from "@/lib/types";
 import { listNativeCycles, listNativeExecutions } from "./native-planning";

@@ -7,9 +7,11 @@
  */
 
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row28 as GeneratedNativeStorageCursor } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type { Row35 as GeneratedNativeStoreHistory } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
-import type { Row11 as GeneratedNativeExecutionCheckpoint } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
+import type {
+  Row11 as GeneratedNativeExecutionCheckpoint,
+  Row28 as GeneratedNativeStorageCursor,
+  Row35 as GeneratedNativeStoreHistory,
+} from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { ValueFormat } from "./format";
 
 type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;

@@ -7,24 +7,24 @@
  * ***
  */
 
+import { serializedValueObjectToJson, serializedValueToJson } from "./api/native-values";
 /* === Local Imports === */
 import { assembleCapture, type DeclaredNode } from "./document-assembly";
-import { serializedValueObjectToJson, serializedValueToJson } from "./api/native-values";
 
 import type {
   CardBinding,
+  DocumentCapture_Serialize as DocumentCapturePayload,
   DocumentCardDefinition_Serialize,
   DocumentNode,
-  DocumentCapture_Serialize as DocumentCapturePayload,
 } from "./document-contracts";
 import {
   documentCard,
   documentCardLayout,
   documentPlot,
   documentSummaryTile,
-  validateSummaryResult,
   documentTableRows,
   documentText,
+  validateSummaryResult,
 } from "./document-presentation";
 import type { DocumentPlotType, DocumentViewCard, DocumentViewPayload } from "./types";
 

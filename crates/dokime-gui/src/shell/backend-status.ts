@@ -18,8 +18,9 @@ import { useQuery } from "@tanstack/react-query";
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
+
 type Readiness = Wire<Awaited<ReturnType<typeof rpc.backendGetHealth>>>["readiness"];
 
 /* === Types === */

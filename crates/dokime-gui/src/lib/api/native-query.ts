@@ -19,12 +19,12 @@
 /* === Local Imports === */
 
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row2 as GeneratedAggregateReply } from "../../../.generated/dokime/v1/QueryMessages/Aggregate/messages_pb";
-import type { Row14 as GeneratedValue } from "../../../.generated/dokime/v1/QueryMessages/Aggregate/messages_pb";
-
 import * as rpc from "@/lib/rpc/generated/client";
-
 import type { SessionIdentity } from "@/lib/rpc/transport";
+import type {
+  Row2 as GeneratedAggregateReply,
+  Row14 as GeneratedValue,
+} from "../../../.generated/dokime/v1/QueryMessages/Aggregate/messages_pb";
 import { jsonToNativeValue, NativeApiLimitError, safeNumber } from "./native-values";
 
 type AggregateReply = Wire<GeneratedAggregateReply>;

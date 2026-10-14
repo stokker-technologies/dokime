@@ -21,10 +21,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
-import * as rpc from "@/lib/rpc/generated/client";
 import type { Wire } from "@/lib/rpc/canonical";
+import * as rpc from "@/lib/rpc/generated/client";
+
 type ApplicationSettings = Wire<Awaited<ReturnType<typeof rpc.settingsReadApplicationSettings>>>;
 type AppearancePreference = NonNullable<ApplicationSettings["appearance"]>;
+
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 /* === Types === */

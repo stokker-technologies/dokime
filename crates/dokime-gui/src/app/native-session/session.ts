@@ -2,8 +2,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createDokimeQueryClient } from "@/app/query-client";
 import { commands } from "@/lib/desktop/commands";
-import * as rpc from "@/lib/rpc/generated/client";
 import type { BackendSelection, DesktopSessionSnapshot } from "@/lib/desktop/session";
+import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 
 export interface SessionControls {

@@ -14,15 +14,7 @@
 /* === Local Imports === */
 
 import type { Wire } from "@/lib/rpc/canonical";
-import type { Row2 as GeneratedSuiteDefinition } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row3 as GeneratedSuiteIdentity } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row4 as GeneratedTemplateDefinition } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row7 as GeneratedParameterSchema } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row8 as GeneratedFileParameterDefinition } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
-import type { Row3 as GeneratedCursor } from "../../../.generated/dokime/v1/CatalogMessages/ListSuites/messages_pb";
-
 import * as rpc from "@/lib/rpc/generated/client";
-
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type {
   FileDefinition,
@@ -31,6 +23,14 @@ import type {
   SuiteTemplateEntry,
   TestSuiteEntry,
 } from "@/lib/types";
+import type {
+  Row8 as GeneratedFileParameterDefinition,
+  Row7 as GeneratedParameterSchema,
+  Row2 as GeneratedSuiteDefinition,
+  Row3 as GeneratedSuiteIdentity,
+  Row4 as GeneratedTemplateDefinition,
+} from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
+import type { Row3 as GeneratedCursor } from "../../../.generated/dokime/v1/CatalogMessages/ListSuites/messages_pb";
 import {
   jsonToNativeValue,
   mapBounded,

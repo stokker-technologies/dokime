@@ -1,11 +1,13 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // Project Standard ES Bindings From One Explicit Canonical Cargo Export.
-import { createRequire } from "node:module";
-import { createHash } from "node:crypto";
+
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+
 const gui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(resolve(gui, "package.json"));
 const { create, fromBinary, toBinary } = require("@bufbuild/protobuf");

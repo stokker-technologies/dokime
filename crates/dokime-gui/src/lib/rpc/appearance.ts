@@ -1,8 +1,11 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 // Native appearance resources. The session owner disposes resources when replaced.
-import * as rpc from "./generated/client.js";
+
 import type { Wire } from "./canonical.js";
+import * as rpc from "./generated/client.js";
+
 type AppearanceAssetMetadata = NonNullable<NonNullable<AppearanceSnapshot["logo"]>["asset"]>;
+
 import type { SessionIdentity } from "./transport.js";
 
 /* === Canonical Types === */

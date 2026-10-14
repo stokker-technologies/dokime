@@ -19,8 +19,8 @@ import {
   invalidateRuntimeProjectionQueries,
   workflowQueryKeys,
 } from "@/features/cycle/server-state";
-import { openNativeRuntimeStream } from "@/lib/api/native-observation";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
+import { openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { useHubStore } from "@/stores/hub-store";
 import {
   createRuntimeProjectionRefreshCoordinator,
