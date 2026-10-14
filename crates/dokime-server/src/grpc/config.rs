@@ -23,6 +23,8 @@ use super::{
 };
 
 /* === Constants === */
+/// How many times its encoded size a decoded output frame may occupy.
+const OUTPUT_DECODED_FACTOR: usize = 4;
 
 /* === Macros === */
 
@@ -144,6 +146,13 @@ impl Config {
             items: NonZeroUsize::new(1).unwrap(),
             bytes,
         };
+        // An output item is charged at its decoded size, which outgrows its
+        // encoding; the queue holds one message's worth of decoded frame.
+        let output = harmos::operations::StreamSettings {
+            items: stream.items,
+            bytes: NonZeroUsize::new(output_stream_bytes(self.max_message_bytes))
+                .ok_or(Error::Configuration("message limit must be positive"))?,
+        };
         let tls = self.tls.take().map(|identity| {
             // Preserve The Host's Chosen TLS Provider When One Is Already Installed.
             let _ = rustls::crypto::ring::default_provider().install_default();
@@ -164,7 +173,7 @@ impl Config {
                     buffer_bytes: NonZeroUsize::new(self.max_message_bytes.min(8192)).unwrap(),
                 },
                 input: stream,
-                output: stream,
+                output,
                 opening_timeout: Duration::from_secs(5),
             },
             reflection: false,
@@ -211,6 +220,11 @@ impl Default for Config {
 }
 
 /* === Public Functions === */
+/// The decoded bytes one server-streamed frame may hold: a message's encoding
+/// grows several times over once decoded into owned values.
+pub(crate) fn output_stream_bytes(max_message_bytes: usize) -> usize {
+    max_message_bytes.saturating_mul(OUTPUT_DECODED_FACTOR)
+}
 
 /* === Private Functions === */
 

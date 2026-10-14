@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::Protobuf;
+use harmos::{MemorySize, Protobuf};
 use serde_json::Value as JsonValue;
 use tonic::Status;
 // Local Imports
@@ -36,6 +36,10 @@ use dokime_app::{
 };
 
 /* === Constants === */
+/// What a stream frame adds around its envelope: its kind and length prefixes.
+const MESSAGE_HEADROOM_BYTES: usize = 64;
+/// What the output stream adds around a decoded frame.
+const DECODED_HEADROOM_BYTES: usize = 1024;
 
 /* === Macros === */
 
@@ -75,19 +79,24 @@ pub(crate) fn document_plot_definition(
     )
 }
 
+/// One plot's envelope, refused with the points it can take when its points
+/// cannot cross in one message of `limit` bytes.
 pub(super) fn envelope(
     value: PlotPayloadEnvelope,
     epoch: &str,
     selection: &str,
+    limit: usize,
 ) -> Result<dokime_contract::operations::plots::PlotEnvelope, Status> {
-    Ok(dokime_contract::operations::plots::PlotEnvelope {
+    let envelope = dokime_contract::operations::plots::PlotEnvelope {
         plot_id: value.plot_id,
         revision: value.revision,
         cursor: Some(plot_cursor_wire(value.cursor, epoch, selection)),
         payload: Some(plot_payload(value.payload)?),
         diagnostics: Some(plot_diagnostics(value.diagnostics)?),
         warnings: value.warnings,
-    })
+    };
+    fit_message(&envelope, limit)?;
+    Ok(envelope)
 }
 
 pub(super) fn stream_frame(
@@ -95,10 +104,11 @@ pub(super) fn stream_frame(
     value: PlotPayloadEnvelope,
     epoch: &str,
     selection: &str,
+    limit: usize,
 ) -> Result<dokime_contract::operations::plots::PlotStreamFrame, Status> {
     Ok(dokime_contract::operations::plots::PlotStreamFrame {
         kind: plot_stream_kind(kind),
-        envelope: Some(envelope(value, epoch, selection)?),
+        envelope: Some(envelope(value, epoch, selection, limit)?),
     })
 }
 
@@ -127,6 +137,60 @@ pub(super) fn ensure_message_budget<M: Protobuf>(
 }
 
 /* === Private Functions === */
+/// Refuses an envelope whose points overflow one message, naming the most
+/// points per series this plot can take. A frame must fit the message both as
+/// encoded and as decoded into the output stream; what the envelope spends
+/// besides its points is fixed, and each point costs what the points averaged.
+fn fit_message(
+    envelope: &dokime_contract::operations::plots::PlotEnvelope,
+    limit: usize,
+) -> Result<(), Status> {
+    let encoded_budget = limit.saturating_sub(MESSAGE_HEADROOM_BYTES);
+    let decoded_budget =
+        super::super::config::output_stream_bytes(limit).saturating_sub(DECODED_HEADROOM_BYTES);
+    let encoded = envelope.encoded_len();
+    let decoded = envelope.memory_size();
+    if encoded <= encoded_budget && decoded <= decoded_budget {
+        return Ok(());
+    }
+    let exhausted = || Status::resource_exhausted("plot response exceeds transport limit");
+    let Some(payload) = &envelope.payload else {
+        return Err(exhausted());
+    };
+    let count = payload
+        .series
+        .iter()
+        .map(|series| series.points.len())
+        .sum::<usize>();
+    // Points and the cartesian frame aligned with them grow together; the
+    // rest of the envelope is the same whatever the points.
+    let mut bare = envelope.clone();
+    if let Some(payload) = &mut bare.payload {
+        payload.cartesian = None;
+        for series in &mut payload.series {
+            series.points = Vec::new();
+        }
+    }
+    let series = payload.series.len().max(1);
+    let fits = |total: usize, fixed: usize, budget: usize| {
+        (count > 0 && fixed < budget).then(|| {
+            let per_point = total.saturating_sub(fixed).div_ceil(count).max(1);
+            (budget - fixed) / per_point / series
+        })
+    };
+    let (Some(by_encoding), Some(by_decoding)) = (
+        fits(encoded, bare.encoded_len(), encoded_budget),
+        fits(decoded, bare.memory_size(), decoded_budget),
+    ) else {
+        return Err(exhausted());
+    };
+    let maximum = by_encoding.min(by_decoding);
+    Err(Status::invalid_argument(format!(
+        "plot {} cannot take {} points in one {limit}-byte message; at most {maximum} points fit",
+        envelope.plot_id, payload.max_points
+    )))
+}
+
 fn plot_request_wire(
     request: &PlotPayloadRequest,
 ) -> Result<dokime_contract::operations::plots::PlotRequest, Status> {

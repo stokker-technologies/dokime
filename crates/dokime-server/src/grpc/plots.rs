@@ -70,18 +70,15 @@ impl Resources {
         &self,
         build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(
-                NonZeroUsize::new(self.maximum)
-                    .ok_or_else(|| Status::resource_exhausted("invalid plot allowance"))?,
-            )
-            .map_err(failure)?;
         let output = build()?;
         ensure_message_budget(&output, self.maximum, "plot response")?;
-        preparation
-            .finish(output)
+        // The message limit bounds the response; its decoded form, larger
+        // than its encoding, is charged at its own size.
+        let bytes = NonZeroUsize::new(output.memory_size())
+            .ok_or_else(|| Status::internal("plot response has no size"))?;
+        self.runtime
+            .storage()
+            .produce(bytes, |_| Ok(output))
             .map_err(failure)?
             .try_into_value()
             .map_err(failure)?
@@ -179,7 +176,7 @@ impl Operation for Snapshots {
                             .ok_or_else(|| {
                                 Status::internal("plot response does not match a request")
                             })?;
-                    envelope(value, &epoch, selection)
+                    envelope(value, &epoch, selection, self.resources.maximum)
                 })
                 .collect::<Result<Vec<_>, Status>>()?;
             Ok(contract::PlotSnapshotsReply { envelopes })
@@ -259,13 +256,17 @@ impl Operation for Watch {
                                 value,
                                 &epoch,
                                 &selection,
+                                self.resources.maximum,
                             )
-                            .unwrap_or_else(|error| plot_error_frame(&current, error.to_string()));
+                            .unwrap_or_else(|error| {
+                                plot_error_frame(&current, error.message().to_owned())
+                            });
                             Ok(frame)
                         })
                         .or_else(|error| {
-                            self.resources
-                                .produce(|| Ok(plot_error_frame(&current, error.to_string())))
+                            self.resources.produce(|| {
+                                Ok(plot_error_frame(&current, error.message().to_owned()))
+                            })
                         })?;
                     output.send_owned(response).await.map_err(failure)?;
                 }
@@ -307,8 +308,8 @@ impl Operation for Watch {
                         if !plot_payload_stream_envelope_visible(mode, &value, &current) { continue; }
                         let selection = selection_for_plot(&requests, &selections, &value.plot_id).ok_or_else(|| Status::internal("plot response does not match a request"))?.to_owned();
                         merge_plot_payload_cursor(&mut requests, &value);
-                        let response = self.resources.produce(|| stream_frame(plot_payload_stream_kind(mode), value, &epoch, &selection))
-                            .or_else(|error| self.resources.produce(|| Ok(plot_error_frame(&current, error.to_string()))))?;
+                        let response = self.resources.produce(|| stream_frame(plot_payload_stream_kind(mode), value, &epoch, &selection, self.resources.maximum))
+                            .or_else(|error| self.resources.produce(|| Ok(plot_error_frame(&current, error.message().to_owned()))))?;
                         output.send_owned(response).await.map_err(failure)?;
                         }
                     }
