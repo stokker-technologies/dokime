@@ -398,8 +398,8 @@ async fn build_resolved(
         .persist(&output)
         .map_err(|error| Error::Io(error.error))?;
     terminal.success(format!(
-        "Plugin bundle ready · {} bytes in {:.1}s",
-        bundle.bytes().len(),
+        "Plugin bundle ready · {} in {:.1}s",
+        dokime_terminal::size_label(bundle.bytes().len() as u64),
         bundle_started.elapsed().as_secs_f64()
     ));
     Ok(output)
@@ -423,8 +423,10 @@ fn symbols(
         Err(Error::Output(..)) => {
             let size = std::fs::metadata(pdb)?.len();
             terminal.warn(format!(
-                "{} is {size} bytes, over the {limit} byte limit; the bundle ships without its debug symbols",
-                pdb.display()
+                "{} is {}, over the {} limit; the bundle ships without its debug symbols",
+                pdb.display(),
+                dokime_terminal::size_label(size),
+                dokime_terminal::size_label(limit as u64)
             ));
             Ok(None)
         }
