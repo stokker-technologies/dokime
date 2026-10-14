@@ -186,3 +186,18 @@ strip = "symbols"
 # Match installed-tool hash throughput without optimizing authored plugin code.
 [profile.dev.package.sha2]
 opt-level = 3
+
+# Operation dispatch through the sidecar runs about seven times faster when the
+# host runtime and its executor are optimised; the dev loop and the stories
+# share that cost on every row a plugin publishes.
+[profile.dev.package.harmos]
+opt-level = 2
+
+[profile.dev.package.harmos-sidecar]
+opt-level = 2
+
+[profile.dev.package.harmos-contract]
+opt-level = 2
+
+[profile.dev.package.tokio]
+opt-level = 2
