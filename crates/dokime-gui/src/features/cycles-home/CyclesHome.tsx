@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
+import { DataTable } from "@/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,18 +29,7 @@ import {
 } from "@/features/cycles-home/cycles-model";
 import { useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { compactAgeLabel } from "@/lib/time-format";
-import { cn } from "@/lib/utils";
 import { usePageChrome } from "@/shell/page-chrome";
-
-/* === Constants === */
-
-/** One fixed pill height and measure per density keeps the status column on one
-    baseline and one width, whatever a status is called. */
-const PILL_CLASS = LIST_STATUS_PILL_CLASS;
-
-/** One grid for the column header and every row beneath it. */
-const ROW_GRID =
-  "grid items-center gap-[var(--shell-gap)] grid-cols-[minmax(0,1fr)_6rem_7rem_7rem_6rem]";
 
 /* === Components === */
 
@@ -178,122 +169,134 @@ function CycleGroupSection({
   now: number;
   onOpen: (cycleId: string) => void;
 }) {
-  // An empty group is one quiet line — heading, count, what that means — so the
-  // groups that hold work own the page.
+  const columns = useMemo(() => cycleColumns(now), [now]);
+
+  // Every group heads with one row — title and count at the start, the empty
+  // statement at the end — so the three headings align whatever they hold.
+  const heading = (
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-[var(--bar-gap)]">
+      <p className="flex items-baseline gap-2">
+        <span className="font-heading font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
+          {group.title}
+        </span>
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {group.rows.length}
+        </span>
+      </p>
+      {group.rows.length ? null : (
+        <span className="truncate text-right text-sm text-muted-foreground">
+          {loading ? "Loading Cycles" : group.emptyText}
+        </span>
+      )}
+    </div>
+  );
+
   if (!group.rows.length) {
     return (
       <section aria-labelledby={`cycle-group-${group.id}`} className="grid">
-        <p className="flex flex-wrap items-baseline gap-2">
-          <span className="font-heading font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
-            {group.title}
-          </span>
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">0</span>
-          <span className="text-sm text-muted-foreground">
-            {loading ? "Loading cycles…" : group.emptyText}
-          </span>
-        </p>
+        {heading}
       </section>
     );
   }
 
+  // The table bleeds to the page edges so a row's hover spans the page while
+  // its text, carried by the table inset, stays on the heading's line.
   return (
     <section aria-labelledby={`cycle-group-${group.id}`} className="grid gap-1">
-      <div className="flex items-baseline gap-2">
-        <h2 className="font-heading font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
-          {group.title}
-        </h2>
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {group.rows.length}
-        </span>
-      </div>
-      <div
-        aria-hidden
-        className={cn(
-          ROW_GRID,
-          "border-b pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase",
-        )}
-      >
-        <span>Cycle</span>
-        <span>Attention</span>
-        <span>Status</span>
-        <span>Cases</span>
-        <span>Updated</span>
-      </div>
-      <ul className="grid">
-        {group.rows.map((row) => (
-          <li key={row.cycleId}>
-            <CycleRowButton now={now} onOpen={onOpen} row={row} />
-          </li>
-        ))}
-      </ul>
+      {heading}
+      <DataTable
+        className="-mx-[var(--shell-inset)]"
+        columns={columns}
+        data={group.rows}
+        emptyText={group.emptyText}
+        getRowId={rowId}
+        onRowClick={(row) => onOpen(row.cycleId)}
+        stickyHeader={false}
+      />
     </section>
   );
 }
 
-function CycleRowButton({
-  now,
-  onOpen,
-  row,
-}: {
-  now: number;
-  onOpen: (cycleId: string) => void;
-  row: CycleRow;
-}) {
-  // The subtitle says something the title does not: the suite the cycle came
-  // from, or when it was created when the suite repeats the title.
-  const subtitle =
-    row.suiteLabel && row.suiteLabel !== row.label
-      ? row.suiteLabel
-      : row.createdAtIso
-        ? `Created ${new Date(row.createdAtIso).toLocaleString()}`
-        : null;
+/** One line: the title, then the suite it came from when that adds
+    information. When the cycle was created lives on the Updated tooltip. */
+function CycleTitle({ row }: { row: CycleRow }) {
+  const suite = row.suiteLabel && row.suiteLabel !== row.label ? row.suiteLabel : null;
 
   return (
-    <button
-      className={cn(
-        "w-full min-h-[var(--list-row-height)] text-left outline-none transition-colors",
-        ROW_GRID,
-        "border-b border-border/60 py-2",
-        "hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
-      )}
-      onClick={() => onOpen(row.cycleId)}
-      type="button"
-    >
-      <span className="grid min-w-0 gap-0.5">
-        <span className="truncate font-medium">{row.label}</span>
-        {subtitle ? (
-          <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
-        ) : null}
+    <span className="flex min-w-0 items-baseline gap-2">
+      <span className="truncate font-medium" title={row.label}>
+        {row.label}
       </span>
-      <span className="flex justify-start">
-        {row.attentionCount ? (
-          <Badge className={PILL_CLASS} variant="warning">
-            {row.attentionCount} prompts
-          </Badge>
-        ) : null}
-      </span>
-      <span className="flex justify-start">
-        <Badge className={PILL_CLASS} variant={badgeVariant(row.statusTone)}>
-          {row.statusLabel}
-        </Badge>
-      </span>
-      <span
-        className="font-mono text-xs tabular-nums text-muted-foreground"
-        title="Cases finished, of the cases this cycle plans"
-      >
-        {row.finishedCount} / {row.caseCount}
-      </span>
-      <span
-        className="font-mono text-xs tabular-nums text-muted-foreground"
-        title={row.updatedAtIso ? new Date(row.updatedAtIso).toLocaleString() : undefined}
-      >
-        {relativeUpdatedLabel(row.updatedAtIso, now)}
-      </span>
-    </button>
+      {suite ? (
+        <span className="min-w-0 truncate text-xs text-muted-foreground" title={suite}>
+          {suite}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
 /* === Private Functions === */
+
+function rowId(row: CycleRow): string {
+  return row.cycleId;
+}
+
+/** The five columns every group shares; `now` ages the Updated column. */
+function cycleColumns(now: number): DataTableColumns<CycleRow> {
+  const column = dataTableColumns<CycleRow>();
+  return column.columns([
+    column.accessor("label", {
+      cell: ({ row }) => <CycleTitle row={row.original} />,
+      header: "Cycle",
+      meta: { filter: "text", label: "Cycle", primary: true },
+    }),
+    column.accessor("attentionCount", {
+      cell: ({ row }) =>
+        row.original.attentionCount ? (
+          <Badge className={LIST_STATUS_PILL_CLASS} variant="warning">
+            {row.original.attentionCount} prompts
+          </Badge>
+        ) : null,
+      header: "Attention",
+      meta: { label: "Attention", width: "w-32" },
+    }),
+    column.accessor("statusLabel", {
+      cell: ({ row }) => (
+        <Badge className={LIST_STATUS_PILL_CLASS} variant={badgeVariant(row.original.statusTone)}>
+          {row.original.statusLabel}
+        </Badge>
+      ),
+      header: "Status",
+      meta: { filter: "facet", label: "Status", width: "w-36" },
+    }),
+    column.accessor("finishedCount", {
+      cell: ({ row }) => (
+        <span
+          className="font-mono text-xs tabular-nums text-muted-foreground"
+          title="Cases finished, of the cases this cycle plans"
+        >
+          {row.original.finishedCount} / {row.original.caseCount}
+        </span>
+      ),
+      header: "Cases",
+      meta: { align: "end", label: "Cases", width: "w-28" },
+    }),
+    column.accessor((row) => row.updatedAtMs ?? undefined, {
+      cell: ({ row }) => (
+        <span
+          className="font-mono text-xs tabular-nums text-muted-foreground"
+          title={instantsLabel(row.original)}
+        >
+          {relativeUpdatedLabel(row.original.updatedAtIso, now)}
+        </span>
+      ),
+      header: "Updated",
+      id: "updated",
+      meta: { align: "end", label: "Updated", width: "w-28" },
+    }),
+  ]);
+}
 
 /**
  * How long ago the cycle last moved.
@@ -301,6 +304,15 @@ function CycleRowButton({
  * "5s" alone reads as a duration; "5s Ago" says which way it points. The
  * absolute instant stays available on the cell's title.
  */
+/** The absolute instants behind the relative age: updated, then created. */
+function instantsLabel(row: CycleRow): string | undefined {
+  const instants = [
+    row.updatedAtIso ? `Updated ${new Date(row.updatedAtIso).toLocaleString()}` : null,
+    row.createdAtIso ? `Created ${new Date(row.createdAtIso).toLocaleString()}` : null,
+  ].filter(Boolean);
+  return instants.length ? instants.join("\n") : undefined;
+}
+
 function relativeUpdatedLabel(updatedAtIso: string | null, now: number): string {
   const age = compactAgeLabel(updatedAtIso, now);
   return age === "-" ? age : `${age} Ago`;

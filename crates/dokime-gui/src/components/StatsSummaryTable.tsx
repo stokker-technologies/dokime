@@ -7,72 +7,95 @@
  * ***
  */
 
+/* === External Imports === */
+
+import { useMemo } from "react";
+
 /* === Local Imports === */
 
-import type { StatsSummaryRow } from "@/lib/statistics";
+import { DataTable } from "@/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
+import type { StatsSummary, StatsSummaryRow } from "@/lib/statistics";
 import { describeValues, formatStatValue } from "@/lib/statistics";
+
+/* === Types === */
 
 type StatsSummaryTableProps = {
   rows: StatsSummaryRow[];
 };
 
+type DescribedRow = { count: number; label: string; stats: StatsSummary; unit?: string };
+
+/* === Constants === */
+
+const STATISTICS = [
+  ["mean", "Mean"],
+  ["median", "Median"],
+  ["std", "Std"],
+  ["rms", "RMS"],
+  ["min", "Min"],
+  ["max", "Max"],
+] as const;
+
+const column = dataTableColumns<DescribedRow>();
+
+const COLUMNS: DataTableColumns<DescribedRow> = [
+  column.accessor("label", {
+    header: "Metric",
+    meta: { label: "Metric", truncate: true },
+  }),
+  ...STATISTICS.map(([key, title]) =>
+    column.accessor((row) => row.stats[key], {
+      cell: ({ row }) => formatStatValue(row.original.stats[key], row.original.unit),
+      header: title,
+      id: key,
+      meta: { align: "end", label: title, truncate: true, width: "w-24" },
+    }),
+  ),
+  column.accessor("count", {
+    header: "Count",
+    meta: { align: "end", label: "Count", width: "w-20" },
+  }),
+];
+
 /* === Components === */
 
 export function StatsSummaryTable({ rows }: StatsSummaryTableProps) {
+  const described = useMemo(
+    () =>
+      rows.map((row) => ({
+        count: row.count ?? row.values.length,
+        label: row.label,
+        stats: row.statistics ?? describeValues(row.values),
+        unit: row.unit,
+      })),
+    [rows],
+  );
+
   if (rows.length === 1) {
     return <StatsSummaryGrid row={rows[0]} />;
   }
 
   return (
-    <div className="max-w-full overflow-x-auto rounded-md bg-muted/20">
-      <table className="w-full min-w-[760px] table-fixed text-sm">
-        <colgroup>
-          <col className="w-[24%]" />
-          <col className="w-[11%]" />
-          <col className="w-[11%]" />
-          <col className="w-[11%]" />
-          <col className="w-[11%]" />
-          <col className="w-[11%]" />
-          <col className="w-[11%]" />
-          <col className="w-[10%]" />
-        </colgroup>
-        <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 text-left">Metric</th>
-            <th className="px-3 py-2 text-right">Mean</th>
-            <th className="px-3 py-2 text-right">Median</th>
-            <th className="px-3 py-2 text-right">Std</th>
-            <th className="px-3 py-2 text-right">RMS</th>
-            <th className="px-3 py-2 text-right">Min</th>
-            <th className="px-3 py-2 text-right">Max</th>
-            <th className="px-3 py-2 text-right">Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <StatsSummaryTableRow key={row.label} row={row} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      className="rounded-md bg-muted/20 [--table-surface:transparent]"
+      columns={COLUMNS}
+      data={described}
+      emptyText="No statistics recorded."
+      getRowId={rowLabel}
+      inset="cell"
+      stickyHeader={false}
+    />
   );
 }
 
-function StatsSummaryTableRow({ row }: { row: StatsSummaryRow }) {
-  const stats = row.statistics ?? describeValues(row.values);
-  return (
-    <tr className="border-t">
-      <th className="px-3 py-2 text-left font-medium">{row.label}</th>
-      <td className="px-3 py-2 text-right">{formatStatValue(stats.mean, row.unit)}</td>
-      <td className="px-3 py-2 text-right">{formatStatValue(stats.median, row.unit)}</td>
-      <td className="px-3 py-2 text-right">{formatStatValue(stats.std, row.unit)}</td>
-      <td className="px-3 py-2 text-right">{formatStatValue(stats.rms, row.unit)}</td>
-      <td className="px-3 py-2 text-right">{formatStatValue(stats.min, row.unit)}</td>
-      <td className="px-3 py-2 text-right">{formatStatValue(stats.max, row.unit)}</td>
-      <td className="px-3 py-2 text-right">{row.count ?? row.values.length}</td>
-    </tr>
-  );
+/* === Private Functions === */
+
+function rowLabel(row: DescribedRow): string {
+  return row.label;
 }
+
+/* === Private Components === */
 
 function StatsSummaryGrid({ row }: { row: StatsSummaryRow }) {
   const stats = row.statistics ?? describeValues(row.values);

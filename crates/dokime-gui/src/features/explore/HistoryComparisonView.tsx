@@ -10,9 +10,12 @@
 /* === External Imports === */
 
 import { ArrowLeft } from "lucide-react";
+import { useMemo } from "react";
 
 /* === Local Imports === */
 
+import { DataTable } from "@/components/data-table/DataTable";
+import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Button } from "@/components/ui/button";
 import { type ExploreEntry, exploreEntryKey } from "@/features/explore/explore-contracts";
 import { formatDuration } from "@/lib/format";
@@ -46,12 +49,36 @@ function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
 }
 
+function rowLabel(row: ComparisonRow): string {
+  return row.label;
+}
+
 /* === Components === */
 
 export function HistoryComparisonView({ cycles, onBack }: HistoryComparisonViewProps) {
+  // One column per compared entry; the metric order is the data, so nothing sorts.
+  const columns = useMemo(() => {
+    const column = dataTableColumns<ComparisonRow>();
+    const metric = column.accessor("label", {
+      cell: ({ getValue }) => <span className="text-muted-foreground">{getValue()}</span>,
+      enableSorting: false,
+      header: "Metric",
+      meta: { label: "Metric", width: "w-32" },
+    });
+    const entries = cycles.map((cycle) =>
+      column.accessor((row) => row.get(cycle), {
+        enableSorting: false,
+        header: cycle.title,
+        id: exploreEntryKey(cycle.target),
+        meta: { label: cycle.title, truncate: true },
+      }),
+    );
+    return [metric, ...entries] as DataTableColumns<ComparisonRow>;
+  }, [cycles]);
+
   return (
     <div className="grid content-start">
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-[var(--shell-gap)] border-b px-[var(--shell-inset)] py-[var(--shell-gap)]">
+      <div className="grid h-[calc(var(--sidebar-row-height)+0.625rem)] grid-cols-[auto_minmax(0,1fr)] items-center gap-[var(--shell-gap)] px-[var(--shell-inset)] pt-2 pb-0.5">
         <Button className="h-[var(--control-height)]" onClick={onBack} size="sm" variant="ghost">
           <ArrowLeft />
           History Library
@@ -61,48 +88,23 @@ export function HistoryComparisonView({ cycles, onBack }: HistoryComparisonViewP
         </span>
       </div>
 
-      <div className="p-[var(--shell-inset)]">
-        {cycles.length < 2 ? (
-          <p className="text-sm text-muted-foreground">
-            Select at least two entries in the library to compare them.
+      {cycles.length < 2 ? (
+        <p className="p-[var(--shell-inset)] text-sm text-muted-foreground">
+          Select at least two entries in the library to compare them.
+        </p>
+      ) : (
+        <>
+          <DataTable
+            columns={columns}
+            data={COMPARISON_ROWS}
+            emptyText="Nothing to compare."
+            getRowId={rowLabel}
+          />
+          <p className="px-[var(--shell-inset)] py-[var(--shell-gap)] text-xs text-muted-foreground">
+            Comparison covers the summary metrics above.
           </p>
-        ) : (
-          <>
-            <div className="overflow-hidden rounded-lg border">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/40">
-                    <th className="p-3 text-left font-medium text-muted-foreground">Metric</th>
-                    {cycles.map((cycle) => (
-                      <th
-                        className="p-3 text-left font-semibold"
-                        key={exploreEntryKey(cycle.target)}
-                      >
-                        {cycle.title}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {COMPARISON_ROWS.map((row) => (
-                    <tr className="border-b last:border-0" key={row.label}>
-                      <td className="p-3 text-muted-foreground">{row.label}</td>
-                      {cycles.map((cycle) => (
-                        <td className="p-3" key={exploreEntryKey(cycle.target)}>
-                          {row.get(cycle)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Comparison covers the summary metrics above.
-            </p>
-          </>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
