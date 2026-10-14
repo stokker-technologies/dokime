@@ -1986,6 +1986,7 @@ dependencies = [
  "criterion",
  "cssparser 0.38.0",
  "dokime",
+ "dokime-app",
  "dokime-contract",
  "dokime-filesystem",
  "dokime-host",
