@@ -12,17 +12,17 @@ version = { workspace = true }
 dokime = { path = "../dokime" }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Serialization
-serde = { workspace = true, default-features = true, features = ["derive"] }
-serde_json = { workspace = true, default-features = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true, features = [
+tokio = { workspace = true, features = [
   "macros",
   "rt-multi-thread",
   "sync",

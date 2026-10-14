@@ -20,20 +20,20 @@ dokime = { path = "../../crates/dokime" }
 mini-runtime = { path = "runtime" }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Utilities
 sysinfo = { workspace = true }
 
 # Serialization
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 # Git
@@ -43,4 +43,4 @@ harmos = { workspace = true, features = ["plugin-sidecar"] }
 sha2 = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util"] }

@@ -18,34 +18,34 @@ dokime-terminal = { path = "../dokime-terminal" }
 harmos = { workspace = true, features = ["plugin"] }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Utilities
-semver = { workspace = true, default-features = true }
-sha2 = { workspace = true, default-features = true }
+semver = { workspace = true }
+sha2 = { workspace = true }
 
 # Serialization
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
-toml_edit = { workspace = true, default-features = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml_edit = { workspace = true }
 
 # Configuration
-clap = { workspace = true, default-features = true }
-dotenv = { workspace = true, default-features = true }
+clap = { workspace = true }
+dotenv = { workspace = true }
 
 # Filesystem
-glob = { workspace = true, default-features = true }
-tempfile = { workspace = true, default-features = true }
+glob = { workspace = true }
+tempfile = { workspace = true }
 
 # Async
-futures-util = { workspace = true, default-features = true }
-tokio = { workspace = true, default-features = true, features = ["process"] }
+futures-util = { workspace = true }
+tokio = { workspace = true, features = ["process"] }
 
 # Networking
-url = { workspace = true, default-features = true }
+url = { workspace = true }
 
 [dev-dependencies]
 # Local
@@ -54,14 +54,14 @@ url = { workspace = true, default-features = true }
 harmos = { workspace = true, features = ["plugin", "grpc"] }
 
 # Parsing
-cargo_metadata = { workspace = true, default-features = true }
+cargo_metadata = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true, features = ["test-util"] }
-tokio-stream = { workspace = true, default-features = true, features = ["net"] }
+tokio = { workspace = true, features = ["test-util"] }
+tokio-stream = { workspace = true, features = ["net"] }
 
 # Networking
-tonic = { workspace = true, features = ["server", "router"] }
+tonic = { workspace = true, features = ["server"] }
 
 # UI
-portable-pty = { workspace = true, default-features = true }
+portable-pty = { workspace = true }

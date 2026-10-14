@@ -16,14 +16,14 @@ sim = ["harmos/simulation"]
 harmos = { workspace = true }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Serialization
-serde = { workspace = true, default-features = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 # Async
-tokio = { workspace = true, default-features = true }
+tokio = { workspace = true }

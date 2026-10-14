@@ -17,12 +17,12 @@ version = { workspace = true }
 
 [dependencies]
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # UI
-anstream = { workspace = true, default-features = true }
-anstyle = { workspace = true, default-features = true }
-indicatif = { workspace = true, default-features = true }
+anstream = { workspace = true }
+anstyle = { workspace = true }
+indicatif = { workspace = true }

@@ -20,28 +20,28 @@ version = { workspace = true }
 dokime-contract = { path = "../dokime-contract" }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Utilities
-starship-battery = { workspace = true, default-features = true }
+starship-battery = { workspace = true }
 sysinfo = { workspace = true }
 
 # Serialization
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true, features = ["process"] }
+tokio = { workspace = true, features = ["process"] }
 
 # Networking
-getifs = { workspace = true, default-features = true }
+getifs = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 # Utilities
-windows = { workspace = true, default-features = true, features = [
+windows = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_NetworkManagement_IpHelper",
   "Win32_NetworkManagement_Ndis",
@@ -59,10 +59,10 @@ windows = { workspace = true, default-features = true, features = [
 dokime = { path = "../dokime" }
 
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }
 
 # Testing
-criterion = { workspace = true, default-features = true }
+criterion = { workspace = true }
 
 [[bench]]
 name = "collectors"

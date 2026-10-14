@@ -32,28 +32,28 @@ dokime-filesystem = { path = "../dokime-filesystem" }
 harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Utilities
 keyring = { workspace = true }
-sha2 = { workspace = true, default-features = true }
-zeroize = { workspace = true, default-features = true }
+sha2 = { workspace = true }
+zeroize = { workspace = true }
 
 # Serialization
-prost = { workspace = true, default-features = true }
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+prost = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Async
-futures-util = { workspace = true, features = ["std", "async-await"] }
-tokio = { workspace = true, default-features = true }
-tokio-stream = { workspace = true, default-features = true, features = ["sync"] }
-tokio-util = { workspace = true, default-features = true, features = ["rt"] }
+futures-util = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true, features = ["sync"] }
+tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
 rustls = { workspace = true, features = ["ring", "std"] }
 tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
-url = { workspace = true, default-features = true }
+url = { workspace = true }
 
 
 # === Build Dependencies ===
@@ -62,7 +62,7 @@ url = { workspace = true, default-features = true }
 # === Dev Dependencies ===
 
 [dev-dependencies]
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }
 
 # === Target Dependencies ===
 

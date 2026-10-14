@@ -10,17 +10,17 @@ version = { workspace = true }
 
 [dependencies]
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Utilities
-uuid = { workspace = true, default-features = true }
+uuid = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 # Utilities
-windows-sys = { workspace = true, default-features = true, features = [
+windows-sys = { workspace = true, features = [
   "Win32_Foundation",
   "Win32_Storage_FileSystem",
   "Win32_System_WindowsProgramming",
@@ -28,4 +28,4 @@ windows-sys = { workspace = true, default-features = true, features = [
 
 [dev-dependencies]
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }

@@ -20,17 +20,17 @@ version = { workspace = true }
 dokime = { path = "../dokime" }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Serialization
-base64 = { workspace = true, default-features = true }
+base64 = { workspace = true }
 
 # Parsing
-cssparser = { workspace = true, default-features = true }
+cssparser = { workspace = true }
 
 [dev-dependencies]
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }

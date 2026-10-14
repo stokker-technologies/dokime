@@ -24,24 +24,24 @@ descriptors = ["harmos/grpc"]
 harmos = { workspace = true }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing-error = { workspace = true, default-features = true }
-tracing = { workspace = true, default-features = true }
+tracing-error = { workspace = true }
+tracing = { workspace = true }
 
 # Filesystem
 globset = { workspace = true }
 
 # Utilities
-regex = { workspace = true, default-features = true }
-sha2 = { workspace = true, default-features = true }
-time = { workspace = true, default-features = true }
+regex = { workspace = true }
+sha2 = { workspace = true }
+time = { workspace = true }
 
 # Serialization
-base64 = { workspace = true, default-features = true }
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+base64 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [[bin]]
 name = "dokime-contract-export"

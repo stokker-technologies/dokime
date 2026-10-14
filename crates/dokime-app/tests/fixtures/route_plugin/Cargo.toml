@@ -17,17 +17,17 @@ dokime = { path = "../../../../dokime" }
 harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Serialization
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true }
+tokio = { workspace = true }
 
 [[bin]]
 name = "dokime-route-plugin"

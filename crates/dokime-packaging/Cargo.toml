@@ -16,30 +16,25 @@ dokime-terminal = { path = "../dokime-terminal" }
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Utilities
-process-wrap = { workspace = true, features = [
-  "tokio1",
-  "process-group",
-  "job-object",
-  "kill-on-drop",
-] }
+process-wrap = { workspace = true, features = ["tokio1"] }
 
 # Serialization
-serde_json = { workspace = true, default-features = true }
+serde_json = { workspace = true }
 
 # Configuration
-clap = { workspace = true, default-features = true }
+clap = { workspace = true }
 
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }
 
 # Parsing
-cargo_metadata = { workspace = true, default-features = true }
+cargo_metadata = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true, features = ["process"] }
+tokio = { workspace = true, features = ["process"] }

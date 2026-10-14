@@ -29,11 +29,12 @@ console = []
 dokime-contract = { path = "../../dokime-contract", features = ["descriptors"] }
 
 # UI
-tauri-build = { workspace = true, default-features = true, features = [] }
+tauri-build = { workspace = true, features = [] }
 
 [dependencies]
 # Local
 dokime-client = { path = "../../dokime-client" }
+# Excludes the SDK default `derive`; the shell authors no plugins and needs no attribute macros.
 dokime = { path = "../../dokime", default-features = false, features = ["native"] }
 dokime-filesystem = { path = "../../dokime-filesystem" }
 dokime-contract = { path = "../../dokime-contract" }
@@ -42,49 +43,49 @@ dokime-contract = { path = "../../dokime-contract" }
 harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
-anyhow = { workspace = true, default-features = true }
-thiserror = { workspace = true, default-features = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
-tracing-appender = { workspace = true, default-features = true }
-tracing-subscriber = { workspace = true, default-features = true }
+tracing = { workspace = true }
+tracing-appender = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # Utilities
 keyring = { workspace = true }
-rand = { workspace = true, default-features = true }
-sha2 = { workspace = true, default-features = true }
-time = { workspace = true, default-features = true }
-zeroize = { workspace = true, default-features = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+time = { workspace = true }
+zeroize = { workspace = true }
 
 # Serialization
-base64 = { workspace = true, default-features = true }
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+base64 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Configuration
-dotenv = { workspace = true, default-features = true }
+dotenv = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true, features = ["process"] }
-tokio-stream = { workspace = true, default-features = true }
-tokio-util = { workspace = true, default-features = true, features = ["rt"] }
+tokio = { workspace = true, features = ["process"] }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
 reqwest = { workspace = true }
 tonic = { workspace = true, features = ["channel", "tls-ring", "tls-native-roots"] }
-url = { workspace = true, default-features = true }
+url = { workspace = true }
 
 # UI
-tauri = { workspace = true, default-features = true, features = [] }
-tauri-plugin-deep-link = { workspace = true, default-features = true }
-tauri-plugin-dialog = { workspace = true, default-features = true }
-tauri-plugin-opener = { workspace = true, default-features = true }
-tauri-plugin-updater = { workspace = true, default-features = true, optional = true }
+tauri = { workspace = true, features = [] }
+tauri-plugin-deep-link = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
+tauri-plugin-opener = { workspace = true }
+tauri-plugin-updater = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 # Utilities
-windows = { workspace = true, default-features = true, features = ["Win32_System_Com"] }
+windows = { workspace = true, features = ["Win32_System_Com"] }
 
 [dev-dependencies]
 # Local
@@ -96,16 +97,16 @@ dokime-server = { path = "../../dokime-server" }
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
 
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }
 
 # Async
-async-trait = { workspace = true, default-features = true }
-tokio = { workspace = true, default-features = true, features = ["test-util"] }
-tokio-stream = { workspace = true, default-features = true, features = ["net"] }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+tokio-stream = { workspace = true, features = ["net"] }
 
 # Networking
-rcgen = { workspace = true, default-features = true }
+rcgen = { workspace = true }
 rustls = { workspace = true, features = ["ring", "std"] }
 
 # UI
-tauri = { workspace = true, default-features = true, features = ["test"] }
+tauri = { workspace = true, features = ["test"] }

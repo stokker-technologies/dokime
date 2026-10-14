@@ -33,49 +33,49 @@ dokime-terminal = { path = "../dokime-terminal" }
 harmos = { workspace = true, features = ["grpc"] }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing-appender = { workspace = true, default-features = true }
-tracing-chrome = { workspace = true, default-features = true }
-tracing-error = { workspace = true, default-features = true }
-tracing-flame = { workspace = true, default-features = true }
-tracing-subscriber = { workspace = true, default-features = true }
-tracing = { workspace = true, default-features = true }
+tracing-appender = { workspace = true }
+tracing-chrome = { workspace = true }
+tracing-error = { workspace = true }
+tracing-flame = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing = { workspace = true }
 
 # Utilities
-sha2 = { workspace = true, default-features = true }
+sha2 = { workspace = true }
 subtle = { workspace = true }
 sysinfo = { workspace = true }
-time = { workspace = true, default-features = true }
-uuid = { workspace = true, default-features = true }
-zeroize = { workspace = true, default-features = true }
+time = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true }
 
 # Serialization
-prost = { workspace = true, default-features = true }
-prost-types = { workspace = true, default-features = true }
-serde = { workspace = true, default-features = true }
-serde_json = { workspace = true, default-features = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 # Configuration
-clap = { workspace = true, default-features = true }
-dotenv = { workspace = true, default-features = true }
+clap = { workspace = true }
+dotenv = { workspace = true }
 
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }
 zip = { workspace = true }
 
 # Async
-futures-util = { workspace = true, default-features = true }
-tokio = { workspace = true, default-features = true }
-tokio-stream = { workspace = true, default-features = true, features = ["net"] }
-tokio-util = { workspace = true, default-features = true, features = ["rt"] }
+futures-util = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true, features = ["net"] }
+tokio-util = { workspace = true, features = ["rt"] }
 
 # Networking
 rustls = { workspace = true, features = ["ring", "std"] }
-tonic = { workspace = true, features = ["server", "router", "tls-ring"] }
-tonic-prost = { workspace = true, default-features = true }
-tonic-types = { workspace = true, default-features = true }
+tonic = { workspace = true, features = ["server", "tls-ring"] }
+tonic-prost = { workspace = true }
+tonic-types = { workspace = true }
 
 [build-dependencies]
 # Local
@@ -87,17 +87,17 @@ dokime-client = { path = "../dokime-client" }
 dokime-host = { path = "../dokime-host" }
 
 # Error Handling
-anyhow = { workspace = true, default-features = true }
+anyhow = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util"] }
 
 # Networking
-rcgen = { workspace = true, default-features = true }
+rcgen = { workspace = true }
 tonic = { workspace = true, features = ["channel"] }
 
 # Testing
-criterion = { workspace = true, default-features = true }
+criterion = { workspace = true }
 
 [[bench]]
 name = "grpc"

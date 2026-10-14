@@ -53,45 +53,45 @@ dokime-theme = { path = "../dokime-theme" }
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc", "signal"] }
 
 # Error Handling
-thiserror = { workspace = true, default-features = true }
+thiserror = { workspace = true }
 
 # Logging
-tracing = { workspace = true, default-features = true }
+tracing = { workspace = true }
 
 # Utilities
-blake2 = { workspace = true, default-features = true }
+blake2 = { workspace = true }
 keyring = { workspace = true }
-regex = { workspace = true, default-features = true }
-sha2 = { workspace = true, default-features = true }
-time = { workspace = true, default-features = true }
-uuid = { workspace = true, default-features = true }
+regex = { workspace = true }
+sha2 = { workspace = true }
+time = { workspace = true }
+uuid = { workspace = true }
 
 # Serialization
-arrow-array = { workspace = true, default-features = true }
-arrow-schema = { workspace = true, default-features = true }
-arrow-select = { workspace = true, default-features = true }
-base64 = { workspace = true, default-features = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+arrow-select = { workspace = true }
+base64 = { workspace = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true, features = ["jpeg", "png"] }
-prost = { workspace = true, default-features = true }
-serde = { workspace = true, default-features = true }
+prost = { workspace = true }
+serde = { workspace = true }
 serde_arrow = { workspace = true }
-serde_json = { workspace = true, default-features = true }
-toml = { workspace = true, default-features = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
 
 # Filesystem
-tempfile = { workspace = true, default-features = true }
+tempfile = { workspace = true }
 walkdir = { workspace = true }
 zip = { workspace = true }
 
 # Parsing
-cssparser = { workspace = true, default-features = true }
+cssparser = { workspace = true }
 
 # Async
-async-trait = { workspace = true, default-features = true }
-futures-util = { workspace = true, default-features = true }
-tokio = { workspace = true, default-features = true }
-tokio-util = { workspace = true, default-features = true, features = ["io"] }
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true, features = ["io"] }
 
 # Networking
 rustls-platform-verifier = { workspace = true }
@@ -101,14 +101,14 @@ suppaftp = { workspace = true, features = ["tokio", "tokio-rustls-ring"] }
 
 # UI
 cpal = { workspace = true, optional = true }
-nokhwa = { workspace = true, optional = true, features = ["decoding", "input-native"] }
+nokhwa = { workspace = true, optional = true, features = ["input-native"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Networking
-url = { workspace = true, optional = true, features = ["std"] }
+url = { workspace = true, optional = true }
 
 # UI
-ashpd = { workspace = true, optional = true, features = ["screenshot", "tokio"] }
+ashpd = { workspace = true, optional = true, features = ["screenshot"] }
 
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
 # UI
@@ -117,13 +117,13 @@ xcap = { workspace = true, optional = true }
 [dev-dependencies]
 
 # Logging
-tracing-subscriber = { workspace = true, default-features = true }
+tracing-subscriber = { workspace = true }
 
 # Serialization
-serde_json = { workspace = true, default-features = true }
+serde_json = { workspace = true }
 
 # Async
-tokio = { workspace = true, default-features = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util"] }
 
 # Networking
 libunftp = { workspace = true, features = ["ring"] }
@@ -134,7 +134,7 @@ unftp-sbe-fs = { workspace = true }
 rusqlite = { workspace = true }
 
 # Testing
-criterion = { workspace = true, default-features = true }
+criterion = { workspace = true }
 
 [[bench]]
 name = "runtime"
