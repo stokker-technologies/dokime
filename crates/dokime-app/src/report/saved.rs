@@ -156,6 +156,9 @@ impl RuntimeHandle {
         outputs: QueryValue<Vec<ExecutionOutput>>,
     ) -> Result<PreparedExecutionReport> {
         outputs.check_origin(self.storage())?;
+        if let Some(reason) = self.providers.final_report_refusal(snapshot.execution()) {
+            return Err(Error::InvalidReportInputs(reason));
+        }
         let html = HtmlReport::from_snapshot(self, snapshot, true).await?;
         if html.captured_input()?.owner_node_id != self.state_read().identity.node.node_id {
             return Err(Error::InvalidReportInputs(

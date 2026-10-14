@@ -21,7 +21,7 @@ use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
 // Local Imports
 use crate::{
     evidence::{ArtifactUploadInput, PublishReceipt, RecordPublishRequest},
-    execution::{CycleStatus, CycleView},
+    execution::{CycleStatus, CycleView, TestExecution},
     execution_runtime::authoring::{ExecutionFileTarget, SidecarStepContext},
     handle::RuntimeHandle,
     state::RuntimeState,
@@ -76,6 +76,14 @@ pub trait ExecutionFixture: Send + Sync + 'static {
         cycle: &'a CycleView,
         target: &'a ExecutionProviderTarget,
     ) -> ExecutionFixtureFuture<'a>;
+
+    /// Refuses One Execution's Final Report Before It Is Materialized.
+    ///
+    /// A refusal is a permanent finalization failure: the execution is never
+    /// sealed while this fixture serves the runtime.
+    fn refuse_final_report(&self, _execution: &TestExecution) -> Option<String> {
+        None
+    }
 }
 
 /* === Implementations === */
@@ -308,6 +316,13 @@ impl ProviderExecutorRegistry {
             .get(&target.source)
             .cloned()
             .or_else(|| Some(Arc::clone(&self.sidecar)))
+    }
+
+    /// The First Fixture Refusal Of An Execution's Final Report, If Any.
+    pub(crate) fn final_report_refusal(&self, execution: &TestExecution) -> Option<String> {
+        self.fixtures
+            .values()
+            .find_map(|fixture| fixture.refuse_final_report(execution))
     }
 }
 

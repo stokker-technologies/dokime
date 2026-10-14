@@ -19,12 +19,17 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::*;
+use dokime::domains::ExecutionProviderTarget;
+use dokime_app::capabilities::execution::provider::{
+    ExecutionFixtureContext, ExecutionFixtureFuture,
+};
 use dokime_app::capabilities::execution::requests::RunPhase;
+use dokime_app::execution::{CycleView, TestExecution};
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */
-/// Read budget that boots and runs a case but cannot materialize its report.
-const STARVED_READ_BYTES: usize = 896 * 1024;
+/// Why the first runtime refuses every final execution report.
+const UNENCODABLE: &str = "fixture report cannot be encoded";
 
 /// How a permanent execution finalization failure opens its diagnosis.
 const UNSEALED: &str = "final execution report was not sealed";
@@ -34,12 +39,28 @@ const UNSEALED: &str = "final execution report was not sealed";
 /* === Type Aliases === */
 
 /* === Structs === */
+/// Runs every case passed, then refuses to materialize its final report.
+struct UnencodableReport(FakePythonExecutor);
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl ExecutionFixture for UnencodableReport {
+    fn run_cycle<'a>(
+        &'a self,
+        context: ExecutionFixtureContext,
+        cycle: &'a CycleView,
+        target: &'a ExecutionProviderTarget,
+    ) -> ExecutionFixtureFuture<'a> {
+        self.0.run_cycle(context, cycle, target)
+    }
+
+    fn refuse_final_report(&self, _: &TestExecution) -> Option<String> {
+        Some(UNENCODABLE.to_owned())
+    }
+}
 
 /* === Public Functions === */
 
@@ -277,14 +298,14 @@ pub(crate) async fn terminal_capture_repaired() {
 }
 
 // a permanent finalization failure settles the cycle Failed with its cause, and a
-// rerun of the same case under a restored budget runs and seals.
+// rerun of the same case on a runtime that can encode its report runs and seals.
 pub(crate) async fn permanent_finalization_settles() {
     let root = tempdir().unwrap();
-    let mut starved = config(root.path());
-    starved.storage_reads.execution.memory_bytes =
-        std::num::NonZeroUsize::new(STARVED_READ_BYTES).unwrap();
-    let (mut owner, runtime) =
-        started_with_fixture(starved, Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let (mut owner, runtime) = started_with_fixture(
+        config(root.path()),
+        Arc::new(UnencodableReport(FakePythonExecutor::fixed("passed"))),
+    )
+    .await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite.clone(), false).await;
@@ -294,8 +315,8 @@ pub(crate) async fn permanent_finalization_settles() {
         .await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
 
-    // The report can never be read back under this budget. The watch stream
-    // reports the cycle Failed instead of Running forever.
+    // The report can never be encoded. The watch stream reports the cycle
+    // Failed instead of Running forever.
     let terminal = tokio::time::timeout(
         Duration::from_secs(60),
         watch.wait_until(|snapshot| {
@@ -329,13 +350,19 @@ pub(crate) async fn permanent_finalization_settles() {
             .is_some_and(|cause| cause.starts_with(UNSEALED)),
         "the watch stream carries the terminal diagnosis: {diagnosis:?}"
     );
+    assert!(
+        diagnosis
+            .as_deref()
+            .is_some_and(|cause| cause.contains(UNENCODABLE)),
+        "the diagnosis names the injected cause: {diagnosis:?}"
+    );
     drop(terminal);
     drop(runtime);
     owner.shutdown().await.unwrap();
 
-    // Restore the budget on the same store. The failure stays terminal and its
-    // cause durable: in the receipt, and as evidence scoped to the execution
-    // and to the cycle.
+    // Restart on the same store with a fixture whose reports encode. The
+    // failure stays terminal and its cause durable: in the receipt, and as
+    // evidence scoped to the execution and to the cycle.
     let (mut owner, runtime) = started_with_fixture(
         config(root.path()),
         Arc::new(FakePythonExecutor::fixed("passed")),
@@ -415,7 +442,7 @@ pub(crate) async fn permanent_finalization_settles() {
         }
     })
     .await
-    .expect("the rerun cycle seals under the restored budget");
+    .expect("the rerun cycle seals once its reports encode");
     let original = &rerun.test_executions[0];
     assert_eq!(original.test_execution_id, failed_id);
     assert_eq!(original.status, ExecutionStatus::Failed);
