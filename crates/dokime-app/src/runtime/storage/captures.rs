@@ -7,9 +7,10 @@
  * ***
  */
 
-// Running captures per execution. Closing an execution's outputs first asks
-// each of its captures to stop and seal, so a recording becomes an artifact of
-// that execution instead of outliving its admission.
+// Running captures (media recordings, file watches) per execution. Closing an
+// execution's outputs first asks each of its captures to stop and seal, so a
+// capture becomes an artifact of that execution instead of outliving its
+// admission.
 
 /* === Modules === */
 
@@ -41,7 +42,7 @@ const SEAL_DEADLINE: Duration = Duration::from_secs(60);
 
 /* === Type Aliases === */
 // Asks a capture to seal now; it answers once its artifact is stored.
-pub(super) type SealRequest = oneshot::Sender<oneshot::Sender<()>>;
+pub(crate) type SealRequest = oneshot::Sender<oneshot::Sender<()>>;
 
 /* === Structs === */
 #[derive(Default)]
@@ -56,7 +57,7 @@ pub(crate) struct Captures {
 
 /* === Implementations === */
 impl Captures {
-    pub(super) fn register(&self, execution: &TestExecutionId, seal: SealRequest) -> u64 {
+    pub(crate) fn register(&self, execution: &TestExecutionId, seal: SealRequest) -> u64 {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
         self.open
             .lock()
@@ -67,7 +68,7 @@ impl Captures {
         id
     }
 
-    pub(super) fn release(&self, execution: &TestExecutionId, id: u64) {
+    pub(crate) fn release(&self, execution: &TestExecutionId, id: u64) {
         let mut open = self
             .open
             .lock()

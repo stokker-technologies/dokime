@@ -58,8 +58,8 @@ pub mod prelude {
     pub use super::suites::*;
     pub use super::waits::*;
     pub use super::{
-        assert_wall_clock, blocked_cycle, booted, booted_with_fixture, config, identifier,
-        metadata, started, started_with_fixture, started_with_fixtures, wifi_config,
+        assert_wall_clock, blocked_cycle, blocked_cycle_with, booted, booted_with_fixture, config,
+        identifier, metadata, started, started_with_fixture, started_with_fixtures, wifi_config,
     };
 }
 

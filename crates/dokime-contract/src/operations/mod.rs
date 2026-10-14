@@ -18,6 +18,7 @@ pub mod cursor;
 pub mod documents;
 pub mod evidence;
 pub mod execution;
+pub mod files;
 pub mod history;
 pub mod media;
 pub mod notes;
@@ -113,6 +114,8 @@ pub enum Operations {
     Evidence(evidence::Operations),
     #[nested]
     Execution(execution::Operations),
+    #[nested]
+    Files(files::Operations),
     #[nested]
     History(history::Operations),
     #[nested]

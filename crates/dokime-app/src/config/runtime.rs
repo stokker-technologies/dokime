@@ -52,6 +52,9 @@ pub struct RuntimeConfig {
     pub local_retention: Option<Duration>,
     pub hub_metadata: Metadata,
     pub credential_backend: RuntimeCredentialConfig,
+    // A trusted bench is an isolated network where plain FTP sources are accepted.
+    #[serde(default)]
+    pub trusted_bench: bool,
     #[serde(skip)]
     pub installed_plugins: Vec<InstalledPlugin>,
     #[serde(default)]
@@ -103,6 +106,7 @@ impl RuntimeConfig {
             application_root: storage_root.join("application"),
             hub_metadata,
             credential_backend: RuntimeCredentialConfig::default(),
+            trusted_bench: false,
             installed_plugins: Vec::new(),
             plugins: Vec::new(),
             plugin_lookup: None,
@@ -124,6 +128,11 @@ impl RuntimeConfig {
 
     pub fn with_credential_backend(mut self, backend: RuntimeCredentialConfig) -> Self {
         self.credential_backend = backend;
+        self
+    }
+
+    pub fn with_trusted_bench(mut self, trusted: bool) -> Self {
+        self.trusted_bench = trusted;
         self
     }
 

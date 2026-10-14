@@ -13,6 +13,7 @@ mod artifact_inventory;
 mod artifact_reads;
 pub(crate) mod artifacts;
 mod assembly;
+pub(crate) mod captures;
 pub(crate) mod context_records;
 pub(crate) mod cycle;
 mod cycle_finalization;

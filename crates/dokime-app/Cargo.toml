@@ -82,6 +82,7 @@ toml = { workspace = true, default-features = true }
 
 # Filesystem
 tempfile = { workspace = true, default-features = true }
+walkdir = { workspace = true }
 zip = { workspace = true }
 
 # Parsing
@@ -92,6 +93,10 @@ async-trait = { workspace = true, default-features = true }
 futures-util = { workspace = true, default-features = true }
 tokio = { workspace = true, default-features = true }
 tokio-util = { workspace = true, default-features = true, features = ["io"] }
+
+# Networking
+rustls-platform-verifier = { workspace = true }
+suppaftp = { workspace = true, features = ["tokio", "tokio-rustls-ring"] }
 
 # Storage
 
@@ -123,6 +128,11 @@ serde_json = { workspace = true, default-features = true }
 
 # Async
 tokio = { workspace = true, default-features = true, features = ["test-util"] }
+
+# Networking
+libunftp = { workspace = true, features = ["ring"] }
+unftp-core = { workspace = true }
+unftp-sbe-fs = { workspace = true }
 
 # Storage
 rusqlite = { workspace = true }

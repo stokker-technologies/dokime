@@ -33,7 +33,7 @@ use tempfile::TempPath;
 use tokio::sync::oneshot;
 
 // Local Imports
-use super::captures::SealRequest;
+use crate::runtime::storage::captures::SealRequest;
 use crate::{Error, Result, RuntimeHandle};
 use dokime::artifacts::ArtifactRecord;
 use dokime::core::RecordScope;

@@ -13,12 +13,10 @@
 /* === Modules === */
 mod audio;
 mod camera;
-mod captures;
 mod screen;
 
 /* === Re-Exports === */
 pub use audio::AudioRecording;
-pub(crate) use captures::Captures;
 
 /* === Imports === */
 

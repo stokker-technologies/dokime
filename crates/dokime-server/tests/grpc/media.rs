@@ -273,7 +273,7 @@ pub(crate) async fn media_capture_artifacts() {
 }
 
 /* === Private Functions === */
-async fn running_execution(
+pub(super) async fn running_execution(
     owner: &Runtime,
     client: &WireClient,
     gate: &UploadGate,

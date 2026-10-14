@@ -13,6 +13,7 @@ pub(crate) mod documents;
 pub mod evidence;
 pub mod execution;
 pub mod exports;
+pub mod files;
 pub mod installed_plugins;
 pub mod media;
 pub mod parameters;

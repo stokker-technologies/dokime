@@ -171,6 +171,17 @@ matrix! {
     "/dokime.v1.Execution/ScheduleCaseRerun", unary, contracts::execution::ScheduleCaseRerun;
     "/dokime.v1.Execution/StopCycle", unary, contracts::execution::StopCycle;
     "/dokime.v1.Execution/UpdateCyclePolicy", unary, contracts::execution::UpdateCyclePolicy;
+    "/dokime.v1.Files/FileWatch", download, contracts::files::FileWatch = contracts::files::FileWatchRequest {
+        execution_id: None,
+        source: None,
+        rules: Vec::new(),
+        output: String::new(),
+        policy: contracts::files::FileWatchPolicy::Unspecified,
+        poll_interval_ms: None,
+        maximum_seconds: None,
+        maximum_files: None,
+        maximum_bytes: None,
+    };
     "/dokime.v1.Health/ListHealth", unary, contracts::notes::ListHealth;
     "/dokime.v1.History/BrowseExecutions", unary, contracts::history::BrowseExecutions;
     "/dokime.v1.History/DeleteExecution", unary, contracts::history::DeleteExecution;
@@ -427,13 +438,14 @@ pub(crate) async fn remote_refuses_local() {
         .await
         .unwrap();
 
-    // Media Capture And Host Paths Stay On The Loopback Listener
+    // Media Capture, File Watches And Host Paths Stay On The Loopback Listener
     let local_only = [
         "/dokime.v1.Media/Screenshot",
         "/dokime.v1.Media/Photo",
         "/dokime.v1.Media/AudioRecording",
         "/dokime.v1.Media/ScreenRecording",
         "/dokime.v1.Media/CameraRecording",
+        "/dokime.v1.Files/FileWatch",
         "/dokime.v1.Content/GetCycleFolderPath",
     ];
     for case in cases().filter(|case| local_only.contains(&case.path)) {

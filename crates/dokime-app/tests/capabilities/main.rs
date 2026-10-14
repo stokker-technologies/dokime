@@ -11,6 +11,7 @@
 pub(crate) mod documents;
 pub(crate) mod evidence;
 pub(crate) mod execution;
+pub(crate) mod files;
 pub(crate) mod installed_plugins;
 #[path = "../support/mod.rs"]
 pub mod support;
@@ -888,6 +889,39 @@ fn execution_contract() {
             None,
             false,
         );
+    }
+}
+
+#[test]
+fn files_contract() {
+    {
+        eprintln!("Scenario: files::watch::stream_local_tree");
+        run_scenario(files::watch::stream_local_tree, true, None, false);
+    }
+    {
+        eprintln!("Scenario: files::watch::mirror_local_tree");
+        run_scenario(files::watch::mirror_local_tree, true, None, false);
+    }
+    {
+        eprintln!("Scenario: files::watch::snapshot_local_tree");
+        run_scenario(files::watch::snapshot_local_tree, true, None, false);
+    }
+    {
+        eprintln!("Scenario: files::watch::watch_refusals");
+        run_scenario(files::watch::watch_refusals, true, None, false);
+    }
+    #[cfg(unix)]
+    {
+        eprintln!("Scenario: files::watch::mirror_keeps_last_copy");
+        run_scenario(files::watch::mirror_keeps_last_copy, true, None, false);
+    }
+    {
+        eprintln!("Scenario: files::watch::execution_seals_watch");
+        run_scenario(files::watch::execution_seals_watch, true, None, false);
+    }
+    {
+        eprintln!("Scenario: files::ftp::stream_ftp_source");
+        run_scenario(files::ftp::stream_ftp_source, true, None, false);
     }
 }
 

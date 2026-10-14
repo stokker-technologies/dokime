@@ -30,6 +30,9 @@ thiserror = { workspace = true, default-features = true }
 tracing-error = { workspace = true, default-features = true }
 tracing = { workspace = true, default-features = true }
 
+# Filesystem
+globset = { workspace = true }
+
 # Utilities
 regex = { workspace = true, default-features = true }
 sha2 = { workspace = true, default-features = true }
