@@ -445,10 +445,13 @@ pub(crate) fn stages_foreign_finish() {
     runtime.block_on(fixture.close());
 }
 
+/// Cancelling An Owner Ends Its Live Stream Cancelled And Leaves The Backend Healthy.
 pub(crate) async fn owner_cancellation_health() {
     use tauri::Manager;
 
-    let fixture = Fixture::new().await;
+    // Staging is an administrator operation: under any lesser role the call
+    // fails on its own before the cancellation reaches it.
+    let fixture = Fixture::with_role(dokime_server::grpc::access::Role::Admin).await;
     let harness = Harness::new(fixture.session.clone());
     let generation = fixture.generation();
     let (stream, channel) = harness
