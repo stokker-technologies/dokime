@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub(crate) mod declared;
 pub(crate) mod sampling;
 pub(crate) mod shared;
 

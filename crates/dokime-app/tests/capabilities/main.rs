@@ -988,6 +988,33 @@ fn execution_contract() {
             false,
         );
     }
+    {
+        eprintln!("Scenario: telemetry::declared::template_declarations_register");
+        run_scenario(
+            telemetry::declared::template_declarations_register,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: telemetry::declared::conflicting_record_refused");
+        run_scenario(
+            telemetry::declared::conflicting_record_refused,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: telemetry::declared::conflicting_prompt_refused");
+        run_scenario(
+            telemetry::declared::conflicting_prompt_refused,
+            false,
+            None,
+            false,
+        );
+    }
 }
 
 #[test]
