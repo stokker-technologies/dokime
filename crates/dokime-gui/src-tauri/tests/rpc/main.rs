@@ -25,12 +25,12 @@ use std::{
 // Third Party Imports
 
 // Local Imports
+use bridge::{Harness, Local, fenced};
 use dokime_app::{
     Runtime, RuntimeConfig,
     core::{Identifier, Metadata},
 };
 use dokime_contract::operations::{backend, execution, plugins, value};
-use bridge::{Harness, Local, fenced};
 use dokime_gui::{
     connection::ConnectionSession,
     rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES},
@@ -364,7 +364,10 @@ fn stage(harness: &Harness, generation: u64, bytes: &[u8], label: &str) -> Vec<V
     const CHUNK_BYTES: usize = 256 * 1024;
     let sha256 = hex(&sha2::Sha256::digest(bytes));
     let chunk_count = bytes.len().div_ceil(CHUNK_BYTES);
-    eprintln!("[bridge]{label} bundle bytes: {}, chunks: {chunk_count}", bytes.len());
+    eprintln!(
+        "[bridge]{label} bundle bytes: {}, chunks: {chunk_count}",
+        bytes.len()
+    );
 
     let open_started = std::time::Instant::now();
     let (stream, channel) = harness
@@ -430,7 +433,10 @@ pub(crate) async fn refuses_invalid_dispatch() {
             (vec![0; 40], "incompatible_descriptor"),
             (vec![0; MAX_FRAME_BYTES + 40 + 1], "limit_exceeded"),
         ] {
-            assert_eq!(invoke(&harness.window, command, bytes).unwrap_err()["kind"], kind);
+            assert_eq!(
+                invoke(&harness.window, command, bytes).unwrap_err()["kind"],
+                kind
+            );
         }
         for path in [None, Some("dokime.v1.Backend/GetHealth"), Some("/a/b/c")] {
             let headers = path.map_or(json!({}), |path| json!({"dokime-rpc-path": path}));
@@ -512,7 +518,10 @@ pub(crate) async fn unary_bridge() {
     let tauri::ipc::InvokeResponseBody::Raw(reply) = reply else {
         panic!("a unary reply is raw bytes");
     };
-    assert_eq!(u64::from_le_bytes(reply[..8].try_into().unwrap()), generation);
+    assert_eq!(
+        u64::from_le_bytes(reply[..8].try_into().unwrap()),
+        generation
+    );
     let identity = backend::BackendIdentity::decode(&reply[8..]).unwrap();
     assert_eq!(
         identity.backend_id,
@@ -527,7 +536,10 @@ pub(crate) async fn unary_bridge() {
     )
     .unwrap_err();
     assert_eq!(missing["kind"], "grpc");
-    assert_eq!(missing["detail"]["code"], tonic::Code::PermissionDenied as i32);
+    assert_eq!(
+        missing["detail"]["code"],
+        tonic::Code::PermissionDenied as i32
+    );
     fixture.close().await;
 }
 
@@ -624,8 +636,7 @@ pub(crate) async fn owner_cancellation_health() {
         "unknown_stream"
     );
     let frames = harness.settle(channel, Duration::from_secs(10));
-    let error: serde_json::Value =
-        serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
+    let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
     assert_eq!(error["kind"], "cancelled");
     let client = dokime_client::Client::connect(
         dokime_client::Target::local(fixture.server.local_endpoint()).unwrap(),
@@ -659,10 +670,12 @@ pub(crate) async fn generation_fences_streams() {
     fixture.session.disconnect().unwrap();
     let frames = harness.settle(channel, Duration::from_secs(10));
     for frame in &frames {
-        assert_eq!(u64::from_le_bytes(frame[..8].try_into().unwrap()), generation);
+        assert_eq!(
+            u64::from_le_bytes(frame[..8].try_into().unwrap()),
+            generation
+        );
     }
-    let error: serde_json::Value =
-        serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
+    let error: serde_json::Value = serde_json::from_slice(&frames.last().unwrap()[9..]).unwrap();
     assert_eq!(error["detail"]["kind"], "superseded");
     assert_eq!(
         bridge::invoke(
