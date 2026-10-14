@@ -318,25 +318,13 @@ function livePlotSpec({
           : state.status === "stale"
             ? "The last samples remain visible while the plot stream reconnects."
             : spec.stateDetail));
-  const diagnostics = state.diagnostics
-    ? `${state.diagnostics.point_count} delta points`
-    : undefined;
-
+  // Frame sizes and compaction counts are transport diagnostics, not plot
+  // context; they stay out of what an operator reads under a title.
   return {
     ...spec,
     stateLabel: label,
     stateDetail: detail,
-    contextSummary: compactPlotContext([
-      spec.contextSummary,
-      state.status === "live" ? diagnostics : undefined,
-      state.droppedBatches ? `${state.droppedBatches} compacted batches` : undefined,
-    ]),
   };
-}
-
-function compactPlotContext(parts: Array<string | undefined>): string | undefined {
-  const values = parts.filter((part): part is string => Boolean(part));
-  return values.length ? values.join(" - ") : undefined;
 }
 
 function plotHasNumericSamples(plot: PlotCardSpec): boolean {
