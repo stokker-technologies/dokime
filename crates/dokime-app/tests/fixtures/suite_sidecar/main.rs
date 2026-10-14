@@ -79,6 +79,10 @@ struct Config {
         description = "Pushes this many rows onto the template's own pulse stream, so the host replays and finalizes a case whose evidence spans many storage pages."
     )]
     pulse_rows: u32,
+    #[setting(
+        description = "Logs this many lines from the check step, so every execution owns a sidecar stream log the host seals as a native output when the cycle finishes."
+    )]
+    log_lines: u32,
 }
 
 #[dokime::settings]
@@ -127,6 +131,7 @@ struct Behaviour {
     block_execution: bool,
     execution_release: String,
     pulse_rows: u32,
+    log_lines: u32,
 }
 
 struct GetBehaviour {
@@ -249,6 +254,7 @@ impl GetBehaviour {
             block_execution: self.config.block_execution,
             execution_release: path(&self.config.execution_release),
             pulse_rows: self.config.pulse_rows,
+            log_lines: self.config.log_lines,
         })
     }
 }
@@ -295,6 +301,9 @@ impl Smoke {
                 &self.behaviour.execution_marker,
                 std::env::current_exe()?.to_string_lossy().as_bytes(),
             )?;
+        }
+        for line in 0..self.behaviour.log_lines {
+            tracing::info!(line, "fixture check logged");
         }
         if self.behaviour.pulse_rows > 0 {
             let pulse = ctx.stream::<Pulse>().open();

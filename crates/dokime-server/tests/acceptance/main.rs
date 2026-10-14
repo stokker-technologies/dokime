@@ -1712,7 +1712,7 @@ async fn independent_sidecar_modes() {
         .await
         .err()
         .expect("independent sidecar refuses the wrong request shape");
-    assert_eq!(refusal.code(), tonic::Code::InvalidArgument);
+    assert_eq!(refusal.code(), tonic::Code::InvalidArgument, "{refusal:?}");
     // Read The Actual Sidecar Counter Through Its Unary Handler.
     let counter = allowed
         .call_operation(ids[0], Some(OWNER), b"{\"value\":0}", vec![])

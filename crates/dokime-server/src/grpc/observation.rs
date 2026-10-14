@@ -394,9 +394,10 @@ fn progress_frame(
     wire::ExecutionProgressFrame {
         revision,
         resynchronized,
+        // Exact Allocations: Display Formatting Overallocates Past The Reserved Bytes
         progress: value.map(|value| wire::ExecutionProgress {
-            test_execution_id: value.test_execution_id.to_string(),
-            step_id: value.step.to_string(),
+            test_execution_id: value.test_execution_id.as_str().to_owned(),
+            step_id: value.step.as_str().to_owned(),
             phase: value.progress.phase.clone(),
             completed: value.progress.completed,
             total: value.progress.total,

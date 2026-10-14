@@ -336,6 +336,70 @@ pub(crate) async fn checkpoints_advance_boundaries() {
     backend.close().await.unwrap();
 }
 
+/// A storage flush captures checkpoints of producing files and persists them
+/// after its data barrier, so a checkpoint can arrive after a longer save, the
+/// production's completion, its abandonment or its deletion. Each is a no-op;
+/// a fenced generation, a different identity or bytes past completion refuse.
+pub(crate) async fn late_checkpoints_settle() {
+    let root = tempfile::tempdir().unwrap();
+    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+        .await
+        .unwrap();
+    let bytes = b"abcdef";
+
+    let metadata = metadata("late-longer");
+    let file = backend.create_production(&metadata).await.unwrap();
+    backend.write_file(&file, 0, bytes).await.unwrap();
+    let longer = checkpoint(metadata.clone(), &file, 1, bytes);
+    let shorter = checkpoint(metadata.clone(), &file, 1, &bytes[..3]);
+    backend.save_production(&longer).await.unwrap();
+    backend.save_production(&shorter).await.unwrap();
+    let other = checkpoint(self::metadata("late-other"), &file, 1, bytes);
+    assert!(backend.save_production(&other).await.is_err());
+
+    let finished_metadata = self::metadata("late-finished");
+    let finished = backend.create_production(&finished_metadata).await.unwrap();
+    backend.write_file(&finished, 0, bytes).await.unwrap();
+    let staged = checkpoint(finished_metadata.clone(), &finished, 1, &bytes[..3]);
+    let position = StorageCursor {
+        history: finished.history.clone(),
+        sequence: 1,
+    };
+    backend
+        .finish_file(&finished, &position, 6, Sha256::digest(bytes).into())
+        .await
+        .unwrap();
+    backend.save_production(&staged).await.unwrap();
+    backend
+        .save_production(&checkpoint(finished_metadata.clone(), &finished, 1, bytes))
+        .await
+        .unwrap();
+    let beyond = checkpoint(finished_metadata.clone(), &finished, 1, b"abcdefg");
+    assert!(backend.save_production(&beyond).await.is_err());
+    let fenced = checkpoint(finished_metadata, &finished, 2, &bytes[..3]);
+    assert!(backend.save_production(&fenced).await.is_err());
+
+    let abandoned_metadata = self::metadata("late-abandoned");
+    let abandoned = backend
+        .create_production(&abandoned_metadata)
+        .await
+        .unwrap();
+    backend.write_file(&abandoned, 0, bytes).await.unwrap();
+    backend.abandon_file(&abandoned).await.unwrap();
+    let staged = checkpoint(abandoned_metadata, &abandoned, 1, bytes);
+    backend.save_production(&staged).await.unwrap();
+    backend.delete_file(&abandoned).await.unwrap();
+    backend.save_production(&staged).await.unwrap();
+    backend.close().await.unwrap();
+
+    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+        .await
+        .unwrap();
+    let recovered = backend.recover_productions(limits()).await.unwrap();
+    assert_eq!(recovered, [longer]);
+    backend.close().await.unwrap();
+}
+
 pub(crate) async fn recovery_charges_limits() {
     let root = tempfile::tempdir().unwrap();
     let backend = Backend::<()>::primary(
