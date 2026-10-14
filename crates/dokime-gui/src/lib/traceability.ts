@@ -45,7 +45,46 @@ type TraceabilitySnapshotInput<TScope> = {
   created_at: string;
 };
 
+/** Names the execution a traceability export belongs to. */
+export type TraceabilityExportName = {
+  cycleLabel: string;
+  executionOrdinal: number;
+};
+
 /* === Public Functions === */
+
+/**
+ * The traceability a card renders, as indented JSON.
+ *
+ * Groups and rows keep the card's order, stated sections included. Values stay
+ * raw rather than formatted, and every row is kept: the card caps a derived
+ * group for reading, an export does not.
+ */
+export function traceabilityJson(snapshot: TraceabilitySnapshot | null | undefined): string {
+  const groups = (snapshot?.groups ?? []).map((group) => ({
+    title: group.title,
+    ...(group.summary ? { summary: group.summary } : {}),
+    rows: group.items.map((item) => ({
+      label: item.label,
+      value: item.value,
+      ...(item.unit ? { unit: item.unit } : {}),
+      ...(typeof item.details.identifier === "string"
+        ? { identifier: item.details.identifier }
+        : {}),
+      ...(typeof item.details.source === "string" ? { source: item.details.source } : {}),
+    })),
+  }));
+  const warnings = snapshot?.warnings ?? [];
+
+  return JSON.stringify({ groups, ...(warnings.length ? { warnings } : {}) }, null, 2);
+}
+
+/** `<cycle label>-<execution ordinal>-traceability.json`, safe as a filename. */
+export function traceabilityJsonFilename(name: TraceabilityExportName | null | undefined): string {
+  const cycle = name ? filenameStem(name.cycleLabel) : "";
+  const stem = name && cycle ? `${cycle}-${name.executionOrdinal}` : "execution";
+  return `${stem}-traceability.json`;
+}
 
 export function traceabilitySnapshotFromItems<TScope>(
   items: TraceabilitySnapshotInput<TScope>[],
@@ -470,6 +509,14 @@ function normalizeTraceabilityKey(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/gu, "_")
     .replace(/^_+|_+$/gu, "");
+}
+
+function filenameStem(value: string): string {
+  return value
+    .trim()
+    .replace(/[\\/:*?"<>|\p{Cc}]+/gu, "")
+    .replace(/\s+/gu, "-")
+    .replace(/^[.-]+|[.-]+$/gu, "");
 }
 
 function isHeadUnitGroup(title: string): boolean {

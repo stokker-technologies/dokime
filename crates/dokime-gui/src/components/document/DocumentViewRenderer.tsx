@@ -16,9 +16,9 @@ import type { ReactNode } from "react";
 import { DocumentGrid } from "@/components/document/Document";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  documentCardForPlacement,
   documentCardLayoutAttributes,
   documentCardLayoutStyle,
-  documentCardForPlacement,
   documentNodeHasCards,
 } from "@/lib/document-layout";
 import type {
@@ -37,9 +37,13 @@ import { cn } from "@/lib/utils";
 /** Renders one card; `section` is the enclosing section, absent at the top level. */
 export type DocumentCardRenderer = (card: DocumentViewCard, section: Metadata | null) => ReactNode;
 
+/** An optional control beside a card's title; `null` leaves the header as it is. */
+export type DocumentCardActionRenderer = (card: DocumentViewCard) => ReactNode;
+
 type DocumentViewRendererProps = {
   document: DocumentViewPayload | null | undefined;
   renderCard: DocumentCardRenderer;
+  cardAction?: DocumentCardActionRenderer;
   cardFilter?: (card: DocumentViewCard) => boolean;
   cardChrome?: (card: DocumentViewCard) => DocumentBlockChrome;
   emptyMessage?: ReactNode;
@@ -51,6 +55,7 @@ type DocumentBlockChrome = "normal" | "embedded" | "flat";
 type DocumentSectionChrome = "plain" | "grouped" | "card";
 
 type DocumentViewBlockProps = {
+  action?: ReactNode;
   card: DocumentViewCard;
   children: ReactNode;
   chrome?: DocumentBlockChrome;
@@ -61,6 +66,7 @@ type DocumentViewBlockProps = {
 
 export function DocumentViewRenderer({
   document,
+  cardAction,
   cardChrome = defaultCardChrome,
   renderCard,
   cardFilter = () => true,
@@ -91,6 +97,7 @@ export function DocumentViewRenderer({
       {layoutNodes.length ? (
         layoutNodes.map((node) => (
           <DocumentLayoutNodeBlock
+            cardAction={cardAction}
             cardFilter={cardFilter}
             cardMap={cardMap}
             chrome={sectionChrome}
@@ -112,6 +119,7 @@ export function DocumentViewRenderer({
 }
 
 function DocumentLayoutNodeBlock({
+  cardAction,
   cardFilter,
   cardMap,
   chrome,
@@ -120,6 +128,7 @@ function DocumentLayoutNodeBlock({
   resolvedCardChrome,
   section: parent,
 }: {
+  cardAction?: DocumentCardActionRenderer;
   cardFilter: (card: DocumentViewCard) => boolean;
   cardMap: Map<string, DocumentViewCard>;
   chrome: DocumentSectionChrome;
@@ -135,7 +144,12 @@ function DocumentLayoutNodeBlock({
     }
 
     return (
-      <DocumentViewBlock card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
+      <DocumentViewBlock
+        action={cardAction?.(card)}
+        card={card}
+        chrome={resolvedCardChrome(card)}
+        key={card.card_id}
+      >
         {renderCard(card, parent)}
       </DocumentViewBlock>
     );
@@ -148,7 +162,12 @@ function DocumentLayoutNodeBlock({
     const card = documentCardForPlacement(cardMap, onlyChild);
     if (card && sameLabel(node.metadata.label, card.title)) {
       return cardFilter(card) ? (
-        <DocumentViewBlock card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
+        <DocumentViewBlock
+          action={cardAction?.(card)}
+          card={card}
+          chrome={resolvedCardChrome(card)}
+          key={card.card_id}
+        >
           {renderCard(card, node.metadata)}
         </DocumentViewBlock>
       ) : null;
@@ -159,6 +178,7 @@ function DocumentLayoutNodeBlock({
     .filter((child) => documentNodeHasCards(child, cardMap, cardFilter))
     .map((child) => (
       <DocumentLayoutNodeBlock
+        cardAction={cardAction}
         cardFilter={cardFilter}
         cardMap={cardMap}
         chrome={chrome}
@@ -191,6 +211,7 @@ function DocumentLayoutNodeBlock({
 }
 
 export function DocumentViewBlock({
+  action,
   card,
   children,
   chrome = "normal",
@@ -218,7 +239,16 @@ export function DocumentViewBlock({
               {documentCardEyebrow(card)}
             </p>
           )}
-          <h5 className="truncate text-sm font-semibold">{card.title}</h5>
+          {action ? (
+            /* The control shares the title's row and keeps its height, so a
+               card with an action lines up with one without. */
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+              <h5 className="truncate text-sm font-semibold">{card.title}</h5>
+              <div className="-my-0.5 flex items-center">{action}</div>
+            </div>
+          ) : (
+            <h5 className="truncate text-sm font-semibold">{card.title}</h5>
+          )}
           {card.metadata?.description ? (
             <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
               {card.metadata.description}

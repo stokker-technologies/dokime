@@ -193,8 +193,12 @@ function titleCaseArtifactWord(word: string): string {
 }
 
 /* Dashboard facts read as fixed columns: two decimals until the integer part
- * takes three digits, then none. */
+ * takes three digits, then none. A value too small for two decimals keeps its
+ * significant digits instead: a 1 ms sample interval is not "0.00 s". */
 function dashboardNumber(value: number): string {
+  if (value !== 0 && Math.abs(value) < 0.005) {
+    return String(Number(value.toPrecision(3)));
+  }
   return formatNumber(value, { kind: "fixed", decimals: Math.abs(value) >= 100 ? 0 : 2 });
 }
 

@@ -9,10 +9,9 @@
 
 /* === External Imports === */
 
-import { toast } from "sonner";
-
 /* === Local Imports === */
 
+import { copyTraceabilityText } from "@/components/traceability/clipboard";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /* === Constants === */
@@ -20,9 +19,20 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 /** Values longer than this may be truncated in a row, so the tooltip repeats them. */
 const LONG_VALUE_CHARS = 24;
 
+/* === Types === */
+
+type CopyableTraceabilityValueProps = {
+  value: string;
+};
+
 /* === Components === */
 
-export function CopyableTraceabilityValue({ value }: { value: string }) {
+export function CopyableTraceabilityValue({ value: rawValue }: CopyableTraceabilityValueProps) {
+  /* Coerced once, and only the coerced text is read: a row value crosses JSON
+     and hot reloads, and a missing one renders as empty text rather than
+     throwing inside the tooltip. */
+  const value = String(rawValue ?? "");
+  const long = value.length > LONG_VALUE_CHARS;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -30,7 +40,7 @@ export function CopyableTraceabilityValue({ value }: { value: string }) {
           aria-label={`Copy ${value} to clipboard`}
           className="block min-w-0 max-w-full truncate text-right text-xs font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           onClick={() => {
-            void copyTraceabilityValue(value);
+            void copyTraceabilityText(value);
           }}
           type="button"
         >
@@ -44,22 +54,8 @@ export function CopyableTraceabilityValue({ value }: { value: string }) {
         className="max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal break-all text-left"
         side="top"
       >
-        {value.length > LONG_VALUE_CHARS ? `Copy: ${value}` : "Copy to clipboard"}
+        {long ? `Copy: ${value}` : "Copy to clipboard"}
       </TooltipContent>
     </Tooltip>
   );
-}
-
-/* === Private Functions === */
-
-async function copyTraceabilityValue(value: string): Promise<void> {
-  try {
-    if (!navigator.clipboard?.writeText) {
-      throw new Error("Clipboard API is unavailable.");
-    }
-    await navigator.clipboard.writeText(value);
-    toast.success("Copied to clipboard");
-  } catch {
-    toast.error("Could not copy value");
-  }
 }

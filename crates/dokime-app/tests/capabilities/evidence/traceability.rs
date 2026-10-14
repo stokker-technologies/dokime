@@ -131,6 +131,18 @@ pub(crate) async fn resource_records_absent() {
             .collect::<BTreeMap<_, _>>()
     };
 
+    // The test method reads as the template's own identifier, not its UUID.
+    let definition = grouped("traceability.test_definition");
+    assert_eq!(
+        definition.get("execution.template"),
+        Some(&&Value::from(
+            custom_suite().test_case_templates[0]
+                .metadata
+                .identifier
+                .as_str()
+        ))
+    );
+
     let devices = grouped("traceability.devices.");
     assert_eq!(
         devices.get("resource.tracking_resource_1.device_info.device_type"),

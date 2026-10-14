@@ -23,6 +23,8 @@ import { isDocumentSurfaceCard } from "@/components/document/document-surface-po
 
 import { localArtifactHref } from "@/lib/artifact-tree";
 
+import type { TraceabilityExportName } from "@/lib/traceability";
+
 import type {
   DocumentViewPayload,
   DocumentViewSection,
@@ -52,6 +54,7 @@ type DocumentViewProps = {
   noteElapsedStart: string | null | undefined;
   plotWindow: PlotWindowOption;
   plotWindowOverridden: boolean;
+  traceabilityExportName?: TraceabilityExportName | null;
 };
 
 /* === Components === */
@@ -66,6 +69,7 @@ export function DocumentView({
   noteElapsedStart,
   plotWindow,
   plotWindowOverridden,
+  traceabilityExportName,
 }: DocumentViewProps) {
   const view = useDocumentView({
     document: document ?? null,
@@ -124,6 +128,7 @@ export function DocumentView({
     sections: view.sections,
     stepRecords,
     traceability,
+    traceabilityExportName,
   };
 
   /* The frozen branch is the same surface reading embedded payloads instead of

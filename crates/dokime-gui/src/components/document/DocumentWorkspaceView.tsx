@@ -23,10 +23,12 @@ import {
 import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import type { MediaGalleryArtifact } from "@/components/MediaGallery";
+import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJsonDialog";
 import { updatePlotSettings } from "@/lib/api/native-documents";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
+import type { TraceabilityExportName } from "@/lib/traceability";
 import type {
   DocumentViewCard,
   DocumentViewPayload,
@@ -66,6 +68,8 @@ type DocumentWorkspaceViewBaseProps = {
   sections: DocumentViewSection[];
   stepRecords: StepExecutionRecord[];
   traceability: TraceabilitySnapshot | null | undefined;
+  /** Names the traceability JSON a reader downloads from the traceability card. */
+  traceabilityExportName?: TraceabilityExportName | null;
 };
 
 type LiveDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
@@ -181,6 +185,14 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
 
   return (
     <DocumentViewRenderer
+      cardAction={(card) =>
+        card.kind === "traceability" ? (
+          <TraceabilityJsonDialog
+            exportName={props.traceabilityExportName}
+            traceability={props.traceability}
+          />
+        ) : null
+      }
       cardFilter={resolvedCardFilter}
       document={document}
       emptyMessage={props.emptyMessage}

@@ -37,6 +37,7 @@ import { useMemo, useState } from "react";
 
 /* === Local Imports === */
 
+import { DokimeToaster } from "@/components/DokimeToaster";
 import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
 import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import type { ReportPayload } from "@/lib/report-types";
@@ -72,6 +73,8 @@ export function ReportApp({ payload }: { payload: ReportPayload }) {
       <CycleSnapshotProvider source={source}>
         <RouterProvider router={reportRouter} />
       </CycleSnapshotProvider>
+      {/* Copy and download confirm themselves here as they do live. */}
+      <DokimeToaster />
     </QueryClientProvider>
   );
 }

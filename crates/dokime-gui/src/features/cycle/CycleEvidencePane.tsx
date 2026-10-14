@@ -22,9 +22,8 @@
 
 /* === External Imports === */
 
-import { Maximize2, Minimize2, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
 
 /* === Local Imports === */
 
@@ -33,7 +32,6 @@ import { MarkdownText } from "@/components/MarkdownText";
 import { Button } from "@/components/ui/button";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import type { HubLiveState, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
-import { useCycleCommands, useRerunCase } from "./cycle-queries";
 import { type CycleExecutionRow, isPlannedExecution } from "./cycle-workspace-model";
 import { DocumentView, documentHasWindowedCards, documentWindowElapsedUnit } from "./DocumentView";
 import {
@@ -43,16 +41,6 @@ import {
   plotWindowValueLabel,
 } from "./PlotWindowSlider";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
-
-/* === Constants === */
-
-const TERMINAL_EXECUTION_STATUSES: readonly TestExecution["status"][] = [
-  "passed",
-  "failed",
-  "stopped",
-  "interrupted",
-  "disconnected",
-];
 
 /* === Types === */
 
@@ -65,7 +53,6 @@ export type CycleEvidencePaneProps = {
   focused: boolean;
   /** False in the frozen report: no slider, no focus, no live plot window. */
   live?: boolean;
-  onSelectExecution: (executionId: string) => void;
   onToggleFocus: () => void;
 };
 
@@ -78,13 +65,10 @@ export function CycleEvidencePane({
   plan,
   row,
   snapshot,
-  onSelectExecution,
   onToggleFocus,
 }: CycleEvidencePaneProps) {
-  const commands = useCycleCommands(cycleId);
   const [plotWindowIndex, setPlotWindowIndex] = useState(DEFAULT_PLOT_WINDOW_INDEX);
   const [plotWindowOverridden, setPlotWindowOverridden] = useState(false);
-  const rerunCase = useRerunCase(cycleId);
   const selectedExecution =
     row?.execution && !isPlannedExecution(row.execution.status) ? row.execution : null;
   const scope = useMemo<RecordScope>(
@@ -106,51 +90,6 @@ export function CycleEvidencePane({
     Boolean(selectedExecution),
   );
   const execution: TestExecution | null = detailQuery.data ?? selectedExecution ?? null;
-  const controls = execution?.controls;
-  const control = (action: "pause" | "resume" | "stop") => {
-    if (!execution) return;
-    const id = execution.test_execution_id;
-    const mutation = {
-      pause: commands.pauseExecution,
-      resume: commands.resumeExecution,
-      stop: commands.stopExecution,
-    }[action];
-    const message = {
-      pause: "Execution Pause Requested",
-      resume: "Execution Resume Requested",
-      stop: "Execution Stop Requested",
-    }[action];
-    void mutation
-      .mutateAsync(id)
-      .then(() => toast.success(message))
-      .catch((error: unknown) => {
-        toast.error("Execution Control Failed", {
-          description: error instanceof Error ? error.message : String(error),
-        });
-      });
-  };
-
-  /* Re-Run appends a new execution through the case scheduling owner and
-     preserves this execution's captured evidence. */
-  const rerunnable =
-    live &&
-    execution !== null &&
-    TERMINAL_EXECUTION_STATUSES.includes(execution.status) &&
-    !controls;
-  const rerun = () => {
-    if (!execution) return;
-    void rerunCase
-      .rerun(execution.case_id)
-      .then((created) => {
-        if (created) onSelectExecution(created);
-        toast.success("Case Re-Run Started");
-      })
-      .catch((error: unknown) => {
-        toast.error("Case Re-Run Failed", {
-          description: error instanceof Error ? error.message : String(error),
-        });
-      });
-  };
 
   const executionDocumentQuery = useExecutionDocumentQuery({
     cycleId: selectedExecution ? cycleId : null,
@@ -171,64 +110,19 @@ export function CycleEvidencePane({
 
   return (
     <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-      {/* One 40px toolbar (48px at touch): scope on the left, the plot window
-          on the right. Nothing introduces the document a second time. */}
+      {/* The document's own toolbar: the plot window and Focus, nothing
+          else; running the cycle belongs to the cockpit above. A frozen
+          report has no cockpit group naming the execution, so there the
+          toolbar names the scope instead. */}
       <div className="grid min-h-[var(--page-bar-height)] grid-cols-[minmax(0,1fr)_auto] items-center gap-[var(--bar-gap)] border-b px-4 py-[var(--bar-pad-y)]">
-        <div className="grid min-w-0 grid-cols-[auto_minmax(0,auto)] items-center justify-start gap-2">
+        {live ? (
+          <span />
+        ) : (
           <h2 className="min-w-0 truncate font-heading text-sm leading-6 font-semibold tracking-wide uppercase">
             {row ? (selectedExecution ? `Execution ${row.ordinal}` : "Not Run Yet") : "Cycle"}
           </h2>
-        </div>
+        )}
         <div className="flex items-center justify-end gap-[var(--bar-gap)] [&_[data-slot=button]:not([class*='h-['])]:h-[var(--bar-control-height)]">
-          {rerunnable ? (
-            <Button
-              disabled={commands.scheduleRerun.isPending}
-              onClick={rerun}
-              size="sm"
-              variant="outline"
-            >
-              <RotateCcw data-icon="inline-start" />
-              Re-Run Case
-            </Button>
-          ) : null}
-          {live && controls && (controls.canPause || controls.canResume || controls.canStop) ? (
-            <fieldset aria-label="Selected Execution Controls" className="flex items-center gap-1">
-              {/* A member of a cycle run pauses with its cycle; only an
-                  execution-addressed run offers its own Pause and Resume. */}
-              {!controls.canPause && !controls.canResume ? null : controls.paused ? (
-                <Button
-                  disabled={!controls.canResume || commands.resumeExecution.isPending}
-                  onClick={() => control("resume")}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Play data-icon="inline-start" />
-                  Resume Execution
-                </Button>
-              ) : (
-                <Button
-                  disabled={!controls.canPause || commands.pauseExecution.isPending}
-                  onClick={() => control("pause")}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Pause data-icon="inline-start" />
-                  Pause Execution
-                </Button>
-              )}
-              <Button
-                disabled={
-                  !controls.canStop || controls.stopRequested || commands.stopExecution.isPending
-                }
-                onClick={() => control("stop")}
-                size="sm"
-                variant="outline"
-              >
-                <Square data-icon="inline-start" />
-                Stop Execution
-              </Button>
-            </fieldset>
-          ) : null}
           {windowed && live ? (
             <div className="h-full w-full min-w-56 xl:w-80">
               <PlotWindowSlider
@@ -308,6 +202,11 @@ export function CycleEvidencePane({
               }
               plotWindow={plotWindow}
               plotWindowOverridden={plotWindowOverridden}
+              traceabilityExportName={
+                row && plan
+                  ? { cycleLabel: plan.test_cycle.title, executionOrdinal: row.ordinal }
+                  : null
+              }
             />
           </div>
         )}

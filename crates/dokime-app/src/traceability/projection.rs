@@ -1406,12 +1406,17 @@ fn case_execution_traceability_entries(
     );
 
     // Execution provenance comes from its frozen case, even after plan edits.
-    // Template version is not declared by TestCaseTemplate.
+    // Template version is not declared by TestCaseTemplate. A reader names the
+    // method by the identifier its author gave it; the UUID stands in only
+    // when the frozen snapshot carries no template.
     push_execution_entry(
         &mut entries,
         "execution.template",
         "Test Method",
-        Value::from(case.test_case_template_id.to_string()),
+        Value::from(snapshot.template().map_or_else(
+            || case.test_case_template_id.to_string(),
+            |template| template.metadata.identifier.as_str().to_owned(),
+        )),
         TEST_DEFINITION_TRACEABILITY.source,
     );
     for (identifier, label, timestamp) in [
