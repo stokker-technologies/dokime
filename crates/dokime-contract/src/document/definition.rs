@@ -2230,6 +2230,13 @@ pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
     }
 
     if let Some(y_format) = &plot.y_format {
+        if plot.plot_type == PlotType::Histogram {
+            return Err(
+                "`y_format` on a histogram plot has nothing to format: its y axis is the count \
+                 the host computes; format the binned value with `x_format`"
+                    .to_owned(),
+            );
+        }
         validate_value_format(y_format)?;
         if y_format.kind() == ValueFormatKind::Time {
             return Err("`y_format` takes a number format".to_owned());
@@ -2266,7 +2273,8 @@ pub fn validate_plot_definition(plot: &PlotDefinition) -> Result<(), String> {
             }
         }
         PlotType::WifiChannelOccupancy => validate_wifi_channel_occupancy(plot)?,
-        PlotType::Histogram | PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
+        PlotType::Histogram => validate_histogram_axes(plot)?,
+        PlotType::BoxSummary | PlotType::Pie | PlotType::Donut => {
             if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
                 return Err(format!(
                     "{} plots must declare exactly one y field or y expression",
@@ -2434,6 +2442,7 @@ fn plot_has_number_x_axis(plot_type: &PlotType) -> bool {
     matches!(
         plot_type,
         PlotType::Bar
+            | PlotType::Histogram
             | PlotType::GroupedBar
             | PlotType::StackedBar
             | PlotType::Pareto
@@ -2645,6 +2654,26 @@ fn validate_xy_axes(plot: &PlotDefinition) -> Result<(), String> {
     }
     if plot.y.len() != 1 && plot.y_expressions.len() != 1 {
         return Err("XY plots must declare exactly one y field or y expression".to_owned());
+    }
+
+    Ok(())
+}
+
+/// A histogram bins one value on its x axis; the count on y is the host's.
+fn validate_histogram_axes(plot: &PlotDefinition) -> Result<(), String> {
+    if !plot.y.is_empty() || !plot.y_expressions.is_empty() {
+        return Err(
+            "histogram plots take their value on the x axis and the host counts it on y; \
+             replace `.y(…)` with `.x(…)`"
+                .to_owned(),
+        );
+    }
+    let x_field = plot.x.as_deref().filter(|field| *field != "timestamp");
+    if usize::from(x_field.is_some()) + usize::from(plot.x_expression.is_some()) != 1 {
+        return Err(
+            "histogram plots must declare exactly one x field or x expression: the value they bin"
+                .to_owned(),
+        );
     }
 
     Ok(())

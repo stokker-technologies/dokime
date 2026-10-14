@@ -423,7 +423,7 @@ fn voltage_distribution(identifier: &str) -> PlotDefinition {
     let mut plot = Plot::histogram("Voltage Distribution");
     plot.id(identifier);
     plot.unit("V");
-    plot.y(signal("voltage_v"));
+    plot.x(signal("voltage_v"));
 
     plot
 }
@@ -432,7 +432,7 @@ fn current_distribution(identifier: &str) -> PlotDefinition {
     let mut plot = Plot::histogram("Current Distribution");
     plot.id(identifier);
     plot.unit("A");
-    plot.y(signal("current_a"));
+    plot.x(signal("current_a"));
 
     plot
 }

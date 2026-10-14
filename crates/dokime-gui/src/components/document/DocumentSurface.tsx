@@ -67,6 +67,7 @@ import type {
 } from "@/lib/types";
 import { BoxSummaryPlot } from "@/plots/catalog/BoxSummaryPlot";
 import { HistogramPlot } from "@/plots/catalog/HistogramPlot";
+import { histogramAxisTitle } from "@/plots/histogram-axes";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import type { LivePlotStateMap } from "@/plots/live-data";
 
@@ -77,6 +78,8 @@ export type HistogramCardSpec = {
   title: string;
   values: number[];
   unit: string;
+  /** The x axis title: the binned value's label and unit. */
+  xTitle: string;
   bins: number;
 };
 
@@ -224,6 +227,10 @@ export function DocumentCardContent(props: DocumentCardContentProps) {
               title={payloadHistogram.title}
               unit={payloadHistogram.display_unit}
               values={payloadHistogram.values}
+              xTitle={histogramAxisTitle({
+                label: payloadHistogram.field,
+                unit: payloadHistogram.unit,
+              })}
             />
           ) : null;
         })}
@@ -438,6 +445,7 @@ export function TelemetryHistogramGroups({ groups }: { groups: HistogramTopicGro
                 title={histogram.title}
                 unit={histogram.unit}
                 values={histogram.values}
+                xTitle={histogram.xTitle}
               />
             ))}
           </div>

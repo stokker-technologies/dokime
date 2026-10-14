@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 
 // Local Imports
 use crate::core::{Identifier, Metadata};
-use crate::document::{DocumentSelection, PlotDefinition, PlotDescriptor, PlotInput};
+use crate::document::{DocumentSelection, PlotDefinition, PlotDescriptor, PlotInput, PlotType};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
 
@@ -141,7 +141,9 @@ fn sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bo
 }
 
 fn legacy_sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
-    let has_y_field = plot.y.iter().any(|field| sample.values.contains_key(field));
+    // A histogram's one value is its x; the count on y is the host's.
+    let has_y_field = plot.plot_type == PlotType::Histogram
+        || plot.y.iter().any(|field| sample.values.contains_key(field));
     let has_x_field = plot
         .x
         .as_ref()
@@ -156,10 +158,11 @@ fn legacy_sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition
 }
 
 fn expression_sample_has_plot_fields(sample: &TelemetrySample, plot: &PlotDefinition) -> bool {
-    let has_y_field = plot
-        .y_expressions
-        .iter()
-        .any(|expression| telemetry_expression_matches(sample, expression));
+    let has_y_field = plot.plot_type == PlotType::Histogram
+        || plot
+            .y_expressions
+            .iter()
+            .any(|expression| telemetry_expression_matches(sample, expression));
     let has_x_field = plot
         .x_expression
         .as_ref()

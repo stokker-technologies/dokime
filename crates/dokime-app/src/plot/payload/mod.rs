@@ -411,6 +411,24 @@ pub(crate) fn enrich_plot_samples_with_traceability_context(
     telemetry
 }
 
+/// A histogram declares the value it bins on x and the host counts it on y.
+/// The series builders, the live window and the analysis all read a series
+/// value against the row timestamp, so the declared x becomes that series and
+/// its format, and x returns to the timestamp. A y binding is no value.
+pub(crate) fn normalize_histogram_value(request: &mut PlotPayloadRequest) {
+    if request.plot_type != Some(PlotType::Histogram) {
+        return;
+    }
+    request.y_expressions = request.x_expression.take().into_iter().collect();
+    request.y_keys = request
+        .x_key
+        .take()
+        .filter(|key| key != "timestamp" && request.y_expressions.is_empty())
+        .into_iter()
+        .collect();
+    request.y_format = request.x_format.take();
+}
+
 pub(crate) fn normalize_analysis_fields(request: &mut PlotPayloadRequest) {
     if request.analysis.is_none() {
         return;
@@ -483,6 +501,7 @@ pub fn plot_payload_request_for_descriptor(
         cursor,
         technique: descriptor.input.downsample,
     };
+    normalize_histogram_value(&mut request);
     normalize_analysis_fields(&mut request);
     request
 }

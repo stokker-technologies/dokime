@@ -27,9 +27,10 @@ pub use payload::{
 pub(crate) use payload::{
     PlotPayloadContext, aggregate_group_points, aggregate_method, build_plot_payload,
     enrich_plot_samples_with_cycle_context, enrich_plot_samples_with_traceability_context,
-    expression_group_value, finish_plot_series, normalize_analysis_fields, numeric_value,
-    parse_timestamp, plot_payload_diagnostics, plot_streams, project_plot_payload, resolved_format,
-    retain_window, sample_matches_scope, sample_value, stream_matches_alias,
+    expression_group_value, finish_plot_series, normalize_analysis_fields,
+    normalize_histogram_value, numeric_value, parse_timestamp, plot_payload_diagnostics,
+    plot_streams, project_plot_payload, resolved_format, retain_window, sample_matches_scope,
+    sample_value, stream_matches_alias,
 };
 pub(crate) use record_timing::RECORD_CONTEXT_STREAM;
 

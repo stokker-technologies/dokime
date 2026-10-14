@@ -383,7 +383,7 @@ fn wifi_request(
 
 /* === Tests === */
 
-// distribution query does not limit evidence to the display budget.
+// distribution query bins its x column and does not limit evidence to the display budget.
 
 pub(crate) async fn distribution_query_budget() {
     let root = tempdir().unwrap();
@@ -394,17 +394,50 @@ pub(crate) async fn distribution_query_budget() {
         .await
         .unwrap();
 
+    // The histogram bins the column it declares on x; y is the count it computes.
     let mut request = wifi_request(None, Some(5), None);
     request.plot_type = Some(dokime::document::PlotType::Histogram);
-    request.x_key = None;
+    request.x_key = Some("network_count".to_owned());
+    request.y_keys = Vec::new();
+    request.histogram.bins = 3;
     request.window_s = Some(2000.0);
+    let mut value_on_y = request.clone();
+    value_on_y.x_key = None;
+    value_on_y.y_keys = vec!["network_count".to_owned()];
     let envelopes = runtime
-        .query_plot_payloads(vec![request], RuntimePlotQueryMode::Snapshot)
+        .query_plot_payloads(vec![request, value_on_y], RuntimePlotQueryMode::Snapshot)
         .await
         .unwrap();
     let payload = serde_json::to_value(&envelopes[0].payload).unwrap();
 
-    assert_eq!(payload["analysis"]["series"][0]["count"], 1000);
+    let series = &payload["analysis"]["series"][0];
+    assert_eq!(series["key"], "network_count");
+    assert_eq!(series["count"], 1000);
+    let bins = series["bins"].as_array().unwrap();
+    let edges = bins
+        .iter()
+        .map(|bin| {
+            (
+                bin["lower"].as_f64().unwrap(),
+                bin["upper"].as_f64().unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let counts = bins
+        .iter()
+        .map(|bin| bin["count"].as_u64().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(edges, [(0.0, 333.0), (333.0, 666.0), (666.0, 999.0)]);
+    assert_eq!(counts, [333, 333, 334]);
+
+    let refused = serde_json::to_value(&envelopes[1].payload).unwrap();
+    assert_eq!(refused["analysis"]["kind"], "error");
+    assert!(
+        refused["analysis"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("histogram plots bin one x field or x expression")
+    );
 }
 
 // record only query filters on execution dimensions without a telemetry stream.
