@@ -176,15 +176,24 @@ Remote plugin calls require an explicit permission on the existing server
     "subject": "operator",
     "role": "control",
     "token": "REPLACE_WITH_A_PRIVATE_TOKEN_OF_AT_LEAST_32_BYTES",
-    "operations": [{ "owner": "chamber", "id": "chamber.read", "grants": [] }]
+    "operations": [
+      { "owner": "chamber", "id": "chamber.read", "grants": [] },
+      {
+        "owner": "chamber",
+        "id": "chamber.stream",
+        "grants": [{ "operation": "chamber.stream", "scope": "chamber.temperature" }]
+      }
+    ]
   }]
 }
 ```
 
 The owner and operation ID are exact; wildcards and duplicate permissions are
 refused. Unlisted plugin operations remain denied, including trusted-local
-connections. `grants` contains only explicitly configured Harmos capability
-grants required by that operation; an empty list grants none. The same permission
+connections. Listing an operation grants it; `grants` adds only the scopes a
+request may resolve to, such as the channel, stream or source it names. Each grant
+names the listed operation and one exact scope; an empty list admits only requests
+that resolve to no scope. The same permission
 filters live discovery and actual invocation. Rediscover after a provider changes;
 metadata does not promise admission or bypass request-dependent grants.
 

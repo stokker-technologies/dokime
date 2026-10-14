@@ -353,7 +353,7 @@ impl Watch {
         &mut self,
         ctx: &dokime::harmos::sidecar::ObserverContext<'_, Shared, Publishing>,
     ) -> Result<(), WatchError> {
-        let host = ctx.capabilities().supervisor();
+        let host = ctx.host().supervisor();
         let credentials = host
             .call_as::<GetProbeDeclaration>(())
             .await

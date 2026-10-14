@@ -142,8 +142,8 @@ impl harmos::operations::OperationDeclaration for DynamicUnary {
 
     fn grant(request: &DynamicNumber) -> Option<harmos::plugin::Grant> {
         match request.value {
-            20 => Some(harmos::plugin::Grant::Egress("fixture.allowed".into())),
-            21 => Some(harmos::plugin::Grant::Egress("fixture.refused".into())),
+            20 => Some(harmos::plugin::Grant::of(Self::ID, "fixture.allowed")),
+            21 => Some(harmos::plugin::Grant::of(Self::ID, "fixture.refused")),
             _ => None,
         }
     }
@@ -541,9 +541,10 @@ async fn dynamic_plugin_cardinalities() {
         DynamicDuplex::ID,
     ];
     let mut capability = permission(DYNAMIC_OWNER, DynamicUnary::ID);
-    capability
-        .grants
-        .push(harmos::plugin::Grant::Egress("fixture.allowed".into()));
+    capability.grants.push(harmos::plugin::Grant::of(
+        DynamicUnary::ID,
+        "fixture.allowed",
+    ));
     let grants = vec![
         BearerGrant::new(
             "conditional-capability".into(),
@@ -594,8 +595,14 @@ async fn dynamic_plugin_cardinalities() {
     let mut wildcard = permission(DYNAMIC_OWNER, DynamicUnary::ID);
     wildcard
         .grants
-        .push(harmos::plugin::Grant::Egress("*".into()));
+        .push(harmos::plugin::Grant::of(DynamicUnary::ID, "*"));
     assert!(grant(Role::Admin).with_operations(vec![wildcard]).is_err());
+    let mut foreign = permission(DYNAMIC_OWNER, DynamicUnary::ID);
+    foreign.grants.push(harmos::plugin::Grant::of(
+        DynamicDownload::ID,
+        "fixture.allowed",
+    ));
+    assert!(grant(Role::Admin).with_operations(vec![foreign]).is_err());
     let root = tempfile::tempdir().unwrap();
     let mut owner = fixture(root.path()).await;
     let runtime = owner.handle();

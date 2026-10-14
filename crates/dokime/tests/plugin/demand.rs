@@ -413,7 +413,7 @@ impl RecordObserver {
         &mut self,
         ctx: &ObserverContext<'_, Resource, Publishing>,
     ) -> Result<(), Error> {
-        dokime::plugin::Publisher::new(ctx.capabilities().supervisor())
+        dokime::plugin::Publisher::new(ctx.host().supervisor())
             .publish(UnitNoted {
                 serial: "demand".into(),
             })
