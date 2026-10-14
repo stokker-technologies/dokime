@@ -204,8 +204,9 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                           data-testid={`suite-template-${templateSelectionId(template)}`}
                           key={selectionDraftKey(suite.suite_id, templateSelectionId(template))}
                         >
-                          {/* The whole row opens the dialog; Configure names
-                              the same outcome for anyone scanning for a verb. */}
+                          {/* The same columns as the suite row above it, so
+                              identifiers, counts and tags line up down the
+                              list. The title opens the dialog. */}
                           <div className={ROW_COLUMNS}>
                             <div className={`${TITLE_COLUMNS} ${SUITE_IDENTIFIER_INSET}`}>
                               <button
@@ -221,15 +222,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                             </div>
                             <span />
                             <SuiteTags tags={template.tags} />
-                            <Button
-                              className="h-[var(--control-height)]"
-                              onClick={() => setOpenTemplate({ suite, template })}
-                              size="sm"
-                              type="button"
-                              variant="outline"
-                            >
-                              Configure
-                            </Button>
+                            <span />
                           </div>
                           {/* One paragraph, then the full-width timeline. */}
                           {template.description ? (
@@ -240,6 +233,19 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                           {template.steps.length ? (
                             <TemplateStepTimeline template={template} />
                           ) : null}
+                          {/* The action closes the block: Configure names the
+                              outcome for anyone scanning for a verb. */}
+                          <div className="flex justify-end">
+                            <Button
+                              className="h-[var(--control-height)]"
+                              onClick={() => setOpenTemplate({ suite, template })}
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              Configure
+                            </Button>
+                          </div>
                         </li>
                       ))}
                     </ul>

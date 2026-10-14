@@ -112,15 +112,19 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
         </SettingsRow>
       ) : null}
       {error ? (
-        <SettingsRow label="Status">
+        <SettingsRow
+          label="Status"
+          status={
+            query.isError ? (
+              <Button onClick={() => void query.refetch()} size="sm" variant="outline">
+                Try Again
+              </Button>
+            ) : null
+          }
+        >
           <span className="text-sm text-destructive" role="alert">
             {error instanceof Error ? error.message : String(error)}
           </span>
-          {query.isError ? (
-            <Button onClick={() => void query.refetch()} size="sm" variant="outline">
-              Try Again
-            </Button>
-          ) : null}
         </SettingsRow>
       ) : null}
       {query.isSuccess && sources.length === 0 ? (

@@ -105,15 +105,19 @@ export function DesktopOutputSettings() {
           </SettingsRow>
         ) : null}
         {error ? (
-          <SettingsRow label="Status">
+          <SettingsRow
+            label="Status"
+            status={
+              settings.isError ? (
+                <Button onClick={() => void settings.refetch()} size="sm" variant="outline">
+                  Try Again
+                </Button>
+              ) : null
+            }
+          >
             <span className="text-sm text-destructive" role="alert">
               {applicationSettingsError(error)}
             </span>
-            {settings.isError ? (
-              <Button onClick={() => void settings.refetch()} size="sm" variant="outline">
-                Try Again
-              </Button>
-            ) : null}
           </SettingsRow>
         ) : null}
 
@@ -234,11 +238,15 @@ function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
         </SettingsRow>
       ) : null}
       {query.error ? (
-        <SettingsRow label="Status">
+        <SettingsRow
+          label="Status"
+          status={
+            <Button onClick={() => void query.refetch()} size="sm" variant="outline">
+              Try Again
+            </Button>
+          }
+        >
           <span role="alert">{applicationSettingsError(query.error)}</span>
-          <Button onClick={() => void query.refetch()} variant="outline">
-            Try Again
-          </Button>
         </SettingsRow>
       ) : null}
       {!canEdit ? (
