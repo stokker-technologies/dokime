@@ -795,7 +795,8 @@ export async function assembleDocument(
         if (
           value.documentId !== expected.documentId ||
           value.scope?.cycleId !== expected.scope.cycleId ||
-          value.scope?.executionId !== expected.scope.executionId ||
+          // A cycle's own document carries no execution in its scope.
+          (value.scope?.executionId ?? "") !== expected.scope.executionId ||
           value.frontiers?.processEpoch !== expected.epoch ||
           !value.metadata
         )

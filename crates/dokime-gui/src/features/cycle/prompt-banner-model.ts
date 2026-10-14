@@ -33,6 +33,19 @@ export type RankedPrompt = {
   level: PromptLevel;
 };
 
+/** The owner fields that decide whether a prompt can still be answered. */
+export type ScopedPrompt = {
+  scope?: { test_execution_id?: string | null } | null;
+};
+
+/** What the workspace knows about the prompt owners it shows. */
+export type PromptOwners = {
+  /** Whether the cycle has ended: completed, failed, stopped or interrupted. */
+  cycleEnded: boolean;
+  /** Whether the named execution still runs; unknown executions do not. */
+  executionActive: (executionId: string) => boolean;
+};
+
 /* === Constants === */
 
 const LEVEL_RANK: Record<PromptLevel, number> = {
@@ -60,6 +73,25 @@ export function orderPendingPrompts<T extends RankedPrompt>(prompts: readonly T[
 /** The level that colours a count of these prompts, or `null` for none. */
 export function highestPromptLevel(prompts: readonly RankedPrompt[]): PromptLevel | null {
   return orderPendingPrompts(prompts)[0]?.level ?? null;
+}
+
+/**
+ * The prompts an operator can still answer here.
+ *
+ * The runtime settles a prompt in the transaction that ends its owner, so the
+ * pending list already omits it; this is the same rule held at the edge, so a
+ * list read a moment before the owner ended never offers Respond. An
+ * execution's prompt lives while that execution runs, a cycle's until the
+ * cycle ends.
+ */
+export function answerablePrompts<T extends ScopedPrompt>(
+  prompts: readonly T[],
+  owners: PromptOwners,
+): T[] {
+  return prompts.filter((prompt) => {
+    const executionId = prompt.scope?.test_execution_id;
+    return executionId ? owners.executionActive(executionId) : !owners.cycleEnded;
+  });
 }
 
 export function promptLevelTone(level: PromptLevel): PromptLevelTone {

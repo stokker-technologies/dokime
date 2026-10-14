@@ -23,6 +23,10 @@ use serde::{Deserialize, Serialize};
 use crate::execution::{CycleStatus, ExecutionStatus};
 use crate::records::{ProductRecordDraft, RecordSeverity};
 use crate::state::RuntimeState;
+use crate::transactions::prompts::{
+    PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
+};
+use crate::transactions::records::draft::Drafts;
 use crate::transactions::{
     CycleControlAction,
     provider::request::{RunPhase, RunRequest},
@@ -140,8 +144,8 @@ impl ControlExecution {
         }
     }
 
-    fn drafts(&self, state: &RuntimeState) -> crate::transactions::records::draft::Drafts {
-        let mut records = crate::transactions::records::draft::Drafts::new(state);
+    fn drafts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
+        let mut records = Drafts::new(state);
         let execution = &state.executions[&self.test_execution_id];
         let (name, message) = match self.action {
             CycleControlAction::Pause => (
@@ -168,7 +172,19 @@ impl ControlExecution {
             },
             self.occurred_at.clone(),
         );
-        records
+        // A stopped execution answers nothing: its open prompts settle with the
+        // stop itself, so a provider blocked on one can wind down.
+        let settled = match self.action {
+            CycleControlAction::Stop => settle_prompts(
+                state,
+                &mut records,
+                PromptSettlement::Stopped,
+                &self.occurred_at,
+                |scope| scope.test_execution_id.as_ref() == Some(&self.test_execution_id),
+            ),
+            CycleControlAction::Pause | CycleControlAction::Resume => SettledPrompts::default(),
+        };
+        (records, settled)
     }
 }
 
@@ -180,7 +196,7 @@ impl Transaction<RuntimeState> for ControlExecution {
     }
 
     fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
-        self.drafts(state).collect(out);
+        self.drafts(state).0.collect(out);
     }
 
     fn apply(&self, state: &mut RuntimeState) {
@@ -190,7 +206,7 @@ impl Transaction<RuntimeState> for ControlExecution {
             .summary
             .request_id
             .clone();
-        let records = self.drafts(state);
+        let (records, settled) = self.drafts(state);
         let request = state.run_requests.get_mut(&id).expect("checked request");
         let cycle = state
             .cycles
@@ -203,6 +219,7 @@ impl Transaction<RuntimeState> for ControlExecution {
                 .push(self.test_execution_id.clone());
             cycle.touch_at(self.occurred_at.clone());
             records.apply(state);
+            commit_settled_prompts(state, settled);
             return;
         }
         match self.action {
@@ -222,6 +239,7 @@ impl Transaction<RuntimeState> for ControlExecution {
         }
         cycle.touch_at(self.occurred_at.clone());
         records.apply(state);
+        commit_settled_prompts(state, settled);
     }
 }
 

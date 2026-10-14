@@ -231,9 +231,7 @@ fn complete_execution_document(
         None => return None,
     };
     if is_default {
-        for section in built_in_execution_result_sections().into_iter().rev() {
-            document.prepend_section(section);
-        }
+        document.prepend_sections(built_in_execution_result_sections());
         for section in built_in_execution_evidence_sections() {
             document.upsert_section(section);
         }

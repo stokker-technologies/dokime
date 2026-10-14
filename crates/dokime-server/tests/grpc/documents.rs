@@ -108,7 +108,9 @@ pub(crate) async fn current_document_rows() {
             .code(),
         Code::Unauthenticated
     );
-    let missing_execution = client
+    // A scope without an execution names the cycle's own document: its first
+    // frame is a header scoped to the cycle alone.
+    let cycle_header = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(
             contracts::documents::CaptureCurrentDocumentRequest {
                 scope: Some(contracts::documents::DocumentScope {
@@ -123,8 +125,14 @@ pub(crate) async fn current_document_rows() {
         .into_inner()
         .message()
         .await
-        .unwrap_err();
-    assert_eq!(missing_execution.code(), Code::InvalidArgument);
+        .unwrap()
+        .unwrap();
+    let Some(Frame::Header(cycle_presentation)) = cycle_header.frame else {
+        panic!("a cycle document opens with its header");
+    };
+    let cycle_scope = cycle_presentation.scope.unwrap();
+    assert_eq!(cycle_scope.cycle_id, Some(cycle.to_string()));
+    assert_eq!(cycle_scope.execution_id, None);
     let epoch = handle.process_epoch().to_string();
     let mut stream = client
         .download::<contracts::documents::CaptureCurrentDocument>(authenticated(

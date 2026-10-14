@@ -9,29 +9,29 @@
 
 /* The cycle workspace: one cycle and the evidence its cases produced.
  *
- * The layout never changes shape as a cycle runs. The header states what the
- * cycle is and owns every whole-cycle command; the sidebar tree owns selection;
- * the evidence pane has the whole main region and shows what the selection
- * holds. The route owns the URL, so every selection change leaves here through
+ * Two regions that never change shape as a cycle runs. The execution cockpit,
+ * full width on top, states what the cycle is and holds every run control —
+ * the cycle's and the selected execution's — and the operator prompts. The
+ * document below it shows what the selection holds, with only its own plot
+ * window and Focus on its toolbar. The sidebar tree owns selection. The route owns the URL, so every selection change leaves here through
  * `onSelectionChange`.
  *
  * `live` is the only difference between the application and the frozen report,
  * which mounts this same workspace over a snapshot. With it off the header
- * keeps identity, status and progress and loses every command, the prompt
- * banner is absent, and the reads answer from the snapshot context rather than
+ * keeps identity, status and progress and loses every command and every prompt, and the reads answer from the snapshot context rather than
  * the backend. There is no second workspace.
  */
 
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
-import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,30 +43,45 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { openLocalPath } from "@/lib/desktop-open";
+import type { TestExecution } from "@/lib/types";
 import { useFocusMode } from "@/shell/focus-mode";
+import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
 import { CycleEvidencePane } from "./CycleEvidencePane";
+import { CycleExecutionControls } from "./CycleExecutionControls";
 import { CyclePromptBanner } from "./CyclePromptBanner";
+import { CycleRunControls } from "./CycleRunControls";
 import { CycleWorkspaceHeader } from "./CycleWorkspaceHeader";
 import {
   useCycleCommands,
   useCycleDetailQuery,
   useCyclePendingPromptsQuery,
   useCycleRuntimeShellQuery,
+  useRerunCase,
 } from "./cycle-queries";
 import {
   buildCycleCases,
   buildCycleExecutionRows,
-  cycleRunRefusal,
+  type CycleExecutionRow,
+  type CycleSelection,
+  caseActionTooltip,
+  caseStatusLabel,
+  caseStatusVariant,
+  cycleStatusLabel,
+  cycleStatusVariant,
+  executionStatusLabel,
+  executionStatusVariant,
   finishedCaseCount,
+  followSelection,
   isActiveExecutionStatus,
+  isCycleInFlight,
+  isCycleTerminal,
+  isTerminalExecutionStatus,
   progressStepLabel,
-  runControlAvailability,
-  runControlVisibility,
   selectedCycleRow,
-  startableCaseCount,
 } from "./cycle-workspace-model";
+import { answerablePrompts } from "./prompt-banner-model";
+import { useExecutionDetailQuery } from "./server-state";
 
 /* === Types === */
 
@@ -74,9 +89,11 @@ export type CycleWorkspaceProps = {
   cycleId: string;
   caseId?: string;
   executionId?: string;
+  /** `"cycle"` when the operator selected the cycle itself. */
+  view?: "cycle";
   /** False in the frozen report: evidence without commands. */
   live?: boolean;
-  onSelectionChange: (next: { caseId?: string; executionId?: string }) => void;
+  onSelectionChange: (next: CycleSelection) => void;
 };
 
 type PendingConfirm = { kind: "clear" } | { kind: "stop" } | null;
@@ -87,15 +104,16 @@ export function CycleWorkspace({
   cycleId,
   caseId,
   executionId,
+  view,
   live = true,
   onSelectionChange,
 }: CycleWorkspaceProps) {
   const navigate = useNavigate();
-  const session = useNativeSessionOptional();
   const detailQuery = useCycleDetailQuery(cycleId);
   const runtimeQuery = useCycleRuntimeShellQuery(cycleId);
   const promptsQuery = useCyclePendingPromptsQuery(cycleId);
   const commands = useCycleCommands(cycleId);
+  const rerunCase = useRerunCase(cycleId);
   const focus = useFocusMode();
   const followActive = useSelectionStore((state) => state.followActive);
   const setSelectionState = useSelectionStore((state) => state.setSelectionState);
@@ -106,18 +124,37 @@ export function CycleWorkspace({
   const executions = useMemo(() => detailQuery.data?.executions ?? [], [detailQuery.data]);
   const cases = useMemo(() => buildCycleCases(plan), [plan]);
   const rows = useMemo(() => buildCycleExecutionRows(cases, executions), [cases, executions]);
-  const selectedRow = selectedCycleRow(rows, { caseId, executionId });
+  const selection = useMemo<CycleSelection>(
+    () => ({ caseId, executionId, view }),
+    [caseId, executionId, view],
+  );
+  const selectedRow = selectedCycleRow(rows, selection);
   const finished = finishedCaseCount(cases);
-  const startable = startableCaseCount(cases);
-  const refusal = cycleRunRefusal(cases);
   const status = plan?.test_cycle.status ?? "planned";
-  const availability = runControlAvailability(status, startable);
-  const visibility = runControlVisibility(status, startable, refusal !== null);
   const activeExecutionId =
     plan?.test_cycle.current_test_execution_id ??
     executions.find((execution) => execution.status === "running")?.test_execution_id ??
     null;
   const progress = useExecutionProgress(activeExecutionId);
+  const selectedDetail = useExecutionDetailQuery(
+    selectedRow?.execution?.test_execution_id ?? null,
+    Boolean(selectedRow?.execution),
+  );
+  /* Only prompts whose owner still runs are offered: a prompt never outlives
+     its execution, here as in the runtime that settles it. */
+  const prompts = useMemo(() => {
+    if (!live) return [];
+    const statuses = new Map(
+      executions.map((execution) => [execution.test_execution_id, execution.status]),
+    );
+    return answerablePrompts(promptsQuery.data ?? [], {
+      cycleEnded: isCycleTerminal(status),
+      executionActive: (id) => {
+        const executionStatus = statuses.get(id);
+        return executionStatus !== undefined && isActiveExecutionStatus(executionStatus);
+      },
+    });
+  }, [executions, live, promptsQuery.data, status]);
   const activity = useMemo(() => {
     const activeRow = rows.find(
       (row) => row.execution?.test_execution_id === progress?.testExecutionId,
@@ -127,16 +164,78 @@ export function CycleWorkspace({
     return `${activeRow.case.label} · ${step} ${progress.completed}/${progress.total}`;
   }, [progress, rows]);
 
-  /* Follow Active selects the execution the runtime names; refreshes preserve
-     the operator's selection while following is disabled. */
+  /* The page bar's action slot carries the run controls of what is
+     selected — the cycle's, or the selected execution's — and Focus beside
+     them. The node is memoized on identities, so it is published only when
+     the selection, focus or liveness changes. */
+  const executionSelected = selectedRow !== null;
+  const toggleFocus = focus.setFocused;
+  const focused = focus.focused;
+  const pageActions = useMemo(
+    () =>
+      live ? (
+        <div className="grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]">
+          {executionSelected ? (
+            <CycleExecutionControls
+              cycleId={cycleId}
+              onSelectExecution={(next) => onSelectionChange({ executionId: next })}
+              selection={selection}
+            />
+          ) : (
+            <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} />
+          )}
+          <Button
+            aria-label={focused ? "Leave Focus" : "Focus"}
+            aria-pressed={focused}
+            className="size-[var(--bar-control-height)]"
+            onClick={() => toggleFocus(!focused)}
+            size="icon"
+            title={focused ? "Leave Focus (Escape)" : "Focus"}
+            variant={focused ? "secondary" : "outline"}
+          >
+            {focused ? <Minimize2 /> : <Maximize2 />}
+          </Button>
+        </div>
+      ) : null,
+    [cycleId, executionSelected, focused, live, onSelectionChange, selection, toggleFocus],
+  );
+  /* The page bar names the selected node as a breadcrumb; Back from an
+     execution returns to the cycle (see `useParentRoute`). */
+  usePageChrome({
+    actions: pageActions,
+    title: selectedRow ? `Cycle › Execution ${selectedRow.ordinal}` : "Cycle",
+  });
+
+  /* Follow Active selects the execution the runtime names, until the
+     operator chooses something else; `followSelection` owns the rule. */
+  const previousActive = useRef<string | null>(null);
+  const previousSelectedStatus = useRef<{ id?: string; ended: boolean }>({ ended: false });
+  const selectedStatus = selectedRow?.execution?.status;
   useEffect(() => {
-    if (!live || !followActive || !activeExecutionId || activeExecutionId === executionId) return;
-    const active = executions.find(
-      (execution) => execution.test_execution_id === activeExecutionId,
-    );
-    if (!active || !isActiveExecutionStatus(active.status)) return;
-    onSelectionChange({ executionId: activeExecutionId });
-  }, [activeExecutionId, executionId, executions, followActive, live, onSelectionChange]);
+    const ended = selectedStatus !== undefined && isTerminalExecutionStatus(selectedStatus);
+    const earlier = previousSelectedStatus.current;
+    const selectedEnded = earlier.id === executionId && !earlier.ended && ended;
+    previousSelectedStatus.current = { id: executionId, ended };
+    const target =
+      live && followActive
+        ? followSelection({
+            active: activeExecutionId,
+            previousActive: previousActive.current,
+            selectedEnded,
+            selection,
+          })
+        : null;
+    previousActive.current = activeExecutionId;
+    if (target) onSelectionChange({ executionId: target });
+  }, [
+    activeExecutionId,
+    executionId,
+    followActive,
+    live,
+    onSelectionChange,
+    selectedStatus,
+    selection,
+  ]);
 
   /* A command reports what happened, not what was attempted: the operator
      needs the outcome and, when it failed, what the backend said. */
@@ -177,86 +276,75 @@ export function CycleWorkspace({
   }
 
   return (
-    <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)]">
+    <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
       <CycleWorkspaceHeader
+        identity={
+          selectedRow
+            ? cockpitSubject(selectedRow, selectedDetail.data ?? null)
+            : {
+                activity,
+                progress: `${finished} of ${cases.length} cases finished`,
+                statusLabel: cycleStatusLabel(status),
+                statusVariant: cycleStatusVariant(status),
+                title: plan.test_cycle.title,
+              }
+        }
         live={live}
-        activity={activity}
-        availability={availability}
-        visibility={visibility}
-        pending={{
-          pause: commands.pauseCycle.isPending,
-          resume: commands.resumeCycle.isPending,
-          run: commands.runQueued.isPending,
-          stop: commands.stopCycle.isPending,
-        }}
-        caseTotal={cases.length}
-        selection={{ caseId, executionId }}
-        cycleId={cycleId}
-        finishedCases={finished}
-        label={plan.test_cycle.title}
-        pendingPrompts={live ? (promptsQuery.data ?? []) : []}
-        onAddCases={() => void navigate({ to: "/library", search: { appendTo: cycleId } })}
-        followActive={followActive}
-        onClearCycle={() => setConfirm({ kind: "clear" })}
-        onCopyCycle={() =>
-          run({ done: "Cycle copied", failed: "The cycle could not be copied." }, async () => {
-            const response = await commands.copyCycle.mutateAsync();
-            await navigate({
-              to: "/cycles/$cycleId",
-              params: { cycleId: response.plan.test_cycle.test_cycle_id },
-            });
-          })
+        menu={
+          selectedRow
+            ? {
+                kind: "execution",
+                onRerun:
+                  selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
+                    ? () =>
+                        run(
+                          { done: "Case Re-Run Started", failed: "Case Re-Run Failed" },
+                          async () => {
+                            const created = await rerunCase.rerun(selectedRow.case.caseId);
+                            if (created) onSelectionChange({ executionId: created });
+                          },
+                        )
+                    : null,
+                rerunRefusal:
+                  selectedRow.case.actions && !selectedRow.case.actions.schedule_rerun
+                    ? caseActionTooltip(selectedRow.case)
+                    : undefined,
+              }
+            : {
+                evidencePending: isCycleInFlight(status),
+                followActive,
+                kind: "cycle",
+                onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
+                onClearCycle: () => setConfirm({ kind: "clear" }),
+                onCopyCycle: () =>
+                  run(
+                    { done: "Cycle copied", failed: "The cycle could not be copied." },
+                    async () => {
+                      const response = await commands.copyCycle.mutateAsync();
+                      await navigate({
+                        to: "/cycles/$cycleId",
+                        params: { cycleId: response.plan.test_cycle.test_cycle_id },
+                      });
+                    },
+                  ),
+                onDownloadBundle: () =>
+                  run({ done: "Bundle saved", failed: "The bundle could not be saved." }, () =>
+                    commands.downloadBundle.mutateAsync(),
+                  ),
+                onRuntimePolicy: () => setPolicyOpen(true),
+                onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
+                onWriteReport: () =>
+                  run({ done: "Report written", failed: "The report could not be written." }, () =>
+                    commands.writeReport.mutateAsync(),
+                  ),
+              }
         }
-        onDownloadBundle={() =>
-          run({ done: "Bundle saved", failed: "The bundle could not be saved." }, () =>
-            commands.downloadBundle.mutateAsync(),
-          )
-        }
-        onOpenFolder={() =>
-          run(
-            { done: "Folder opened", failed: "The cycle folder could not be opened." },
-            async () => {
-              const path = await commands.openFolder.mutateAsync();
-              if (!(await openLocalPath(path))) throw new Error(`Could not open ${path}.`);
-            },
-          )
-        }
-        onPause={() =>
-          run({ done: "Cycle paused", failed: "The cycle could not be paused." }, () =>
-            commands.pauseCycle.mutateAsync(),
-          )
-        }
-        onResume={() =>
-          run({ done: "Cycle resumed", failed: "The cycle could not be resumed." }, () =>
-            commands.resumeCycle.mutateAsync(),
-          )
-        }
-        onRunQueued={() =>
-          run({ done: "Queued cases started", failed: "The queued cases could not start." }, () =>
-            commands.runQueued.mutateAsync(),
-          )
-        }
-        onRuntimePolicy={() => setPolicyOpen(true)}
-        onToggleFollowActive={() => setSelectionState({ followActive: !followActive })}
-        onStop={() => setConfirm({ kind: "stop" })}
-        onWriteReport={() =>
-          run({ done: "Report written", failed: "The report could not be written." }, () =>
-            commands.writeReport.mutateAsync(),
-          )
-        }
-        runRefusal={refusal}
-        showOpenFolder={session !== null && !session.snapshot.connection.remote}
-        status={status}
+        prompts={<CyclePromptBanner prompts={prompts} />}
       />
-
-      {live ? <CyclePromptBanner prompts={promptsQuery.data ?? []} /> : null}
 
       <CycleEvidencePane
         cycleId={cycleId}
         live={live}
-        focused={focus.focused}
-        onSelectExecution={(next) => onSelectionChange({ executionId: next })}
-        onToggleFocus={() => focus.setFocused(!focus.focused)}
         plan={plan}
         row={selectedRow}
         snapshot={runtimeQuery.data ?? null}
@@ -283,7 +371,7 @@ export function CycleWorkspace({
             <DialogTitle>{confirm?.kind === "stop" ? "Stop Cycle" : "Clear Cycle"}</DialogTitle>
             <DialogDescription>
               {confirm?.kind === "stop"
-                ? `Stopping the cycle stops every running and queued execution of its ${cases.length} cases. To stop only one execution, open it and use Stop Execution.`
+                ? `Stopping the cycle stops every running and queued execution of its ${cases.length} cases. To stop only one execution, select it and use Stop Execution.`
                 : confirm?.kind === "clear"
                   ? `Clearing stops this cycle and removes its ${cases.length} cases, every attempt, and the evidence they produced from the loaded runtime. Saved bundles and written reports are not affected.`
                   : ""}
@@ -327,6 +415,30 @@ export function CycleWorkspace({
       </Dialog>
     </div>
   );
+}
+
+/* === Private Functions === */
+
+/** The execution page's identity: its case, its status and its steps. */
+function cockpitSubject(row: CycleExecutionRow, detail: TestExecution | null) {
+  const execution = detail ?? row.execution;
+  const title = `Execution ${row.ordinal} · ${row.case.label}`;
+  if (!execution) {
+    return {
+      progress: "Not run yet",
+      statusLabel: caseStatusLabel(row.case.status),
+      statusVariant: caseStatusVariant(row.case.status),
+      title,
+    };
+  }
+  const steps = execution.steps ?? [];
+  const done = steps.filter((step) => !["pending", "running"].includes(step.status)).length;
+  return {
+    progress: steps.length ? `${done} of ${steps.length} steps finished` : "No steps recorded",
+    statusLabel: executionStatusLabel(execution.status),
+    statusVariant: executionStatusVariant(execution.status),
+    title,
+  };
 }
 
 /* === Private Components === */

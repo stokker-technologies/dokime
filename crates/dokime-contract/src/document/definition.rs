@@ -1427,9 +1427,13 @@ impl DocumentDefinition {
         }
     }
 
-    pub fn prepend_section(&mut self, section: DocumentSection) {
-        remove_section_node_from_layout(&mut self.layout, &section.metadata.identifier);
-        self.insert_section_node(section, Some(0));
+    /// Places `sections` at the front of the document in the given order, so
+    /// their cards are also defined in that order.
+    pub fn prepend_sections(&mut self, sections: impl IntoIterator<Item = DocumentSection>) {
+        for (index, section) in sections.into_iter().enumerate() {
+            remove_section_node_from_layout(&mut self.layout, &section.metadata.identifier);
+            self.insert_section_node(section, Some(index));
+        }
     }
 
     pub fn section_count(&self) -> usize {

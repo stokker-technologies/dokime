@@ -243,6 +243,12 @@ function BackButton() {
  */
 function useParentRoute(): string | null {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const member = useRouterState({
+    select: (state) => {
+      const search = state.location.search as { caseId?: unknown; executionId?: unknown };
+      return Boolean(search.caseId || search.executionId);
+    },
+  });
   const lastOutsideSettings = useRef<string | null>(null);
 
   const inSettings = pathname === "/settings" || pathname.startsWith("/settings/");
@@ -251,7 +257,8 @@ function useParentRoute(): string | null {
   if (TOP_LEVEL.has(pathname)) return null;
   if (/^\/settings\/plugins\/.+/.test(pathname)) return "/settings/plugins";
   if (inSettings) return lastOutsideSettings.current ?? "/cycles";
-  if (pathname.startsWith("/cycles/")) return "/cycles";
+  // An execution page goes back to its cycle; the cycle page to Cycles.
+  if (pathname.startsWith("/cycles/")) return member ? `${pathname}?view=cycle` : "/cycles";
   if (pathname.startsWith("/history/")) return "/history";
   if (pathname.startsWith("/library/")) return "/library";
   return null;

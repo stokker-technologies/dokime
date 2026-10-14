@@ -19,8 +19,12 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::result::ExecutionInvalidation;
-use crate::execution::{ExecutionPluginIdentity, ExecutionStatus, StepStatus};
+use crate::execution::{ExecutionPluginIdentity, ExecutionStatus, StepStatus, TestExecution};
 use crate::state::RuntimeState;
+use crate::transactions::prompts::{
+    PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
+};
+use crate::transactions::records::draft::Drafts;
 use dokime::core::Timestamp;
 
 /* === Constants === */
@@ -43,6 +47,37 @@ pub struct InvalidateExecutions {
 /* === Traits === */
 
 /* === Implementations === */
+impl InvalidateExecutions {
+    fn invalidates(&self, execution: &TestExecution) -> bool {
+        execution.snapshot.plugin() == Some(&self.previous)
+            && execution.finished_at.is_none()
+            && matches!(
+                execution.status,
+                ExecutionStatus::Pending | ExecutionStatus::Running
+            )
+    }
+
+    /// An invalidated execution answers nothing: its open prompts expire in
+    /// the same transaction.
+    fn prompts(&self, state: &RuntimeState) -> (Drafts, SettledPrompts) {
+        let mut records = Drafts::new(state);
+        let settled = settle_prompts(
+            state,
+            &mut records,
+            PromptSettlement::Ended,
+            &self.invalidated_at,
+            |scope| {
+                scope
+                    .test_execution_id
+                    .as_ref()
+                    .and_then(|id| state.executions.get(id))
+                    .is_some_and(|execution| self.invalidates(execution))
+            },
+        );
+        (records, settled)
+    }
+}
+
 impl Transaction<RuntimeState> for InvalidateExecutions {
     type Error = String;
 
@@ -60,7 +95,14 @@ impl Transaction<RuntimeState> for InvalidateExecutions {
         Ok(())
     }
 
+    fn records(&self, state: &RuntimeState, out: &mut harmos::state::Records) {
+        self.prompts(state).0.collect(out);
+    }
+
     fn apply(&self, state: &mut RuntimeState) {
+        let (records, settled) = self.prompts(state);
+        records.apply(state);
+        commit_settled_prompts(state, settled);
         for cycle in state.cycles.values_mut() {
             let mut changed = false;
             for id in &cycle.execution_ids {
@@ -68,13 +110,7 @@ impl Transaction<RuntimeState> for InvalidateExecutions {
                     .executions
                     .get_mut(id)
                     .expect("cycle execution owner exists");
-                if execution.snapshot.plugin() != Some(&self.previous)
-                    || execution.finished_at.is_some()
-                    || !matches!(
-                        execution.status,
-                        ExecutionStatus::Pending | ExecutionStatus::Running
-                    )
-                {
+                if !self.invalidates(execution) {
                     continue;
                 }
                 execution.status = ExecutionStatus::Invalidated;

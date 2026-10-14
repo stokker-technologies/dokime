@@ -13,10 +13,13 @@
 
 // Third Party Imports
 
+import { type ReactNode, useCallback } from "react";
+
 // Local Imports
 
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 
+import { DocumentSectionActionContext } from "@/components/document/DocumentViewRenderer";
 import { DocumentWorkspaceView } from "@/components/document/DocumentWorkspaceView";
 
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
@@ -55,6 +58,8 @@ type DocumentViewProps = {
   plotWindow: PlotWindowOption;
   plotWindowOverridden: boolean;
   traceabilityExportName?: TraceabilityExportName | null;
+  /** The plot window control, placed in the header of the first plot section. */
+  plotWindowControl?: ReactNode;
 };
 
 /* === Components === */
@@ -70,6 +75,7 @@ export function DocumentView({
   plotWindow,
   plotWindowOverridden,
   traceabilityExportName,
+  plotWindowControl = null,
 }: DocumentViewProps) {
   const view = useDocumentView({
     document: document ?? null,
@@ -93,6 +99,15 @@ export function DocumentView({
     traceability,
   } = view;
   const nativeSession = useNativeSessionOptional();
+  /* The plot window belongs to the plots it scales: the first section that
+     holds a windowed card carries it in its header. */
+  const windowedSectionId =
+    view.sections.find((section) => documentHasWindowedCards([section]))?.metadata.identifier ??
+    null;
+  const sectionAction = useCallback(
+    (sectionId: string) => (sectionId === windowedSectionId ? plotWindowControl : null),
+    [plotWindowControl, windowedSectionId],
+  );
   const plotResetKey = plotWindow.label;
   const livePlotWindowS = plotWindowOverridden ? plotWindow.value : undefined;
   const localArtifacts = artifacts.map((artifact) => {
@@ -136,7 +151,7 @@ export function DocumentView({
      the two payload sets can never be confused for each other. */
   if (!live) {
     return (
-      <>
+      <DocumentSectionActionContext.Provider value={sectionAction}>
         <DocumentWorkspaceView
           {...shared}
           renderMode="report"
@@ -146,21 +161,23 @@ export function DocumentView({
           reportTelemetry={view.plotContextTelemetry}
         />
         <ConsoleDrawer live={false} records={records} />
-      </>
+      </DocumentSectionActionContext.Provider>
     );
   }
 
   return (
-    <DocumentWorkspaceView
-      {...shared}
-      boxSummarySections={view.boxSummarySections}
-      histogramSections={view.histogramSections}
-      plotContextTelemetry={view.plotContextTelemetry}
-      plotResetKey={plotResetKey}
-      plotWindowS={livePlotWindowS}
-      renderMode="live"
-      scope={scope}
-    />
+    <DocumentSectionActionContext.Provider value={sectionAction}>
+      <DocumentWorkspaceView
+        {...shared}
+        boxSummarySections={view.boxSummarySections}
+        histogramSections={view.histogramSections}
+        plotContextTelemetry={view.plotContextTelemetry}
+        plotResetKey={plotResetKey}
+        plotWindowS={livePlotWindowS}
+        renderMode="live"
+        scope={scope}
+      />
+    </DocumentSectionActionContext.Provider>
   );
 }
 

@@ -7,13 +7,15 @@
  * ***
  */
 
-/* The questions this cycle is waiting on, as the first thing under the header.
+/* The questions this cycle is waiting on, as the cockpit's last band.
  *
- * Every pending prompt is a card in one grid, most urgent first, coloured by
+ * Every answerable prompt is a full-width card, most urgent first, coloured by
  * the level its author declared on the record severity scale. A card states
  * the level, the kind, how long it has waited, the title and the instruction,
- * and opens its response form through the existing `PromptPanel`; it leaves
- * only when the prompt is answered. `usePromptValues` keys the draft by
+ * and opens its response form inside itself through the existing
+ * `PromptPanel`; it leaves when the prompt is answered or the runtime settles
+ * it because its execution ended. The caller passes only answerable prompts
+ * (`answerablePrompts`), so Respond never shows for an execution that stopped. `usePromptValues` keys the draft by
  * correlation id, so a refresh of the pending list never discards what the
  * operator has typed.
  *
@@ -25,7 +27,7 @@
 /* === External Imports === */
 
 import { BellRing } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 /* === Local Imports === */
 
@@ -57,6 +59,8 @@ export type CyclePromptBannerProps = {
 };
 
 type PromptCardProps = {
+  /** The response form, inside the card while it is open. */
+  children?: ReactNode;
   now: number;
   onToggle: () => void;
   open: boolean;
@@ -99,53 +103,53 @@ export function CyclePromptBanner({ prompts }: CyclePromptBannerProps) {
     setValues((current) => ({ ...current, [field.name]: value }));
 
   return (
-    <section
-      aria-label="Pending Prompts"
-      className="grid max-h-[50vh] gap-3 overflow-y-auto border-b bg-background px-[var(--shell-inset)] py-3"
-    >
+    <section aria-label="Pending Prompts" className="grid max-h-[50vh] gap-2 overflow-y-auto">
       <h2 className="flex items-center gap-2 font-heading text-sm leading-6 font-semibold">
         <BellRing aria-hidden className="size-4" />
         Operator Input Needed
-        <span className="font-sans font-normal text-muted-foreground">
+        <span
+          className="font-sans font-normal text-muted-foreground"
+          data-testid="cycle-prompt-count"
+        >
           · {pendingPromptCountLabel(ordered.length)}
         </span>
       </h2>
 
-      <ul
-        aria-live="polite"
-        className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-2"
-      >
-        {ordered.map((prompt) => (
-          <PromptCard
-            key={prompt.correlation_id}
-            now={now}
-            onToggle={() =>
-              setOpenPromptId(prompt.correlation_id === openPromptId ? null : prompt.correlation_id)
-            }
-            open={prompt.correlation_id === openPromptId}
-            prompt={prompt}
-          />
-        ))}
+      <ul aria-live="polite" className="grid grid-cols-1 gap-2">
+        {ordered.map((prompt) => {
+          const open = prompt.correlation_id === openPromptId;
+          return (
+            <PromptCard
+              key={prompt.correlation_id}
+              now={now}
+              onToggle={() => setOpenPromptId(open ? null : prompt.correlation_id)}
+              open={open}
+              prompt={prompt}
+            >
+              {open && openPrompt ? (
+                <>
+                  <PromptPanel
+                    onAction={submit}
+                    onValueChange={changeValue}
+                    prompt={openPrompt}
+                    submittingAction={
+                      responseMutation.isPending
+                        ? (responseMutation.variables?.action ?? null)
+                        : null
+                    }
+                    values={values}
+                  />
+                  {responseMutation.isError ? (
+                    <p className="text-sm text-destructive">
+                      The response was not accepted. Check the values and submit again.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+            </PromptCard>
+          );
+        })}
       </ul>
-
-      {openPrompt ? (
-        <div className="grid gap-3">
-          <PromptPanel
-            onAction={submit}
-            onValueChange={changeValue}
-            prompt={openPrompt}
-            submittingAction={
-              responseMutation.isPending ? (responseMutation.variables?.action ?? null) : null
-            }
-            values={values}
-          />
-          {responseMutation.isError ? (
-            <p className="text-sm text-destructive">
-              The response was not accepted. Check the values and submit again.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -153,11 +157,12 @@ export function CyclePromptBanner({ prompts }: CyclePromptBannerProps) {
 /* === Private Components === */
 
 /**
- * One pending prompt on a fixed four-row grid: pills and age, title,
- * instruction, action. The tone colours the card's ground and its leading
- * rule; the words stay in the foreground ink so a red card is still readable.
+ * One pending prompt, full width: pills and age, then the title and the
+ * instruction beside the Respond action, then the open form across the whole
+ * card. The tone colours the card's ground and its leading rule; the words
+ * stay in the foreground ink so a red card is still readable.
  */
-function PromptCard({ now, onToggle, open, prompt }: PromptCardProps) {
+function PromptCard({ children, now, onToggle, open, prompt }: PromptCardProps) {
   const tone = promptLevelTone(prompt.level);
 
   return (
@@ -166,13 +171,13 @@ function PromptCard({ now, onToggle, open, prompt }: PromptCardProps) {
         tone,
         recordToneRowClass(
           tone,
-          "grid grid-rows-[auto_auto_1fr_auto] gap-1.5 rounded-lg border-l-4 p-3",
+          "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1.5 rounded-lg border-l-4 p-3",
         ),
       )}
       data-prompt-id={prompt.correlation_id}
       data-prompt-level={prompt.level}
     >
-      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2">
+      <div className="col-span-2 grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2">
         <Badge className={STATUS_PILL_CLASS} variant={recordLevelVariant(prompt.level)}>
           {recordLevelLabel(prompt.level)}
         </Badge>
@@ -188,28 +193,24 @@ function PromptCard({ now, onToggle, open, prompt }: PromptCardProps) {
           {relativeAgeLabel(prompt.created_at, now)}
         </time>
       </div>
-      <p
-        className="line-clamp-2 font-heading text-base leading-6 font-semibold text-foreground"
-        title={prompt.title}
-      >
-        {prompt.title}
-      </p>
-      <p
-        className="line-clamp-3 text-sm leading-5 text-foreground/80"
-        title={prompt.message ?? undefined}
-      >
-        {prompt.message ?? ""}
-      </p>
-      <div className="grid justify-end">
-        <Button
-          aria-expanded={open}
-          onClick={onToggle}
-          size="sm"
-          variant={open ? "secondary" : "default"}
-        >
-          {open ? "Hide" : "Respond"}
-        </Button>
+      <div className="grid min-w-0 gap-1">
+        <p className="line-clamp-2 font-heading text-base leading-6 font-semibold text-foreground">
+          {prompt.title}
+        </p>
+        {prompt.message ? (
+          <p className="line-clamp-3 text-sm leading-5 text-foreground/80">{prompt.message}</p>
+        ) : null}
       </div>
+      <Button
+        aria-expanded={open}
+        className="h-9 min-w-28 [[data-density=touch]_&]:h-14"
+        onClick={onToggle}
+        size="lg"
+        variant={open ? "secondary" : "default"}
+      >
+        {open ? "Hide" : "Respond"}
+      </Button>
+      {children ? <div className="col-span-2 grid gap-3 pt-2">{children}</div> : null}
     </li>
   );
 }

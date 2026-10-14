@@ -271,6 +271,36 @@ export function useExecutionDocumentQuery({
   return snapshot && executionId ? frozenQuery(snapshot.document(executionId) ?? undefined) : query;
 }
 
+/**
+ * The cycle's own document: the host-composed records, artifacts, media and
+ * cycle-level plots, read through the same document route with no execution
+ * in its scope. A frozen report answers from its embedded cycle capture.
+ */
+export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) {
+  const snapshot = useCycleSnapshotSource();
+  const session = useNativeSessionOptional();
+  const query = useQuery({
+    enabled: Boolean(cycleId) && enabled && session !== null,
+    queryFn: ({ signal }) =>
+      fetchNativeDocument(
+        nativeDocumentSession(requireSession(session)),
+        {
+          cycleId: cycleId ?? "",
+          documentId: "default",
+          executionId: "",
+          epoch: nativeEpoch(requireSession(session)),
+        },
+        signal,
+      ).then((document) => mapNativeDocument(document)),
+    queryKey: [
+      ...workflowQueryKeys.executionDocument({ cycleId, executionId: null }),
+      generationOf(session),
+    ],
+    staleTime: 1_000,
+  });
+  return snapshot && enabled ? frozenQuery(snapshot.document(null) ?? undefined) : query;
+}
+
 /* === Invalidation === */
 
 export async function invalidateWorkflowResourceQueries(queryClient: QueryClient) {
