@@ -295,7 +295,7 @@ impl RuntimeHandle {
         self.storage().flush_until(through).await?;
         let view = self
             .storage()
-            .view_with_limits(self.config().storage_reads.execution)
+            .view_with_limits(self.config().storage_reads.finalization())
             .await?;
         let limit = view.decoded_bytes()?;
         let captured_at = dokime::core::Timestamp::now_utc();
@@ -378,6 +378,7 @@ impl RuntimeHandle {
         let inspection = ExecutionView::captured(
             self.storage(),
             view.clone(),
+            self.config().storage_reads.execution,
             captured.clone(),
             &owner_node_id,
             limit,

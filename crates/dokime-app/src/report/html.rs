@@ -131,8 +131,16 @@ impl HtmlReport {
         let mut index = manager
             .produce(allowance(index.memory_size())?, |_| Ok(index))?
             .try_into_value()?;
+        // Each member revision is read under its own default-limit view; read
+        // them all before any materialized member is retained beside one.
+        let mut opened = Vec::new();
+        opened
+            .try_reserve_exact(count)
+            .map_err(|_| invalid("cycle report member memory overflows"))?;
         for member in 0..count {
-            let execution = snapshot.member(manager, member).await?;
+            opened.push(snapshot.member(manager, member).await?);
+        }
+        for execution in opened {
             // Members Repeat The Frozen Catalogs And Every Case Of The Cycle; Once
             // Materialized, The Cycle Report Keeps Only Its Own Case So Retained
             // Members Grow Linearly Instead Of With Catalog And Cycle Size.

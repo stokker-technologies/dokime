@@ -10,6 +10,7 @@
 /* === Modules === */
 mod capture;
 mod frames;
+mod report;
 
 /* === Re-Exports === */
 
@@ -34,6 +35,7 @@ criterion_group! {
     targets =
         capture::benchmark,
         frames::benchmark,
+        report::benchmark,
         bench_evidence_selection_and_materialization
 }
 

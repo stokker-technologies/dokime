@@ -23,6 +23,12 @@ use dokime::core::{CredentialBackendKind, Metadata, SessionId};
 use dokime::domains::ActionDispatcher;
 
 /* === Constants === */
+/// The computation budget one execution or cycle report finalization reads under.
+/// Sealing reads a whole capture (every record, every telemetry page, every
+/// document) and renders it, which on a slow debug build can take far longer than
+/// any interactive query may. Finalization is unattended and already admitted,
+/// so it gets minutes; exhausting even this is retried before it is final.
+pub const FINALIZATION_BUDGET: Duration = Duration::from_secs(5 * 60);
 
 /* === Macros === */
 
@@ -202,8 +208,14 @@ impl Default for StorageReadSettings {
                 memory_bytes: execution_memory,
                 ..settings.query_execution
             },
+            // Interactive reads keep their own default; only the admissible
+            // ceiling widens so finalization's budget is accepted.
             execution_ceiling: harmos::storage::QueryLimits {
                 memory_bytes: execution_memory,
+                timeout: settings
+                    .query_execution_ceiling
+                    .timeout
+                    .max(FINALIZATION_BUDGET),
                 ..settings.query_execution_ceiling
             },
         }
@@ -211,8 +223,20 @@ impl Default for StorageReadSettings {
 }
 
 impl StorageReadSettings {
+    /// The limits report finalization reads under: the interactive profile with
+    /// the finalization budget instead of the interactive deadline.
+    pub fn finalization(&self) -> harmos::storage::QueryLimits {
+        harmos::storage::QueryLimits {
+            timeout: FINALIZATION_BUDGET,
+            ..self.execution
+        }
+    }
+
     pub(crate) fn validate(&self) -> crate::Result<()> {
         self.execution
+            .check_ceiling(self.execution_ceiling)
+            .map_err(|error| crate::Error::Operation(error.to_string()))?;
+        self.finalization()
             .check_ceiling(self.execution_ceiling)
             .map_err(|error| crate::Error::Operation(error.to_string()))?;
         if self.page_rows > self.page_rows_ceiling

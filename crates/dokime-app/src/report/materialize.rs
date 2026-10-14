@@ -121,18 +121,18 @@ pub(super) async fn execution(
             streams,
         }) => {
             let mut kept = empty(runtime.storage())?;
-            let mut after = 0;
+            // The preview keeps every row of a capture no longer than a plot's
+            // point budget, so such a capture is read once.
+            let mut early = empty(runtime.storage())?;
             let mut count = 0usize;
-            while let Some((last, rows)) = inspection
-                .telemetry_after(runtime.storage(), page, limit, after)
-                .await?
-            {
-                // Each page reads under its own view; touching the captured
-                // one keeps it, and the evidence it pins, from going idle.
-                view.saved()?;
-                after = last;
+            let mut reader = inspection.telemetry(runtime.storage(), page, limit)?;
+            while let Some(rows) = reader.next().await? {
                 let mut selected = Vec::new();
+                let mut first = Vec::new();
                 for row in rows.iter() {
+                    if count < dokime::document::DEFAULT_PLOT_MAX_POINTS {
+                        first.push(row.sample.clone());
+                    }
                     count = count.saturating_add(1);
                     for plot in streamed.values_mut() {
                         plot.push(&row.sample);
@@ -144,22 +144,24 @@ pub(super) async fn execution(
                     }
                 }
                 drop(rows);
-                if !selected.is_empty() {
-                    let bytes = selected.memory_size();
-                    check(bytes, limit)?;
-                    let projected = runtime
-                        .storage()
-                        .produce(bound(bytes)?, |_| Ok(selected))?
-                        .try_into_value()?;
-                    kept = append(&view, kept, &projected, limit)?;
-                }
+                kept = keep(runtime, &view, kept, selected, limit)?;
+                early = keep(runtime, &view, early, first, limit)?;
                 let held = streamed.values().fold(
-                    records.memory_size().saturating_add(kept.memory_size()),
+                    records
+                        .memory_size()
+                        .saturating_add(kept.memory_size())
+                        .saturating_add(early.memory_size()),
                     |bytes, plot| bytes.saturating_add(plot.memory_size()),
                 );
                 check(held, limit)?;
             }
-            let preview = preview(runtime, inspection, &view, page, limit, count).await?;
+            drop(reader);
+            let preview = if count <= dokime::document::DEFAULT_PLOT_MAX_POINTS {
+                early
+            } else {
+                drop(early);
+                preview(runtime, inspection, &view, page, limit, count).await?
+            };
             (
                 PlotSource::Paged {
                     streamed,
@@ -562,16 +564,10 @@ async fn preview(
     let mut wanted = selected.iter().copied().peekable();
     let mut preview = empty(runtime.storage())?;
     let mut index = 0usize;
-    let mut after = 0;
+    let mut reader = inspection.telemetry(runtime.storage(), page, limit)?;
     while wanted.peek().is_some()
-        && let Some((last, rows)) = inspection
-            .telemetry_after(runtime.storage(), page, limit, after)
-            .await?
+        && let Some(rows) = reader.next().await?
     {
-        view.saved()?;
-        after = last;
-        // The page's own view closed with its query; the kept samples are
-        // charged to a production of their own before joining the preview.
         let mut kept = Vec::new();
         for row in rows.iter() {
             if wanted.peek() == Some(&index) {
@@ -581,15 +577,7 @@ async fn preview(
             index += 1;
         }
         drop(rows);
-        let bytes = kept
-            .memory_size()
-            .max(std::mem::size_of::<Vec<dokime::telemetry::TelemetrySample>>());
-        check(bytes, limit)?;
-        let projected = runtime
-            .storage()
-            .produce(bound(bytes)?, |_| Ok(kept))?
-            .try_into_value()?;
-        preview = append(view, preview, &projected, limit)?;
+        preview = keep(runtime, view, preview, kept, limit)?;
     }
     if wanted.peek().is_some() {
         return Err(invalid("report telemetry changed between its two reads"));
@@ -604,6 +592,25 @@ fn empty<T: MemorySize>(storage: &dokime::storage::Manager) -> Result<QueryValue
             |_| Ok(Vec::new()),
         )?
         .try_into_value()?)
+}
+/// Charges `rows` to a production of their own before they join `original`.
+fn keep<T: MemorySize + Clone>(
+    runtime: &RuntimeHandle,
+    view: &StorageView,
+    original: QueryValue<Vec<T>>,
+    rows: Vec<T>,
+    limit: NonZeroUsize,
+) -> Result<QueryValue<Vec<T>>> {
+    if rows.is_empty() {
+        return Ok(original);
+    }
+    let bytes = rows.memory_size();
+    check(bytes, limit)?;
+    let projected = runtime
+        .storage()
+        .produce(bound(bytes)?, |_| Ok(rows))?
+        .try_into_value()?;
+    append(view, original, &projected, limit)
 }
 fn append<T: MemorySize + Clone>(
     view: &StorageView,
