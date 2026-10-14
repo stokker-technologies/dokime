@@ -10,15 +10,13 @@
 /* The application menu bar: the one thin row above the sidebar and page bar.
  *
  * Application-level commands live here so the page bar holds only the page:
- * its title and the actions the page publishes. The frozen report keeps the
- * same row with only what a file can honour: how it is displayed, and what it
- * is. It never navigates and never reaches the desktop bridge.
+ * its title and the actions the page publishes. A frozen report has no menu
+ * bar: a file has no application to command.
  */
 
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
@@ -27,13 +25,6 @@ import {
   useNativeSessionController,
   useNativeSessionOptional,
 } from "@/app/native-session/NativeSessionProvider";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Menubar,
   MenubarCheckboxItem,
@@ -53,19 +44,12 @@ import {
   useSaveAppearance,
 } from "@/lib/application-settings";
 import { useApplicationTheme } from "@/lib/application-theme";
-import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
-import { applyDensity, type DensityPreference, type ThemeModePreference } from "@/lib/theme";
-import { applyReportColorMode } from "@/report/report-appearance";
+import type { DensityPreference, ThemeModePreference } from "@/lib/theme";
 import { useFocusMode } from "@/shell/focus-mode";
 import { useRouteCycleId } from "@/shell/route-scope";
-import { useShellDensity } from "@/shell/use-shell-density";
 import { useSidebarState } from "@/shell/use-sidebar-state";
 import { useUiStore } from "@/stores/ui-store";
-
-/* === Types === */
-
-export type MenuBarProps = { live?: true } | { live: false; generatedAt: string | null };
 
 /* === Constants === */
 
@@ -83,14 +67,14 @@ const THEME_OPTIONS: { value: ThemeModePreference; label: string }[] = [
 
 /* === Components === */
 
-/** The menu bar row. `live` is the only switch, as for the shell around it. */
-export function MenuBar(props: MenuBarProps) {
+/** The menu bar row. The live shell is the only one that has it. */
+export function MenuBar() {
   return (
     <Menubar
       aria-label="Application"
       className="h-[var(--menu-bar-height)] gap-0 rounded-none border-0 border-b bg-background p-0 px-[calc(var(--shell-inset)/2)]"
     >
-      {props.live === false ? <ReportMenus generatedAt={props.generatedAt} /> : <LiveMenus />}
+      <LiveMenus />
     </Menubar>
   );
 }
@@ -224,76 +208,6 @@ function LiveThemeGroup() {
       onChange={setTheme}
       value={(theme as ThemeModePreference | undefined) ?? "system"}
     />
-  );
-}
-
-/** The report's menus: display and identity only. */
-function ReportMenus({ generatedAt }: { generatedAt: string | null }) {
-  const density = useShellDensity();
-  const [theme, setTheme] = useState<ThemeModePreference>("system");
-  const [aboutOpen, setAboutOpen] = useState(false);
-
-  return (
-    <>
-      <MenubarMenu>
-        <MenuTrigger>View</MenuTrigger>
-        <MenubarContent>
-          <DensityGroup onChange={applyDensity} value={density} />
-          <MenubarSeparator />
-          <ThemeGroup
-            onChange={(value) => {
-              applyReportColorMode(value);
-              setTheme(value);
-            }}
-            value={theme}
-          />
-        </MenubarContent>
-      </MenubarMenu>
-
-      <MenubarMenu>
-        <MenuTrigger>Help</MenuTrigger>
-        <MenubarContent>
-          <MenubarItem onSelect={() => setAboutOpen(true)}>About</MenubarItem>
-        </MenubarContent>
-      </MenubarMenu>
-
-      <ReportAboutDialog generatedAt={generatedAt} onOpenChange={setAboutOpen} open={aboutOpen} />
-    </>
-  );
-}
-
-function ReportAboutDialog({
-  generatedAt,
-  onOpenChange,
-  open,
-}: {
-  generatedAt: string | null;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-}) {
-  const brand = useBrand();
-  const at = generatedAt ? new Date(generatedAt) : null;
-  const generated = at && !Number.isNaN(at.getTime()) ? at.toLocaleString() : "Unknown";
-
-  return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>About This Report</DialogTitle>
-          <DialogDescription>
-            A frozen report: a read-only record written by {brand.label}.
-          </DialogDescription>
-        </DialogHeader>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="text-muted-foreground">Application</dt>
-          <dd>{brand.label}</dd>
-          <dt className="text-muted-foreground">Version</dt>
-          <dd className="font-mono">v{__APP_VERSION__}</dd>
-          <dt className="text-muted-foreground">Generated</dt>
-          <dd>{generated}</dd>
-        </dl>
-      </DialogContent>
-    </Dialog>
   );
 }
 

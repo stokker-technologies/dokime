@@ -11,12 +11,7 @@
 
 import type { RuntimeAppearanceFrame } from "@/lib/appearance";
 import { type Brand, defaultBrand } from "@/lib/brand";
-import {
-  applyThemeStylesheet,
-  applyThemeVariables,
-  type ResolvedTheme,
-  type ThemeModePreference,
-} from "@/lib/theme";
+import { applyThemeStylesheet, applyThemeVariables, type ResolvedTheme } from "@/lib/theme";
 import { materializeThemeFamilyVariables, resolveThemeFamily } from "@/lib/theme-family";
 
 /* === Report appearance ===
@@ -46,7 +41,7 @@ export function applyReportAppearance(appearance: unknown): Brand {
   reportThemeFamily = resolveThemeFamily(frame.themes ?? [], { activeThemeId: frame.active_theme });
   if (reportThemeFamily) {
     applyThemeStylesheet(reportThemeFamily.stylesheet);
-    applyReportColorMode("system");
+    applySystemColorMode();
   }
 
   if (frame.app_name?.trim()) {
@@ -56,12 +51,14 @@ export function applyReportAppearance(appearance: unknown): Brand {
   return brandFromFrame(frame);
 }
 
+/* === Private Functions === */
+
 /**
- * Render the report in one color mode. `system` follows the viewer's scheme
- * at the moment of the call; the report holds no preference store.
+ * Render the report in the viewer's color scheme at the moment of the call;
+ * the report holds no preference store and no control to choose one.
  */
-export function applyReportColorMode(preference: ThemeModePreference): ResolvedTheme {
-  const mode: ResolvedTheme = preference === "system" ? systemColorMode() : preference;
+function applySystemColorMode(): void {
+  const mode = systemColorMode();
   const root = document.documentElement;
   root.classList.toggle("dark", mode === "dark");
   root.classList.toggle("light", mode === "light");
@@ -69,10 +66,7 @@ export function applyReportColorMode(preference: ThemeModePreference): ResolvedT
   if (reportThemeFamily) {
     applyThemeVariables(materializeThemeFamilyVariables(reportThemeFamily, mode));
   }
-  return mode;
 }
-
-/* === Private Functions === */
 
 function systemColorMode(): ResolvedTheme {
   return typeof window !== "undefined" &&
