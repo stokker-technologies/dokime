@@ -19,7 +19,7 @@ import { useApplicationTheme } from "@/lib/application-theme";
 
 const DOKIME_TOAST_CLASSES = {
   toast:
-    "flex w-full items-start gap-3 rounded-2xl border border-border bg-popover p-4 font-sans text-sm text-popover-foreground",
+    "relative flex w-full items-start gap-3 rounded-2xl border border-border bg-popover p-4 pr-10 font-sans text-sm text-popover-foreground",
   title: "font-medium text-popover-foreground",
   description: "text-xs text-muted-foreground",
   content: "grid min-w-0 gap-1",
@@ -32,7 +32,7 @@ const DOKIME_TOAST_CLASSES = {
   actionButton: "rounded-md bg-primary px-2 py-1 text-primary-foreground",
   cancelButton: "rounded-md bg-secondary px-2 py-1 text-secondary-foreground",
   closeButton:
-    "rounded-md border border-border bg-popover text-muted-foreground hover:text-popover-foreground",
+    "absolute top-2 right-2 grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-popover-foreground [&>svg]:size-3.5",
 } as const;
 
 /* === Types === */
@@ -45,8 +45,13 @@ export function DokimeToaster() {
 
   return (
     <Toaster
-      position="top-right"
       className="z-[100]"
+      closeButton
+      offset={{
+        bottom: "calc(var(--status-bar-height) + var(--shell-gap))",
+        right: "var(--shell-gap)",
+      }}
+      position="bottom-right"
       theme={resolvedTheme === "dark" ? "dark" : "light"}
       toastOptions={{ unstyled: true, classNames: DOKIME_TOAST_CLASSES }}
     />
