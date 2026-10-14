@@ -14,7 +14,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{cell::RefCell, collections::BTreeMap, io::Write, num::NonZeroUsize, ops::Deref};
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    io::Write,
+    num::NonZeroUsize,
+    ops::Deref,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 // Third Party Imports
 use harmos::{
@@ -48,6 +55,10 @@ pub(super) struct HtmlReport {
     pub(super) manager: Manager,
     index: SharedQueryValue<Index>,
     source: Source,
+    /// The length the last count measured, so a report checked against its
+    /// limit while it was degraded is not counted twice.
+    /// Zero until counted; a report is never empty.
+    counted: AtomicUsize,
     _memory: StorageProductionPreparation,
 }
 
@@ -188,6 +199,7 @@ impl HtmlReport {
                 executor,
                 members: members.try_into_shared()?,
             },
+            counted: AtomicUsize::new(0),
             _memory: memory,
         })
     }
@@ -242,19 +254,43 @@ impl HtmlReport {
         }
     }
 
+    /// One execution's report no longer than `maximum`, degraded step by step
+    /// until both its materialization and its HTML fit.
     pub(super) async fn from_snapshot(
         runtime: &RuntimeHandle,
         snapshot: &ExecutionView,
         final_report: bool,
+        maximum: NonZeroUsize,
     ) -> Result<Self> {
         let snapshot = snapshot.snapshot(runtime.storage()).await?;
-        let materialized = super::materialize::execution(runtime, &snapshot, final_report)
-            .await?
-            .try_into_shared()?;
         let evidence = snapshot
             .captured_source()
-            .ok_or_else(|| invalid("execution snapshot context is missing"))?;
-        Self::from_capture(runtime.storage(), &materialized, evidence)
+            .ok_or_else(|| invalid("execution snapshot context is missing"))?
+            .clone();
+        let manager = runtime.storage();
+        super::materialize::climb(|degradation, cause| {
+            let evidence = evidence.clone();
+            let snapshot = &snapshot;
+            async move {
+                let materialized = super::materialize::attempt(
+                    runtime,
+                    snapshot,
+                    final_report,
+                    degradation,
+                    cause,
+                )
+                .await?
+                .try_into_shared()?;
+                let report = Self::from_capture(manager, &materialized, &evidence)?;
+                tokio::task::spawn_blocking(move || {
+                    let length = report.length(maximum)?;
+                    report.counted.store(length, Ordering::Relaxed);
+                    Ok::<_, Error>(report)
+                })
+                .await?
+            }
+        })
+        .await
     }
 
     pub(super) fn captured_input(&self) -> Result<&SharedQueryValue<CapturedExecutionReportInput>> {
@@ -296,14 +332,24 @@ impl HtmlReport {
                 input: captured.clone(),
                 evidence: evidence.clone(),
             },
+            counted: AtomicUsize::new(0),
             _memory: memory,
         })
     }
 
     pub(super) fn length(&self, maximum: NonZeroUsize) -> Result<usize> {
+        let counted = self.counted.load(Ordering::Relaxed);
+        if counted != 0 && counted <= maximum.get() {
+            return Ok(counted);
+        }
         let mut count = super::output::Count::new(maximum);
-        self.write(&mut count)?;
-        Ok(count.len())
+        match self.write(&mut count) {
+            Ok(()) => Ok(count.len()),
+            Err(_) if count.exceeded() => Err(Error::Harmos(harmos::Error::ResourceExhausted {
+                resource: "report output size",
+            })),
+            Err(error) => Err(error),
+        }
     }
 
     pub(super) fn bytes(&self, length: usize) -> Result<Vec<u8>> {

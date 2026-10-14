@@ -308,7 +308,9 @@ function livePlotSpec({
           ? "Reconnecting"
           : state.status === "error"
             ? "Stream Error"
-            : spec.stateLabel;
+            : state.status === "omitted"
+              ? "Plot Omitted"
+              : spec.stateLabel;
   const detail =
     state.status === "reconnecting"
       ? "The last samples remain visible while the plot stream reopens."

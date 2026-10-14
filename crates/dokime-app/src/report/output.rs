@@ -45,6 +45,7 @@ pub(super) struct Buffer {
 pub(super) struct Count {
     bytes: usize,
     maximum: NonZeroUsize,
+    exceeded: bool,
 }
 
 /* === Enums === */
@@ -111,10 +112,18 @@ impl Write for Buffer {
 
 impl Count {
     pub(super) fn new(maximum: NonZeroUsize) -> Self {
-        Self { bytes: 0, maximum }
+        Self {
+            bytes: 0,
+            maximum,
+            exceeded: false,
+        }
     }
     pub(super) fn len(&self) -> usize {
         self.bytes
+    }
+    /// Whether the counted output outgrew its byte limit.
+    pub(super) fn exceeded(&self) -> bool {
+        self.exceeded
     }
 }
 
@@ -124,7 +133,10 @@ impl Write for Count {
             .bytes
             .checked_add(bytes.len())
             .filter(|required| *required <= self.maximum.get())
-            .ok_or_else(|| io::Error::other("report output exceeds its byte limit"))?;
+            .ok_or_else(|| {
+                self.exceeded = true;
+                io::Error::other("report output exceeds its byte limit")
+            })?;
         Ok(bytes.len())
     }
 

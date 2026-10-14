@@ -145,6 +145,16 @@ pub fn builtin_record_contracts() -> Vec<RecordContract> {
                 field("values", ValueType::Object),
             ],
         ),
+        // A sealed report that left evidence out to fit its budget.
+        contract(
+            "report.omissions",
+            RecordSeverity::Warning,
+            vec![
+                field("test_cycle_id", ValueType::Text),
+                field("test_execution_id", ValueType::Text),
+                field("omissions", ValueType::Array),
+            ],
+        ),
         contract(
             "control.callback_completed",
             RecordSeverity::Info,

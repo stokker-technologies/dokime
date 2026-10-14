@@ -11,7 +11,18 @@
 
 import type { ReportPayload } from "@/lib/report-types";
 
+/* === Constants === */
+
+const OMITTED = "report.omitted: ";
+
 /* === Public Functions === */
+
+/** The report's own notes on what it left out to fit its budget. */
+export function reportOmissions(warnings: readonly string[]): string[] {
+  return warnings
+    .filter((warning) => warning.startsWith(OMITTED))
+    .map((warning) => warning.slice(OMITTED.length));
+}
 
 /** The payload carries step and criterion rows beside the executions, as the
     live adapters read them from their own call; each execution gets its own

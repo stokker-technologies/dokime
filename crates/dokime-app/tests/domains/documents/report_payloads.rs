@@ -112,6 +112,7 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
         artifact_links: Vec::new(),
         appearance: None,
         generated_at: Timestamp::now_utc(),
+        omissions: Vec::new(),
     }
 }
 

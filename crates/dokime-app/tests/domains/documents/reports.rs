@@ -177,6 +177,7 @@ pub(crate) async fn report_save_receipt() {
             .unwrap(),
         ),
         generated_at: finished_at.clone(),
+        omissions: Vec::new(),
     };
     let row = Execution::try_from(&original_execution).unwrap();
     let receipt = manager.write_object(&row).await.unwrap();
@@ -554,6 +555,90 @@ pub(crate) async fn open_report_any_state() {
     assert_eq!(payload["case_runs"], original["case_runs"]);
     assert_eq!(cycle_snapshot(&runtime, &id).await.saved, Some(seal));
     owner.shutdown().await.unwrap();
+}
+
+// The same running execution's report renders three times in a row: the first
+// render releases everything it held, and each carries the same evidence.
+pub(crate) async fn open_report_repeatedly() {
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let id = start_cycle(&runtime, suite, false).await;
+    runtime
+        .run_cycle_cases(id.clone(), CommandContext::default())
+        .await;
+    executor.wait_until_entered().await;
+    let execution = cycle_snapshot(&runtime, &id).await.test_executions[0].clone();
+    let recorded = execution.steps.len();
+    assert!(recorded > 0, "the running execution has step records");
+
+    let mut renders = Vec::new();
+    for attempt in 1..=3 {
+        let opened = runtime
+            .open_execution_report(&execution.test_execution_id)
+            .await
+            .unwrap_or_else(|error| panic!("render {attempt} of the running report: {error}"));
+        assert_eq!(opened.origin, dokime_app::ReportOrigin::Current);
+        let payload = crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+        drop(opened);
+        let steps = payload["test_steps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|row| {
+                row["record_type"] == "step"
+                    && row["test_execution_id"] == execution.test_execution_id.as_str()
+            })
+            .count();
+        assert_eq!(
+            steps, recorded,
+            "render {attempt} carries every step the live execution holds"
+        );
+        renders.push(stable(payload));
+    }
+    for attempt in 0..3 {
+        runtime
+            .open_cycle_report(&id)
+            .await
+            .unwrap_or_else(|error| panic!("cycle render {attempt}: {error}"));
+    }
+    assert_eq!(renders[0]["case_runs"], renders[2]["case_runs"]);
+    assert_eq!(renders[0]["test_steps"], renders[2]["test_steps"]);
+    assert_eq!(renders[0]["warnings"], renders[2]["warnings"]);
+    assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
+
+    executor.release();
+    wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    owner.shutdown().await.unwrap();
+}
+
+/// A payload without the times each rendering stamps on itself.
+fn stable(mut value: serde_json::Value) -> serde_json::Value {
+    match &mut value {
+        serde_json::Value::Object(fields) => {
+            for key in [
+                "generated_at",
+                "started_at",
+                "finished_at",
+                "updated_at",
+                "captured_at",
+            ] {
+                fields.remove(key);
+            }
+            for field in fields.values_mut() {
+                *field = stable(field.take());
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items.iter_mut() {
+                *item = stable(item.take());
+            }
+        }
+        _ => {}
+    }
+    value
 }
 
 fn remove_named(directory: &std::path::Path, name: &str) -> bool {

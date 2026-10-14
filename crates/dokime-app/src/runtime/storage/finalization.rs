@@ -269,10 +269,23 @@ impl RuntimeHandle {
             let prepared = runtime
                 .prepare_final_execution_report(&inspection, outputs)
                 .await?;
+            let omissions = prepared.captured_input().input.omissions.clone();
             runtime
                 .execution_storage
                 .publish_final_report(inspection, prepared, dokime::core::Timestamp::now_utc())
                 .await?;
+            if !omissions.is_empty() {
+                // Recorded once the cycle settles: a record admitted while
+                // the cycle is still being sealed would change what it seals.
+                runtime
+                    .execution_storage
+                    .report_omissions
+                    .lock()
+                    .await
+                    .entry(execution.test_cycle_id.clone())
+                    .or_default()
+                    .push((execution.test_execution_id.clone(), omissions));
+            }
             Ok(())
         })
         .await?

@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { executionsWithSteps } from "../src/report/report-steps.ts";
+import { executionsWithSteps, reportOmissions } from "../src/report/report-steps.ts";
 
 /* === Tests === */
 
@@ -48,4 +48,14 @@ test("an execution with no recorded steps reads an empty list", () => {
   });
 
   assert.deepEqual(execution.steps, []);
+});
+
+test("the report lists only what it left out to fit its budget", () => {
+  assert.deepEqual(
+    reportOmissions([
+      "report.no_result_summary: No result summary has been produced for this cycle.",
+      "report.omitted: Plot Spectrum omitted: the report did not fit its budget.",
+    ]),
+    ["Plot Spectrum omitted: the report did not fit its budget."],
+  );
 });

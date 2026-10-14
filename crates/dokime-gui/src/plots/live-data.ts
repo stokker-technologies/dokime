@@ -51,7 +51,15 @@ const RECONNECT_MAX_MS = 10_000;
 
 /* === Types === */
 
-export type LivePlotStatus = "idle" | "loading" | "live" | "stale" | "reconnecting" | "error";
+export type LivePlotStatus =
+  | "idle"
+  | "loading"
+  | "live"
+  | "stale"
+  | "reconnecting"
+  | "error"
+  /** A frozen report left the plot out to fit its budget. */
+  | "omitted";
 
 export type LivePlotState = {
   /** The reduced frame the renderer draws. */

@@ -22,6 +22,7 @@ pub mod value;
 
 /* === Re-Exports === */
 pub use input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument};
+pub(crate) use materialize::contended;
 pub(crate) use saved::{CapturedExecutionReportInput, PreparedExecutionReport};
 
 /* === Imports === */

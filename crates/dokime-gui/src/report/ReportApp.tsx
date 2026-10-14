@@ -105,6 +105,7 @@ function ReportSurface() {
       }}
       live={false}
     >
+      {source.omissions.length ? <ReportOmissions omissions={source.omissions} /> : null}
       <CycleWorkspace
         caseId={selection.caseId}
         cycleId={cycleId}
@@ -114,6 +115,24 @@ function ReportSurface() {
         onSelectionChange={setSelection}
       />
     </AppShell>
+  );
+}
+
+/** What the report left out to fit its budget, said once above the document. */
+function ReportOmissions({ omissions }: { omissions: string[] }) {
+  return (
+    <section
+      aria-label="Omitted From This Report"
+      className="mx-[var(--shell-inset)] mt-[var(--shell-gap)] rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
+      role="note"
+    >
+      <h2 className="font-heading font-semibold">Omitted From This Report</h2>
+      <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+        {omissions.map((omission) => (
+          <li key={omission}>{omission}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

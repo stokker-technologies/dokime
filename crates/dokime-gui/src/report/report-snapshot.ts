@@ -22,7 +22,7 @@ import type { CycleSnapshotSource, FrozenPlotPayloads } from "@/features/cycle/s
 import { mapDocumentCapture } from "@/lib/document-normalizer";
 import type { ReportCaseRunPayload, ReportPayload } from "@/lib/report-types";
 import type { ArtifactRecord, DocumentViewPayload, HubLiveState } from "@/lib/types";
-import { executionsWithSteps } from "@/report/report-steps";
+import { executionsWithSteps, reportOmissions } from "@/report/report-steps";
 
 /* === Constants === */
 
@@ -83,6 +83,7 @@ export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource
     generatedAt: payload.generated_at ?? null,
     health,
     notes,
+    omissions: reportOmissions(payload.warnings),
     plan: payload.test_cycle_plan ?? null,
     plotPayloads: (executionId) => {
       if (executionId === null) {

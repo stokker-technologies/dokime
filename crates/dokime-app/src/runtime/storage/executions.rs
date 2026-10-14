@@ -72,6 +72,10 @@ pub(crate) struct ExecutionStorage {
     pub(super) context_epoch: SessionId,
     pub(super) brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
     pub(super) cycle_save: Arc<Mutex<()>>,
+    /// What each sealed execution report left out, by cycle, until the cycle
+    /// settles and records it.
+    pub(crate) report_omissions:
+        Mutex<BTreeMap<dokime::core::TestCycleId, Vec<(TestExecutionId, Vec<String>)>>>,
     pub(super) cycle_reports: Mutex<
         BTreeMap<dokime::core::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>,
     >,
@@ -356,6 +360,7 @@ impl ExecutionStorage {
             context_epoch,
             brand,
             cycle_save: Arc::new(Mutex::new(())),
+            report_omissions: Mutex::new(BTreeMap::new()),
             cycle_reports: Mutex::new(BTreeMap::new()),
             active: Mutex::new(BTreeMap::new()),
             artifact_admission: Arc::new(tokio::sync::Semaphore::new(4)),

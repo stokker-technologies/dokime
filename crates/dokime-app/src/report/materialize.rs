@@ -37,6 +37,24 @@ use crate::{
 use dokime::execution::saved::ExecutionOutputContent;
 
 /* === Constants === */
+/// How often a step meets contended storage memory before it gives way.
+const CONTENTION_TRIES: u32 = 5;
+const CONTENTION_FIRST_DELAY: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// The fewest points a halved plot keeps; under this a waveform is unreadable.
+const MIN_PLOT_POINTS: usize = 100;
+
+/// Every step a report takes before it gives up, from whole to bare.
+pub(super) const LADDER: [Degradation; 8] = [
+    Degradation::Full,
+    Degradation::Halved(1),
+    Degradation::Halved(2),
+    Degradation::Halved(3),
+    Degradation::Halved(4),
+    Degradation::Omitted,
+    Degradation::Truncated(1_000),
+    Degradation::Truncated(0),
+];
 
 /* === Macros === */
 
@@ -51,6 +69,13 @@ struct PagedPlots {
     streams: Vec<String>,
 }
 
+/// The step a report renders at, why, and what it has already left out.
+struct Ladder<'a> {
+    degradation: Degradation,
+    cause: &'a str,
+    omissions: Vec<String>,
+}
+
 /// What a report materializes from.
 struct Evidence<'a> {
     records: &'a [dokime::records::RecordEntry],
@@ -59,6 +84,21 @@ struct Evidence<'a> {
 }
 
 /* === Enums === */
+/// How far a report gives way when its evidence does not fit its budget. Each
+/// step keeps more of the report than the next: a report is always produced.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Degradation {
+    /// Everything the documents ask for.
+    Full,
+    /// Every plot keeps its points halved this many times, never under
+    /// [`MIN_PLOT_POINTS`].
+    Halved(u32),
+    /// Plots become placeholders that say why they are missing.
+    Omitted,
+    /// Plots omitted, and records and samples cut after this many rows.
+    Truncated(usize),
+}
+
 /// Where a report's plots read their evidence.
 enum PlotSource {
     /// The execution's rows, read whole for documents that evaluate them.
@@ -74,13 +114,120 @@ enum PlotSource {
 /* === Traits === */
 
 /* === Implementations === */
+impl Degradation {
+    /// The points a plot keeps at this step, given what it asked for.
+    fn points(self, requested: Option<usize>) -> Option<usize> {
+        let Self::Halved(times) = self else {
+            return requested;
+        };
+        let asked = requested
+            .filter(|points| *points > 0)
+            .unwrap_or(dokime::document::DEFAULT_PLOT_MAX_POINTS);
+        Some((asked >> times).max(MIN_PLOT_POINTS).min(asked))
+    }
+
+    fn plots(self) -> bool {
+        matches!(self, Self::Full | Self::Halved(_))
+    }
+
+    fn rows(self) -> Option<usize> {
+        match self {
+            Self::Truncated(rows) => Some(rows),
+            _ => None,
+        }
+    }
+}
 
 /* === Public Functions === */
+/// One execution's report input, degraded step by step until it fits.
 pub(super) async fn execution(
     runtime: &RuntimeHandle,
     inspection: &ExecutionView,
     final_report: bool,
 ) -> Result<QueryValue<CapturedExecutionReportInput>> {
+    climb(|degradation, cause| attempt(runtime, inspection, final_report, degradation, cause)).await
+}
+
+/// Runs `step` down [`LADDER`] until one fits. A step that meets other
+/// readers holding the shared storage memory is tried again before the
+/// report gives anything up; a step over its own budget gives way to the next.
+pub(super) async fn climb<T, F>(mut step: impl FnMut(Degradation, Option<String>) -> F) -> Result<T>
+where
+    F: std::future::Future<Output = Result<T>>,
+{
+    let mut cause = None::<String>;
+    for degradation in LADDER {
+        let mut delay = CONTENTION_FIRST_DELAY;
+        let mut tries = 0;
+        loop {
+            match step(degradation, cause.clone()).await {
+                Err(error) if contended(&error) && tries < CONTENTION_TRIES => {
+                    tries += 1;
+                    tokio::time::sleep(delay).await;
+                    delay = delay.saturating_mul(2);
+                }
+                Err(error) if exceeds_budget(&error) => {
+                    tracing::warn!(%error, ?degradation, "report does not fit its budget; degrading");
+                    cause = Some(error.to_string());
+                    break;
+                }
+                outcome => return outcome,
+            }
+        }
+    }
+    Err(Error::InvalidReportInputs(format!(
+        "report does not fit its budget even without plots, records and samples: {}",
+        cause.unwrap_or_default()
+    )))
+}
+
+/// Whether `error` is other readers holding the shared storage memory: a
+/// moment to wait out rather than a budget this report is over.
+pub(crate) fn contended(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::Harmos(harmos::Error::ResourceExhausted {
+            resource: "storage read memory"
+        }) | Error::Storage(dokime::storage::Error::Runtime(
+            harmos::Error::ResourceExhausted {
+                resource: "storage read memory"
+            }
+        ))
+    )
+}
+
+/// Whether `error` is a budget a degraded report could fit, rather than
+/// evidence that cannot be read at all.
+fn exceeds_budget(error: &Error) -> bool {
+    let budget = |error: &harmos::Error| {
+        matches!(
+            error,
+            harmos::Error::ResourceExhausted { .. }
+                | harmos::Error::InvalidInput {
+                    field: "storage production",
+                    ..
+                }
+        )
+    };
+    match error {
+        Error::Harmos(error) | Error::Storage(dokime::storage::Error::Runtime(error)) => {
+            budget(error)
+        }
+        _ => false,
+    }
+}
+
+/// One execution's report input at one step of the ladder. `cause` is why the
+/// previous step did not fit, recorded beside whatever this step leaves out.
+pub(super) async fn attempt(
+    runtime: &RuntimeHandle,
+    inspection: &ExecutionView,
+    final_report: bool,
+    degradation: Degradation,
+    cause: Option<String>,
+) -> Result<QueryValue<CapturedExecutionReportInput>> {
+    let cause = cause.unwrap_or_else(|| "its budget".to_owned());
+    let mut omissions = Vec::new();
     let captured = inspection
         .captured_source()
         .ok_or_else(|| invalid("report snapshot has no captured execution context"))?
@@ -95,18 +242,31 @@ pub(super) async fn execution(
     let mut records = empty(runtime.storage())?;
     let mut reader = inspection.context_records(runtime.storage(), page, limit)?;
     while let Some(rows) = reader.next().await? {
+        let room = degradation
+            .rows()
+            .map_or(usize::MAX, |rows| rows.saturating_sub(records.len()));
         let projected = rows.try_project(limit, |rows, allowance| {
-            let bytes = rows.iter().fold(
+            let bytes = rows.iter().take(room).fold(
                 std::mem::size_of::<Vec<dokime::records::RecordEntry>>(),
                 |bytes, row| bytes.saturating_add(row.record.memory_size()),
             );
             check(bytes, allowance)?;
             Ok(rows
                 .iter()
+                .take(room)
                 .map(|row| row.record.clone())
                 .collect::<Vec<_>>())
         })?;
+        let cut = rows.len() > room;
+        drop(rows);
         records = append(&view, records, &projected, limit)?;
+        if cut {
+            omissions.push(format!(
+                "Records truncated at {} rows: the report did not fit {cause}.",
+                records.len()
+            ));
+            break;
+        }
     }
     drop(reader);
     let execution = inspection.revision().clone();
@@ -115,95 +275,119 @@ pub(super) async fn execution(
     // rows, and plots that need the whole capture keep only the rows of the
     // streams they read. A document that evaluates raw rows itself still
     // reads the execution's rows whole, charged and failing closed.
-    let (source, telemetry) = match paged_plots(&captured, &execution.value, &records, limit)? {
-        Some(PagedPlots {
-            mut streamed,
-            streams,
-        }) => {
-            let mut kept = empty(runtime.storage())?;
-            // The preview keeps every row of a capture no longer than a plot's
-            // point budget, so such a capture is read once.
-            let mut early = empty(runtime.storage())?;
-            let mut count = 0usize;
-            let mut reader = inspection.telemetry(runtime.storage(), page, limit)?;
-            while let Some(rows) = reader.next().await? {
-                let mut selected = Vec::new();
-                let mut first = Vec::new();
-                for row in rows.iter() {
-                    if count < dokime::document::DEFAULT_PLOT_MAX_POINTS {
-                        first.push(row.sample.clone());
+    let (source, telemetry) =
+        match paged_plots(&captured, &execution.value, &records, limit, degradation)? {
+            Some(PagedPlots {
+                mut streamed,
+                streams,
+            }) => {
+                let mut kept = empty(runtime.storage())?;
+                // The preview keeps every row of a capture no longer than a plot's
+                // point budget, so such a capture is read once.
+                let mut early = empty(runtime.storage())?;
+                let mut count = 0usize;
+                let mut reader = inspection.telemetry(runtime.storage(), page, limit)?;
+                let mut cut = false;
+                while !cut && let Some(rows) = reader.next().await? {
+                    let mut selected = Vec::new();
+                    let mut first = Vec::new();
+                    for row in rows.iter() {
+                        if degradation.rows().is_some_and(|rows| count >= rows) {
+                            cut = true;
+                            break;
+                        }
+                        if count < dokime::document::DEFAULT_PLOT_MAX_POINTS {
+                            first.push(row.sample.clone());
+                        }
+                        count = count.saturating_add(1);
+                        for plot in streamed.values_mut() {
+                            plot.push(&row.sample);
+                        }
+                        if streams.iter().any(|stream| {
+                            crate::plot::stream_matches_alias(row.sample.stream.as_str(), stream)
+                        }) {
+                            selected.push(row.sample.clone());
+                        }
                     }
-                    count = count.saturating_add(1);
-                    for plot in streamed.values_mut() {
-                        plot.push(&row.sample);
-                    }
-                    if streams.iter().any(|stream| {
-                        crate::plot::stream_matches_alias(row.sample.stream.as_str(), stream)
-                    }) {
-                        selected.push(row.sample.clone());
+                    drop(rows);
+                    kept = keep(runtime, &view, kept, selected, limit)?;
+                    early = keep(runtime, &view, early, first, limit)?;
+                    let held = streamed.values().fold(
+                        records
+                            .memory_size()
+                            .saturating_add(kept.memory_size())
+                            .saturating_add(early.memory_size()),
+                        |bytes, plot| bytes.saturating_add(plot.memory_size()),
+                    );
+                    check(held, limit)?;
+                }
+                drop(reader);
+                if cut {
+                    omissions.push(format!(
+                        "Samples truncated at {count} rows: the report did not fit {cause}."
+                    ));
+                }
+                let preview = if count <= dokime::document::DEFAULT_PLOT_MAX_POINTS {
+                    early
+                } else {
+                    drop(early);
+                    preview(runtime, inspection, &view, page, limit, count).await?
+                };
+                (
+                    PlotSource::Paged {
+                        streamed,
+                        rows: kept,
+                    },
+                    preview,
+                )
+            }
+            None => {
+                let mut telemetry = empty(runtime.storage())?;
+                let mut reader = inspection.context_telemetry(runtime.storage(), page, limit)?;
+                while let Some(rows) = reader.next().await? {
+                    let room = degradation
+                        .rows()
+                        .map_or(usize::MAX, |rows| rows.saturating_sub(telemetry.len()));
+                    let projected = rows.try_project(limit, |rows, allowance| {
+                        let bytes = rows.iter().take(room).fold(
+                            std::mem::size_of::<Vec<dokime::telemetry::TelemetrySample>>(),
+                            |bytes, row| bytes.saturating_add(row.sample.memory_size()),
+                        );
+                        check(bytes, allowance)?;
+                        Ok(rows
+                            .iter()
+                            .take(room)
+                            .map(|row| row.sample.clone())
+                            .collect::<Vec<_>>())
+                    })?;
+                    let cut = rows.len() > room;
+                    drop(rows);
+                    telemetry = append(&view, telemetry, &projected, limit)?;
+                    if cut {
+                        omissions.push(format!(
+                            "Samples truncated at {} rows: the report did not fit {cause}.",
+                            telemetry.len()
+                        ));
+                        break;
                     }
                 }
-                drop(rows);
-                kept = keep(runtime, &view, kept, selected, limit)?;
-                early = keep(runtime, &view, early, first, limit)?;
-                let held = streamed.values().fold(
-                    records
-                        .memory_size()
-                        .saturating_add(kept.memory_size())
-                        .saturating_add(early.memory_size()),
-                    |bytes, plot| bytes.saturating_add(plot.memory_size()),
-                );
-                check(held, limit)?;
+                drop(reader);
+                let rows = telemetry;
+                let preview = view.project_owned(
+                    empty::<dokime::telemetry::TelemetrySample>(runtime.storage())?,
+                    limit,
+                    |_, allowance| {
+                        let selected = super::render::cycle::selection(rows.len())
+                            .into_iter()
+                            .map(|index| rows[index].clone())
+                            .collect::<Vec<_>>();
+                        check(selected.memory_size(), allowance)?;
+                        Ok(selected)
+                    },
+                )?;
+                (PlotSource::Rows(rows), preview)
             }
-            drop(reader);
-            let preview = if count <= dokime::document::DEFAULT_PLOT_MAX_POINTS {
-                early
-            } else {
-                drop(early);
-                preview(runtime, inspection, &view, page, limit, count).await?
-            };
-            (
-                PlotSource::Paged {
-                    streamed,
-                    rows: kept,
-                },
-                preview,
-            )
-        }
-        None => {
-            let mut telemetry = empty(runtime.storage())?;
-            let mut reader = inspection.context_telemetry(runtime.storage(), page, limit)?;
-            while let Some(rows) = reader.next().await? {
-                let projected = rows.try_project(limit, |rows, allowance| {
-                    let bytes = rows.iter().fold(
-                        std::mem::size_of::<Vec<dokime::telemetry::TelemetrySample>>(),
-                        |bytes, row| bytes.saturating_add(row.sample.memory_size()),
-                    );
-                    check(bytes, allowance)?;
-                    Ok(rows
-                        .iter()
-                        .map(|row| row.sample.clone())
-                        .collect::<Vec<_>>())
-                })?;
-                telemetry = append(&view, telemetry, &projected, limit)?;
-            }
-            drop(reader);
-            let rows = telemetry;
-            let preview = view.project_owned(
-                empty::<dokime::telemetry::TelemetrySample>(runtime.storage())?,
-                limit,
-                |_, allowance| {
-                    let selected = super::render::cycle::selection(rows.len())
-                        .into_iter()
-                        .map(|index| rows[index].clone())
-                        .collect::<Vec<_>>();
-                    check(selected.memory_size(), allowance)?;
-                    Ok(selected)
-                },
-            )?;
-            (PlotSource::Rows(rows), preview)
-        }
-    };
+        };
     let renderer = runtime.clone();
     let render_view = view.clone();
     let render = move || {
@@ -220,6 +404,11 @@ pub(super) async fn execution(
                         preview: &telemetry,
                     },
                     final_report,
+                    Ladder {
+                        degradation,
+                        cause: &cause,
+                        omissions,
+                    },
                     allowance,
                 )
                 .map_err(codec)
@@ -245,8 +434,14 @@ fn materialize(
     execution: &TestExecution,
     evidence: Evidence<'_>,
     final_report: bool,
+    ladder: Ladder<'_>,
     allowance: NonZeroUsize,
 ) -> Result<CapturedExecutionReportInput> {
+    let Ladder {
+        degradation,
+        cause,
+        mut omissions,
+    } = ladder;
     let Evidence {
         records,
         source,
@@ -347,15 +542,29 @@ fn materialize(
             CardBindingResult::Plot { descriptor } => Some(descriptor),
             _ => None,
         }) {
+            if !degradation.plots() {
+                let reason = format!(
+                    "Plot {} omitted: the report did not fit {cause}.",
+                    descriptor.metadata.label
+                );
+                let value = crate::report::value::Value::from_serializable(
+                    &serde_json::json!({ "omitted": reason }),
+                    allowance,
+                )?;
+                plots.insert(descriptor.plot_id.to_string(), value);
+                omissions.push(reason);
+                continue;
+            }
             let key = (id.to_string(), descriptor.plot_id.to_string());
             let collector = streamed.remove(&key);
             // Plot Working Buffers Need Their Evidence Allowance. A builder
-            // works over its own input only: a streamed plot's rows become
-            // points once more while reducing, and a whole-capture plot filters,
-            // indexes and projects at most every kept row and record twice.
-            let input = match &collector {
+            // works over its own input only: a streamed plot, already charged
+            // with the evidence, becomes points once more while reducing, and
+            // a whole-capture plot filters, indexes and projects at most every
+            // kept row and record twice.
+            let working_input = match &collector {
                 Some(plot) => plot.memory_size(),
-                None => records_bytes.saturating_add(rows_bytes),
+                None => records_bytes.saturating_add(rows_bytes).saturating_mul(2),
             };
             check(
                 working
@@ -363,16 +572,25 @@ fn materialize(
                     .saturating_add(plots.memory_size())
                     .saturating_add(selected.memory_size())
                     .saturating_add(evidence)
-                    .saturating_add(input.saturating_mul(2)),
+                    .saturating_add(working_input),
                 allowance,
             )?;
-            let request = crate::plot::plot_payload_request_for_descriptor(
+            let mut request = crate::plot::plot_payload_request_for_descriptor(
                 descriptor,
                 Some(execution.scope.clone()),
                 None,
                 None,
                 None,
             );
+            let asked = request.max_points;
+            request.max_points = degradation.points(asked);
+            if request.max_points != asked {
+                omissions.push(format!(
+                    "Plot {} drawn with at most {} points: the report did not fit {cause}.",
+                    descriptor.metadata.label,
+                    request.max_points.unwrap_or_default()
+                ));
+            }
             let context = crate::plot::PlotPayloadContext {
                 x_format: request.x_format.clone(),
                 series_format: request.y_format.clone(),
@@ -477,6 +695,7 @@ fn materialize(
             artifact_links,
             appearance: Some(appearance),
             generated_at,
+            omissions,
         },
     })
 }
@@ -488,6 +707,7 @@ fn paged_plots(
     execution: &TestExecution,
     records: &[dokime::records::RecordEntry],
     allowance: NonZeroUsize,
+    degradation: Degradation,
 ) -> Result<Option<PagedPlots>> {
     let selection = crate::document::DocumentSelection {
         scope: execution.scope.clone(),
@@ -522,13 +742,17 @@ fn paged_plots(
             CardBindingResult::Plot { descriptor } => Some(descriptor),
             _ => None,
         }) {
-            let request = crate::plot::plot_payload_request_for_descriptor(
+            if !degradation.plots() {
+                continue;
+            }
+            let mut request = crate::plot::plot_payload_request_for_descriptor(
                 descriptor,
                 Some(execution.scope.clone()),
                 None,
                 None,
                 None,
             );
+            request.max_points = degradation.points(request.max_points);
             let key = (id.to_string(), descriptor.plot_id.to_string());
             if streamed.contains_key(&key) || whole.contains(&key) {
                 return Ok(None);
