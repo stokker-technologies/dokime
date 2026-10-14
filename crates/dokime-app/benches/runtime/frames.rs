@@ -19,7 +19,7 @@ use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc, time::Duration};
 // Third Party Imports
 use criterion::{BenchmarkId, Criterion, Throughput};
 use harmos::{
-    Application, Identifier, Runtime,
+    Aggregate, Application, Identifier, Runtime,
     state::Never,
     storage::{
         QueryOptions, ReadKind, ReadSelection, RecordWrite, StorageBackends, StorageManager,
@@ -162,9 +162,9 @@ impl Fixture {
         );
         let group_by = if keyed {
             let shift = frame.shift(scan, vec![1], 2);
-            GroupBy::new(scan).agg(Expr::diff(shift), Agg::Mean)
+            GroupBy::new(scan).agg(Expr::diff(shift), Agg::Of(Aggregate::Mean))
         } else {
-            GroupBy::new(scan).agg(Expr::Col(0), Agg::Mean)
+            GroupBy::new(scan).agg(Expr::Col(0), Agg::Of(Aggregate::Mean))
         };
         frame.group_by(group_by);
         let mut reader = self.storage.query_in(

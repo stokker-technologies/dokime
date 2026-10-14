@@ -20,6 +20,7 @@ use std::num::{NonZeroU128, NonZeroUsize};
 use std::task::{Context as Task, Poll, Waker};
 
 // Third Party Imports
+use harmos::Aggregate;
 use harmos::storage::frame::{
     AsOf, AsOfStrategy, Collected, Expr, Frame, GroupBy, ProjectedRow, ScalarField, ScalarPath,
     ScanCursor, ScanOrder, ScanPage, ScanSource, collect,
@@ -140,10 +141,12 @@ impl Plan {
             expression.source,
             DataSource::Record { .. } | DataSource::Artifact { .. }
         ) && selector.is_empty()
-            && fold == Some(Agg::Count);
+            && fold == Some(Agg::Of(Aggregate::Count));
         let kind = match (fold, outer) {
             _ if occurrence => Kind::Occurrence,
-            (Some(Agg::Count), _) | (None, Some(Agg::Count)) => Kind::Presence,
+            (Some(Agg::Of(Aggregate::Count)), _) | (None, Some(Agg::Of(Aggregate::Count))) => {
+                Kind::Presence
+            }
             (Some(_), _) | (None, Some(_)) => Kind::Numeric,
             (None, None) => Kind::Ordinal,
         };
@@ -244,16 +247,21 @@ impl Plan {
                 .ok_or_else(|| failure("per-case scalar summaries require one final outer fold"))?;
             group_by.outer = Some(
                 (0..group_by.aggs.len())
-                    .map(|index| if index == 0 { outer } else { Agg::Max })
+                    .map(|index| {
+                        if index == 0 {
+                            outer
+                        } else {
+                            Agg::Of(Aggregate::Max)
+                        }
+                    })
                     .collect(),
             );
         }
         frame.group_by(group_by);
         frame.check().map_err(harmos_failure)?;
         let shape = match (cases.is_some(), outer, kind) {
-            (true, Some(Agg::Count), _) | (false, _, Kind::Presence | Kind::Occurrence) => {
-                Shape::Count
-            }
+            (true, Some(Agg::Of(Aggregate::Count)), _)
+            | (false, _, Kind::Presence | Kind::Occurrence) => Shape::Count,
             (true, _, Kind::Presence | Kind::Occurrence) => Shape::Numeric { flags: false },
             _ if elapsed => Shape::Elapsed,
             (_, _, Kind::Ordinal) => Shape::Original,
@@ -970,86 +978,12 @@ impl Lookup {
     }
 }
 
-pub(crate) fn fold_groups(
-    groups: Vec<(String, Vec<f64>)>,
-    agg: Agg,
-) -> Result<Vec<(String, Option<f64>)>> {
-    let mut folded = Vec::with_capacity(groups.len());
-    for chunk in groups.chunks(4096) {
-        let rows = chunk.iter().map(|(_, values)| values.len()).sum::<usize>();
-        let mut frame = Frame::new(
-            NonZeroUsize::new(rows.max(1)).unwrap(),
-            NonZeroUsize::new(chunk.len().max(1)).unwrap(),
-        );
-        let field = |name: &str, kind| -> Result<ScalarField> {
-            Ok(ScalarField {
-                path: ScalarPath::Payload(vec![
-                    harmos::Identifier::new(name).map_err(|_| DocumentFailure::Limit)?,
-                ]),
-                kind,
-            })
-        };
-        let scan = frame.scan(
-            scan_selection(),
-            vec![
-                field("group", ScalarKind::Unsigned)?,
-                field("value", ScalarKind::Float)?,
-            ],
-        );
-        let mut group_by = GroupBy::new(scan).keys(vec![0]).agg(Expr::Col(1), agg);
-        group_by.groups = Some(
-            (0..chunk.len() as u64)
-                .map(|group| vec![ScalarValue::Unsigned(group)])
-                .collect(),
-        );
-        frame.group_by(group_by);
-        let mut ordinal = 0u64;
-        let mut projected = Vec::with_capacity(rows);
-        for (group, (_, values)) in chunk.iter().enumerate() {
-            for value in values {
-                projected.push(ProjectedRow {
-                    capture_order: ordinal,
-                    values: vec![
-                        ScalarValue::Unsigned(group as u64),
-                        if value.is_finite() {
-                            ScalarValue::Float(*value)
-                        } else {
-                            ScalarValue::Missing
-                        },
-                    ],
-                });
-                ordinal += 1;
-            }
-        }
-        let collected = Plan::run(&frame, projected, Vec::new(), 0)?;
-        let output = collected
-            .outputs
-            .first()
-            .ok_or_else(|| failure("bounded frame produced no output"))?;
-        for ((label, _), group) in chunk.iter().zip(&output.groups) {
-            let value = match group.values.first() {
-                Some(ScalarValue::Unsigned(count)) => Some(*count as f64),
-                Some(ScalarValue::Float(value)) => Some(*value),
-                Some(ScalarValue::Signed(value)) => Some(*value as f64),
-                Some(ScalarValue::Exact(value)) => Some(float(*value)),
-                _ => None,
-            };
-            folded.push((label.clone(), value));
-        }
-    }
-    Ok(folded)
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */
 fn fold_of(transform: &DataTransform) -> Option<Agg> {
     match transform {
-        DataTransform::Count => Some(Agg::Count),
-        DataTransform::Mean => Some(Agg::Mean),
-        DataTransform::Median => Some(Agg::Median),
-        DataTransform::Min => Some(Agg::Min),
-        DataTransform::Max => Some(Agg::Max),
+        DataTransform::Aggregate(aggregate) => Some(Agg::Of(*aggregate)),
         _ => None,
     }
 }
@@ -1061,7 +995,7 @@ fn agg(transform: &DataTransform) -> Agg {
 fn flag(agg: Agg) -> Agg {
     match agg {
         Agg::Last => Agg::Last,
-        _ => Agg::Max,
+        _ => Agg::Of(Aggregate::Max),
     }
 }
 

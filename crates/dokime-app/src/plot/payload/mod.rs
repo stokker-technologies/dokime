@@ -44,7 +44,8 @@ use cartesian::cartesian_frame;
 use dokime::core::{RecordScope, Value, ValueFormat, datetime_seconds, scope_visible_in};
 use dokime::expressions::{DataExpression, DataSource, DataTransform};
 use dokime::telemetry::{TelemetryColumn, TelemetrySample};
-use harmos::storage::reduce::Agg;
+use harmos::Aggregate;
+use harmos::signal::{Aggregates, Series};
 
 /* === Constants === */
 pub(crate) use dokime::document::DEFAULT_PLOT_MAX_POINTS;
@@ -85,15 +86,6 @@ struct ZSample {
 }
 
 /* === Enums === */
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum AggregateMethod {
-    Count,
-    Mean,
-    Median,
-    Min,
-    Max,
-}
-
 #[derive(Clone, Debug)]
 enum ZIndex {
     None,
@@ -613,7 +605,7 @@ pub(crate) fn retain_window<T>(
 
 pub(crate) fn aggregate_group_points(
     grouped: BTreeMap<String, Vec<f64>>,
-    method: AggregateMethod,
+    method: Aggregate,
 ) -> Vec<PlotPoint> {
     let mut sorted_groups = fold_groups(grouped.into_iter().collect(), method);
     sorted_groups.sort_by(|(left, _), (right, _)| compare_series_group(left, right));
@@ -628,16 +620,12 @@ pub(crate) fn aggregate_group_points(
         .collect()
 }
 
-pub(crate) fn aggregate_method(expression: &DataExpression) -> Option<AggregateMethod> {
+pub(crate) fn aggregate_method(expression: &DataExpression) -> Option<Aggregate> {
     expression
         .transforms
         .iter()
         .find_map(|transform| match transform {
-            DataTransform::Count => Some(AggregateMethod::Count),
-            DataTransform::Mean => Some(AggregateMethod::Mean),
-            DataTransform::Median => Some(AggregateMethod::Median),
-            DataTransform::Min => Some(AggregateMethod::Min),
-            DataTransform::Max => Some(AggregateMethod::Max),
+            DataTransform::Aggregate(aggregate) => Some(*aggregate),
             DataTransform::TimeBetween { .. } => None,
             DataTransform::TelemetryAtOrBefore { .. } => None,
             // Neither folds the values of one series: `detail` selects what is
@@ -648,23 +636,16 @@ pub(crate) fn aggregate_method(expression: &DataExpression) -> Option<AggregateM
         })
 }
 
+// Each group's values answered through the Harmos `Series`, which skips
+// non-finite values the way every other aggregate path does.
 pub(crate) fn fold_groups(
     groups: Vec<(String, Vec<f64>)>,
-    method: AggregateMethod,
+    method: Aggregate,
 ) -> Vec<(String, Option<f64>)> {
-    let agg = match method {
-        AggregateMethod::Count => Agg::Count,
-        AggregateMethod::Mean => Agg::Mean,
-        AggregateMethod::Median => Agg::Median,
-        AggregateMethod::Min => Agg::Min,
-        AggregateMethod::Max => Agg::Max,
-    };
-    let labels = groups
-        .iter()
-        .map(|(label, _)| label.clone())
-        .collect::<Vec<_>>();
-    crate::document::frame::fold_groups(groups, agg)
-        .unwrap_or_else(|_| labels.into_iter().map(|label| (label, None)).collect())
+    groups
+        .into_iter()
+        .map(|(label, values)| (label, Series::from(values).aggregate(method)))
+        .collect()
 }
 
 pub(crate) fn expression_group_value(

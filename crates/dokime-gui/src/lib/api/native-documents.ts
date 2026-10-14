@@ -67,15 +67,15 @@ type DocumentSummaryState = Wire<documentWire.Row44>;
 type DocumentSummaryTile = Wire<documentWire.Row25>;
 type DocumentTableRow = Wire<documentWire.Row23>;
 type DocumentWarning = Wire<documentWire.Row26>;
-type NativePlotAxisKind = Wire<documentWire.Row184>;
-type PlotStyle = Wire<documentWire.Row180>;
-type AxisScale = Wire<documentWire.Row173>;
+type NativePlotAxisKind = Wire<documentWire.Row181>;
+type PlotStyle = Wire<documentWire.Row177>;
+type AxisScale = Wire<documentWire.Row170>;
 type DataExpression = Wire<documentWire.Row45>;
 type FftWindow = NonNullable<NonNullable<PlotRequest["fft"]>["window"]>;
 type FftDetrend = NonNullable<NonNullable<PlotRequest["fft"]>["detrend"]>;
 type FrequencyLevelUnit = NonNullable<NonNullable<PlotRequest["fft"]>["levelUnit"]>;
-type PlotRequest = Wire<documentWire.Row142>;
-type PlotType = Wire<documentWire.Row172>;
+type PlotRequest = Wire<documentWire.Row138>;
+type PlotType = Wire<documentWire.Row169>;
 type FilterOperator = Wire<documentWire.Row54>;
 type DocumentCardKind = Wire<documentWire.Row118>;
 type NativePlotDefinition = Wire<documentWire.Row107>;
@@ -701,16 +701,11 @@ function mapNativeExpression(value?: DataExpression): DocumentDataExpression | n
     const kind = transform.kind?.HarmosVariant;
     if (!kind?.case || !kind.value.field0) invalid("expression transform is missing");
     switch (kind.case) {
-      case "Count":
-        return { type: "count" as const };
-      case "Mean":
-        return { type: "mean" as const };
-      case "Median":
-        return { type: "median" as const };
-      case "Min":
-        return { type: "min" as const };
-      case "Max":
-        return { type: "max" as const };
+      case "Aggregate":
+        return {
+          type: "aggregate" as const,
+          aggregate: kind.value.field0.aggregate,
+        };
       case "TimeBetween":
         if (!kind.value.field0) invalid("expression transform is missing");
         return {

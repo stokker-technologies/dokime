@@ -257,6 +257,9 @@ pub(super) struct Transform {
     field: Option<String>,
     #[serde(default)]
     name: Option<String>,
+    // The Harmos vocabulary's wire name (`mean`, `p95`) of an `aggregate`.
+    #[serde(default)]
+    aggregate: Option<String>,
 }
 
 #[harmos::message]
@@ -2153,6 +2156,7 @@ impl Transform {
                 stream.len().saturating_add(field.len())
             }
             DataTransform::Detail { name } => name.len(),
+            DataTransform::Aggregate(aggregate) => aggregate.name().len(),
             _ => 0,
         };
         std::mem::size_of::<Self>()
@@ -2167,18 +2171,11 @@ impl Transform {
             (self.stream.is_some(), kind == "telemetry_at_or_before"),
             (self.field.is_some(), kind == "telemetry_at_or_before"),
             (self.name.is_some(), kind == "detail"),
+            (self.aggregate.is_some(), kind == "aggregate"),
         ];
         if !matches!(
             kind,
-            "count"
-                | "mean"
-                | "median"
-                | "min"
-                | "max"
-                | "time_between"
-                | "telemetry_at_or_before"
-                | "detail"
-                | "per_case"
+            "aggregate" | "time_between" | "telemetry_at_or_before" | "detail" | "per_case"
         ) || fields.iter().any(|(present, required)| present != required)
         {
             return Err(Error::Invalid("data transform fields differ"));
@@ -2188,6 +2185,7 @@ impl Transform {
             &self.stream,
             &self.field,
             &self.name,
+            &self.aggregate,
         ];
         Ok(fields
             .into_iter()
@@ -2217,6 +2215,7 @@ impl TryFrom<&DataTransform> for Transform {
                 transform.field = Some(field.as_str().to_owned());
             }
             DataTransform::Detail { name } => transform.name = Some(name.as_str().to_owned()),
+            DataTransform::Aggregate(aggregate) => transform.aggregate = Some(aggregate.name()),
             _ => {}
         }
         Ok(transform)
@@ -2229,11 +2228,12 @@ impl TryFrom<Transform> for DataTransform {
     fn try_from(row: Transform) -> Result<Self> {
         row.projection_memory()?;
         match row.kind.as_str() {
-            "count" => Ok(Self::Count),
-            "mean" => Ok(Self::Mean),
-            "median" => Ok(Self::Median),
-            "min" => Ok(Self::Min),
-            "max" => Ok(Self::Max),
+            "aggregate" => row
+                .aggregate
+                .as_deref()
+                .and_then(harmos::Aggregate::parse)
+                .map(Self::Aggregate)
+                .ok_or(Error::Invalid("invalid data transform aggregate")),
             "time_between" => Ok(Self::TimeBetween {
                 previous_record_type: row.previous_record_type.unwrap(),
             }),
@@ -2791,11 +2791,7 @@ fn format_name(value: &crate::core::ValueFormat) -> &'static str {
 
 fn transform_name(value: &DataTransform) -> &'static str {
     match value {
-        DataTransform::Count => "count",
-        DataTransform::Mean => "mean",
-        DataTransform::Median => "median",
-        DataTransform::Min => "min",
-        DataTransform::Max => "max",
+        DataTransform::Aggregate(_) => "aggregate",
         DataTransform::TimeBetween { .. } => "time_between",
         DataTransform::TelemetryAtOrBefore { .. } => "telemetry_at_or_before",
         DataTransform::Detail { .. } => "detail",

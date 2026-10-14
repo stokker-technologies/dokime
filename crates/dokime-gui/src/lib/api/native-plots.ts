@@ -574,25 +574,14 @@ function dataTransform(value: unknown): DataTransform {
   const input = object(value, "data transform");
   const kind = requiredText(input.type, "data transform type");
   switch (kind) {
-    case "count":
+    case "aggregate":
       return create(DataTransformSchema, {
-        kind: { HarmosVariant: { case: "Count", value: { field0: {} } } },
-      });
-    case "mean":
-      return create(DataTransformSchema, {
-        kind: { HarmosVariant: { case: "Mean", value: { field0: {} } } },
-      });
-    case "median":
-      return create(DataTransformSchema, {
-        kind: { HarmosVariant: { case: "Median", value: { field0: {} } } },
-      });
-    case "min":
-      return create(DataTransformSchema, {
-        kind: { HarmosVariant: { case: "Min", value: { field0: {} } } },
-      });
-    case "max":
-      return create(DataTransformSchema, {
-        kind: { HarmosVariant: { case: "Max", value: { field0: {} } } },
+        kind: {
+          HarmosVariant: {
+            case: "Aggregate",
+            value: { field0: { aggregate: requiredText(input.aggregate, "aggregate") } },
+          },
+        },
       });
     case "time_between":
       return create(DataTransformSchema, {

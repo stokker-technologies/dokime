@@ -21,7 +21,7 @@ use serde::de::DeserializeOwned;
 // Local Imports
 use super::environment::Environment;
 use super::error::TerminationReason;
-use super::evidence::ExecutionEvidence;
+use super::evidence::{ExecutionEvidence, Samples};
 use super::log::Level;
 use crate::artifacts::Artifacts;
 use crate::core::{CapturePhase, EvidenceOrigin, Identifier, RecordScope, StepAttemptId, Value};
@@ -518,16 +518,16 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
         }
     }
 
-    pub fn samples<S: TelemetryStream>(&self) -> Vec<S::Row> {
+    pub fn samples<S: TelemetryStream>(&self) -> Samples<S::Row> {
         self.selected_samples::<S>(None)
     }
 
-    pub fn samples_from<S: TelemetryStream>(&self, phase: CapturePhase) -> Vec<S::Row> {
+    pub fn samples_from<S: TelemetryStream>(&self, phase: CapturePhase) -> Samples<S::Row> {
         self.selected_samples::<S>(Some(phase))
     }
 
-    fn selected_samples<S: TelemetryStream>(&self, phase: Option<CapturePhase>) -> Vec<S::Row> {
-        self.evidence
+    fn selected_samples<S: TelemetryStream>(&self, phase: Option<CapturePhase>) -> Samples<S::Row> {
+        let rows = self.evidence
             .samples
             .get(S::ID)
             .map(Vec::as_slice)
@@ -544,7 +544,8 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
                     None
                 }
             })
-            .collect()
+            .collect();
+        Samples::new(rows)
     }
 
     pub fn records<R: DeclaredRecord>(&self) -> crate::Result<Vec<R>> {

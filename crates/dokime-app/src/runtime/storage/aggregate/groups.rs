@@ -17,12 +17,13 @@
 use std::{cmp::Ordering, collections::BTreeMap, num::NonZeroUsize};
 
 // Third Party Imports
-use harmos::MemorySize;
+use harmos::storage::reduce::{Accumulator, Agg, ScalarValue, Scratch};
+use harmos::{Aggregate, MemorySize};
 
 // Local Imports
 use super::fields::{self, Row};
 use crate::runtime::query::aggregate::{
-    AGGREGATE_ROW_CEILING, AggregateFunction, AggregateOperator, AggregateOutcome, AggregateQuery,
+    AGGREGATE_ROW_CEILING, AggregateOperator, AggregateOutcome, AggregateQuery,
 };
 use crate::{Error, Result};
 use dokime::core::Value;
@@ -39,28 +40,14 @@ const MAX_NAME_BYTES: usize = 256;
 
 /* === Structs === */
 pub(super) struct Groups {
-    entries: BTreeMap<Key, Vec<Reduction>>,
+    entries: BTreeMap<Key, Vec<Accumulator>>,
     omitted: bool,
+    // Value slots the order statistics have reserved across every page so far.
+    retained: usize,
 }
 struct Key(Vec<Value>);
-struct Mean {
-    count: u64,
-    value: f64,
-}
 
 /* === Enums === */
-enum Reduction {
-    Count(u64),
-    Sum(Sum),
-    Mean(Mean),
-    Min(Option<Value>),
-    Max(Option<Value>),
-}
-enum Sum {
-    Empty,
-    Integer(i128),
-    Number { value: f64, compensation: f64 },
-}
 
 /* === Traits === */
 
@@ -80,12 +67,17 @@ impl Groups {
             None => Self {
                 entries: BTreeMap::new(),
                 omitted: false,
+                retained: 0,
             },
         };
+        // Median And Percentiles Retain Their Values; The Allowance Bounds How Many.
+        let budget = (allowance.get() / std::mem::size_of::<ScalarValue>())
+            .saturating_sub(selected.retained);
+        let mut scratch = Scratch::new(budget);
         if query.group_by.is_empty() && selected.entries.is_empty() {
             selected.entries.insert(Key(Vec::new()), reductions(query)?);
         }
-        for row in rows {
+        for (ordinal, row) in rows.iter().enumerate() {
             if row.source() != query.source {
                 return Err(invalid("aggregate row source differs from its query"));
             }
@@ -106,11 +98,14 @@ impl Groups {
                 .expect("original group admitted");
             for (reduction, column) in reductions.iter_mut().zip(&query.aggregates) {
                 let value = if column.column.is_empty() {
-                    Value::Unsigned(1)
+                    ScalarValue::Unsigned(1)
                 } else {
-                    row.field(&column.column)?.project(allowance)?
+                    scalar(
+                        &row.field(&column.column)?.project(allowance)?,
+                        column.aggregate,
+                    )?
                 };
-                reduction.add(value)?;
+                reduction.push(ordinal as u64, &value, &mut scratch)?;
             }
             // Retain The First Limit+1 Groups, Including Exact Aggregates For Each.
             // An Evicted Larger Key Can Never Become A Final Smaller Key.
@@ -119,6 +114,9 @@ impl Groups {
                 selected.omitted = true;
             }
         }
+        selected.retained = selected
+            .retained
+            .saturating_add(budget - scratch.remaining());
         admitted(selected.memory_size(), allowance)?;
         Ok(selected)
     }
@@ -149,13 +147,14 @@ impl Groups {
                 );
             }
             for reduction in reductions {
-                bytes = bytes.saturating_add(
-                    reduction
-                        .memory_size()
-                        .saturating_sub(std::mem::size_of::<Reduction>()),
-                );
+                bytes = bytes.saturating_add(reduction.text_bytes());
             }
         }
+        // Finishing An Order Statistic Copies Its Retained Values Once.
+        bytes = bytes.saturating_add(
+            self.retained
+                .saturating_mul(std::mem::size_of::<ScalarValue>()),
+        );
         admitted(bytes, allowance)?;
         let mut names = slots(columns)?;
         for name in query
@@ -172,7 +171,7 @@ impl Groups {
                 row.push(fields::copy_value(value, 0)?);
             }
             for reduction in reductions {
-                row.push(reduction.value()?);
+                row.push(value(reduction.clone().finish(&mut || Ok(()))?)?);
             }
             rows.push(row);
         }
@@ -187,24 +186,32 @@ impl Groups {
         let mut entries = BTreeMap::new();
         for (key, values) in &self.entries {
             let mut copied = slots(values.len())?;
-            for value in values {
-                copied.push(value.copy()?);
-            }
+            copied.extend(values.iter().cloned());
             entries.insert(key.copy()?, copied);
         }
         Ok(Self {
             entries,
             omitted: self.omitted,
+            retained: self.retained,
         })
     }
 }
 impl MemorySize for Groups {
     fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>().saturating_add(
-            self.entries
-                .memory_size()
-                .saturating_sub(std::mem::size_of_val(&self.entries)),
-        )
+        let mut bytes = std::mem::size_of::<Self>()
+            .saturating_add(harmos::btree_map_memory::<Key, Vec<Accumulator>>(
+                self.entries.len(),
+            ))
+            .saturating_add(
+                self.retained
+                    .saturating_mul(std::mem::size_of::<ScalarValue>()),
+            );
+        for (key, values) in &self.entries {
+            bytes = bytes
+                .saturating_add(key.memory_size().saturating_sub(std::mem::size_of::<Key>()))
+                .saturating_add(accumulators_memory(values));
+        }
+        bytes
     }
 }
 impl MemorySize for Key {
@@ -237,191 +244,6 @@ impl Ord for Key {
         compare_arrays(&self.0, &other.0)
     }
 }
-impl MemorySize for Reduction {
-    fn memory_size(&self) -> usize {
-        let heap = match self {
-            Self::Min(Some(value)) | Self::Max(Some(value)) => value
-                .memory_size()
-                .saturating_sub(std::mem::size_of::<Value>()),
-            _ => 0,
-        };
-        std::mem::size_of::<Self>().saturating_add(heap)
-    }
-}
-impl Reduction {
-    fn copy(&self) -> Result<Self> {
-        Ok(match self {
-            Self::Count(count) => Self::Count(*count),
-            Self::Sum(value) => Self::Sum(value.copy()),
-            Self::Mean(value) => Self::Mean(Mean {
-                count: value.count,
-                value: value.value,
-            }),
-            Self::Min(value) => Self::Min(
-                value
-                    .as_ref()
-                    .map(|value| fields::copy_value(value, 0))
-                    .transpose()?,
-            ),
-            Self::Max(value) => Self::Max(
-                value
-                    .as_ref()
-                    .map(|value| fields::copy_value(value, 0))
-                    .transpose()?,
-            ),
-        })
-    }
-    fn add(&mut self, value: Value) -> Result<()> {
-        if matches!(value, Value::Null) {
-            return Ok(());
-        }
-        match self {
-            Self::Count(count) => {
-                *count = count
-                    .checked_add(1)
-                    .ok_or_else(|| invalid("aggregate count overflows"))?
-            }
-            Self::Sum(sum) => sum.add(&value)?,
-            Self::Mean(mean) => mean.add(number(&value)?)?,
-            Self::Min(current) => {
-                if current
-                    .as_ref()
-                    .is_none_or(|current| compare(&value, current) == Ordering::Less)
-                {
-                    *current = Some(value);
-                }
-            }
-            Self::Max(current) => {
-                if current
-                    .as_ref()
-                    .is_none_or(|current| compare(&value, current) == Ordering::Greater)
-                {
-                    *current = Some(value);
-                }
-            }
-        }
-        Ok(())
-    }
-    fn value(&self) -> Result<Value> {
-        Ok(match self {
-            Self::Count(count) => i64::try_from(*count)
-                .map(Value::Integer)
-                .unwrap_or(Value::Unsigned(*count)),
-            Self::Sum(value) => value.value()?,
-            Self::Mean(mean) if mean.count == 0 => Value::Null,
-            Self::Mean(mean) => Value::Number(mean.value),
-            Self::Min(value) | Self::Max(value) => value
-                .as_ref()
-                .map(|value| fields::copy_value(value, 0))
-                .transpose()?
-                .unwrap_or(Value::Null),
-        })
-    }
-}
-impl Sum {
-    fn copy(&self) -> Self {
-        match self {
-            Self::Empty => Self::Empty,
-            Self::Integer(value) => Self::Integer(*value),
-            Self::Number {
-                value,
-                compensation,
-            } => Self::Number {
-                value: *value,
-                compensation: *compensation,
-            },
-        }
-    }
-    fn add(&mut self, value: &Value) -> Result<()> {
-        if let Value::Integer(value) = value {
-            return self.add_integer(i128::from(*value));
-        }
-        if let Value::Unsigned(value) = value {
-            return self.add_integer(i128::from(*value));
-        }
-        let incoming = number(value)?;
-        let (sum, compensation) = match self {
-            Self::Empty => (0.0, 0.0),
-            Self::Integer(value) => (*value as f64, 0.0),
-            Self::Number {
-                value,
-                compensation,
-            } => (*value, *compensation),
-        };
-        let next = sum + incoming;
-        let correction = if sum.abs() >= incoming.abs() {
-            (sum - next) + incoming
-        } else {
-            (incoming - next) + sum
-        };
-        let compensation = compensation + correction;
-        if !next.is_finite() || !compensation.is_finite() {
-            return Err(invalid("aggregate sum exceeds finite range"));
-        }
-        *self = Self::Number {
-            value: next,
-            compensation,
-        };
-        Ok(())
-    }
-    fn add_integer(&mut self, incoming: i128) -> Result<()> {
-        match self {
-            Self::Empty => {
-                *self = Self::Integer(incoming);
-                Ok(())
-            }
-            Self::Integer(value) => {
-                *value = value
-                    .checked_add(incoming)
-                    .ok_or_else(|| invalid("aggregate integer sum overflows"))?;
-                Ok(())
-            }
-            Self::Number { .. } => self.add(&Value::Number(incoming as f64)),
-        }
-    }
-    fn value(&self) -> Result<Value> {
-        match self {
-            Self::Empty => Ok(Value::Null),
-            Self::Integer(value) => i64::try_from(*value)
-                .map(Value::Integer)
-                .or_else(|_| u64::try_from(*value).map(Value::Unsigned))
-                .map_err(|_| invalid("aggregate sum exceeds native integer range")),
-            Self::Number {
-                value,
-                compensation,
-            } => {
-                let value = value + compensation;
-                if !value.is_finite() {
-                    return Err(invalid("aggregate sum exceeds finite range"));
-                }
-                Ok(Value::Number(value))
-            }
-        }
-    }
-}
-impl Mean {
-    fn add(&mut self, value: f64) -> Result<()> {
-        self.count = self
-            .count
-            .checked_add(1)
-            .ok_or_else(|| invalid("aggregate count overflows"))?;
-        if self.count == 1 {
-            self.value = value;
-            return Ok(());
-        }
-        let count = self.count as f64;
-        // Same-Sign Differences Cannot Overflow; Opposite-Sign Weighted Terms Cannot Add Out Of Range.
-        self.value = if self.value.is_sign_negative() == value.is_sign_negative() {
-            self.value + (value - self.value) / count
-        } else {
-            self.value * ((count - 1.0) / count) + value / count
-        };
-        if !self.value.is_finite() {
-            return Err(invalid("aggregate mean exceeds finite range"));
-        }
-        Ok(())
-    }
-}
 
 /* === Public Functions === */
 pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
@@ -450,8 +272,11 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
         {
             return Err(invalid("aggregate alias is invalid or repeated"));
         }
+        if !column.aggregate.answerable() {
+            return Err(invalid("aggregate percentile rank exceeds 100"));
+        }
         if column.column.is_empty() {
-            if column.function != AggregateFunction::Count {
+            if column.aggregate != Aggregate::Count {
                 return Err(invalid("aggregate requires a native column"));
             }
         } else {
@@ -496,24 +321,20 @@ fn update_memory(
         .saturating_add(1)
         .min(effective_limit(query.limit) + 2);
     let mut bytes = std::mem::size_of::<Groups>()
-        .saturating_add(harmos::btree_map_memory::<Key, Vec<Reduction>>(count));
+        .saturating_add(harmos::btree_map_memory::<Key, Vec<Accumulator>>(count));
     if let Some(current) = current {
-        for (key, values) in &current.entries {
-            bytes =
-                bytes.saturating_add(key.memory_size().saturating_sub(std::mem::size_of::<Key>()));
-            bytes = bytes.saturating_add(
-                values
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of_val(values)),
-            );
-        }
+        bytes = bytes.saturating_add(
+            current
+                .memory_size()
+                .saturating_sub(std::mem::size_of::<Groups>()),
+        );
     }
     if query.group_by.is_empty() && current.is_none() {
         bytes = bytes.saturating_add(
             query
                 .aggregates
                 .len()
-                .saturating_mul(std::mem::size_of::<Reduction>()),
+                .saturating_mul(std::mem::size_of::<Accumulator>()),
         );
     }
     for row in rows {
@@ -528,7 +349,7 @@ fn update_memory(
                 query
                     .aggregates
                     .len()
-                    .saturating_mul(std::mem::size_of::<Reduction>()),
+                    .saturating_mul(std::mem::size_of::<Accumulator>()),
             );
         // The Retained Key And Lookup Key Coexist During Insertion.
         for name in &query.group_by {
@@ -558,21 +379,61 @@ fn update_memory(
     }
     Ok(bytes)
 }
-fn reductions(query: &AggregateQuery) -> Result<Vec<Reduction>> {
+fn reductions(query: &AggregateQuery) -> Result<Vec<Accumulator>> {
     let mut values = slots(query.aggregates.len())?;
     for column in &query.aggregates {
-        values.push(match column.function {
-            AggregateFunction::Count => Reduction::Count(0),
-            AggregateFunction::Sum => Reduction::Sum(Sum::Empty),
-            AggregateFunction::Mean => Reduction::Mean(Mean {
-                count: 0,
-                value: 0.0,
-            }),
-            AggregateFunction::Min => Reduction::Min(None),
-            AggregateFunction::Max => Reduction::Max(None),
-        });
+        values.push(Accumulator::new(Agg::Of(column.aggregate)));
     }
     Ok(values)
+}
+fn accumulators_memory(values: &[Accumulator]) -> usize {
+    values
+        .iter()
+        .fold(std::mem::size_of_val(values), |bytes, accumulator| {
+            bytes.saturating_add(accumulator.text_bytes())
+        })
+}
+// The Harmos reduction reads scalars; a nested value has no order or number.
+// `Count` only asks whether a value is present, so any non-null value counts.
+fn scalar(value: &Value, aggregate: Aggregate) -> Result<ScalarValue> {
+    Ok(match value {
+        Value::Null => ScalarValue::Null,
+        _ if aggregate == Aggregate::Count => ScalarValue::Unsigned(1),
+        Value::Bool(value) => ScalarValue::Bool(*value),
+        Value::Integer(value) => ScalarValue::Signed(*value),
+        Value::Unsigned(value) => ScalarValue::Unsigned(*value),
+        Value::Number(value) if value.is_finite() => ScalarValue::Float(*value),
+        Value::Number(_) => return Err(invalid("aggregate numbers must be finite")),
+        Value::Text(value) => ScalarValue::Text(fields::copy_text(value)?),
+        Value::Datetime(value) => ScalarValue::Datetime(value.unix_timestamp_nanos()),
+        Value::Array(_) | Value::Object(_) => {
+            return Err(invalid("aggregate values must be scalars"));
+        }
+    })
+}
+fn value(scalar: ScalarValue) -> Result<Value> {
+    Ok(match scalar {
+        ScalarValue::Missing | ScalarValue::Null => Value::Null,
+        ScalarValue::Bool(value) => Value::Bool(value),
+        ScalarValue::Signed(value) => Value::Integer(value),
+        ScalarValue::Unsigned(value) => i64::try_from(value)
+            .map(Value::Integer)
+            .unwrap_or(Value::Unsigned(value)),
+        ScalarValue::Float(value) => Value::Number(value),
+        ScalarValue::Text(value) => Value::Text(value),
+        ScalarValue::Datetime(value) => Value::Datetime(
+            time::OffsetDateTime::from_unix_timestamp_nanos(value)
+                .map_err(|_| invalid("aggregate datetime is out of range"))?,
+        ),
+        ScalarValue::Exact(value) => {
+            let magnitude = value.numerator as f64 / value.denominator.get() as f64;
+            Value::Number(if value.negative {
+                -magnitude
+            } else {
+                magnitude
+            })
+        }
+    })
 }
 fn matches(row: &Row<'_>, query: &AggregateQuery, allowance: NonZeroUsize) -> Result<bool> {
     for filter in &query.filters {
@@ -708,14 +569,6 @@ fn numeric(value: &Value) -> bool {
         value,
         Value::Integer(_) | Value::Unsigned(_) | Value::Number(_)
     )
-}
-fn number(value: &Value) -> Result<f64> {
-    match value {
-        Value::Integer(value) => Ok(*value as f64),
-        Value::Unsigned(value) => Ok(*value as f64),
-        Value::Number(value) if value.is_finite() => Ok(*value),
-        _ => Err(invalid("sum and mean require finite numeric values")),
-    }
 }
 fn column(query: &AggregateQuery, name: &str) -> Result<()> {
     if name.len() > MAX_NAME_BYTES {

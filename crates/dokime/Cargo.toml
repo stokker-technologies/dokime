@@ -47,7 +47,7 @@ dokime-filesystem = { path = "../dokime-filesystem", optional = true }
 dokime-macros = { path = "../dokime-macros", optional = true }
 
 # Git
-harmos = { workspace = true, features = ["plugin"] }
+harmos = { workspace = true, features = ["plugin", "signal"] }
 
 # Error Handling
 thiserror = { workspace = true }

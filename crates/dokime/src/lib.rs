@@ -26,6 +26,8 @@ pub mod domains;
 
 pub mod error;
 
+pub mod evidence;
+
 pub mod execution;
 
 pub mod paths;

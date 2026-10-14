@@ -76,12 +76,12 @@ export async function fetchNativeStepDurations(
       {
         alias: SAMPLE_COUNT_ALIAS,
         column: DURATION_COLUMN,
-        function: { HarmosVariant: { case: "Count", value: {} } },
+        aggregate: "count",
       },
       {
         alias: MEAN_MS_ALIAS,
         column: DURATION_COLUMN,
-        function: { HarmosVariant: { case: "Mean", value: {} } },
+        aggregate: "mean",
       },
     ],
     filters: [

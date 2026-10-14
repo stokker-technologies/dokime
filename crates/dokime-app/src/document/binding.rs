@@ -17,6 +17,7 @@
 use std::borrow::Cow;
 
 // Third Party Imports
+use harmos::Aggregate;
 
 // Local Imports
 use super::context::{Context, Entry};
@@ -647,16 +648,9 @@ fn validate_expression(expression: &DataExpression, aggregate: bool) -> Result<(
         let suffix = &expression.transforms[index + 1..];
         if !aggregate
             || suffix.len() != 1
-            || suffix.first().is_some_and(|transform| {
-                !matches!(
-                    transform,
-                    DataTransform::Count
-                        | DataTransform::Mean
-                        | DataTransform::Median
-                        | DataTransform::Min
-                        | DataTransform::Max
-                )
-            })
+            || suffix
+                .first()
+                .is_some_and(|transform| !matches!(transform, DataTransform::Aggregate(_)))
         {
             return Err(failure(
                 "per-case scalar summaries require one final outer fold",
@@ -673,7 +667,7 @@ fn validate_selector(
     aggregate: bool,
 ) -> Result<()> {
     if matches!(source, DataSource::Artifact { .. }) {
-        if aggregate && transforms == [DataTransform::Count] {
+        if aggregate && transforms == [DataTransform::Aggregate(Aggregate::Count)] {
             return Ok(());
         }
         let Some(DataTransform::Detail { name }) = transforms.first() else {
@@ -709,7 +703,7 @@ fn validate_selector(
                     | DataTransform::TelemetryAtOrBefore { .. }
             )
         )
-        && !(aggregate && transforms == [DataTransform::Count])
+        && !(aggregate && transforms == [DataTransform::Aggregate(Aggregate::Count)])
     {
         return Err(failure(
             "record scalar bindings require a selector or an occurrence count",
@@ -737,14 +731,7 @@ fn validate_selector(
         }
         if aggregate
             && index + 1 == transforms.len()
-            && matches!(
-                transform,
-                DataTransform::Count
-                    | DataTransform::Mean
-                    | DataTransform::Median
-                    | DataTransform::Min
-                    | DataTransform::Max
-            )
+            && matches!(transform, DataTransform::Aggregate(_))
         {
             continue;
         }

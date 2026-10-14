@@ -48,12 +48,21 @@ export type DataSource =
   | { type: "record"; record_type: string }
   | { type: "artifact"; artifact: string };
 
+/* One member of the Harmos aggregate vocabulary by its wire name; a
+   percentile is `p` and a whole rank from 0 to 100. */
+export type Aggregate =
+  | "count"
+  | "sum"
+  | "mean"
+  | "median"
+  | "min"
+  | "max"
+  | "rms"
+  | "std"
+  | `p${number}`;
+
 export type DataTransform =
-  | { type: "count" }
-  | { type: "mean" }
-  | { type: "median" }
-  | { type: "min" }
-  | { type: "max" }
+  | { type: "aggregate"; aggregate: Aggregate }
   | { type: "time_between"; previous_record_type: string }
   | { type: "telemetry_at_or_before"; stream: string; field: string }
   | { type: "detail"; name: string }

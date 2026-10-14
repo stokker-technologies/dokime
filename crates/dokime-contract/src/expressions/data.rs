@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::Aggregate;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::core::Value;
@@ -26,11 +27,9 @@ const FN_DATA_PARAMETER: &str = "data.parameter";
 const FN_DATA_DIMENSION: &str = "data.dimension";
 const FN_DATA_RECORD: &str = "data.record";
 const FN_DATA_ARTIFACT: &str = "data.artifact";
-const FN_TRANSFORM_COUNT: &str = "data.transform.count";
-const FN_TRANSFORM_MEAN: &str = "data.transform.mean";
-const FN_TRANSFORM_MEDIAN: &str = "data.transform.median";
-const FN_TRANSFORM_MIN: &str = "data.transform.min";
-const FN_TRANSFORM_MAX: &str = "data.transform.max";
+// An aggregate transform is `data.transform.<name>`, the name being the
+// Harmos vocabulary's own wire name (`mean`, `p95`).
+const FN_TRANSFORM_PREFIX: &str = "data.transform.";
 const FN_TRANSFORM_TIME_BETWEEN: &str = "data.transform.time_between";
 const FN_TRANSFORM_TELEMETRY_AT_OR_BEFORE: &str = "data.transform.telemetry_at_or_before";
 const FN_TRANSFORM_DETAIL: &str = "data.transform.detail";
@@ -74,14 +73,26 @@ pub enum DataSource {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DataTransform {
-    Count,
-    Mean,
-    Median,
-    Min,
-    Max,
-    TimeBetween { previous_record_type: String },
-    TelemetryAtOrBefore { stream: String, field: String },
-    Detail { name: String },
+    // One member of the Harmos aggregate vocabulary over the values so far,
+    // tagged `aggregate` and named by its wire name: `{"type": "aggregate",
+    // "aggregate": "p95"}`.
+    Aggregate(
+        #[serde(
+            serialize_with = "serialize_aggregate",
+            deserialize_with = "deserialize_aggregate"
+        )]
+        Aggregate,
+    ),
+    TimeBetween {
+        previous_record_type: String,
+    },
+    TelemetryAtOrBefore {
+        stream: String,
+        field: String,
+    },
+    Detail {
+        name: String,
+    },
     PerCase,
 }
 
@@ -103,7 +114,7 @@ impl harmos::MemorySize for DataSource {
 impl harmos::MemorySize for DataTransform {
     fn memory_size(&self) -> usize {
         let heap = match self {
-            Self::Count | Self::Mean | Self::Median | Self::Min | Self::Max | Self::PerCase => 0,
+            Self::Aggregate(_) | Self::PerCase => 0,
             Self::TimeBetween {
                 previous_record_type,
             } => previous_record_type.capacity(),
@@ -190,29 +201,46 @@ impl DataExpression {
         })
     }
 
-    pub fn count(mut self) -> Self {
-        self.transforms.push(DataTransform::Count);
+    pub fn aggregate(mut self, aggregate: Aggregate) -> Self {
+        self.transforms.push(DataTransform::Aggregate(aggregate));
         self
     }
 
-    pub fn mean(mut self) -> Self {
-        self.transforms.push(DataTransform::Mean);
-        self
+    pub fn count(self) -> Self {
+        self.aggregate(Aggregate::Count)
     }
 
-    pub fn median(mut self) -> Self {
-        self.transforms.push(DataTransform::Median);
-        self
+    pub fn sum(self) -> Self {
+        self.aggregate(Aggregate::Sum)
     }
 
-    pub fn min(mut self) -> Self {
-        self.transforms.push(DataTransform::Min);
-        self
+    pub fn mean(self) -> Self {
+        self.aggregate(Aggregate::Mean)
     }
 
-    pub fn max(mut self) -> Self {
-        self.transforms.push(DataTransform::Max);
-        self
+    pub fn median(self) -> Self {
+        self.aggregate(Aggregate::Median)
+    }
+
+    pub fn min(self) -> Self {
+        self.aggregate(Aggregate::Min)
+    }
+
+    pub fn max(self) -> Self {
+        self.aggregate(Aggregate::Max)
+    }
+
+    pub fn rms(self) -> Self {
+        self.aggregate(Aggregate::Rms)
+    }
+
+    pub fn std(self) -> Self {
+        self.aggregate(Aggregate::Std)
+    }
+
+    // A whole percentage, 0 to 100, interpolated between ranks.
+    pub fn percentile(self, rank: u8) -> Self {
+        self.aggregate(Aggregate::Percentile(rank))
     }
 
     pub fn time_between(mut self, previous_record_type: impl Into<String>) -> Self {
@@ -342,11 +370,10 @@ fn data_source_expression(source: DataSource) -> Expression {
 
 fn data_transform_expression(transform: DataTransform, expression: Expression) -> Expression {
     match transform {
-        DataTransform::Count => Expression::call(FN_TRANSFORM_COUNT, vec![expression]),
-        DataTransform::Mean => Expression::call(FN_TRANSFORM_MEAN, vec![expression]),
-        DataTransform::Median => Expression::call(FN_TRANSFORM_MEDIAN, vec![expression]),
-        DataTransform::Min => Expression::call(FN_TRANSFORM_MIN, vec![expression]),
-        DataTransform::Max => Expression::call(FN_TRANSFORM_MAX, vec![expression]),
+        DataTransform::Aggregate(aggregate) => Expression::call(
+            format!("{FN_TRANSFORM_PREFIX}{}", aggregate.name()),
+            vec![expression],
+        ),
         DataTransform::TimeBetween {
             previous_record_type,
         } => Expression::call(
@@ -438,11 +465,6 @@ fn parse_data_expression(
                 Vec::new(),
             ))
         }
-        FN_TRANSFORM_COUNT => parse_unary_transform(args, DataTransform::Count),
-        FN_TRANSFORM_MEAN => parse_unary_transform(args, DataTransform::Mean),
-        FN_TRANSFORM_MEDIAN => parse_unary_transform(args, DataTransform::Median),
-        FN_TRANSFORM_MIN => parse_unary_transform(args, DataTransform::Min),
-        FN_TRANSFORM_MAX => parse_unary_transform(args, DataTransform::Max),
         FN_TRANSFORM_TIME_BETWEEN => {
             let [inner, previous_record_type] = args.as_slice() else {
                 return Err(DataExpressionError::UnsupportedExpression);
@@ -478,7 +500,13 @@ fn parse_data_expression(
             Ok((source, transforms))
         }
         FN_TRANSFORM_PER_CASE => parse_unary_transform(args, DataTransform::PerCase),
-        _ => Err(DataExpressionError::UnsupportedExpression),
+        function => match function
+            .strip_prefix(FN_TRANSFORM_PREFIX)
+            .and_then(Aggregate::parse)
+        {
+            Some(aggregate) => parse_unary_transform(args, DataTransform::Aggregate(aggregate)),
+            None => Err(DataExpressionError::UnsupportedExpression),
+        },
     }
 }
 
@@ -493,6 +521,32 @@ fn parse_unary_transform(
     transforms.push(transform);
 
     Ok((source, transforms))
+}
+
+// Internal tagging needs the variant's content to be a map, so the aggregate
+// travels as one named field rather than as a bare string.
+fn serialize_aggregate<S: serde::Serializer>(
+    aggregate: &Aggregate,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::ser::SerializeMap;
+
+    let mut map = serializer.serialize_map(Some(1))?;
+    map.serialize_entry("aggregate", &aggregate.name())?;
+    map.end()
+}
+
+fn deserialize_aggregate<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Aggregate, D::Error> {
+    #[derive(Deserialize)]
+    struct Named {
+        aggregate: String,
+    }
+
+    let Named { aggregate } = Named::deserialize(deserializer)?;
+    Aggregate::parse(&aggregate)
+        .ok_or_else(|| serde::de::Error::custom(format_args!("unknown aggregate `{aggregate}`")))
 }
 
 fn text_literal(expression: &Expression) -> Result<String, DataExpressionError> {

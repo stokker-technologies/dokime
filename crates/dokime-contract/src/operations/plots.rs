@@ -162,6 +162,14 @@ pub struct DataTransform {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EmptyTransform {}
 
+// One member of the Harmos aggregate vocabulary by its wire name: `count`,
+// `sum`, `mean`, `median`, `min`, `max`, `rms`, `std` or `p0` to `p100`.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct AggregateTransform {
+    pub aggregate: String,
+}
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DetailTransform {
@@ -650,11 +658,7 @@ pub enum DataExpressionSource {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DataTransformKind {
-    Count(EmptyTransform),
-    Mean(EmptyTransform),
-    Median(EmptyTransform),
-    Min(EmptyTransform),
-    Max(EmptyTransform),
+    Aggregate(AggregateTransform),
     TimeBetween(TimeBetweenTransform),
     TelemetryAtOrBefore(TelemetryAtOrBeforeTransform),
     Detail(DetailTransform),

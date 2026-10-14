@@ -19,9 +19,8 @@
 
 // Local Imports
 use crate::support::prelude::*;
-use dokime_app::runtime::query::aggregate::{
-    AggregateColumn, AggregateFunction, AggregateQuery, AggregateSource,
-};
+use dokime_app::runtime::query::aggregate::{AggregateColumn, AggregateQuery, AggregateSource};
+use harmos::Aggregate;
 
 /* === Constants === */
 
@@ -56,7 +55,7 @@ pub(crate) async fn unknown_column_exist() {
             filters: Vec::new(),
             group_by: vec!["template_id".into()],
             aggregates: vec![AggregateColumn {
-                function: AggregateFunction::Count,
+                aggregate: Aggregate::Count,
                 column: String::new(),
                 alias: "total".into(),
             }],
