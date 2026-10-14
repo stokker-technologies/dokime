@@ -18,6 +18,8 @@
 
 // Local Imports
 use super::*;
+use crate::records::BuiltinRecordType;
+use crate::transactions::records::draft::BuiltinDraft;
 
 /* === Constants === */
 
@@ -251,10 +253,10 @@ impl CompleteRun {
     ) -> crate::transactions::records::draft::Drafts {
         let request = &state.run_requests[&self.request_id];
         let mut records = crate::transactions::records::draft::Drafts::new(state);
-        let mut draft = |record_type: &str, scope: RecordScope| {
+        let mut draft = |record_type: BuiltinRecordType, scope: RecordScope| {
             records.draft(
-                ProductRecordDraft {
-                    record_type: identifier(record_type),
+                BuiltinDraft {
+                    record_type,
                     source: "runtime".into(),
                     severity: RecordSeverity::Error,
                     message: Some(unsealed.cause.clone()),
@@ -266,12 +268,12 @@ impl CompleteRun {
         };
         for id in &unsealed.execution_ids {
             draft(
-                "test.execution.finalization.failed",
+                BuiltinRecordType::TestExecutionFinalizationFailed,
                 state.executions[id].scope.clone(),
             );
         }
         draft(
-            "test.cycle.finalization.failed",
+            BuiltinRecordType::TestCycleFinalizationFailed,
             RecordScope::default().with_cycle(request.summary.cycle_id.clone()),
         );
         records
@@ -297,9 +299,9 @@ impl CompleteRun {
             status
         };
         let name = match cycle_status {
-            CycleStatus::Completed => "test.cycle.completed",
-            CycleStatus::Stopped => "test.cycle.stopped",
-            _ => "test.cycle.failed",
+            CycleStatus::Completed => BuiltinRecordType::TestCycleCompleted,
+            CycleStatus::Stopped => BuiltinRecordType::TestCycleStopped,
+            _ => BuiltinRecordType::TestCycleFailed,
         };
         let cycle_complete = request.test_execution_id.as_ref().is_none_or(|selected| {
             !state.cycles[&request.summary.cycle_id]
@@ -314,8 +316,8 @@ impl CompleteRun {
         });
         if cycle_complete {
             records.draft(
-                ProductRecordDraft {
-                    record_type: identifier(name),
+                BuiltinDraft {
+                    record_type: name,
                     source: "runtime".into(),
                     severity: if cycle_status == CycleStatus::Failed {
                         RecordSeverity::Error
@@ -337,12 +339,12 @@ impl CompleteRun {
             );
         }
         records.draft(
-            ProductRecordDraft {
-                record_type: identifier(match status {
-                    CycleStatus::Completed => "provider.execution.completed",
-                    CycleStatus::Stopped => "test.execution.stopped",
-                    _ => "provider.execution.failed",
-                }),
+            BuiltinDraft {
+                record_type: match status {
+                    CycleStatus::Completed => BuiltinRecordType::ProviderExecutionCompleted,
+                    CycleStatus::Stopped => BuiltinRecordType::TestExecutionStopped,
+                    _ => BuiltinRecordType::ProviderExecutionFailed,
+                },
                 source: "provider".into(),
                 severity: if status == CycleStatus::Failed {
                     RecordSeverity::Error

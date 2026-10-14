@@ -18,7 +18,7 @@ use std::{collections::BTreeMap, str::FromStr};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::core::{Identifier, RecordScope, Timestamp, Value};
-use crate::records::{Record, RecordSeverity, error::RecordFailure};
+use crate::records::{BuiltinRecordType, Record, RecordSeverity, error::RecordFailure};
 
 /* === Constants === */
 pub const PRODUCT_RECORD_SCHEMA_VERSION: u32 = 2;
@@ -197,8 +197,12 @@ impl ProductConnectionDetails {
 
     pub fn record_type(&self) -> Identifier {
         match self.connection_state {
-            ProductConnectionState::Connected => identifier("tool.connection.acquired"),
-            ProductConnectionState::Disconnected => identifier("tool.connection.lost"),
+            ProductConnectionState::Connected => {
+                BuiltinRecordType::ToolConnectionAcquired.identifier()
+            }
+            ProductConnectionState::Disconnected => {
+                BuiltinRecordType::ToolConnectionLost.identifier()
+            }
         }
     }
 
@@ -270,9 +274,9 @@ impl ProductTargetLockDetails {
 
     pub fn record_type(&self) -> Identifier {
         match self.target_lock_state {
-            ProductTargetLockState::Lost => identifier("target.lost"),
+            ProductTargetLockState::Lost => BuiltinRecordType::TargetLost.identifier(),
             ProductTargetLockState::Locked | ProductTargetLockState::Unknown => {
-                identifier("target.acquired")
+                BuiltinRecordType::TargetAcquired.identifier()
             }
         }
     }

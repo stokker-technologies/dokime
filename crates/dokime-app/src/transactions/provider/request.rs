@@ -21,7 +21,9 @@ use std::collections::VecDeque;
 
 // Local Imports
 use super::*;
-use crate::records::{ProductRecordDraft, RecordSeverity};
+use crate::records::BuiltinRecordType;
+use crate::records::RecordSeverity;
+use crate::transactions::records::draft::BuiltinDraft;
 
 /* === Constants === */
 
@@ -157,8 +159,8 @@ impl PrepareAttempt {
             .get(execution_id)
             .expect("checked materialized execution");
         records.draft(
-            ProductRecordDraft {
-                record_type: identifier("test.execution.prepared"),
+            BuiltinDraft {
+                record_type: BuiltinRecordType::TestExecutionPrepared,
                 source: "runtime".into(),
                 severity: RecordSeverity::Info,
                 message: Some("Test execution prepared for provider dispatch.".into()),
@@ -224,10 +226,13 @@ impl DispatchProvider {
         {
             return records;
         }
-        for name in ["test.cycle.started", "provider.execution.started"] {
+        for name in [
+            BuiltinRecordType::TestCycleStarted,
+            BuiltinRecordType::ProviderExecutionStarted,
+        ] {
             records.draft(
-                ProductRecordDraft {
-                    record_type: identifier(name),
+                BuiltinDraft {
+                    record_type: name,
                     source: "runtime".into(),
                     severity: RecordSeverity::Info,
                     message: Some("Cycle provider dispatch started.".into()),
@@ -374,8 +379,8 @@ pub(super) fn queue_records(
         return records;
     }
     records.draft(
-        ProductRecordDraft {
-            record_type: identifier("test.cycle.queued"),
+        BuiltinDraft {
+            record_type: BuiltinRecordType::TestCycleQueued,
             source: "runtime".into(),
             severity: RecordSeverity::Info,
             message: Some("Cycle execution request queued.".into()),

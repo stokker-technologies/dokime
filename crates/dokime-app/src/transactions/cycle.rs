@@ -22,15 +22,15 @@ use crate::execution::{
     CriterionStatus, CycleStatus, CycleView, ExecutionStatus, ResultStatus, ResultSummary,
     StepStatus,
 };
-use crate::records::{ProductRecordDraft, RecordSeverity};
+use crate::records::BuiltinRecordType;
+use crate::records::RecordSeverity;
 use crate::transactions::prompts::{
     PromptSettlement, SettledPrompts, commit_settled_prompts, settle_prompts,
 };
+use crate::transactions::records::draft::BuiltinDraft;
 use crate::transactions::records::draft::Drafts;
 use crate::{Error, state::RuntimeState};
-use dokime::core::{
-    CaseId, Identifier, RecordScope, TestCycleId, TestExecutionId, Timestamp, Value,
-};
+use dokime::core::{CaseId, RecordScope, TestCycleId, TestExecutionId, Timestamp, Value};
 
 /* === Constants === */
 
@@ -269,14 +269,16 @@ fn prepare_cycle_control(
         request.summary.cycle_id == control.test_cycle_id && !request.summary.phase.terminal()
     }) {
         let (name, message) = match control.action {
-            CycleControlAction::Pause => {
-                ("test.execution.pause_requested", "Cycle request paused.")
-            }
-            CycleControlAction::Resume => {
-                ("test.execution.resume_requested", "Cycle request resumed.")
-            }
+            CycleControlAction::Pause => (
+                BuiltinRecordType::TestExecutionPauseRequested,
+                "Cycle request paused.",
+            ),
+            CycleControlAction::Resume => (
+                BuiltinRecordType::TestExecutionResumeRequested,
+                "Cycle request resumed.",
+            ),
             CycleControlAction::Stop => (
-                "test.execution.stop_requested",
+                BuiltinRecordType::TestExecutionStopRequested,
                 "Cycle request stop requested.",
             ),
         };
@@ -294,14 +296,14 @@ fn prepare_cycle_control(
             record_execution_lifecycle(
                 &mut records,
                 &cycle,
-                "test.execution.paused",
+                BuiltinRecordType::TestExecutionPaused,
                 "Test execution paused.",
                 control.occurred_at.clone(),
             );
             record_request(
                 &mut records,
                 &cycle,
-                "test.execution.pause_requested",
+                BuiltinRecordType::TestExecutionPauseRequested,
                 "Operator paused test execution.",
                 control.occurred_at.clone(),
             );
@@ -310,14 +312,14 @@ fn prepare_cycle_control(
             record_execution_lifecycle(
                 &mut records,
                 &cycle,
-                "test.execution.resumed",
+                BuiltinRecordType::TestExecutionResumed,
                 "Test execution resumed.",
                 control.occurred_at.clone(),
             );
             record_request(
                 &mut records,
                 &cycle,
-                "test.execution.resume_requested",
+                BuiltinRecordType::TestExecutionResumeRequested,
                 "Operator resumed test execution.",
                 control.occurred_at.clone(),
             );
@@ -325,7 +327,7 @@ fn prepare_cycle_control(
         CycleControlAction::Stop => record_request(
             &mut records,
             &cycle,
-            "test.execution.stop_requested",
+            BuiltinRecordType::TestExecutionStopRequested,
             "Operator requested test execution stop.",
             control.occurred_at.clone(),
         ),
@@ -549,7 +551,7 @@ pub(crate) fn ensure_case_restartable(
 fn record_execution_lifecycle(
     records: &mut Drafts,
     cycle: &CycleView,
-    record_type: &str,
+    record_type: BuiltinRecordType,
     message: &str,
     at: Timestamp,
 ) {
@@ -559,8 +561,8 @@ fn record_execution_lifecycle(
         .filter(|execution| execution.status == ExecutionStatus::Running)
     {
         records.draft(
-            ProductRecordDraft {
-                record_type: identifier(record_type),
+            BuiltinDraft {
+                record_type,
                 source: "runtime".to_owned(),
                 severity: RecordSeverity::Info,
                 message: Some(message.to_owned()),
@@ -578,13 +580,13 @@ fn record_execution_lifecycle(
 fn record_request(
     records: &mut Drafts,
     cycle: &CycleView,
-    record_type: &str,
+    record_type: BuiltinRecordType,
     message: &str,
     at: Timestamp,
 ) {
     records.draft(
-        ProductRecordDraft {
-            record_type: identifier(record_type),
+        BuiltinDraft {
+            record_type,
             source: "runtime".to_owned(),
             severity: RecordSeverity::Info,
             message: Some(message.to_owned()),
@@ -597,10 +599,6 @@ fn record_request(
 
 fn conflict(message: String) -> Error {
     Error::conflict("conflict", message)
-}
-
-fn identifier(value: &str) -> Identifier {
-    Identifier::new(value).expect("cycle lifecycle event identifier is valid")
 }
 
 /* === Tests === */

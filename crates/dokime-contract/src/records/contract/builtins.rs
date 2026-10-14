@@ -24,72 +24,6 @@ use crate::records::{
 };
 
 /* === Constants === */
-const SIMPLE_LIFECYCLE_RECORDS: &[&str] = &[
-    "session.started",
-    "session.running",
-    "session.stopping",
-    "session.completed",
-    "session.failed",
-    "session.disconnected",
-    "test.cycle.prepared",
-    "test.cycle.queued",
-    "test.execution.prepared",
-    "test.cycle.started",
-    "test.cycle.completed",
-    "test.cycle.failed",
-    "test.cycle.finalization.failed",
-    "test.cycle.stop_requested",
-    "test.cycle.stopped",
-    "test.execution.started",
-    "test.execution.paused",
-    "test.execution.resumed",
-    "test.execution.completed",
-    "test.execution.failed",
-    "test.execution.finalization.failed",
-    "test.execution.interrupted",
-    "test.execution.stopped",
-    "test.execution.stop_requested",
-    "test.execution.blocked",
-    "test.execution.pause_requested",
-    "test.execution.resume_requested",
-    "test.step.started",
-    "test.step.completed",
-    "test.step.failed",
-    "test.criterion.started",
-    "test.criterion.completed",
-    "test.criterion.failed",
-    "test.initialize.started",
-    "test.initialize.completed",
-    "test.initialize.failed",
-    "test.finalize.started",
-    "test.finalize.completed",
-    "test.finalize.failed",
-    "test.interrupt.started",
-    "test.interrupt.completed",
-    "test.interrupt.failed",
-    "test.measurement.failed",
-    "artifact.created",
-    "artifact.completed",
-    "report.requested",
-    "report.completed",
-    "report.failed",
-    "worker.started",
-    "worker.failed",
-    "installed_plugin.activated",
-    "installed_plugin.failed",
-    "provider.execution.started",
-    "provider.execution.completed",
-    "provider.execution.failed",
-    "operator.identified",
-    "resource.registered",
-    "resource.attached",
-    "resource.opening",
-    "resource.opened",
-    "resource.traceability.updated",
-    "resource.closed",
-    "resource.failed",
-    "resource.removed",
-];
 pub const PRODUCT_CONNECTION_STATES: &[&str] = &["connected", "disconnected"];
 pub const PRODUCT_READINESS_STATES: &[&str] = &["ready", "not_ready", "busy", "unknown"];
 pub const PRODUCT_TARGET_LOCK_STATES: &[&str] = &["locked", "lost", "unknown"];
@@ -97,16 +31,311 @@ pub const PRODUCT_CALIBRATION_KINDS: &[&str] = &["field", "tilt"];
 pub const PRODUCT_CALIBRATION_PHASES: &[&str] = &["started", "activity", "completed"];
 
 /* === Macros === */
+/// Declares the built-in record types once: the enum, its ordered catalog
+/// listing and each identifier come from this single list.
+macro_rules! builtin_record_types {
+    ($($variant:ident => $identifier:literal,)+) => {
+        /// A record type the host publishes itself. Every variant has a
+        /// built-in contract by construction, so a host publisher naming one
+        /// can never reach an unregistered type.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        pub enum BuiltinRecordType {
+            $($variant,)+
+        }
+
+        impl BuiltinRecordType {
+            /// Every built-in record type in catalog order.
+            pub const ALL: &'static [Self] = &[$(Self::$variant,)+];
+
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $identifier,)+
+                }
+            }
+        }
+    };
+}
 
 /* === Type Aliases === */
 
 /* === Structs === */
 
 /* === Enums === */
+builtin_record_types! {
+    SessionStarted => "session.started",
+    SessionRunning => "session.running",
+    SessionStopping => "session.stopping",
+    SessionCompleted => "session.completed",
+    SessionFailed => "session.failed",
+    SessionDisconnected => "session.disconnected",
+    TestCyclePrepared => "test.cycle.prepared",
+    TestCycleQueued => "test.cycle.queued",
+    TestExecutionPrepared => "test.execution.prepared",
+    TestCycleStarted => "test.cycle.started",
+    TestCycleCompleted => "test.cycle.completed",
+    TestCycleFailed => "test.cycle.failed",
+    TestCycleFinalizationFailed => "test.cycle.finalization.failed",
+    TestCycleStopRequested => "test.cycle.stop_requested",
+    TestCycleStopped => "test.cycle.stopped",
+    TestExecutionStarted => "test.execution.started",
+    TestExecutionPaused => "test.execution.paused",
+    TestExecutionResumed => "test.execution.resumed",
+    TestExecutionCompleted => "test.execution.completed",
+    TestExecutionFailed => "test.execution.failed",
+    TestExecutionFinalizationFailed => "test.execution.finalization.failed",
+    TestExecutionInterrupted => "test.execution.interrupted",
+    TestExecutionStopped => "test.execution.stopped",
+    TestExecutionStopRequested => "test.execution.stop_requested",
+    TestExecutionBlocked => "test.execution.blocked",
+    TestExecutionPauseRequested => "test.execution.pause_requested",
+    TestExecutionResumeRequested => "test.execution.resume_requested",
+    TestStepStarted => "test.step.started",
+    TestStepCompleted => "test.step.completed",
+    TestStepFailed => "test.step.failed",
+    TestCriterionStarted => "test.criterion.started",
+    TestCriterionCompleted => "test.criterion.completed",
+    TestCriterionFailed => "test.criterion.failed",
+    TestInitializeStarted => "test.initialize.started",
+    TestInitializeCompleted => "test.initialize.completed",
+    TestInitializeFailed => "test.initialize.failed",
+    TestFinalizeStarted => "test.finalize.started",
+    TestFinalizeCompleted => "test.finalize.completed",
+    TestFinalizeFailed => "test.finalize.failed",
+    TestInterruptStarted => "test.interrupt.started",
+    TestInterruptCompleted => "test.interrupt.completed",
+    TestInterruptFailed => "test.interrupt.failed",
+    TestMeasurementFailed => "test.measurement.failed",
+    ArtifactCreated => "artifact.created",
+    ArtifactCompleted => "artifact.completed",
+    ReportRequested => "report.requested",
+    ReportCompleted => "report.completed",
+    ReportFailed => "report.failed",
+    WorkerStarted => "worker.started",
+    WorkerFailed => "worker.failed",
+    InstalledPluginActivated => "installed_plugin.activated",
+    InstalledPluginFailed => "installed_plugin.failed",
+    ProviderExecutionStarted => "provider.execution.started",
+    ProviderExecutionCompleted => "provider.execution.completed",
+    ProviderExecutionFailed => "provider.execution.failed",
+    OperatorIdentified => "operator.identified",
+    ResourceRegistered => "resource.registered",
+    ResourceAttached => "resource.attached",
+    ResourceOpening => "resource.opening",
+    ResourceOpened => "resource.opened",
+    ResourceTraceabilityUpdated => "resource.traceability.updated",
+    ResourceClosed => "resource.closed",
+    ResourceFailed => "resource.failed",
+    ResourceRemoved => "resource.removed",
+    ToolConnectionAcquired => "tool.connection.acquired",
+    ToolConnectionLost => "tool.connection.lost",
+    TargetLost => "target.lost",
+    TargetAcquired => "target.acquired",
+    CalibrationFieldStarted => "calibration.field.started",
+    CalibrationFieldActivity => "calibration.field.activity",
+    CalibrationFieldCompleted => "calibration.field.completed",
+    CalibrationTiltStarted => "calibration.tilt.started",
+    CalibrationTiltActivity => "calibration.tilt.activity",
+    CalibrationTiltCompleted => "calibration.tilt.completed",
+    ControlTriggered => "control.triggered",
+    ControlCallbackCompleted => "control.callback_completed",
+    ControlCallbackFailed => "control.callback_failed",
+    PromptRequestConfirmation => "prompt.request.confirmation",
+    PromptRequestForm => "prompt.request.form",
+    PromptRequestChoice => "prompt.request.choice",
+    PromptRequestStatus => "prompt.request.status",
+    PromptResponseSubmitted => "prompt.response.submitted",
+    PromptResponseCancelled => "prompt.response.cancelled",
+    PromptResponseExpired => "prompt.response.expired",
+    OperatorNoteAdded => "operator.note_added",
+    OperatorNoteEdited => "operator.note_edited",
+    HealthAdded => "health.added",
+    ProgressMilestone => "progress.milestone",
+}
 
 /* === Traits === */
 
 /* === Implementations === */
+impl BuiltinRecordType {
+    pub fn identifier(self) -> Identifier {
+        identifier(self.as_str())
+    }
+
+    /// Resolves a published record type to its built-in declaration.
+    pub fn from_identifier(record_type: &Identifier) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|kind| kind.as_str() == record_type.as_str())
+    }
+
+    /// The schema version its contract declares; product records are v2.
+    pub const fn schema_version(self) -> u32 {
+        match self {
+            Self::ToolConnectionAcquired
+            | Self::ToolConnectionLost
+            | Self::TargetLost
+            | Self::TargetAcquired
+            | Self::CalibrationFieldStarted
+            | Self::CalibrationFieldActivity
+            | Self::CalibrationFieldCompleted
+            | Self::CalibrationTiltStarted
+            | Self::CalibrationTiltActivity
+            | Self::CalibrationTiltCompleted => 2,
+            _ => 1,
+        }
+    }
+
+    /// The built-in contract. The match is exhaustive, so declaring a type
+    /// without its contract does not compile.
+    pub fn contract(self) -> RecordContract {
+        let record_type = self.as_str();
+        match self {
+            Self::SessionStarted
+            | Self::SessionRunning
+            | Self::SessionStopping
+            | Self::SessionCompleted
+            | Self::SessionFailed
+            | Self::SessionDisconnected
+            | Self::TestCyclePrepared
+            | Self::TestCycleQueued
+            | Self::TestExecutionPrepared
+            | Self::TestCycleStarted
+            | Self::TestCycleCompleted
+            | Self::TestCycleFailed
+            | Self::TestCycleFinalizationFailed
+            | Self::TestCycleStopRequested
+            | Self::TestCycleStopped
+            | Self::TestExecutionStarted
+            | Self::TestExecutionPaused
+            | Self::TestExecutionResumed
+            | Self::TestExecutionCompleted
+            | Self::TestExecutionFailed
+            | Self::TestExecutionFinalizationFailed
+            | Self::TestExecutionInterrupted
+            | Self::TestExecutionStopped
+            | Self::TestExecutionStopRequested
+            | Self::TestExecutionBlocked
+            | Self::TestExecutionPauseRequested
+            | Self::TestExecutionResumeRequested
+            | Self::TestStepStarted
+            | Self::TestStepCompleted
+            | Self::TestStepFailed
+            | Self::TestCriterionStarted
+            | Self::TestCriterionCompleted
+            | Self::TestCriterionFailed
+            | Self::TestInitializeStarted
+            | Self::TestInitializeCompleted
+            | Self::TestInitializeFailed
+            | Self::TestFinalizeStarted
+            | Self::TestFinalizeCompleted
+            | Self::TestFinalizeFailed
+            | Self::TestInterruptStarted
+            | Self::TestInterruptCompleted
+            | Self::TestInterruptFailed
+            | Self::TestMeasurementFailed
+            | Self::ArtifactCreated
+            | Self::ArtifactCompleted
+            | Self::ReportRequested
+            | Self::ReportCompleted
+            | Self::ReportFailed
+            | Self::WorkerStarted
+            | Self::WorkerFailed
+            | Self::InstalledPluginActivated
+            | Self::InstalledPluginFailed
+            | Self::ProviderExecutionStarted
+            | Self::ProviderExecutionCompleted
+            | Self::ProviderExecutionFailed
+            | Self::OperatorIdentified
+            | Self::ResourceRegistered
+            | Self::ResourceAttached
+            | Self::ResourceOpening
+            | Self::ResourceOpened
+            | Self::ResourceTraceabilityUpdated
+            | Self::ResourceClosed
+            | Self::ResourceFailed
+            | Self::ResourceRemoved => simple_contract(record_type, RecordSeverity::Info),
+            Self::ToolConnectionAcquired | Self::ToolConnectionLost => {
+                product_connection_contract(record_type)
+            }
+            Self::TargetLost | Self::TargetAcquired => product_target_contract(record_type),
+            Self::CalibrationFieldStarted
+            | Self::CalibrationFieldActivity
+            | Self::CalibrationFieldCompleted
+            | Self::CalibrationTiltStarted
+            | Self::CalibrationTiltActivity
+            | Self::CalibrationTiltCompleted => product_calibration_contract(record_type),
+            Self::ControlTriggered => contract(
+                record_type,
+                RecordSeverity::Info,
+                vec![
+                    field("control_id", ValueType::Text),
+                    field("values", ValueType::Object),
+                ],
+            ),
+            Self::ControlCallbackCompleted => contract(
+                record_type,
+                RecordSeverity::Info,
+                vec![field("control_id", ValueType::Text)],
+            ),
+            Self::ControlCallbackFailed => contract(
+                record_type,
+                RecordSeverity::Error,
+                vec![
+                    field("control_id", ValueType::Text),
+                    field("error", ValueType::Text),
+                ],
+            ),
+            Self::PromptRequestConfirmation
+            | Self::PromptRequestForm
+            | Self::PromptRequestChoice
+            | Self::PromptRequestStatus => prompt_request_contract(record_type),
+            Self::PromptResponseSubmitted => {
+                prompt_response_contract(record_type, RecordSeverity::Info)
+            }
+            Self::PromptResponseCancelled => {
+                prompt_cancel_contract(record_type, RecordSeverity::Info)
+            }
+            Self::PromptResponseExpired => {
+                prompt_cancel_contract(record_type, RecordSeverity::Warning)
+            }
+            Self::OperatorNoteAdded | Self::OperatorNoteEdited => contract(
+                record_type,
+                RecordSeverity::Info,
+                vec![field("note_id", ValueType::Text)],
+            ),
+            Self::HealthAdded => contract(
+                record_type,
+                RecordSeverity::Warning,
+                vec![
+                    field("health_id", ValueType::Text),
+                    field("title", ValueType::Text),
+                    field("level", ValueType::Text).with_default(Value::from("warning")),
+                    field("related_artifact_id", ValueType::Text).nullable(),
+                ],
+            ),
+            Self::ProgressMilestone => contract(
+                record_type,
+                RecordSeverity::Info,
+                vec![
+                    field("phase", ValueType::Text),
+                    field("progress", ValueType::Number).optional(),
+                ],
+            ),
+        }
+    }
+}
+
+impl From<BuiltinRecordType> for Identifier {
+    fn from(kind: BuiltinRecordType) -> Self {
+        kind.identifier()
+    }
+}
+
+impl std::fmt::Display for BuiltinRecordType {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
 
 /* === Public Functions === */
 pub fn builtin_record_types() -> &'static [Identifier] {
@@ -121,81 +350,10 @@ pub fn builtin_record_types() -> &'static [Identifier] {
 }
 
 pub fn builtin_record_contracts() -> Vec<RecordContract> {
-    let mut contracts: Vec<RecordContract> = SIMPLE_LIFECYCLE_RECORDS
+    BuiltinRecordType::ALL
         .iter()
-        .map(|record_type| simple_contract(record_type, RecordSeverity::Info))
-        .collect();
-
-    contracts.extend([
-        product_connection_contract("tool.connection.acquired"),
-        product_connection_contract("tool.connection.lost"),
-        product_target_contract("target.lost"),
-        product_target_contract("target.acquired"),
-        product_calibration_contract("calibration.field.started"),
-        product_calibration_contract("calibration.field.activity"),
-        product_calibration_contract("calibration.field.completed"),
-        product_calibration_contract("calibration.tilt.started"),
-        product_calibration_contract("calibration.tilt.activity"),
-        product_calibration_contract("calibration.tilt.completed"),
-        contract(
-            "control.triggered",
-            RecordSeverity::Info,
-            vec![
-                field("control_id", ValueType::Text),
-                field("values", ValueType::Object),
-            ],
-        ),
-        contract(
-            "control.callback_completed",
-            RecordSeverity::Info,
-            vec![field("control_id", ValueType::Text)],
-        ),
-        contract(
-            "control.callback_failed",
-            RecordSeverity::Error,
-            vec![
-                field("control_id", ValueType::Text),
-                field("error", ValueType::Text),
-            ],
-        ),
-        prompt_request_contract("prompt.request.confirmation"),
-        prompt_request_contract("prompt.request.form"),
-        prompt_request_contract("prompt.request.choice"),
-        prompt_request_contract("prompt.request.status"),
-        prompt_response_contract("prompt.response.submitted", RecordSeverity::Info),
-        prompt_cancel_contract("prompt.response.cancelled", RecordSeverity::Info),
-        prompt_cancel_contract("prompt.response.expired", RecordSeverity::Warning),
-        contract(
-            "operator.note_added",
-            RecordSeverity::Info,
-            vec![field("note_id", ValueType::Text)],
-        ),
-        contract(
-            "operator.note_edited",
-            RecordSeverity::Info,
-            vec![field("note_id", ValueType::Text)],
-        ),
-        contract(
-            "health.added",
-            RecordSeverity::Warning,
-            vec![
-                field("health_id", ValueType::Text),
-                field("title", ValueType::Text),
-                field("level", ValueType::Text).with_default(Value::from("warning")),
-                field("related_artifact_id", ValueType::Text).nullable(),
-            ],
-        ),
-        contract(
-            "progress.milestone",
-            RecordSeverity::Info,
-            vec![
-                field("phase", ValueType::Text),
-                field("progress", ValueType::Number).optional(),
-            ],
-        ),
-    ]);
-
-    contracts
+        .map(|kind| kind.contract())
+        .collect()
 }
 
 /* === Private Functions === */
@@ -453,3 +611,34 @@ fn label(identifier: &str) -> String {
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_builtin_record_type_is_in_the_catalog_once() {
+        let catalog = builtin_record_contracts();
+        assert_eq!(catalog.len(), BuiltinRecordType::ALL.len());
+        for kind in BuiltinRecordType::ALL {
+            let declared = catalog
+                .iter()
+                .filter(|contract| contract.record_type.as_str() == kind.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(declared.len(), 1, "{kind} is registered exactly once");
+            assert_eq!(declared[0], &kind.contract());
+            assert_eq!(declared[0].schema_version, kind.schema_version());
+            assert_eq!(
+                BuiltinRecordType::from_identifier(&kind.identifier()),
+                Some(*kind)
+            );
+            assert!(builtin_record_types().contains(&kind.identifier()));
+        }
+        for contract in &catalog {
+            assert!(
+                BuiltinRecordType::from_identifier(&contract.record_type).is_some(),
+                "{} is declared as a built-in record type",
+                contract.record_type
+            );
+        }
+    }
+}

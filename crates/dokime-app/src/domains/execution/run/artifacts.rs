@@ -26,7 +26,7 @@ use tokio::sync::Mutex;
 use super::{ExecutionFixtureContext, failure};
 use crate::records::{RecordPublishRequest, RecordSeverity};
 use dokime::artifacts::ArtifactUploadInput;
-use dokime::core::{Identifier, RecordScope, Value};
+use dokime::core::{RecordScope, Value};
 use dokime::transport::{
     ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES, ProviderExecutionFailure,
 };
@@ -296,7 +296,7 @@ impl Transfers {
             .await
             .map_err(|error| artifact_failure(error.to_string()))?;
         let mut created = RecordPublishRequest::new(
-            Identifier::new("artifact.created").expect("built-in event id is valid"),
+            crate::records::BuiltinRecordType::ArtifactCreated.identifier(),
             RecordSeverity::Info,
         );
         created.scope = Some(scope.clone());

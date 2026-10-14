@@ -67,7 +67,12 @@ pub struct PublishRecord {
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum PublicationSource {
     Host,
-    Sidecar { owner: String },
+    Sidecar {
+        owner: String,
+    },
+    /// Fault injection: a host record admitted without a declaration or a
+    /// registered contract, as an unregistered built-in once was.
+    Undeclared,
 }
 
 /* === Traits === */
@@ -127,6 +132,19 @@ impl PublishRecord {
         }
     }
 
+    /// Bypasses admission so a story can prove that finalization settles,
+    /// naming the type, when an undeclared record reaches it. Never used by
+    /// the product, whose publishers name declared types only.
+    #[doc(hidden)]
+    pub fn undeclared(request: RecordPublishRequest, occurred_at: Timestamp) -> Self {
+        Self {
+            request,
+            received_at: occurred_at.clone(),
+            occurred_at,
+            source: PublicationSource::Undeclared,
+        }
+    }
+
     pub fn sidecar(request: RecordPublishRequest, owner: String, occurred_at: Timestamp) -> Self {
         Self {
             request,
@@ -182,6 +200,18 @@ fn prepare_record(
             )
             .map_err(|error| validation_rejection(error, "record_type", None))?;
             prepare_record_with_source(state, publish, owner, true)
+        }
+        PublicationSource::Undeclared => {
+            let mut record = publish.request.clone().into_record(
+                state.next_record_id(),
+                1,
+                publish.occurred_at.clone(),
+                "runtime",
+            );
+            record.received_at = publish.received_at.clone();
+            let mut records = crate::transactions::records::draft::Drafts::new(state);
+            records.push(record);
+            Ok(records)
         }
     }
 }

@@ -19,8 +19,10 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::{CycleStatus, CycleView, ExecutionStatus};
+use crate::records::BuiltinRecordType;
 use crate::records::TestRecordSet;
 use crate::state::RuntimeState;
+use crate::transactions::records::draft::BuiltinDraft;
 use dokime::core::{TestCycleId, TestExecutionId, Timestamp};
 
 /* === Constants === */
@@ -173,12 +175,12 @@ impl Write for Budget {
 
 impl CopyCycle {
     fn drafts(&self, state: &RuntimeState) -> crate::transactions::records::draft::Drafts {
-        use crate::records::{ProductRecordDraft, RecordSeverity};
-        use dokime::core::{Identifier, RecordScope, Value};
+        use crate::records::RecordSeverity;
+        use dokime::core::{RecordScope, Value};
         let mut records = crate::transactions::records::draft::Drafts::new(state);
         records.draft(
-            ProductRecordDraft {
-                record_type: Identifier::new("test.cycle.prepared").expect("built-in identifier"),
+            BuiltinDraft {
+                record_type: BuiltinRecordType::TestCyclePrepared,
                 source: "runtime".into(),
                 severity: RecordSeverity::Info,
                 message: Some("Cycle plan copied; ready for execution.".into()),

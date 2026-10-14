@@ -57,6 +57,17 @@ impl RuntimeHandle {
             .await
     }
 
+    /// Fault injection for stories: commits a record whose type no contract
+    /// declares, through `PublishRecord::undeclared`.
+    #[doc(hidden)]
+    pub async fn publish_undeclared_record(
+        &self,
+        request: RecordPublishRequest,
+    ) -> Result<PublishReceipt, Error> {
+        self.commit_record(PublishRecord::undeclared(request, Timestamp::now_utc()))
+            .await
+    }
+
     pub(crate) async fn publish_sidecar_record(
         &self,
         request: RecordPublishRequest,

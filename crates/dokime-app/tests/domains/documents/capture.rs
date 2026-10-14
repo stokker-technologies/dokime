@@ -331,6 +331,83 @@ pub(crate) async fn operator_notes_until_seal() {
     owner.shutdown().await.unwrap();
 }
 
+pub(crate) async fn undeclared_record_types_settle_finalization() {
+    const UNDECLARED: &str = "operator.note_deleted";
+    let root = tempfile::tempdir().unwrap();
+    let mut owner = Runtime::start(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-sidecar-protocol")]),
+    )
+    .await
+    .unwrap();
+    let handle = owner.handle();
+    let id = begin(&handle).await;
+    let running = cycle(&handle, &id, CycleStatus::Running).await;
+    let execution = running.test_executions[0].clone();
+    let mut request =
+        RecordPublishRequest::new(Identifier::new(UNDECLARED).unwrap(), RecordSeverity::Info);
+    request.scope = Some(execution.scope.clone());
+
+    // The publish boundary refuses a type no contract declares, naming it.
+    let refused = handle
+        .publish_record(request.clone())
+        .await
+        .expect_err("an undeclared record type is refused at publication");
+    assert!(
+        refused.to_string().contains(UNDECLARED),
+        "the refusal names the type: {refused}"
+    );
+
+    // One that reaches finalization anyway settles the run, naming the type,
+    // instead of retrying a report that can never be sealed.
+    handle.publish_undeclared_record(request).await.unwrap();
+    handle
+        .stop_cycle(id.clone(), CommandContext::default())
+        .await
+        .unwrap();
+    let settled = cycle(&handle, &id, CycleStatus::Failed).await;
+    assert!(
+        settled.saved.is_none(),
+        "an unsealable cycle claims no report"
+    );
+    let evidence = handle.evidence_snapshot().await.unwrap();
+    for (record_type, scoped) in [
+        (
+            "test.execution.finalization.failed",
+            Some(&execution.test_execution_id),
+        ),
+        ("test.cycle.finalization.failed", None),
+    ] {
+        let record = evidence
+            .records
+            .iter()
+            .find(|record| {
+                record.record_type.as_str() == record_type
+                    && record
+                        .scope
+                        .as_ref()
+                        .is_some_and(|scope| scope.test_cycle_id.as_ref() == Some(&id))
+            })
+            .unwrap_or_else(|| panic!("{record_type} is recorded as evidence"));
+        assert_eq!(record.severity, RecordSeverity::Error);
+        assert_eq!(
+            record
+                .scope
+                .as_ref()
+                .and_then(|scope| scope.test_execution_id.as_ref()),
+            scoped,
+            "{record_type} scope"
+        );
+        assert!(
+            record
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains(UNDECLARED)),
+            "{record_type} names the undeclared type: {record:?}"
+        );
+    }
+    owner.shutdown().await.unwrap();
+}
+
 pub(crate) async fn native_capture_contexts() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = Runtime::start(

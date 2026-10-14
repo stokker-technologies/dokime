@@ -86,6 +86,15 @@ fn documents_contract() {
         );
     }
     {
+        eprintln!("Scenario: documents::capture::undeclared_record_types_settle_finalization");
+        run_scenario(
+            documents::capture::undeclared_record_types_settle_finalization,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: documents::construction::default_document_order");
         run_scenario(
             documents::construction::default_document_order,

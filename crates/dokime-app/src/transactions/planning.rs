@@ -22,8 +22,10 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::{TestCase, TestSuite};
 use crate::execution::{CycleStatus, CycleView};
+use crate::records::BuiltinRecordType;
+use crate::records::RecordSeverity;
 use crate::records::TestRecordSet;
-use crate::records::{ProductRecordDraft, RecordSeverity};
+use crate::transactions::records::draft::BuiltinDraft;
 use crate::{Error, state::RuntimeState};
 use dokime::core::{CommandId, Metadata, RecordScope, TestCycleId, Timestamp, Value};
 
@@ -234,9 +236,8 @@ fn prepare_create_cycle(
     if matches!(create.mode, CreateCycleMode::Start) {
         let scope = RecordScope::default().with_cycle(cycle.test_cycle_id.clone());
         records.draft(
-            ProductRecordDraft {
-                record_type: dokime::core::Identifier::new("test.cycle.prepared")
-                    .expect("built-in record identifier is valid"),
+            BuiltinDraft {
+                record_type: BuiltinRecordType::TestCyclePrepared,
                 source: "runtime".to_owned(),
                 severity: RecordSeverity::Info,
                 message: Some(format!("Cycle {} prepared.", cycle.metadata.label)),
