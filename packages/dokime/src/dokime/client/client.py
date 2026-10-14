@@ -94,7 +94,7 @@ class DokimeClient:
         )
 
     async def connect(self) -> Backend:
-        """Negotiate API identity and caller capabilities (also done lazily)."""
+        """Negotiate API identity and the operations available to the caller (also done lazily)."""
         return await self._transport.connect()
 
     async def operations(self) -> tuple[DiscoveredOperation, ...]:

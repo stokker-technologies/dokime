@@ -137,9 +137,9 @@ class Transport:
                     _contracts.operation("Backend", "GetHealth"),
                     _contracts.request("Backend", "GetHealth"),
                 )
-                capabilities = await self._invoke_operation(
-                    _contracts.operation("Backend", "GetCapabilities"),
-                    _contracts.request("Backend", "GetCapabilities"),
+                availability = await self._invoke_operation(
+                    _contracts.operation("Backend", "GetAvailability"),
+                    _contracts.request("Backend", "GetAvailability"),
                 )
                 if (
                     not identity.HasField("api")
@@ -160,36 +160,36 @@ class Transport:
                 if any(
                     item.backend_id != identity.backend_id
                     or item.epoch != identity.epoch
-                    for item in (health, capabilities)
+                    for item in (health, availability)
                 ):
                     raise ProtocolError("backend identity changed during negotiation")
                 if _wire.enum_name(health.readiness) not in ("ready", "degraded"):
                     raise RpcError("UNAVAILABLE", "backend is not ready")
                 required = {
                     f"/dokime.v1.Backend/{method}"
-                    for method in ("GetIdentity", "GetHealth", "GetCapabilities")
+                    for method in ("GetIdentity", "GetHealth", "GetAvailability")
                 }
                 if not required.issubset(
-                    capabilities.methods
-                ) or not capabilities.HasField("limits"):
-                    raise ProtocolError("backend discovery capabilities are incomplete")
+                    availability.methods
+                ) or not availability.HasField("limits"):
+                    raise ProtocolError("backend availability is incomplete")
                 if (
-                    not capabilities.limits.max_request_bytes
-                    or not capabilities.limits.max_response_bytes
+                    not availability.limits.max_request_bytes
+                    or not availability.limits.max_response_bytes
                 ):
                     raise ProtocolError("backend message limits are invalid")
                 self._request_limit = min(
-                    capabilities.limits.max_request_bytes, _MAX_MESSAGE_BYTES
+                    availability.limits.max_request_bytes, _MAX_MESSAGE_BYTES
                 )
                 self._response_limit = min(
-                    capabilities.limits.max_response_bytes, _MAX_MESSAGE_BYTES
+                    availability.limits.max_response_bytes, _MAX_MESSAGE_BYTES
                 )
                 self.backend = Backend(
                     identity.backend_id,
                     identity.epoch,
                     identity.api.version,
                     identity.display_name,
-                    frozenset(capabilities.methods),
+                    frozenset(availability.methods),
                     product_version=identity.product_version,
                     source_revision=identity.source_revision
                     if identity.HasField("source_revision")

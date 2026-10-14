@@ -37,7 +37,7 @@ pub(super) enum Error {
     Sdk(#[from] dokime::Error),
     #[error("fixture host call: {0}")]
     Host(#[from] dokime::harmos::sidecar::CallError),
-    #[error("the host capability and the step call disagree")]
+    #[error("the host surface and the step call disagree")]
     HostDisagreed,
 }
 

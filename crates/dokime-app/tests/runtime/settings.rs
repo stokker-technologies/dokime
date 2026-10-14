@@ -24,15 +24,13 @@ use dokime::domains::{
     ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, StatusResponse,
 };
 // Local Imports
-use dokime_app::capabilities::settings::RuntimeSettingsCardState;
+use dokime_app::domains::settings::RuntimeSettingsCardState;
 use dokime_app::{RuntimeConfig, RuntimeCredentialConfig, RuntimeHandle};
 
 use dokime::settings::{
     SecretReference, SecretSetting, SettingValues, Settings, SettingsEntry, TextArea,
 };
-use dokime_app::capabilities::installed_plugins::{
-    PluginCredentialSecretUpdate, PluginSettingsUpdate,
-};
+use dokime_app::domains::installed_plugins::{PluginCredentialSecretUpdate, PluginSettingsUpdate};
 
 /* === Constants === */
 
@@ -231,7 +229,7 @@ pub(crate) async fn discovered_settings_until() {
     runtime
         .save_plugin_settings(
             &artifact_id,
-            dokime_app::capabilities::installed_plugins::PluginSettingsUpdate {
+            dokime_app::domains::installed_plugins::PluginSettingsUpdate {
                 values: BTreeMap::from([("workspace".to_owned(), Value::from("found-workspace"))]),
             },
         )

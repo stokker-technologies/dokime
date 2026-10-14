@@ -45,13 +45,13 @@ struct BlockingProvider {
 /* === Traits === */
 
 /* === Implementations === */
-impl dokime_app::capabilities::execution::provider::ExecutionFixture for BlockingProvider {
+impl dokime_app::domains::execution::provider::ExecutionFixture for BlockingProvider {
     fn run_cycle<'a>(
         &'a self,
-        _context: dokime_app::capabilities::execution::provider::ExecutionFixtureContext,
+        _context: dokime_app::domains::execution::provider::ExecutionFixtureContext,
         cycle: &'a CycleView,
         _target: &'a dokime::domains::ExecutionProviderTarget,
-    ) -> dokime_app::capabilities::execution::provider::ExecutionFixtureFuture<'a> {
+    ) -> dokime_app::domains::execution::provider::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
             self.entered.notify_one();
             self.release.notified().await;
@@ -364,7 +364,7 @@ pub(crate) async fn activation_failure_recovery() {
 
 pub(crate) async fn queued_reload_run() {
     use dokime::execution::CycleStatus;
-    use dokime_app::capabilities::execution::requests::RunPhase;
+    use dokime_app::domains::execution::requests::RunPhase;
 
     let root = tempdir().unwrap();
     let blocked = Arc::new(BlockingProvider {

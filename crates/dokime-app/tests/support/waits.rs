@@ -20,7 +20,7 @@ use std::time::Duration;
 use dokime::core::{Identifier, TestCycleId};
 use dokime::execution::TestExecution;
 use dokime_app::RuntimeHandle;
-use dokime_app::capabilities::evidence::TelemetrySelection;
+use dokime_app::domains::evidence::TelemetrySelection;
 use dokime_app::execution::CycleStatus;
 use dokime_app::runtime::query::{
     RuntimeResolution, RuntimeViewPayload, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow,

@@ -29,8 +29,8 @@ use dokime::transport::{
     ProviderRecordOutcome, ProviderStatusOutcome, ProviderTelemetryOutcome,
 };
 use dokime_app::RuntimeHandle;
-use dokime_app::capabilities::evidence::RecordPublishRequest;
-use dokime_app::capabilities::execution::provider::ExecutionFixtureContext;
+use dokime_app::domains::evidence::RecordPublishRequest;
+use dokime_app::domains::execution::provider::ExecutionFixtureContext;
 use dokime_app::execution::CycleView;
 
 /* === Constants === */

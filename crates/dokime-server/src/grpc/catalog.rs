@@ -261,9 +261,7 @@ fn metadata_heap(metadata: &dokime_app::core::Metadata) -> Result<usize, Status>
     Ok(canonical::metadata_memory(metadata)? - std::mem::size_of::<common::Metadata>())
 }
 
-fn identity_memory(
-    entry: &dokime_app::capabilities::execution::SuiteSnapshot,
-) -> Result<usize, Status> {
+fn identity_memory(entry: &dokime_app::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
     value::text(&entry.suite_id)?;
     value::text(&entry.source)?;
     if let Some(product) = &entry.product {
@@ -299,9 +297,7 @@ fn groups_memory(values: &[dokime_app::definition::ParameterGroup]) -> Result<us
     Ok(bytes)
 }
 
-fn suite_memory(
-    entry: &dokime_app::capabilities::execution::SuiteSnapshot,
-) -> Result<usize, Status> {
+fn suite_memory(entry: &dokime_app::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
     value::collection(entry.suite.test_case_templates.len())?;
     let mut bytes = std::mem::size_of::<wire::SuiteDefinition>()
         .saturating_add(identity_memory(entry)? - std::mem::size_of::<wire::SuiteIdentity>())
@@ -591,7 +587,7 @@ async fn get_telemetry_schema(
 }
 
 fn identity(
-    entry: &dokime_app::capabilities::execution::SuiteSnapshot,
+    entry: &dokime_app::domains::execution::SuiteSnapshot,
 ) -> Result<wire::SuiteIdentity, Status> {
     Ok(wire::SuiteIdentity {
         suite_id: entry.suite_id.clone(),

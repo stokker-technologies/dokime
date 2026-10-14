@@ -7,9 +7,9 @@ import { Row1Schema as backendCollectDiagnosticsRequest } from "../../../../.gen
 import { Row3Schema as backendCollectDiagnosticsResponse } from "../../../../.generated/dokime/v1/BackendMessages/CollectDiagnostics/messages_pb.js";
 import { BackendCollectDiagnosticsOutputSchema as backendCollectDiagnosticsEnvelope } from "../../../../.generated/dokime/v1/Backend_pb.js";
 export const backendCollectDiagnostics = (session: SessionIdentity, request: Parameters<typeof openStream<typeof backendCollectDiagnosticsRequest, typeof backendCollectDiagnosticsResponse>>[4]) => openStream("/dokime.v1.Backend/CollectDiagnostics", backendCollectDiagnosticsRequest, backendCollectDiagnosticsResponse, session, request, backendCollectDiagnosticsEnvelope, 300000);
-import { Row1Schema as backendGetCapabilitiesRequest } from "../../../../.generated/dokime/v1/BackendMessages/GetCapabilities/messages_pb.js";
-import { Row2Schema as backendGetCapabilitiesResponse } from "../../../../.generated/dokime/v1/BackendMessages/GetCapabilities/messages_pb.js";
-export const backendGetCapabilities = (session: SessionIdentity, request: Parameters<typeof unary<typeof backendGetCapabilitiesRequest, typeof backendGetCapabilitiesResponse>>[4]) => unary("/dokime.v1.Backend/GetCapabilities", backendGetCapabilitiesRequest, backendGetCapabilitiesResponse, session, request, 10000);
+import { Row1Schema as backendGetAvailabilityRequest } from "../../../../.generated/dokime/v1/BackendMessages/GetAvailability/messages_pb.js";
+import { Row2Schema as backendGetAvailabilityResponse } from "../../../../.generated/dokime/v1/BackendMessages/GetAvailability/messages_pb.js";
+export const backendGetAvailability = (session: SessionIdentity, request: Parameters<typeof unary<typeof backendGetAvailabilityRequest, typeof backendGetAvailabilityResponse>>[4]) => unary("/dokime.v1.Backend/GetAvailability", backendGetAvailabilityRequest, backendGetAvailabilityResponse, session, request, 10000);
 import { Row1Schema as backendGetDiagnosticsRequest } from "../../../../.generated/dokime/v1/BackendMessages/GetDiagnostics/messages_pb.js";
 import { Row2Schema as backendGetDiagnosticsResponse } from "../../../../.generated/dokime/v1/BackendMessages/GetDiagnostics/messages_pb.js";
 export const backendGetDiagnostics = (session: SessionIdentity, request: Parameters<typeof unary<typeof backendGetDiagnosticsRequest, typeof backendGetDiagnosticsResponse>>[4]) => unary("/dokime.v1.Backend/GetDiagnostics", backendGetDiagnosticsRequest, backendGetDiagnosticsResponse, session, request, 10000);

@@ -9,7 +9,7 @@
 
 /* === Modules === */
 mod collect_diagnostics;
-mod get_capabilities;
+mod get_availability;
 mod get_diagnostics;
 mod get_health;
 mod get_identity;
@@ -18,7 +18,7 @@ mod watch_trace;
 
 /* === Re-Exports === */
 pub use collect_diagnostics::CollectDiagnostics;
-pub use get_capabilities::GetCapabilities;
+pub use get_availability::GetAvailability;
 pub use get_diagnostics::GetDiagnostics;
 pub use get_health::GetHealth;
 pub use get_identity::GetIdentity;
@@ -57,7 +57,7 @@ pub struct GetHealthRequest {}
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct GetCapabilitiesRequest {}
+pub struct GetAvailabilityRequest {}
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -211,7 +211,7 @@ pub struct BackendHealth {
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct BackendCapabilities {
+pub struct BackendAvailability {
     pub backend_id: String,
     pub epoch: String,
     // Methods both implemented and available to the authenticated caller.
@@ -564,7 +564,7 @@ pub enum DiagnosticsBundleFramePayload {
 pub enum Operations {
     GetIdentity(GetIdentity),
     GetHealth(GetHealth),
-    GetCapabilities(GetCapabilities),
+    GetAvailability(GetAvailability),
     GetDiagnostics(GetDiagnostics),
     CollectDiagnostics(CollectDiagnostics),
     WatchLogs(WatchLogs),
@@ -583,8 +583,8 @@ impl Endpoint for GetHealth {
     const ACCESS: Access = Access::Read;
 }
 
-impl Endpoint for GetCapabilities {
-    const PATH: &'static str = "/dokime.v1.Backend/GetCapabilities";
+impl Endpoint for GetAvailability {
+    const PATH: &'static str = "/dokime.v1.Backend/GetAvailability";
     const ACCESS: Access = Access::Read;
 }
 

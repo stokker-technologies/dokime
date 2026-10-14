@@ -559,10 +559,7 @@ impl RuntimeHandle {
                 outputs: outputs
                     .iter()
                     .map(|output| {
-                        crate::capabilities::documents::saved::entry(
-                            &checkpoint.execution_id,
-                            output,
-                        )
+                        crate::domains::documents::saved::entry(&checkpoint.execution_id, output)
                     })
                     .collect::<harmos::Result<Vec<_>>>()?,
                 artifacts: outputs

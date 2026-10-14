@@ -37,7 +37,7 @@ pub use storage::{
     telemetry::TelemetryReader,
 };
 
-// Named by this crate's own capability modules, by nobody outside it.
+// Named by this crate's own domain modules, by nobody outside it.
 
 /* === Imports === */
 // Standard Library Imports

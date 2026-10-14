@@ -27,8 +27,8 @@ use super::{MAX_CONTENT_BYTES, metadata, metadata_memory, transfer_chunk_bytes};
 use crate::grpc::{error::detailed, value};
 use dokime_app::{
     RuntimeHandle,
-    capabilities::evidence::ArtifactUploadInput,
     core::{CaseId, RecordScope, TestCycleId, TestExecutionId},
+    domains::evidence::ArtifactUploadInput,
     runtime::ArtifactUpload,
 };
 use dokime_contract::operations::content as wire;
@@ -352,7 +352,7 @@ pub(in crate::grpc) fn content_failure(error: dokime_app::Error) -> Status {
     use dokime_app::Error;
     let status = match &error {
         Error::ExportStorage {
-            source: dokime_app::capabilities::exports::storage::StorageError::ArchiveTooLarge { .. },
+            source: dokime_app::domains::exports::storage::StorageError::ArchiveTooLarge { .. },
         } => Status::resource_exhausted("cycle bundle exceeds native content limit"),
         Error::NotFound { .. } => Status::not_found("artifact upload owner not found"),
         Error::Validation { message, .. } => Status::invalid_argument(message.clone()),

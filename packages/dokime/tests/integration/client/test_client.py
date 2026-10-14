@@ -76,7 +76,7 @@ class BackendFixture:
         self.backend_id = "backend-1"
         self.version = "0.6.0"
         self.health_epoch: str | None = None
-        self.capabilities_epoch: str | None = None
+        self.availability_epoch: str | None = None
         self.readiness = {"Ready": {}}
         self.max_request_bytes = 16 * 1024 * 1024
         self.max_response_bytes = 16 * 1024 * 1024
@@ -154,7 +154,7 @@ class BackendFixture:
         self.catalog_finished = asyncio.Event()
         self.sent_cursors: list[dict[str, int]] = []
         self.methods = {
-            "Backend": ["GetIdentity", "GetHealth", "GetCapabilities"],
+            "Backend": ["GetIdentity", "GetHealth", "GetAvailability"],
             "Catalog": ["ListSuites", "GetSuite"],
             "Planning": ["RegisterSelection"],
             "Execution": [
@@ -208,22 +208,22 @@ class BackendFixture:
             readiness=self.readiness,
         )
 
-    async def GetCapabilities(self, request: Any, context: Any) -> Any:
+    async def GetAvailability(self, request: Any, context: Any) -> Any:
         return _message(
             "Backend",
-            "GetCapabilities",
+            "GetAvailability",
             direction="response",
             path="",
             limits=_message(
                 "Backend",
-                "GetCapabilities",
+                "GetAvailability",
                 direction="response",
                 path="limits",
                 max_request_bytes=self.max_request_bytes,
                 max_response_bytes=self.max_response_bytes,
             ),
             backend_id=self.backend_id,
-            epoch=self.capabilities_epoch or self.epoch,
+            epoch=self.availability_epoch or self.epoch,
             methods=[
                 f"/dokime.v1.{service}/{method}"
                 for service, methods in self.methods.items()
@@ -1465,7 +1465,7 @@ def case_shared_scenarios() -> None:
             async with fixture() as (server, client):
                 for field in (
                     "health_epoch",
-                    "capabilities_epoch",
+                    "availability_epoch",
                     "readiness",
                     "max_request_bytes",
                     "max_response_bytes",

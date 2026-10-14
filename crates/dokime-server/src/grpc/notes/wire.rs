@@ -18,8 +18,8 @@
 use tonic::Status;
 // Local Imports
 use super::super::value::{self, canonical};
-use dokime_app::capabilities::evidence::notes::{NoteCreation, NotePublication};
 use dokime_app::core::{CaseId, TestCycleId, TestExecutionId};
+use dokime_app::domains::evidence::notes::{NoteCreation, NotePublication};
 use dokime_app::execution::notes::NoteOwner;
 use dokime_app::execution::{HealthItem, HealthSeverity, OperatorNote};
 use dokime_contract::operations::{common, notes as contract};

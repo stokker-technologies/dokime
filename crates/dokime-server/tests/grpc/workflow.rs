@@ -42,7 +42,7 @@ use prost::Message;
 use tokio::sync::Notify;
 // Local Imports
 use super::*;
-use dokime_app::domains::ExecutionProviderTarget;
+use dokime::domains::ExecutionProviderTarget;
 use dokime_app::execution::CycleView;
 use dokime_app::transport::ProviderExecutionFailure;
 use dokime_app::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};

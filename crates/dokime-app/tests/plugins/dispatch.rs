@@ -63,7 +63,7 @@ pub(crate) async fn external_bundle_live() {
     // loaded, so an `Ok` boot is the binding assertion.
     //
     // The status route is the only one left with a public, host-driven call
-    // path after actions were removed (`capabilities::actions` and its
+    // path after actions were removed (`domains::actions` and its
     // `query_artifact_options` are gone, so the `choices` route has no
     // integration-level caller to exercise from here). Read it live through
     // the settings frame the way an operator's settings page would.

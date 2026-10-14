@@ -21,9 +21,9 @@ use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
 // Local Imports
 use super::*;
+use dokime::domains::ExecutionProviderTarget;
 use dokime_app::artifacts::{ArtifactRecord, ArtifactUploadInput};
 use dokime_app::core::RecordScope;
-use dokime_app::domains::ExecutionProviderTarget;
 use dokime_app::execution::CycleView;
 use dokime_app::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
@@ -441,7 +441,7 @@ async fn artifact_transfer_budget(message_bytes: usize) {
         )
         .await
         .err()
-        .expect("the full capability inventory exceeds the small message budget");
+        .expect("the full availability inventory exceeds the small message budget");
         assert!(matches!(
             failure,
             dokime_client::Error::Rpc(status) if status.code() == Code::ResourceExhausted
@@ -615,7 +615,7 @@ pub(crate) async fn artifact_upload_owned() {
         Config::local()
             .with_bearer_auth(vec![grant(Role::Control)])
             .unwrap()
-            // The native client needs the full capability inventory, which is charged
+            // The native client needs the full availability inventory, which is charged
             // about 14 KiB for 109 gRPC paths and cannot fit a 4 KiB budget (see
             // `artifact_transfer_budget`).
             .with_max_message_bytes(1024 * 1024),

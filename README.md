@@ -255,7 +255,7 @@ that configuration's saved default. An explicit endpoint uses only credentials
 supplied for that invocation. Profile edits affect future connections.
 `backend list`, `show`, `use`, and `remove` operate offline; removal clears a
 matching default and retains OS credentials. `auth login` negotiates backend
-identity and caller capabilities with the supplied bearer, then saves it for
+identity and the operations available to the caller with the supplied bearer, then saves it for
 that endpoint and marks the selected profile for keyring lookup. It refuses a
 profile whose target changed during login. `auth logout` removes the local
 credential; it sends no revocation request. Use `--token-file` on individual

@@ -19,7 +19,7 @@ use prost::Message;
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::*;
-use dokime_app::capabilities::installed_plugins::{ResolvedBrand, load_brand};
+use dokime_app::domains::installed_plugins::{ResolvedBrand, load_brand};
 
 /* === Constants === */
 

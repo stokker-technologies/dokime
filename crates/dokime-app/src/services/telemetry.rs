@@ -590,7 +590,7 @@ impl Sampling {
     pub(crate) async fn release_stream_lease(
         &self,
         runtime: &RuntimeHandle,
-        leases: &crate::capabilities::telemetry::StreamLeases,
+        leases: &crate::domains::telemetry::StreamLeases,
         lease_id: &str,
     ) -> Result<()> {
         let sessions = {

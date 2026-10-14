@@ -17,9 +17,9 @@ use std::path::Path;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_app::capabilities::exports::storage::{DiagnosticPathConvention, path_conventions};
-use dokime_app::capabilities::installed_plugins::InstalledPluginErrorRecord;
 use dokime_app::core::{DokimeIdentity, Metadata, SessionId, Timestamp};
+use dokime_app::domains::exports::storage::{DiagnosticPathConvention, path_conventions};
+use dokime_app::domains::installed_plugins::InstalledPluginErrorRecord;
 use dokime_app::runtime::query::RuntimeOverviewSnapshot;
 
 /* === Constants === */

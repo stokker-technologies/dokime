@@ -26,7 +26,7 @@ use tonic::Status;
 use super::bundle;
 use crate::diagnostics_assembly::DiagnosticsSnapshot;
 use dokime_app::RuntimeHandle;
-use dokime_app::capabilities::exports::storage::DiagnosticPathKey;
+use dokime_app::domains::exports::storage::DiagnosticPathKey;
 use dokime_contract::operations::{backend as wire, common::Timestamp};
 
 /* === Constants === */
@@ -177,7 +177,7 @@ pub(super) async fn collect(
 
 /* === Private Functions === */
 pub(super) fn hub_log_path(application_root: &std::path::Path) -> std::path::PathBuf {
-    dokime_app::capabilities::exports::storage::path_conventions(application_root)
+    dokime_app::domains::exports::storage::path_conventions(application_root)
         .into_iter()
         .find(|convention| convention.key == DiagnosticPathKey::HubLog)
         .and_then(|convention| convention.absolute_path)

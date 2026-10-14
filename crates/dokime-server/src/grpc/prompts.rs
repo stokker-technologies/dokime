@@ -215,7 +215,7 @@ impl Operation for ListPending {
             supplied.as_ref(),
             &snapshot,
         )?;
-        let selected = |prompt: &&dokime_app::capabilities::prompts::PromptInstance| {
+        let selected = |prompt: &&dokime_app::domains::prompts::PromptInstance| {
             snapshot.state().prompt_open(prompt)
                 && cycle
                     .as_ref()

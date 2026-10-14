@@ -85,7 +85,7 @@ impl RuntimeHandle {
             sample.stream.as_str() == request.stream
                 && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
         }) {
-            let key = crate::capabilities::telemetry::telemetry_stream_id(
+            let key = crate::domains::telemetry::telemetry_stream_id(
                 sample.scope.as_ref(),
                 &sample.stream,
             );

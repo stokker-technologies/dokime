@@ -75,20 +75,20 @@ pub(super) async fn discover(
     )
     .await?;
     let health = transport::value(health)?;
-    let capabilities = transport::unary::<backend::BackendCapabilities, _>(
+    let availability = transport::unary::<backend::BackendAvailability, _>(
         channel,
         authorization,
-        backend::GetCapabilities::PATH,
-        backend::GetCapabilitiesRequest {},
+        backend::GetAvailability::PATH,
+        backend::GetAvailabilityRequest {},
         DISCOVERY_BYTES,
         DISCOVERY_BYTES,
     )
     .await?;
-    let capabilities = transport::value(capabilities)?;
+    let availability = transport::value(availability)?;
     if health.backend_id != identity.backend_id
         || health.epoch != identity.epoch
-        || capabilities.backend_id != identity.backend_id
-        || capabilities.epoch != identity.epoch
+        || availability.backend_id != identity.backend_id
+        || availability.epoch != identity.epoch
     {
         return Err(Error::IdentityChanged);
     }
@@ -101,17 +101,17 @@ pub(super) async fn discover(
     let required = [
         backend::GetIdentity::PATH,
         backend::GetHealth::PATH,
-        backend::GetCapabilities::PATH,
+        backend::GetAvailability::PATH,
         runtime::GetIdentity::PATH,
         runtime::GetHealth::PATH,
     ];
     if required
         .iter()
-        .any(|required| !capabilities.methods.iter().any(|method| method == required))
+        .any(|required| !availability.methods.iter().any(|method| method == required))
     {
         return Err(Error::IncompatibleApi);
     }
-    let limits = capabilities.limits.as_ref().ok_or(Error::IncompatibleApi)?;
+    let limits = availability.limits.as_ref().ok_or(Error::IncompatibleApi)?;
     if limits.max_request_bytes == 0 || limits.max_response_bytes == 0 {
         return Err(Error::IncompatibleApi);
     }
@@ -128,7 +128,7 @@ pub(super) async fn discover(
         product_version: identity.product_version,
         api_version,
         descriptor_sha256,
-        methods: capabilities.methods,
+        methods: availability.methods,
         limits: Limits {
             max_request_bytes: limits.max_request_bytes,
             max_response_bytes: limits.max_response_bytes,

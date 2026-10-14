@@ -150,8 +150,8 @@ pub(crate) async fn append_cases_control() {
 
     let backend = WireClient::connect(server.local_endpoint()).await.unwrap();
     let read_methods = backend
-        .unary::<contracts::backend::GetCapabilities>(auth(
-            contracts::backend::GetCapabilitiesRequest::default(),
+        .unary::<contracts::backend::GetAvailability>(auth(
+            contracts::backend::GetAvailabilityRequest::default(),
             super::TOKEN,
         ))
         .await
@@ -160,8 +160,8 @@ pub(crate) async fn append_cases_control() {
         .methods;
     assert!(!read_methods.contains(&"/dokime.v1.Execution/AppendPlannedCases".into()));
     let control_methods = backend
-        .unary::<contracts::backend::GetCapabilities>(auth(
-            contracts::backend::GetCapabilitiesRequest::default(),
+        .unary::<contracts::backend::GetAvailability>(auth(
+            contracts::backend::GetAvailabilityRequest::default(),
             CONTROL_TOKEN,
         ))
         .await

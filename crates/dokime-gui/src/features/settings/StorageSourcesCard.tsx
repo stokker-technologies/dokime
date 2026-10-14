@@ -222,7 +222,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
         />
       ) : null}
 
-      {/* An unavailable capability is a note, not a row with an empty value. */}
+      {/* An unavailable feature is a note, not a row with an empty value. */}
       <p className="px-4 py-3 text-xs text-muted-foreground [[data-density=touch]_&]:px-6">
         Remote synchronization is not available yet.
       </p>

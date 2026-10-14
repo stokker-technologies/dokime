@@ -23,7 +23,7 @@ use dokime::core::{Identifier, Metadata, Timestamp, Value};
 use dokime::records::{Record, RecordEntry, RecordSeverity};
 use dokime::telemetry::TelemetrySample;
 use dokime_app::RuntimeConfig;
-use dokime_app::capabilities::evidence::{RecordSelection, TelemetrySelection};
+use dokime_app::domains::evidence::{RecordSelection, TelemetrySelection};
 
 /* === Constants === */
 

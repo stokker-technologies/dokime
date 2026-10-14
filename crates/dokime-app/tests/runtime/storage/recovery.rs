@@ -21,9 +21,7 @@ use std::sync::Mutex;
 // Local Imports
 use crate::support::prelude::*;
 use dokime::domains::ExecutionProviderTarget;
-use dokime_app::capabilities::execution::provider::{
-    ExecutionFixtureContext, ExecutionFixtureFuture,
-};
+use dokime_app::domains::execution::provider::{ExecutionFixtureContext, ExecutionFixtureFuture};
 use dokime_app::execution::CycleView;
 
 /* === Constants === */

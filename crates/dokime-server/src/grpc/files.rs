@@ -30,7 +30,7 @@ use tonic::Status;
 use super::content::{content_failure, metadata};
 use dokime_app::{
     Error, RuntimeHandle,
-    capabilities::files::{
+    domains::files::{
         CAPPED, FileWatch as Watch, INVALID, UNREACHABLE, UNSUPPORTED, UNTRUSTED, WatchEvent,
     },
 };

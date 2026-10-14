@@ -23,7 +23,7 @@ use std::{
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::Runtime;
-use crate::capabilities::installed_plugins::contributions::decode_registrations;
+use crate::domains::installed_plugins::contributions::decode_registrations;
 use crate::plugins::{PluginBundle, PluginProvenance, PluginStore};
 use crate::plugins::{
     catalog::selected_files,

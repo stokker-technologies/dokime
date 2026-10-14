@@ -74,9 +74,9 @@
     "accepted": false
   },
   {
-    "name": "missing-GetCapabilities",
+    "name": "missing-GetAvailability",
     "version": "0.6.0",
-    "missing": "/dokime.v1.Backend/GetCapabilities",
+    "missing": "/dokime.v1.Backend/GetAvailability",
     "accepted": false
   },
   {
@@ -100,9 +100,9 @@
     "error": "identity"
   },
   {
-    "name": "restarted-during-capabilities",
+    "name": "restarted-during-availability",
     "version": "0.6.0",
-    "capabilities_epoch": "restarted",
+    "availability_epoch": "restarted",
     "accepted": false,
     "error": "identity"
   },

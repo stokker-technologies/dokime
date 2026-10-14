@@ -259,7 +259,7 @@ fn reader_artifact(source: &str) -> InstalledPlugin {
 
 async fn stored(handle: &dokime_app::RuntimeHandle) -> usize {
     handle
-        .selected_telemetry(dokime_app::capabilities::evidence::TelemetrySelection {
+        .selected_telemetry(dokime_app::domains::evidence::TelemetrySelection {
             streams: vec![foreign_stream()],
             ..Default::default()
         })
@@ -598,7 +598,7 @@ pub(crate) async fn foreign_stream_refuses() {
     // Stored once: the host's own copy, not one per leaseholder. A second
     // stored row would be the reader re-publishing what it was handed.
     let stored = handle
-        .selected_telemetry(dokime_app::capabilities::evidence::TelemetrySelection {
+        .selected_telemetry(dokime_app::domains::evidence::TelemetrySelection {
             streams: vec![foreign_stream()],
             ..Default::default()
         })
@@ -632,7 +632,7 @@ pub(crate) async fn foreign_stream_refuses() {
 // template record demand captures startup and releases on cancellation.
 
 pub(crate) async fn template_record_on() {
-    use dokime_app::capabilities::evidence::RecordSelection;
+    use dokime_app::domains::evidence::RecordSelection;
     use dokime_app::transactions::CycleDefinition;
 
     let root = tempdir().unwrap();

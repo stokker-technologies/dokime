@@ -12,8 +12,8 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-use dokime_app::capabilities::evidence::{OperatorNoteRequest, RecordSelection};
 use dokime_app::core::{Identifier, Metadata};
+use dokime_app::domains::evidence::{OperatorNoteRequest, RecordSelection};
 use dokime_app::records::{
     ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase,
 };

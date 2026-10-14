@@ -154,7 +154,7 @@ pub(super) fn register(
 }
 
 pub(super) fn historical(
-    frame: dokime_app::capabilities::installed_plugins::RuntimeAppearanceFrame,
+    frame: dokime_app::domains::installed_plugins::RuntimeAppearanceFrame,
 ) -> Result<wire::AppearanceSnapshot, Status> {
     convert::historical_memory(&frame)
         .map_err(|_| failure(wire::AppearanceFailureKind::TooLarge))?;

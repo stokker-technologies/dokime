@@ -230,7 +230,7 @@ pub(super) fn resolve(
                 )
             })?;
         // Provider ownership uses the case's suite registration ID. Template
-        // capability lookup still requires an unambiguous authored identifier.
+        // domain lookup still requires an unambiguous authored identifier.
         if registry
             .suites()
             .flat_map(|candidate| &candidate.suite.test_case_templates)

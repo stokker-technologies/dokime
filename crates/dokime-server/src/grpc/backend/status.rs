@@ -42,7 +42,7 @@ struct Archive {
 struct Logs {
     resources: Arc<Resources>,
 }
-struct Capabilities {
+struct Availability {
     resources: Arc<Resources>,
 }
 struct Health {
@@ -125,8 +125,8 @@ impl Operation for Health {
         )
     }
 }
-impl Operation for Capabilities {
-    type Declaration = wire::GetCapabilities;
+impl Operation for Availability {
+    type Declaration = wire::GetAvailability;
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
@@ -140,13 +140,13 @@ impl Operation for Capabilities {
     async fn run<'a>(
         &mut self,
         context: Self::Context<'a>,
-        _: &mut wire::GetCapabilitiesRequest,
+        _: &mut wire::GetAvailabilityRequest,
         _: &mut (),
-    ) -> Result<Response<wire::BackendCapabilities>, Status> {
+    ) -> Result<Response<wire::BackendAvailability>, Status> {
         use harmos::operations::host::{DiscoveredOperation, Operations, OperationsRequest};
         let maximum = self.resources.maximum;
         let bytes = NonZeroUsize::new(maximum)
-            .ok_or_else(|| Status::resource_exhausted("invalid capability response allowance"))?;
+            .ok_or_else(|| Status::resource_exhausted("invalid availability response allowance"))?;
         // Retain Admission While The Bounded Live Inventory Is Assembled.
         let preparation = self
             .resources
@@ -157,7 +157,7 @@ impl Operation for Capabilities {
         let mut methods = Vec::new();
         let mut after = None;
         let mut read_bytes = 0usize;
-        let mut required = std::mem::size_of::<wire::BackendCapabilities>()
+        let mut required = std::mem::size_of::<wire::BackendAvailability>()
             .saturating_add(self.resources.identity.backend_id.len())
             .saturating_add(self.resources.identity.epoch.len());
         loop {
@@ -172,7 +172,7 @@ impl Operation for Capabilities {
             read_bytes = read_bytes.saturating_add(page.catalog.len());
             if read_bytes > DISCOVERY_WORK_BYTES {
                 return Err(Status::resource_exhausted(
-                    "capability discovery exceeds configured work budget",
+                    "availability discovery exceeds configured work budget",
                 ));
             }
             let entries: Vec<DiscoveredOperation> = serde_json::from_slice(&page.catalog)
@@ -198,7 +198,7 @@ impl Operation for Capabilities {
                     .saturating_add(path.capacity());
                 if required > maximum {
                     return Err(Status::resource_exhausted(
-                        "capabilities exceed configured memory budget",
+                        "availability exceeds configured memory budget",
                     ));
                 }
                 methods.push(path);
@@ -217,7 +217,7 @@ impl Operation for Capabilities {
         if methods.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(Status::data_loss("shared discovery repeats a gRPC binding"));
         }
-        let output = wire::BackendCapabilities {
+        let output = wire::BackendAvailability {
             backend_id: self.resources.identity.backend_id.clone(),
             epoch: self.resources.identity.epoch.clone(),
             methods,
@@ -232,7 +232,7 @@ impl Operation for Capabilities {
         };
         if output.encoded_len() > maximum {
             return Err(Status::resource_exhausted(
-                "capabilities exceed configured message budget",
+                "availability exceeds configured message budget",
             ));
         }
         preparation
@@ -357,7 +357,7 @@ pub(in crate::grpc) async fn register(
     )?;
     runtime
         .operations()
-        .register_wire_operation::<Capabilities>(
+        .register_wire_operation::<Availability>(
             "dokime",
             dokime_app::app::Lanes::Open,
             resources.clone(),

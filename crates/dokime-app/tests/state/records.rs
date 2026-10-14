@@ -19,7 +19,7 @@ use harmos::state::Transaction;
 // Local Imports
 use dokime::core::{Identifier, Timestamp};
 use dokime::records::RecordSeverity;
-use dokime_app::capabilities::evidence::RecordPublishRequest;
+use dokime_app::domains::evidence::RecordPublishRequest;
 use dokime_app::transactions::PublishRecord;
 
 /* === Constants === */

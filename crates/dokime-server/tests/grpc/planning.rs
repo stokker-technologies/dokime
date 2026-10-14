@@ -489,7 +489,7 @@ pub(crate) async fn template_conflicts_disambiguate() {
     let first = common::fixture_suite(&["passed"]);
     let mut second = common::fixture_suite(&["passed"]);
     second.metadata = common::metadata("fixture.second", "Second");
-    // Unique UUIDs are insufficient: native capabilities resolve this identifier.
+    // Unique UUIDs are insufficient: native domains resolve this identifier.
     owner
         .handle()
         .set_suites(

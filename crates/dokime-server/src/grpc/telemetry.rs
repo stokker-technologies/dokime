@@ -25,8 +25,8 @@ use tonic::Status;
 use super::value::{self, canonical};
 use dokime_app::{
     RuntimeHandle,
-    capabilities::evidence::{ScopeSelection, TelemetrySelection},
     core::{Identifier, Timestamp},
+    domains::evidence::{ScopeSelection, TelemetrySelection},
 };
 use dokime_contract::operations::{common, telemetry as wire};
 
@@ -214,7 +214,7 @@ fn fit_page(
         let mut bytes = projection::memory(sample)?
             .saturating_add(3 * std::mem::size_of::<wire::TelemetrySample>());
         let stream = (!latest).then(|| {
-            dokime_app::capabilities::telemetry::telemetry_stream_id(
+            dokime_app::domains::telemetry::telemetry_stream_id(
                 sample.scope.as_ref(),
                 &sample.stream,
             )

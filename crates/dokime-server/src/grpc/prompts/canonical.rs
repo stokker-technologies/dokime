@@ -19,9 +19,9 @@ use tonic::Status;
 // Local Imports
 use super::value::canonical::timestamp;
 use super::value::{self, Budget, canonical, projection};
-use dokime_app::capabilities::prompts;
 use dokime_app::core::{Value, ValueType};
 use dokime_app::definition::RuntimeCondition;
+use dokime_app::domains::prompts;
 use dokime_app::expressions::{Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp};
 use dokime_app::telemetry::TelemetryConditionOperator;
 use dokime_contract::operations::{common, prompts as contract, schema, value as value_wire};

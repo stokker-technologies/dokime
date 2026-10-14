@@ -18,13 +18,13 @@ use std::{collections::BTreeMap, sync::Arc};
 use tonic::Code;
 // Local Imports
 use super::*;
+use dokime::domains::{
+    ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture, OptionProviderContribution,
+    OptionProviderOption, OptionProviderSource, PluginEntrypoint,
+};
 use dokime_app::{
     InstalledPlugin,
     core::{Identifier, Metadata, Value},
-    domains::{
-        ActionDispatcher, ActionDispatcherError, ActionDispatcherFuture,
-        OptionProviderContribution, OptionProviderOption, OptionProviderSource, PluginEntrypoint,
-    },
     settings::{SecretSetting, Settings, SettingsEntry, TextArea},
 };
 
@@ -45,7 +45,7 @@ struct FixtureActionDispatcher;
 
 /* === Implementations === */
 impl ActionDispatcher for FixtureActionDispatcher {
-    fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, dokime_app::domains::StatusResponse> {
+    fn status<'a>(&'a self) -> ActionDispatcherFuture<'a, dokime::domains::StatusResponse> {
         Box::pin(async { Err(ActionDispatcherError::Unavailable) })
     }
 

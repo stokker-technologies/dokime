@@ -14,8 +14,8 @@
 #[macro_use]
 mod macros;
 pub mod app;
-pub mod capabilities;
 pub mod config;
+pub mod domains;
 
 pub mod definition;
 
@@ -38,13 +38,13 @@ pub mod traceability;
 pub mod transactions;
 
 pub mod brand {
-    pub use crate::capabilities::installed_plugins::brand::theme;
+    pub use crate::domains::installed_plugins::brand::theme;
 }
 
 /* === Re-Exports === */
 // Crate-private vocabulary keeps implementation imports concise while the
 // public module tree exposes only the anchors declared above.
-pub(crate) use capabilities::{
+pub(crate) use domains::{
     credentials, documents, evidence, execution as execution_runtime, exports, installed_plugins,
     parameters, prompts, telemetry as telemetry_runtime, traceability as traceability_runtime,
 };
@@ -54,23 +54,23 @@ pub(crate) use runtime::query as queries;
 pub(crate) use runtime::{handle, state as runtime_state};
 
 pub use app::Dokime;
-pub use capabilities::documents::{
+pub use config::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, SidecarNoticeHandler};
+pub use dokime::{
+    ApiError, StreamSpec, analysis, artifacts, core, expressions, plugin, settings, telemetry,
+    transport,
+};
+pub use dokime_contract::domains::InstalledPlugin;
+pub use domains::documents::{
     CurrentDocumentCapture, CurrentDocumentTelemetryCut, ExecutionFileFollower,
     ExecutionFileStream, PreparedCurrentDocument,
 };
-pub use capabilities::execution::outputs::{
+pub use domains::execution::outputs::{
     ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState,
 };
-pub use capabilities::execution::provider::{
+pub use domains::execution::provider::{
     ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture,
 };
-pub use capabilities::telemetry::LeaseFact;
-pub use config::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, SidecarNoticeHandler};
-pub use dokime::{
-    ApiError, StreamSpec, analysis, artifacts, core, domains, expressions, plugin, settings,
-    telemetry, transport,
-};
-pub use dokime_contract::domains::InstalledPlugin;
+pub use domains::telemetry::LeaseFact;
 pub use error::{Error, Result};
 pub(crate) use runtime::RuntimeState;
 pub(crate) use runtime::command::{internal_rejection, rejected_receipt, unavailable_rejection};
