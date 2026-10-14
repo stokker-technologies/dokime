@@ -1036,9 +1036,12 @@ fn step_status(status: &StepStatus) -> &'static str {
     match status {
         StepStatus::Passed => "passed",
         StepStatus::Failed => "failed",
-        StepStatus::Skipped | StepStatus::Pending | StepStatus::Running | StepStatus::Cancelled => {
-            "skipped"
-        }
+        // As the live document reads them: a step still to run or running is
+        // not one that was passed over.
+        StepStatus::Pending => "pending",
+        StepStatus::Running => "running",
+        StepStatus::Skipped => "skipped",
+        StepStatus::Cancelled => "stopped",
     }
 }
 
@@ -1050,7 +1053,8 @@ fn criterion_status(status: &CriterionStatus) -> &'static str {
         // not be evaluated as skipped would hide that the run tried; reporting
         // it as failed would invent a verdict it never reached.
         CriterionStatus::Indeterminate => "indeterminate",
-        CriterionStatus::Skipped | CriterionStatus::Pending => "skipped",
+        CriterionStatus::Skipped => "skipped",
+        CriterionStatus::Pending => "pending",
     }
 }
 
