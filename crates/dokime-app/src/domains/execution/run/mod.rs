@@ -57,6 +57,10 @@ const REPLAY_PAGE_BYTES: std::num::NonZeroUsize =
     std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap();
 /// Encoded sample bytes one replay signal carries before the next begins.
 const REPLAY_SIGNAL_BYTES: usize = dokime::transport::MAX_ARTIFACT_CHUNK_BYTES;
+/// Times one replay page is read again after the storage backend refused it
+/// transiently, such as at its I/O deadline, and the wait before the first.
+const REPLAY_READ_RETRIES: u32 = 4;
+const REPLAY_READ_BACKOFF: Duration = Duration::from_millis(200);
 
 /* === Macros === */
 
@@ -1729,14 +1733,29 @@ async fn replay_sample_inputs(
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let scope = harmos::Identifier::new(execution.test_execution_id.as_str())
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+    let mut forced = context.runtime.config().storage_reads.replay_read_deadlines;
     loop {
         // Shared read capacity can be held by other captures; each page waits
         // for it on its own, so a long replay is not failed by its length.
         let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+        let mut retries = 0;
         let page = loop {
-            match replay_page(context, execution, &scope, cut.sequence, *replayed).await {
+            let read = if forced > 0 {
+                forced -= 1;
+                Err(backend_deadline())
+            } else {
+                replay_page(context, execution, &scope, cut.sequence, *replayed).await
+            };
+            match read {
                 Err(error) if replay_can_wait(&error, deadline) => {
                     tokio::time::sleep(WATCH_INTERVAL).await;
+                }
+                // A transient backend refusal reads the same page again from
+                // the kept position, backing off, a bounded number of times.
+                Err(error) if transient(&error) && retries < REPLAY_READ_RETRIES => {
+                    tracing::warn!(%error, after = *replayed, "replay page read will retry");
+                    tokio::time::sleep(REPLAY_READ_BACKOFF * (1 << retries)).await;
+                    retries += 1;
                 }
                 result => {
                     break result.map_err(|error| failure("sidecar_samples", error.to_string()))?;
@@ -1790,6 +1809,25 @@ fn replay_can_wait(error: &harmos::Error, deadline: tokio::time::Instant) -> boo
             resource: "storage read memory" | "storage views"
         }
     ) && tokio::time::Instant::now() < deadline
+}
+
+fn transient(error: &harmos::Error) -> bool {
+    matches!(
+        error,
+        harmos::Error::Backend {
+            kind: harmos::BackendFailure::Transient,
+            ..
+        }
+    )
+}
+
+// The storage backend's own deadline refusal, as a forced replay read fails.
+fn backend_deadline() -> harmos::Error {
+    harmos::Error::backend(
+        "storage I/O",
+        harmos::BackendFailure::Transient,
+        std::io::Error::new(std::io::ErrorKind::TimedOut, "backend deadline exceeded"),
+    )
 }
 
 // One page of the execution's captured samples after `after`, read through

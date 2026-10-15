@@ -91,6 +91,11 @@ pub struct StorageReadSettings {
     #[doc(hidden)]
     #[serde(skip)]
     pub finalization_read_stall: Duration,
+    /// Test hook: how many page reads of each sample replay fail with the
+    /// storage backend deadline before reading. Zero outside tests.
+    #[doc(hidden)]
+    #[serde(skip)]
+    pub replay_read_deadlines: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -230,6 +235,7 @@ impl Default for StorageReadSettings {
                 ..settings.query_execution_ceiling
             },
             finalization_read_stall: Duration::ZERO,
+            replay_read_deadlines: 0,
         }
     }
 }
