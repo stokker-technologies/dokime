@@ -30,6 +30,8 @@ export type DesktopSessionSnapshot = {
    * tolerates a name it does not recognize). `null` once connected or
    * disconnected, and throughout an attach selection. */
   phase: string | null;
+  /** The archive bytes a local storage backup has written, while it archives. */
+  archivedBytes: number | null;
   connection: ConnectionSnapshot;
 };
 

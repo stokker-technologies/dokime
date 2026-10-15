@@ -61,6 +61,13 @@ export const commands = {
   /** Development only: delete the owned backend's storage and restart it. */
   desktopResetLocalStorage: (directory: string) =>
     invoke<DesktopSessionSnapshot>("desktop_reset_local_storage", { directory }),
+  /** Name the archive a local storage backup writes: beside the data root, or
+   * where the operator picks; `null` when the operator cancels. */
+  desktopStorageBackupDestination: (choose: boolean) =>
+    invoke<string | null>("desktop_storage_backup_destination", { choose }),
+  /** After a failed owned start: archive the data root, reset it and restart. */
+  desktopBackupResetLocalStorage: (archive: string) =>
+    invoke<DesktopSessionSnapshot>("desktop_backup_reset_local_storage", { archive }),
   desktopOpenPath: (path: string) => invoke<null>("desktop_open_path", { path }),
   desktopOpenTarget: (target: string) => invoke<null>("desktop_open_target", { target }),
   /** Save a verified document through the native file picker. */

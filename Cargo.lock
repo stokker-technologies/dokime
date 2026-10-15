@@ -2140,6 +2140,7 @@ dependencies = [
  "url",
  "windows",
  "zeroize",
+ "zip 9.0.2",
 ]
 
 [[package]]

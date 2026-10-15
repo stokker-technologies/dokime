@@ -12,7 +12,8 @@
  * One centred column on the paper ground. The mark appears once with the
  * product name beneath it, then one sentence of state, then the startup phases
  * the backend reports as a quiet vertical step list. A failed local start
- * keeps its headline and adds the backend's exit, log file and diagnostics. Cancel and Desktop
+ * keeps its headline and adds the backend's exit, log file and diagnostics,
+ * and offers to back up and reset the local storage it could not open. Cancel and Desktop
  * Settings are one balanced pair of equal-width secondary buttons. The attach
  * form keeps the same column width and puts its fields on a two-column
  * label/value grid so nothing inside the centred box is left ragged.
@@ -32,6 +33,7 @@ import {
 
 /* === Local Imports === */
 
+import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { defaultBrand } from "@/lib/brand";
@@ -46,6 +48,12 @@ import { BrandMark } from "@/shell/BrandMark";
 import { connectionError, startupDiagnostics } from "./errors";
 import { useNativeSessionController } from "./NativeSessionProvider";
 import { StartupDiagnostics } from "./StartupDiagnostics";
+import {
+  BACKUP_RESET_LABEL,
+  backupFailure,
+  backupResetAvailable,
+  backupSteps,
+} from "./storage-backup-model";
 
 /* === Constants === */
 
@@ -90,10 +98,19 @@ export function ConnectionScreen({
   const [remember, setRemember] = useState(false);
   const [ca, setCa] = useState("");
   const [phase, setPhase] = useState<string | null>(null);
+  const [archived, setArchived] = useState<number | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
   const busy = state.phase === "connecting";
   const reset = state.phase === "connecting" && state.reset;
+  const archive = state.phase === "connecting" ? state.archive : null;
   const error = state.phase === "failed" ? state.error : (launchError ?? launch?.error);
   const diagnostics = startupDiagnostics(error);
+  const keptArchive = backupFailure(error)?.archive ?? null;
+  const offerBackup = backupResetAvailable({
+    localBackendAvailable: Boolean(launch?.localBackendAvailable),
+    failedStart: diagnostics !== null,
+    busy,
+  });
 
   useEffect(() => {
     let active = true;
@@ -115,6 +132,7 @@ export function ConnectionScreen({
   useEffect(() => {
     if (!busy) {
       setPhase(null);
+      setArchived(null);
       return;
     }
     let active = true;
@@ -122,7 +140,9 @@ export function ConnectionScreen({
       commands
         .desktopSessionStatus()
         .then((status) => {
-          if (active) setPhase(status.phase);
+          if (!active) return;
+          setPhase(status.phase);
+          setArchived(status.archivedBytes ?? null);
         })
         // No backend is selected yet, or the native context has not settled:
         // either way, the static state sentence below still applies.
@@ -135,6 +155,18 @@ export function ConnectionScreen({
       window.clearInterval(interval);
     };
   }, [busy]);
+
+  // The shell names the archive, beside the data root or where the operator
+  // picks; a cancelled pick leaves the failure and its diagnostics in place.
+  async function backupReset(choose: boolean) {
+    setBackupError(null);
+    try {
+      const destination = await commands.desktopStorageBackupDestination(choose);
+      if (destination) void owner.backupResetLocalStorage(destination);
+    } catch (error) {
+      setBackupError(connectionError(error));
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -186,12 +218,21 @@ export function ConnectionScreen({
         <h1 className="font-heading text-3xl leading-none font-semibold">{defaultBrand.label}</h1>
 
         <p className="text-sm text-muted-foreground" {...(busy ? { role: "status" } : {})}>
-          {stateSentence({ busy, error: Boolean(error), launch, reset })}
+          {stateSentence({ busy, error: Boolean(error), launch, reset, archive })}
         </p>
 
         {busy ? (
           <>
-            {reset ? <ResetSteps current={phase} /> : <StartupSteps current={phase} />}
+            {archive ? (
+              <>
+                <BackupSteps archived={archived} current={phase} />
+                <PathPill value={archive} />
+              </>
+            ) : reset ? (
+              <ResetSteps current={phase} />
+            ) : (
+              <StartupSteps current={phase} />
+            )}
             <div className="grid w-full gap-3">
               <Button className="w-full" onClick={() => void owner.disconnect()} variant="outline">
                 Cancel
@@ -206,6 +247,41 @@ export function ConnectionScreen({
               </p>
             )}
             {diagnostics && <StartupDiagnostics diagnostics={diagnostics} />}
+            {keptArchive && (
+              <div className="grid w-full grid-cols-[10rem_minmax(0,1fr)] items-center gap-3 text-left">
+                <span className="text-sm text-muted-foreground">Backup Kept</span>
+                <PathPill value={keptArchive} />
+              </div>
+            )}
+            {offerBackup && (
+              <div className="grid w-full gap-2">
+                <div className="grid w-full grid-cols-2 gap-3">
+                  <Button
+                    className="w-full"
+                    onClick={() => void backupReset(false)}
+                    variant="destructive"
+                  >
+                    {BACKUP_RESET_LABEL}
+                  </Button>
+                  <Button
+                    className="w-full"
+                    onClick={() => void backupReset(true)}
+                    variant="outline"
+                  >
+                    Choose Backup Location
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Archives the local data directory into a zip beside it, then empties it and starts
+                  the backend again.
+                </p>
+                {backupError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {backupError}
+                  </p>
+                )}
+              </div>
+            )}
             {!launch && !error ? (
               <p role="status">Loading desktop settings…</p>
             ) : (
@@ -380,8 +456,35 @@ function ResetSteps({ current }: { current: string | null }) {
   );
 }
 
+/** A backup reset's steps: stop, archive with its bytes written, reset, restart. */
+function BackupSteps({ archived, current }: { archived: number | null; current: string | null }) {
+  return (
+    <ol aria-label="Backup Steps" className="grid w-full gap-2 text-left">
+      {backupSteps(current, archived).map((step) => (
+        <Step
+          active={step.state === "active"}
+          detail={step.detail}
+          done={step.state === "done"}
+          key={step.phase}
+          label={step.label}
+        />
+      ))}
+    </ol>
+  );
+}
+
 /** One row of a vertical step list. */
-function Step({ active, done, label }: { active: boolean; done: boolean; label: string }) {
+function Step({
+  active,
+  detail = null,
+  done,
+  label,
+}: {
+  active: boolean;
+  detail?: string | null;
+  done: boolean;
+  label: string;
+}) {
   return (
     <li
       className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 text-sm"
@@ -399,6 +502,11 @@ function Step({ active, done, label }: { active: boolean; done: boolean; label: 
       </span>
       <span className={active ? "font-medium text-foreground" : "text-muted-foreground"}>
         {label}
+        {detail && (
+          <span className="ml-2 font-mono text-xs text-muted-foreground tabular-nums">
+            {detail}
+          </span>
+        )}
       </span>
     </li>
   );
@@ -436,12 +544,15 @@ function stateSentence({
   error,
   launch,
   reset,
+  archive,
 }: {
   busy: boolean;
   error: boolean;
   launch: DesktopLaunch | null;
   reset: boolean;
+  archive: string | null;
 }): string {
+  if (archive) return "Backing up and resetting local storage.";
   if (reset) return "Resetting local storage.";
   if (busy) return "Starting the backend.";
   if (error) return "The last attempt did not connect.";

@@ -31,6 +31,8 @@ use crate::connection::{ConnectRequest, ConnectionError, ConnectionSnapshot};
 pub struct DesktopSessionSnapshot {
     pub ownership: BackendOwnership,
     pub phase: Option<String>,
+    /// The archive bytes a backup has written so far, while it archives.
+    pub archived_bytes: Option<u64>,
     pub connection: ConnectionSnapshot,
 }
 
@@ -83,6 +85,12 @@ pub enum DesktopSessionError {
     StorageReset {
         reason: StorageResetReason,
         message: String,
+    },
+    /// A backup archive was written, then the reset or restart that followed
+    /// it failed; `archive` names the kept backup.
+    Archived {
+        archive: String,
+        error: Box<DesktopSessionError>,
     },
 }
 

@@ -547,7 +547,11 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 Dokime is in active development. Pin the revision you integrate: public APIs,
 plugin contracts, and development storage formats may change before 1.0.
 Existing development data has no compatibility guarantee; incompatible storage
-must use a fresh root rather than silently resetting an existing one.
+must use a fresh root rather than silently resetting an existing one. When the
+desktop's local backend refuses its data root, the startup failure screen offers
+**Back Up And Reset Local Storage**: it archives the root into
+`<root name>-backup-<UTC stamp>.zip` beside it, or wherever you pick, then
+empties the root and starts the backend again.
 
 The public introduction will grow with a complete on-board charger walkthrough
 and a downloadable self-contained example report. GitHub hosts the authoritative source and native validation workflows.

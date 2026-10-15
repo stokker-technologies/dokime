@@ -1,5 +1,6 @@
 // Dokime — SPDX-License-Identifier: Apache-2.0
 import type { BackendDiagnostics } from "@/lib/desktop/session";
+import { backupFailure } from "./storage-backup-model";
 
 /** Never stringify arbitrary request objects: they may contain credentials. */
 export function connectionError(error: unknown): string {
@@ -7,7 +8,8 @@ export function connectionError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (!error || typeof error !== "object" || !("kind" in error))
     return "The backend could not be reached.";
-  if (error.kind === "connection" && "error" in error) return connectionError(error.error);
+  if ((error.kind === "connection" || error.kind === "archived") && "error" in error)
+    return connectionError(error.error);
   if ("message" in error && typeof error.message === "string") return error.message;
   switch (error.kind) {
     case "local_backend_unavailable":
@@ -39,6 +41,8 @@ export function connectionError(error: unknown): string {
 /** The diagnostics a failed owned-backend start carries, or `null` for every
  * other error. */
 export function startupDiagnostics(error: unknown): BackendDiagnostics | null {
+  const backup = backupFailure(error);
+  if (backup) return startupDiagnostics(backup.error);
   if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "startup")
     return null;
   if (!("diagnostics" in error) || !error.diagnostics || typeof error.diagnostics !== "object")

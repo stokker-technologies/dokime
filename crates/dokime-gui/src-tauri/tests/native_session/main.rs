@@ -767,6 +767,10 @@ fn domain_contract() {
         run_scenario(storage_reset::refusals_and_reset, false, None, false);
     }
     {
+        eprintln!("Scenario: storage_reset::backup_archives_and_clears");
+        storage_reset::backup_archives_and_clears();
+    }
+    {
         eprintln!("Scenario: parameters::param_replacement_failure");
         parameters::param_replacement_failure();
     }

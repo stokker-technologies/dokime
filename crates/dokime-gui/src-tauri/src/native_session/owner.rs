@@ -52,6 +52,7 @@ struct State {
     closing: bool,
     ownership: BackendOwnership,
     phase: Option<String>,
+    archived: Option<u64>,
     // The log the last failed owned start reported; the only file the shell
     // opens on the WebView's behalf.
     startup_log: Option<PathBuf>,
@@ -76,6 +77,7 @@ impl DesktopSession {
                 closing: false,
                 ownership: BackendOwnership::None,
                 phase: None,
+                archived: None,
                 startup_log: None,
             }),
             transition: tokio::sync::Mutex::new(Resources::default()),
@@ -98,6 +100,7 @@ impl DesktopSession {
         DesktopSessionSnapshot {
             ownership: state.ownership.clone(),
             phase: state.phase.clone(),
+            archived_bytes: state.archived,
             connection: self.0.connection.status(),
         }
     }
@@ -105,6 +108,13 @@ impl DesktopSession {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
         if state.revision == revision {
             state.phase = Some(phase.to_owned());
+            state.archived = None;
+        }
+    }
+    fn report_archived(&self, revision: u64, bytes: u64) {
+        let mut state = self.0.state.lock().expect("desktop owner poisoned");
+        if state.revision == revision {
+            state.archived = Some(bytes);
         }
     }
     /// The log file of the current failed owned start, if it wrote one.
@@ -113,6 +123,10 @@ impl DesktopSession {
         state.startup_log.clone()
     }
     fn fail(&self, revision: u64, error: &Error) {
+        let error = match error {
+            Error::Archived { error, .. } => error.as_ref(),
+            error => error,
+        };
         let log = match error {
             Error::Startup {
                 diagnostics: Some(diagnostics),
@@ -123,6 +137,7 @@ impl DesktopSession {
         let mut state = self.0.state.lock().expect("desktop owner poisoned");
         if state.revision == revision {
             state.phase = None;
+            state.archived = None;
             state.startup_log = log;
         }
     }
@@ -221,12 +236,46 @@ impl DesktopSession {
         // Reset Under A New Revision
         let revision = self.begin(false)?;
         let owner = self.clone();
-        let result = tokio::spawn(async move { owner.reset_owned(revision, root).await })
+        let result = tokio::spawn(async move { owner.reset_owned(revision, root, None).await })
             .await
             .map_err(|error| Error::Startup {
                 message: error.to_string(),
                 diagnostics: None,
             })?;
+        if let Err(error) = &result {
+            self.fail(revision, error);
+        }
+        result
+    }
+    /// Archives the owned backend's data root to `destination`, then resets
+    /// and restarts it as `reset_local_storage` does. Offered only while no
+    /// backend is connected, after the owned backend failed to start.
+    pub async fn backup_and_reset_local_storage(
+        &self,
+        root: StorageRoot,
+        destination: PathBuf,
+    ) -> Result<DesktopSessionSnapshot, Error> {
+        // Refuse While Any Backend Is Connected
+        self.backend()?;
+        if self.status().ownership != BackendOwnership::None {
+            return Err(Error::StorageReset {
+                reason: StorageResetReason::NotOwned,
+                message: "Local storage can be backed up and reset only after the local backend failed to start."
+                    .to_owned(),
+            });
+        }
+        root.verify(root.path())?;
+
+        // Back Up And Reset Under A New Revision
+        let revision = self.begin(false)?;
+        let owner = self.clone();
+        let result =
+            tokio::spawn(async move { owner.reset_owned(revision, root, Some(destination)).await })
+                .await
+                .map_err(|error| Error::Startup {
+                    message: error.to_string(),
+                    diagnostics: None,
+                })?;
         if let Err(error) = &result {
             self.fail(revision, error);
         }
@@ -257,6 +306,7 @@ impl DesktopSession {
         state.closing |= closing;
         state.ownership = BackendOwnership::None;
         state.phase = None;
+        state.archived = None;
         state.startup_log = None;
         self.0
             .connection
@@ -353,9 +403,11 @@ impl DesktopSession {
                         // Startup is over: whatever phase it last reported no
                         // longer describes anything a caller should show.
                         state.phase = None;
+                        state.archived = None;
                         Some(DesktopSessionSnapshot {
                             ownership,
                             phase: None,
+                            archived_bytes: None,
                             connection: self.0.connection.status(),
                         })
                     } else {
@@ -382,6 +434,7 @@ impl DesktopSession {
         &self,
         revision: u64,
         root: StorageRoot,
+        backup: Option<PathBuf>,
     ) -> Result<DesktopSessionSnapshot, Error> {
         // Stop The Owned Backend
         // The transition lock stays held until the new backend is ready, so
@@ -392,7 +445,39 @@ impl DesktopSession {
         resources.shutdown().await?;
         self.current(revision)?;
 
+        // Archive The Data Root First, When Asked
+        let Some(destination) = backup else {
+            return self.clear_and_restart(revision, root, &mut resources).await;
+        };
+        self.report_phase(revision, "archiving");
+        let owner = self.clone();
+        let source = root.clone();
+        let archive = tokio::task::spawn_blocking(move || {
+            source.archive(&destination, |bytes| owner.report_archived(revision, bytes))
+        })
+        .await
+        .map_err(|error| Error::StorageReset {
+            reason: StorageResetReason::Failed,
+            message: error.to_string(),
+        })??;
+        tracing::warn!(archive = %archive.display(), "local storage archived");
+        self.clear_and_restart(revision, root, &mut resources)
+            .await
+            .map_err(|error| Error::Archived {
+                archive: archive.display().to_string(),
+                error: Box::new(error),
+            })
+    }
+    /// Deletes the contents of the data root and starts the owned backend
+    /// again on it; the caller holds the transition lock.
+    async fn clear_and_restart(
+        &self,
+        revision: u64,
+        root: StorageRoot,
+        resources: &mut Resources,
+    ) -> Result<DesktopSessionSnapshot, Error> {
         // Delete The Contents Of The Data Root
+        self.current(revision)?;
         self.report_phase(revision, "deleting");
         let path = root.path().to_path_buf();
         tracing::warn!(root = %path.display(), "resetting local storage");
@@ -410,7 +495,7 @@ impl DesktopSession {
         // Start Again On The Empty Root
         self.current(revision)?;
         self.report_phase(revision, "starting");
-        self.establish(revision, BackendSelection::OwnedLocal, &mut resources)
+        self.establish(revision, BackendSelection::OwnedLocal, resources)
             .await
     }
 }
