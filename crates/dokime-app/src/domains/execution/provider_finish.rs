@@ -26,6 +26,8 @@ use crate::{
 };
 
 /* === Constants === */
+/// The warning a sealed report that left evidence out records on its cycle.
+const REPORT_OMISSIONS_RECORD: &str = "report.omissions";
 /// How many times one finalization may exhaust its computation budget or be
 /// refused by the storage read pool before that is final. A slow or loaded host
 /// can overrun the budget or fill the pool once; doing so repeatedly means the
@@ -49,6 +51,59 @@ const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100
 
 /* === Implementations === */
 impl RuntimeHandle {
+    /// Each sealed execution report that left evidence out says so in itself,
+    /// and once more as a host warning record naming its cycle and execution
+    /// once the cycle settles. The record never joins the sealed cycle.
+    async fn record_report_omissions(&self, cycle_id: &dokime::core::TestCycleId) {
+        let Some(reports) = self
+            .execution_storage
+            .report_omissions
+            .lock()
+            .await
+            .remove(cycle_id)
+        else {
+            return;
+        };
+        for (execution, omissions) in reports {
+            let request = dokime::records::RecordPublishRequest {
+                record_type: dokime::core::Identifier::new(REPORT_OMISSIONS_RECORD)
+                    .expect("valid report omissions record type"),
+                timestamp: None,
+                severity: dokime::records::RecordSeverity::Warning,
+                message: Some(format!(
+                    "The sealed report of execution {execution} left evidence out to fit its budget."
+                )),
+                error: None,
+                details: std::collections::BTreeMap::from([
+                    (
+                        "test_cycle_id".to_owned(),
+                        dokime::core::Value::from(cycle_id.to_string()),
+                    ),
+                    (
+                        "test_execution_id".to_owned(),
+                        dokime::core::Value::from(execution.to_string()),
+                    ),
+                    (
+                        "omissions".to_owned(),
+                        dokime::core::Value::Array(
+                            omissions
+                                .into_iter()
+                                .map(dokime::core::Value::from)
+                                .collect(),
+                        ),
+                    ),
+                ]),
+                scope: None,
+                related_sample_id: None,
+                related_stream_id: None,
+                related_artifact_id: None,
+            };
+            if let Err(error) = self.publish_record(request).await {
+                tracing::warn!(%error, %cycle_id, execution_id = %execution, "report omissions were not recorded");
+            }
+        }
+    }
+
     pub(crate) async fn finish_provider_cycle(&self, finish: Finish) -> Result<()> {
         let runtime = self.clone();
         tokio::spawn(async move { runtime.finish_provider_cycle_inner(finish).await })
@@ -248,6 +303,11 @@ impl RuntimeHandle {
         } else {
             None
         };
+        // Admitted beside the settlement rather than before it: a record on
+        // the cycle waits for the run that is being completed here.
+        let recorder = self.clone();
+        let recorded = cycle_id.clone();
+        tokio::spawn(async move { recorder.record_report_omissions(&recorded).await });
         if let Some(sealed_cycle) = sealed_cycle {
             let bytes = sealed_cycle
                 .memory_size()

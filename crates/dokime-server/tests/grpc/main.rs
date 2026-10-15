@@ -57,6 +57,9 @@ pub(crate) mod documents;
 #[path = "history.rs"]
 pub(crate) mod history;
 
+#[path = "plots.rs"]
+pub(crate) mod plots;
+
 #[path = "plugins.rs"]
 pub(crate) mod plugins;
 
@@ -997,6 +1000,10 @@ fn evidence_contract() {
     {
         eprintln!("Scenario: workflow::search::listed_cases_page");
         run_scenario(workflow::search::listed_cases_page, false, None, false);
+    }
+    {
+        eprintln!("Scenario: plots::plot_points_admission");
+        run_scenario(plots::plot_points_admission, false, None, false);
     }
     {
         eprintln!("Scenario: telemetry::telemetry_pages_window");

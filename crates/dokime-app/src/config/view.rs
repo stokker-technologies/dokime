@@ -17,10 +17,12 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use super::Appearance;
+use super::{Appearance, ReportDefaults};
 use crate::{Error, Result};
 
 /* === Constants === */
+/// The most points one plot may request, live or in a report.
+pub const MAX_PLOT_POINTS: u64 = 100_000;
 
 /* === Macros === */
 
@@ -30,6 +32,7 @@ use crate::{Error, Result};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ApplicationSettingsView {
     pub appearance: Appearance,
+    pub report: ReportDefaults,
     pub application_root: PathBuf,
     pub configured_data_root: Option<PathBuf>,
     pub default_data_root: PathBuf,
@@ -45,11 +48,17 @@ pub struct ApplicationSettingsView {
 impl crate::RuntimeHandle {
     pub fn application_settings(&self) -> ApplicationSettingsView {
         let settings = self.settings();
-        let (appearance, configured) =
-            settings.read(|document| (document.appearance.clone(), document.data_root.clone()));
+        let (appearance, report, configured) = settings.read(|document| {
+            (
+                document.appearance.clone(),
+                document.report,
+                document.data_root.clone(),
+            )
+        });
         let effective = self.storage_root();
         ApplicationSettingsView {
             appearance,
+            report,
             application_root: settings.paths().root.clone(),
             restart_required: settings.data_root() != effective,
             configured_data_root: configured,
@@ -73,6 +82,31 @@ impl crate::RuntimeHandle {
         tokio::task::spawn_blocking(move || {
             settings.edit(|document| {
                 document.appearance = appearance;
+                Ok::<_, std::io::Error>(())
+            })
+        })
+        .await??;
+        Ok(self.application_settings())
+    }
+
+    /// The points and strategy every plot starts from. Points stay within the
+    /// live plot cap; the strategy is one a plot can name.
+    pub async fn update_report_defaults(
+        &self,
+        report: ReportDefaults,
+    ) -> Result<ApplicationSettingsView> {
+        if report.plot_points == 0 || u64::from(report.plot_points) > MAX_PLOT_POINTS {
+            return Err(invalid(&format!(
+                "default plot points must be between 1 and {MAX_PLOT_POINTS}"
+            )));
+        }
+        if report.plot_downsample == dokime::document::DownsampleTechnique::Unspecified {
+            return Err(invalid("default plot strategy is required"));
+        }
+        let settings = self.settings().clone();
+        tokio::task::spawn_blocking(move || {
+            settings.edit(|document| {
+                document.report = report;
                 Ok::<_, std::io::Error>(())
             })
         })

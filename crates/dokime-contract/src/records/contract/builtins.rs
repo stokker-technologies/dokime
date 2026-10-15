@@ -148,6 +148,7 @@ builtin_record_types! {
     PromptResponseExpired => "prompt.response.expired",
     OperatorNoteAdded => "operator.note_added",
     OperatorNoteEdited => "operator.note_edited",
+    ReportOmissions => "report.omissions",
     HealthAdded => "health.added",
     ProgressMilestone => "progress.milestone",
 }
@@ -302,6 +303,16 @@ impl BuiltinRecordType {
                 record_type,
                 RecordSeverity::Info,
                 vec![field("note_id", ValueType::Text)],
+            ),
+            // A sealed report that left evidence out to fit its budget.
+            Self::ReportOmissions => contract(
+                record_type,
+                RecordSeverity::Warning,
+                vec![
+                    field("test_cycle_id", ValueType::Text),
+                    field("test_execution_id", ValueType::Text),
+                    field("omissions", ValueType::Array),
+                ],
             ),
             Self::HealthAdded => contract(
                 record_type,

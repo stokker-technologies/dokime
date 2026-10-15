@@ -25,6 +25,7 @@ import { isDocumentSurfaceCard } from "@/components/document/document-surface-po
 import type { MediaGalleryArtifact } from "@/components/MediaGallery";
 import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJsonDialog";
 import { updatePlotSettings } from "@/lib/api/native-documents";
+import { useReportDefaults } from "@/lib/application-settings";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { orderedDocumentSections } from "@/lib/document-layout";
 import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
@@ -172,9 +173,22 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
     [props.document, plotSettings],
   );
   const sections = useMemo(() => orderedDocumentSections(document), [document]);
+  const reportDefaults = useReportDefaults();
+  /* A plot nobody configured streams with the application defaults, which the
+     backend also freezes into every report of this run. */
   const liveDocumentPlots = useMemo(
-    () => (props.renderMode === "live" ? visibleDocumentPlots(sections, resolvedCardFilter) : []),
-    [props.renderMode, sections, resolvedCardFilter],
+    () =>
+      props.renderMode === "live"
+        ? visibleDocumentPlots(sections, resolvedCardFilter).map((plot) => ({
+            ...plot,
+            display_points: plot.display_points ?? reportDefaults.plotPoints,
+            downsample:
+              (plot.downsample ?? "auto") === "auto"
+                ? reportDefaults.plotDownsample
+                : plot.downsample,
+          }))
+        : [],
+    [props.renderMode, sections, resolvedCardFilter, reportDefaults],
   );
   const livePlotStates = useLivePlotPayloads({
     enabled: props.renderMode === "live",

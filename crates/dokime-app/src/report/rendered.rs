@@ -60,7 +60,7 @@ pub(crate) async fn execution(
     final_report: bool,
     maximum: NonZeroUsize,
 ) -> Result<QueryValue<Vec<u8>>> {
-    let html = HtmlReport::from_snapshot(runtime, view, final_report).await?;
+    let html = HtmlReport::from_snapshot(runtime, view, final_report, maximum).await?;
     render(html, maximum).await
 }
 

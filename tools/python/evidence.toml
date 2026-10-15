@@ -41,6 +41,7 @@ command = [
   "crates/dokime-gui/tests/storage-reset.test.mjs",
   "crates/dokime-gui/tests/console-follow.test.mjs",
   "crates/dokime-gui/tests/console-records.test.mjs",
+  "crates/dokime-gui/tests/report-steps.test.mjs",
 ]
 
 [testing.javascript.system]

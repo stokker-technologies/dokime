@@ -151,7 +151,9 @@ fn plot_request(
         .max_points
         .map(|value| {
             if value > MAX_PLOT_POINTS {
-                Err(Status::resource_exhausted("plot max_points exceeds 100000"))
+                Err(Status::invalid_argument(format!(
+                    "plot max_points must not exceed {MAX_PLOT_POINTS}"
+                )))
             } else {
                 usize::try_from(value)
                     .map_err(|_| Status::out_of_range("plot max_points is not supported"))

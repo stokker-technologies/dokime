@@ -70,23 +70,53 @@ impl Resources {
         &self,
         build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(
-                NonZeroUsize::new(self.maximum)
-                    .ok_or_else(|| Status::resource_exhausted("invalid plot allowance"))?,
-            )
-            .map_err(failure)?;
         let output = build()?;
         ensure_message_budget(&output, self.maximum, "plot response")?;
-        preparation
-            .finish(output)
+        // The message limit bounds the response; its decoded form, larger
+        // than its encoding, is charged at its own size.
+        let bytes = NonZeroUsize::new(output.memory_size())
+            .ok_or_else(|| Status::internal("plot response has no size"))?;
+        self.runtime
+            .storage()
+            .produce(bytes, |_| Ok(output))
             .map_err(failure)?
             .try_into_value()
             .map_err(failure)?
             .try_into_response()
             .map_err(failure)
+    }
+}
+impl Resources {
+    /// One stream frame for `value`, advancing its request's cursor. A frame
+    /// that cannot be served is sent as the plot's error instead and leaves
+    /// the cursor where it was; one refused for its size also takes its
+    /// request out of the watch, so a later small append cannot hide that the
+    /// plot never received its window.
+    fn frame(
+        &self,
+        requests: &mut Vec<dokime_app::runtime::query::PlotPayloadRequest>,
+        current: &dokime_app::runtime::query::PlotPayloadRequest,
+        kind: dokime_app::runtime::query::PlotPayloadStreamKind,
+        value: dokime_app::runtime::query::PlotPayloadEnvelope,
+        epoch: &str,
+        selection: &str,
+    ) -> Result<Response<contract::PlotStreamFrame>, Status> {
+        let mut advanced = requests.clone();
+        merge_plot_payload_cursor(&mut advanced, &value);
+        let served = stream_frame(kind, value, epoch, selection, self.maximum)
+            .and_then(|frame| self.produce(|| Ok(frame)));
+        match served {
+            Ok(response) => {
+                *requests = advanced;
+                Ok(response)
+            }
+            Err(error) => {
+                if error.code() == tonic::Code::InvalidArgument {
+                    requests.retain(|request| request.plot_id != current.plot_id);
+                }
+                self.produce(|| Ok(plot_error_frame(current, error.message().to_owned())))
+            }
+        }
     }
 }
 impl Operation for Analyses {
@@ -179,7 +209,7 @@ impl Operation for Snapshots {
                             .ok_or_else(|| {
                                 Status::internal("plot response does not match a request")
                             })?;
-                    envelope(value, &epoch, selection)
+                    envelope(value, &epoch, selection, self.resources.maximum)
                 })
                 .collect::<Result<Vec<_>, Status>>()?;
             Ok(contract::PlotSnapshotsReply { envelopes })
@@ -250,23 +280,14 @@ impl Operation for Watch {
                     let selection = selection_for_plot(&requests, &selections, &value.plot_id)
                         .ok_or_else(|| Status::internal("plot response does not match a request"))?
                         .to_owned();
-                    merge_plot_payload_cursor(&mut requests, &value);
-                    let response = self
-                        .resources
-                        .produce(|| {
-                            let frame = stream_frame(
-                                dokime_app::runtime::query::PlotPayloadStreamKind::Snapshot,
-                                value,
-                                &epoch,
-                                &selection,
-                            )
-                            .unwrap_or_else(|error| plot_error_frame(&current, error.to_string()));
-                            Ok(frame)
-                        })
-                        .or_else(|error| {
-                            self.resources
-                                .produce(|| Ok(plot_error_frame(&current, error.to_string())))
-                        })?;
+                    let response = self.resources.frame(
+                        &mut requests,
+                        &current,
+                        dokime_app::runtime::query::PlotPayloadStreamKind::Snapshot,
+                        value,
+                        &epoch,
+                        &selection,
+                    )?;
                     output.send_owned(response).await.map_err(failure)?;
                 }
             }
@@ -306,9 +327,7 @@ impl Operation for Watch {
                         let Some(current) = matching_plot_payload_request(&requests, &value.plot_id).cloned() else { continue; };
                         if !plot_payload_stream_envelope_visible(mode, &value, &current) { continue; }
                         let selection = selection_for_plot(&requests, &selections, &value.plot_id).ok_or_else(|| Status::internal("plot response does not match a request"))?.to_owned();
-                        merge_plot_payload_cursor(&mut requests, &value);
-                        let response = self.resources.produce(|| stream_frame(plot_payload_stream_kind(mode), value, &epoch, &selection))
-                            .or_else(|error| self.resources.produce(|| Ok(plot_error_frame(&current, error.to_string()))))?;
+                        let response = self.resources.frame(&mut requests, &current, plot_payload_stream_kind(mode), value, &epoch, &selection)?;
                         output.send_owned(response).await.map_err(failure)?;
                         }
                     }

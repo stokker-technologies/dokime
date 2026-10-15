@@ -64,6 +64,8 @@ pub struct SettingsDocument {
     #[serde(default)]
     pub appearance: Appearance,
     #[serde(default)]
+    pub report: ReportDefaults,
+    #[serde(default)]
     pub plugins: BTreeMap<Uuid, PluginSettings>,
 }
 
@@ -73,6 +75,15 @@ pub struct Appearance {
     pub theme_mode: ThemeMode,
     pub theme_family: Option<String>,
     pub density: Density,
+}
+
+/// How a plot draws when neither its author nor its operator chose: the points
+/// it keeps and the strategy that selects them, live and in every report.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ReportDefaults {
+    pub plot_points: u32,
+    pub plot_downsample: dokime::document::DownsampleTechnique,
 }
 
 /* === Enums === */
@@ -97,6 +108,40 @@ pub enum Density {
 /* === Traits === */
 
 /* === Implementations === */
+impl Default for ReportDefaults {
+    fn default() -> Self {
+        Self {
+            plot_points: dokime::document::DEFAULT_PLOT_MAX_POINTS as u32,
+            plot_downsample: dokime::document::DownsampleTechnique::Auto,
+        }
+    }
+}
+
+impl ReportDefaults {
+    /// Fills every plot of `document` its author and operator left unset:
+    /// absent points take the default points, and `Auto` the default strategy.
+    pub fn apply(&self, document: &mut dokime::document::DocumentDefinition) {
+        let bodies = document.cards.iter_mut().map(|card| &mut card.body).chain(
+            document
+                .sections
+                .iter_mut()
+                .flat_map(|section| section.cards.iter_mut().map(|card| &mut card.body)),
+        );
+        for body in bodies {
+            if let dokime::document::DocumentCardBody::Plot { plot } = body {
+                plot.display_points.get_or_insert(self.plot_points);
+                if matches!(
+                    plot.downsample,
+                    dokime::document::DownsampleTechnique::Auto
+                        | dokime::document::DownsampleTechnique::Unspecified
+                ) {
+                    plot.downsample = self.plot_downsample;
+                }
+            }
+        }
+    }
+}
+
 impl Settings {
     pub fn load(application_root: impl Into<PathBuf>) -> std::io::Result<Self> {
         let root = application_root.into();
@@ -237,6 +282,7 @@ fn create(path: &Path) -> std::io::Result<SettingsDocument> {
         data_root: None,
         storage: None,
         appearance: Appearance::default(),
+        report: ReportDefaults::default(),
         plugins: BTreeMap::new(),
     };
     let root = path.parent().expect("settings file has a parent");

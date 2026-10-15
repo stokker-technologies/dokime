@@ -19,6 +19,7 @@ mod update_appearance;
 mod update_data_root;
 mod update_plugin_credential;
 mod update_plugin_settings;
+mod update_report_defaults;
 mod update_storage_policy;
 
 /* === Re-Exports === */
@@ -33,6 +34,7 @@ pub use update_appearance::UpdateAppearance;
 pub use update_data_root::UpdateDataRoot;
 pub use update_plugin_credential::UpdatePluginCredential;
 pub use update_plugin_settings::UpdatePluginSettings;
+pub use update_report_defaults::UpdateReportDefaults;
 pub use update_storage_policy::UpdateStoragePolicy;
 
 /* === Imports === */
@@ -63,6 +65,21 @@ pub struct UpdateAppearanceRequest {
     pub appearance: Option<AppearancePreference>,
 }
 
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateReportDefaultsRequest {
+    pub report: Option<ReportPreference>,
+}
+
+// The points and strategy a plot draws with when neither its author nor its
+// operator chose, live and in every report.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReportPreference {
+    pub plot_points: u32,
+    pub plot_downsample: crate::document::DownsampleTechnique,
+}
+
 // An absent data root restores the default beneath the application root.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -82,6 +99,7 @@ pub struct AppearancePreference {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ApplicationSettings {
     pub appearance: Option<AppearancePreference>,
+    pub report: Option<ReportPreference>,
     pub application_root: String,
     // Absent when settings.json names none and the default applies.
     #[row(description = "Absent when settings.json names none and the default applies.")]
@@ -511,6 +529,7 @@ pub enum Operations {
     ReadApplicationSettings(ReadApplicationSettings),
     UpdateAppearance(UpdateAppearance),
     UpdateDataRoot(UpdateDataRoot),
+    UpdateReportDefaults(UpdateReportDefaults),
 }
 
 /* === Traits === */
@@ -568,6 +587,11 @@ impl Endpoint for ReadApplicationSettings {
 
 impl Endpoint for UpdateAppearance {
     const PATH: &'static str = "/dokime.v1.Settings/UpdateAppearance";
+    const ACCESS: Access = Access::Control;
+}
+
+impl Endpoint for UpdateReportDefaults {
+    const PATH: &'static str = "/dokime.v1.Settings/UpdateReportDefaults";
     const ACCESS: Access = Access::Control;
 }
 

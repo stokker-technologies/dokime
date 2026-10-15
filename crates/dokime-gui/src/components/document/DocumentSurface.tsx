@@ -627,23 +627,24 @@ function reportPlotStates(
   return Object.fromEntries(
     documentPlots.flatMap((plot) => {
       const payload = reportPlots[plot.plot_id];
-      return payload
-        ? [
-            [
-              plot.plot_id,
-              {
-                payload,
-                buffer: null,
-                cursor: null,
-                diagnostics: null,
-                revision: 0,
-                status: "live" as const,
-                error: null,
-                droppedBatches: 0,
-              },
-            ],
-          ]
-        : [];
+      if (!payload) return [];
+      /* A report that could not fit a plot names it and says why. */
+      const omitted = (payload as { omitted?: unknown }).omitted;
+      return [
+        [
+          plot.plot_id,
+          {
+            payload: typeof omitted === "string" ? null : payload,
+            buffer: null,
+            cursor: null,
+            diagnostics: null,
+            revision: 0,
+            status: typeof omitted === "string" ? ("omitted" as const) : ("live" as const),
+            error: typeof omitted === "string" ? omitted : null,
+            droppedBatches: 0,
+          },
+        ],
+      ];
     }),
   );
 }

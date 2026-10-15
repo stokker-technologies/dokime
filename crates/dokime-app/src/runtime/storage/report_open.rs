@@ -22,7 +22,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
+use std::{future::Future, num::NonZeroUsize};
 // Third Party Imports
 use harmos::{
     MemorySize,
@@ -42,6 +42,10 @@ use dokime::{
 /// The largest report Open Report delivers, sealed or rendered.
 pub const MAX_OPENED_REPORT_BYTES: usize = 16 * 1024 * 1024;
 const READ_CHUNK_BYTES: usize = 64 * 1024;
+/// How long Open Report waits out other readers holding the storage memory.
+const CONTENTION_PATIENCE: std::time::Duration = std::time::Duration::from_secs(30);
+const CONTENTION_FIRST_DELAY: std::time::Duration = std::time::Duration::from_millis(50);
+const CONTENTION_LAST_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
 
 /* === Macros === */
 
@@ -79,6 +83,16 @@ pub enum ReportOrigin {
 impl RuntimeHandle {
     /// The report a cycle has right now. See the module comment for which.
     pub async fn open_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
+        contended(|| self.open_cycle_report_once(id)).await
+    }
+
+    /// The report one execution has right now. See the module comment for
+    /// which.
+    pub async fn open_execution_report(&self, id: &TestExecutionId) -> Result<OpenedReport> {
+        contended(|| self.open_execution_report_once(id)).await
+    }
+
+    async fn open_cycle_report_once(&self, id: &TestCycleId) -> Result<OpenedReport> {
         let live = self
             .watch_state()
             .latest()
@@ -92,9 +106,7 @@ impl RuntimeHandle {
         }
     }
 
-    /// The report one execution has right now. See the module comment for
-    /// which.
-    pub async fn open_execution_report(&self, id: &TestExecutionId) -> Result<OpenedReport> {
+    async fn open_execution_report_once(&self, id: &TestExecutionId) -> Result<OpenedReport> {
         let live = self
             .watch_state()
             .latest()
@@ -341,6 +353,32 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+/// Runs `open` again while the storage memory it reads under is held by other
+/// readers. A report that does not fit its own budget degrades instead; this
+/// waits out the moments the shared pool is full rather than refusing.
+/// A cycle report's members degrade one by one; its assembled HTML is not
+/// degraded further, so a cycle whose degraded members together outgrow the
+/// opened-report limit is still refused.
+async fn contended<F: Future<Output = Result<OpenedReport>>>(
+    open: impl Fn() -> F,
+) -> Result<OpenedReport> {
+    let mut delay = CONTENTION_FIRST_DELAY;
+    let deadline = tokio::time::Instant::now() + CONTENTION_PATIENCE;
+    loop {
+        match open().await {
+            Err(error)
+                if crate::report::contended(&error)
+                    && tokio::time::Instant::now() + delay < deadline =>
+            {
+                tracing::debug!(%error, "report storage memory is contended; opening again");
+                tokio::time::sleep(delay).await;
+                delay = (delay * 2).min(CONTENTION_LAST_DELAY);
+            }
+            outcome => return outcome,
+        }
+    }
+}
+
 /// Reads a sealed report whole, so a missing or damaged file is known before
 /// a single byte is delivered and the caller can render it again instead.
 async fn read_whole(

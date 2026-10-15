@@ -239,6 +239,7 @@ matrix! {
     "/dokime.v1.Settings/SetStorageSourceEnabled", unary, contracts::settings::SetStorageSourceEnabled;
     "/dokime.v1.Settings/UpdateAppearance", unary, contracts::settings::UpdateAppearance;
     "/dokime.v1.Settings/UpdateDataRoot", unary, contracts::settings::UpdateDataRoot;
+    "/dokime.v1.Settings/UpdateReportDefaults", unary, contracts::settings::UpdateReportDefaults;
     "/dokime.v1.Settings/UpdatePluginCredential", unary, contracts::settings::UpdatePluginCredential;
     "/dokime.v1.Settings/UpdatePluginSettings", unary, contracts::settings::UpdatePluginSettings;
     "/dokime.v1.Telemetry/ListSamples", unary, contracts::telemetry::ListSamples;

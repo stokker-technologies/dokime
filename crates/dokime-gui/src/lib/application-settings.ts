@@ -8,8 +8,9 @@
  */
 
 /**
- * Application settings owned by the connected backend: appearance preferences
- * and the data root. Nothing is saved or read without a connected session.
+ * Application settings owned by the connected backend: appearance preferences,
+ * the plot defaults reports and live plots start from, and the data root.
+ * Nothing is saved or read without a connected session.
  */
 
 /* === Imports === */
@@ -26,8 +27,11 @@ import * as rpc from "@/lib/rpc/generated/client";
 
 type ApplicationSettings = Wire<Awaited<ReturnType<typeof rpc.settingsReadApplicationSettings>>>;
 type AppearancePreference = NonNullable<ApplicationSettings["appearance"]>;
+type ReportPreference = NonNullable<ApplicationSettings["report"]>;
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
+import type { DocumentDownsampleTechnique } from "@/lib/types/plot";
+import { DEFAULT_PLOT_MAX_POINTS } from "@/plots/reduce";
 
 /* === Types === */
 
@@ -38,8 +42,14 @@ export type Appearance = {
   themeFamily: string | null;
   density: Density;
 };
+/** What a plot draws with when neither its author nor its operator chose. */
+export type ReportDefaults = {
+  plotPoints: number;
+  plotDownsample: DocumentDownsampleTechnique;
+};
 export type ApplicationSettingsView = {
   appearance: Appearance;
+  report: ReportDefaults;
   applicationRoot: string;
   configuredDataRoot: string | null;
   defaultDataRoot: string;
@@ -59,6 +69,19 @@ const DENSITIES = {
   compact: "Compact",
   touch: "Touch",
 } as const;
+
+const TECHNIQUES = {
+  auto: "Auto",
+  lttb: "Lttb",
+  min_max: "MinMax",
+  raw: "Raw",
+} as const;
+
+/** The defaults before the backend answers, or without one. */
+export const BUILT_IN_REPORT_DEFAULTS: ReportDefaults = {
+  plotPoints: DEFAULT_PLOT_MAX_POINTS,
+  plotDownsample: "auto",
+};
 
 /* Saves are serialized so independent controls cannot overwrite each other. */
 let pendingSave: Promise<unknown> = Promise.resolve();
@@ -92,6 +115,34 @@ export function useSaveAppearance() {
         return settingsView(
           await rpc.settingsUpdateAppearance(identity, {
             appearance: appearancePreference({ ...current.appearance, ...patch }),
+          }),
+        );
+      }),
+    onSuccess: cache,
+  });
+}
+
+/** The plot defaults in force: the backend's once read, the built-in ones until then. */
+export function useReportDefaults(): ReportDefaults {
+  return useApplicationSettings().data?.report ?? BUILT_IN_REPORT_DEFAULTS;
+}
+
+export function useSaveReportDefaults() {
+  const session = useNativeSessionOptional();
+  const cache = useSavedSettings();
+  return useMutation({
+    mutationFn: (patch: Partial<ReportDefaults>) =>
+      serialized(session?.identity, async (identity) => {
+        const current = settingsView(await rpc.settingsReadApplicationSettings(identity, {}));
+        const next = { ...current.report, ...patch };
+        return settingsView(
+          await rpc.settingsUpdateReportDefaults(identity, {
+            report: {
+              plotPoints: next.plotPoints,
+              plotDownsample: {
+                HarmosVariant: { case: TECHNIQUES[next.plotDownsample], value: {} },
+              },
+            },
           }),
         );
       }),
@@ -156,6 +207,7 @@ function useSavedSettings() {
 function settingsView(wire: ApplicationSettings): ApplicationSettingsView {
   return {
     appearance: appearance(wire.appearance),
+    report: reportDefaults(wire.report),
     applicationRoot: wire.applicationRoot,
     configuredDataRoot: wire.configuredDataRoot ?? null,
     defaultDataRoot: wire.defaultDataRoot,
@@ -169,6 +221,17 @@ function appearance(wire: AppearancePreference | undefined): Appearance {
     themeMode: fromWire(THEME_MODES, wire?.themeMode?.HarmosVariant.case, "system"),
     themeFamily: wire?.themeFamily ?? null,
     density: fromWire(DENSITIES, wire?.density?.HarmosVariant.case, "comfortable"),
+  };
+}
+
+function reportDefaults(wire: ReportPreference | undefined): ReportDefaults {
+  return {
+    plotPoints: wire?.plotPoints || BUILT_IN_REPORT_DEFAULTS.plotPoints,
+    plotDownsample: fromWire(
+      TECHNIQUES,
+      wire?.plotDownsample?.HarmosVariant.case,
+      BUILT_IN_REPORT_DEFAULTS.plotDownsample,
+    ),
   };
 }
 

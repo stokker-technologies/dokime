@@ -19,6 +19,7 @@ import { useRuntimeStream } from "@/app/live/use-runtime-stream";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
+import { cn } from "@/lib/utils";
 import { ConsoleDrawer } from "@/shell/ConsoleDrawer";
 import { useFocusMode } from "@/shell/focus-mode";
 import { MenuBar } from "@/shell/MenuBar";
@@ -64,8 +65,9 @@ const TOP_LEVEL = new Set(["/cycles", "/library", "/history", "/settings"]);
  * the same grid.
  *
  * `live` is the only switch. With it off the same frame carries a frozen
- * report: the same menu bar, sidebar, page bar and status bar, holding what a
- * file can honestly hold. There is no second shell.
+ * report: the same sidebar, page bar and status bar, holding what a file can
+ * honestly hold. A file has no application to command, so it has no menu bar.
+ * There is no second shell.
  */
 export function AppShell(props: AppShellProps) {
   // The one live runtime subscription for the whole app. It invalidates the
@@ -117,12 +119,18 @@ function AppFrame({ children, frozen }: { children: ReactNode; frozen: FrozenShe
 
   return (
     <div
-      className="fixed inset-0 grid h-dvh grid-rows-[var(--menu-bar-height)_minmax(0,1fr)_auto] overflow-hidden bg-background text-foreground"
+      className={cn(
+        "fixed inset-0 grid h-dvh overflow-hidden bg-background text-foreground",
+        frozen
+          ? "grid-rows-[minmax(0,1fr)_auto]"
+          : "grid-rows-[var(--menu-bar-height)_minmax(0,1fr)_auto]",
+      )}
       style={{ fontSize: "var(--shell-text-base)" }}
     >
       {/* The menu bar spans the window above the sidebar, at its own height
-          token so the rows below never move when a menu opens. */}
-      {frozen ? <MenuBar generatedAt={frozen.generatedAt} live={false} /> : <MenuBar />}
+          token so the rows below never move when a menu opens. A frozen
+          report has none: it neither navigates nor reaches the desktop. */}
+      {frozen ? null : <MenuBar />}
       <div className="flex min-h-0 min-w-0">
         {frozen ? (
           <Sidebar

@@ -48,6 +48,9 @@ struct UpdateAppearance {
 struct UpdateDataRoot {
     resources: Arc<Resources>,
 }
+struct UpdateReportDefaults {
+    resources: Arc<Resources>,
+}
 
 /* === Enums === */
 /* === Traits === */
@@ -217,6 +220,40 @@ impl Operation for UpdateDataRoot {
         self.resources.application(view)
     }
 }
+impl Operation for UpdateReportDefaults {
+    type Declaration = wire::UpdateReportDefaults;
+    type Resources = Resources;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+    async fn initialize<'ctx>(
+        resources: Arc<Resources>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
+        Ok(Self { resources })
+    }
+    async fn run<'a>(
+        &mut self,
+        _: Self::Context<'a>,
+        request: &mut wire::UpdateReportDefaultsRequest,
+        _: &mut (),
+    ) -> Result<Response<wire::ApplicationSettings>, Status> {
+        let report = request
+            .report
+            .as_ref()
+            .ok_or_else(|| Status::invalid_argument("report defaults are required"))?;
+        let view = self
+            .resources
+            .runtime
+            .update_report_defaults(dokime_app::config::ReportDefaults {
+                plot_points: report.plot_points,
+                plot_downsample: report.plot_downsample,
+            })
+            .await
+            .map_err(super::super::execution::status)?;
+        self.resources.application(view)
+    }
+}
 impl Resources {
     pub(super) fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
         &self,
@@ -315,6 +352,10 @@ impl Resources {
                     },
                     theme_family: view.appearance.theme_family,
                 }),
+                report: Some(wire::ReportPreference {
+                    plot_points: view.report.plot_points,
+                    plot_downsample: view.report.plot_downsample,
+                }),
                 application_root: path(view.application_root),
                 configured_data_root: view.configured_data_root.map(path),
                 default_data_root: path(view.default_data_root),
@@ -361,6 +402,13 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     runtime
         .operations()
         .register_wire_operation::<UpdateDataRoot>(
+            "dokime",
+            dokime_app::app::Lanes::Open,
+            resources.clone(),
+        )?;
+    runtime
+        .operations()
+        .register_wire_operation::<UpdateReportDefaults>(
             "dokime",
             dokime_app::app::Lanes::Open,
             resources.clone(),

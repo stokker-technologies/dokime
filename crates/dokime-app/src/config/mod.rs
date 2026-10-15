@@ -25,7 +25,7 @@ pub use runtime::{
     InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, SidecarNoticeHandler,
     StorageReadSettings,
 };
-pub use settings::{Appearance, Density, Settings, SettingsDocument, ThemeMode};
+pub use settings::{Appearance, Density, ReportDefaults, Settings, SettingsDocument, ThemeMode};
 pub use view::ApplicationSettingsView;
 
 /* === Imports === */

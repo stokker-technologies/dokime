@@ -54,6 +54,8 @@ const MAX_ACTIVE_OWNERS: usize = 10_000;
 /* === Macros === */
 
 /* === Type Aliases === */
+/// What each sealed execution report left out, keyed by its cycle.
+type ReportOmissions = BTreeMap<dokime::core::TestCycleId, Vec<(TestExecutionId, Vec<String>)>>;
 
 /* === Structs === */
 pub(crate) struct TailStop {
@@ -72,6 +74,8 @@ pub(crate) struct ExecutionStorage {
     pub(super) context_epoch: SessionId,
     pub(super) brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
     pub(super) cycle_save: Arc<Mutex<()>>,
+    /// Held until the cycle settles and records it.
+    pub(crate) report_omissions: Mutex<ReportOmissions>,
     pub(super) cycle_reports: Mutex<
         BTreeMap<dokime::core::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>,
     >,
@@ -356,6 +360,7 @@ impl ExecutionStorage {
             context_epoch,
             brand,
             cycle_save: Arc::new(Mutex::new(())),
+            report_omissions: Mutex::new(BTreeMap::new()),
             cycle_reports: Mutex::new(BTreeMap::new()),
             active: Mutex::new(BTreeMap::new()),
             artifact_admission: Arc::new(tokio::sync::Semaphore::new(4)),

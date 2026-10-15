@@ -288,6 +288,15 @@ fn documents_contract() {
         );
     }
     {
+        eprintln!("Scenario: documents::reports::open_report_repeatedly");
+        run_scenario(
+            documents::reports::open_report_repeatedly,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: documents::reports::cycle_report_reboot");
         run_scenario(documents::reports::cycle_report_reboot, false, None, false);
     }
@@ -1095,9 +1104,22 @@ fn execution_whole_capture_contract() {
 #[test]
 fn execution_oversized_report_contract() {
     {
-        eprintln!("Scenario: execution::sampling::oversized_report_settles");
+        eprintln!("Scenario: execution::sampling::oversized_report_seals_with_omissions");
         run_scenario(
-            execution::sampling::oversized_report_settles,
+            execution::sampling::oversized_report_seals_with_omissions,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+#[test]
+fn execution_running_report_contract() {
+    {
+        eprintln!("Scenario: execution::sampling::running_report_follows_live_plot");
+        run_scenario(
+            execution::sampling::running_report_follows_live_plot,
             false,
             None,
             false,

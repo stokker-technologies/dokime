@@ -47,6 +47,9 @@ const LARGE_PULSE_ROWS: u32 = 20_000;
 /// Points the fixture's pulse plot declares it shows.
 const PULSE_DISPLAY_POINTS: u64 = 400;
 
+/// Points an operator sets on the live pulse plot, above what it declares.
+const LIVE_DISPLAY_POINTS: u32 = 1_500;
+
 /// Rows of the stream the fixture's frequency plot transforms whole: many
 /// storage pages, yet a fraction of the 32 MiB report budget.
 const SPECTRUM_ROWS: u32 = 1_024;
@@ -54,8 +57,7 @@ const SPECTRUM_ROWS: u32 = 1_024;
 /// Rows of the whole-capture stream that alone exceed the 32 MiB report budget.
 const OVERSIZED_SPECTRUM_ROWS: u32 = 8_192;
 
-/// How a report too large for its whole budget names its permanent cause.
-const UNSEALED: &str = "final execution report was not sealed";
+/// How a report too large for its whole budget names what it ran out of.
 const EXHAUSTED: &str = "final report materialization memory";
 
 /// A storage read pool that admits running the cycle but never holds the cycle
@@ -395,14 +397,154 @@ pub(crate) async fn whole_capture_plot_seals() {
     runtime.shutdown().await.unwrap();
 }
 
-// a report whose kept rows exceed the whole report budget settles its run
-// Failed with that permanent cause instead of retrying forever.
-pub(crate) async fn oversized_report_settles() {
+// a running execution's report follows the plot settings the operator chose on
+// the live plot, renders again and again from the same evidence, and the
+// sealed report keeps those settings.
+pub(crate) async fn running_report_follows_live_plot() {
     let root = tempdir().unwrap();
-    let (mut runtime, handle) = started(sampling_config(
-        root.path(),
-        serde_json::json!({ "spectrum_rows": OVERSIZED_SPECTRUM_ROWS }),
-    ))
+    let release = root.path().join("release");
+    let (mut runtime, handle) = started(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({
+                    "pulse_rows": LARGE_PULSE_ROWS,
+                    "block_execution": true,
+                    "execution_release": release,
+                }),
+            )
+            .unwrap()]),
+    )
+    .await;
+    let suite = handle
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|suite| suite.source == "fixture-suites")
+        .unwrap()
+        .suite;
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite: suite.clone(),
+                metadata: Metadata::new(Identifier::new("pulse.live").unwrap(), "Live", None),
+                cases: materialize_cases("fixture.checks", &suite),
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let receipt = handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    let execution =
+        handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
+    let pulse = "fixture.checks.smoke.pulse";
+    // The step holds once every pulse row is published.
+    tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            if let Ok(opened) = handle.open_execution_report(&execution).await {
+                let payload =
+                    crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+                if payload["case_runs"][0]["plots"][pulse]["series"][0]["raw_points"]
+                    == serde_json::json!(LARGE_PULSE_ROWS)
+                {
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("the running step publishes every pulse row");
+
+    handle
+        .update_plot_settings(
+            &cycle_id,
+            &execution,
+            &dokime::core::DocumentId::from_identifier("default").unwrap(),
+            &Identifier::new(pulse).unwrap(),
+            Some(LIVE_DISPLAY_POINTS),
+            dokime::document::DownsampleTechnique::Lttb,
+        )
+        .await
+        .unwrap();
+    for attempt in 1..=3 {
+        let opened = handle
+            .open_execution_report(&execution)
+            .await
+            .unwrap_or_else(|error| panic!("render {attempt} of the running report: {error}"));
+        let payload = crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+        assert_live_plot(&payload, pulse, attempt);
+        let steps = payload["test_steps"].as_array().unwrap();
+        assert!(
+            steps
+                .iter()
+                .any(|row| row["record_type"] == "step" && row["status"] == "running"),
+            "render {attempt} carries the running step: {steps:?}"
+        );
+    }
+
+    std::fs::write(&release, b"").unwrap();
+    let settled = tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            let receipt = handle
+                .run_request(&receipt.command_id)
+                .await
+                .unwrap()
+                .unwrap();
+            if receipt.summary.phase.terminal() {
+                break receipt.summary.phase;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(settled, RunPhase::Completed);
+    let html = crate::support::native::report(&handle, &execution).await;
+    assert_live_plot(&crate::support::reports::parse(&html), pulse, 4);
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize) {
+    let plot = &payload["case_runs"][0]["plots"][plot];
+    assert_eq!(
+        plot["max_points"],
+        serde_json::json!(LIVE_DISPLAY_POINTS),
+        "render {attempt} uses the live plot's points: {}",
+        payload["warnings"]
+    );
+    let series = &plot["series"][0];
+    assert_eq!(series["raw_points"], serde_json::json!(LARGE_PULSE_ROWS));
+    let points = series["points"].as_array().unwrap().len();
+    assert!(
+        points <= LIVE_DISPLAY_POINTS as usize && points > PULSE_DISPLAY_POINTS as usize,
+        "render {attempt} draws the live plot's {LIVE_DISPLAY_POINTS} points, not the authored {PULSE_DISPLAY_POINTS}: {points}"
+    );
+}
+
+// a report whose kept rows exceed the whole report budget still opens while
+// the run holds and seals when it settles: the plot that cannot fit is omitted,
+// and the report says so in itself and in a host warning record.
+pub(crate) async fn oversized_report_seals_with_omissions() {
+    let root = tempdir().unwrap();
+    let release = root.path().join("release");
+    let (mut runtime, handle) = started(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({
+                    "spectrum_rows": OVERSIZED_SPECTRUM_ROWS,
+                    "block_execution": true,
+                    "execution_release": release,
+                }),
+            )
+            .unwrap()]),
+    )
     .await;
     let suite = handle
         .test_suites()
@@ -431,6 +573,30 @@ pub(crate) async fn oversized_report_settles() {
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    let execution =
+        handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
+
+    // Running: the report opens without the plot it cannot hold, and says so.
+    let opened = tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            let opened = handle
+                .open_execution_report(&execution)
+                .await
+                .expect("a running report always opens");
+            let payload =
+                crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+            if !omissions(&payload).is_empty() {
+                break payload;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("the running report lists its omissions once the spectrum is published");
+    assert_spectrum_omitted(&opened);
+
+    // Sealed: the run completes and its report keeps the same omission.
+    std::fs::write(&release, b"").unwrap();
     let settled = tokio::time::timeout(Duration::from_secs(300), async {
         loop {
             let receipt = handle
@@ -445,14 +611,11 @@ pub(crate) async fn oversized_report_settles() {
         }
     })
     .await
-    .expect("an oversized report settles its run instead of retrying");
-    assert_eq!(settled.summary.phase, RunPhase::Failed);
-    assert!(
-        settled
-            .interruption
-            .as_deref()
-            .is_some_and(|cause| cause.starts_with(UNSEALED) && cause.contains(EXHAUSTED)),
-        "the receipt names the exhausted report budget: {:?}",
+    .expect("an oversized report settles its run");
+    assert_eq!(
+        settled.summary.phase,
+        RunPhase::Completed,
+        "{:?}",
         settled.interruption
     );
     let cycle = handle
@@ -461,11 +624,33 @@ pub(crate) async fn oversized_report_settles() {
         .into_iter()
         .find(|cycle| cycle.test_cycle_id == cycle_id)
         .unwrap();
-    assert_eq!(cycle.lifecycle, CycleStatus::Failed);
-    assert!(
-        cycle.saved.is_none(),
-        "an unproduced report is never sealed"
-    );
+    assert!(cycle.saved.is_some(), "the cycle seals with its omissions");
+    let html = crate::support::native::report(&handle, &execution).await;
+    assert_spectrum_omitted(&crate::support::reports::parse(&html));
+    let recorded = tokio::time::timeout(Duration::from_secs(60), async {
+        loop {
+            let evidence = handle.evidence_snapshot().await.unwrap();
+            if evidence
+                .records
+                .iter()
+                .any(|record| record.record_type.as_str() == "report.omissions")
+            {
+                break true;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .unwrap_or(false);
+    assert!(recorded, "the omission is a host warning record");
+    // The record stays outside the seal: both reports are still the sealed bytes.
+    let sealed = handle.open_cycle_report(&cycle_id).await.unwrap();
+    assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
+    let sealed = handle.open_execution_report(&execution).await.unwrap();
+    assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
+    assert_spectrum_omitted(&crate::support::reports::parse(
+        std::str::from_utf8(&sealed.html).unwrap(),
+    ));
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
@@ -638,4 +823,34 @@ pub(crate) async fn slow_output_read_seals() {
     );
     drop(handle);
     runtime.shutdown().await.unwrap();
+}
+
+fn omissions(payload: &serde_json::Value) -> Vec<String> {
+    payload["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|warning| warning.as_str())
+        .filter(|warning| warning.starts_with("report.omitted: "))
+        .map(str::to_owned)
+        .collect()
+}
+
+fn assert_spectrum_omitted(payload: &serde_json::Value) {
+    let spectrum = &payload["case_runs"][0]["plots"]["fixture.checks.smoke.spectrum"];
+    let reason = spectrum["omitted"]
+        .as_str()
+        .unwrap_or_else(|| panic!("the spectrum is a placeholder naming why: {spectrum}"));
+    assert!(reason.contains(EXHAUSTED), "{reason}");
+    assert!(
+        omissions(payload)
+            .iter()
+            .any(|omission| omission.contains(reason)),
+        "the report lists the omission: {:?}",
+        omissions(payload)
+    );
+    assert!(
+        !payload["test_steps"].as_array().unwrap().is_empty(),
+        "steps survive every degradation"
+    );
 }

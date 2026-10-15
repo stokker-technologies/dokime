@@ -43,8 +43,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { NATIVE_PLOT_MAX_POINTS } from "@/lib/api/native-plots";
+import { useReportDefaults } from "@/lib/application-settings";
 import type { DocumentDownsampleTechnique, DocumentViewPlot } from "@/lib/types";
-import { DEFAULT_PLOT_MAX_POINTS } from "@/plots/reduce";
 
 /* === Constants === */
 
@@ -52,7 +52,7 @@ import { DEFAULT_PLOT_MAX_POINTS } from "@/plots/reduce";
 const MIN_DISPLAY_POINTS = 50;
 const DISPLAY_POINTS_STEP = 50;
 
-const TECHNIQUE_OPTIONS: Array<{ value: DocumentDownsampleTechnique; label: string }> = [
+export const TECHNIQUE_OPTIONS: Array<{ value: DocumentDownsampleTechnique; label: string }> = [
   { value: "auto", label: "Auto" },
   { value: "lttb", label: "Largest Triangle (LTTB)" },
   { value: "min_max", label: "Min / Max Buckets" },
@@ -104,6 +104,16 @@ export function PlotSettingsButton({ plot, onSubmit }: PlotSettingsButtonProps) 
 /** Mounted only while open so every opening starts from the plot's persisted values. */
 function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
   const id = useId();
+  const defaults = useReportDefaults();
+  const defaultTechnique = TECHNIQUE_OPTIONS.find(
+    (option) => option.value === defaults.plotDownsample,
+  )?.label;
+  /* `auto` on a plot means the plot follows the application default. */
+  const options = TECHNIQUE_OPTIONS.map((option) =>
+    option.value === "auto" && defaults.plotDownsample !== "auto"
+      ? { ...option, label: `Default (${defaultTechnique})` }
+      : option,
+  );
   const [pointsRaw, setPointsRaw] = useState(
     plot.display_points == null ? "" : String(plot.display_points),
   );
@@ -151,7 +161,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             max={NATIVE_PLOT_MAX_POINTS}
             min={0}
             onChange={(event) => setPointsRaw(event.target.value)}
-            placeholder={`Default (${DEFAULT_PLOT_MAX_POINTS.toLocaleString()})`}
+            placeholder={`Default (${defaults.plotPoints.toLocaleString()})`}
             step={DISPLAY_POINTS_STEP}
             type="number"
             value={pointsRaw}
@@ -165,7 +175,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TECHNIQUE_OPTIONS.map((option) => (
+              {options.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
