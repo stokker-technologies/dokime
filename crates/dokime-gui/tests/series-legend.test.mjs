@@ -17,6 +17,7 @@ import {
   nearestDrawnValue,
   seriesLegendColumns,
   seriesLegendRows,
+  summaryInFlight,
   toggleTrace,
 } from "../src/lib/statistics.ts";
 
@@ -164,4 +165,17 @@ test("The cursor reads each trace's nearest drawn point and skips its gaps", () 
     rows.map((row) => row.cursor),
     ["13.00", ""],
   );
+});
+
+test("The table dims only while a summary request is in flight", () => {
+  // A zoom or window change asks for new numbers: the old range's dim.
+  assert.equal(summaryInFlight("requested"), true);
+  // Its frame arrives, or the request fails: nothing is in flight.
+  assert.equal(summaryInFlight("delivered"), false);
+  assert.equal(summaryInFlight("failed"), false);
+  // A run that ends closes its stream; its final numbers stay undimmed.
+  let pending = summaryInFlight("requested");
+  pending = summaryInFlight("delivered");
+  pending = pending && summaryInFlight("ended");
+  assert.equal(pending, false);
 });

@@ -21,6 +21,7 @@ import {
   type PlotPayloadRequestInput,
 } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
+import { summaryInFlight } from "@/lib/statistics";
 import type {
   DocumentDownsampleTechnique,
   DocumentViewPlot,
@@ -73,6 +74,8 @@ export type LivePlotState = {
   status: LivePlotStatus;
   error: string | null;
   droppedBatches: number;
+  /** A window, zoom or plot change asked for summaries not yet delivered. */
+  summaryInFlight: boolean;
 };
 
 export type LivePlotStateMap = Record<string, LivePlotState>;
@@ -243,6 +246,7 @@ export function useLivePlotPayloads({
               ...currentPlot,
               error: null,
               status: currentPlot.payload ? "stale" : "loading",
+              summaryInFlight: summaryInFlight("requested"),
             },
           ];
         }),
@@ -309,6 +313,7 @@ export function useLivePlotPayloads({
               {
                 ...plotState,
                 status: plotState.status === "error" ? "error" : ("stale" as const),
+                summaryInFlight: plotState.summaryInFlight && summaryInFlight("ended"),
               },
             ];
           }),
@@ -480,6 +485,7 @@ export function emptyLivePlotState(): LivePlotState {
     status: "idle",
     error: null,
     droppedBatches: 0,
+    summaryInFlight: false,
   };
 }
 
@@ -586,6 +592,7 @@ function applyPlotStreamMessages(
         ...next,
         error: message.warnings[0] ?? "Plot stream returned an error.",
         status: "error",
+        summaryInFlight: summaryInFlight("failed"),
       };
       continue;
     }
@@ -610,6 +617,7 @@ function applyPlotStreamMessages(
       status: "live",
       error: null,
       droppedBatches: next.droppedBatches,
+      summaryInFlight: summaryInFlight("delivered"),
     };
   }
   return next;

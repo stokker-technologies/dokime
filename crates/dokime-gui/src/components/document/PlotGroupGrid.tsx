@@ -327,9 +327,9 @@ function livePlotSpec({
     stateLabel: label,
     stateDetail: detail,
     // A window or zoom change reopens the stream: until its first frame the
-    // shown statistics cover the old range.
-    summaryPending:
-      state.status === "loading" || state.status === "stale" || state.status === "reconnecting",
+    // shown statistics cover the old range. A run that ends keeps its final
+    // numbers undimmed.
+    summaryPending: state.summaryInFlight,
   };
 }
 
