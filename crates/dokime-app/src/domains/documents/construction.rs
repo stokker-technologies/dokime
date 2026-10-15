@@ -267,7 +267,8 @@ pub(super) fn sections(descriptors: &[Section]) -> Vec<DocumentSection> {
     descriptors
         .iter()
         .map(|descriptor| {
-            let mut section = DocumentSection::new(descriptor.id, descriptor.label);
+            let mut section = DocumentSection::new(descriptor.label);
+            section.id(descriptor.id);
             section.cards = Vec::with_capacity(descriptor.cards.len());
             for card in descriptor.cards {
                 section.card(built_in_card(

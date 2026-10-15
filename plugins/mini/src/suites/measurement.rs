@@ -109,14 +109,14 @@ pub(super) fn document(stream: &str, title: &str) -> Document {
     current.x(telemetry(stream, "elapsed_s"));
     current.y(telemetry(stream, "current_a"));
 
-    let mut waveform = Section::new(format!("{stream}.waveform"), "AC Waveforms");
+    let mut waveform = Section::new("AC Waveforms");
     waveform.plot(voltage);
     waveform.plot(current);
 
     let mut document = Document::new("default", title);
     document.section(waveform);
 
-    let mut charging = Section::new(format!("{stream}.charging"), "Battery Charging");
+    let mut charging = Section::new("Battery Charging");
     for (column, label, unit) in [
         (
             InputMeasurement::column_dc_voltage_v(),

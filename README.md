@@ -472,7 +472,7 @@ voltage.unit("V");
 voltage.x(InputMeasurement::column_elapsed_s().on(stream));
 voltage.y(InputMeasurement::column_dc_voltage_v().on(stream));
 
-let mut charging = Section::new("charging", "Battery Charging");
+let mut charging = Section::new("Battery Charging");
 charging.plot(voltage);
 
 let mut document = Document::new("default", "Charger Qualification");

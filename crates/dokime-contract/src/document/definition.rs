@@ -1420,7 +1420,8 @@ impl DocumentDefinition {
         match section {
             Some(section) => upsert_card_placement(&mut section.children, placement),
             None => {
-                let mut created = DocumentSection::new(section_id.as_str(), section_label.into());
+                let mut created = DocumentSection::new(section_label);
+                created.id(section_id.as_str());
                 created.card(card);
                 self.insert_section_node(created, None);
             }
@@ -1573,12 +1574,20 @@ impl From<DocumentSection> for DocumentSectionNode {
 }
 
 impl DocumentSection {
-    pub fn new(identifier: impl AsRef<str>, label: impl Into<String>) -> Self {
+    pub fn new(label: impl Into<String>) -> Self {
+        let label = label.into();
+        let identifier = identifier_from_label(&label);
+
         Self {
-            metadata: metadata(identifier.as_ref(), label.into(), None),
+            metadata: Metadata::new(identifier, label, None),
             cards: Vec::new(),
             repeat: None,
         }
+    }
+
+    pub fn id(&mut self, identifier: impl AsRef<str>) {
+        self.metadata.identifier = Identifier::new(identifier.as_ref())
+            .unwrap_or_else(|_| identifier_from_label(identifier.as_ref()));
     }
 
     pub fn card(&mut self, card: DocumentCard) {
@@ -2710,3 +2719,20 @@ fn validate_wifi_channel_occupancy(plot: &PlotDefinition) -> Result<(), String> 
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn section_derives_its_identifier_from_the_label_until_overridden() {
+        let mut section = DocumentSection::new("Battery Charging");
+        assert_eq!(section.metadata.identifier.as_str(), "battery.charging");
+
+        section.id("mini.charger.charging");
+        assert_eq!(
+            section.metadata.identifier.as_str(),
+            "mini.charger.charging"
+        );
+        assert_eq!(section.metadata.label, "Battery Charging");
+    }
+}

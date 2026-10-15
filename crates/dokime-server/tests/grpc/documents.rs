@@ -49,7 +49,7 @@ pub(crate) async fn current_document_rows() {
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
     let mut suite = common::fixture_suite(&["passed"]);
-    let mut measurements = DocumentSection::new("table.section", "Measurements");
+    let mut measurements = DocumentSection::new("Measurements");
     measurements.card(DocumentCard {
         metadata: common::metadata("table", "All rows"),
         layout: Default::default(),
@@ -237,7 +237,7 @@ pub(crate) async fn summary_complete_telemetry() {
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
 
-    let mut progress = DocumentSection::new("summary.section", "Progress");
+    let mut progress = DocumentSection::new("Progress");
     progress.card(DocumentCard::telemetry_summary(summary));
     let mut telemetry_document = DocumentDefinition::new("default", "Telemetry");
     telemetry_document.section(progress);
@@ -361,7 +361,7 @@ pub(crate) async fn duration_x_axis() {
     voltage.id("bench.voltage");
     voltage.x(telemetry("bench.samples", "elapsed_s"));
     voltage.y(telemetry("bench.samples", "voltage_v"));
-    let mut waveform = DocumentSection::new("waveform.section", "Waveforms");
+    let mut waveform = DocumentSection::new("Waveforms");
     waveform.plot(voltage);
     let mut authored = DocumentDefinition::new("default", "Authored");
     authored.section(waveform);

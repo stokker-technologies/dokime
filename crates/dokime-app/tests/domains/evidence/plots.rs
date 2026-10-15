@@ -174,7 +174,7 @@ pub(crate) async fn execution_plots_samples() {
     register_plot_suite(&runtime).await;
     let mut suite = fixture_suite(&["passed"]);
     let mut document = dokime::document::DocumentDefinition::new("default", "Plot Settings");
-    let mut section = dokime::document::DocumentSection::new("settings", "Settings");
+    let mut section = dokime::document::DocumentSection::new("Settings");
     let mut plot = dokime::document::Plot::time_series("Captured Plot");
     plot.id("captured.plot");
     plot.stream = Some("host.wifi.channel_occupancy".into());

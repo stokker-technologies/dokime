@@ -499,17 +499,11 @@ fn startup_document() -> Document {
         Completed::marker(),
     ]);
 
-    let mut timeline = Section::new(
-        "mini.charger.startup.sequence.document.timeline",
-        "Signal Timeline",
-    );
+    let mut timeline = Section::new("Signal Timeline");
     timeline.plot(voltage);
     document.section(timeline);
 
-    let mut distributions = Section::new(
-        "mini.charger.startup.sequence.document.distributions",
-        "Signal Distributions",
-    );
+    let mut distributions = Section::new("Signal Distributions");
     distributions.plot(voltage_distribution(
         "mini.charger.startup.sequence.voltage_distribution",
     ));
@@ -521,10 +515,7 @@ fn startup_document() -> Document {
     ));
     document.section(distributions);
 
-    let mut phase_breakdown = Section::new(
-        "mini.charger.startup.sequence.document.phase_breakdown",
-        "Phase Breakdown",
-    );
+    let mut phase_breakdown = Section::new("Phase Breakdown");
     phase_breakdown.plot(mean_signal_by_phase(
         "mini.charger.startup.sequence.mean_signal_by_phase",
     ));
@@ -544,7 +535,7 @@ fn startup_document() -> Document {
     current.y(signal("current_a"));
     current.y(signal("current_rms_a"));
 
-    let mut ac_current = Section::new("mini.charger.startup.current", "AC Current");
+    let mut ac_current = Section::new("AC Current");
     ac_current.plot(current);
     document.section(ac_current);
 

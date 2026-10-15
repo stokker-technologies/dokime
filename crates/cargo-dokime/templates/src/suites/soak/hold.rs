@@ -198,7 +198,8 @@ impl Hold {
         );
         temperature.marker_records([HoldReached::marker()]);
 
-        let mut signals = Section::new("{{owner}}.soak.signals", "Soak");
+        let mut signals = Section::new("Soak");
+        signals.id("{{owner}}.soak.signals");
         signals.plot(temperature);
 
         let mut document = Document::new("default", "Hold at Temperature");

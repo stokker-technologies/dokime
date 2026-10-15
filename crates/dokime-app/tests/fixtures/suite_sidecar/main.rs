@@ -321,7 +321,7 @@ impl Smoke {
         ));
         plot.display_points = Some(PULSE_DISPLAY_POINTS);
         plot.downsample = dokime::document::DownsampleTechnique::MinMax;
-        let mut section = dokime::prelude::Section::new("fixture.checks.smoke.pulse", "Pulse");
+        let mut section = dokime::prelude::Section::new("Pulse");
         section.plot(plot);
         let mut spectrum = dokime::prelude::Plot::fft("Spectrum");
         spectrum.id("fixture.checks.smoke.spectrum");

@@ -156,7 +156,7 @@ impl Pulse {
         pulse.y(PulseRow::column_value());
         pulse.marker_records([RunStarted::marker(), RunCompleted::marker()]);
 
-        let mut signals = Section::new("mini.checks.pulse.signals", "Pulse");
+        let mut signals = Section::new("Pulse");
         signals.plot(pulse);
 
         let mut document = Document::new("mini.checks.pulse.document", LABEL);

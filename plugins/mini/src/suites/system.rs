@@ -47,9 +47,9 @@ pub enum SystemInputs {
 
 /* === Public Functions === */
 /// The host around the bench, the same for every Mini template: appended last
-/// in each template's document under ids the template `owner` prefixes.
+/// in each template's document, its plots under ids the template `owner` prefixes.
 pub fn section(owner: &str) -> Section {
-    let mut section = Section::new(format!("{owner}.system"), "System Information");
+    let mut section = Section::new("System Information");
 
     section.plot(series(
         owner,

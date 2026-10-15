@@ -114,6 +114,7 @@ Bodies:
 - A criterion's label states the rule the way an operator would (`"Reconnection Time < 30s"`). Its body reads the evidence once, returns `Ok(false)` when there is none, then applies one iterator predicate or one aggregate over a `.column(…)` series.
 - `cleanup` logs the reason from `ctx.reason()` and restores the bench through operations, in the reverse order of what the steps changed.
 - `traceability` builds each section by statements (`let mut dut = TraceabilitySection::new(…); dut.row(…);`) under one banner per section and returns the sections in order.
+- `document` builds each section by statements too (`let mut signals = Section::new("Soak"); signals.plot(temperature);`): the label derives the section id as it does a plot's, and `signals.id(…)` overrides it only when something else addresses the section by id.
 
 ## Layout
 

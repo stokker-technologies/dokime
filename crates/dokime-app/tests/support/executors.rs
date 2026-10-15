@@ -330,8 +330,8 @@ impl ExecutionFixture for DocumentAddingExecutor {
         Box::pin(async move {
             let execution_scope = provider_execution_scope(cycle);
 
-            let mut discovered =
-                dokime_app::document::DocumentSection::new("run.discovered", "Discovered Streams");
+            let mut discovered = dokime_app::document::DocumentSection::new("Discovered Streams");
+            discovered.id("run.discovered");
             discovered.note("The bench answered on one stream.");
             context
                 .add_document_parts(
@@ -342,12 +342,12 @@ impl ExecutionFixture for DocumentAddingExecutor {
                 .unwrap();
             // The same id a second time changes nothing, so a re-delivered
             // drain page cannot duplicate what the host already merged.
+            let mut replaced = dokime_app::document::DocumentSection::new("Replaced");
+            replaced.id("run.discovered");
             context
                 .add_document_parts(
                     execution_scope,
-                    vec![dokime::document::DocumentAddition::section(
-                        dokime_app::document::DocumentSection::new("run.discovered", "Replaced"),
-                    )],
+                    vec![dokime::document::DocumentAddition::section(replaced)],
                 )
                 .await
                 .unwrap();

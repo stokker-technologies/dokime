@@ -438,10 +438,7 @@ fn steady_current() -> PlotDefinition {
 }
 
 fn steady_document() -> Document {
-    let mut execution = Section::new(
-        "mini.charger.steady.measurement.execution.signals",
-        "AC Voltage",
-    );
+    let mut execution = Section::new("AC Voltage");
     execution.plot(steady_voltage(
         "mini.charger.steady.measurement.execution.signals",
     ));
@@ -450,7 +447,7 @@ fn steady_document() -> Document {
     let mut document = Document::new("default", "Charging Input Measurement");
     document.section(execution);
 
-    let mut charging = Section::new("mini.charger.steady.charging", "Battery Charging");
+    let mut charging = Section::new("Battery Charging");
     for (column, label, unit) in [
         (
             InputMeasurement::column_dc_voltage_v(),

@@ -483,7 +483,7 @@ pub(crate) async fn current_fact_frontiers() {
     ));
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
-    let mut section = dokime_app::document::DocumentSection::new("capture", "Captured Records");
+    let mut section = dokime_app::document::DocumentSection::new("Captured Records");
     section.card(DocumentCard::telemetry_summary(summary));
     let mut document = dokime_app::document::DocumentDefinition::new("default", "Capture");
     document.section(section);
@@ -631,7 +631,7 @@ pub(crate) async fn document_routes_samples() {
     ));
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
-    let mut section = dokime_app::document::DocumentSection::new("capture", "Captured Evidence");
+    let mut section = dokime_app::document::DocumentSection::new("Captured Evidence");
     section.card(DocumentCard::telemetry_summary(summary));
     let mut document = dokime_app::document::DocumentDefinition::new("default", "Capture");
     document.section(section);
@@ -805,8 +805,7 @@ fn card_kinds(document: &dokime_app::document::DocumentPayload) -> Vec<&str> {
 
 fn suite_with_authored_document() -> TestSuite {
     let mut suite = custom_suite();
-    let mut signals =
-        dokime_app::document::DocumentSection::new("custom.signals", "Custom Signals");
+    let mut signals = dokime_app::document::DocumentSection::new("Custom Signals");
     signals.card(dokime_app::document::DocumentCard {
         metadata: metadata("custom.signals.text", "Custom Signals"),
         layout: Default::default(),
@@ -830,7 +829,7 @@ pub(crate) async fn saved_report_evidence() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let mut suite = custom_suite();
     let mut document = DocumentDefinition::new("default", "Analysis");
-    let mut section = DocumentSection::new("analysis.samples", "Samples");
+    let mut section = DocumentSection::new("Samples");
     let mut plot = PlotDefinition::with_type("Mean Distance", PlotType::TimeSeries);
     plot.id("analysis.mean-distance");
     plot.stream = Some("tracking".into());

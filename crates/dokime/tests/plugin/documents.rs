@@ -98,7 +98,8 @@ impl Probe {
         voltage.unit("V");
         voltage.y(SampleRow::column_voltage_v());
 
-        let mut declared = Section::new("documents.checks.declared", "Declared");
+        let mut declared = Section::new("Declared");
+        declared.id("documents.checks.declared");
         declared.plot(voltage);
 
         let mut document = Document::new("default", "Probe");
@@ -121,15 +122,17 @@ impl Probe {
         description = "Says what it found, as the document a reader opens rather than as a log line a card would have to reassemble."
     )]
     async fn report(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
-        let mut discovered = Section::new("documents.checks.discovered", "Discovered");
+        let mut discovered = Section::new("Discovered");
+        discovered.id("documents.checks.discovered");
         discovered.note("The bench answered on one stream.");
         ctx.document().section(discovered);
         ctx.document()
             .note("documents.checks.declared", "Measured once.");
 
         if ctx.parameters().repeat {
-            ctx.document()
-                .section(Section::new("documents.checks.declared", "Replaced"));
+            let mut replaced = Section::new("Replaced");
+            replaced.id("documents.checks.declared");
+            ctx.document().section(replaced);
         }
 
         ctx.resources().reported.store(true, Ordering::Release);
@@ -155,10 +158,9 @@ impl Probe {
             return Ok(());
         }
 
-        ctx.document().section(Section::new(
-            "documents.checks.discovered",
-            "From The Observer",
-        ));
+        let mut observed = Section::new("From The Observer");
+        observed.id("documents.checks.discovered");
+        ctx.document().section(observed);
         ctx.resources().observed.store(true, Ordering::Release);
         ctx.publish(SampleRow { voltage_v: 1.0 }).await;
 
