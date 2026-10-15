@@ -8,9 +8,10 @@
  */
 
 // File watches over a running execution: a local tree that grows, rotates and
-// gains files, and an in-process FTP server.
+// gains files, and an in-process FTP server; and live follows of native outputs.
 
 /* === Modules === */
+pub(crate) mod follow;
 pub(crate) mod ftp;
 pub(crate) mod watch;
 

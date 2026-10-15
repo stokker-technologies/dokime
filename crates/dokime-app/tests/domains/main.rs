@@ -1184,6 +1184,15 @@ fn files_contract() {
         eprintln!("Scenario: files::ftp::stream_ftp_source");
         run_scenario(files::ftp::stream_ftp_source, true, None, false);
     }
+    {
+        eprintln!("Scenario: files::follow::follow_terminal_interleavings");
+        run_scenario(
+            files::follow::follow_terminal_interleavings,
+            true,
+            None,
+            false,
+        );
+    }
 }
 
 #[test]
