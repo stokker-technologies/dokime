@@ -31,7 +31,7 @@ use crate::prompts::{PromptRequest, PromptResponse};
 use crate::records::RecordPublishRequest;
 use crate::telemetry::{LeaseGap, LeaseRequest, SampleSink, TelemetrySample};
 use crate::transport::ArtifactChunk;
-use crate::transport::{ExecutionTransport, TransportFuture};
+use crate::transport::{ExecutionTransport, Journal, TransportFuture};
 
 /* === Constants === */
 const ARTIFACT_BACKPRESSURE_POLL_INTERVAL: Duration = Duration::from_millis(250);
@@ -84,6 +84,11 @@ struct Buffered {
 }
 
 pub(crate) struct FrameRecordSource {
+    executions: Executions,
+    token: String,
+}
+
+pub(crate) struct FrameJournal {
     executions: Executions,
     token: String,
 }
@@ -479,6 +484,13 @@ impl ExecutionTransport for FrameTransport {
         self.push(BufferedFrame::log(level, message));
     }
 
+    fn journal(&self) -> Arc<dyn Journal> {
+        Arc::new(FrameJournal {
+            executions: Arc::clone(&self.executions),
+            token: self.token.clone(),
+        })
+    }
+
     fn traceability(&mut self, sections: Vec<crate::traceability::TraceabilitySection>) {
         for section in sections {
             match serde_json::to_string(&section) {
@@ -552,6 +564,23 @@ impl ExecutionTransport for FrameTransport {
                 crate::execution::log::Level::Error,
                 format!("a document addition could not be encoded: {error}"),
             )),
+        }
+    }
+}
+
+impl Journal for FrameJournal {
+    fn log(&self, level: crate::execution::log::Level, message: String) {
+        if let Some(state) = lock(&self.executions).get_mut(&self.token) {
+            state.push(BufferedFrame::log(level, message));
+        }
+    }
+
+    fn record(&self, mut record: RecordPublishRequest) {
+        record
+            .timestamp
+            .get_or_insert_with(crate::core::Timestamp::now_utc);
+        if let Some(state) = lock(&self.executions).get_mut(&self.token) {
+            state.publish_record(record);
         }
     }
 }

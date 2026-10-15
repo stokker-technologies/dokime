@@ -26,6 +26,7 @@ pub mod observation;
 pub mod planning;
 pub mod plots;
 pub mod plugins;
+pub mod process;
 pub mod prompts;
 pub mod query;
 pub mod reports;

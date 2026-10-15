@@ -239,6 +239,16 @@ async fn execute<T: SidecarTemplate>(
     let document = Arc::new(std::sync::Mutex::new(super::document::DocumentIndex::new(
         declaration.document.clone(),
     )));
+    // Who this run is, for the processes its steps start.
+    let identity = lock(&executions)
+        .get(&token)
+        .map(|state| super::ExecutionIdentity {
+            execution_id: state.request.test_execution_id.clone(),
+            cycle_id: state.request.test_cycle_id.clone(),
+            template_id: state.request.template_identifier.clone(),
+            plugin_id: source.clone(),
+        })
+        .unwrap_or_default();
     let environment = Environment::new(
         typed.as_ref(),
         parameters.as_ref(),
@@ -247,6 +257,7 @@ async fn execute<T: SidecarTemplate>(
         streams.clone(),
         deliveries.clone(),
     )
+    .identified(identity)
     .calling(caller.clone())
     .declaring(Arc::clone(&document))
     .with_callbacks(callbacks);
@@ -641,6 +652,11 @@ async fn walk<T: SidecarTemplate>(
             };
         }
         evidence.record_step(step.clone());
+        environment.handles().begin(super::StepIdentity {
+            step: step.to_string(),
+            step_id: declared.step_id.to_string(),
+            attempt: attempt_id.to_string(),
+        });
         let mut ctx = environment
             .step(transport)
             .calling_stage(format!("step/{}", declared.step_id));
@@ -655,6 +671,12 @@ async fn walk<T: SidecarTemplate>(
                 result = work => Some(result),
             }
         };
+        // What the step left running is cancelled before its attempt ends,
+        // so a process's exit and a watch's last rows still belong to it.
+        drop(ctx);
+        for warning in environment.handles().sweep().await {
+            transport.emit(crate::records::DeclaredRecord::request(warning));
+        }
         // The step's buffered rows reach the host before its attempt ends,
         // whichever way it ended, and a refused flush fails the step.
         environment.streams().flush().await;

@@ -12,7 +12,9 @@
 // `<output>/<relative path>`, so length and SHA-256 come from the artifact
 // path. The caller drives the watch: `poll` once per interval, `seal` at the
 // end. Closing the execution asks the watch to seal, and dropping an unsealed
-// watch seals it in the background.
+// watch seals it in the background. A watch with line matchers offers each
+// line the Stream policy captures to them, publishing rows to the matched
+// streams and markers as records in the watched execution's scope.
 
 /* === Modules === */
 
@@ -21,9 +23,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, time::Duration};
+use std::{collections::BTreeMap, io::Read, time::Duration};
 
 // Third Party Imports
+use std::io::Seek;
 use tempfile::TempPath;
 use tokio::{io::AsyncSeekExt, sync::oneshot};
 
@@ -34,13 +37,18 @@ use crate::execution_runtime::outputs::media_type_for_path;
 use crate::runtime::storage::captures::SealRequest;
 use crate::{Error, Result, RuntimeHandle};
 use dokime::artifacts::ArtifactRecord;
-use dokime::core::{RecordScope, TestExecutionId};
+use dokime::core::{Identifier, RecordScope, TestExecutionId, Timestamp};
+use dokime::records::{RecordPublishRequest, RecordSeverity};
+use dokime::telemetry::{TelemetryBatch, TelemetrySample};
 use dokime_contract::artifacts::name;
-use dokime_contract::operations::files::FileMatcher;
+use dokime_contract::operations::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
 
 /* === Constants === */
 // Consecutive failed passes after which an unreachable source ends the watch.
 const FAILED_PASSES: u32 = 10;
+
+// The producer named on the rows and records line matchers publish.
+const SOURCE: &str = "dokime.files";
 
 /* === Macros === */
 
@@ -57,8 +65,11 @@ struct State {
     scope: RecordScope,
     execution: TestExecutionId,
     output: String,
+    artifact: Option<String>,
     policy: Policy,
     matcher: FileMatcher,
+    lines: LineMatchers,
+    sequences: BTreeMap<String, u64>,
     source: Source,
     poll_interval: Duration,
     deadline: Option<Duration>,
@@ -90,6 +101,8 @@ struct Tracked {
     // Mirror policy, or a Stream file whose source cannot resume.
     mirrored: bool,
     synced: bool,
+    // A captured line not yet ended, for the line matchers.
+    pending: LineBuffer,
     // The spool holds a whole copy or a captured prefix worth sealing; a
     // mirrored file never fetched holds nothing.
     sealable: bool,
@@ -145,8 +158,11 @@ impl FileWatch {
                 scope: settings.scope,
                 execution,
                 output: settings.output,
+                artifact: settings.artifact,
                 policy: settings.policy,
                 matcher: settings.matcher,
+                lines: settings.lines,
+                sequences: BTreeMap::new(),
                 source,
                 poll_interval: settings.poll_interval,
                 deadline: settings.deadline,
@@ -398,6 +414,11 @@ impl State {
         baseline: u64,
         events: &mut Vec<WatchEvent>,
     ) -> Result<()> {
+        if self.artifact.is_some() && self.files >= 1 {
+            return Err(capped(format!(
+                "a watch into one named artifact tracks one file; {path:?} would be a second"
+            )));
+        }
         if self.files >= self.maximum_files {
             return Err(capped(format!(
                 "the watch tracks at most {} files; {path:?} would exceed it",
@@ -420,6 +441,7 @@ impl State {
                 entry,
                 mirrored: self.policy == Policy::Mirror,
                 synced: false,
+                pending: LineBuffer::default(),
                 sealable: self.policy == Policy::Stream,
             },
         );
@@ -448,6 +470,7 @@ impl State {
         // A Truncated Source Restarts At Its First Byte
         if entry.size < tracked.offset {
             tracked.offset = 0;
+            tracked.pending.reset();
             events.push(WatchEvent::Gap {
                 path: path.to_owned(),
                 offset: tracked.written,
@@ -474,13 +497,22 @@ impl State {
                 tracked.offset += copied;
                 tracked.written += copied;
                 self.captured += copied;
-                if copied > 0 {
-                    events.push(WatchEvent::Progress {
-                        path: path.to_owned(),
-                        offset: tracked.written,
-                        phase: Phase::Capturing,
-                    });
+                if copied == 0 {
+                    return Ok(());
                 }
+                events.push(WatchEvent::Progress {
+                    path: path.to_owned(),
+                    offset: tracked.written,
+                    phase: Phase::Capturing,
+                });
+                drop(spool);
+                if self.lines.is_empty() {
+                    return Ok(());
+                }
+                // The Captured Bytes Are Read Back From The Spool As Lines
+                let captured = read_back(&tracked.spool, tracked.written - copied, copied)?;
+                let lines = tracked.pending.push(&captured);
+                self.offer(lines).await;
                 Ok(())
             }
             // A Source That Cannot Resume Mirrors This File From Now On
@@ -567,9 +599,12 @@ impl State {
 
     // Uploads one spool as the artifact `<output>/<path>` and stops tracking it.
     async fn seal_file(&mut self, path: &str, events: &mut Vec<WatchEvent>) -> Result<()> {
-        let Some(tracked) = self.tracked.remove(path) else {
+        let Some(mut tracked) = self.tracked.remove(path) else {
             return Ok(());
         };
+        if let Some(last) = tracked.pending.finish() {
+            self.offer(vec![last]).await;
+        }
         if !tracked.sealable {
             tracing::warn!(%path, "file watch never copied this file; nothing is sealed");
             return Ok(());
@@ -595,7 +630,70 @@ impl State {
     }
 
     fn artifact_name(&self, path: &str) -> String {
-        format!("{}/{path}", self.output)
+        match &self.artifact {
+            Some(artifact) => artifact.clone(),
+            None => format!("{}/{path}", self.output),
+        }
+    }
+
+    // Publishes what the line matchers find in these lines: rows to their
+    // streams, markers as records, both in the watched execution's scope. A
+    // refused publication is logged; it never ends the capture.
+    async fn offer(&mut self, lines: Vec<String>) {
+        let mut rows = BTreeMap::<String, Vec<TelemetrySample>>::new();
+        let mut records = Vec::new();
+        let now = Timestamp::now_utc();
+        for line in lines {
+            for found in self.lines.matches(&line) {
+                match found {
+                    LineMatch::Row { stream, values } => {
+                        let Ok(identifier) = Identifier::new(&stream) else {
+                            continue;
+                        };
+                        let sequence = self.sequences.entry(stream.clone()).or_default();
+                        let mut sample =
+                            TelemetrySample::new(identifier, *sequence, now.clone(), SOURCE);
+                        *sequence += 1;
+                        sample.scope = Some(self.scope.clone());
+                        sample.values.extend(values);
+                        rows.entry(stream).or_default().push(sample);
+                    }
+                    LineMatch::Marker {
+                        record_type,
+                        details,
+                        line,
+                    } => {
+                        let Ok(record_type) = Identifier::new(&record_type) else {
+                            continue;
+                        };
+                        let mut record =
+                            RecordPublishRequest::new(record_type, RecordSeverity::Info);
+                        record.message = Some(line);
+                        record.details = details;
+                        record.scope = Some(self.scope.clone());
+                        records.push(record);
+                    }
+                }
+            }
+        }
+        for (stream, samples) in rows {
+            let Ok(identifier) = Identifier::new(&stream) else {
+                continue;
+            };
+            if let Err(error) = self
+                .runtime
+                .publish_telemetry_batch(TelemetryBatch::new(identifier, samples))
+                .await
+            {
+                tracing::warn!(%error, %stream, "file watch rows were refused");
+            }
+        }
+        for record in records {
+            let record_type = record.record_type.clone();
+            if let Err(error) = self.runtime.publish_record(record).await {
+                tracing::warn!(%error, %record_type, "file watch marker was refused");
+            }
+        }
     }
 }
 
@@ -606,6 +704,16 @@ fn over_bytes(maximum: u64, path: &str) -> Error {
     capped(format!(
         "the watch captures at most {maximum} bytes; {path:?} would exceed it"
     ))
+}
+
+// The `length` bytes a capture appended at `from`.
+fn read_back(spool: &TempPath, from: u64, length: u64) -> Result<Vec<u8>> {
+    let failed = |source: std::io::Error| Error::Operation(format!("file watch spool: {source}"));
+    let mut file = std::fs::File::open(spool).map_err(failed)?;
+    file.seek(std::io::SeekFrom::Start(from)).map_err(failed)?;
+    let mut bytes = Vec::new();
+    file.take(length).read_to_end(&mut bytes).map_err(failed)?;
+    Ok(bytes)
 }
 
 // Opens a spool for appending at `length`, or empty when `truncate` is set.

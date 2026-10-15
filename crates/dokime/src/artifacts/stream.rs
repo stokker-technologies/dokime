@@ -98,6 +98,12 @@ impl Artifacts {
         Ok(self.locked().directory(name.as_ref())?)
     }
 
+    // The execution's artifact folder itself: every file written anywhere in
+    // it is filed as an artifact named by its path relative to it.
+    pub fn root(&self) -> crate::Result<PathBuf> {
+        Ok(self.locked().root()?)
+    }
+
     pub(crate) fn scan(&self) -> Vec<String> {
         self.locked().scan()
     }

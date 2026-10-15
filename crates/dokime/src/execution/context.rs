@@ -217,7 +217,16 @@ impl<C, O, I, S> Context<'_, C, O, I, S> {
     // The host surface for this stage: `call` and `submit` take the
     // declaration as the request, `call_as` and `submit_as` name it.
     pub fn host(&self) -> super::StepHost {
-        self.environment.caller().step_host(&self.call_stage)
+        let binding = super::builtins::Binding {
+            artifacts: self.environment.artifacts().clone(),
+            streams: self.environment.streams().clone(),
+            journal: self.transport.journal(),
+            identity: self.environment.identity(),
+            handles: self.environment.handles().clone(),
+        };
+        self.environment
+            .caller()
+            .step_host(&self.call_stage, binding)
     }
 }
 

@@ -59,6 +59,14 @@ pub type TransportFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /* === Enums === */
 
 /* === Traits === */
+// An owned handle on the execution's log and records, for work that outlives
+// the borrow of its stage: a process's output, a watch's markers.
+pub trait Journal: Send + Sync {
+    fn log(&self, level: crate::execution::log::Level, message: String);
+
+    fn record(&self, record: RecordPublishRequest);
+}
+
 pub trait ExecutionTransport: Send + Sync {
     fn execution(&self) -> &str;
 
@@ -79,6 +87,8 @@ pub trait ExecutionTransport: Send + Sync {
     fn emit(&mut self, record: RecordPublishRequest);
 
     fn log(&self, level: crate::execution::log::Level, message: String);
+
+    fn journal(&self) -> std::sync::Arc<dyn Journal>;
 
     fn traceability(&mut self, sections: Vec<crate::traceability::TraceabilitySection>);
 

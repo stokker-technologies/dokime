@@ -73,13 +73,17 @@ tempfile = { workspace = true, optional = true }
 
 # Async
 futures-util = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["process"], optional = true }
 tokio-stream = { workspace = true, features = ["sync"], optional = true }
 
 # Networking
 
 # Storage
 rusqlite = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+# Utilities
+libc = { workspace = true }
 
 [dev-dependencies]
 # Git

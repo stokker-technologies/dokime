@@ -25,8 +25,12 @@ use std::time::SystemTime;
 use super::*;
 use dokime::artifacts::ArtifactStatus;
 use dokime_app::Error;
+use dokime_app::domains::evidence::RecordSelection;
 use dokime_app::domains::files::{CAPPED, GapReason, INVALID, Phase, UNSUPPORTED, UNTRUSTED};
-use dokime_contract::operations::files::{FileWatchPolicy, FileWatchSourcePayload, FtpWatchSource};
+use dokime_contract::operations::files::{
+    FileWatchPolicy, FileWatchSourcePayload, FtpWatchSource, LineField, LineFieldKind, LineMarker,
+    LineMatcher, WatchFile, WatchFileRequest, WatchedArtifact,
+};
 
 /* === Constants === */
 
@@ -565,5 +569,126 @@ pub(crate) async fn execution_seals_watch() {
         .expect("the watch artifact belongs to the execution");
     assert_eq!(stored.status, ArtifactStatus::Complete);
 
+    bench.stop().await;
+}
+
+// The step's watch over one file, submitted as an operation: its matcher
+// publishes rows to the declared stream, its marker files a record, and its
+// artifact holds only what was written after the watch started.
+pub(crate) async fn watch_file_matchers() {
+    const APPENDED: &[u8] = b"elapsed=1.5 locked=true\nWARN W42\nelapsed=2.5 locked=false\n";
+    let bench = Bench::start(|config, _| config).await;
+    let tree = tempdir().unwrap();
+    let log = tree.path().join("device.log");
+    write(&log, b"elapsed=0.5 locked=false\n");
+    let request = WatchFileRequest {
+        execution_id: Some(bench.execution.clone()),
+        source: Some(FileWatchSource {
+            payload: Some(local(&log)),
+        }),
+        output: OUTPUT.to_owned(),
+        artifact: Some(format!("{OUTPUT}/device.log")),
+        policy: FileWatchPolicy::Stream,
+        poll_interval_ms: Some(50),
+        maximum_seconds: Some(2),
+        maximum_bytes: None,
+        matchers: vec![LineMatcher {
+            pattern: r"elapsed=(?P<elapsed_s>[\d.]+) locked=(?P<target_locked>\w+)".to_owned(),
+            stream: "tracking".to_owned(),
+            fields: vec![
+                LineField {
+                    name: "elapsed_s".to_owned(),
+                    kind: LineFieldKind::Number,
+                },
+                LineField {
+                    name: "target_locked".to_owned(),
+                    kind: LineFieldKind::Boolean,
+                },
+            ],
+        }],
+        markers: vec![LineMarker::new(
+            r"WARN (?P<warning_code>\w+)",
+            "tracking.fixture_warning",
+        )],
+    };
+    let watch = bench
+        .handle
+        .operations()
+        .submit_as::<WatchFile>(request)
+        .unwrap();
+
+    // Lines Written After The Start Are Captured And Matched
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    append(&log, APPENDED);
+    let outcome = watch.join().await.unwrap().into_owned();
+    assert_eq!(
+        outcome.artifacts,
+        vec![WatchedArtifact {
+            artifact: format!("{OUTPUT}/device.log"),
+            size_bytes: APPENDED.len() as u64,
+        }]
+    );
+    assert!(outcome.gaps.is_empty());
+
+    // Rows Reach The Declared Stream In The Execution's Scope
+    let execution = dokime::core::TestExecutionId::from_uuid(bench.execution.clone()).unwrap();
+    let rows = bench
+        .handle
+        .collect_telemetry(&TelemetrySelection {
+            streams: vec![identifier("tracking")],
+            scope: ScopeSelection {
+                test_execution_id: Some(execution.clone()),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await;
+    assert_eq!(
+        rows.iter()
+            .map(|row| (
+                row.values.get("elapsed_s").cloned(),
+                row.values.get("target_locked").cloned()
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (Some(Value::Number(1.5)), Some(Value::Bool(true))),
+            (Some(Value::Number(2.5)), Some(Value::Bool(false))),
+        ]
+    );
+
+    // The Marker Is Recorded
+    let markers = bench
+        .handle
+        .selected_records(RecordSelection {
+            record_types: vec![identifier("tracking.fixture_warning")],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(markers.len(), 1);
+    assert_eq!(
+        markers[0].record.details.get("warning_code"),
+        Some(&Value::Text("W42".to_owned()))
+    );
+    assert_eq!(markers[0].record.message.as_deref(), Some("WARN W42"));
+
+    // The Artifact Holds Only The Appended Bytes
+    let record = bench
+        .handle
+        .artifacts()
+        .await
+        .unwrap()
+        .iter()
+        .find(|record| record.filename == format!("{OUTPUT}/device.log"))
+        .cloned()
+        .expect("the watch sealed its artifact");
+    assert_artifact(&record, "device.log", APPENDED);
+    let content = bench
+        .handle
+        .read_artifact_content(&record.artifact_id, APPENDED.len())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(content.bytes, APPENDED);
     bench.stop().await;
 }

@@ -9,11 +9,14 @@
 
 // File watches: a local or FTP source polled during an execution, each matched
 // file spooled privately and sealed as one execution artifact through the
-// artifact upload path when the watch stops or the file vanishes.
+// artifact upload path when the watch stops or the file vanishes. The
+// `WatchFile` operation runs the same watch over one file for a step, with its
+// line matchers.
 
 /* === Modules === */
 mod ftp;
 mod local;
+mod operation;
 mod source;
 mod watch;
 
@@ -21,6 +24,7 @@ mod watch;
 pub use dokime_contract::operations::files::{
     FileWatchGapReason as GapReason, FileWatchPhase as Phase, FileWatchPolicy as Policy,
 };
+pub use operation::register;
 pub use watch::{FileWatch, WatchEvent};
 
 /* === Imports === */
@@ -34,7 +38,10 @@ use std::time::Duration;
 use crate::{Error, Result, RuntimeHandle};
 use dokime::core::{RecordScope, TestExecutionId};
 use dokime_contract::artifacts::name;
-use dokime_contract::operations::files::{FileMatcher, FileWatchRequest, FileWatchSourcePayload};
+use dokime_contract::operations::files::{
+    FileMatcher, FileRule, FileRuleAction, FileWatchRequest, FileWatchSource,
+    FileWatchSourcePayload, LineMatchers, WatchFileRequest,
+};
 use source::Source;
 
 /* === Constants === */
@@ -80,8 +87,10 @@ const SCAN_ENTRIES: usize = 100_000;
 struct Settings {
     scope: RecordScope,
     output: String,
+    artifact: Option<String>,
     policy: Policy,
     matcher: FileMatcher,
+    lines: LineMatchers,
     poll_interval: Duration,
     deadline: Option<Duration>,
     maximum_files: usize,
@@ -102,11 +111,54 @@ impl RuntimeHandle {
         context_execution: Option<&str>,
     ) -> Result<FileWatch> {
         let settings = self.watch_settings(request, context_execution)?;
-        let source = match request
-            .source
-            .as_ref()
-            .and_then(|source| source.payload.as_ref())
+        let source = self.watch_source(request.source.as_ref()).await?;
+        FileWatch::open(self.clone(), settings, source).await
+    }
+
+    // Opens a watch over the one file the request's source names: its parent
+    // is the root and its name the only rule.
+    pub async fn open_watch_file(
+        &self,
+        request: &WatchFileRequest,
+        context_execution: Option<&str>,
+    ) -> Result<FileWatch> {
+        let (source, file) = single_file(request.source.as_ref())?;
+        if let Some(artifact) = &request.artifact
+            && !name::is_relative_path(artifact)
         {
+            return Err(invalid(
+                "the artifact must be a relative path with forward slashes",
+            ));
+        }
+        let mut settings = self.watch_settings(
+            &FileWatchRequest {
+                execution_id: request.execution_id.clone(),
+                source: None,
+                rules: vec![FileRule {
+                    glob: literal(&file),
+                    action: FileRuleAction::Include,
+                }],
+                output: request.output.clone(),
+                policy: request.policy,
+                poll_interval_ms: request.poll_interval_ms,
+                maximum_seconds: request.maximum_seconds,
+                maximum_files: Some(1),
+                maximum_bytes: request.maximum_bytes,
+            },
+            context_execution,
+        )?;
+        settings.artifact = request.artifact.clone();
+        settings.lines = LineMatchers::compile(&request.matchers, &request.markers)
+            .map_err(|source| invalid(source.to_string()))?;
+        if !settings.lines.is_empty() && settings.policy != Policy::Stream {
+            return Err(invalid("line matchers and markers need the Stream policy"));
+        }
+        let source = self.watch_source(Some(&source)).await?;
+        FileWatch::open(self.clone(), settings, source).await
+    }
+
+    async fn watch_source(&self, source: Option<&FileWatchSource>) -> Result<Source> {
+        Ok(match source.and_then(|source| source.payload.as_ref()) {
             Some(FileWatchSourcePayload::Local(local)) => Source::local(&local.root).await?,
             Some(FileWatchSourcePayload::Ftp(ftp)) => {
                 let password = match &ftp.credential_id {
@@ -116,8 +168,7 @@ impl RuntimeHandle {
                 Source::ftp(&ftp.url, password, self.config().trusted_bench).await?
             }
             None => return Err(invalid("a file watch needs a local or FTP source")),
-        };
-        FileWatch::open(self.clone(), settings, source).await
+        })
     }
 
     fn watch_settings(
@@ -155,7 +206,7 @@ impl RuntimeHandle {
         };
 
         // Validate The Output, Rules, Policy And Caps
-        if !name::is_relative_path(&request.output) {
+        if !request.output.is_empty() && !name::is_relative_path(&request.output) {
             return Err(invalid(
                 "the output folder must be a relative path with forward slashes",
             ));
@@ -196,8 +247,10 @@ impl RuntimeHandle {
         Ok(Settings {
             scope,
             output: request.output.clone(),
+            artifact: None,
             policy: request.policy,
             matcher,
+            lines: LineMatchers::default(),
             poll_interval,
             deadline,
             maximum_files,
@@ -230,6 +283,72 @@ impl RuntimeHandle {
 /* === Private Functions === */
 fn invalid(message: impl Into<String>) -> Error {
     Error::validation(INVALID, message, Vec::new())
+}
+
+// Splits a source naming one file into the source over its parent and the
+// file's name.
+fn single_file(source: Option<&FileWatchSource>) -> Result<(FileWatchSource, String)> {
+    let split = |path: &str| {
+        let trimmed = path.trim_end_matches('/');
+        trimmed
+            .rsplit_once('/')
+            .filter(|(_, file)| !file.is_empty())
+            .map(|(parent, file)| {
+                (
+                    if parent.is_empty() { "/" } else { parent }.to_owned(),
+                    file.to_owned(),
+                )
+            })
+    };
+    match source.and_then(|source| source.payload.as_ref()) {
+        Some(FileWatchSourcePayload::Local(local)) => {
+            let path = std::path::Path::new(&local.root);
+            let file = path
+                .file_name()
+                .and_then(|file| file.to_str())
+                .ok_or_else(|| invalid("the local source must name a file"))?;
+            let parent = path
+                .parent()
+                .and_then(|parent| parent.to_str())
+                .ok_or_else(|| invalid("the local source must name a file"))?;
+            Ok((
+                FileWatchSource {
+                    payload: Some(FileWatchSourcePayload::Local(
+                        dokime_contract::operations::files::LocalWatchSource {
+                            root: parent.to_owned(),
+                        },
+                    )),
+                },
+                file.to_owned(),
+            ))
+        }
+        Some(FileWatchSourcePayload::Ftp(ftp)) => {
+            let (parent, file) =
+                split(&ftp.url).ok_or_else(|| invalid("the FTP source must name a file"))?;
+            Ok((
+                FileWatchSource {
+                    payload: Some(FileWatchSourcePayload::Ftp(
+                        dokime_contract::operations::files::FtpWatchSource {
+                            url: parent,
+                            credential_id: ftp.credential_id.clone(),
+                        },
+                    )),
+                },
+                file,
+            ))
+        }
+        None => Err(invalid("a file watch needs a local or FTP source")),
+    }
+}
+
+// A glob matching exactly this name: every metacharacter in its own class.
+fn literal(name: &str) -> String {
+    name.chars()
+        .map(|character| match character {
+            '*' | '?' | '[' | ']' | '{' | '}' => format!("[{character}]"),
+            other => other.to_string(),
+        })
+        .collect()
 }
 
 fn capped(message: impl Into<String>) -> Error {

@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub(crate) mod steps;
 pub(crate) mod workflow;
 
 /* === Re-Exports === */
@@ -244,6 +245,24 @@ fn domain_contract() {
             None,
             false,
         );
+    }
+}
+
+#[test]
+fn step_builtins_contract() {
+    #[cfg(unix)]
+    {
+        eprintln!("Scenario: steps::process_output_artifact");
+        run_scenario(steps::process_output_artifact, true, Some(2), false);
+    }
+    #[cfg(unix)]
+    {
+        eprintln!("Scenario: steps::process_cancel_exit");
+        run_scenario(steps::process_cancel_exit, true, Some(2), false);
+    }
+    {
+        eprintln!("Scenario: steps::swept_watch_warning");
+        run_scenario(steps::swept_watch_warning, true, Some(2), false);
     }
 }
 

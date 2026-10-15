@@ -191,6 +191,9 @@ import { Row1Schema as filesFileWatchRequest } from "../../../../.generated/doki
 import { Row3Schema as filesFileWatchResponse } from "../../../../.generated/dokime/v1/FilesMessages/FileWatch/messages_pb.js";
 import { FilesFileWatchOutputSchema as filesFileWatchEnvelope } from "../../../../.generated/dokime/v1/Files_pb.js";
 export const filesFileWatch = (session: SessionIdentity, request: Parameters<typeof openStream<typeof filesFileWatchRequest, typeof filesFileWatchResponse>>[4]) => openStream("/dokime.v1.Files/FileWatch", filesFileWatchRequest, filesFileWatchResponse, session, request, filesFileWatchEnvelope, 86400000);
+import { Row1Schema as filesWatchFileRequest } from "../../../../.generated/dokime/v1/FilesMessages/WatchFile/messages_pb.js";
+import { Row2Schema as filesWatchFileResponse } from "../../../../.generated/dokime/v1/FilesMessages/WatchFile/messages_pb.js";
+export const filesWatchFile = (session: SessionIdentity, request: Parameters<typeof unary<typeof filesWatchFileRequest, typeof filesWatchFileResponse>>[4]) => unary("/dokime.v1.Files/WatchFile", filesWatchFileRequest, filesWatchFileResponse, session, request, 86400000);
 import { Row1Schema as healthListHealthRequest } from "../../../../.generated/dokime/v1/HealthMessages/ListHealth/messages_pb.js";
 import { Row2Schema as healthListHealthResponse } from "../../../../.generated/dokime/v1/HealthMessages/ListHealth/messages_pb.js";
 export const healthListHealth = (session: SessionIdentity, request: Parameters<typeof unary<typeof healthListHealthRequest, typeof healthListHealthResponse>>[4]) => unary("/dokime.v1.Health/ListHealth", healthListHealthRequest, healthListHealthResponse, session, request, 10000);

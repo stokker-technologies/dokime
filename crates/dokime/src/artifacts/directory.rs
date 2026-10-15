@@ -30,6 +30,9 @@ const GROWTH_FLOOR: u64 = 64 * 1024;
 
 const ARTIFACTS: &str = "artifacts";
 
+// The registration name of the whole artifacts folder.
+const ROOT: &str = "";
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -87,6 +90,20 @@ impl Directories {
         Ok(path)
     }
 
+    // The whole artifacts folder, registered under no prefix: a file anywhere
+    // in it is filed under its path relative to it. Every named directory
+    // lies inside it, so once it is registered only it is walked.
+    pub(super) fn root(&mut self) -> io::Result<PathBuf> {
+        if let Some(path) = self.registered.get(ROOT) {
+            return Ok(path.clone());
+        }
+        let path = self.area.join(ARTIFACTS);
+        std::fs::create_dir_all(&path)?;
+        self.registered.insert(ROOT.to_owned(), path.clone());
+
+        Ok(path)
+    }
+
     pub(super) fn scan(&mut self) -> Vec<String> {
         self.walk(false)
     }
@@ -110,7 +127,11 @@ impl Directories {
     fn walk(&mut self, sweeping: bool) -> Vec<String> {
         let mut notes = Vec::new();
         let registered = std::mem::take(&mut self.registered);
-        for (name, root) in &registered {
+        let walked = match registered.get_key_value(ROOT) {
+            Some(root) => vec![root],
+            None => registered.iter().collect(),
+        };
+        for (name, root) in walked {
             for (artifact, path) in files(name, root, &mut notes) {
                 self.file(artifact, &path, sweeping, &mut notes);
             }
@@ -289,7 +310,11 @@ fn files(name: &str, root: &Path, notes: &mut Vec<String>) -> Vec<(String, PathB
                 ));
                 continue;
             };
-            let artifact = format!("{prefix}/{segment}");
+            let artifact = if prefix.is_empty() {
+                segment
+            } else {
+                format!("{prefix}/{segment}")
+            };
             if kind.is_dir() {
                 children.push((artifact, entry.path()));
             } else if kind.is_file() {

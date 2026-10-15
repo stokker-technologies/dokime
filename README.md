@@ -466,6 +466,43 @@ adds an automated load ladder and verifies that an overcurrent fault disconnects
 the supply and prevents restart. A real charger integration can extend these
 procedures with regulation, efficiency, and thermal criteria for its hardware.
 
+A step also reaches two built-in operations through `ctx.host()`, with nothing
+to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
+sends its output to the execution log or into an artifact, and records its exit.
+`WatchFile` captures a device log written during the step into an artifact and
+turns matching lines into rows and records. The
+[startup template](plugins/mini/src/suites/startup/sequence.rs) tails the
+simulated charger's log this way:
+
+```rust
+let watch = ctx
+    .host()
+    .submit_as::<WatchFile>(WatchFileRequest {
+        execution_id: None,
+        source: Some(FileWatchSource {
+            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+                root: self.log.to_string_lossy().into_owned(),
+            })),
+        }),
+        output: "charger".into(),
+        artifact: Some("charger/device.log".into()),
+        policy: FileWatchPolicy::Stream,
+        poll_interval_ms: Some(100),
+        maximum_seconds: Some(1),
+        maximum_bytes: None,
+        matchers: vec![LineMatcher::publishing::<ChargerLog>(
+            r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)",
+        )],
+        markers: Vec::new(),
+    })
+    .await?;
+// The charger logs its readings while the watch runs.
+let captured = watch.join().await?.into_owned();
+```
+
+Anything a step leaves running is cancelled when the step ends, with a warning
+record.
+
 ### Present The Result
 
 Compose plots from the same typed measurement fields used by the procedure.

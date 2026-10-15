@@ -1955,6 +1955,7 @@ dependencies = [
  "dokime-macros",
  "futures-util",
  "harmos",
+ "libc",
  "prost",
  "rusqlite",
  "serde",

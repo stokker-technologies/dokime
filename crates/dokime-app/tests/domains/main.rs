@@ -1251,6 +1251,10 @@ fn files_contract() {
         run_scenario(files::watch::execution_seals_watch, true, None, false);
     }
     {
+        eprintln!("Scenario: files::watch::watch_file_matchers");
+        run_scenario(files::watch::watch_file_matchers, true, None, false);
+    }
+    {
         eprintln!("Scenario: files::ftp::stream_ftp_source");
         run_scenario(files::ftp::stream_ftp_source, true, None, false);
     }

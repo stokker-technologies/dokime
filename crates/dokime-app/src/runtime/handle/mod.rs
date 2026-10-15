@@ -444,6 +444,8 @@ impl RuntimeHandle {
                     Error::Operation(format!("failed to establish node identity: {error}"))
                 })?;
 
+            // The step built-ins exist before any plugin that may require them.
+            crate::domains::files::register(&runtime)?;
             for plugin in installed_plugins.into_values() {
                 if runtime.state_read().host_plugin_current(&plugin) {
                     continue;

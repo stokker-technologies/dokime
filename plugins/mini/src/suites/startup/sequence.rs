@@ -24,7 +24,12 @@ use crate::{error::Error, prompts::checkpoint};
 use dokime::core::TemplateId;
 use dokime::document::{self, PlotDefinition, PlotStyle};
 use dokime::expressions::telemetry;
+use dokime::harmos::operations::Host;
 use dokime::host::ToolConnectionAcquired;
+use dokime::operations::files::{
+    FileWatchPolicy, FileWatchSource, FileWatchSourcePayload, LineMatcher, LocalWatchSource,
+    WatchFile, WatchFileRequest,
+};
 use dokime::prelude::*;
 use mini_runtime::device::{Device, Power};
 
@@ -47,9 +52,25 @@ const STARTUP_STREAM: &str = "mini.charger.startup.samples";
 , description = "Measured AC voltage, current, and supply timing.")]
 pub struct Samples;
 
+// Read from the charger's own log file, not measured: a matcher turns each
+// status line into one row.
+#[dokime::stream(
+    id = "mini.charger.startup.log",
+    window = 256,
+    label = "Charger Log",
+    description = "Input power the charger reported in its log file."
+)]
+pub struct ChargerLog {
+    #[row(unit = "s")]
+    pub elapsed_s: f64,
+    #[row(unit = "W")]
+    pub input_power_w: f64,
+}
+
 pub struct Startup {
     produced: u64,
     device: Device,
+    log: PathBuf,
     accepted: bool,
     prompt_action: String,
     operator_note: String,
@@ -139,6 +160,7 @@ pub enum Records {
 #[dokime::catalog]
 pub enum Streams {
     Samples(Samples),
+    ChargerLog(ChargerLog),
 }
 
 /* === Traits === */
@@ -174,9 +196,13 @@ impl Startup {
         {
             return Err(Error::Device(mini_runtime::Error::Stopped));
         }
+        let mut device = Device::initialize(inputs.supply()).map_err(Error::Device)?;
+        let log = charger_log();
+        device.logging(&log);
         Ok(Self {
             produced: 0,
-            device: Device::initialize(inputs.supply()).map_err(Error::Device)?,
+            device,
+            log,
             accepted: false,
             prompt_action: String::new(),
             operator_note: String::new(),
@@ -231,6 +257,50 @@ impl Startup {
             ctx.parameters().duration_s
         ));
         ctx.publish(Started {}).await;
+        Ok(())
+    }
+
+    #[dokime::step(
+        label = "Tail the Charger Log",
+        description = "Watches the charger's log file while it reports its first readings.\nThe watch is the host's `WatchFile` operation: it captures only what the charger writes after the watch starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. Bounded, it settles on its own once the readings are in."
+    )]
+    async fn tail(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
+        let watch = ctx
+            .host()
+            .submit_as::<WatchFile>(WatchFileRequest {
+                execution_id: None,
+                source: Some(FileWatchSource {
+                    payload: Some(FileWatchSourcePayload::Local(LocalWatchSource {
+                        root: self.log.to_string_lossy().into_owned(),
+                    })),
+                }),
+                output: "charger".into(),
+                artifact: Some("charger/device.log".into()),
+                policy: FileWatchPolicy::Stream,
+                poll_interval_ms: Some(100),
+                maximum_seconds: Some(1),
+                maximum_bytes: None,
+                matchers: vec![LineMatcher::publishing::<ChargerLog>(
+                    r"t=(?P<elapsed_s>[\d.]+) state=Running input_power_w=(?P<input_power_w>[\d.]+)",
+                )],
+                markers: Vec::new(),
+            })
+            .await?;
+        // The charger logs its readings while the watch runs.
+        let interval_s = ctx.parameters().sample_interval_s;
+        for index in 0..5 {
+            self.device.sample(f64::from(index) * interval_s);
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let captured = watch.join().await?.into_owned();
+        ctx.info(format!(
+            "record=charger_log bytes={}",
+            captured
+                .artifacts
+                .iter()
+                .map(|artifact| artifact.size_bytes)
+                .sum::<u64>()
+        ));
         Ok(())
     }
 
@@ -354,6 +424,7 @@ impl Startup {
 
     async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> Result<(), Error> {
         self.device.stop();
+        let _ = std::fs::remove_file(&self.log);
         ctx.info("Charger resources released");
         Ok(())
     }
@@ -405,6 +476,16 @@ async fn publish_runtime_sample<T, O, I>(
     super::super::measurement::publish::<Samples, _, _, _>(ctx, index, reading, phase).await;
 
     Ok(())
+}
+
+// The charger's log lives outside the execution's artifact folder, where only
+// the watch's capture of it becomes evidence.
+fn charger_log() -> PathBuf {
+    let started = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    std::env::temp_dir().join(format!("mini-charger-{}-{started}.log", std::process::id()))
 }
 
 fn sample_range(start: u64, end: u64) -> Result<std::ops::Range<usize>, Error> {
