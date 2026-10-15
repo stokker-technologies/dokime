@@ -19,11 +19,11 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 // Third Party Imports
-use harmos::operations::{Context, Operation, Response};
+use harmos::operations::{Context, Operation, OperationManager, Response};
 
 // Local Imports
 use super::{FileWatch, WatchEvent};
@@ -41,8 +41,9 @@ const OWNER: &str = "dokime";
 /* === Type Aliases === */
 
 /* === Structs === */
+// Registered before any plugin attaches, bound to the runtime once it exists.
 pub struct Resources {
-    runtime: RuntimeHandle,
+    runtime: OnceLock<RuntimeHandle>,
 }
 
 struct WatchFile {
@@ -85,11 +86,10 @@ impl Operation for WatchFile {
             .ok()
             .flatten()
             .map(|scope| scope.execution);
-        let watch = self
-            .resources
-            .runtime
-            .open_watch_file(request, scoped.as_deref())
-            .await?;
+        let runtime = self.resources.runtime.get().ok_or_else(|| {
+            Error::unavailable(super::UNREACHABLE, "the runtime is still starting")
+        })?;
+        let watch = runtime.open_watch_file(request, scoped.as_deref()).await?;
         let watch = self.watch.insert(watch);
         let started = Instant::now();
 
@@ -150,18 +150,26 @@ impl Operation for WatchFile {
     }
 }
 
+impl Resources {
+    pub fn bind(&self, runtime: &RuntimeHandle) {
+        let _ = self.runtime.set(runtime.clone());
+    }
+}
+
 /* === Public Functions === */
-// Registers the step built-ins: the Harmos instance controls and `WatchFile`.
-pub fn register(runtime: &RuntimeHandle) -> crate::Result<()> {
-    harmos::builtin::Catalog::register(runtime.operations(), OWNER, crate::app::Lanes::Open)?;
-    runtime.operations().register_wire_operation::<WatchFile>(
+// Registers the step built-ins, the Harmos instance controls and `WatchFile`,
+// before any plugin that requires them attaches.
+pub fn register(operations: &OperationManager) -> harmos::Result<Arc<Resources>> {
+    harmos::builtin::Catalog::register(operations, OWNER, crate::app::Lanes::Open)?;
+    let resources = Arc::new(Resources {
+        runtime: OnceLock::new(),
+    });
+    operations.register_wire_operation::<WatchFile>(
         OWNER,
         crate::app::Lanes::Open,
-        Arc::new(Resources {
-            runtime: runtime.clone(),
-        }),
+        Arc::clone(&resources),
     )?;
-    Ok(())
+    Ok(resources)
 }
 
 /* === Private Functions === */

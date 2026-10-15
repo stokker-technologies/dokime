@@ -496,7 +496,7 @@ let watch = ctx
         markers: Vec::new(),
     })
     .await?;
-// The charger logs its readings while the watch runs.
+// The watch takes its baseline first; the charger then logs its readings.
 let captured = watch.join().await?.into_owned();
 ```
 

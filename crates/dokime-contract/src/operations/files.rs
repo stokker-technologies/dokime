@@ -336,7 +336,6 @@ pub enum FileWatchFramePayload {
 #[harmos::catalog]
 pub enum Operations {
     FileWatch(FileWatch),
-    WatchFile(WatchFile),
 }
 
 /* === Traits === */
@@ -344,13 +343,6 @@ pub enum Operations {
 /* === Implementations === */
 impl Endpoint for FileWatch {
     const PATH: &'static str = "/dokime.v1.Files/FileWatch";
-    const ACCESS: Access = Access::Control;
-    // A local root reads the host's filesystem, which a remote listener never exposes.
-    const LOCAL_ONLY: bool = true;
-}
-
-impl Endpoint for WatchFile {
-    const PATH: &'static str = "/dokime.v1.Files/WatchFile";
     const ACCESS: Access = Access::Control;
     // A local root reads the host's filesystem, which a remote listener never exposes.
     const LOCAL_ONLY: bool = true;

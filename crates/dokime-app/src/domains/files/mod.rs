@@ -24,7 +24,7 @@ mod watch;
 pub use dokime_contract::operations::files::{
     FileWatchGapReason as GapReason, FileWatchPhase as Phase, FileWatchPolicy as Policy,
 };
-pub use operation::register;
+pub use operation::{Resources as StepBuiltins, register};
 pub use watch::{FileWatch, WatchEvent};
 
 /* === Imports === */

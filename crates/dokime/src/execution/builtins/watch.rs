@@ -10,7 +10,9 @@
 // `WatchFile` without a host, as a harness serves it: one local file polled
 // in this process. Stream captures only what is written after the start into
 // the produced artifact and offers each line to the request's matchers and
-// markers; Mirror and the snapshots copy the whole file once.
+// markers; Mirror and the snapshots copy the whole file once. Like the
+// host's, a cancelled watch seals what it captured and settles as cancelled,
+// without an outcome; only a bounded watch answers with one.
 
 /* === Modules === */
 
@@ -40,6 +42,8 @@ use crate::records::{RecordPublishRequest, RecordSeverity};
 const DEFAULT_POLL: Duration = Duration::from_millis(1000);
 
 const READ_BYTES: usize = 64 * 1024;
+
+const CANCELLED: &str = "the file watch was cancelled; it sealed what it captured";
 
 /* === Macros === */
 
@@ -138,10 +142,14 @@ pub(super) async fn run(
         if policy == FileWatchPolicy::Unspecified {
             return Err("a file watch needs a policy".into());
         }
-        if policy != FileWatchPolicy::SnapshotAtStart {
-            wait(&mut cancel, bound, started).await;
-        }
-        return snapshot(&binding, &path, artifact);
+        let cancelled =
+            policy != FileWatchPolicy::SnapshotAtStart && wait(&mut cancel, bound, started).await;
+        let outcome = snapshot(&binding, &path, artifact)?;
+        return if cancelled {
+            Err(CANCELLED.into())
+        } else {
+            Ok(outcome)
+        };
     }
 
     // Stream From The Length At The Start
@@ -159,24 +167,25 @@ pub(super) async fn run(
         matchers,
         gaps: Vec::new(),
     };
-    loop {
+    let cancelled = loop {
         tail.pass(&binding).await?;
         let pause = bound.map_or(poll, |bound| {
             bound.saturating_sub(started.elapsed()).min(poll)
         });
         if bound.is_some_and(|bound| started.elapsed() >= bound) {
-            break;
+            break false;
         }
         tokio::select! {
-            changed = cancel.wait_for(|cancelled| *cancelled) => {
-                let _ = changed;
-                break;
-            }
+            _ = cancel.wait_for(|cancelled| *cancelled) => break true,
             () = tokio::time::sleep(pause) => {}
         }
-    }
+    };
     tail.pass(&binding).await?;
-    tail.finish(&binding).await
+    let outcome = tail.finish(&binding).await?;
+    if cancelled {
+        return Err(CANCELLED.into());
+    }
+    Ok(outcome)
 }
 
 /* === Private Functions === */
@@ -195,7 +204,12 @@ fn artifact_name(path: &Path, output: &str, artifact: Option<&str>) -> Result<St
     })
 }
 
-async fn wait(cancel: &mut watch::Receiver<bool>, bound: Option<Duration>, started: Instant) {
+// Whether the watch was cancelled rather than bounded.
+async fn wait(
+    cancel: &mut watch::Receiver<bool>,
+    bound: Option<Duration>,
+    started: Instant,
+) -> bool {
     let until = async {
         match bound {
             Some(bound) => tokio::time::sleep(bound.saturating_sub(started.elapsed())).await,
@@ -203,8 +217,8 @@ async fn wait(cancel: &mut watch::Receiver<bool>, bound: Option<Duration>, start
         }
     };
     tokio::select! {
-        _ = cancel.wait_for(|cancelled| *cancelled) => {}
-        () = until => {}
+        changed = cancel.wait_for(|cancelled| *cancelled) => changed.is_ok(),
+        () = until => false,
     }
 }
 

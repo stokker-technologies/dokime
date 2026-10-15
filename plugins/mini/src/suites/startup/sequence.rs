@@ -286,7 +286,9 @@ impl Startup {
                 markers: Vec::new(),
             })
             .await?;
-        // The charger logs its readings while the watch runs.
+        // The watch takes its baseline first; the charger then logs its
+        // readings while it runs.
+        tokio::time::sleep(Duration::from_millis(200)).await;
         let interval_s = ctx.parameters().sample_interval_s;
         for index in 0..5 {
             self.device.sample(f64::from(index) * interval_s);

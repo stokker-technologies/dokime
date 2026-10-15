@@ -183,18 +183,6 @@ matrix! {
         maximum_files: None,
         maximum_bytes: None,
     };
-    "/dokime.v1.Files/WatchFile", unary, contracts::files::WatchFile = contracts::files::WatchFileRequest {
-        execution_id: None,
-        source: None,
-        output: String::new(),
-        artifact: None,
-        policy: contracts::files::FileWatchPolicy::Unspecified,
-        poll_interval_ms: None,
-        maximum_seconds: None,
-        maximum_bytes: None,
-        matchers: Vec::new(),
-        markers: Vec::new(),
-    };
     "/dokime.v1.Health/ListHealth", unary, contracts::notes::ListHealth;
     "/dokime.v1.History/BrowseExecutions", unary, contracts::history::BrowseExecutions;
     "/dokime.v1.History/DeleteExecution", unary, contracts::history::DeleteExecution;

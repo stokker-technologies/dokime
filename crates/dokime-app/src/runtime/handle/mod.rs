@@ -319,6 +319,7 @@ impl RuntimeHandle {
                 &execution_sessions,
             )?;
             crate::plot::builtins::register(&harmos_runtime.operations)?;
+            let step_builtins = crate::domains::files::register(&harmos_runtime.operations)?;
             let publication_core =
                 super::sidecars::core::Publications::register(&harmos_runtime.operations)?;
             let record_ingress =
@@ -444,8 +445,7 @@ impl RuntimeHandle {
                     Error::Operation(format!("failed to establish node identity: {error}"))
                 })?;
 
-            // The step built-ins exist before any plugin that may require them.
-            crate::domains::files::register(&runtime)?;
+            step_builtins.bind(&runtime);
             for plugin in installed_plugins.into_values() {
                 if runtime.state_read().host_plugin_current(&plugin) {
                     continue;

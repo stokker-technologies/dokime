@@ -22,7 +22,6 @@ from google.protobuf.internal import builder as _builder
 from dokime._wire import _pool
 # @@protoc_insertion_point(imports)
 from dokime._wire.dokime.v1.FilesMessages.FileWatch import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_FilesMessages_dot_FileWatch_dot_messages__pb2
-from dokime._wire.dokime.v1.FilesMessages.WatchFile import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_FilesMessages_dot_WatchFile_dot_messages__pb2
 
 # Type Checking Imports
 
@@ -47,17 +46,17 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n\"dokime/_wire/dokime/v1/Files.proto\x12\tdokime.v1\x1a=dokime/_wire/dokime/v1/FilesMessages/FileWatch/messages.proto\x1a=dokime/_wire/dokime/v1/FilesMessages/WatchFile/messages.proto\"\xa5\x01\n\x14\x46ilesFileWatchOutput\x12=\n\x04item\x18\x01 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row3H\x00R\x04item\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row2H\x00R\x08responseB\x07\n\x05value2\xbf\x01\n\x05\x46iles\x12W\n\tFileWatch\x12\'.dokime.v1.FilesMessages.FileWatch.Row1\x1a\x1f.dokime.v1.FilesFileWatchOutput0\x01\x12]\n\tWatchFile\x12\'.dokime.v1.FilesMessages.WatchFile.Row1\x1a\'.dokime.v1.FilesMessages.WatchFile.Row2b\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n\"dokime/_wire/dokime/v1/Files.proto\x12\tdokime.v1\x1a=dokime/_wire/dokime/v1/FilesMessages/FileWatch/messages.proto\"\xa5\x01\n\x14\x46ilesFileWatchOutput\x12=\n\x04item\x18\x01 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row3H\x00R\x04item\x12\x45\n\x08response\x18\x02 \x01(\x0b\x32\'.dokime.v1.FilesMessages.FileWatch.Row2H\x00R\x08responseB\x07\n\x05value2`\n\x05\x46iles\x12W\n\tFileWatch\x12\'.dokime.v1.FilesMessages.FileWatch.Row1\x1a\x1f.dokime.v1.FilesFileWatchOutput0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime._wire.dokime.v1.Files_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_FILESFILEWATCHOUTPUT']._serialized_start=176
-  _globals['_FILESFILEWATCHOUTPUT']._serialized_end=341
-  _globals['_FILES']._serialized_start=344
-  _globals['_FILES']._serialized_end=535
+  _globals['_FILESFILEWATCHOUTPUT']._serialized_start=113
+  _globals['_FILESFILEWATCHOUTPUT']._serialized_end=278
+  _globals['_FILES']._serialized_start=280
+  _globals['_FILES']._serialized_end=376
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #
