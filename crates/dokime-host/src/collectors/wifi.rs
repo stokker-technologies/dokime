@@ -12,6 +12,10 @@
 /* === Modules === */
 
 /* === Re-Exports === */
+#[cfg(not(windows))]
+pub use crate::platform::linux::wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces};
+#[cfg(windows)]
+pub use crate::platform::windows::wifi::WifiLink;
 
 /* === Imports === */
 // Standard Library Imports

@@ -103,6 +103,17 @@ struct WifiInterface {
 /* === Traits === */
 
 /* === Implementations === */
+impl WifiLink {
+    /// Reads the `LONG` the `wlan_intf_opcode_rssi` query returns as dBm; `None`
+    /// for a short buffer or a value outside the plausible dBm range.
+    pub fn rssi_dbm_from_query(bytes: &[u8]) -> Option<f64> {
+        let bytes = <[u8; 4]>::try_from(bytes.get(..4)?).ok()?;
+        let rssi_dbm = f64::from(i32::from_ne_bytes(bytes));
+
+        RSSI_RANGE_DBM.contains(&rssi_dbm).then_some(rssi_dbm)
+    }
+}
+
 impl Drop for WlanClient {
     fn drop(&mut self) {
         unsafe {
@@ -211,7 +222,7 @@ impl WlanClient {
         }
 
         let bytes = unsafe { slice::from_raw_parts(data.cast::<u8>(), data_size as usize) };
-        let rssi_dbm = rssi_dbm_from_bytes(bytes);
+        let rssi_dbm = WifiLink::rssi_dbm_from_query(bytes);
         unsafe {
             WlanFreeMemory(data);
         }
@@ -372,15 +383,6 @@ fn select_interface(interfaces: &[WifiInterface], options: &HostOptions) -> Opti
         .cloned()
 }
 
-/// Reads the `LONG` the `wlan_intf_opcode_rssi` query returns; `None` for a
-/// short buffer or a value outside the plausible dBm range.
-fn rssi_dbm_from_bytes(bytes: &[u8]) -> Option<f64> {
-    let bytes = <[u8; 4]>::try_from(bytes.get(..4)?).ok()?;
-    let rssi_dbm = f64::from(i32::from_ne_bytes(bytes));
-
-    RSSI_RANGE_DBM.contains(&rssi_dbm).then_some(rssi_dbm)
-}
-
 fn wide_string(value: &[u16]) -> Option<String> {
     let len = value
         .iter()
@@ -509,15 +511,3 @@ fn cipher_algorithm(value: DOT11_CIPHER_ALGORITHM) -> &'static str {
 }
 
 /* === Tests === */
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rssi_long_conversion() {
-        assert_eq!(rssi_dbm_from_bytes(&(-46_i32).to_ne_bytes()), Some(-46.0));
-        assert_eq!(rssi_dbm_from_bytes(&[0xd2, 0xff]), None);
-        assert_eq!(rssi_dbm_from_bytes(&12_i32.to_ne_bytes()), None);
-        assert_eq!(rssi_dbm_from_bytes(&(-256_i32).to_ne_bytes()), None);
-    }
-}
