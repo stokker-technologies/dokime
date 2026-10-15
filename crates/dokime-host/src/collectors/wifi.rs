@@ -141,6 +141,7 @@ impl WifiCollector {
                     "wifi_signal_percent",
                     link.signal_percent.map(Value::from),
                 );
+                maybe_insert(&mut values, "wifi_rssi_dbm", link.rssi_dbm.map(Value::from));
                 maybe_insert(
                     &mut values,
                     "wifi_rx_phy_mbps",
@@ -211,15 +212,25 @@ impl WifiCollector {
                         "wifi_signal_percent",
                         link.signal_percent.map(Value::from),
                     );
+                    // The Kernel Link: Received Signal And Negotiated PHY Rates
+                    let wireless = adapter
+                        .as_deref()
+                        .and_then(crate::platform::linux::wifi::wireless_link)
+                        .unwrap_or_default();
+                    maybe_insert(
+                        &mut values,
+                        "wifi_rssi_dbm",
+                        wireless.rssi_dbm.map(Value::from),
+                    );
                     maybe_insert(
                         &mut values,
                         "wifi_rx_phy_mbps",
-                        link.rate_mbps.map(Value::from),
+                        wireless.rx_phy_mbps.map(Value::from),
                     );
                     maybe_insert(
                         &mut values,
                         "wifi_tx_phy_mbps",
-                        link.rate_mbps.map(Value::from),
+                        wireless.tx_phy_mbps.map(Value::from),
                     );
                     if let Some((received, sent)) = self.adapter_throughput(adapter.as_deref()) {
                         values.insert(

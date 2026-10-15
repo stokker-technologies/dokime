@@ -119,6 +119,25 @@ pub fn section(owner: &str) -> Section {
         0,
         [host::Wifi::wifi_rssi_dbm()],
     ));
+    section.plot(series(
+        owner,
+        "wifi_phy_rate",
+        "Wi-Fi PHY Rate",
+        "Mbps",
+        1,
+        [
+            host::Wifi::wifi_rx_phy_mbps(),
+            host::Wifi::wifi_tx_phy_mbps(),
+        ],
+    ));
+    section.plot(series(
+        owner,
+        "wifi_throughput",
+        "Wi-Fi Throughput",
+        "Mbps",
+        2,
+        [host::Wifi::wifi_rx_mbps(), host::Wifi::wifi_tx_mbps()],
+    ));
     // The Scan Itself: Every Channel With Its Network Count And Strongest Signal
     let mut occupancy = Plot::wifi_channel_occupancy("Wi-Fi Channel Occupancy");
     occupancy.id(format!("{owner}.system.wifi_channel_occupancy"));
