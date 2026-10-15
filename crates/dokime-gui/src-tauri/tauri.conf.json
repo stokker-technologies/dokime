@@ -9,6 +9,7 @@
         "create": false,
         "dragDropEnabled": false,
         "height": 960,
+        "maximized": true,
         "minHeight": 720,
         "minWidth": 1080,
         "resizable": true,
