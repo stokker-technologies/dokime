@@ -454,14 +454,21 @@ async fn settle_record_inputs(
     } else {
         Duration::from_secs(35)
     };
-    let deadline = tokio::time::Instant::now() + bound;
+    // The host settles by handing the whole capture back, which takes as long
+    // as the capture is long; the bound is on a host that stops making
+    // progress, not on the length of what it is replaying.
+    let mut deadline = tokio::time::Instant::now() + bound;
+    let mut staged = None;
     loop {
-        if lock(executions)
-            .get(token)
-            .is_none_or(|state| state.record_subscriptions_settled())
-        {
-            return Ok(());
+        let progress = match lock(executions).get(token) {
+            None => return Ok(()),
+            Some(state) if state.record_subscriptions_settled() => return Ok(()),
+            Some(state) => state.staged_samples(),
+        };
+        if !was_cancelled && staged.is_some_and(|staged| progress > staged) {
+            deadline = tokio::time::Instant::now() + bound;
         }
+        staged = Some(progress);
         if tokio::time::Instant::now() >= deadline {
             return Err(Diagnostic::of(
                 "host did not settle execution inputs before the deadline",

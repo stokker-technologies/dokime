@@ -1706,15 +1706,21 @@ async fn close_stopped_attempt(
         .map_err(|error| failure("stop_settlement", error.to_string()))
 }
 
+/// Hands the run every captured sample after `replayed`, advancing it past
+/// each page the run has received.
 async fn replay_sample_inputs(
     context: &ExecutionFixtureContext,
     target: &Target,
     execution: &TestExecution,
+    replayed: &mut u64,
 ) -> Result<(), ProviderExecutionFailure> {
     // The run's own evidence is fixed once its publications are flushed. Each
     // page is its own bounded query against that cut, resumed by storage
     // position, so a long capture is many small reads rather than one read
-    // whose computation budget the whole history must fit.
+    // whose computation budget the whole history must fit. The position
+    // outlives this call: a settling page the run sends again after its call
+    // ran out of time resumes the replay instead of starting it over, so a
+    // capture longer than one call still settles.
     let cut = context
         .runtime
         .storage()
@@ -1723,13 +1729,12 @@ async fn replay_sample_inputs(
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let scope = harmos::Identifier::new(execution.test_execution_id.as_str())
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-    let mut after = 0;
     loop {
         // Shared read capacity can be held by other captures; each page waits
         // for it on its own, so a long replay is not failed by its length.
         let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
         let page = loop {
-            match replay_page(context, execution, &scope, cut.sequence, after).await {
+            match replay_page(context, execution, &scope, cut.sequence, *replayed).await {
                 Err(error) if replay_can_wait(&error, deadline) => {
                     tokio::time::sleep(WATCH_INTERVAL).await;
                 }
@@ -1741,7 +1746,7 @@ async fn replay_sample_inputs(
         let Some(page) = page.filter(|page| !page.is_empty()) else {
             return Ok(());
         };
-        after = page.last().map_or(after, |sample| sample.position);
+        let through = page.last().map_or(*replayed, |sample| sample.position);
         let owner = &execution.scope;
         let scope_json = serde_json::to_string(owner)
             .map_err(|error| failure("sidecar_samples", error.to_string()))?;
@@ -1774,6 +1779,7 @@ async fn replay_sample_inputs(
             samples.push(encoded);
         }
         deliver_replayed(target, execution, &scope_json, samples).await?;
+        *replayed = through;
     }
 }
 
