@@ -310,6 +310,8 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
     let association = attributes.wlanAssociationAttributes;
     let security = attributes.wlanSecurityAttributes;
     let bssid = mac_string(&association.dot11Bssid);
+    // Read The Signal Before The Interface Gives Up Its Description
+    let rssi_dbm = client.rssi_dbm(&interface);
     Ok(Some(WifiLink {
         adapter: Some(interface.description),
         state,
@@ -322,7 +324,7 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
         channel: None,
         band: None,
         signal_percent: Some(f64::from(association.wlanSignalQuality)),
-        rssi_dbm: client.rssi_dbm(&interface),
+        rssi_dbm,
         rx_phy_mbps: Some(association.ulRxRate as f64 / 1_000.0),
         tx_phy_mbps: Some(association.ulTxRate as f64 / 1_000.0),
     }))
