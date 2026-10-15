@@ -57,7 +57,7 @@ impl harmos::Application for ReportOwner {
 /* === Public Functions === */
 pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
     let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .view_with_limits(crate::support::budgets::story_settings().report)
         .await
         .unwrap();
     let mut reader = view.read_file(file).await.unwrap();

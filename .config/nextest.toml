@@ -12,5 +12,5 @@ whole-read-budget = { max-threads = 1 }
 
 [[profile.default.overrides]]
 filter = '''package(dokime-server) & binary(grpc) & test(=evidence_contract)
-  | package(dokime-app) & binary(domains) & test(/^execution_(large_case|whole_capture|pool_refusal|running_report|report_progress)_contract$/)'''
+  | package(dokime-app) & binary(domains) & test(/^execution_(large_case|whole_capture|pool_refusal|running_report|report_progress|contended_reads)_contract$/)'''
 test-group = 'whole-read-budget'

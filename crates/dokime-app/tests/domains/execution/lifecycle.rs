@@ -62,7 +62,7 @@ async fn stored_cycle(
 ) {
     let view = runtime
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .view_with_limits(crate::support::budgets::story_settings().interactive)
         .await
         .unwrap();
     let stored = dokime::storage::objects::cycle::read_in(

@@ -121,9 +121,10 @@ impl RuntimeHandle {
         cycle: &CycleView,
         execution: &TestExecution,
     ) -> Result<ExecutionView> {
+        // Finalization Captures Meet A Full Ledger With Their Own Back-Pressure.
         let view = self
             .storage()
-            .view_with_limits(self.config().storage_reads.execution)
+            .view_with_limits(self.config().storage_reads.report)
             .await?;
         let limit = view.decoded_bytes()?;
         if let Some(inspection) = ExecutionView::open(

@@ -256,7 +256,8 @@ pub(super) async fn attempt(
         .clone();
     captured.check_origin(runtime.storage())?;
     let view = inspection.view().clone();
-    let limit = view.decoded_bytes()?;
+    // The Report Fills Its Own Profile; Contention For It Is Retried By The Ladder.
+    let limit = runtime.config().storage_reads.materialization();
     let page = ReadLimits {
         rows: runtime.config().storage_reads.page_rows,
         bytes: runtime.config().storage_reads.page_bytes,
@@ -412,8 +413,9 @@ pub(super) async fn attempt(
         };
     let renderer = runtime.clone();
     let render_view = view.clone();
+    // The Projection's Allowance Bounds Everything Rendering Builds, Documents
+    // Included; A Second View-Less Reservation Would Charge The Pool Twice.
     let render = move || {
-        let _document_memory = renderer.storage().prepare_production(limit)?;
         render_view
             .project_shared(&captured, limit, |captured, allowance| {
                 materialize(

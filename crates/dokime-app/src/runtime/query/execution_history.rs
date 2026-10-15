@@ -311,10 +311,11 @@ impl RuntimeHandle {
         let config = self.config();
         let settings = &config.storage_reads;
         let storage = self.storage();
-        let deadline = tokio::time::Instant::now() + settings.execution.timeout;
+        let deadline = tokio::time::Instant::now() + settings.interactive.timeout;
+        let mut backoff = crate::runtime::storage::record_capture::CapacityBackoff::new();
         let inspection = loop {
             let result = async {
-                let view = storage.view_with_limits(settings.execution).await?;
+                let view = storage.view_with_limits(settings.interactive).await?;
                 crate::runtime::storage::execution::ExecutionView::open_checkpoint(
                     storage,
                     view,
@@ -327,10 +328,7 @@ impl RuntimeHandle {
             match result {
                 Err(error)
                     if crate::runtime::storage::record_capture::read_capacity(&error)
-                        && tokio::time::Instant::now() < deadline =>
-                {
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                }
+                        && backoff.wait_until(deadline).await => {}
                 result => break result?,
             }
         };
@@ -349,10 +347,11 @@ impl RuntimeHandle {
         let settings = &config.storage_reads;
         let storage = self.storage();
         let limit = settings.decoded_bytes;
-        let deadline = tokio::time::Instant::now() + settings.execution.timeout;
+        let deadline = tokio::time::Instant::now() + settings.interactive.timeout;
+        let mut backoff = crate::runtime::storage::record_capture::CapacityBackoff::new();
         let inspection = loop {
             let result = async {
-                let view = storage.view_with_limits(settings.execution).await?;
+                let view = storage.view_with_limits(settings.interactive).await?;
                 crate::runtime::storage::execution::ExecutionView::open(
                     storage,
                     view,
@@ -366,10 +365,7 @@ impl RuntimeHandle {
             match result {
                 Err(error)
                     if crate::runtime::storage::record_capture::read_capacity(&error)
-                        && tokio::time::Instant::now() < deadline =>
-                {
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                }
+                        && backoff.wait_until(deadline).await => {}
                 result => break result?,
             }
         }
@@ -399,7 +395,7 @@ impl RuntimeHandle {
         let config = self.config();
         let settings = &config.storage_reads;
         let storage = self.storage();
-        let view = storage.view_with_limits(settings.execution).await?;
+        let view = storage.view_with_limits(settings.interactive).await?;
         let projection = settings.decoded_bytes;
         let mut reader = crate::runtime::storage::history::Reader::open(
             storage,

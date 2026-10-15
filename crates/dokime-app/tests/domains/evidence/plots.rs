@@ -368,7 +368,7 @@ pub(crate) async fn saturated_reads_plot() {
     let mut held = Vec::new();
     while let Ok(view) = runtime
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .view_with_limits(crate::support::budgets::story_settings().report)
         .await
     {
         held.push(view);

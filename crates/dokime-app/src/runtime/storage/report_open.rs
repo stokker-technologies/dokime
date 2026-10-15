@@ -144,8 +144,8 @@ impl RuntimeHandle {
             });
         }
         operation.phase("Reading Sealed Report");
-        let reads = self.config().storage_reads.execution;
-        let view = self.storage().view_with_limits(reads).await?;
+        let reads = self.config().storage_reads.report;
+        let view = super::record_capture::view_when_admitted(self.storage(), reads).await?;
         let limit = view.decoded_bytes()?;
         let inspection =
             ExecutionView::open(self.storage(), view, id, ObjectVersion::Latest, limit)
@@ -215,10 +215,11 @@ impl RuntimeHandle {
                 capturing.progress(captured as u64, total);
                 members.push(runtime.snapshot_member(&source, execution).await?);
             }
-            let view = runtime
-                .storage()
-                .view_with_limits(runtime.config().storage_reads.execution)
-                .await?;
+            let view = super::record_capture::view_when_admitted(
+                runtime.storage(),
+                runtime.config().storage_reads.report,
+            )
+            .await?;
             let header = runtime.current_header(&source)?;
             let appearance = runtime.member_appearance(&members, &view).await?;
             let node = runtime.state_read().identity.node.node_id.clone();
@@ -297,9 +298,9 @@ impl RuntimeHandle {
     async fn sealed_snapshot(&self, cycle: &TestCycle) -> Result<CycleSnapshot> {
         let seal = cycle.saved.as_ref().expect("sealed cycle");
         let storage = self.storage();
-        let view = storage
-            .view_with_limits(self.config().storage_reads.execution)
-            .await?;
+        let view =
+            super::record_capture::view_when_admitted(storage, self.config().storage_reads.report)
+                .await?;
         let limit = view.decoded_bytes()?;
         let source = storage
             .produce(bound(cycle.memory_size())?, |_| {

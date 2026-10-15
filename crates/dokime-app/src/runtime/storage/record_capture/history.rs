@@ -106,7 +106,7 @@ impl Source {
                 rows: self.reads.page_rows,
                 bytes: self.reads.page_bytes,
             }),
-            execution: Some(self.reads.execution),
+            execution: Some(self.reads.interactive),
             decoded_bytes: Some(self.reads.decoded_bytes),
             ..QueryOptions::default()
         };
@@ -177,12 +177,18 @@ impl Source {
         filter.check()?;
 
         // Save One Explicit Accepted Cut; Never Follow A Filtered Live Tail.
-        let boundary_view = self.storage.view_with_limits(self.reads.execution).await?;
+        let boundary_view = self
+            .storage
+            .view_with_limits(self.reads.interactive)
+            .await?;
         let cut = boundary_view.accepted()?;
         drop(boundary_view);
         self.storage.flush_until(&cut).await?;
         self.healthy(state_manager)?;
-        let view = self.storage.view_with_limits(self.reads.execution).await?;
+        let view = self
+            .storage
+            .view_with_limits(self.reads.interactive)
+            .await?;
         if !view.saved()?.covers(&cut)? {
             return Err(error(
                 "filtered record cut is not saved in its original history",
@@ -241,7 +247,7 @@ impl Source {
         self.wait_through(state_manager, through).await?;
         let view = self
             .storage
-            .view_with_limits(self.reads.execution)
+            .view_with_limits(self.reads.interactive)
             .await
             .map_err(Error::from)?;
         let saved = view.saved().map_err(Error::from)?;

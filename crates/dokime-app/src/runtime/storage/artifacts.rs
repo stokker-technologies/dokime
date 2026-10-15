@@ -376,7 +376,7 @@ impl RuntimeHandle {
             .map_err(dokime::storage::Error::from)?;
         let storage = &self.execution_storage.storage;
         let view = storage
-            .view_with_limits(self.config().storage_reads.execution)
+            .view_with_limits(self.config().storage_reads.interactive)
             .await?;
         let inspection = ExecutionView::open_checkpoint(
             storage,

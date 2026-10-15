@@ -67,7 +67,8 @@ pub fn story_settings() -> StorageReadSettings {
 /// loaded the machine is. Stories that assert a deadline set their own after.
 pub fn story_reads(reads: &mut StorageReadSettings) {
     reads.memory_bytes = STORY_READ_MEMORY;
-    reads.execution.timeout = reads.execution_ceiling.timeout;
+    reads.interactive.timeout = reads.ceiling.timeout;
+    reads.report.timeout = reads.ceiling.timeout;
 }
 
 /// The shipped ledger for a story that proves a transfer or a report stays
