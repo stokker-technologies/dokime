@@ -82,6 +82,15 @@ fn domain_contract() {
         run_scenario(workflow::embedded_execution_output, false, None, false);
     }
     {
+        eprintln!("Scenario: workflow::refused_publication_fails_execution");
+        run_scenario(
+            workflow::refused_publication_fails_execution,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: workflow::runtime_bindings_metadata");
         run_scenario(workflow::runtime_bindings_metadata, false, None, false);
     }

@@ -84,6 +84,9 @@ struct PublishedExecutionRows(
     std::sync::Mutex<dokime::core::RecordScope>,
 );
 
+// A host that refuses every row the way `host.publish` answers a refusal.
+struct RefusedPublication(String);
+
 struct SamplingGuard<'a>(&'a AtomicBool);
 
 struct ExecutionResource {
@@ -146,6 +149,17 @@ impl dokime::execution::EmbeddedPublisher for PublishedExecutionRows {
             .deliver_samples(&scope, &[sample], &[])
             .map_err(|error| error.to_string())?;
         Ok(())
+    }
+}
+
+impl dokime::execution::EmbeddedPublisher for RefusedPublication {
+    fn publish(
+        &self,
+        _: &str,
+        _: &dokime::core::Identifier,
+        _: BTreeMap<String, Value>,
+    ) -> Result<(), String> {
+        Err(self.0.clone())
     }
 }
 
@@ -1287,6 +1301,45 @@ pub(crate) async fn embedded_execution_output() {
         }
     }
     workflow.shutdown().await;
+}
+
+// A host that cannot take a row in losslessly refuses it; the execution fails
+// naming the stream and the refusal instead of losing rows or the plugin.
+pub(crate) async fn refused_publication_fails_execution() {
+    for refusal in [
+        harmos::streams::StreamPublicationError::Backlog,
+        harmos::streams::StreamPublicationError::Capacity,
+    ] {
+        let cause = harmos::Error::<std::convert::Infallible>::OperationFailed {
+            operation: "host.publish".into(),
+            source: Arc::new(refusal),
+        }
+        .to_string();
+        let workflow = workflow();
+        let output = SampleOutput::Embedded(Arc::new(RefusedPublication(cause.clone())));
+        workflow
+            .start_on(
+                start_request("refused", serde_json::json!({"samples": 1})),
+                Some(output),
+                Caller::default(),
+            )
+            .unwrap();
+
+        let replies = drain_until_terminal(&workflow, "refused", None).await;
+
+        let detail = detail(&replies);
+
+        assert!(!outcome(&replies).0.passed);
+        assert_eq!(
+            detail.message,
+            format!("step `publishing stream evidence` failed in {TEMPLATE}")
+        );
+        assert_eq!(
+            detail.chain,
+            vec![format!("stream {STREAM} publication failed: {cause}")]
+        );
+        workflow.shutdown().await;
+    }
 }
 
 pub(crate) async fn runtime_bindings_metadata() {
