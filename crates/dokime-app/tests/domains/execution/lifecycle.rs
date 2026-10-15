@@ -36,6 +36,78 @@ use super::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
+async fn wait_for_cycle_seal(
+    runtime: &RuntimeHandle,
+    test_cycle_id: &TestCycleId,
+) -> dokime_app::execution::CycleView {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let cycle = cycle_snapshot(runtime, test_cycle_id).await;
+            if cycle.saved.is_some() {
+                return cycle;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the completed cycle seals its report")
+}
+
+async fn stored_cycle(
+    runtime: &RuntimeHandle,
+    test_cycle_id: &TestCycleId,
+) -> (
+    dokime_app::execution::TestCycle,
+    harmos::storage::StorageCursor,
+) {
+    let view = runtime
+        .storage()
+        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .await
+        .unwrap();
+    let stored = dokime::storage::objects::cycle::read_in(
+        runtime.storage(),
+        &view,
+        test_cycle_id,
+        harmos::storage::ObjectVersion::Latest,
+        crate::support::budgets::story_settings().decoded_bytes,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    (stored.value.clone(), stored.position.clone())
+}
+
+type LabelEdit = (Option<TestCycleId>, Option<TestExecutionId>, Value, Value);
+
+async fn label_edits(
+    subscription: &mut dokime_app::runtime::RecordSubscription,
+    count: usize,
+) -> Vec<LabelEdit> {
+    let mut edits = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while edits.len() < count {
+            let record = subscription
+                .next()
+                .await
+                .expect("the record subscription stays open")
+                .expect("the record subscription stays readable");
+            if record.record_type.as_str() != "operator.label_edited" {
+                continue;
+            }
+            let scope = record.scope.clone().unwrap_or_default();
+            edits.push((
+                scope.test_cycle_id,
+                scope.test_execution_id,
+                record.details["old_label"].clone(),
+                record.details["new_label"].clone(),
+            ));
+        }
+    })
+    .await
+    .expect("every rename records its label edit");
+    edits
+}
 
 pub(crate) async fn rerun_fresh_started() {
     let root = tempdir().unwrap();
@@ -227,6 +299,200 @@ pub(crate) async fn stop_archive_state() {
             .iter()
             .any(|entry| entry.metadata.execution_id == execution && !entry.archived)
     );
+}
+
+pub(crate) async fn rename_refuses_sealed() {
+    use dokime_app::runtime::query::cycles::{CycleFilter, CycleOrder, select_cycles};
+    let root = tempdir().unwrap();
+    let (_owner, runtime) =
+        booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let ready = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let first = ready.test_executions[0].clone();
+    let old_cycle_label = ready.metadata.label.clone();
+    let old_case_label = first.snapshot.case().metadata.label.clone();
+    let cycle_before = stored_cycle(&runtime, &test_cycle_id).await;
+    let mut records = runtime.subscribe_records();
+
+    // Before The Run Seals, Both Subjects Take A New Label
+    let cycle_label = runtime
+        .rename_cycle(
+            test_cycle_id.clone(),
+            "  Charger Burn-In  ".into(),
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(cycle_label, "Charger Burn-In");
+    let case_label = runtime
+        .rename_execution(
+            first.test_execution_id.clone(),
+            "Charger Soak".into(),
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(case_label, "Charger Soak");
+
+    // Each Rename Is An Evidence Record Carrying Both Labels
+    assert_eq!(
+        label_edits(&mut records, 2).await,
+        [
+            (
+                Some(test_cycle_id.clone()),
+                None,
+                Value::from(old_cycle_label),
+                Value::from("Charger Burn-In")
+            ),
+            (
+                Some(test_cycle_id.clone()),
+                Some(first.test_execution_id.clone()),
+                Value::from(old_case_label),
+                Value::from("Charger Soak")
+            ),
+        ]
+    );
+
+    // The Cycle Persists A New Revision, And Lists Read The New Labels
+    let cycle_after = stored_cycle(&runtime, &test_cycle_id).await;
+    assert_eq!(cycle_after.0.metadata.label, "Charger Burn-In");
+    assert_ne!(
+        cycle_after.1, cycle_before.1,
+        "the cycle has a new revision"
+    );
+    {
+        let snapshot = runtime.watch_state().latest();
+        let listed = select_cycles(
+            snapshot.state(),
+            &CycleFilter::default(),
+            CycleOrder::default(),
+        );
+        let cycle = listed
+            .iter()
+            .find(|cycle| cycle.test_cycle_id == test_cycle_id)
+            .unwrap();
+        assert_eq!(cycle.metadata.label, "Charger Burn-In");
+        assert_eq!(
+            snapshot
+                .state()
+                .cases_for_cycle(cycle)
+                .map(|case| case.metadata.label.as_str())
+                .collect::<Vec<_>>(),
+            ["Charger Soak"]
+        );
+    }
+
+    // The Sealed Execution Keeps The Label It Ran Under
+    runtime
+        .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
+        .await;
+    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_seal(&runtime, &test_cycle_id).await;
+    let checkpoint = crate::support::native::checkpoint(&runtime, &first.test_execution_id).await;
+    let sealed = crate::support::native::open(&runtime, &checkpoint).await;
+    assert_eq!(
+        sealed.execution().snapshot.case().metadata.label,
+        "Charger Soak"
+    );
+    drop(sealed);
+
+    // Once Sealed, Neither Subject Can Be Renamed
+    let refused = |result: Result<String, dokime_app::Error>| match result {
+        Err(dokime_app::Error::Conflict { message, .. }) => message,
+        other => panic!("a sealed subject refuses the rename: {other:?}"),
+    };
+    let cycle = refused(
+        runtime
+            .rename_cycle(
+                test_cycle_id.clone(),
+                "Too Late".into(),
+                CommandContext::default(),
+            )
+            .await,
+    );
+    assert!(cycle.contains("sealed"), "{cycle}");
+    let execution = refused(
+        runtime
+            .rename_execution(
+                first.test_execution_id.clone(),
+                "Too Late".into(),
+                CommandContext::default(),
+            )
+            .await,
+    );
+    assert!(execution.contains("sealed"), "{execution}");
+
+    // A Re-Run Shares The Sealed Case, So It Refuses Too
+    let test_case_id = first.test_case_id.clone();
+    runtime
+        .rerun_cycle_case(
+            test_cycle_id.clone(),
+            test_case_id,
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let rerun = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let attempt = rerun.test_executions.last().unwrap().clone();
+    assert_ne!(attempt.test_execution_id, first.test_execution_id);
+    assert_eq!(attempt.snapshot.case().metadata.label, "Charger Soak");
+    refused(
+        runtime
+            .rename_execution(
+                attempt.test_execution_id,
+                "Too Late".into(),
+                CommandContext::default(),
+            )
+            .await,
+    );
+    let after = cycle_snapshot(&runtime, &test_cycle_id).await;
+    assert_eq!(after.metadata.label, "Charger Burn-In");
+    assert!(
+        after
+            .test_executions
+            .iter()
+            .all(|execution| execution.snapshot.case().metadata.label == "Charger Soak")
+    );
+}
+
+pub(crate) async fn rename_refuses_empty() {
+    let root = tempdir().unwrap();
+    let (_owner, runtime) = booted(root.path()).await;
+    let suite = fixture_suite(&["passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let before = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let execution = before.test_executions[0].test_execution_id.clone();
+
+    let cycle = runtime
+        .rename_cycle(
+            test_cycle_id.clone(),
+            "   ".into(),
+            CommandContext::default(),
+        )
+        .await;
+    assert!(matches!(cycle, Err(dokime_app::Error::Validation { .. })));
+    let execution = runtime
+        .rename_execution(execution, String::new(), CommandContext::default())
+        .await;
+    assert!(matches!(
+        execution,
+        Err(dokime_app::Error::Validation { .. })
+    ));
+    let missing = runtime
+        .rename_execution(
+            TestExecutionId::new(),
+            "Charger Soak".into(),
+            CommandContext::default(),
+        )
+        .await;
+    assert!(matches!(missing, Err(dokime_app::Error::NotFound { .. })));
+
+    let after = cycle_snapshot(&runtime, &test_cycle_id).await;
+    assert_eq!(after.metadata.label, before.metadata.label);
+    assert_eq!(after.test_executions, before.test_executions);
 }
 
 pub(crate) async fn stopped_cycles_telemetry() {

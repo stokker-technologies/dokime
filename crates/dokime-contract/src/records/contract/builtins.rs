@@ -148,6 +148,7 @@ builtin_record_types! {
     PromptResponseExpired => "prompt.response.expired",
     OperatorNoteAdded => "operator.note_added",
     OperatorNoteEdited => "operator.note_edited",
+    OperatorLabelEdited => "operator.label_edited",
     ReportOmissions => "report.omissions",
     HealthAdded => "health.added",
     ProgressMilestone => "progress.milestone",
@@ -303,6 +304,15 @@ impl BuiltinRecordType {
                 record_type,
                 RecordSeverity::Info,
                 vec![field("note_id", ValueType::Text)],
+            ),
+            // An operator renamed a cycle or an execution; the record scope names which.
+            Self::OperatorLabelEdited => contract(
+                record_type,
+                RecordSeverity::Info,
+                vec![
+                    field("old_label", ValueType::Text),
+                    field("new_label", ValueType::Text),
+                ],
             ),
             // A sealed report that left evidence out to fit its budget.
             Self::ReportOmissions => contract(

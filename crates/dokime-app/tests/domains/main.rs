@@ -664,6 +664,24 @@ fn execution_contract() {
         run_scenario(execution::lifecycle::stop_archive_state, false, None, false);
     }
     {
+        eprintln!("Scenario: execution::lifecycle::rename_refuses_sealed");
+        run_scenario(
+            execution::lifecycle::rename_refuses_sealed,
+            false,
+            None,
+            false,
+        );
+    }
+    {
+        eprintln!("Scenario: execution::lifecycle::rename_refuses_empty");
+        run_scenario(
+            execution::lifecycle::rename_refuses_empty,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: execution::lifecycle::stopped_cycles_telemetry");
         run_scenario(
             execution::lifecycle::stopped_cycles_telemetry,

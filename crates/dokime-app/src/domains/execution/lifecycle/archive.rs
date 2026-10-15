@@ -98,7 +98,7 @@ impl RuntimeHandle {
         Ok(())
     }
 
-    async fn stored_cycle_exists(&self, id: &TestCycleId) -> Result<bool, Error> {
+    pub(crate) async fn stored_cycle_exists(&self, id: &TestCycleId) -> Result<bool, Error> {
         let storage = self.storage();
         let mut query =
             harmos::storage::ObjectQuery::<dokime::storage::objects::cycle::Cycle>::new();
@@ -118,7 +118,10 @@ impl RuntimeHandle {
         .is_some())
     }
 
-    async fn stored_execution_exists(&self, id: &TestExecutionId) -> Result<bool, Error> {
+    pub(crate) async fn stored_execution_exists(
+        &self,
+        id: &TestExecutionId,
+    ) -> Result<bool, Error> {
         let reads = self.config().storage_reads.execution;
         let view = self.storage().view_with_limits(reads).await?;
         let limit = view.decoded_bytes()?;

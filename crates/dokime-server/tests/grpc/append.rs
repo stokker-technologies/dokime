@@ -186,6 +186,64 @@ pub(crate) async fn append_cases_control() {
         ]
     );
 
+    // Numbering continues from the stored ordinals: renaming "#2" never frees it.
+    let renamed = execution
+        .unary::<contracts::execution::ListCases>(auth(
+            contracts::execution::ListCasesRequest {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases[2]
+        .latest_execution_id
+        .clone()
+        .unwrap();
+    execution
+        .unary::<contracts::execution::RenameExecution>(auth(
+            contracts::execution::RenameExecutionRequest {
+                execution_id: renamed,
+                label: "Bench Warm-Up".into(),
+                context: None,
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap();
+    execution
+        .unary::<contracts::execution::AppendPlannedCases>(auth(
+            contracts::execution::AppendPlannedCasesRequest {
+                cycle_id: cycle_id.clone(),
+                plan: Some(plan(selection(&suite, 0))),
+                context: None,
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap();
+    let labels = execution
+        .unary::<contracts::execution::ListCases>(auth(
+            contracts::execution::ListCasesRequest {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases
+        .into_iter()
+        .map(|case| case.metadata.unwrap().label)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels[2..],
+        ["Bench Warm-Up".to_owned(), format!("{first} #3")]
+    );
+
     let backend = WireClient::connect(server.local_endpoint()).await.unwrap();
     let read_methods = backend
         .unary::<contracts::backend::GetAvailability>(auth(

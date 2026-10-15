@@ -10,8 +10,8 @@
 /* The cycle cockpit: the full-width band above the cycle document that says
  * what the cycle is and asks what its run needs.
  *
- * 1. Identity — one row on `--page-bar-height`: the title, the status pill and
- *    case progress, and the cycle's own "…" menu.
+ * 1. Identity — one row on `--page-bar-height`: the title with its rename
+ *    pencil, the status pill and case progress, and the cycle's own "…" menu.
  * 2. Prompts — the questions the run is waiting on, full width, answered in
  *    place.
  *
@@ -51,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type NodeMenuItem, nodeMenuGroups, STATUS_PILL_CLASS } from "./cycle-workspace-model";
+import { EditableLabel } from "./EditableLabel";
 
 /* === Types === */
 
@@ -109,6 +110,9 @@ export type CycleWorkspaceHeaderProps = {
   /** False in the frozen report: no menu, no prompts. */
   live?: boolean;
   menu: CycleMenu | ExecutionMenu;
+  /** Renames the node; absent once it sealed or archived, or with
+   *  `live={false}`, the title is plain. */
+  onRename?: (label: string) => Promise<unknown>;
   /** The prompt band, full width under the identity row. */
   prompts?: ReactNode;
 };
@@ -119,6 +123,7 @@ export function CycleWorkspaceHeader({
   identity,
   live = true,
   menu,
+  onRename,
   prompts,
 }: CycleWorkspaceHeaderProps) {
   return (
@@ -128,12 +133,11 @@ export function CycleWorkspaceHeader({
           it carries no rule of its own. The title gives way first, so the
           progress always reads whole. */}
       <div className="grid min-h-[var(--page-bar-height)] min-w-0 grid-cols-[minmax(0,auto)_auto_minmax(0,1fr)_auto] items-center gap-x-3 px-[var(--shell-inset)] py-[var(--bar-pad-y)]">
-        <h1
-          className="min-w-0 truncate font-heading text-lg leading-7 font-semibold"
-          title={identity.title}
-        >
-          {identity.title}
-        </h1>
+        <EditableLabel
+          label={identity.title}
+          onRename={live && onRename ? onRename : null}
+          subject={menu.kind === "cycle" ? "Cycle" : "Execution"}
+        />
         {identity.status ? (
           <>
             <Badge className={STATUS_PILL_CLASS} variant={identity.status.variant}>

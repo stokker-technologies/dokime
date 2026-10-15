@@ -26,6 +26,8 @@ mod list_executions;
 mod list_step_criteria;
 mod pause_cycle;
 mod pause_execution;
+mod rename_cycle;
+mod rename_execution;
 mod resume_cycle;
 mod resume_execution;
 mod run_case;
@@ -58,6 +60,8 @@ pub use list_executions::ListExecutions;
 pub use list_step_criteria::ListStepCriteria;
 pub use pause_cycle::PauseCycle;
 pub use pause_execution::PauseExecution;
+pub use rename_cycle::RenameCycle;
+pub use rename_execution::RenameExecution;
 pub use resume_cycle::ResumeCycle;
 pub use resume_execution::ResumeExecution;
 pub use run_case::RunCase;
@@ -239,6 +243,38 @@ pub struct SetExecutionArchivedRequest {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArchiveReply {
     pub archived: bool,
+}
+
+// A rename is admitted until the subject seals: a sealed, archived or History
+// cycle and an execution whose case has a sealed attempt refuse it with
+// FailedPrecondition, since the sealed report froze the label. An execution's
+// label is its case's label, so every attempt of that case is renamed together.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenameCycleRequest {
+    pub cycle_id: String,
+    // nonblank after trimming, at most 4096 bytes UTF-8
+    #[row(description = "nonblank after trimming, at most 4096 bytes UTF-8")]
+    pub label: String,
+    pub context: Option<MutationContext>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenameExecutionRequest {
+    pub execution_id: String,
+    // nonblank after trimming, at most 4096 bytes UTF-8
+    #[row(description = "nonblank after trimming, at most 4096 bytes UTF-8")]
+    pub label: String,
+    pub context: Option<MutationContext>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenameReply {
+    // The label as stored, trimmed.
+    #[row(description = "The label as stored, trimmed.")]
+    pub label: String,
 }
 
 // DeleteCase only removes an unexecuted case. ScheduleCaseRerun makes the
@@ -441,6 +477,9 @@ pub struct CycleSummary {
     pub updated_at: Option<Timestamp>,
     pub result: Option<ResultSummary>,
     pub archived: bool,
+    // The cycle report is sealed: its label no longer changes.
+    #[row(description = "The cycle report is sealed: its label no longer changes.")]
+    pub sealed: bool,
     // The admitted suite identity is retained in the bounded summary so shell
     // consumers need not embed every case/execution just to render its title.
     #[row(
@@ -541,6 +580,9 @@ pub struct ExecutionSummary {
     pub status: ExecutionStatus,
     pub ordinal: u64,
     pub archived: bool,
+    // The execution report is sealed: its case label no longer changes.
+    #[row(description = "The execution report is sealed: its case label no longer changes.")]
+    pub sealed: bool,
 }
 
 // Current-runtime detail. Published historical checkpoints are a separate API.
@@ -1023,6 +1065,8 @@ pub enum Operations {
     ScheduleCaseRerun(ScheduleCaseRerun),
     SetCycleArchived(SetCycleArchived),
     SetExecutionArchived(SetExecutionArchived),
+    RenameCycle(RenameCycle),
+    RenameExecution(RenameExecution),
     UpdateCyclePolicy(UpdateCyclePolicy),
 }
 
@@ -1171,6 +1215,16 @@ impl Endpoint for SetCycleArchived {
 
 impl Endpoint for SetExecutionArchived {
     const PATH: &'static str = "/dokime.v1.Execution/SetExecutionArchived";
+    const ACCESS: Access = Access::Control;
+}
+
+impl Endpoint for RenameCycle {
+    const PATH: &'static str = "/dokime.v1.Execution/RenameCycle";
+    const ACCESS: Access = Access::Control;
+}
+
+impl Endpoint for RenameExecution {
+    const PATH: &'static str = "/dokime.v1.Execution/RenameExecution";
     const ACCESS: Access = Access::Control;
 }
 

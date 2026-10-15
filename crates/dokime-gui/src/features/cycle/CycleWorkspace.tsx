@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import type { TestExecution } from "@/lib/types";
 import { useFocusMode } from "@/shell/focus-mode";
 import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
@@ -363,8 +364,18 @@ export function CycleWorkspace({
           prompts={prompts}
           row={selectedRow}
           selection={selection}
+          label={selectedRow.case.label}
+          onRename={
+            selectedRow.execution && !caseSealed(executions, selectedRow.case.caseId)
+              ? (label) =>
+                  commands.renameExecution.mutateAsync({
+                    executionId: selectedRow.execution?.test_execution_id ?? "",
+                    label,
+                  })
+              : null
+          }
           snapshot={runtimeQuery.data ?? null}
-          title={executionTitle(selectedRow)}
+          titlePrefix={executionTitlePrefix(selectedRow)}
         />
       </div>
     );
@@ -383,6 +394,11 @@ export function CycleWorkspace({
           title: plan.test_cycle.title,
         }}
         live={live}
+        onRename={
+          plan.test_cycle.sealed || plan.test_cycle.archived
+            ? undefined
+            : (label) => commands.renameCycle.mutateAsync(label)
+        }
         menu={{
           archive: archiveAction(
             Boolean(plan.test_cycle.archived),
@@ -463,7 +479,16 @@ export function CycleWorkspace({
 
 /** The execution page's title: its ordinal and its case. */
 function executionTitle(row: CycleExecutionRow): string {
-  return `Execution ${row.ordinal} · ${row.case.label}`;
+  return `${executionTitlePrefix(row)}${row.case.label}`;
+}
+
+/** A case whose attempt sealed keeps the label its report froze. */
+function caseSealed(executions: TestExecution[], caseId: string): boolean {
+  return executions.some((execution) => execution.case_id === caseId && execution.sealed);
+}
+
+function executionTitlePrefix(row: CycleExecutionRow): string {
+  return `Execution ${row.ordinal} · `;
 }
 
 /* === Private Components === */

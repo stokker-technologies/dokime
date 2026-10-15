@@ -79,6 +79,10 @@ pub struct TestCase {
     pub parameters: BTreeMap<String, Value>,
     #[serde(default)]
     pub generation_index: u64,
+    /// The `n` the materializer gave this case's `<Template Label> #<n>`; 0 when
+    /// none. Numbering continues from it, never from the label an operator may rename.
+    #[serde(default)]
+    pub label_number: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

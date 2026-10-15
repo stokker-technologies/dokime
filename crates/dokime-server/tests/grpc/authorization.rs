@@ -166,6 +166,8 @@ matrix! {
     };
     "/dokime.v1.Execution/RunCycle", unary, contracts::execution::RunCycle;
     "/dokime.v1.Execution/ScheduleCaseRerun", unary, contracts::execution::ScheduleCaseRerun;
+    "/dokime.v1.Execution/RenameCycle", unary, contracts::execution::RenameCycle;
+    "/dokime.v1.Execution/RenameExecution", unary, contracts::execution::RenameExecution;
     "/dokime.v1.Execution/SetCycleArchived", unary, contracts::execution::SetCycleArchived;
     "/dokime.v1.Execution/SetExecutionArchived", unary, contracts::execution::SetExecutionArchived;
     "/dokime.v1.Execution/StopCycle", unary, contracts::execution::StopCycle;

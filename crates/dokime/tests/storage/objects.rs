@@ -96,6 +96,7 @@ pub(crate) async fn materialized_cases_reader() {
         suite: None,
         parameters: std::collections::BTreeMap::from([("count".into(), Value::Unsigned(u64::MAX))]),
         generation_index: 17,
+        label_number: 3,
     };
     let row = Case::try_from(&expected).unwrap();
     let receipt = storage.write_object(&row).await.unwrap();
@@ -404,6 +405,7 @@ pub(crate) async fn executions_reopen_results() {
         suite: None,
         parameters: std::collections::BTreeMap::from([("count".into(), Value::Unsigned(u64::MAX))]),
         generation_index: 2,
+        label_number: 0,
     };
     let snapshot = dokime::execution::ExecutionSnapshot::materialize(
         &case,

@@ -76,6 +76,14 @@ impl SuiteRegistry {
         self.cases.get(id)
     }
 
+    // A Registered Case Is Immutable But For The Label An Operator Renames, So
+    // Later Appends Still Find The Cycle's Copy Equal To The Registered One
+    pub(crate) fn relabel_case(&mut self, id: &CaseId, label: &str) {
+        if let Some(case) = self.cases.get_mut(id) {
+            case.metadata.label = label.to_owned();
+        }
+    }
+
     pub fn cases_for_suite<'a>(&'a self, suite: &'a str) -> impl Iterator<Item = &'a TestCase> {
         self.cases
             .values()

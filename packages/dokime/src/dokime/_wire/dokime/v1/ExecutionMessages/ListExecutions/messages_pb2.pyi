@@ -39,18 +39,20 @@ class Row3(_message.Message):
     def __init__(self, epoch: _Optional[str] = ..., stream: _Optional[str] = ..., position: _Optional[int] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("execution_id", "case_id", "status", "ordinal", "archived")
+    __slots__ = ("execution_id", "case_id", "status", "ordinal", "archived", "sealed")
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     ARCHIVED_FIELD_NUMBER: _ClassVar[int]
+    SEALED_FIELD_NUMBER: _ClassVar[int]
     execution_id: str
     case_id: str
     status: Row5
     ordinal: int
     archived: bool
-    def __init__(self, execution_id: _Optional[str] = ..., case_id: _Optional[str] = ..., status: _Optional[_Union[Row5, _Mapping]] = ..., ordinal: _Optional[int] = ..., archived: _Optional[bool] = ...) -> None: ...
+    sealed: bool
+    def __init__(self, execution_id: _Optional[str] = ..., case_id: _Optional[str] = ..., status: _Optional[_Union[Row5, _Mapping]] = ..., ordinal: _Optional[int] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ...) -> None: ...
 
 class Row5(_message.Message):
     __slots__ = ("Unspecified", "Invalidated", "Pending", "Running", "Passed", "Failed", "Blocked", "Cancelled", "Interrupted", "Skipped")

@@ -49,18 +49,20 @@ class Row2(_message.Message):
     def __init__(self, summary: _Optional[_Union[Row3, _Mapping]] = ..., cycle_id: _Optional[str] = ..., scope: _Optional[_Union[Row4, _Mapping]] = ..., admitted_suite: _Optional[_Union[Row5, _Mapping]] = ..., admitted_template_id: _Optional[str] = ..., admitted_template: _Optional[_Union[Row5, _Mapping]] = ..., admitted_plugin: _Optional[_Union[Row6, _Mapping]] = ..., invalidation: _Optional[_Union[Row7, _Mapping]] = ..., started_at: _Optional[_Union[Row8, _Mapping]] = ..., finished_at: _Optional[_Union[Row8, _Mapping]] = ..., result: _Optional[_Union[Row9, _Mapping]] = ..., input_parameter_count: _Optional[int] = ..., output_parameter_count: _Optional[int] = ..., step_count: _Optional[int] = ..., observed_cursor: _Optional[_Union[Row10, _Mapping]] = ..., controls: _Optional[_Union[Row11, _Mapping]] = ...) -> None: ...
 
 class Row3(_message.Message):
-    __slots__ = ("execution_id", "case_id", "status", "ordinal", "archived")
+    __slots__ = ("execution_id", "case_id", "status", "ordinal", "archived", "sealed")
     EXECUTION_ID_FIELD_NUMBER: _ClassVar[int]
     CASE_ID_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     ORDINAL_FIELD_NUMBER: _ClassVar[int]
     ARCHIVED_FIELD_NUMBER: _ClassVar[int]
+    SEALED_FIELD_NUMBER: _ClassVar[int]
     execution_id: str
     case_id: str
     status: Row12
     ordinal: int
     archived: bool
-    def __init__(self, execution_id: _Optional[str] = ..., case_id: _Optional[str] = ..., status: _Optional[_Union[Row12, _Mapping]] = ..., ordinal: _Optional[int] = ..., archived: _Optional[bool] = ...) -> None: ...
+    sealed: bool
+    def __init__(self, execution_id: _Optional[str] = ..., case_id: _Optional[str] = ..., status: _Optional[_Union[Row12, _Mapping]] = ..., ordinal: _Optional[int] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ...) -> None: ...
 
 class Row4(_message.Message):
     __slots__ = ("session_id", "cycle_id", "case_id", "execution_id", "step_id", "criterion_id", "template_id", "suite_id", "origin")

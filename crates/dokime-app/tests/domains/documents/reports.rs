@@ -111,6 +111,7 @@ pub(crate) async fn report_save_receipt() {
         suite: None,
         parameters: BTreeMap::new(),
         generation_index: 0,
+        label_number: 0,
     };
     let execution_id = TestExecutionId::new();
     let original_execution = TestExecution {

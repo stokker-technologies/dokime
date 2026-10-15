@@ -260,6 +260,8 @@ export type TestCycle = {
   generated_at: string;
   /** Hidden from the default lists; orthogonal to the lifecycle. */
   archived?: boolean;
+  /** The cycle report is sealed, so its label no longer changes. */
+  sealed?: boolean;
 };
 
 /**
@@ -331,6 +333,8 @@ export type ExecutionInvalidation = {
 export type TestExecution = {
   /** Hidden from the default lists; orthogonal to the lifecycle. */
   archived?: boolean;
+  /** The execution report is sealed, so its case label no longer changes. */
+  sealed?: boolean;
   controls?: ExecutionControls | null;
   test_execution_id: string;
   test_cycle_id: string;
