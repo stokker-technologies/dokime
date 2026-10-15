@@ -642,6 +642,7 @@ function reportPlotStates(
             status: typeof omitted === "string" ? ("omitted" as const) : ("live" as const),
             error: typeof omitted === "string" ? omitted : null,
             droppedBatches: 0,
+            summaryInFlight: false,
           },
         ],
       ];

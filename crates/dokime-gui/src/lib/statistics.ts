@@ -49,6 +49,9 @@ export type SeriesStatistic = (typeof SERIES_STATISTICS)[number][0];
 
 export type SeriesLegendColumn = { id: "trace" | "cursor" | SeriesStatistic; header: string };
 
+/** What happened to a plot's summary request on its stream. */
+export type SummaryRequestEvent = "requested" | "delivered" | "failed" | "ended";
+
 export type StatsSummary = {
   mean?: number;
   median?: number;
@@ -126,6 +129,15 @@ export function seriesLegendRows({
       cells,
     };
   });
+}
+
+/**
+ * Whether a plot's summary request is in flight after `event`. Only a new
+ * request dims the table: a delivered frame, an error frame, or a stream that
+ * ends with its run leaves the shown numbers final.
+ */
+export function summaryInFlight(event: SummaryRequestEvent): boolean {
+  return event === "requested";
 }
 
 /** The hidden trace set after a click on one trace's row. */
