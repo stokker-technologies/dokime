@@ -23,7 +23,7 @@ pub use types::{
     DownsampleTechnique, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame,
     PlotComputation, PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload,
     PlotPayloadCursor, PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest,
-    PlotPayloadStreamKind, PlotPoint, PlotSeries,
+    PlotPayloadStreamKind, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow,
 };
 
 /* === Imports === */
@@ -326,7 +326,26 @@ pub(crate) fn project_plot_payload(
         x_format: format_context.x_format.clone(),
         run_started_at: format_context.run_started_at.clone(),
         cycle_started_at: format_context.cycle_started_at.clone(),
+        summaries: Vec::new(),
     }
+}
+
+/// Whether a plot of this request carries series summaries.
+pub(crate) fn summarizes(request: &PlotPayloadRequest) -> bool {
+    analyses::summarizes(request)
+}
+
+/// The series summaries of `request` over every row of its window, for a
+/// frame whose own series hold only part of it.
+pub(crate) fn window_summaries(
+    telemetry: &[TelemetrySample],
+    records: &[RecordEntry],
+    request: &PlotPayloadRequest,
+    generated_at: &str,
+    format_context: &PlotPayloadContext,
+) -> Vec<PlotSeriesSummary> {
+    let payload = project_plot_payload(telemetry, records, request, generated_at, format_context);
+    analyses::summarize(&payload.series, request)
 }
 
 pub(crate) fn finish_plot_payload(
@@ -334,6 +353,9 @@ pub(crate) fn finish_plot_payload(
     request: &PlotPayloadRequest,
 ) -> PlotPayload {
     payload.analysis = analyses::analyze(&mut payload.series, request);
+    // Summarized here, over the exact rows of the window, before the series
+    // are reduced to their display budget.
+    payload.summaries = analyses::summarize(&payload.series, request);
     let spectrum = matches!(request.plot_type, Some(PlotType::FrequencySeries));
     if spectrum {
         payload.x_key = "frequency_hz".into();
@@ -492,6 +514,7 @@ pub fn plot_payload_request_for_descriptor(
         scope,
         cursor,
         technique: descriptor.input.downsample,
+        summary_window: None,
     };
     normalize_histogram_value(&mut request);
     normalize_analysis_fields(&mut request);

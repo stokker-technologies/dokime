@@ -14,7 +14,15 @@ import type uPlot from "uplot";
 
 /* === Local Imports === */
 
+import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
+import {
+  nearestDrawnValue,
+  type SeriesSummary,
+  seriesLegendColumns,
+  seriesLegendRows,
+  toggleTrace,
+} from "@/lib/statistics";
 import type {
   DocumentAxisScale,
   DocumentPlotStyle,
@@ -54,6 +62,7 @@ const TOUCH_PLOT_FONT_SCALE = 1.3;
 const POINT_MARK_RENDER_LIMIT = 600;
 const DENSE_POINT_MARK_SIZE = 3;
 const DEFAULT_POINT_MARK_SIZE = 5;
+const EMPTY_TRACES: ReadonlySet<string> = new Set();
 
 /* === Types === */
 
@@ -93,6 +102,13 @@ type CartesianPlotProps = {
   contextSummary?: string;
   liveWindowS?: number | null;
   viewportMode?: PlotViewportMode;
+  /**
+   * Replaces the canvas legend with the trace statistics table: one clickable
+   * row per trace with the backend's statistics of the shown window.
+   */
+  legend?: { summaries: SeriesSummary[]; pending: boolean } | null;
+  /** Reports the x range a zoom holds, or `null` once the plot follows again. */
+  onViewportChange?: (window: { from: number; to: number } | null) => void;
 };
 
 type IntervalRange = {
@@ -150,8 +166,21 @@ export const CartesianPlot = memo(function CartesianPlot({
   contextSummary,
   liveWindowS = null,
   viewportMode = "fit",
+  legend = null,
+  onViewportChange,
 }: CartesianPlotProps) {
   const { zoom } = usePlotInteraction();
+  // A report freezes its statistics; only a live plot reads the pointer.
+  const live = !zoom;
+  const [hiddenTraces, setHiddenTraces] = useState<ReadonlySet<string>>(EMPTY_TRACES);
+  const [traceColors, setTraceColors] = useState<string[]>([]);
+  const [cursorX, setCursorX] = useState<number | null>(null);
+  const cursorFrameRef = useRef<number | null>(null);
+  const hiddenTracesRef = useRef<ReadonlySet<string>>(hiddenTraces);
+  hiddenTracesRef.current = hiddenTraces;
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
+  const tableLegend = legend !== null;
   const [following, setFollowing] = useState(true);
   const heldRangeRef = useRef<HeldViewport | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -338,6 +367,23 @@ export const CartesianPlot = memo(function CartesianPlot({
             if (!held) return;
             heldRangeRef.current = held;
             setFollowing(false);
+            // A y-only zoom returns x to its live follow, so the statistics
+            // return to the window too.
+            onViewportChangeRef.current?.(held.x ? { from: held.x.min, to: held.x.max } : null);
+          },
+        ],
+        setCursor: [
+          (plot) => {
+            const left = plot.cursor.left;
+            if (!tableLegend || !live || left == null || left < 0) return;
+            const x = plot.posToVal(left, "x");
+            if (cursorFrameRef.current !== null) {
+              window.cancelAnimationFrame(cursorFrameRef.current);
+            }
+            cursorFrameRef.current = window.requestAnimationFrame(() => {
+              cursorFrameRef.current = null;
+              setCursorX(x);
+            });
           },
         ],
         drawClear: [
@@ -366,7 +412,7 @@ export const CartesianPlot = memo(function CartesianPlot({
       },
       select: { show: true, left: 0, top: 0, width: 0, height: 0 },
       legend: {
-        show: true,
+        show: !tableLegend,
         live: true,
       },
       scales: {
@@ -465,12 +511,19 @@ export const CartesianPlot = memo(function CartesianPlot({
     if (resetKeyRef.current !== resetKey || viewportModeRef.current !== viewportMode) {
       heldRangeRef.current = null;
       setFollowing(true);
+      onViewportChangeRef.current?.(null);
     }
     if (heldRangeRef.current) {
       applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () =>
         setLiveXScale(plot, liveXRange, xScale, timeAxis),
       );
     }
+    renderedSeries.forEach((item, index) => {
+      if (hiddenTracesRef.current.has(item.key)) plot.setSeries(index + 1, { show: false });
+    });
+    setTraceColors((current) =>
+      current.join("|") === resolvedSeriesColors.join("|") ? current : resolvedSeriesColors,
+    );
     plotRef.current = plot;
     dataSignatureRef.current = dataSignature;
     resetKeyRef.current = resetKey;
@@ -505,6 +558,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     const resume = () => {
       heldRangeRef.current = null;
       setFollowing(true);
+      onViewportChangeRef.current?.(null);
     };
     root.addEventListener("dblclick", resume);
     return () => {
@@ -522,6 +576,10 @@ export const CartesianPlot = memo(function CartesianPlot({
       if (updateFrameRef.current !== null) {
         window.cancelAnimationFrame(updateFrameRef.current);
         updateFrameRef.current = null;
+      }
+      if (cursorFrameRef.current !== null) {
+        window.cancelAnimationFrame(cursorFrameRef.current);
+        cursorFrameRef.current = null;
       }
       plot.destroy();
       plotRef.current = null;
@@ -553,7 +611,50 @@ export const CartesianPlot = memo(function CartesianPlot({
     yReferenceKey,
     chartMode,
     formatsKey,
+    tableLegend,
+    live,
   ]);
+
+  // Visibility is this card's own state: toggling a trace shows or hides its
+  // series in place, without rebuilding the plot.
+  useEffect(() => {
+    const plot = plotRef.current;
+    if (!plot) return;
+    renderedSeries.forEach((item, index) => {
+      const show = !hiddenTraces.has(item.key);
+      if (plot.series[index + 1]?.show !== show) plot.setSeries(index + 1, { show });
+    });
+  }, [hiddenTraces, renderedSeries]);
+
+  const legendRows = useMemo(() => {
+    if (!legend) return null;
+    const frame = backendCartesian;
+    const cursorValues =
+      live && cursorX !== null && frame
+        ? frame.series.map((item) => nearestDrawnValue(item.x, item.y, cursorX))
+        : null;
+    return seriesLegendRows({
+      cursorValues,
+      hidden: hiddenTraces,
+      summaries: legend.summaries,
+      traces: renderedSeries.map((item, index) => ({
+        key: item.key,
+        label: item.label,
+        color: traceColors[index] ?? colors[series.indexOf(item)] ?? "currentColor",
+      })),
+    });
+  }, [
+    backendCartesian,
+    colors,
+    cursorX,
+    hiddenTraces,
+    legend,
+    live,
+    renderedSeries,
+    series,
+    traceColors,
+  ]);
+  const legendColumns = useMemo(() => seriesLegendColumns(live, unit), [live, unit]);
 
   useEffect(() => {
     markersRef.current = markers;
@@ -658,6 +759,7 @@ export const CartesianPlot = memo(function CartesianPlot({
             onClick={() => {
               heldRangeRef.current = null;
               setFollowing(true);
+              onViewportChangeRef.current?.(null);
               const plot = plotRef.current;
               if (plot && chartFrame) {
                 plot.setData(chartFrame.data, true);
@@ -683,6 +785,16 @@ export const CartesianPlot = memo(function CartesianPlot({
         ref={rootRef}
         className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden"
       />
+      {legend && legendRows ? (
+        <StatsSummaryTable
+          legend={{
+            columns: legendColumns,
+            rows: legendRows,
+            pending: legend.pending,
+            onToggle: (key) => setHiddenTraces((current) => toggleTrace(current, key)),
+          }}
+        />
+      ) : null}
     </article>
   );
 });

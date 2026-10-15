@@ -52,8 +52,9 @@ pub use plots::{
     PlotAnalysis, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation,
     PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload, PlotPayloadCursor,
     PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind,
-    PlotPoint, PlotSeries, RuntimePlotQueryMode, RuntimePlotStreamBatch, SigmaBin, SigmaSeries,
-    matching_plot_payload_request, merge_plot_payload_cursor, plot_payload_request_for_descriptor,
+    PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, RuntimePlotQueryMode,
+    RuntimePlotStreamBatch, SigmaBin, SigmaSeries, matching_plot_payload_request,
+    merge_plot_payload_cursor, plot_payload_request_for_descriptor,
     plot_payload_stream_envelope_visible, plot_payload_stream_kind,
 };
 pub use projections::{

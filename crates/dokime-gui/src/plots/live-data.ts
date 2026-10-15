@@ -41,6 +41,7 @@ import {
   reduceIndices,
   retainedStart,
 } from "@/plots/reduce";
+import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Constants === */
 
@@ -101,6 +102,20 @@ export function useLivePlotPayloads({
   const streamEnabled = enabled && pageVisible;
   const [state, setState] = useState<LivePlotStateMap>({});
   const plotRequestKey = useMemo(() => plots.map(documentPlotRequestKey).join(";"), [plots]);
+  // A zoom changes which rows a plot's statistics cover, not the rows it
+  // draws: the stream reopens for it while the drawn frame stays on screen.
+  const summaryWindows = useSummaryWindowStore((store) => store.windows);
+  const summaryKey = useMemo(
+    () =>
+      JSON.stringify(
+        Object.fromEntries(plots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]])),
+      ),
+    [plots, summaryWindows],
+  );
+  const requestedSummaryWindows = useMemo(
+    () => JSON.parse(summaryKey) as Record<string, SummaryWindow | undefined>,
+    [summaryKey],
+  );
   const scopeFields = useMemo(
     () => ({
       test_case_id: scope?.test_case_id ?? null,
@@ -201,7 +216,11 @@ export function useLivePlotPayloads({
 
     const controller = new AbortController();
     const requests = activePlots.map((plot) =>
-      plotRequestForDocumentPlot(plot, { scope: requestScope, windowS }),
+      plotRequestForDocumentPlot(plot, {
+        scope: requestScope,
+        windowS,
+        summaryWindow: requestedSummaryWindows[plot.plot_id] ?? null,
+      }),
     );
     const techniques: TechniqueByPlot = Object.fromEntries(
       activePlots.map((plot) => [plot.plot_id, reduceTechnique(plot.downsample)]),
@@ -389,6 +408,7 @@ export function useLivePlotPayloads({
     };
   }, [
     dataKey,
+    requestedSummaryWindows,
     requestScope?.test_cycle_id,
     enabled,
     requestScope,
@@ -402,7 +422,11 @@ export function useLivePlotPayloads({
 
 export function plotRequestForDocumentPlot(
   plot: DocumentViewPlot,
-  options: { scope: RecordScope | null; windowS?: number | null },
+  options: {
+    scope: RecordScope | null;
+    windowS?: number | null;
+    summaryWindow?: SummaryWindow | null;
+  },
 ): PlotPayloadRequestInput {
   return {
     plotId: plot.plot_id,
@@ -433,6 +457,7 @@ export function plotRequestForDocumentPlot(
     maxPoints: displayPointBudget(plot.display_points),
     technique: plot.downsample ?? "auto",
     windowS: options.windowS === undefined ? plot.live_window_s : options.windowS,
+    summaryWindow: options.summaryWindow ?? null,
     scope: options.scope,
   };
 }
@@ -492,6 +517,8 @@ export function appendPlotPayload(current: PlotPayload, update: PlotPayload): Pl
     ...current,
     generated_at: update.generated_at,
     analysis: update.analysis ?? current.analysis,
+    // An append frame's summaries already cover the whole window.
+    summaries: update.summaries ?? current.summaries,
     context: { ...(current.context ?? {}), ...(update.context ?? {}) },
     markers: trimPlotMarkers([...(current.markers ?? []), ...(update.markers ?? [])], windowS),
     max_points: maxPoints ?? 0,

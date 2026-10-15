@@ -484,6 +484,13 @@ can also add parameter-based reference bands; the
 [soak starter](crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
 
+Time series and scatter plots list their traces in a statistics table beneath
+the plot instead of a legend: count, min, max, mean, median, std, and rms of
+each trace over the window shown, computed by the backend over the exact rows
+rather than the reduced points the plot draws. Clicking a row hides or shows its
+trace, a live plot's table also reads the value under the cursor, and the report
+freezes the table with its plot.
+
 Open or download a cycle's or an execution's **self-contained report** to share
 the plots, verdicts, and context without requiring access to the testbench. A
 running cycle's report is generated from the evidence so far; a finished one is

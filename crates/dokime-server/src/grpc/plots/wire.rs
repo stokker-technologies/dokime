@@ -296,6 +296,12 @@ fn plot_request_wire(
         // process-local and are added only when a caller opens a live stream.
         cursor: None,
         technique: enums::downsample_technique(&request.technique),
+        summary_window: request.summary_window.map(|window| {
+            dokime_contract::operations::plots::PlotWindow {
+                from: window.from,
+                to: window.to,
+            }
+        }),
     })
 }
 
@@ -654,6 +660,41 @@ fn plot_payload(
         run_started_at: value.run_started_at,
         cycle_started_at: value.cycle_started_at,
         analysis: value.analysis.map(plot_analysis).transpose()?,
+        summaries: value
+            .summaries
+            .into_iter()
+            .map(plot_series_summary)
+            .collect::<Result<_, _>>()?,
+    })
+}
+
+fn plot_series_summary(
+    value: dokime_app::runtime::query::PlotSeriesSummary,
+) -> Result<dokime_contract::operations::plots::PlotSeriesSummary, Status> {
+    let number = |value: Option<f64>| {
+        value
+            .map(|value| finite_number(value, "plot series summary"))
+            .transpose()
+    };
+    Ok(dokime_contract::operations::plots::PlotSeriesSummary {
+        series_id: bounded_text(value.series_id)?,
+        count: u64::try_from(value.count)
+            .map_err(|_| Status::internal("plot summary count does not fit wire"))?,
+        min: number(value.min)?,
+        max: number(value.max)?,
+        mean: number(value.mean)?,
+        median: number(value.median)?,
+        std: number(value.std)?,
+        rms: number(value.rms)?,
+        window: value
+            .window
+            .map(|window| {
+                Ok::<_, Status>(dokime_contract::operations::plots::PlotWindow {
+                    from: finite_number(window.from, "plot summary window")?,
+                    to: finite_number(window.to, "plot summary window")?,
+                })
+            })
+            .transpose()?,
     })
 }
 

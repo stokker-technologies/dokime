@@ -152,6 +152,7 @@ fn request(max_points: u64) -> contracts::plots::PlotRequest {
         interval: None,
         histogram: None,
         analysis: None,
+        summary_window: None,
     }
 }
 

@@ -696,6 +696,30 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize) {
         points <= LIVE_DISPLAY_POINTS as usize && points > PULSE_DISPLAY_POINTS as usize,
         "render {attempt} draws the live plot's {LIVE_DISPLAY_POINTS} points, not the authored {PULSE_DISPLAY_POINTS}: {points}"
     );
+    // The frozen summary covers every pulse row, 0 to n - 1, not the drawn
+    // points: the numbers the live table shows over the same window.
+    let summaries = plot["summaries"].as_array().unwrap();
+    assert_eq!(summaries.len(), 1, "one summary per series: {summaries:?}");
+    let summary = &summaries[0];
+    assert_eq!(summary["series_id"], series["key"]);
+    assert_eq!(summary["count"], serde_json::json!(LARGE_PULSE_ROWS));
+    let rows = f64::from(LARGE_PULSE_ROWS);
+    for (statistic, expected) in [
+        ("min", 0.0),
+        ("max", rows - 1.0),
+        ("mean", (rows - 1.0) / 2.0),
+        ("median", (rows - 1.0) / 2.0),
+        ("std", ((rows * rows - 1.0) / 12.0).sqrt()),
+        ("rms", ((rows - 1.0) * (2.0 * rows - 1.0) / 6.0).sqrt()),
+    ] {
+        let actual = summary[statistic].as_f64().unwrap();
+        assert!(
+            (actual - expected).abs() <= 1e-9 * expected.abs().max(1.0),
+            "render {attempt} {statistic}: {actual} != {expected}"
+        );
+    }
+    let window = &summary["window"];
+    assert!(window["from"].as_f64().unwrap() <= window["to"].as_f64().unwrap());
 }
 
 // a report whose kept rows exceed the whole report budget still opens while

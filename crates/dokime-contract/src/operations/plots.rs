@@ -96,6 +96,12 @@ pub struct PlotRequest {
     pub interval: Option<PlotIntervalOptions>,
     pub histogram: Option<PlotHistogramOptions>,
     pub analysis: Option<AnalysisSelection>,
+    // The x range a time series or scatter plot shows after a zoom; its
+    // series summaries cover only the rows inside it.
+    #[row(
+        description = "The x range a time series or scatter plot shows after a zoom; its series summaries cover only the rows inside it."
+    )]
+    pub summary_window: Option<PlotWindow>,
 }
 
 #[harmos::message]
@@ -253,6 +259,35 @@ pub struct PlotPayload {
     pub cycle_started_at: Option<String>,
     pub analysis: Option<PlotAnalysis>,
     pub computed: Option<AnalysisComputation>,
+    // One summary per series, in series order, for time series and scatter
+    // plots: the statistics of the exact rows in the shown window.
+    #[row(
+        description = "One summary per series, in series order, for time series and scatter plots: the statistics of the exact rows in the shown window."
+    )]
+    pub summaries: Vec<PlotSeriesSummary>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotSeriesSummary {
+    pub series_id: String,
+    pub count: u64,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub mean: Option<f64>,
+    pub median: Option<f64>,
+    pub std: Option<f64>,
+    pub rms: Option<f64>,
+    pub window: Option<PlotWindow>,
+}
+
+// An inclusive x range in the cartesian x space: epoch seconds on a time
+// axis, x values on a scatter.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotWindow {
+    pub from: f64,
+    pub to: f64,
 }
 
 #[harmos::message]

@@ -352,6 +352,10 @@ fn evidence_contract() {
         run_scenario(evidence::plots::batch_request_cursors, false, None, false);
     }
     {
+        eprintln!("Scenario: evidence::plots::series_window_summaries");
+        run_scenario(evidence::plots::series_window_summaries, false, None, false);
+    }
+    {
         eprintln!("Scenario: evidence::plots::execution_plots_samples");
         run_scenario(evidence::plots::execution_plots_samples, false, None, false);
     }

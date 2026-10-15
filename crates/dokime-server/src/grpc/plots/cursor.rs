@@ -28,7 +28,7 @@ use dokime_app::{
         HistogramOptions, SigmaIntervalOptions,
     },
     expressions::{DataExpression, DataSource, DataTransform},
-    runtime::query::{DownsampleTechnique, PlotPayloadCursor, PlotPayloadRequest},
+    runtime::query::{DownsampleTechnique, PlotPayloadCursor, PlotPayloadRequest, PlotWindow},
 };
 
 /* === Constants === */
@@ -168,6 +168,22 @@ fn plot_request(
         ));
     }
 
+    let summary_window = request
+        .summary_window
+        .map(|window| {
+            if window.from.is_finite() && window.to.is_finite() && window.from <= window.to {
+                Ok(PlotWindow {
+                    from: window.from,
+                    to: window.to,
+                })
+            } else {
+                Err(Status::invalid_argument(
+                    "plot summary_window must be a finite range with from <= to",
+                ))
+            }
+        })
+        .transpose()?;
+
     Ok(PlotPayloadRequest {
         analysis: request
             .analysis
@@ -226,6 +242,7 @@ fn plot_request(
         scope: request.scope.map(record_scope).transpose()?,
         cursor: request.cursor.map(plot_cursor),
         technique,
+        summary_window,
     })
 }
 
