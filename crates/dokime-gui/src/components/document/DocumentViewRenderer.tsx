@@ -59,7 +59,7 @@ type DocumentViewRendererProps = {
   sectionChrome?: DocumentSectionChrome;
 };
 
-type DocumentBlockChrome = "normal" | "embedded" | "flat";
+export type DocumentBlockChrome = "normal" | "embedded" | "flat";
 type DocumentSectionChrome = "plain" | "grouped" | "card";
 
 type DocumentViewBlockProps = {

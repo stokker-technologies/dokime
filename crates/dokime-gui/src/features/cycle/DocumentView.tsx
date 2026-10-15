@@ -19,7 +19,10 @@ import { type ReactNode, useCallback } from "react";
 
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 
-import { DocumentSectionActionContext } from "@/components/document/DocumentViewRenderer";
+import {
+  type DocumentBlockChrome,
+  DocumentSectionActionContext,
+} from "@/components/document/DocumentViewRenderer";
 import { DocumentWorkspaceView } from "@/components/document/DocumentWorkspaceView";
 
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
@@ -29,6 +32,7 @@ import { localArtifactHref } from "@/lib/artifact-tree";
 import type { TraceabilityExportName } from "@/lib/traceability";
 
 import type {
+  DocumentViewCard,
   DocumentViewPayload,
   DocumentViewSection,
   HubLiveState,
@@ -47,10 +51,10 @@ import { type DocumentViewOptions, useDocumentView } from "./use-document-view";
 
 /* === Types === */
 
-type DocumentViewProps = {
+export type DocumentSurfaceOptions = {
   document: DocumentViewPayload | null | undefined;
   execution: TestExecution | null;
-  live?: boolean;
+  live: boolean;
   snapshot: HubLiveState | null;
   scope: RecordScope;
   parameters: DocumentViewOptions["parameters"];
@@ -58,47 +62,30 @@ type DocumentViewProps = {
   plotWindow: PlotWindowOption;
   plotWindowOverridden: boolean;
   traceabilityExportName?: TraceabilityExportName | null;
+};
+
+/** One selection's evidence, resolved once for every surface that shows part of it. */
+export type DocumentSurface = ReturnType<typeof useDocumentSurface>;
+
+type DocumentViewProps = {
+  surface: DocumentSurface;
   /** The plot window control, placed in the header of the first plot section. */
   plotWindowControl?: ReactNode;
+  /** The cards this view shows; absent shows every main-region card. */
+  cardFilter?: (card: DocumentViewCard) => boolean;
+  /** The frame each card gets; absent keeps the renderer's default. */
+  cardChrome?: (card: DocumentViewCard) => DocumentBlockChrome;
 };
 
 /* === Components === */
 
 export function DocumentView({
-  document,
-  execution,
-  live = true,
-  snapshot,
-  scope,
-  parameters,
-  noteElapsedStart,
-  plotWindow,
-  plotWindowOverridden,
-  traceabilityExportName,
+  surface,
   plotWindowControl = null,
+  cardFilter,
+  cardChrome,
 }: DocumentViewProps) {
-  const view = useDocumentView({
-    document: document ?? null,
-    execution,
-    live,
-    liveSnapshot: snapshot,
-    scope,
-    parameters,
-    noteElapsedStart,
-    windowS: plotWindowOverridden ? plotWindow.value : undefined,
-  });
-  const {
-    artifacts,
-    criterionRecords,
-    health,
-    notes,
-    records,
-    reportPayloads,
-    stepRecords,
-    streams,
-    traceability,
-  } = view;
-  const nativeSession = useNativeSessionOptional();
+  const { options, shared, view } = surface;
   /* The plot window belongs to the plots it scales: the first section that
      holds a windowed card carries it in its header. */
   const windowedSectionId =
@@ -108,9 +95,68 @@ export function DocumentView({
     (sectionId: string) => (sectionId === windowedSectionId ? plotWindowControl : null),
     [plotWindowControl, windowedSectionId],
   );
-  const plotResetKey = plotWindow.label;
-  const livePlotWindowS = plotWindowOverridden ? plotWindow.value : undefined;
-  const localArtifacts = artifacts.map((artifact) => {
+  const shown = { ...shared, cardChrome, cardFilter };
+
+  /* The frozen branch is the same surface reading embedded payloads instead of
+     live telemetry. `DocumentWorkspaceView` discriminates on `renderMode`, so
+     the two payload sets can never be confused for each other. */
+  if (!options.live) {
+    return (
+      <DocumentSectionActionContext.Provider value={sectionAction}>
+        <DocumentWorkspaceView
+          {...shown}
+          renderMode="report"
+          reportBoxSummaries={view.reportPayloads?.boxSummaries ?? {}}
+          reportHistograms={view.reportPayloads?.histograms ?? {}}
+          reportPlots={view.reportPayloads?.plots ?? {}}
+          reportTelemetry={view.plotContextTelemetry}
+        />
+      </DocumentSectionActionContext.Provider>
+    );
+  }
+
+  return (
+    <DocumentSectionActionContext.Provider value={sectionAction}>
+      <DocumentWorkspaceView
+        {...shown}
+        boxSummarySections={view.boxSummarySections}
+        histogramSections={view.histogramSections}
+        plotContextTelemetry={view.plotContextTelemetry}
+        plotResetKey={options.plotWindow.label}
+        plotWindowS={options.plotWindowOverridden ? options.plotWindow.value : undefined}
+        renderMode="live"
+        scope={options.scope}
+      />
+    </DocumentSectionActionContext.Provider>
+  );
+}
+
+/** The frozen console a report prints after the document it belongs to. */
+export function FrozenDocumentConsole({ surface }: { surface: DocumentSurface }) {
+  return surface.options.live ? null : (
+    <ConsoleDrawer live={false} records={surface.view.records} />
+  );
+}
+
+/* === Hooks === */
+
+/**
+ * Reads one selection's evidence and resolves its artifact links, so the
+ * cycle document and the execution page's sections share one set of reads.
+ */
+export function useDocumentSurface(options: DocumentSurfaceOptions) {
+  const view = useDocumentView({
+    document: options.document ?? null,
+    execution: options.execution,
+    live: options.live,
+    liveSnapshot: options.snapshot,
+    scope: options.scope,
+    parameters: options.parameters,
+    noteElapsedStart: options.noteElapsedStart,
+    windowS: options.plotWindowOverridden ? options.plotWindow.value : undefined,
+  });
+  const nativeSession = useNativeSessionOptional();
+  const artifacts = view.artifacts.map((artifact) => {
     const localHref = localArtifactHref(artifact.path);
     return {
       ...artifact,
@@ -118,7 +164,7 @@ export function DocumentView({
       downloadHref: artifact.downloadHref ?? localHref,
     };
   });
-  const resolvedMediaArtifacts = artifacts.flatMap((artifact) => {
+  const mediaArtifacts = view.artifacts.flatMap((artifact) => {
     const href = artifact.href ?? artifact.downloadHref ?? localArtifactHref(artifact.path);
     if (!href && !nativeSession) return [];
     return [
@@ -131,57 +177,22 @@ export function DocumentView({
   });
 
   const shared = {
-    artifacts: localArtifacts,
-    streams,
-    criterionRecords,
-    document,
-    mediaArtifacts: resolvedMediaArtifacts,
-    notes,
+    artifacts,
+    streams: view.streams,
+    criterionRecords: view.criterionRecords,
+    document: options.document,
+    mediaArtifacts,
+    notes: view.notes,
     plotParameterContext: view.parameterContext,
-    records,
-    health,
+    records: view.records,
+    health: view.health,
     sections: view.sections,
-    stepRecords,
-    traceability,
-    traceabilityExportName,
+    stepRecords: view.stepRecords,
+    traceability: view.traceability,
+    traceabilityExportName: options.traceabilityExportName,
   };
-
-  /* The frozen branch is the same surface reading embedded payloads instead of
-     live telemetry. `DocumentWorkspaceView` discriminates on `renderMode`, so
-     the two payload sets can never be confused for each other. */
-  if (!live) {
-    return (
-      <DocumentSectionActionContext.Provider value={sectionAction}>
-        <DocumentWorkspaceView
-          {...shared}
-          renderMode="report"
-          reportBoxSummaries={reportPayloads?.boxSummaries ?? {}}
-          reportHistograms={reportPayloads?.histograms ?? {}}
-          reportPlots={reportPayloads?.plots ?? {}}
-          reportTelemetry={view.plotContextTelemetry}
-        />
-        <ConsoleDrawer live={false} records={records} />
-      </DocumentSectionActionContext.Provider>
-    );
-  }
-
-  return (
-    <DocumentSectionActionContext.Provider value={sectionAction}>
-      <DocumentWorkspaceView
-        {...shared}
-        boxSummarySections={view.boxSummarySections}
-        histogramSections={view.histogramSections}
-        plotContextTelemetry={view.plotContextTelemetry}
-        plotResetKey={plotResetKey}
-        plotWindowS={livePlotWindowS}
-        renderMode="live"
-        scope={scope}
-      />
-    </DocumentSectionActionContext.Provider>
-  );
+  return { options, shared, view };
 }
-
-/* === Hooks === */
 
 /* === Public Functions === */
 

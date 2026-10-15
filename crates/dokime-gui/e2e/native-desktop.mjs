@@ -884,7 +884,7 @@ async function settle(session) {
   ).catch(() => undefined);
 }
 
-/** Answer every prompt the open cycle is waiting on, through the banner. */
+/** Answer every prompt the open cycle is waiting on, through the banner or Control. */
 async function answerPendingPrompts(session) {
   /* The banner is gone the moment a prompt is answered, so what it showed is
      read here, before Respond, and asserted once the run is over. */
@@ -912,7 +912,11 @@ async function answerPendingPrompts(session) {
       (button) => button.innerText.trim() === 'Respond',
     );
     respond[0]?.click();
-    return respond.length;
+    if (respond.length) return respond.length;
+    /* The execution page prints its prompt open in Control, with no Respond. */
+    return banner.querySelector('[aria-labelledby="active-prompt-title"]')
+      ? banner.querySelectorAll('li[data-prompt-level]').length
+      : 0;
   `);
   if (!pending) return 0;
   await delay(600);
@@ -1522,19 +1526,24 @@ async function cycleJourney(session, cycleId) {
     "warning",
     "The mini plugin's startup prompt must render at its declared Warning level",
   );
+  /* The cycle cockpit offers a card with its kind and Respond; the execution
+     page prints the prompt open, under its own "Run Paused" line. */
+  const inlinePrompt = /Run Paused/.test(startupCard.text) && !/Respond/.test(startupCard.text);
   assert.ok(
-    /Respond/.test(startupCard.text) && /Form/.test(startupCard.text),
-    "A banner card must offer its kind and the Respond action",
+    inlinePrompt || (/Respond/.test(startupCard.text) && /Form/.test(startupCard.text)),
+    "A banner card must offer its kind and the Respond action, or the prompt must be open",
   );
   assert.ok(
     startupSighting.bannerTop < 400,
     `The prompt banner must sit at the top of the workspace, not at ${startupSighting.bannerTop}px`,
   );
-  assert.match(
-    startupSighting.header ?? "",
-    /\d+ prompts? waiting/,
-    "The cycle header must count the open prompts",
-  );
+  if (!inlinePrompt) {
+    assert.match(
+      startupSighting.header ?? "",
+      /\d+ prompts? waiting/,
+      "The cycle header must count the open prompts",
+    );
+  }
   assert.match(
     startupSighting.navigation ?? "",
     /^\d+$/,

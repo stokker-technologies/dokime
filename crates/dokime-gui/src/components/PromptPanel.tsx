@@ -7,6 +7,11 @@
  * ***
  */
 
+/* One pending prompt, printed in place: its state, title, instruction, fields
+ * and actions, with no box of its own. The surface that hosts it decides the
+ * frame; the prompt's own "Run Paused" line already says the run waits.
+ */
+
 /* === External Imports === */
 
 import { AlertTriangle, LoaderCircle, Plus, Trash2 } from "lucide-react";
@@ -16,7 +21,6 @@ import type { ReactNode } from "react";
 
 import { PathPill } from "@/components/PathPill";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,56 +66,21 @@ export function PromptPanel({
     return null;
   }
 
-  const isStatusPrompt = prompt.kind === "status";
-
+  if (prompt.kind === "status") {
+    return <StatusPromptDialog emergencyAction={emergencyAction} prompt={prompt} />;
+  }
+  if (prompt.kind === "verification") {
+    return <VerificationPromptDialog emergencyAction={emergencyAction} prompt={prompt} />;
+  }
   return (
-    <>
-      <Card
-        className={
-          isStatusPrompt
-            ? "rounded-lg border-primary/25 bg-primary/5 py-3"
-            : "rounded-lg border-destructive/30 bg-destructive/5 py-3"
-        }
-      >
-        <CardContent
-          className={
-            isStatusPrompt ? "flex gap-2 px-3 text-primary" : "flex gap-2 px-3 text-destructive"
-          }
-        >
-          {isStatusPrompt ? (
-            <LoaderCircle className="mt-0.5 shrink-0 animate-spin" size={18} />
-          ) : (
-            <AlertTriangle className="mt-0.5 shrink-0" size={18} />
-          )}
-          <div className="grid gap-1">
-            <strong className="text-foreground">
-              {isStatusPrompt ? "Run Working" : "Operator Prompt Pending"}
-            </strong>
-            <span className="text-sm leading-snug">
-              {isStatusPrompt
-                ? "The run is completing a blocking setup step."
-                : prompt.kind === "verification"
-                  ? "The run is waiting for the requested condition to be verified."
-                  : "The run is paused until this prompt is completed."}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-      {isStatusPrompt ? (
-        <StatusPromptDialog emergencyAction={emergencyAction} prompt={prompt} />
-      ) : prompt.kind === "verification" ? (
-        <VerificationPromptDialog emergencyAction={emergencyAction} prompt={prompt} />
-      ) : (
-        <PromptDialog
-          emergencyAction={emergencyAction}
-          prompt={prompt}
-          submittingAction={submittingAction}
-          values={values}
-          onAction={onAction}
-          onValueChange={onValueChange}
-        />
-      )}
-    </>
+    <PromptDialog
+      emergencyAction={emergencyAction}
+      prompt={prompt}
+      submittingAction={submittingAction}
+      values={values}
+      onAction={onAction}
+      onValueChange={onValueChange}
+    />
   );
 }
 
@@ -123,34 +92,32 @@ function StatusPromptDialog({
   prompt: PromptRequest;
 }) {
   return (
-    <Card
+    <div
       aria-live="polite"
       aria-labelledby="active-prompt-title"
-      className="rounded-lg border-primary/25 py-0 shadow-sm"
+      className="grid min-w-0 gap-4"
       role="status"
     >
-      <CardContent className="grid min-w-0 gap-4 p-4">
-        <div className="flex min-w-0 gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <LoaderCircle className="animate-spin" size={18} />
-          </div>
-          <div className="grid min-w-0 gap-1">
-            <p className="text-xs font-bold uppercase text-primary">Working</p>
-            <strong id="active-prompt-title" className="text-base [overflow-wrap:anywhere]">
-              {prompt.title}
-            </strong>
-            {prompt.message ? (
-              <p className="whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                {prompt.message}
-              </p>
-            ) : null}
-          </div>
+      <div className="flex min-w-0 gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <LoaderCircle className="animate-spin" size={18} />
         </div>
-        {emergencyAction ? (
-          <div className="flex justify-end border-t pt-3">{emergencyAction}</div>
-        ) : null}
-      </CardContent>
-    </Card>
+        <div className="grid min-w-0 gap-1">
+          <p className="text-xs font-bold uppercase text-primary">Working</p>
+          <strong id="active-prompt-title" className="text-base [overflow-wrap:anywhere]">
+            {prompt.title}
+          </strong>
+          {prompt.message ? (
+            <p className="whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">
+              {prompt.message}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {emergencyAction ? (
+        <div className="flex justify-end border-t pt-3">{emergencyAction}</div>
+      ) : null}
+    </div>
   );
 }
 
@@ -162,38 +129,32 @@ function VerificationPromptDialog({
   prompt: PromptRequest;
 }) {
   return (
-    <Card
-      aria-labelledby="active-prompt-title"
-      className="rounded-lg border-destructive/30 py-0 shadow-sm"
-      role="region"
-    >
-      <CardContent className="grid min-w-0 gap-4 p-4">
-        <div className="flex min-w-0 gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <LoaderCircle className="animate-spin" size={18} />
-          </div>
-          <div className="grid min-w-0 gap-1">
-            <p className="text-xs font-bold uppercase text-destructive">Waiting For Verification</p>
-            <strong id="active-prompt-title" className="text-base [overflow-wrap:anywhere]">
-              {prompt.title}
-            </strong>
-            {prompt.message ? (
-              <p className="whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                {prompt.message}
-              </p>
-            ) : null}
-          </div>
+    <section aria-labelledby="active-prompt-title" className="grid min-w-0 gap-4">
+      <div className="flex min-w-0 gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <LoaderCircle className="animate-spin" size={18} />
         </div>
+        <div className="grid min-w-0 gap-1">
+          <p className="text-xs font-bold uppercase text-destructive">Waiting For Verification</p>
+          <strong id="active-prompt-title" className="text-base [overflow-wrap:anywhere]">
+            {prompt.title}
+          </strong>
+          {prompt.message ? (
+            <p className="whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">
+              {prompt.message}
+            </p>
+          ) : null}
+        </div>
+      </div>
 
-        <div className="rounded-lg border bg-muted/25 p-3">
-          <p className="text-xs font-bold uppercase text-muted-foreground">Required Condition</p>
-          <p className="mt-1 text-sm font-medium">{verificationConditionLabel(prompt)}</p>
-        </div>
-        {emergencyAction ? (
-          <div className="flex justify-end border-t pt-3">{emergencyAction}</div>
-        ) : null}
-      </CardContent>
-    </Card>
+      <div className="rounded-lg border bg-muted/25 p-3">
+        <p className="text-xs font-bold uppercase text-muted-foreground">Required Condition</p>
+        <p className="mt-1 text-sm font-medium">{verificationConditionLabel(prompt)}</p>
+      </div>
+      {emergencyAction ? (
+        <div className="flex justify-end border-t pt-3">{emergencyAction}</div>
+      ) : null}
+    </section>
   );
 }
 
@@ -268,70 +229,64 @@ function PromptDialog({
   const invalidFields = Object.values(fieldErrors).some(Boolean);
 
   return (
-    <Card
-      aria-labelledby="active-prompt-title"
-      className="rounded-lg border-destructive/30 py-0 shadow-sm"
-      role="region"
-    >
-      <CardContent className="grid min-w-0 gap-4 p-4">
-        <div className="flex min-w-0 gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <AlertTriangle size={18} />
-          </div>
-          <div className="grid min-w-0 gap-1">
-            <p className="text-xs font-bold uppercase text-destructive">Run Paused</p>
-            <strong id="active-prompt-title" className="text-base [overflow-wrap:anywhere]">
-              {prompt.title}
-            </strong>
-            {prompt.message ? <PromptMessage message={prompt.message} /> : null}
-          </div>
+    <section aria-labelledby="active-prompt-title" className="grid min-w-0 gap-4">
+      <div className="flex min-w-0 gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <AlertTriangle size={18} />
         </div>
+        <div className="grid min-w-0 gap-1">
+          <p className="text-xs font-bold uppercase text-destructive">Run Paused</p>
+          <strong id="active-prompt-title" className="text-base [overflow-wrap:anywhere]">
+            {prompt.title}
+          </strong>
+          {prompt.message ? <PromptMessage message={prompt.message} /> : null}
+        </div>
+      </div>
 
-        {prompt.fields.length ? (
-          <div className="grid gap-3">
-            {prompt.fields.map((field) => (
-              <div className="grid gap-1.5" key={field.name}>
-                <Label
-                  className="text-xs font-bold uppercase text-muted-foreground"
-                  htmlFor={promptFieldId(field)}
-                >
-                  {field.label}
-                </Label>
-                <PromptFieldControl
-                  field={field}
-                  value={values[field.name]}
-                  onChange={onValueChange}
-                />
-                {fieldErrors[field.name] ? (
-                  <p className="text-xs text-destructive" role="status">
-                    {fieldErrors[field.name]}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="flex flex-wrap justify-between gap-2 border-t pt-3">
-          <div>{emergencyAction}</div>
-          <div className="flex flex-wrap justify-end gap-2">
-            {prompt.actions.map((action) => (
-              <Button
-                key={action.id}
-                variant={action.emphasis}
-                disabled={
-                  submittingAction !== null ||
-                  (invalidFields && !["cancel", "abort"].includes(action.id))
-                }
-                onClick={() => onAction(action.id)}
+      {prompt.fields.length ? (
+        <div className="grid gap-3">
+          {prompt.fields.map((field) => (
+            <div className="grid gap-1.5" key={field.name}>
+              <Label
+                className="text-xs font-bold uppercase text-muted-foreground"
+                htmlFor={promptFieldId(field)}
               >
-                {submittingAction === action.id ? "Submitting..." : action.label}
-              </Button>
-            ))}
-          </div>
+                {field.label}
+              </Label>
+              <PromptFieldControl
+                field={field}
+                value={values[field.name]}
+                onChange={onValueChange}
+              />
+              {fieldErrors[field.name] ? (
+                <p className="text-xs text-destructive" role="status">
+                  {fieldErrors[field.name]}
+                </p>
+              ) : null}
+            </div>
+          ))}
         </div>
-      </CardContent>
-    </Card>
+      ) : null}
+
+      <div className="flex flex-wrap justify-between gap-2 border-t pt-3">
+        <div>{emergencyAction}</div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {prompt.actions.map((action) => (
+            <Button
+              key={action.id}
+              variant={action.emphasis}
+              disabled={
+                submittingAction !== null ||
+                (invalidFields && !["cancel", "abort"].includes(action.id))
+              }
+              onClick={() => onAction(action.id)}
+            >
+              {submittingAction === action.id ? "Submitting..." : action.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 

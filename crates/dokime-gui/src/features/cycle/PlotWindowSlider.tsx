@@ -48,6 +48,14 @@ export type PlotWindowOption = {
   value: number | null;
 };
 
+/** The operator's plot window: the chosen option and whether they chose it. */
+export type PlotWindowState = {
+  index: number;
+  option: PlotWindowOption;
+  overridden: boolean;
+  choose: (index: number) => void;
+};
+
 /* === Components === */
 
 export function PlotWindowSlider({
@@ -104,7 +112,58 @@ export function PlotWindowSlider({
   );
 }
 
+/**
+ * The plot window in the header of the plots it scales. A frozen plot shows
+ * the window it was drawn with: saying so is honest, offering a slider that
+ * changes nothing is not.
+ */
+export function PlotWindowControl({
+  elapsedUnit,
+  live,
+  window,
+}: {
+  elapsedUnit: string | null;
+  live: boolean;
+  window: PlotWindowState;
+}) {
+  if (!live) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        {elapsedUnit ? "Elapsed window" : "Plot window"}{" "}
+        {plotWindowValueLabel(window.option, elapsedUnit)}
+      </span>
+    );
+  }
+  return (
+    <div className="w-56 xl:w-80">
+      <PlotWindowSlider
+        elapsedUnit={elapsedUnit}
+        index={window.index}
+        onIndexChange={window.choose}
+        option={window.option}
+      />
+    </div>
+  );
+}
+
 /* === Hooks === */
+
+/** The plot window one document view scales its plots by. */
+export function usePlotWindow(): PlotWindowState {
+  const [index, setIndex] = useState(DEFAULT_PLOT_WINDOW_INDEX);
+  const [overridden, setOverridden] = useState(false);
+  const option = PLOT_WINDOW_OPTIONS[index] ?? PLOT_WINDOW_OPTIONS[DEFAULT_PLOT_WINDOW_INDEX];
+
+  return {
+    choose: (next) => {
+      setIndex(next);
+      setOverridden(true);
+    },
+    index,
+    option,
+    overridden,
+  };
+}
 
 /* === Public Functions === */
 

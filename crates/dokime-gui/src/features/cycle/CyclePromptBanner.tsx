@@ -19,7 +19,9 @@
  * correlation id, so a refresh of the pending list never discards what the
  * operator has typed.
  *
- * The banner exists only while the cycle is live. The answered history stays
+ * The banner belongs to the cycle page's cockpit; the execution page prints
+ * its prompt open at the top of its Control section instead
+ * (`ExecutionControl`). The banner exists only while the cycle is live. The answered history stays
  * where it always was: the request record in the timeline and the sealed
  * report, whose level pill carries the same declared level.
  */

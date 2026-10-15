@@ -20,7 +20,10 @@ import {
   type DocumentCardContentProps,
   type HistogramSectionSpec,
 } from "@/components/document/DocumentSurface";
-import { DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
+import {
+  type DocumentBlockChrome,
+  DocumentViewRenderer,
+} from "@/components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import type { MediaGalleryArtifact } from "@/components/MediaGallery";
 import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJsonDialog";
@@ -54,6 +57,8 @@ import type { PlotDisplaySettings } from "@/plots/PlotSettingsDialog";
 type DocumentWorkspaceViewBaseProps = {
   artifacts: ArtifactTreeInput[];
   cardFilter?: (card: DocumentViewCard) => boolean;
+  /** The frame each card gets; absent keeps the renderer's default. */
+  cardChrome?: (card: DocumentViewCard) => DocumentBlockChrome;
   streams: TelemetryStream[];
   criterionRecords: StepExecutionRecord[];
   document: DocumentViewPayload | null | undefined;
@@ -207,6 +212,7 @@ export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
           />
         ) : null
       }
+      cardChrome={props.cardChrome}
       cardFilter={resolvedCardFilter}
       document={document}
       emptyMessage={props.emptyMessage}

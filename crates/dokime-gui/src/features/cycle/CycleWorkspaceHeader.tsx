@@ -7,21 +7,21 @@
  * ***
  */
 
-/* The execution cockpit: the full-width band above the document that says
- * what the selected node is and asks what its run needs.
+/* The cycle cockpit: the full-width band above the cycle document that says
+ * what the cycle is and asks what its run needs.
  *
- * 1. Identity — one row on `--page-bar-height`: the title and the node's own
- *    "…" menu. The cycle page adds its status pill and case progress between
- *    them; the execution page shows only its title and menu, because the
- *    sidebar glyph states its status and the Steps card its progress. Nothing
- *    of one node appears on the other's page.
+ * 1. Identity — one row on `--page-bar-height`: the title, the status pill and
+ *    case progress, and the cycle's own "…" menu.
  * 2. Prompts — the questions the run is waiting on, full width, answered in
  *    place.
  *
- * The run controls are not here: the workspace publishes the cycle's or the
- * selected execution's into the page bar's action slot, beside Focus. With
- * `live={false}` the cockpit keeps the identity and drops the menu and the
- * prompts, which a file cannot honour.
+ * The execution page has no cockpit: its title is the plain header of its
+ * sections and its prompts lead its Control section (`ExecutionSections`). It
+ * borrows only the node menu from here, so both pages offer one menu of one
+ * size. The run controls are not here: the workspace publishes the cycle's
+ * into the page bar's action slot, beside Focus. With `live={false}` the
+ * cockpit keeps the identity and drops the menu and the prompts, which a file
+ * cannot honour.
  */
 
 /* === External Imports === */
@@ -165,10 +165,8 @@ export function CycleWorkspaceHeader({
   );
 }
 
-/* === Private Components === */
-
 /** The selected node's own menu, behind one trigger of one size on both pages. */
-function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
+export function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -196,6 +194,8 @@ function NodeMenu({ menu }: { menu: CycleMenu | ExecutionMenu }) {
     </DropdownMenu>
   );
 }
+
+/* === Private Components === */
 
 /** One menu entry, wired to the handler its node supplies. */
 function NodeMenuEntry({ item, menu }: { item: NodeMenuItem; menu: CycleMenu | ExecutionMenu }) {

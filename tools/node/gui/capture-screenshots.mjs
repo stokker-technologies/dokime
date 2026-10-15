@@ -434,7 +434,7 @@ async function setParameter(session, name, value) {
   await delay(400);
 }
 
-/** Answer whatever prompt the open cycle is waiting on, through the banner. */
+/** Answer whatever prompt the open cycle is waiting on, through the banner or Control. */
 async function answerPendingPrompts(session) {
   const pending = await session.execute(`
     const banner = document.querySelector('section[aria-label="Pending Prompts"]');
@@ -443,7 +443,8 @@ async function answerPendingPrompts(session) {
       (button) => button.innerText.trim() === 'Respond',
     );
     respond?.click();
-    return Boolean(respond);
+    /* The execution page prints its prompt open in Control, with no Respond. */
+    return Boolean(respond ?? banner.querySelector('[aria-labelledby="active-prompt-title"]'));
   `);
   if (!pending) return false;
   await delay(700);

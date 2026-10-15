@@ -191,9 +191,9 @@ export function StepFailure({ detail }: { detail: StepFailureDetail }) {
   );
 }
 
-/* === Private Functions === */
+/* === Public Functions === */
 
-function sortedStepRecords(records: StepExecutionRecord[]): StepExecutionRecord[] {
+export function sortedStepRecords(records: StepExecutionRecord[]): StepExecutionRecord[] {
   const executionStarts = new Map<string, number>();
   for (const record of records) {
     const started = sortableTimestamp(record.started_at);
@@ -227,16 +227,7 @@ function sortedStepRecords(records: StepExecutionRecord[]): StepExecutionRecord[
   });
 }
 
-function sortableTimestamp(value: string): number {
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
-}
-
-function hasMixedRecordTypes(records: StepExecutionRecord[]): boolean {
-  return new Set(records.map((record) => record.record_type)).size > 1;
-}
-
-function stepBadgeVariant(status: StepExecutionRecord["status"]): BadgeVariant {
+export function stepBadgeVariant(status: StepExecutionRecord["status"]): BadgeVariant {
   if (status === "passed") {
     return "success";
   }
@@ -251,7 +242,7 @@ function stepBadgeVariant(status: StepExecutionRecord["status"]): BadgeVariant {
   return "secondary";
 }
 
-function stepRecordLabel(record: StepExecutionRecord, showRecordType: boolean): string {
+export function stepRecordLabel(record: StepExecutionRecord, showRecordType: boolean): string {
   const label =
     typeof record.metadata.label === "string" && record.metadata.label.trim()
       ? record.metadata.label
@@ -260,4 +251,15 @@ function stepRecordLabel(record: StepExecutionRecord, showRecordType: boolean): 
     return label;
   }
   return `${record.record_type}: ${label}`;
+}
+
+/* === Private Functions === */
+
+function sortableTimestamp(value: string): number {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+}
+
+function hasMixedRecordTypes(records: StepExecutionRecord[]): boolean {
+  return new Set(records.map((record) => record.record_type)).size > 1;
 }

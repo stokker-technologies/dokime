@@ -9,17 +9,20 @@
 
 /* The cycle workspace: one cycle and the evidence its cases produced.
  *
- * Two regions that never change shape as a cycle runs. The execution cockpit,
- * full width on top, states what the cycle is and holds every run control —
- * the cycle's and the selected execution's — and the operator prompts. The
- * document below it shows what the selection holds, with only its own plot
- * window and Focus on its toolbar. The sidebar tree owns selection. The route owns the URL, so every selection change leaves here through
- * `onSelectionChange`.
+ * Two pages share this workspace. The cycle page keeps its cockpit full width
+ * on top — identity, status, progress, the cycle's menu and its prompts — over
+ * the cycle document. The execution page (`ExecutionSections`) is one
+ * scrolling column of sections under the execution's title: its prompts, step
+ * progress and run controls lead it in Control. The page bar carries the
+ * cycle's run controls on the cycle page, and Download Report and Focus on
+ * both. The sidebar tree owns selection. The route owns the URL, so every
+ * selection change leaves here through `onSelectionChange`.
  *
  * `live` is the only difference between the application and the frozen report,
- * which mounts this same workspace over a snapshot. With it off the header
- * keeps identity, status and progress and loses every command and every prompt, and the reads answer from the snapshot context rather than
- * the backend. There is no second workspace.
+ * which mounts this same workspace over a snapshot. With it off both pages keep
+ * identity, status and evidence and lose every command and every prompt, and
+ * the reads answer from the snapshot context rather than the backend. There is
+ * no second workspace.
  */
 
 /* === External Imports === */
@@ -47,11 +50,14 @@ import { useFocusMode } from "@/shell/focus-mode";
 import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
 import { CycleEvidencePane } from "./CycleEvidencePane";
-import { CycleExecutionControls } from "./CycleExecutionControls";
 import { CyclePromptBanner } from "./CyclePromptBanner";
 import { CycleReportButton } from "./CycleReportButton";
 import { CycleRunControls } from "./CycleRunControls";
-import { type ArchiveAction, CycleWorkspaceHeader } from "./CycleWorkspaceHeader";
+import {
+  type ArchiveAction,
+  CycleWorkspaceHeader,
+  type ExecutionMenu,
+} from "./CycleWorkspaceHeader";
 import {
   useCycleCommands,
   useCycleDetailQuery,
@@ -76,6 +82,7 @@ import {
   progressStepLabel,
   selectedCycleRow,
 } from "./cycle-workspace-model";
+import { ExecutionSections } from "./ExecutionSections";
 import { answerablePrompts } from "./prompt-banner-model";
 
 /* === Types === */
@@ -155,9 +162,9 @@ export function CycleWorkspace({
     return `${activeRow.case.label} · ${step} ${progress.completed}/${progress.total}`;
   }, [progress, rows]);
 
-  /* The page bar's action slot carries the run controls of what is
-     selected — the cycle's, or the selected execution's — and Focus beside
-     them. The node is memoized on identities, so it is published only when
+  /* The page bar's action slot carries the cycle's run controls on the cycle
+     page — the execution page holds its own in Control — with Download Report
+     and Focus beside them. The node is memoized on identities, so it is published only when
      the selection, focus or liveness changes. */
   const executionSelected = selectedRow !== null;
   /* The node whose report Download Report saves: the selected execution, or
@@ -179,13 +186,7 @@ export function CycleWorkspace({
     () =>
       live ? (
         <div className="grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]">
-          {executionSelected ? (
-            <CycleExecutionControls
-              cycleId={cycleId}
-              onSelectExecution={(next) => onSelectionChange({ executionId: next })}
-              selection={selection}
-            />
-          ) : (
+          {executionSelected ? null : (
             <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} />
           )}
           {reportSubject ? (
@@ -208,16 +209,7 @@ export function CycleWorkspace({
           </Button>
         </div>
       ) : null,
-    [
-      cycleId,
-      executionSelected,
-      focused,
-      live,
-      onSelectionChange,
-      reportSubject,
-      selection,
-      toggleFocus,
-    ],
+    [cycleId, executionSelected, focused, live, reportSubject, toggleFocus],
   );
   /* The page bar names the selected node as a breadcrumb; Back from an
      execution returns to the cycle (see `useParentRoute`). */
@@ -330,82 +322,88 @@ export function CycleWorkspace({
     );
   }
 
+  if (selectedRow) {
+    const executionMenu: ExecutionMenu = {
+      kind: "execution",
+      archive: selectedRow.execution
+        ? archiveAction(
+            Boolean(selectedRow.execution.archived),
+            isTerminalExecutionStatus(selectedRow.execution.status),
+            (archived) =>
+              commands.archiveExecution.mutateAsync({
+                archived,
+                executionId: selectedRow.execution?.test_execution_id ?? "",
+              }),
+          )
+        : null,
+      onOpenReport: selectedRow.execution
+        ? () => openReport(selectedRow.execution?.test_execution_id ?? null)
+        : null,
+      onRerun:
+        selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
+          ? () =>
+              run({ done: "Case Re-Run Started", failed: "Case Re-Run Failed" }, async () => {
+                const created = await rerunCase.rerun(selectedRow.case.caseId);
+                if (created) onSelectionChange({ executionId: created });
+              })
+          : null,
+      rerunRefusal:
+        selectedRow.case.actions && !selectedRow.case.actions.schedule_rerun
+          ? caseActionTooltip(selectedRow.case)
+          : undefined,
+    };
+    return (
+      <div className="grid min-h-0">
+        <ExecutionSections
+          cycleId={cycleId}
+          live={live}
+          menu={executionMenu}
+          onSelectExecution={(next) => onSelectionChange({ executionId: next })}
+          plan={plan}
+          prompts={prompts}
+          row={selectedRow}
+          selection={selection}
+          snapshot={runtimeQuery.data ?? null}
+          title={executionTitle(selectedRow)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)]">
       <CycleWorkspaceHeader
-        identity={
-          selectedRow
-            ? { title: executionTitle(selectedRow) }
-            : {
-                status: {
-                  activity,
-                  label: cycleStatusLabel(status),
-                  progress: `${finished} of ${cases.length} cases finished`,
-                  variant: cycleStatusVariant(status),
-                },
-                title: plan.test_cycle.title,
-              }
-        }
+        identity={{
+          status: {
+            activity,
+            label: cycleStatusLabel(status),
+            progress: `${finished} of ${cases.length} cases finished`,
+            variant: cycleStatusVariant(status),
+          },
+          title: plan.test_cycle.title,
+        }}
         live={live}
-        menu={
-          selectedRow
-            ? {
-                kind: "execution",
-                archive: selectedRow.execution
-                  ? archiveAction(
-                      Boolean(selectedRow.execution.archived),
-                      isTerminalExecutionStatus(selectedRow.execution.status),
-                      (archived) =>
-                        commands.archiveExecution.mutateAsync({
-                          archived,
-                          executionId: selectedRow.execution?.test_execution_id ?? "",
-                        }),
-                    )
-                  : null,
-                onOpenReport: selectedRow.execution
-                  ? () => openReport(selectedRow.execution?.test_execution_id ?? null)
-                  : null,
-                onRerun:
-                  selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
-                    ? () =>
-                        run(
-                          { done: "Case Re-Run Started", failed: "Case Re-Run Failed" },
-                          async () => {
-                            const created = await rerunCase.rerun(selectedRow.case.caseId);
-                            if (created) onSelectionChange({ executionId: created });
-                          },
-                        )
-                    : null,
-                rerunRefusal:
-                  selectedRow.case.actions && !selectedRow.case.actions.schedule_rerun
-                    ? caseActionTooltip(selectedRow.case)
-                    : undefined,
-              }
-            : {
-                archive: archiveAction(
-                  Boolean(plan.test_cycle.archived),
-                  isCycleTerminal(status),
-                  (archived) => commands.archiveCycle.mutateAsync(archived),
-                ),
-                followActive,
-                kind: "cycle",
-                onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
-                onCopyCycle: () =>
-                  run(
-                    { done: "Cycle copied", failed: "The cycle could not be copied." },
-                    async () => {
-                      const response = await commands.copyCycle.mutateAsync();
-                      await navigate({
-                        to: "/cycles/$cycleId",
-                        params: { cycleId: response.plan.test_cycle.test_cycle_id },
-                      });
-                    },
-                  ),
-                onOpenReport: () => openReport(null),
-                onRuntimePolicy: () => setPolicyOpen(true),
-                onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
-              }
-        }
+        menu={{
+          archive: archiveAction(
+            Boolean(plan.test_cycle.archived),
+            isCycleTerminal(status),
+            (archived) => commands.archiveCycle.mutateAsync(archived),
+          ),
+          followActive,
+          kind: "cycle",
+          onAddCases: () => void navigate({ to: "/library", search: { appendTo: cycleId } }),
+          onCopyCycle: () =>
+            run({ done: "Cycle copied", failed: "The cycle could not be copied." }, async () => {
+              const response = await commands.copyCycle.mutateAsync();
+              await navigate({
+                to: "/cycles/$cycleId",
+                params: { cycleId: response.plan.test_cycle.test_cycle_id },
+              });
+            }),
+          onOpenReport: () => openReport(null),
+          onRuntimePolicy: () => setPolicyOpen(true),
+          onToggleFollowActive: () => setSelectionState({ followActive: !followActive }),
+        }}
         prompts={<CyclePromptBanner prompts={prompts} />}
       />
 
@@ -413,7 +411,6 @@ export function CycleWorkspace({
         cycleId={cycleId}
         live={live}
         plan={plan}
-        row={selectedRow}
         snapshot={runtimeQuery.data ?? null}
       />
 
@@ -464,8 +461,7 @@ export function CycleWorkspace({
 
 /* === Private Functions === */
 
-/** The execution page's identity: its case, its status and its steps. */
-/** The execution page's cockpit title: its ordinal and its case. */
+/** The execution page's title: its ordinal and its case. */
 function executionTitle(row: CycleExecutionRow): string {
   return `Execution ${row.ordinal} · ${row.case.label}`;
 }
