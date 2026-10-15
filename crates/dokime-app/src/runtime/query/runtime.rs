@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::definition::{MaterializedParameter, ParameterSource, TestCase};
 use crate::execution::{CycleStatus, ExecutionStatus, ResultSummary, StepRecord};
 use crate::installed_plugins::InstalledPluginErrorRecord;
+use crate::runtime::progress::{OperationSnapshot, OperationWatch};
 use crate::{
     RuntimeHandle, evidence::EvidenceCounts, execution::CycleView, queries::RuntimeCursor,
     state::RuntimeState,
@@ -74,6 +75,7 @@ pub struct RuntimeStateSnapshot {
 
 pub struct RuntimeStateWatch {
     receiver: tokio::sync::watch::Receiver<RuntimeStateSnapshot>,
+    operations: OperationWatch,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -106,6 +108,13 @@ pub struct RuntimeExecutionSummary {
 }
 
 /* === Enums === */
+/// What changed since a [`RuntimeStateWatch`] last answered.
+pub enum RuntimeChange {
+    /// Runtime state committed a new revision.
+    State(RuntimeStateSnapshot),
+    /// Only the operation list changed; state is where it was.
+    Operations(OperationSnapshot),
+}
 
 /* === Traits === */
 
@@ -132,6 +141,24 @@ impl RuntimeStateWatch {
     pub async fn next(&mut self) -> Option<RuntimeStateSnapshot> {
         self.receiver.changed().await.ok()?;
         Some(self.receiver.borrow_and_update().clone())
+    }
+
+    /// The operations the runtime is performing now.
+    pub fn operations(&self) -> OperationSnapshot {
+        self.operations.latest()
+    }
+
+    /// The next change of state or of the operation list. State wins when
+    /// both changed, so a committed revision is never delayed by progress.
+    pub async fn next_change(&mut self) -> Option<RuntimeChange> {
+        tokio::select! {
+            biased;
+            changed = self.receiver.changed() => {
+                changed.ok()?;
+                Some(RuntimeChange::State(self.receiver.borrow_and_update().clone()))
+            }
+            Some(operations) = self.operations.next() => Some(RuntimeChange::Operations(operations)),
+        }
     }
 
     pub async fn wait_until(
@@ -230,6 +257,7 @@ impl RuntimeHandle {
     pub fn watch_state(&self) -> RuntimeStateWatch {
         RuntimeStateWatch {
             receiver: self.state_watch.subscribe(),
+            operations: self.operation_progress.watch(),
         }
     }
 }

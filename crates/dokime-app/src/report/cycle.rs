@@ -27,7 +27,10 @@ use harmos::{
 };
 // Local Imports
 use super::html::HtmlReport;
-use crate::{Error, Result, RuntimeHandle, runtime::storage::cycle::CycleSnapshot};
+use crate::{
+    Error, Result, RuntimeHandle,
+    runtime::{progress::Operation, storage::cycle::CycleSnapshot},
+};
 use dokime::{core::Identifier, storage::Manager};
 
 /* === Constants === */
@@ -66,13 +69,17 @@ struct Chunks<'a> {
 
 /* === Implementations === */
 impl CycleReport {
-    pub(crate) async fn prepare(runtime: &RuntimeHandle, snapshot: CycleSnapshot) -> Result<Self> {
+    pub(crate) async fn prepare(
+        runtime: &RuntimeHandle,
+        snapshot: CycleSnapshot,
+        operation: Option<&Operation>,
+    ) -> Result<Self> {
         let manager = runtime.storage();
         let bytes = std::mem::size_of::<File>()
             + std::mem::size_of::<Chunks<'_>>()
             + 8 * std::mem::size_of::<usize>();
         let memory = manager.prepare_production(allowance(bytes)?)?;
-        let source = Arc::new(HtmlReport::from_cycle(runtime, snapshot).await?);
+        let source = Arc::new(HtmlReport::from_cycle(runtime, snapshot, operation).await?);
         let id_length =
             source.header().cycle.test_cycle_id.as_str().len() + 36 + ".cycle-report.".len();
         let metadata = manager

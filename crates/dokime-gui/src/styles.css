@@ -23,6 +23,17 @@
 /* Variants */
 
 @theme inline {
+  --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
+
+  @keyframes progress-indeterminate {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+
   @keyframes accordion-down {
     from {
       height: 0;

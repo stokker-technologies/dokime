@@ -32,7 +32,7 @@ use harmos::{
 };
 // Local Imports
 use super::{cycle::CycleSnapshot, cycle_finalization, execution::ExecutionView};
-use crate::{Error, Result, RuntimeHandle, execution::CycleView};
+use crate::{Error, Result, RuntimeHandle, execution::CycleView, runtime::progress::Operation};
 use dokime::{
     core::{Metadata, TestCycleId, TestExecutionId, Timestamp},
     execution::{ExecutionStatus, TestCycle},
@@ -83,16 +83,27 @@ pub enum ReportOrigin {
 impl RuntimeHandle {
     /// The report a cycle has right now. See the module comment for which.
     pub async fn open_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
-        contended(|| self.open_cycle_report_once(id)).await
+        let operation = self.operation_progress().begin("Opening Cycle Report");
+        let opened = contended(&operation, || self.open_cycle_report_once(id, &operation)).await;
+        operation.track(opened)
     }
 
     /// The report one execution has right now. See the module comment for
     /// which.
     pub async fn open_execution_report(&self, id: &TestExecutionId) -> Result<OpenedReport> {
-        contended(|| self.open_execution_report_once(id)).await
+        let operation = self.operation_progress().begin("Opening Execution Report");
+        let opened = contended(&operation, || {
+            self.open_execution_report_once(id, &operation)
+        })
+        .await;
+        operation.track(opened)
     }
 
-    async fn open_cycle_report_once(&self, id: &TestCycleId) -> Result<OpenedReport> {
+    async fn open_cycle_report_once(
+        &self,
+        id: &TestCycleId,
+        operation: &Operation,
+    ) -> Result<OpenedReport> {
         let live = self
             .watch_state()
             .latest()
@@ -101,12 +112,16 @@ impl RuntimeHandle {
             .get(id)
             .map(|cycle| cycle.saved.is_none());
         match live {
-            Some(true) => self.current_cycle_report(id).await,
-            _ => self.sealed_cycle_report(id).await,
+            Some(true) => self.current_cycle_report(id, operation).await,
+            _ => self.sealed_cycle_report(id, operation).await,
         }
     }
 
-    async fn open_execution_report_once(&self, id: &TestExecutionId) -> Result<OpenedReport> {
+    async fn open_execution_report_once(
+        &self,
+        id: &TestExecutionId,
+        operation: &Operation,
+    ) -> Result<OpenedReport> {
         let live = self
             .watch_state()
             .latest()
@@ -115,8 +130,10 @@ impl RuntimeHandle {
             .get(id)
             .map(|execution| (execution.saved.is_none(), execution.test_cycle_id.clone()));
         if let Some((true, cycle)) = live {
+            operation.phase("Capturing Evidence");
             let view = self.execution_snapshot(id).await?;
-            let html = crate::report::rendered::execution(self, &view, false, maximum()).await?;
+            let html = crate::report::rendered::execution(self, &view, false, maximum(), operation)
+                .await?;
             return Ok(OpenedReport {
                 test_cycle_id: cycle,
                 test_execution_id: Some(id.clone()),
@@ -126,6 +143,7 @@ impl RuntimeHandle {
                 html,
             });
         }
+        operation.phase("Reading Sealed Report");
         let reads = self.config().storage_reads.execution;
         let view = self.storage().view_with_limits(reads).await?;
         let limit = view.decoded_bytes()?;
@@ -146,8 +164,14 @@ impl RuntimeHandle {
             Ok(html) => (ReportOrigin::Sealed, html),
             Err(error) => {
                 tracing::warn!(%error, execution_id = %id, "sealed execution report is unreadable; rendering it again");
-                let html =
-                    crate::report::rendered::execution(self, &inspection, true, maximum()).await?;
+                let html = crate::report::rendered::execution(
+                    self,
+                    &inspection,
+                    true,
+                    maximum(),
+                    operation,
+                )
+                .await?;
                 (ReportOrigin::Regenerated, html)
             }
         };
@@ -161,9 +185,15 @@ impl RuntimeHandle {
         })
     }
 
-    async fn current_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
+    async fn current_cycle_report(
+        &self,
+        id: &TestCycleId,
+        operation: &Operation,
+    ) -> Result<OpenedReport> {
+        operation.phase("Capturing Evidence");
         let runtime = self.clone();
         let cycle = id.clone();
+        let capturing = operation.clone();
         // Hold The Save Order So Finalization Cannot Seal A Member Mid-Capture.
         let snapshot = tokio::spawn(async move {
             let _order = runtime.execution_storage.cycle_save.lock().await;
@@ -176,11 +206,13 @@ impl RuntimeHandle {
                 .try_reserve_exact(source.test_executions.len())
                 .map_err(|_| exhausted())?;
             // An Attempt That Never Started Has No Evidence To Report Yet.
-            for execution in source
+            let started = source
                 .test_executions
                 .iter()
-                .filter(|execution| execution.status != ExecutionStatus::Pending)
-            {
+                .filter(|execution| execution.status != ExecutionStatus::Pending);
+            let total = started.clone().count() as u64;
+            for (captured, execution) in started.enumerate() {
+                capturing.progress(captured as u64, total);
                 members.push(runtime.snapshot_member(&source, execution).await?);
             }
             let view = runtime
@@ -194,7 +226,7 @@ impl RuntimeHandle {
         })
         .await??;
         let metadata = snapshot.source().metadata.clone();
-        let html = crate::report::rendered::cycle(self, snapshot, maximum()).await?;
+        let html = crate::report::rendered::cycle(self, snapshot, maximum(), operation).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,
@@ -205,7 +237,12 @@ impl RuntimeHandle {
         })
     }
 
-    async fn sealed_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
+    async fn sealed_cycle_report(
+        &self,
+        id: &TestCycleId,
+        operation: &Operation,
+    ) -> Result<OpenedReport> {
+        operation.phase("Reading Sealed Report");
         let storage = self.storage();
         let mut query =
             harmos::storage::ObjectQuery::<dokime::storage::objects::cycle::Cycle>::new();
@@ -238,8 +275,10 @@ impl RuntimeHandle {
             Ok(html) => (ReportOrigin::Sealed, html),
             Err(error) => {
                 tracing::warn!(%error, cycle_id = %id, "sealed cycle report is unreadable; rendering it again");
+                operation.phase("Capturing Evidence");
                 let snapshot = self.sealed_snapshot(cycle).await?;
-                let html = crate::report::rendered::cycle(self, snapshot, maximum()).await?;
+                let html =
+                    crate::report::rendered::cycle(self, snapshot, maximum(), operation).await?;
                 (ReportOrigin::Regenerated, html)
             }
         };
@@ -360,6 +399,7 @@ impl RuntimeHandle {
 /// degraded further, so a cycle whose degraded members together outgrow the
 /// opened-report limit is still refused.
 async fn contended<F: Future<Output = Result<OpenedReport>>>(
+    operation: &Operation,
     open: impl Fn() -> F,
 ) -> Result<OpenedReport> {
     let mut delay = CONTENTION_FIRST_DELAY;
@@ -371,6 +411,7 @@ async fn contended<F: Future<Output = Result<OpenedReport>>>(
                     && tokio::time::Instant::now() + delay < deadline =>
             {
                 tracing::debug!(%error, "report storage memory is contended; opening again");
+                operation.phase("Waiting for Storage Memory");
                 tokio::time::sleep(delay).await;
                 delay = (delay * 2).min(CONTENTION_LAST_DELAY);
             }

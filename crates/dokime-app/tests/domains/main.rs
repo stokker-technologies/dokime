@@ -1128,6 +1128,19 @@ fn execution_running_report_contract() {
 }
 
 #[test]
+fn execution_report_progress_contract() {
+    {
+        eprintln!("Scenario: execution::sampling::report_open_shows_progress");
+        run_scenario(
+            execution::sampling::report_open_shows_progress,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+#[test]
 fn execution_pool_refusal_contract() {
     {
         eprintln!("Scenario: execution::sampling::pool_refusal_settles");

@@ -27,6 +27,8 @@ use dokime::execution::ExecutionStatus;
 use dokime_app::domains::execution::requests::RunPhase;
 use dokime_app::execution::CriterionStatus;
 use dokime_app::runtime::command::{CommandContext, CommandStatus};
+use dokime_app::runtime::progress::{LiveOperation, OperationOutcome};
+use dokime_app::runtime::query::RuntimeChange;
 use dokime_app::transactions::CycleDefinition;
 
 /* === Constants === */
@@ -500,6 +502,174 @@ pub(crate) async fn running_report_follows_live_plot() {
     assert_eq!(settled, RunPhase::Completed);
     let html = crate::support::native::report(&handle, &execution).await;
     assert_live_plot(&crate::support::reports::parse(&html), pulse, 4);
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// opening the report of a sizeable running cycle shows on the runtime state
+// watch as one operation: it starts, moves through its phases and finishes.
+pub(crate) async fn report_open_shows_progress() {
+    let root = tempdir().unwrap();
+    let release = root.path().join("release");
+    let (mut runtime, handle) = started(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
+            .configured(
+                "fixture-suites",
+                serde_json::json!({
+                    "pulse_rows": LARGE_PULSE_ROWS,
+                    "block_execution": true,
+                    "execution_release": release,
+                }),
+            )
+            .unwrap()]),
+    )
+    .await;
+    let suite = handle
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|suite| suite.source == "fixture-suites")
+        .unwrap()
+        .suite;
+    let cycle_id = handle
+        .start_cycle(
+            CycleDefinition {
+                suite: suite.clone(),
+                metadata: Metadata::new(
+                    Identifier::new("pulse.progress").unwrap(),
+                    "Progress",
+                    None,
+                ),
+                cases: materialize_cases("fixture.checks", &suite),
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let receipt = handle
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
+    let execution =
+        handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
+    let pulse = "fixture.checks.smoke.pulse";
+    // The step holds once every pulse row is published.
+    tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            if let Ok(opened) = handle.open_execution_report(&execution).await {
+                let payload =
+                    crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
+                if payload["case_runs"][0]["plots"][pulse]["series"][0]["raw_points"]
+                    == serde_json::json!(LARGE_PULSE_ROWS)
+                {
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("the running step publishes every pulse row");
+
+    let mut watch = handle.watch_state();
+    let earlier: std::collections::BTreeSet<String> = watch
+        .operations()
+        .operations()
+        .iter()
+        .map(|operation| operation.operation_id.clone())
+        .collect();
+    let observer = tokio::spawn(async move {
+        let mut seen = Vec::<LiveOperation>::new();
+        loop {
+            let snapshot = match watch.next_change().await {
+                Some(RuntimeChange::Operations(snapshot)) => snapshot,
+                Some(RuntimeChange::State(_)) => watch.operations(),
+                None => break seen,
+            };
+            let Some(operation) = snapshot.operations().iter().find(|operation| {
+                operation.label == "Opening Cycle Report"
+                    && !earlier.contains(&operation.operation_id)
+            }) else {
+                continue;
+            };
+            if seen.last() != Some(operation) {
+                seen.push(operation.clone());
+            }
+            if operation.outcome != OperationOutcome::Running {
+                break seen;
+            }
+        }
+    });
+    let opened = handle.open_cycle_report(&cycle_id).await.unwrap();
+    assert!(!opened.html.is_empty());
+    let seen = tokio::time::timeout(Duration::from_secs(30), observer)
+        .await
+        .expect("the watch shows the report operation settle")
+        .unwrap();
+
+    let identities: std::collections::BTreeSet<_> = seen
+        .iter()
+        .map(|operation| &operation.operation_id)
+        .collect();
+    assert_eq!(
+        identities.len(),
+        1,
+        "one operation opened the report: {seen:?}"
+    );
+    assert_eq!(
+        seen.first().map(|operation| &operation.outcome),
+        Some(&OperationOutcome::Running),
+        "the watch shows the operation start: {seen:?}"
+    );
+    let mut phases = seen
+        .iter()
+        .map(|operation| operation.phase.as_str())
+        .filter(|phase| !phase.is_empty())
+        .collect::<Vec<_>>();
+    phases.dedup();
+    assert!(
+        phases.len() >= 2,
+        "the watch shows the operation change phase: {phases:?}"
+    );
+    assert!(
+        phases.contains(&"Materializing Evidence"),
+        "materialization is one phase: {phases:?}"
+    );
+    assert!(
+        matches!(
+            seen.last().map(|operation| &operation.outcome),
+            Some(OperationOutcome::Finished { .. })
+        ),
+        "the watch shows the operation finish: {seen:?}"
+    );
+    tokio::time::sleep(dokime_app::runtime::progress::SETTLED_RETENTION * 2).await;
+    assert!(
+        handle
+            .watch_state()
+            .operations()
+            .operations()
+            .iter()
+            .all(|operation| !identities.contains(&operation.operation_id)),
+        "a finished operation retires after its retention"
+    );
+
+    std::fs::write(&release, b"").unwrap();
+    tokio::time::timeout(Duration::from_secs(300), async {
+        loop {
+            let receipt = handle
+                .run_request(&receipt.command_id)
+                .await
+                .unwrap()
+                .unwrap();
+            if receipt.summary.phase.terminal() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
     drop(handle);
     runtime.shutdown().await.unwrap();
 }

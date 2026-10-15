@@ -277,11 +277,19 @@ impl RuntimeHandle {
         );
         // A cycle whose members are not all sealed can never be sealed itself.
         let sealed_cycle = if terminal && cause.is_none() {
+            let operation = self.operation_progress().begin("Finalizing Cycle");
             let mut exhausted = 0;
+            let mut attempt = 1;
             loop {
-                match self.finish_saved_cycle(&cycle).await {
-                    Ok(cycle) => break Some(cycle),
-                    Err(error) if self.is_shutting_down() => return Err(error),
+                match self.finish_saved_cycle(&cycle, &operation).await {
+                    Ok(cycle) => {
+                        operation.finish();
+                        break Some(cycle);
+                    }
+                    Err(error) if self.is_shutting_down() => {
+                        operation.fail(&error);
+                        return Err(error);
+                    }
                     Err(error) => match retry_after(&error, &mut exhausted) {
                         Some(wait) => {
                             tracing::debug!(%error, %cycle_id, "final cycle save will retry");
@@ -290,10 +298,14 @@ impl RuntimeHandle {
                             if exhausts_finalization(&error) {
                                 self.execution_storage.restart_cycle_report(&cycle_id).await;
                             }
+                            attempt += 1;
+                            operation.phase(format!("Retrying (Attempt {attempt})"));
+                            operation.indeterminate();
                             tokio::time::sleep(wait).await;
                         }
                         None => {
                             tracing::debug!(%error, %cycle_id, "final cycle save failed");
+                            operation.fail(&error);
                             cause = Some(unsealed_cause("cycle", &error));
                             break None;
                         }

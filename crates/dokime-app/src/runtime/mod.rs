@@ -13,6 +13,7 @@ mod embedded;
 pub(crate) mod handle;
 mod native_telemetry;
 mod plugins;
+pub mod progress;
 pub mod query;
 pub mod rollback;
 pub(crate) mod sidecars;

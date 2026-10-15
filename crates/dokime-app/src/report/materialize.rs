@@ -32,7 +32,7 @@ use crate::{
     document::capture::CardBindingResult,
     execution::{TestExecution, context::source::CapturedSource},
     plot::StreamedPlot,
-    runtime::storage::execution::ExecutionView,
+    runtime::{progress::Operation, storage::execution::ExecutionView},
 };
 use dokime::execution::saved::ExecutionOutputContent;
 
@@ -115,6 +115,17 @@ enum PlotSource {
 
 /* === Implementations === */
 impl Degradation {
+    /// What a report does at this step, as an operator reads it.
+    fn phase(self) -> String {
+        match self {
+            Self::Full => "Materializing Evidence".into(),
+            Self::Halved(times) => format!("Halving Plot Points ({times} of 4)"),
+            Self::Omitted => "Omitting Plots".into(),
+            Self::Truncated(0) => "Leaving Out Records".into(),
+            Self::Truncated(rows) => format!("Truncating Records to {rows}"),
+        }
+    }
+
     /// The points a plot keeps at this step, given what it asked for.
     fn points(self, requested: Option<usize>) -> Option<usize> {
         let Self::Halved(times) = self else {
@@ -144,19 +155,30 @@ pub(super) async fn execution(
     runtime: &RuntimeHandle,
     inspection: &ExecutionView,
     final_report: bool,
+    operation: Option<&Operation>,
 ) -> Result<QueryValue<CapturedExecutionReportInput>> {
-    climb(|degradation, cause| attempt(runtime, inspection, final_report, degradation, cause)).await
+    climb(operation, |degradation, cause| {
+        attempt(runtime, inspection, final_report, degradation, cause)
+    })
+    .await
 }
 
 /// Runs `step` down [`LADDER`] until one fits. A step that meets other
 /// readers holding the shared storage memory is tried again before the
 /// report gives anything up; a step over its own budget gives way to the next.
-pub(super) async fn climb<T, F>(mut step: impl FnMut(Degradation, Option<String>) -> F) -> Result<T>
+/// `operation` shows each step as its phase.
+pub(super) async fn climb<T, F>(
+    operation: Option<&Operation>,
+    mut step: impl FnMut(Degradation, Option<String>) -> F,
+) -> Result<T>
 where
     F: std::future::Future<Output = Result<T>>,
 {
     let mut cause = None::<String>;
     for degradation in LADDER {
+        if let Some(operation) = operation {
+            operation.phase(degradation.phase());
+        }
         let mut delay = CONTENTION_FIRST_DELAY;
         let mut tries = 0;
         loop {

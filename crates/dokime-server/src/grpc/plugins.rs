@@ -232,6 +232,25 @@ impl Operation for Stage {
         _request: &mut (),
         input: &mut Self::Endpoints,
     ) -> Result<Response<v1::PluginInstallation>, Status> {
+        let operation = self
+            .resources
+            .runtime
+            .operation_progress()
+            .begin("Installing Plugin");
+        operation.phase("Receiving Archive");
+        let staged = self.stage(input, &operation).await;
+        if let Err(status) = &staged {
+            operation.fail(status.message());
+        }
+        staged
+    }
+}
+impl Stage {
+    async fn stage(
+        &mut self,
+        input: &mut StreamInput<v1::StagePluginFrame>,
+        operation: &dokime_app::runtime::progress::Operation,
+    ) -> Result<Response<v1::PluginInstallation>, Status> {
         let permit = self.resources.permit().map_err(reject)?;
         let first = message(input)
             .await?
@@ -298,6 +317,7 @@ impl Operation for Stage {
             }
             hash.update(&chunk.data);
             bytes.extend_from_slice(&chunk.data);
+            operation.progress(bytes.len() as u64, size_bytes);
         }
         if bytes.len() as u64 != size_bytes
             || hash
@@ -321,6 +341,8 @@ impl Operation for Stage {
             .map_err(memory_failure)?
             .try_into_value()
             .map_err(memory_failure)?;
+        operation.phase("Inspecting Archive");
+        operation.indeterminate();
         let store = self.resources.runtime.plugin_store();
         let inspect_started = Instant::now();
         let entry = match tokio::task::spawn_blocking(move || {

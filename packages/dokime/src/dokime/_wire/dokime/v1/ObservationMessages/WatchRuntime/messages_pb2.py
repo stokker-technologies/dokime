@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nFdokime/_wire/dokime/v1/ObservationMessages/WatchRuntime/messages.proto\x12*dokime.v1.ObservationMessages.WatchRuntime\"S\n\x04Row1\x12K\n\x06\x63ursor\x18\xd7\xa2\xd9\x19 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row4R\x06\x63ursor\"\x06\n\x04Row2\"\xcb\x01\n\x04Row3\x12K\n\x06\x63ursor\x18\xd7\xa2\xd9\x19 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row4R\x06\x63ursor\x12)\n\x0eresynchronized\x18\xe4\x9f\xf2| \x01(\x08R\x0eresynchronized\x12&\n\rshutting_down\x18\xa4\x84\xd4| \x01(\x08R\x0cshuttingDown\x12#\n\x0b\x63ycle_count\x18\x8a\xda\xce\x98\x01 \x01(\x04R\ncycleCount\"\\\n\x04Row4\x12\x18\n\x05\x65poch\x18\xc5\x92\xed\xca\x01 \x01(\tR\x05\x65poch\x12\x1a\n\x06stream\x18\xa0\xf2\xbd\xfb\x01 \x01(\tR\x06stream\x12\x1e\n\x08position\x18\x97\xc3\xbd\x9a\x01 \x01(\x04R\x08position\"\xea\x01\n\x04Row0\x12J\n\x07request\x18\x01 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row1R\x07request\x12L\n\x08response\x18\x02 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row2R\x08response\x12H\n\x06output\x18\x03 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row3R\x06outputb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nFdokime/_wire/dokime/v1/ObservationMessages/WatchRuntime/messages.proto\x12*dokime.v1.ObservationMessages.WatchRuntime\"S\n\x04Row1\x12K\n\x06\x63ursor\x18\xd7\xa2\xd9\x19 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row4R\x06\x63ursor\"\x06\n\x04Row2\"\xa0\x02\n\x04Row3\x12K\n\x06\x63ursor\x18\xd7\xa2\xd9\x19 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row4R\x06\x63ursor\x12)\n\x0eresynchronized\x18\xe4\x9f\xf2| \x01(\x08R\x0eresynchronized\x12&\n\rshutting_down\x18\xa4\x84\xd4| \x01(\x08R\x0cshuttingDown\x12#\n\x0b\x63ycle_count\x18\x8a\xda\xce\x98\x01 \x01(\x04R\ncycleCount\x12S\n\noperations\x18\xbc\xbd\x97\x03 \x03(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row5R\noperations\"\\\n\x04Row4\x12\x18\n\x05\x65poch\x18\xc5\x92\xed\xca\x01 \x01(\tR\x05\x65poch\x12\x1a\n\x06stream\x18\xa0\xf2\xbd\xfb\x01 \x01(\tR\x06stream\x12\x1e\n\x08position\x18\x97\xc3\xbd\x9a\x01 \x01(\x04R\x08position\"\xd9\x03\n\x04Row5\x12$\n\x0coperation_id\x18\xfa\xd7\xb8\x14 \x01(\tR\x0boperationId\x12\x18\n\x05label\x18\xc5\xee\xdc\xb4\x01 \x01(\tR\x05label\x12\x18\n\x05phase\x18\xd7\x9a\x81\xcc\x01 \x01(\tR\x05phase\x12\"\n\x08\x66raction\x18\xd0\xab\xff! \x01(\x01H\x00R\x08\x66raction\x88\x01\x01\x12R\n\nstarted_at\x18\x8a\xdf\xa8\x43 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row6R\tstartedAt\x12L\n\x06status\x18\xe5\x9e\xae\xd2\x01 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row7R\x06status\x12U\n\x0b\x66inished_at\x18\x9c\x87\xe7\xbf\x01 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row6R\nfinishedAt\x12 \n\x07\x66\x61ilure\x18\xec\xfd\xed\x12 \x01(\tH\x01R\x07\x66\x61ilure\x88\x01\x01\x42\x1b\n\x19_harmos_presence_71292368B\x1b\n\x19_harmos_presence_39550700\"<\n\x04Row6\x12\x1b\n\x07seconds\x18\x8e\xbb\xdb\x35 \x01(\x03R\x07seconds\x12\x17\n\x05nanos\x18\x98\xac\xb2\x1e \x01(\x05R\x05nanos\"\xe8\x02\n\x04Row7\x12W\n\x0bUnspecified\x18\xd5\xf8\x98\x32 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row8H\x00R\x0bUnspecified\x12O\n\x07Running\x18\xa7\xe3\xa4) \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row9H\x00R\x07Running\x12R\n\x08\x46inished\x18\xb9\xcc\xcb= \x01(\x0b\x32\x31.dokime.v1.ObservationMessages.WatchRuntime.Row10H\x00R\x08\x46inished\x12O\n\x06\x46\x61iled\x18\x8f\x9f\xe7\xab\x01 \x01(\x0b\x32\x31.dokime.v1.ObservationMessages.WatchRuntime.Row11H\x00R\x06\x46\x61iledB\x11\n\x0f_harmos_variant\"\x06\n\x04Row8\"\x06\n\x04Row9\"\x07\n\x05Row10\"\x07\n\x05Row11\"\xea\x01\n\x04Row0\x12J\n\x07request\x18\x01 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row1R\x07request\x12L\n\x08response\x18\x02 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row2R\x08response\x12H\n\x06output\x18\x03 \x01(\x0b\x32\x30.dokime.v1.ObservationMessages.WatchRuntime.Row3R\x06outputb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -57,11 +57,25 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ROW2']._serialized_start=203
   _globals['_ROW2']._serialized_end=209
   _globals['_ROW3']._serialized_start=212
-  _globals['_ROW3']._serialized_end=415
-  _globals['_ROW4']._serialized_start=417
-  _globals['_ROW4']._serialized_end=509
-  _globals['_ROW0']._serialized_start=512
-  _globals['_ROW0']._serialized_end=746
+  _globals['_ROW3']._serialized_end=500
+  _globals['_ROW4']._serialized_start=502
+  _globals['_ROW4']._serialized_end=594
+  _globals['_ROW5']._serialized_start=597
+  _globals['_ROW5']._serialized_end=1070
+  _globals['_ROW6']._serialized_start=1072
+  _globals['_ROW6']._serialized_end=1132
+  _globals['_ROW7']._serialized_start=1135
+  _globals['_ROW7']._serialized_end=1495
+  _globals['_ROW8']._serialized_start=1497
+  _globals['_ROW8']._serialized_end=1503
+  _globals['_ROW9']._serialized_start=1505
+  _globals['_ROW9']._serialized_end=1511
+  _globals['_ROW10']._serialized_start=1513
+  _globals['_ROW10']._serialized_end=1520
+  _globals['_ROW11']._serialized_start=1522
+  _globals['_ROW11']._serialized_end=1529
+  _globals['_ROW0']._serialized_start=1532
+  _globals['_ROW0']._serialized_end=1766
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

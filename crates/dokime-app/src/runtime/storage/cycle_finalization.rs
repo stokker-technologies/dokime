@@ -24,7 +24,10 @@ use harmos::{
 use tokio::sync::Mutex;
 // Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
-use crate::{Error, Result, RuntimeHandle, execution::CycleView, report::cycle::CycleReport};
+use crate::{
+    Error, Result, RuntimeHandle, execution::CycleView, report::cycle::CycleReport,
+    runtime::progress::Operation,
+};
 use dokime::{
     core::TestCycleId,
     execution::{
@@ -110,6 +113,7 @@ impl RuntimeHandle {
     pub(crate) async fn finish_saved_cycle(
         &self,
         source: &CycleView,
+        operation: &Operation,
     ) -> Result<SharedQueryValue<CompletedCycle>> {
         let fallback = self.watch_state().latest();
         let session = source
@@ -129,7 +133,10 @@ impl RuntimeHandle {
             .try_into_value()?
             .try_into_shared()?;
         let runtime = self.clone();
+        let operation = operation.clone();
         tokio::spawn(async move {
+            operation.phase("Waiting for Earlier Saves");
+            operation.indeterminate();
             let _order = runtime.execution_storage.cycle_save.lock().await;
             let id = &frozen.test_cycle_id;
             let existing = runtime
@@ -145,7 +152,9 @@ impl RuntimeHandle {
                 }
                 owner
             } else {
-                let pending = runtime.prepare_cycle_report(frozen.clone()).await?;
+                let pending = runtime
+                    .prepare_cycle_report(frozen.clone(), &operation)
+                    .await?;
                 let owner = Arc::new(Mutex::new(pending));
                 runtime
                     .execution_storage
@@ -160,6 +169,8 @@ impl RuntimeHandle {
                 return Ok(completed.clone());
             }
             if pending.seal.is_none() {
+                operation.phase("Writing Report");
+                operation.indeterminate();
                 let report = pending
                     .report
                     .as_mut()
@@ -203,6 +214,7 @@ impl RuntimeHandle {
                 // The Written Report Has Consumed Its Members; Release Them Now.
                 pending.report = None;
             }
+            operation.phase("Publishing Report");
             if pending.publication.is_none() {
                 let seal = pending.seal.as_ref().expect("prepared cycle seal");
                 let bytes = pending.executions.iter().fold(
@@ -243,6 +255,7 @@ impl RuntimeHandle {
                 .finish()
                 .await?;
 
+            operation.phase("Saving Seal");
             if pending.native.is_none() {
                 let seal = pending.seal.as_ref().unwrap();
                 let header_bytes = pending
@@ -308,7 +321,9 @@ impl RuntimeHandle {
     async fn prepare_cycle_report(
         &self,
         source: SharedQueryValue<TestCycle>,
+        operation: &Operation,
     ) -> Result<PendingCycle> {
+        operation.phase("Collecting Sealed Members");
         self.storage().flush().await?;
         let view = self
             .storage()
@@ -329,7 +344,9 @@ impl RuntimeHandle {
             })?
             .try_into_value()?;
         let mut appearance = None;
-        for id in &source.execution_ids {
+        let total = source.execution_ids.len() as u64;
+        for (collected, id) in source.execution_ids.iter().enumerate() {
+            operation.progress(collected as u64, total);
             if let Some((context, original, execution)) = self
                 .execution_storage
                 .original_cycle_member(id, &view)
@@ -430,7 +447,7 @@ impl RuntimeHandle {
             appearance,
             &self.state_read().identity.node.node_id,
         )?;
-        let report = CycleReport::prepare(self, snapshot.clone()).await?;
+        let report = CycleReport::prepare(self, snapshot.clone(), Some(operation)).await?;
         let bytes = std::mem::size_of::<Mutex<PendingCycle>>()
             + 2 * std::mem::size_of::<usize>()
             + harmos::btree_map_memory::<TestCycleId, Arc<Mutex<PendingCycle>>>(1)

@@ -16,13 +16,15 @@
 use std::sync::Arc;
 // Third Party Imports
 use harmos::{
-    Protobuf,
+    MemorySize, Protobuf,
     operations::{Context, Operation, StreamOutput},
 };
 use tonic::Status;
 // Local Imports
 use super::value::canonical;
 use super::{execution, value};
+use dokime_app::runtime::progress::{OperationOutcome, OperationSnapshot};
+use dokime_app::runtime::query::RuntimeChange;
 use dokime_app::{RuntimeHandle, core::TestExecutionId};
 use dokime_contract::operations::observation as wire;
 
@@ -176,12 +178,20 @@ impl Operation for Runtime {
         canonical::cursor(&snapshot)
             .validate(request.cursor.as_ref(), false)
             .map_err(canonical::cursor_failure)?;
+        let mut operations = watch.operations();
         let mut resynchronized = true;
         loop {
             let observed = canonical::cursor(&snapshot);
             let bytes = std::mem::size_of::<wire::RuntimeStateFrame>()
                 .saturating_add(observed.epoch.len())
                 .saturating_add(observed.stream.len());
+            // The frames are built first: they are bounded, and measured exactly.
+            let frames = operation_frames(&operations)?;
+            let bytes = bytes.saturating_add(
+                frames
+                    .memory_size()
+                    .saturating_sub(std::mem::size_of::<Vec<wire::OperationProgress>>()),
+            );
             output
                 .send_with(bytes, || {
                     Ok(wire::RuntimeStateFrame {
@@ -189,14 +199,19 @@ impl Operation for Runtime {
                         resynchronized,
                         shutting_down: snapshot.state().shutting_down,
                         cycle_count: snapshot.state().cycles.len() as u64,
+                        operations: frames,
                     })
                 })
                 .await
                 .map_err(stream_failure)?;
-            let Some(next) = watch.next().await else {
-                return Ok(().into());
-            };
-            snapshot = next;
+            match watch.next_change().await {
+                None => return Ok(().into()),
+                Some(RuntimeChange::State(next)) => {
+                    snapshot = next;
+                    operations = watch.operations();
+                }
+                Some(RuntimeChange::Operations(next)) => operations = next,
+            }
             resynchronized = false;
         }
     }
@@ -380,6 +395,42 @@ fn stream_failure(error: harmos::Error) -> Status {
         harmos::Error::NotReady { .. } => Status::unavailable(error.to_string()),
         error => Status::internal(error.to_string()),
     }
+}
+
+fn operation_frames(
+    operations: &OperationSnapshot,
+) -> Result<Vec<wire::OperationProgress>, Status> {
+    operations
+        .operations()
+        .iter()
+        .map(|operation| {
+            value::text(&operation.label)?;
+            value::text(&operation.phase)?;
+            let (status, finished_at, failure) = match &operation.outcome {
+                OperationOutcome::Running => (wire::OperationStatus::Running, None, None),
+                OperationOutcome::Finished { at } => (
+                    wire::OperationStatus::Finished,
+                    Some(canonical::timestamp(at)?),
+                    None,
+                ),
+                OperationOutcome::Failed { at, failure } => (
+                    wire::OperationStatus::Failed,
+                    Some(canonical::timestamp(at)?),
+                    Some(failure.clone()),
+                ),
+            };
+            Ok(wire::OperationProgress {
+                operation_id: operation.operation_id.clone(),
+                label: operation.label.clone(),
+                phase: operation.phase.clone(),
+                fraction: operation.fraction,
+                started_at: Some(canonical::timestamp(&operation.started_at)?),
+                status,
+                finished_at,
+                failure,
+            })
+        })
+        .collect()
 }
 
 fn progress_memory(
