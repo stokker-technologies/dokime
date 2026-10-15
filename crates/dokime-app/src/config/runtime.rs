@@ -30,6 +30,21 @@ use dokime::domains::ActionDispatcher;
 /// so it gets minutes; exhausting even this is retried before it is final.
 pub const FINALIZATION_BUDGET: Duration = Duration::from_secs(5 * 60);
 
+/// One gibibyte: the smallest default read pool, and the memory the default
+/// pool always leaves to the rest of the machine.
+const GIB: u64 = 1024 * 1024 * 1024;
+
+/// The physical memory assumed when the machine's cannot be detected.
+const FALLBACK_PHYSICAL_MEMORY: u64 = 4 * GIB;
+
+/// The smallest read pool, kept even on a machine too small for the 1 GiB floor.
+const MINIMUM_READ_MEMORY: u64 = 256 * 1024 * 1024;
+
+/// Live views and followers the read pool admits at once. Every one is
+/// charged to the pool, so the pool, not the count, bounds their memory.
+const DEFAULT_MAX_VIEWS: usize = 256;
+const DEFAULT_MAX_FOLLOWERS: usize = 256;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -73,19 +88,38 @@ pub struct RuntimeConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StorageReadSettings {
-    /// The storage read ledger (Harmos `read_memory_bytes`, 256 MiB by default).
-    /// Live readers, report captures and report production all reserve from it:
-    /// captures retain their inputs, point reads and rendering reserve scratch.
+    /// The storage read ledger (Harmos `read_memory_bytes`): by default a
+    /// quarter of physical memory, at least 1 GiB, never more than physical
+    /// memory less 1 GiB. Live readers, report captures and report production
+    /// all reserve from it: captures retain their inputs, point reads and
+    /// rendering reserve scratch.
     #[serde(default = "default_read_memory")]
     pub memory_bytes: std::num::NonZeroUsize,
+    /// Read views the ledger admits at once (Harmos `max_views`).
+    #[serde(default = "default_max_views")]
+    pub max_views: std::num::NonZeroUsize,
+    /// Live followers the ledger admits at once (Harmos `max_followers`).
+    #[serde(default = "default_max_followers")]
+    pub max_followers: std::num::NonZeroUsize,
     pub page_rows: std::num::NonZeroUsize,
     pub page_bytes: std::num::NonZeroUsize,
     pub page_rows_ceiling: std::num::NonZeroUsize,
     pub page_bytes_ceiling: std::num::NonZeroUsize,
     pub decoded_bytes: std::num::NonZeroUsize,
     pub decoded_bytes_ceiling: std::num::NonZeroUsize,
-    pub execution: harmos::storage::QueryLimits,
-    pub execution_ceiling: harmos::storage::QueryLimits,
+    /// The per-view budget of interactive reads: request receipts, cycle and
+    /// execution lists, record pages, plot reads and every live follow. It is
+    /// the Harmos default for any read that names no limits and is elastic: a
+    /// view holds a floor and charges what it produces, so many fit the pool.
+    pub interactive: harmos::storage::QueryLimits,
+    /// The per-view budget of report reads: opening, capturing and
+    /// materializing a report and archiving an execution, whose structured
+    /// outputs exceed the interactive profile. Only these reads reserve it, and
+    /// they reserve it whole at open so a report never fails halfway.
+    pub report: harmos::storage::QueryLimits,
+    /// The largest admissible budget of any read; both profiles and
+    /// finalization's must fit it.
+    pub ceiling: harmos::storage::QueryLimits,
     /// Test hook: how long each native-output read finalization performs
     /// stalls within its read budget. Zero outside tests.
     #[doc(hidden)]
@@ -205,24 +239,31 @@ impl Default for StorageReadSettings {
     fn default() -> Self {
         let settings = harmos::storage::StorageSettings::default();
         // Structured Outputs And Their Frozen Reports Exceed The Generic 4 MiB Profile.
-        // Keep Each Read Bounded And Charge It To The Shared Budget.
-        let execution_memory = std::num::NonZeroUsize::new(32 * 1024 * 1024).unwrap();
+        // Only Report Reads Reserve The Larger Profile; Each View Holds Its
+        // Reservation For Its Whole Life, So Interactive Reads Stay Small.
+        let report_memory = std::num::NonZeroUsize::new(32 * 1024 * 1024).unwrap();
         Self {
             memory_bytes: default_read_memory(),
+            max_views: default_max_views(),
+            max_followers: default_max_followers(),
             page_rows: settings.query_page.rows,
             page_bytes: settings.query_page.bytes,
             page_rows_ceiling: settings.query_page_ceiling.rows,
-            page_bytes_ceiling: execution_memory,
-            decoded_bytes: execution_memory,
-            decoded_bytes_ceiling: execution_memory,
-            execution: harmos::storage::QueryLimits {
-                memory_bytes: execution_memory,
+            page_bytes_ceiling: report_memory,
+            decoded_bytes: report_memory,
+            decoded_bytes_ceiling: report_memory,
+            // Interactive Reads Hold A Floor And Charge What They Produce;
+            // Report Reads Reserve Their Whole Profile So They Never Fail Halfway.
+            interactive: settings.query_execution.elastic(),
+            report: harmos::storage::QueryLimits {
+                memory_bytes: report_memory,
                 ..settings.query_execution
-            },
-            // Interactive reads keep their own default; only the admissible
-            // ceiling widens so finalization's budget is accepted.
-            execution_ceiling: harmos::storage::QueryLimits {
-                memory_bytes: execution_memory,
+            }
+            .with_admission(harmos::storage::Admission::Guaranteed),
+            // The admissible ceiling widens to the report profile and to
+            // finalization's time budget.
+            ceiling: harmos::storage::QueryLimits {
+                memory_bytes: report_memory,
                 timeout: settings
                     .query_execution_ceiling
                     .timeout
@@ -235,28 +276,47 @@ impl Default for StorageReadSettings {
 }
 
 impl StorageReadSettings {
-    /// The limits report finalization reads under: the interactive profile with
+    /// The limits report finalization reads under: the report profile with
     /// the finalization budget instead of the interactive deadline.
     pub fn finalization(&self) -> harmos::storage::QueryLimits {
         harmos::storage::QueryLimits {
             timeout: FINALIZATION_BUDGET,
-            ..self.execution
+            ..self.report
         }
     }
 
+    /// The memory one report materialization may fill: the report profile,
+    /// reserved whole for the report rather than whatever the ledger has left.
+    pub fn materialization(&self) -> std::num::NonZeroUsize {
+        self.report.memory_bytes
+    }
+
     pub(crate) fn validate(&self) -> crate::Result<()> {
-        self.execution
-            .check_ceiling(self.execution_ceiling)
-            .map_err(|error| crate::Error::Operation(error.to_string()))?;
-        self.finalization()
-            .check_ceiling(self.execution_ceiling)
-            .map_err(|error| crate::Error::Operation(error.to_string()))?;
+        for profile in [self.interactive, self.report, self.finalization()] {
+            profile
+                .check_ceiling(self.ceiling)
+                .map_err(|error| crate::Error::Operation(error.to_string()))?;
+        }
         if self.page_rows > self.page_rows_ceiling
             || self.page_bytes > self.page_bytes_ceiling
             || self.decoded_bytes > self.decoded_bytes_ceiling
+            || self.materialization() > self.decoded_bytes
         {
             return Err(crate::Error::Operation(
                 "storage read defaults exceed configured ceilings".into(),
+            ));
+        }
+        // Every Per-Kind Declaration Must Leave The Pool Room For Others.
+        let declared = [
+            self.interactive.memory_bytes,
+            self.report.memory_bytes,
+            self.ceiling.memory_bytes,
+            self.page_bytes_ceiling,
+            self.decoded_bytes_ceiling,
+        ];
+        if declared.iter().any(|bytes| *bytes >= self.memory_bytes) {
+            return Err(crate::Error::Operation(
+                "a storage read declaration does not fit below the read pool".into(),
             ));
         }
         Ok(())
@@ -264,6 +324,8 @@ impl StorageReadSettings {
 
     pub(crate) fn apply(&self, settings: &mut harmos::storage::StorageSettings) {
         settings.read_memory_bytes = self.memory_bytes;
+        settings.max_views = self.max_views;
+        settings.max_followers = self.max_followers;
         settings.query_page = harmos::storage::ReadLimits {
             rows: self.page_rows,
             bytes: self.page_bytes,
@@ -274,8 +336,9 @@ impl StorageReadSettings {
         };
         settings.query_decoded_bytes = self.decoded_bytes;
         settings.query_decoded_bytes_ceiling = self.decoded_bytes_ceiling;
-        settings.query_execution = self.execution;
-        settings.query_execution_ceiling = self.execution_ceiling;
+        // Reads That Name No Limits Are Interactive.
+        settings.query_execution = self.interactive;
+        settings.query_execution_ceiling = self.ceiling;
     }
 }
 
@@ -317,7 +380,38 @@ fn default_save_interval() -> Duration {
 }
 
 fn default_read_memory() -> std::num::NonZeroUsize {
-    std::num::NonZeroUsize::new(256 * 1024 * 1024).unwrap()
+    read_pool_for(physical_memory())
+}
+
+fn default_max_views() -> std::num::NonZeroUsize {
+    std::num::NonZeroUsize::new(DEFAULT_MAX_VIEWS).unwrap()
+}
+
+fn default_max_followers() -> std::num::NonZeroUsize {
+    std::num::NonZeroUsize::new(DEFAULT_MAX_FOLLOWERS).unwrap()
+}
+
+/// The machine's physical memory in bytes, or 4 GiB when it cannot be read.
+fn physical_memory() -> u64 {
+    let system = sysinfo::System::new_with_specifics(
+        sysinfo::RefreshKind::nothing()
+            .with_memory(sysinfo::MemoryRefreshKind::nothing().with_ram()),
+    );
+    match system.total_memory() {
+        0 => FALLBACK_PHYSICAL_MEMORY,
+        bytes => bytes,
+    }
+}
+
+/// The default read pool for `physical` bytes of memory: a quarter of it, at
+/// least 1 GiB, at most all but 1 GiB of it, and never below 256 MiB.
+fn read_pool_for(physical: u64) -> std::num::NonZeroUsize {
+    let pool = (physical / 4)
+        .max(GIB)
+        .min(physical.saturating_sub(GIB))
+        .max(MINIMUM_READ_MEMORY);
+    std::num::NonZeroUsize::new(usize::try_from(pool).unwrap_or(usize::MAX))
+        .expect("the read pool floor is nonzero")
 }
 
 fn default_compaction_interval() -> Duration {
@@ -341,7 +435,8 @@ mod tests {
             decoded_bytes: bytes(5),
             ..StorageReadSettings::default()
         };
-        reads.execution.memory_bytes = bytes(7);
+        reads.interactive.memory_bytes = bytes(7);
+        reads.report.memory_bytes = bytes(5);
         reads.validate().unwrap();
         let mut settings = harmos::storage::StorageSettings::default();
 
@@ -360,7 +455,78 @@ mod tests {
         assert_eq!(settings.query_execution.memory_bytes, bytes(7));
         assert_eq!(
             settings.query_execution_ceiling.timeout,
-            reads.execution_ceiling.timeout
+            reads.ceiling.timeout
         );
+    }
+
+    #[test]
+    fn only_report_reads_reserve_the_report_profile() {
+        let reads = StorageReadSettings::default();
+        reads.validate().unwrap();
+
+        assert_eq!(reads.interactive.memory_bytes, bytes(4));
+        assert_eq!(
+            reads.interactive.admission,
+            harmos::storage::Admission::Elastic
+        );
+        assert_eq!(
+            reads.report.admission,
+            harmos::storage::Admission::Guaranteed
+        );
+        assert_eq!(
+            reads.finalization().admission,
+            harmos::storage::Admission::Guaranteed
+        );
+        assert_eq!(reads.report.memory_bytes, bytes(32));
+        assert_eq!(reads.finalization().memory_bytes, bytes(32));
+        assert_eq!(reads.finalization().timeout, FINALIZATION_BUDGET);
+        assert_eq!(reads.materialization(), bytes(32));
+        assert_eq!(reads.interactive.timeout, reads.report.timeout);
+    }
+
+    #[test]
+    fn read_pool_is_a_quarter_of_memory_within_its_clamps() {
+        let gib = |count: u64| count * GIB;
+        let pool = |physical: u64| read_pool_for(physical).get() as u64;
+
+        assert_eq!(pool(gib(16)), gib(4));
+        assert_eq!(pool(gib(64)), gib(16));
+        assert_eq!(pool(gib(4)), gib(1), "the 1 GiB floor");
+        assert_eq!(
+            pool(gib(3) / 2),
+            gib(1) / 2,
+            "all but 1 GiB of a small machine"
+        );
+        assert_eq!(pool(gib(1)), MINIMUM_READ_MEMORY, "the 256 MiB floor");
+        assert_eq!(pool(FALLBACK_PHYSICAL_MEMORY), gib(1));
+    }
+
+    #[test]
+    fn apply_admits_many_views_and_followers() {
+        let reads = StorageReadSettings::default();
+        let mut settings = harmos::storage::StorageSettings::default();
+
+        reads.apply(&mut settings);
+
+        assert_eq!(settings.max_views.get(), DEFAULT_MAX_VIEWS);
+        assert_eq!(settings.max_followers.get(), DEFAULT_MAX_FOLLOWERS);
+    }
+
+    #[test]
+    fn validate_refuses_a_declaration_that_fills_the_pool() {
+        let reads = StorageReadSettings {
+            memory_bytes: bytes(32),
+            ..StorageReadSettings::default()
+        };
+
+        assert!(reads.validate().is_err());
+    }
+
+    #[test]
+    fn validate_refuses_a_profile_above_the_ceiling() {
+        let mut reads = StorageReadSettings::default();
+        reads.report.memory_bytes = bytes(64);
+
+        assert!(reads.validate().is_err());
     }
 }

@@ -119,7 +119,7 @@ impl RuntimeHandle {
     }
 
     async fn stored_execution_exists(&self, id: &TestExecutionId) -> Result<bool, Error> {
-        let reads = self.config().storage_reads.execution;
+        let reads = self.config().storage_reads.interactive;
         let view = self.storage().view_with_limits(reads).await?;
         let limit = view.decoded_bytes()?;
         Ok(ExecutionView::open(

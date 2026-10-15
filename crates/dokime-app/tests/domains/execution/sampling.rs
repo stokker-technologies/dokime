@@ -781,7 +781,8 @@ pub(crate) async fn slow_output_read_seals() {
                 serde_json::json!({ "log_lines": LOGGED_LINES }),
             )
             .unwrap()]);
-    slow.storage_reads.execution.timeout = TIGHT_QUERY_BUDGET;
+    slow.storage_reads.interactive.timeout = TIGHT_QUERY_BUDGET;
+    slow.storage_reads.report.timeout = TIGHT_QUERY_BUDGET;
     slow.storage_reads.finalization_read_stall = OUTPUT_READ_STALL;
     let (mut runtime, handle) = started(slow).await;
     let suite = handle

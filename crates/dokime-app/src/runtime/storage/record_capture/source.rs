@@ -141,7 +141,7 @@ impl Source {
         query.schema = Some(self.schema.clone());
         query.options = QueryOptions {
             page: Some(self.page_limits()),
-            execution: Some(self.reads.execution),
+            execution: Some(self.reads.interactive),
             decoded_bytes: Some(self.reads.decoded_bytes),
             ..QueryOptions::default()
         };

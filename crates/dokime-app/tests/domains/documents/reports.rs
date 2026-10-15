@@ -88,8 +88,8 @@ pub(crate) async fn report_save_receipt() {
         // The Runtime Admits Its Configured Execution Read Budget.
         StorageSettings {
             flush_interval: Duration::from_secs(60),
-            query_execution: reads.execution,
-            query_execution_ceiling: reads.execution_ceiling,
+            query_execution: reads.interactive,
+            query_execution_ceiling: reads.ceiling,
             read_memory_bytes: NonZeroUsize::new(256 * 1024 * 1024).unwrap(),
             ..Default::default()
         },
@@ -291,7 +291,7 @@ pub(crate) async fn report_save_receipt() {
     sealed_execution.saved = Some((*original).clone());
     let sealed = Execution::try_from(&sealed_execution).unwrap();
     let before_seal = manager
-        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .view_with_limits(crate::support::budgets::story_settings().report)
         .await
         .unwrap();
     let receipt = manager.write_object(&sealed).await.unwrap();
@@ -299,7 +299,7 @@ pub(crate) async fn report_save_receipt() {
         .await
         .unwrap();
     let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .view_with_limits(crate::support::budgets::story_settings().report)
         .await
         .unwrap();
     let restored = execution::read_in(
@@ -477,7 +477,7 @@ pub(crate) async fn report_save_receipt() {
     drop(view);
 
     let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .view_with_limits(crate::support::budgets::story_settings().report)
         .await
         .unwrap();
     let unchanged = execution::read_in(
@@ -805,7 +805,7 @@ pub(crate) async fn cycle_report_reboot() {
     );
     let view = handle
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .view_with_limits(crate::support::budgets::story_settings().report)
         .await
         .unwrap();
     let stored = dokime::storage::objects::cycle::read_in(

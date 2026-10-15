@@ -252,6 +252,12 @@ impl RuntimeHandle {
             ..Default::default()
         };
         config.storage_reads.apply(&mut settings);
+        tracing::info!(
+            read_pool_bytes = settings.read_memory_bytes.get(),
+            max_views = settings.max_views.get(),
+            max_followers = settings.max_followers.get(),
+            "storage read pool sized"
+        );
         let storage = dokime::storage::Manager::new(
             harmos::storage::StorageBackends {
                 primary: backend.clone(),
@@ -339,6 +345,7 @@ impl RuntimeHandle {
             let request_storage = crate::runtime::storage::requests::RequestStorage::new(
                 storage.clone(),
                 node_identity.node_id.clone(),
+                config.storage_reads.interactive.timeout,
             );
             request_storage
                 .recover(|id| {

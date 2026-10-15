@@ -58,6 +58,9 @@ pub(crate) struct RequestStorage<S: ReceiptStore = native::Receipts> {
     store: S,
     node: NodeId,
     now: fn() -> Timestamp,
+    /// How long a receipt read backs off while other readers fill the read
+    /// ledger: the interactive deadline.
+    patience: std::time::Duration,
     active: Mutex<BTreeMap<CommandId, Active<S>>>,
 }
 
@@ -122,17 +125,32 @@ impl<R: Clone + Deref<Target = RunReceipt>> Pending<R> {
 }
 
 impl RequestStorage {
-    pub(crate) fn new(storage: dokime::storage::Manager, node: NodeId) -> Self {
-        Self::with_clock(native::Receipts::new(storage), node, Timestamp::now_utc)
+    pub(crate) fn new(
+        storage: dokime::storage::Manager,
+        node: NodeId,
+        patience: std::time::Duration,
+    ) -> Self {
+        Self::with_clock(
+            native::Receipts::new(storage),
+            node,
+            Timestamp::now_utc,
+            patience,
+        )
     }
 }
 
 impl<S: ReceiptStore> RequestStorage<S> {
-    fn with_clock(store: S, node: NodeId, now: fn() -> Timestamp) -> Self {
+    fn with_clock(
+        store: S,
+        node: NodeId,
+        now: fn() -> Timestamp,
+        patience: std::time::Duration,
+    ) -> Self {
         Self {
             store,
             node,
             now,
+            patience,
             active: Mutex::new(BTreeMap::new()),
         }
     }
@@ -169,9 +187,9 @@ impl<S: ReceiptStore> RequestStorage<S> {
         id: &CommandId,
         completed: Option<&RunSummary>,
     ) -> Result<Option<S::Receipt>> {
-        let mut active = self.active.lock().await;
-        if !active.contains_key(id) {
-            let Some(receipt) = self.read(id).await? else {
+        let (mut active, stored) = self.lock_read(id).await?;
+        if let Some(stored) = stored {
+            let Some(receipt) = stored else {
                 return Ok(None);
             };
             if receipt.summary.phase.terminal() {
@@ -279,8 +297,8 @@ impl<S: ReceiptStore> RequestStorage<S> {
         }
         let receipt = self.store.retain(receipt)?;
         let id = &receipt.summary.request_id;
-        let mut active = self.active.lock().await;
-        if active.contains_key(id) || self.read(id).await?.is_some() {
+        let (mut active, stored) = self.lock_read(id).await?;
+        if stored.is_none_or(|stored| stored.is_some()) {
             return Err(error("request identity already exists"));
         }
         let registry = self.store.reserve_entry(id)?;
@@ -349,6 +367,36 @@ impl<S: ReceiptStore> RequestStorage<S> {
             active.remove(id);
         }
         Ok(())
+    }
+
+    /// Locks the request owners, reading `id`'s stored receipt first when no
+    /// owner holds it; `None` means an owner does. A receipt is small, so a
+    /// full read ledger is other readers: the read backs off for them with
+    /// the lock released, so receipt updates never wait behind it.
+    async fn lock_read(
+        &self,
+        id: &CommandId,
+    ) -> Result<(
+        tokio::sync::MutexGuard<'_, BTreeMap<CommandId, Active<S>>>,
+        Option<Option<S::Receipt>>,
+    )> {
+        let deadline = tokio::time::Instant::now() + self.patience;
+        let mut backoff = super::record_capture::CapacityBackoff::new();
+        loop {
+            let active = self.active.lock().await;
+            if active.contains_key(id) {
+                return Ok((active, None));
+            }
+            match self.read(id).await {
+                Err(error) if super::record_capture::read_capacity(&error) => {
+                    drop(active);
+                    if !backoff.wait_until(deadline).await {
+                        return Err(error);
+                    }
+                }
+                stored => return Ok((active, Some(stored?))),
+            }
+        }
     }
 
     async fn read(&self, id: &CommandId) -> Result<Option<S::Receipt>> {

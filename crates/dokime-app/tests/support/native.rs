@@ -52,7 +52,7 @@ pub async fn checkpoint(handle: &RuntimeHandle, id: &TestExecutionId) -> Executi
 pub async fn open(handle: &RuntimeHandle, checkpoint: &ExecutionCheckpoint) -> ExecutionView {
     let view = handle
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().execution)
+        .view_with_limits(crate::support::budgets::story_settings().report)
         .await
         .unwrap();
     ExecutionView::open_checkpoint(

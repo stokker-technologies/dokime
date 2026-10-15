@@ -1141,6 +1141,19 @@ fn execution_pool_refusal_contract() {
 }
 
 #[test]
+fn execution_contended_reads_contract() {
+    {
+        eprintln!("Scenario: execution::contention::contended_reads_stay_interactive");
+        run_scenario(
+            execution::contention::contended_reads_stay_interactive,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+#[test]
 fn execution_slow_output_contract() {
     {
         eprintln!("Scenario: execution::sampling::slow_output_read_seals");
