@@ -71,12 +71,6 @@ const POOLED_MEMBERS: usize = 9;
 /// Rows of each member's whole-capture stream: within one report's budget.
 const POOLED_SPECTRUM_ROWS: u32 = 1_536;
 
-/// How finalization names a cycle report it never sealed.
-const CYCLE_UNSEALED: &str = "final cycle report was not sealed";
-
-/// How finalization names a report the read pool refused on every attempt.
-const POOL_REFUSED: &str = "the report does not fit the storage read pool";
-
 /// An interactive query budget well below one stalled finalization read.
 const TIGHT_QUERY_BUDGET: Duration = Duration::from_millis(200);
 
@@ -655,9 +649,10 @@ pub(crate) async fn oversized_report_seals_with_omissions() {
     runtime.shutdown().await.unwrap();
 }
 
-// A cycle whose members together exceed the storage read pool settles Failed
-// in bounded time, the pool named as the cause, instead of retrying its report
-// while the cycle stays Running.
+// A cycle whose members together exceed the storage read pool still seals in
+// bounded time: refused member reports wait for the pool or degrade until
+// they fit, and whatever they left out is recorded, instead of the cycle
+// staying Running or failing.
 pub(crate) async fn pool_refusal_settles() {
     let root = tempdir().unwrap();
     let mut refusing =
@@ -709,39 +704,66 @@ pub(crate) async fn pool_refusal_settles() {
     })
     .await
     .expect("a cycle the pool refuses settles its run in bounded time");
-    assert_eq!(settled.summary.phase, RunPhase::Failed);
-    assert!(
-        settled
-            .interruption
-            .as_deref()
-            .is_some_and(|cause| cause.starts_with(CYCLE_UNSEALED) && cause.contains(POOL_REFUSED)),
-        "the receipt names the refusing pool: {:?}",
+    assert_eq!(
+        settled.summary.phase,
+        RunPhase::Completed,
+        "{:?}",
         settled.interruption
     );
+
+    // Sealed: the cycle keeps every member and its report is the sealed bytes.
     let cycle = handle
         .cycles()
         .await
         .into_iter()
         .find(|cycle| cycle.test_cycle_id == cycle_id)
         .unwrap();
-    assert_eq!(cycle.lifecycle, CycleStatus::Failed);
-    assert!(
-        cycle.saved.is_none(),
-        "a refused cycle report is never sealed"
-    );
+    assert_eq!(cycle.lifecycle, CycleStatus::Completed);
+    assert!(cycle.saved.is_some(), "a refused cycle report still seals");
     assert_eq!(cycle.test_executions.len(), POOLED_MEMBERS);
-    let evidence = handle.evidence_snapshot().await.unwrap();
-    let recorded = evidence
-        .records
-        .iter()
-        .find(|record| record.record_type.as_str() == "test.cycle.finalization.failed")
-        .expect("the unsealed cycle records its cause");
+    let sealed = handle.open_cycle_report(&cycle_id).await.unwrap();
+    assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
+    let mut omitted = Vec::new();
+    for execution in &cycle.test_executions {
+        let sealed = handle
+            .open_execution_report(&execution.test_execution_id)
+            .await
+            .unwrap();
+        assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
+        let payload = crate::support::reports::parse(std::str::from_utf8(&sealed.html).unwrap());
+        omitted.extend(omissions(&payload));
+    }
+
+    // Recorded: what the pool forced out is a host warning, never a failure.
+    let recorded = tokio::time::timeout(Duration::from_secs(60), async {
+        if omitted.is_empty() {
+            return true;
+        }
+        loop {
+            let evidence = handle.evidence_snapshot().await.unwrap();
+            if evidence
+                .records
+                .iter()
+                .any(|record| record.record_type.as_str() == "report.omissions")
+            {
+                break true;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .unwrap_or(false);
     assert!(
-        recorded
-            .message
-            .as_deref()
-            .is_some_and(|message| message.contains(POOL_REFUSED)),
-        "the cycle evidence names the refusing pool: {recorded:?}"
+        recorded,
+        "what the pool forced out is recorded: {omitted:?}"
+    );
+    let evidence = handle.evidence_snapshot().await.unwrap();
+    assert!(
+        !evidence
+            .records
+            .iter()
+            .any(|record| record.record_type.as_str() == "test.cycle.finalization.failed"),
+        "a degraded report is not a failed finalization"
     );
     drop(handle);
     runtime.shutdown().await.unwrap();
