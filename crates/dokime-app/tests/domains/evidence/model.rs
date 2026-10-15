@@ -90,7 +90,6 @@ pub(crate) async fn conflicting_contracts_rejected() {
             "other",
             dokime::definition::SuiteSet::new([TestSuiteDefinition {
                 suite_id: "custom.suite".to_owned(),
-                product: None,
                 tags: Vec::new(),
                 workflow: Some("run".to_owned()),
                 suite: other_suite,

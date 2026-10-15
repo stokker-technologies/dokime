@@ -68,7 +68,6 @@ pub(super) struct Contracts {
 #[serde(deny_unknown_fields)]
 pub(super) struct Definition {
     suite_id: String,
-    product: Option<String>,
     tags: Vec<String>,
     workflow: Option<String>,
     suite: u32,
@@ -122,7 +121,6 @@ impl<'a> Pool<'a> {
                     .iter()
                     .map(|definition| Definition {
                         suite_id: definition.suite_id.clone(),
-                        product: definition.product.clone(),
                         tags: definition.tags.clone(),
                         workflow: definition.workflow.clone(),
                         suite: intern(&mut self.suites, &definition.suite),
@@ -157,7 +155,6 @@ impl<'a> Pool<'a> {
             .map(|(id, snapshot)| {
                 let definition = Definition {
                     suite_id: snapshot.suite_id.clone(),
-                    product: snapshot.product.clone(),
                     tags: snapshot.tags.clone(),
                     workflow: snapshot.workflow.clone(),
                     suite: intern(&mut self.suites, &snapshot.suite),
@@ -263,7 +260,6 @@ impl DecodedPool {
                 let snapshot = SuiteSnapshot {
                     suite_id: definition.suite_id,
                     source: encoded.source,
-                    product: definition.product,
                     tags: definition.tags,
                     workflow: definition.workflow,
                     suite: definition.suite,
@@ -331,7 +327,6 @@ impl DecodedPool {
     fn definition(&self, definition: Definition) -> Result<TestSuiteDefinition, String> {
         let Definition {
             suite_id,
-            product,
             tags,
             workflow,
             suite,
@@ -341,7 +336,6 @@ impl DecodedPool {
         let (records, telemetry) = self.contracts(contracts)?;
         Ok(TestSuiteDefinition {
             suite_id,
-            product,
             tags,
             workflow,
             suite,

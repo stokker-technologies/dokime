@@ -17,21 +17,15 @@
 // Third Party Imports
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Error, ImplItem, ImplItemFn, ItemImpl};
+use syn::{Error, ImplItem, ImplItemFn, ItemImpl, Meta, Token};
 // Local Imports
 use crate::arguments::{self, Arguments};
 
 /* === Constants === */
-const ARGUMENTS: &[&str] = &[
-    "id",
-    "label",
-    "description",
-    "product",
-    "tags",
-    "templates",
-    "records",
-];
+const ARGUMENTS: &[&str] = &["id", "label", "description", "tags", "templates", "records"];
 
 /* === Macros === */
 
@@ -60,6 +54,7 @@ pub(crate) fn suite(attribute: TokenStream, item: TokenStream) -> TokenStream {
 /* === Private Functions === */
 fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Error> {
     let sdk = crate::facade::root();
+    refuse_product(&attribute)?;
     let arguments = Arguments::read(attribute, "a suite", ARGUMENTS)?;
     let block: ItemImpl = syn::parse2(item.clone())?;
     if let Some((path, _)) = &block.trait_ {
@@ -91,11 +86,6 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     let templates = crate::catalog::argument(&arguments, "templates")?;
     let declarations = quote!(<#templates as #sdk::catalog::Catalog<#sdk::catalog::Templates>>::ENTRIES
         .iter().map(|entry| (entry.declaration)()).collect());
-    let product = arguments.value("product").map(|product| {
-        quote!(definition.product = ::core::option::Option::Some(
-            ::std::string::ToString::to_string(#product)
-        );)
-    });
     let workflow = quote! {
         definition.workflow = ::core::option::Option::Some(
             ::std::string::ToString::to_string(#identifier)
@@ -165,7 +155,6 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
                         "suite `{}` is not declarable: {}", #identifier, refusal
                     ),
                 };
-                #product
                 definition.tags = #tags;
                 #workflow
                 #records
@@ -209,6 +198,23 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
         }
 
     })
+}
+
+// Suites no longer carry a product label; name the removal rather than list
+// the accepted arguments so an author knows the field went away on purpose.
+fn refuse_product(attribute: &TokenStream) -> Result<(), Error> {
+    let entries = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(attribute.clone())?;
+    match entries
+        .iter()
+        .find(|entry| entry.path().is_ident("product"))
+    {
+        Some(entry) => Err(Error::new(
+            entry.path().span(),
+            "`product` was removed from suites: name the device under test in the suite's \
+             `label`, `description` or `tags` instead",
+        )),
+        None => Ok(()),
+    }
 }
 
 fn declared<'a>(block: &'a ItemImpl, name: &str) -> Option<&'a ImplItemFn> {

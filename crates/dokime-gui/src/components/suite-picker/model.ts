@@ -388,7 +388,6 @@ function suiteSearchText(suite: TestSuiteEntry, extra: SuiteSearchExtra | undefi
     extra?.(suite),
     suite.name,
     suite.description,
-    suite.product,
     suite.path,
     suite.tags,
   ]);

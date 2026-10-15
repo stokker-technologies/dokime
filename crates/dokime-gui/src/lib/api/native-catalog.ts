@@ -107,7 +107,6 @@ function mapSuite(definition: SuiteDefinition, identity?: SuiteIdentity): TestSu
     description: suiteIdentity.metadata?.description ?? null,
     version: null,
     source: suiteIdentity.source,
-    product: suiteIdentity.product ?? null,
     path: [name],
     tags: uniqueStrings(definition.tags),
     continue_on_failure: false,

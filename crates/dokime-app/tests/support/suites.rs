@@ -128,7 +128,6 @@ pub async fn register_custom_suite(runtime: &RuntimeHandle, suite: TestSuite) {
         runtime,
         TestSuiteDefinition {
             suite_id: "provider:testdb:custom.suite".to_owned(),
-            product: None,
             tags: Vec::new(),
             workflow: Some("run".to_owned()),
             suite,
@@ -367,7 +366,6 @@ pub fn custom_suite() -> TestSuite {
 fn python_registration(suite_id: &str, workflow: &str, suite: TestSuite) -> TestSuiteDefinition {
     TestSuiteDefinition {
         suite_id: suite_id.to_owned(),
-        product: Some("PLT400".to_owned()),
         tags: vec!["plt400".to_owned()],
         workflow: Some(workflow.to_owned()),
         suite,

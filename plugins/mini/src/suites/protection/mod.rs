@@ -39,7 +39,7 @@ pub enum Templates {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::suite(id = SUITE, label = "Overcurrent Protection", product = "Onboard Charger", tags = ["device", "protection"], templates = Templates, description = "Increase the load and verify that the RMS protection latch disconnects the Charger.")]
+#[dokime::suite(id = SUITE, label = "Overcurrent Protection", tags = ["device", "protection"], templates = Templates, description = "Increase the load and verify that the RMS protection latch disconnects the Charger.")]
 impl Suite {}
 
 /* === Public Functions === */

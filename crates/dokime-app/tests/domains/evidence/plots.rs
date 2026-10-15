@@ -323,7 +323,6 @@ async fn register_plot_suite(runtime: &RuntimeHandle) {
             "plot-query",
             dokime::definition::SuiteSet::new([TestSuiteDefinition {
                 suite_id: "plot.query.suite".to_owned(),
-                product: None,
                 tags: Vec::new(),
                 workflow: None,
                 suite: plot_query_suite(),

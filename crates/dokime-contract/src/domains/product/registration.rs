@@ -35,7 +35,6 @@ product_error!(SuiteContractError, formatter {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TestSuiteDefinition {
     pub suite_id: String,
-    pub product: Option<String>,
     pub tags: Vec<String>,
     pub workflow: Option<String>,
     pub suite: TestSuite,
@@ -73,7 +72,6 @@ impl TestSuiteDefinition {
 
         Ok(Self {
             suite_id,
-            product: None,
             tags: Vec::new(),
             workflow: None,
             suite,

@@ -609,7 +609,6 @@ pub(crate) async fn capture_failure_provider() {
             "provider:testdb",
             dokime_app::definition::SuiteSet::new([TestSuiteDefinition {
                 suite_id: "provider:testdb:shutdown".into(),
-                product: None,
                 tags: vec![],
                 workflow: Some("execute_cycle".into()),
                 suite: suite.clone(),

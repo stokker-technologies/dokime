@@ -342,8 +342,7 @@ pub(crate) async fn catalog_suite_extensions() {
             Value::Object(BTreeMap::from([("visible".to_owned(), Value::from(true))])),
         ),
     ]);
-    let mut registration = common::fixture_registration(suite);
-    registration.product = Some("fixture.product".to_owned());
+    let registration = common::fixture_registration(suite);
     handle
         .set_suites(
             "provider:fixture",
@@ -365,7 +364,6 @@ pub(crate) async fn catalog_suite_extensions() {
         .unwrap()
         .into_inner();
     assert_eq!(listed.suites.len(), 1);
-    assert_eq!(listed.suites[0].product.as_deref(), Some("fixture.product"));
 
     let fetched = client
         .unary::<contracts::catalog::GetSuite>(authenticated(contracts::catalog::GetSuiteRequest {
@@ -374,10 +372,6 @@ pub(crate) async fn catalog_suite_extensions() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(
-        fetched.identity.as_ref().unwrap().product.as_deref(),
-        Some("fixture.product")
-    );
     assert_eq!(fetched.templates[0].parameters[0].min, Some(1.0));
     assert_eq!(fetched.templates[0].parameters[0].max, Some(100.0));
     let extensions: BTreeMap<_, _> = fetched.templates[0].parameters[0]

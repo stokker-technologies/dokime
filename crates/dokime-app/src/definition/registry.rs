@@ -189,7 +189,6 @@ impl SuiteRegistry {
         let snapshot = SuiteSnapshot {
             suite_id: definition.suite_id.clone(),
             source: source.to_owned(),
-            product: definition.product,
             tags: definition.tags,
             workflow: definition.workflow,
             suite: definition.suite,

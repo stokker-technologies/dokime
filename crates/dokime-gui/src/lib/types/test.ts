@@ -176,7 +176,6 @@ export type TestSuiteEntry = {
   description?: string | null;
   version?: string | null;
   source: string;
-  product?: string | null;
   path: string[];
   tags: string[];
   continue_on_failure: boolean;

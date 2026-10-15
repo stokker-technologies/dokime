@@ -191,7 +191,6 @@ pub fn fixture_registration(suite: TestSuite) -> TestSuiteDefinition {
     let suite_id = suite.metadata.identifier.to_string();
     TestSuiteDefinition {
         suite_id,
-        product: None,
         tags: vec!["fixture".to_owned()],
         workflow: Some("execute_cycle".to_owned()),
         suite,

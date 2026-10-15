@@ -131,7 +131,6 @@ pub(super) async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String
             "provider:fixture",
             dokime_app::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition {
                 suite_id: "rpc.artifact".into(),
-                product: None,
                 tags: vec![],
                 workflow: Some("execute_cycle".into()),
                 suite,

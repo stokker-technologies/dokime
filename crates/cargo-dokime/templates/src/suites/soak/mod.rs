@@ -47,7 +47,6 @@ pub enum Templates {
 #[dokime::suite(
     id = "{{owner}}.soak",
     label = "Thermal Soak",
-    product = "{{package}}",
     tags = ["device", "thermal"],
     templates = Templates, description = "Hold the unit at temperature and watch it stay in band.")]
 impl SoakSuite {}

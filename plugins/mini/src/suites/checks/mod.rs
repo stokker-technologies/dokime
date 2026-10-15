@@ -46,7 +46,6 @@ pub enum Templates {
 #[dokime::suite(
     id = ID,
     label = "Bench Signal Check",
-    product = "Mini",
     tags = ["example", "sidecar"],
     // The binding that makes this suite run *inside the sidecar*: the host
     // dispatches the sidecar that registered this suite and drives it over

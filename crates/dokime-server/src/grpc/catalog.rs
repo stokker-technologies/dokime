@@ -264,13 +264,9 @@ fn metadata_heap(metadata: &dokime_app::core::Metadata) -> Result<usize, Status>
 fn identity_memory(entry: &dokime_app::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
     value::text(&entry.suite_id)?;
     value::text(&entry.source)?;
-    if let Some(product) = &entry.product {
-        value::text(product)?;
-    }
     Ok(std::mem::size_of::<wire::SuiteIdentity>()
         + entry.suite_id.len()
         + entry.source.len()
-        + entry.product.as_ref().map_or(0, String::len)
         + metadata_heap(&entry.suite.metadata)?)
 }
 
@@ -593,7 +589,6 @@ fn identity(
         suite_id: entry.suite_id.clone(),
         source: entry.source.clone(),
         metadata: Some(canonical::metadata(&entry.suite.metadata)?),
-        product: entry.product.clone(),
     })
 }
 

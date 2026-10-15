@@ -187,7 +187,6 @@ enum SpikeChecksTemplates {
 #[dokime::suite(
     id = SUITE_ID,
     label = "Spike Checks",
-    product = "Spike",
     tags = ["example", "plugin"],
     templates = SpikeChecksTemplates)]
 impl SpikeChecks {
@@ -459,7 +458,6 @@ pub(crate) fn suite_declaration_contracts() {
     let definition = SpikeChecks::definition();
 
     assert_eq!(definition.suite_id, SUITE_ID);
-    assert_eq!(definition.product.as_deref(), Some("Spike"));
     assert_eq!(definition.workflow.as_deref(), Some(SUITE_ID));
     assert_eq!(
         definition.suite.test_case_templates[0].subscriptions,
