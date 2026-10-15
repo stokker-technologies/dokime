@@ -16,6 +16,7 @@
 use std::{
     collections::BTreeMap,
     ffi::c_void,
+    ops::RangeInclusive,
     ptr::{addr_of, null_mut},
     slice, thread,
     time::Duration,
@@ -41,6 +42,7 @@ use windows::{
             wlan_interface_state_connected, wlan_interface_state_disconnected,
             wlan_interface_state_disconnecting, wlan_interface_state_discovering,
             wlan_interface_state_not_ready, wlan_intf_opcode_current_connection,
+            wlan_intf_opcode_rssi,
         },
     },
     core::GUID,
@@ -49,6 +51,7 @@ use windows::{
 use crate::{Error, HostOptions, Result};
 
 /* === Constants === */
+const RSSI_RANGE_DBM: RangeInclusive<f64> = -120.0..=0.0;
 
 /* === Macros === */
 
@@ -68,6 +71,7 @@ pub struct WifiLink {
     pub channel: Option<u32>,
     pub band: Option<String>,
     pub signal_percent: Option<f64>,
+    pub rssi_dbm: Option<f64>,
     pub rx_phy_mbps: Option<f64>,
     pub tx_phy_mbps: Option<f64>,
 }
@@ -99,6 +103,17 @@ struct WifiInterface {
 /* === Traits === */
 
 /* === Implementations === */
+impl WifiLink {
+    /// Reads the `LONG` the `wlan_intf_opcode_rssi` query returns as dBm; `None`
+    /// for a short buffer or a value outside the plausible dBm range.
+    pub fn rssi_dbm_from_query(bytes: &[u8]) -> Option<f64> {
+        let bytes = <[u8; 4]>::try_from(bytes.get(..4)?).ok()?;
+        let rssi_dbm = f64::from(i32::from_ne_bytes(bytes));
+
+        RSSI_RANGE_DBM.contains(&rssi_dbm).then_some(rssi_dbm)
+    }
+}
+
 impl Drop for WlanClient {
     fn drop(&mut self) {
         unsafe {
@@ -187,6 +202,34 @@ impl WlanClient {
         Ok(Some(attributes))
     }
 
+    /// The received signal of the current association, in dBm.
+    fn rssi_dbm(&self, interface: &WifiInterface) -> Option<f64> {
+        let mut data_size = 0;
+        let mut data: *mut c_void = null_mut();
+        let code = unsafe {
+            WlanQueryInterface(
+                self.handle,
+                &interface.guid,
+                wlan_intf_opcode_rssi,
+                None,
+                &mut data_size,
+                &mut data,
+                None,
+            )
+        };
+        if code != 0 || data.is_null() {
+            return None;
+        }
+
+        let bytes = unsafe { slice::from_raw_parts(data.cast::<u8>(), data_size as usize) };
+        let rssi_dbm = WifiLink::rssi_dbm_from_query(bytes);
+        unsafe {
+            WlanFreeMemory(data);
+        }
+
+        rssi_dbm
+    }
+
     fn bss_entries(
         &self,
         interface: &WifiInterface,
@@ -255,6 +298,7 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
             channel: None,
             band: None,
             signal_percent: None,
+            rssi_dbm: None,
             rx_phy_mbps: None,
             tx_phy_mbps: None,
         }));
@@ -278,6 +322,7 @@ pub fn active_link(options: &HostOptions) -> Result<Option<WifiLink>> {
         channel: None,
         band: None,
         signal_percent: Some(f64::from(association.wlanSignalQuality)),
+        rssi_dbm: client.rssi_dbm(&interface),
         rx_phy_mbps: Some(association.ulRxRate as f64 / 1_000.0),
         tx_phy_mbps: Some(association.ulTxRate as f64 / 1_000.0),
     }))

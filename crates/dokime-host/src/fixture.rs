@@ -142,6 +142,7 @@ impl FixtureHostTelemetrySource {
                     ("wifi_channel".to_owned(), Value::Integer(6)),
                     ("wifi_band".to_owned(), Value::from("2.4GHz")),
                     ("wifi_signal_percent".to_owned(), Value::from(86.0)),
+                    ("wifi_rssi_dbm".to_owned(), Value::from(-57.0)),
                     ("wifi_rx_phy_mbps".to_owned(), Value::from(144.0)),
                     ("wifi_tx_phy_mbps".to_owned(), Value::from(144.0)),
                     (
