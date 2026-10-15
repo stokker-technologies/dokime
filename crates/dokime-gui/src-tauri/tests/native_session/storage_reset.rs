@@ -137,7 +137,8 @@ pub(crate) async fn refusals_and_reset() {
 }
 
 /// A backup streams every nested file into a zip beside the root, leaves out
-/// the lease and SQLite's live sidecars, and the reset then empties the root.
+/// only the lease, keeps a WAL a crash left behind, and the reset then empties
+/// the root.
 pub(crate) fn backup_archives_and_clears() {
     let root = tempfile::tempdir().unwrap();
     let store = root.path().join("store");
@@ -186,7 +187,7 @@ pub(crate) fn backup_archives_and_clears() {
         })
     ));
 
-    // The Archive Holds Every Nested File But The Live Ones
+    // The Archive Holds Every Nested File, The WAL Included, But The Lease
     let mut reports = Vec::new();
     let archive = storage
         .archive(&destination, |bytes| reports.push(bytes))
@@ -211,6 +212,8 @@ pub(crate) fn backup_archives_and_clears() {
             "artifacts/cycle-1/nested/",
             "artifacts/cycle-1/nested/trace.csv",
             "local.sqlite",
+            "local.sqlite-shm",
+            "local.sqlite-wal",
             "uploads/",
             "uploads/pending/",
         ]
@@ -222,6 +225,9 @@ pub(crate) fn backup_archives_and_clears() {
     )
     .unwrap();
     assert_eq!(evidence, "bytes");
+    let mut wal = String::new();
+    std::io::Read::read_to_string(&mut zip.by_name("local.sqlite-wal").unwrap(), &mut wal).unwrap();
+    assert_eq!(wal, "wal");
     assert_eq!(
         zip.by_name("artifacts/cycle-1/nested/trace.csv")
             .unwrap()

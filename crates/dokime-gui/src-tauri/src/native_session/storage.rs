@@ -29,8 +29,6 @@ use dokime::paths::ApplicationPaths;
 const DATA_ROOT_ENV: &str = "DOKIME_OUTPUT_ROOT";
 // The lease every backend holds on its store while it runs.
 const LEASE: &str = "local.lock";
-// SQLite's write-ahead log and shared-memory index, live only while a backend runs.
-const SQLITE_SIDECARS: [&str; 2] = ["-wal", "-shm"];
 // How many archive bytes pass between two progress reports.
 const PROGRESS_STEP: u64 = 1 << 20;
 
@@ -145,9 +143,9 @@ impl StorageRoot {
 
     /// Streams every file under the data root into a new zip archive at
     /// `destination` and returns its path, reporting the archive bytes
-    /// written. Refuses while any backend still holds the store's lease; the
-    /// lease and SQLite's WAL and shared-memory files belong to a running
-    /// backend and are left out.
+    /// written. Refuses while any backend still holds the store's lease, so
+    /// SQLite's WAL and shared-memory files are at rest and kept: a WAL a
+    /// crash left behind still holds committed rows. Only the lease is left out.
     pub fn archive(&self, destination: &Path, progress: impl FnMut(u64)) -> Result<PathBuf, Error> {
         // Refuse A Destination The Reset Would Delete Or Overwrite
         let destination = std::path::absolute(destination)
@@ -288,11 +286,8 @@ impl StorageRoot {
                     pending.push((path, format!("{name}/")));
                     continue;
                 }
-                let live = (prefix.is_empty() && file_name == LEASE)
-                    || SQLITE_SIDECARS
-                        .iter()
-                        .any(|suffix| file_name.ends_with(suffix));
-                if !kind.is_file() || live {
+                let lease = prefix.is_empty() && file_name == LEASE;
+                if !kind.is_file() || lease {
                     continue;
                 }
 
