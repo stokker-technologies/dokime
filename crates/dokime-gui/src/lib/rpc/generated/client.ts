@@ -145,6 +145,12 @@ export const executionPauseCycle = (session: SessionIdentity, request: Parameter
 import { Row1Schema as executionPauseExecutionRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/PauseExecution/messages_pb.js";
 import { Row2Schema as executionPauseExecutionResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/PauseExecution/messages_pb.js";
 export const executionPauseExecution = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionPauseExecutionRequest, typeof executionPauseExecutionResponse>>[4]) => unary("/dokime.v1.Execution/PauseExecution", executionPauseExecutionRequest, executionPauseExecutionResponse, session, request, 10000);
+import { Row1Schema as executionRenameCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/RenameCycle/messages_pb.js";
+import { Row2Schema as executionRenameCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/RenameCycle/messages_pb.js";
+export const executionRenameCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionRenameCycleRequest, typeof executionRenameCycleResponse>>[4]) => unary("/dokime.v1.Execution/RenameCycle", executionRenameCycleRequest, executionRenameCycleResponse, session, request, 10000);
+import { Row1Schema as executionRenameExecutionRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/RenameExecution/messages_pb.js";
+import { Row2Schema as executionRenameExecutionResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/RenameExecution/messages_pb.js";
+export const executionRenameExecution = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionRenameExecutionRequest, typeof executionRenameExecutionResponse>>[4]) => unary("/dokime.v1.Execution/RenameExecution", executionRenameExecutionRequest, executionRenameExecutionResponse, session, request, 10000);
 import { Row1Schema as executionResumeCycleRequest } from "../../../../.generated/dokime/v1/ExecutionMessages/ResumeCycle/messages_pb.js";
 import { Row2Schema as executionResumeCycleResponse } from "../../../../.generated/dokime/v1/ExecutionMessages/ResumeCycle/messages_pb.js";
 export const executionResumeCycle = (session: SessionIdentity, request: Parameters<typeof unary<typeof executionResumeCycleRequest, typeof executionResumeCycleResponse>>[4]) => unary("/dokime.v1.Execution/ResumeCycle", executionResumeCycleRequest, executionResumeCycleResponse, session, request, 10000);

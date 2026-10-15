@@ -363,8 +363,18 @@ export function CycleWorkspace({
           prompts={prompts}
           row={selectedRow}
           selection={selection}
+          label={selectedRow.case.label}
+          onRename={
+            selectedRow.execution
+              ? (label) =>
+                  commands.renameExecution.mutateAsync({
+                    executionId: selectedRow.execution?.test_execution_id ?? "",
+                    label,
+                  })
+              : null
+          }
           snapshot={runtimeQuery.data ?? null}
-          title={executionTitle(selectedRow)}
+          titlePrefix={executionTitlePrefix(selectedRow)}
         />
       </div>
     );
@@ -383,6 +393,7 @@ export function CycleWorkspace({
           title: plan.test_cycle.title,
         }}
         live={live}
+        onRename={(label) => commands.renameCycle.mutateAsync(label)}
         menu={{
           archive: archiveAction(
             Boolean(plan.test_cycle.archived),
@@ -463,7 +474,11 @@ export function CycleWorkspace({
 
 /** The execution page's title: its ordinal and its case. */
 function executionTitle(row: CycleExecutionRow): string {
-  return `Execution ${row.ordinal} · ${row.case.label}`;
+  return `${executionTitlePrefix(row)}${row.case.label}`;
+}
+
+function executionTitlePrefix(row: CycleExecutionRow): string {
+  return `Execution ${row.ordinal} · `;
 }
 
 /* === Private Components === */

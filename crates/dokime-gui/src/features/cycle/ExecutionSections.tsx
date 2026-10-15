@@ -10,8 +10,8 @@
 /* The execution page: one execution's run and evidence as one column of
  * sections in a fixed order.
  *
- * The title — "Execution 1 · <case>" with the execution's "…" menu — is the
- * plain header of the column, not a card. Below it, every section is the same
+ * The title — "Execution 1 · <case>" with a pencil that renames the case label
+ * and the execution's "…" menu — is the plain header of the column, not a card. Below it, every section is the same
  * `ExecutionSectionCard`: Control (prompts, progress, run controls), Parameters
  * (the materialized case), Steps & Criteria, Operator Notes, Media, Artifacts,
  * Report (whatever else the document authored), Records and Traceability.
@@ -69,6 +69,7 @@ import {
   FrozenDocumentConsole,
   useDocumentSurface,
 } from "./DocumentView";
+import { EditableLabel } from "./EditableLabel";
 import { ExecutionControl } from "./ExecutionControl";
 import { ExecutionParameters } from "./ExecutionParameters";
 import { ExecutionSectionCard } from "./ExecutionSectionCard";
@@ -91,7 +92,12 @@ export type ExecutionSectionsProps = {
   snapshot: HubLiveState | null;
   /** False in the frozen report: no Control, no menu, no live reads. */
   live: boolean;
-  title: string;
+  /** Names the execution ahead of its label, "Execution 1 · ". */
+  titlePrefix: string;
+  /** The execution's label: its case's, which the pencil renames. */
+  label: string;
+  /** Renames the execution; `null` for a case that has not run. */
+  onRename: ((label: string) => Promise<unknown>) | null;
   menu: ExecutionMenu;
   /** The cycle's answerable prompts; the page keeps its own and the cycle's. */
   prompts: PromptRequest[];
@@ -112,7 +118,9 @@ export function ExecutionSections({
   row,
   snapshot,
   live,
-  title,
+  titlePrefix,
+  label,
+  onRename,
   menu,
   prompts,
   selection,
@@ -180,9 +188,12 @@ export function ExecutionSections({
       <div className="min-h-0 overflow-y-auto px-4 py-4">
         <div className="grid min-w-0 gap-4">
           <header className="grid min-h-[var(--bar-control-height)] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
-            <h1 className="truncate font-heading text-lg leading-7 font-semibold" title={title}>
-              {title}
-            </h1>
+            <EditableLabel
+              label={label}
+              onRename={live ? onRename : null}
+              prefix={titlePrefix}
+              subject="Execution"
+            />
             {live ? <NodeMenu menu={menu} /> : <span />}
             {template?.description ? (
               <div className="col-span-2 text-sm text-muted-foreground">

@@ -21,6 +21,8 @@ use tonic::Status;
 
 /* === Constants === */
 pub(super) const MAX_COLLECTION: usize = 256;
+// Every text field the wire admits, labels included.
+pub(super) const MAX_TEXT_BYTES: usize = 4096;
 
 /* === Macros === */
 
@@ -58,7 +60,7 @@ pub(super) fn collection(len: usize) -> Result<(), Status> {
 }
 
 pub(super) fn text(value: &str) -> Result<(), Status> {
-    if value.len() > 4096 {
+    if value.len() > MAX_TEXT_BYTES {
         return Err(Status::resource_exhausted("text exceeds 4096 bytes"));
     }
     Ok(())

@@ -31,6 +31,8 @@ import {
   fetchNativeTestCycleDetail,
   pauseNativeTestCycle,
   pauseNativeTestExecution,
+  renameNativeTestCycle,
+  renameNativeTestExecution,
   reopenNativeTestCycle,
   rerunNativeTestCase,
   rerunNativeTestCycle,
@@ -149,6 +151,17 @@ export function useCycleCommands(cycleId: string) {
     archiveExecution: useMutation({
       mutationFn: ({ archived, executionId }: { archived: boolean; executionId: string }) =>
         setNativeExecutionArchived(session().identity, executionId, archived),
+      onSettled: invalidateAll,
+    }),
+    /* A rename refreshes on settling like every command: lists, tabs and the
+       sidebar read the label the runtime now holds. */
+    renameCycle: useMutation({
+      mutationFn: (label: string) => renameNativeTestCycle(session().identity, cycleId, label),
+      onSettled: invalidateAll,
+    }),
+    renameExecution: useMutation({
+      mutationFn: ({ executionId, label }: { executionId: string; label: string }) =>
+        renameNativeTestExecution(session().identity, executionId, label),
       onSettled: invalidateAll,
     }),
     copyCycle: useMutation({

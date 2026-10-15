@@ -302,6 +302,11 @@ impl ExecutionSnapshot {
         &self.case
     }
 
+    // An Operator Rename Changes Only The Case Label; Its Identity And Inputs Stay
+    pub fn relabel_case(&mut self, label: String) {
+        self.case.metadata.label = label;
+    }
+
     pub fn suite(&self) -> Option<&Metadata> {
         self.case.suite.as_ref()
     }

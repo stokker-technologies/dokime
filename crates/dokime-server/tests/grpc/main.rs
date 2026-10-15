@@ -1155,6 +1155,10 @@ fn protocol_contract() {
         run_scenario(workflow::controls::cycle_edits_state, false, None, false);
     }
     {
+        eprintln!("Scenario: workflow::controls::labels_rename_state");
+        run_scenario(workflow::controls::labels_rename_state, false, None, false);
+    }
+    {
         eprintln!("Scenario: diagnostics::collected_archive_material");
         run_scenario(diagnostics::collected_archive_material, false, None, false);
     }

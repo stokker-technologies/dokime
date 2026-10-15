@@ -712,6 +712,32 @@ impl Client {
         super::transport::value(reply)
     }
 
+    pub async fn execution_rename_cycle(
+        &self,
+        message: contracts::execution::RenameCycleRequest,
+    ) -> Result<contracts::execution::RenameReply> {
+        let reply = self
+            .unary::<contracts::execution::RenameCycle>(
+                contracts::execution::RenameCycle::PATH,
+                message,
+            )
+            .await?;
+        super::transport::value(reply)
+    }
+
+    pub async fn execution_rename_execution(
+        &self,
+        message: contracts::execution::RenameExecutionRequest,
+    ) -> Result<contracts::execution::RenameReply> {
+        let reply = self
+            .unary::<contracts::execution::RenameExecution>(
+                contracts::execution::RenameExecution::PATH,
+                message,
+            )
+            .await?;
+        super::transport::value(reply)
+    }
+
     pub async fn execution_update_cycle_policy(
         &self,
         message: contracts::execution::UpdateCyclePolicyRequest,

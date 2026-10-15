@@ -66,6 +66,14 @@ struct ArchiveExecution {
     runtime: Arc<RuntimeHandle>,
 }
 
+struct RenameCycle {
+    runtime: Arc<RuntimeHandle>,
+}
+
+struct RenameExecution {
+    runtime: Arc<RuntimeHandle>,
+}
+
 struct Policy {
     runtime: Arc<RuntimeHandle>,
 }
@@ -104,6 +112,8 @@ enum Operations {
     Rerun(Rerun),
     ArchiveCycle(ArchiveCycle),
     ArchiveExecution(ArchiveExecution),
+    RenameCycle(RenameCycle),
+    RenameExecution(RenameExecution),
     Policy(Policy),
     PauseCycle(PauseCycle),
     ResumeCycle(ResumeCycle),
@@ -387,6 +397,75 @@ impl Operation for ArchiveExecution {
     }
 }
 
+impl Operation for RenameCycle {
+    type Declaration = wire::RenameCycle;
+    type Resources = RuntimeHandle;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
+        Ok(Self { runtime })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        context: Self::Context<'a>,
+        request: &mut wire::RenameCycleRequest,
+        _: &mut (),
+    ) -> Result<harmos::operations::Response<wire::RenameReply>, Status> {
+        let context = command_context(&context, request.context.as_ref())?;
+        label_bound(&request.label)?;
+        let label = self
+            .runtime
+            .rename_cycle(
+                cycle_id(&request.cycle_id)?,
+                std::mem::take(&mut request.label),
+                context,
+            )
+            .await
+            .map_err(status)?;
+        Ok(wire::RenameReply { label }.into())
+    }
+}
+
+impl Operation for RenameExecution {
+    type Declaration = wire::RenameExecution;
+    type Resources = RuntimeHandle;
+    type Error = Status;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(
+        runtime: Arc<RuntimeHandle>,
+        _: Self::Context<'ctx>,
+    ) -> Result<Self, Status> {
+        Ok(Self { runtime })
+    }
+
+    async fn run<'a>(
+        &mut self,
+        context: Self::Context<'a>,
+        request: &mut wire::RenameExecutionRequest,
+        _: &mut (),
+    ) -> Result<harmos::operations::Response<wire::RenameReply>, Status> {
+        let context = command_context(&context, request.context.as_ref())?;
+        label_bound(&request.label)?;
+        value::text(&request.execution_id)?;
+        let execution = TestExecutionId::from_uuid(request.execution_id.clone())
+            .map_err(|_| Status::invalid_argument("invalid execution UUID"))?;
+        let label = self
+            .runtime
+            .rename_execution(execution, std::mem::take(&mut request.label), context)
+            .await
+            .map_err(status)?;
+        Ok(wire::RenameReply { label }.into())
+    }
+}
+
 impl Operation for Policy {
     type Declaration = wire::UpdateCyclePolicy;
     type Resources = RuntimeHandle;
@@ -640,6 +719,17 @@ pub(in crate::grpc) fn command_context(
 }
 
 /* === Private Functions === */
+// A Label Longer Than Any Wire Text Is A Bad Argument, Not A Budget Overrun
+fn label_bound(label: &str) -> Result<(), Status> {
+    if label.len() > value::MAX_TEXT_BYTES {
+        return Err(Status::invalid_argument(format!(
+            "label exceeds {} bytes",
+            value::MAX_TEXT_BYTES
+        )));
+    }
+    Ok(())
+}
+
 fn observed(runtime: &RuntimeHandle) -> wire::ControlReply {
     wire::ControlReply {
         observed_cursor: Some(canonical::cursor(&runtime.watch_state().latest())),

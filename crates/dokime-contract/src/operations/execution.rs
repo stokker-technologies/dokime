@@ -26,6 +26,8 @@ mod list_executions;
 mod list_step_criteria;
 mod pause_cycle;
 mod pause_execution;
+mod rename_cycle;
+mod rename_execution;
 mod resume_cycle;
 mod resume_execution;
 mod run_case;
@@ -58,6 +60,8 @@ pub use list_executions::ListExecutions;
 pub use list_step_criteria::ListStepCriteria;
 pub use pause_cycle::PauseCycle;
 pub use pause_execution::PauseExecution;
+pub use rename_cycle::RenameCycle;
+pub use rename_execution::RenameExecution;
 pub use resume_cycle::ResumeCycle;
 pub use resume_execution::ResumeExecution;
 pub use run_case::RunCase;
@@ -239,6 +243,38 @@ pub struct SetExecutionArchivedRequest {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArchiveReply {
     pub archived: bool,
+}
+
+// A label is operator metadata, so a rename is admitted in every lifecycle
+// state. A sealed cycle or execution takes it as a new revision; its sealed
+// report keeps the label it froze. An execution's label is its case's label,
+// so every attempt of that case in the cycle is renamed together.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenameCycleRequest {
+    pub cycle_id: String,
+    // nonblank after trimming, at most 4096 bytes UTF-8
+    #[row(description = "nonblank after trimming, at most 4096 bytes UTF-8")]
+    pub label: String,
+    pub context: Option<MutationContext>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenameExecutionRequest {
+    pub execution_id: String,
+    // nonblank after trimming, at most 4096 bytes UTF-8
+    #[row(description = "nonblank after trimming, at most 4096 bytes UTF-8")]
+    pub label: String,
+    pub context: Option<MutationContext>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenameReply {
+    // The label as stored, trimmed.
+    #[row(description = "The label as stored, trimmed.")]
+    pub label: String,
 }
 
 // DeleteCase only removes an unexecuted case. ScheduleCaseRerun makes the
@@ -1023,6 +1059,8 @@ pub enum Operations {
     ScheduleCaseRerun(ScheduleCaseRerun),
     SetCycleArchived(SetCycleArchived),
     SetExecutionArchived(SetExecutionArchived),
+    RenameCycle(RenameCycle),
+    RenameExecution(RenameExecution),
     UpdateCyclePolicy(UpdateCyclePolicy),
 }
 
@@ -1171,6 +1209,16 @@ impl Endpoint for SetCycleArchived {
 
 impl Endpoint for SetExecutionArchived {
     const PATH: &'static str = "/dokime.v1.Execution/SetExecutionArchived";
+    const ACCESS: Access = Access::Control;
+}
+
+impl Endpoint for RenameCycle {
+    const PATH: &'static str = "/dokime.v1.Execution/RenameCycle";
+    const ACCESS: Access = Access::Control;
+}
+
+impl Endpoint for RenameExecution {
+    const PATH: &'static str = "/dokime.v1.Execution/RenameExecution";
     const ACCESS: Access = Access::Control;
 }
 

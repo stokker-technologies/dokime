@@ -15,6 +15,7 @@ pub mod evidence;
 pub mod execution_control;
 pub mod installation;
 pub mod invalidation;
+pub mod labels;
 pub mod lifecycle;
 pub mod notes;
 pub mod outputs;
@@ -39,6 +40,7 @@ pub use evidence::{CloseRecordSubscriptions, PublishRecord, RecordHealth};
 pub use execution_control::ControlExecution;
 pub use installation::{InstallPlugin, RemovePlugin};
 pub use invalidation::InvalidateExecutions;
+pub use labels::{LabelSubject, RenameLabel};
 pub use lifecycle::{
     EstablishNodeIdentity, MarkRuntimeStarted, RecoverInterruptedCycles, StartShutdown,
 };
@@ -120,6 +122,7 @@ pub enum Transactions {
     ResetCycle(ResetCycle),
     UpdateCyclePolicy(UpdateCyclePolicy),
     SetArchived(SetArchived),
+    RenameLabel(RenameLabel),
     AppendCycle(AppendCycle),
     CreateCycle(CreateCycle),
     CopyCycle(CopyCycle),

@@ -262,6 +262,24 @@ export async function setNativeExecutionArchived(
   await rpc.executionSetExecutionArchived(session, { executionId, archived });
 }
 
+/** Renames a cycle in any lifecycle state; resolves to the label as stored. */
+export async function renameNativeTestCycle(
+  session: SessionIdentity,
+  cycleId: string,
+  label: string,
+): Promise<string> {
+  return (await rpc.executionRenameCycle(session, { cycleId, label })).label;
+}
+
+/** Renames an execution's case, every attempt of it; resolves to the stored label. */
+export async function renameNativeTestExecution(
+  session: SessionIdentity,
+  executionId: string,
+  label: string,
+): Promise<string> {
+  return (await rpc.executionRenameExecution(session, { executionId, label })).label;
+}
+
 export async function reopenNativeTestCycle(
   session: SessionIdentity,
   cycleId: string,

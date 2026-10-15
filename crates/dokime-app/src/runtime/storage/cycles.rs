@@ -19,7 +19,10 @@ use harmos::MemorySize;
 // Local Imports
 use super::executions::ExecutionStorage;
 use crate::{Error, Result};
-use dokime::{core::TestCycleId, storage::objects::cycle::Cycle};
+use dokime::{
+    core::{TestCycleId, TestExecutionId},
+    storage::objects::{cycle::Cycle, execution::Execution},
+};
 
 /* === Constants === */
 const MAX_CYCLE_BYTES: usize = 16 * 1024 * 1024;
@@ -155,6 +158,59 @@ impl ExecutionStorage {
             if let Some(native) = native {
                 let receipt = storage.storage.write_object(native.value()).await?;
                 storage.storage.flush_until(&receipt.position).await?;
+            }
+            Ok(())
+        })
+        .await?
+    }
+
+    /// Writes a new revision of each sealed execution from its live state.
+    ///
+    /// `save_cycle` never rewrites a sealed member; an operator rename is the
+    /// one change a seal admits, and the cycle seal keeps the revisions it
+    /// pinned.
+    pub(crate) async fn save_sealed_executions(
+        self: &Arc<Self>,
+        ids: Vec<TestExecutionId>,
+    ) -> Result<()> {
+        let storage = self.clone();
+        tokio::spawn(async move {
+            let _order = storage.cycle_save.lock().await;
+            let mut position = None;
+            for id in ids {
+                let native = storage
+                    .state_manager
+                    .state()
+                    .read(|state| {
+                        let Some(execution) = state
+                            .executions
+                            .get(&id)
+                            .filter(|execution| execution.saved.is_some())
+                        else {
+                            return Ok::<_, Error>(None);
+                        };
+                        storage
+                            .storage
+                            .produce(allowance(Execution::encoding_memory(execution)?)?, |_| {
+                                Execution::try_from(execution).map_err(|source| {
+                                    harmos::Error::backend(
+                                        "encode sealed execution",
+                                        harmos::BackendFailure::Permanent,
+                                        source,
+                                    )
+                                })
+                            })
+                            .map(Some)
+                            .map_err(Error::from)
+                    })
+                    .await?
+                    .value?;
+                if let Some(native) = native {
+                    position = Some(storage.storage.write_object(native.value()).await?.position);
+                }
+            }
+            if let Some(position) = position {
+                storage.storage.flush_until(&position).await?;
             }
             Ok(())
         })

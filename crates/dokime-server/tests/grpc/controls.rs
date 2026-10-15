@@ -254,6 +254,135 @@ pub(crate) async fn cycle_edits_state() {
     owner.shutdown().await.unwrap();
 }
 
+pub(crate) async fn labels_rename_state() {
+    let Gated {
+        root: _root,
+        gate,
+        mut owner,
+        service: _service,
+        server,
+        execution: mut client,
+        cycle: id,
+    } = Gated::open().await;
+    let cases = client
+        .unary::<contracts::execution::ListCases>(authenticated(
+            contracts::execution::ListCasesRequest {
+                cycle_id: id.clone(),
+                ..Default::default()
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases;
+    let case_id = cases[0].case_id.clone();
+    let rename = contracts::execution::RenameCycleRequest {
+        cycle_id: id.clone(),
+        label: "  Charger Burn-In ".into(),
+        context: None,
+    };
+    assert_eq!(
+        client
+            .unary::<contracts::execution::RenameCycle>(rename.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthenticated
+    );
+
+    // A Blank Or Oversized Label Is A Bad Argument
+    for label in [String::from(" \t "), "x".repeat(4097)] {
+        assert_eq!(
+            client
+                .unary::<contracts::execution::RenameCycle>(authenticated(
+                    contracts::execution::RenameCycleRequest {
+                        label,
+                        ..rename.clone()
+                    }
+                ))
+                .await
+                .unwrap_err()
+                .code(),
+            Code::InvalidArgument
+        );
+    }
+
+    // The Completed Cycle And Its Execution Take Their New Labels
+    client
+        .unary::<contracts::execution::RunCase>(authenticated(
+            contracts::execution::RunCaseRequest {
+                cycle_id: id.clone(),
+                case_id: case_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+        ))
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), gate.started.notified())
+        .await
+        .unwrap();
+    gate.release.notify_one();
+    completed(&mut client, &id).await;
+    let reply = client
+        .unary::<contracts::execution::RenameCycle>(authenticated(rename))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(reply.label, "Charger Burn-In");
+    let execution_id = attempts(&mut client, &id).await[0].execution_id.clone();
+    let reply = client
+        .unary::<contracts::execution::RenameExecution>(authenticated(
+            contracts::execution::RenameExecutionRequest {
+                execution_id,
+                label: "Charger Soak".into(),
+                context: None,
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(reply.label, "Charger Soak");
+    let cycle = client
+        .unary::<contracts::execution::GetCycle>(authenticated(
+            contracts::execution::GetCycleRequest {
+                cycle_id: id.clone(),
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(cycle.metadata.unwrap().label, "Charger Burn-In");
+    let cases = client
+        .unary::<contracts::execution::ListCases>(authenticated(
+            contracts::execution::ListCasesRequest {
+                cycle_id: id.clone(),
+                ..Default::default()
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases;
+    assert_eq!(cases[0].metadata.as_ref().unwrap().label, "Charger Soak");
+    assert_eq!(
+        client
+            .unary::<contracts::execution::RenameExecution>(authenticated(
+                contracts::execution::RenameExecutionRequest {
+                    execution_id: uuid::Uuid::now_v7().to_string(),
+                    label: "Charger Soak".into(),
+                    context: None,
+                },
+            ))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+    server.shutdown().await.unwrap();
+    owner.shutdown().await.unwrap();
+}
+
 fn archive(id: &str, archived: bool) -> contracts::execution::SetCycleArchivedRequest {
     contracts::execution::SetCycleArchivedRequest {
         cycle_id: id.into(),
