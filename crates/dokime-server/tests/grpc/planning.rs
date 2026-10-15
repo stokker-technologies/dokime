@@ -68,6 +68,7 @@ fn plan(
         selections,
         max_cases: 0,
         case_ids: vec![],
+        cycle_id: String::new(),
     }
 }
 

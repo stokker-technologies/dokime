@@ -165,6 +165,7 @@ pub(super) fn selection_plan(owner: &Runtime) -> contracts::planning::SelectionP
             .collect(),
         max_cases: 0,
         case_ids: vec![],
+        cycle_id: String::new(),
     }
 }
 
@@ -1361,6 +1362,7 @@ pub(crate) async fn run_cycle_targets() {
                     selections: vec![diagnostics],
                     max_cases: 0,
                     case_ids: vec![],
+                    cycle_id: String::new(),
                 }),
                 context: None,
             },

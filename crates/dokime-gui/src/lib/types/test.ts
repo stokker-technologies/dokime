@@ -215,6 +215,8 @@ export type DeleteTestCycleCasesRequest = {
 };
 
 export type PreviewTestCycleRequest = {
+  /** The cycle the cases would join; their labels continue its numbering. */
+  cycle_id?: string | null;
   suite_id?: string | null;
   template_id?: string | null;
   parameters: Record<string, unknown[]>;

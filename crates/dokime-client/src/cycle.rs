@@ -91,6 +91,7 @@ impl Client {
                 selections: Vec::new(),
                 max_cases: 0,
                 case_ids: vec![case.to_string()],
+                cycle_id: String::new(),
             }),
             metadata: Some(Metadata {
                 identifier: format!("client.{key}"),
@@ -478,6 +479,7 @@ fn single_plan(
                 .collect(),
             files: Vec::new(),
         }],
+        cycle_id: String::new(),
     };
     let label = selected
         .metadata

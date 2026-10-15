@@ -104,6 +104,7 @@ impl Args {
             selections,
             max_cases: self.max_cases,
             case_ids: self.case_ids,
+            cycle_id: String::new(),
         }))
     }
 }

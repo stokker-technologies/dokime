@@ -100,7 +100,7 @@ Declarations:
 
 - `#[parameter(label = "Title Case", unit = "s", default = 30, min = 1, max = 60)]` on every parameter, one blank line between fields. The label is what the operator reads; the unit is a symbol.
 - A stream row groups its fields under short Title Case comment lines (`// Reconnection Timing`, `// Measurement`), gives every physical column `#[row(unit = "…")]`, and types a measurement that can be missing as `Option<T>`; never a sentinel value.
-- `#[dokime::template]` carries `id = "<suite>.<segment>"`, a `label` whose hierarchy reads `"Area / Name"`, a `description` written as full sentences for the operator, lowercase `tags`, and the four catalog bindings by name.
+- `#[dokime::template]` carries `id = "<suite>.<segment>"`, a `label` whose hierarchy reads `"Area / Name"` (each materialized case is labelled `<label> #<n>`, numbered per template within its cycle, so never encode parameter values in it), a `description` written as full sentences for the operator, lowercase `tags`, and the four catalog bindings by name.
 - A prompt's `description` tells the operator what to do and when to continue, in full sentences.
 
 Bodies:

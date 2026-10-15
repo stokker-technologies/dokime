@@ -59,6 +59,8 @@ pub struct CaseMaterializationOptions {
     pub max_cases: usize,
     pub force: bool,
     pub registration_id: CommandId,
+    /// Number of the first case's label; later cases count up from it.
+    pub first_label_number: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -73,6 +75,7 @@ struct Materialization<'a> {
     suite_id: &'a str,
     template: &'a TestCaseTemplate,
     registration_id: &'a CommandId,
+    first_label_number: usize,
     dimensions: &'a [Vec<BTreeMap<String, Value>>],
     file_parameters: &'a BTreeMap<String, Value>,
 }
@@ -113,6 +116,7 @@ impl Default for CaseMaterializationOptions {
             max_cases: DEFAULT_MATERIALIZED_CASE_CAP,
             force: false,
             registration_id: CommandId::new(),
+            first_label_number: 1,
         }
     }
 }
@@ -139,7 +143,10 @@ impl Materialization<'_> {
             ));
             let metadata = Metadata::new(
                 template.metadata.identifier.clone(),
-                case_label(&template.metadata.label, current),
+                case_label(
+                    &template.metadata.label,
+                    self.first_label_number + cases.len(),
+                ),
                 template.metadata.description.clone(),
             );
 
@@ -179,6 +186,11 @@ pub fn materialize_template_cases(
     materialize_template_cases_detail(suite_id, template, selection, options).map_err(Into::into)
 }
 
+/// Sequence number a materialized case label carries, `n` in `<Template Label> #<n>`.
+pub fn case_label_number(label: &str) -> Option<usize> {
+    label.rsplit_once(" #")?.1.parse().ok()
+}
+
 /* === Private Functions === */
 fn materialize_template_cases_detail(
     suite_id: &str,
@@ -211,6 +223,7 @@ fn materialize_template_cases_detail(
         suite_id,
         template,
         registration_id: &options.registration_id,
+        first_label_number: options.first_label_number,
         dimensions: &dimensions,
         file_parameters: &file_parameters,
     }
@@ -481,101 +494,8 @@ fn map_resolver_error(error: ParameterResolverError) -> CaseMaterializationError
     }
 }
 
-fn case_label(template_label: &str, parameters: &BTreeMap<String, Value>) -> String {
-    if parameters.is_empty() {
-        return template_label.to_owned();
-    }
-
-    let parts = parameters
-        .iter()
-        .map(|(name, value)| format!("{name}={}", label_value(value)))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    format!("{template_label} ({parts})")
-}
-
-fn label_value(value: &Value) -> String {
-    match value {
-        Value::Null => "null".to_owned(),
-        Value::Bool(value) => value.to_string(),
-        Value::Integer(value) => value.to_string(),
-        Value::Unsigned(value) => value.to_string(),
-        Value::Number(value) => value.to_string(),
-        Value::Text(value) => value.clone(),
-        Value::Datetime(value) => crate::core::datetime_text(*value),
-        Value::Array(values) => values.iter().map(label_value).collect::<Vec<_>>().join(","),
-        Value::Object(object) => object
-            .get("label")
-            .and_then(|value| match value {
-                Value::Text(value) => Some(value.clone()),
-                _ => None,
-            })
-            .unwrap_or_else(|| canonical_value(value).unwrap_or_else(|_| "null".to_owned())),
-    }
-}
-
-fn canonical_value(value: &Value) -> Result<String, CaseMaterializationError> {
-    match value {
-        Value::Null => Ok("null".to_owned()),
-        Value::Bool(value) => Ok(value.to_string()),
-        Value::Integer(value) => Ok(value.to_string()),
-        Value::Unsigned(value) => Ok(format!("u{value}")),
-        Value::Number(value) if value.is_finite() => Ok(value.to_string()),
-        Value::Number(_) => Err(CaseMaterializationError::InvalidIdentifier(
-            "case parameters contain a non-finite number".to_owned(),
-        )),
-        Value::Text(value) => Ok(canonical_string(value)),
-        Value::Datetime(value) => Ok(canonical_string(&crate::core::datetime_text(*value))),
-        Value::Array(values) => {
-            let values = values
-                .iter()
-                .map(canonical_value)
-                .collect::<Result<Vec<_>, _>>()?
-                .join(",");
-            Ok(format!("[{values}]"))
-        }
-        Value::Object(object) => canonical_object(object),
-    }
-}
-
-fn canonical_object(object: &BTreeMap<String, Value>) -> Result<String, CaseMaterializationError> {
-    let entries = object
-        .iter()
-        .map(|(key, value)| {
-            Ok(format!(
-                "{}:{}",
-                canonical_string(key),
-                canonical_value(value)?
-            ))
-        })
-        .collect::<Result<Vec<_>, CaseMaterializationError>>()?
-        .join(",");
-    Ok(format!("{{{entries}}}"))
-}
-
-fn canonical_string(value: &str) -> String {
-    let mut output = String::with_capacity(value.len() + 2);
-    output.push('"');
-    for character in value.chars() {
-        match character {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            '\u{08}' => output.push_str("\\b"),
-            '\u{0c}' => output.push_str("\\f"),
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            character if character < '\u{20}' => {
-                use std::fmt::Write as _;
-                write!(output, "\\u{:04x}", character as u32)
-                    .expect("writing to a String cannot fail");
-            }
-            character => output.push(character),
-        }
-    }
-    output.push('"');
-    output
+fn case_label(template_label: &str, number: usize) -> String {
+    format!("{template_label} #{number}")
 }
 
 /* === Tests === */

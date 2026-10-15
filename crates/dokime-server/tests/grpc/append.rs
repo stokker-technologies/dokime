@@ -148,6 +148,44 @@ pub(crate) async fn append_cases_control() {
     assert_eq!(after[0].template_id, before[0].template_id);
     assert_ne!(after[1].template_id, before[0].template_id);
 
+    // Appending a template again continues its numbering within the cycle.
+    execution
+        .unary::<contracts::execution::AppendPlannedCases>(auth(
+            contracts::execution::AppendPlannedCasesRequest {
+                cycle_id: cycle_id.clone(),
+                plan: Some(plan(selection(&suite, 0))),
+                context: None,
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap();
+    let labels = execution
+        .unary::<contracts::execution::ListCases>(auth(
+            contracts::execution::ListCasesRequest {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases
+        .into_iter()
+        .map(|case| case.metadata.unwrap().label)
+        .collect::<Vec<_>>();
+    let first = &suite.test_case_templates[0].metadata.label;
+    let second = &suite.test_case_templates[1].metadata.label;
+    assert_eq!(
+        labels,
+        [
+            format!("{first} #1"),
+            format!("{second} #1"),
+            format!("{first} #2")
+        ]
+    );
+
     let backend = WireClient::connect(server.local_endpoint()).await.unwrap();
     let read_methods = backend
         .unary::<contracts::backend::GetAvailability>(auth(

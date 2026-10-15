@@ -81,6 +81,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                 selections: Vec::new(),
                 max_cases: 0,
                 case_ids: args.case_ids,
+                cycle_id: String::new(),
             }),
             metadata: Some(dokime_contract::operations::common::Metadata {
                 identifier: args

@@ -27,11 +27,12 @@ use super::{
     execution,
     value::{self, Budget, canonical},
 };
-use dokime_app::core::{CaseId, CommandId};
+use dokime_app::core::{CaseId, CommandId, TemplateId, TestCycleId};
 use dokime_app::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, SuiteRegistry, TestCase, TestSuite,
-    materialize_template_cases,
+    case_label_number, materialize_template_cases,
 };
+use dokime_app::state::RuntimeState;
 use dokime_app::{Error, RuntimeHandle};
 use dokime_contract::operations::planning as wire;
 
@@ -103,11 +104,7 @@ impl Operation for Register {
             snapshot.state().identity.node.node_id,
             request.idempotency_key,
         ));
-        let resolved = resolve(
-            &snapshot.state().suites,
-            request.plan.take(),
-            &registration_id,
-        )?;
+        let resolved = resolve(snapshot.state(), request.plan.take(), &registration_id)?;
         self.runtime
             .register_cases(registration_id, resolved.cases)
             .await
@@ -141,11 +138,7 @@ impl Operation for Preview {
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::PreviewSelectionReply>, Status> {
         let snapshot = self.runtime.watch_state().latest();
-        let resolved = resolve(
-            &snapshot.state().suites,
-            request.plan.take(),
-            &CommandId::new(),
-        )?;
+        let resolved = resolve(snapshot.state(), request.plan.take(), &CommandId::new())?;
         Ok((wire::PreviewSelectionReply {
             cases: resolved.preview,
             observed_cursor: Some(canonical::cursor(&snapshot)),
@@ -167,14 +160,16 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), super::Error> {
 }
 
 pub(super) fn resolve(
-    registry: &SuiteRegistry,
+    state: &RuntimeState,
     plan: Option<wire::SelectionPlan>,
     registration_id: &CommandId,
 ) -> Result<ResolvedPlan, Status> {
+    let registry = &state.suites;
     let plan = plan.ok_or_else(|| Status::invalid_argument("selection plan is required"))?;
     if !plan.case_ids.is_empty() {
         return resolve_registered(registry, plan);
     }
+    let mut label_numbers = next_label_numbers(state, &plan.cycle_id)?;
     value::collection(plan.selections.len())?;
     if plan.selections.is_empty() {
         return Err(Status::invalid_argument(
@@ -329,6 +324,9 @@ pub(super) fn resolve(
                 registration_id: CommandId::from_seed(format!(
                     "{registration_id}:selection:{selection_index}"
                 )),
+                first_label_number: *label_numbers
+                    .entry(template.test_case_template_id.clone())
+                    .or_insert(1),
             },
         )
         .map_err(|error| {
@@ -348,6 +346,9 @@ pub(super) fn resolve(
             &mut payload_budget,
             generated.test_cases.len().saturating_mul(case_cost),
         )?;
+        *label_numbers
+            .entry(template.test_case_template_id.clone())
+            .or_insert(1) += generated.test_cases.len();
         for mut case in generated.test_cases {
             case.suite = Some(entry.suite.metadata.clone());
             case.generation_index = cases.len() as u64;
@@ -391,6 +392,33 @@ fn entries<T>(
     Ok(values)
 }
 
+// Each template's next label number, continuing the numbering of the cycle
+// the plan extends.
+fn next_label_numbers(
+    state: &RuntimeState,
+    cycle_id: &str,
+) -> Result<BTreeMap<TemplateId, usize>, Status> {
+    let mut numbers = BTreeMap::new();
+    if cycle_id.is_empty() {
+        return Ok(numbers);
+    }
+    let id = TestCycleId::from_uuid(cycle_id.to_owned())
+        .map_err(|_| Status::invalid_argument("invalid cycle UUID"))?;
+    let cycle = state
+        .cycles
+        .get(&id)
+        .ok_or_else(|| Status::not_found("cycle not found"))?;
+    for case in state.cases_for_cycle(cycle) {
+        if let Some(number) = case_label_number(&case.metadata.label) {
+            let next = numbers
+                .entry(case.test_case_template_id.clone())
+                .or_insert(1);
+            *next = (*next).max(number + 1);
+        }
+    }
+    Ok(numbers)
+}
+
 fn resolve_registered(
     registry: &SuiteRegistry,
     plan: wire::SelectionPlan,
@@ -398,6 +426,11 @@ fn resolve_registered(
     if !plan.selections.is_empty() {
         return Err(Status::invalid_argument(
             "case IDs and template selections are mutually exclusive",
+        ));
+    }
+    if !plan.cycle_id.is_empty() {
+        return Err(Status::invalid_argument(
+            "registered cases keep their labels; cycle_id numbers template selections",
         ));
     }
     let limit = if plan.max_cases == 0 {

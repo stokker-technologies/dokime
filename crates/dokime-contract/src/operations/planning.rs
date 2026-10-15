@@ -90,6 +90,8 @@ pub struct SelectedFile {
 // max_cases=0 uses 1000. No force flag bypasses this resource boundary.
 // A plan selects registered case IDs or expands templates, never both.
 // ID order and duplicates are preserved; repeated IDs create separate executions.
+// Expanded cases are labelled "<Template Label> #<n>", numbered per template.
+// A nonempty cycle_id continues that cycle's numbering; empty starts at #1.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -97,6 +99,7 @@ pub struct SelectionPlan {
     pub selections: Vec<RegisteredSelection>,
     pub max_cases: u32,
     pub case_ids: Vec<String>,
+    pub cycle_id: String,
 }
 
 // Registration owns case identity independently of cycles. A nonempty key makes
