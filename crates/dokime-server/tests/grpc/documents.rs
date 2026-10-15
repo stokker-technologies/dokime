@@ -388,7 +388,6 @@ pub(crate) async fn duration_x_axis() {
     ];
     let registration = TestSuiteDefinition {
         suite_id: suite.metadata.identifier.to_string(),
-        product: None,
         tags: vec!["fixture".to_owned()],
         workflow: Some("execute_cycle".to_owned()),
         suite: suite.clone(),

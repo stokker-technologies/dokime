@@ -39,7 +39,7 @@ pub enum Templates {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::suite(id = SUITE, label = "Power-Loss Recovery", product = "Onboard Charger", tags = ["device", "recovery"], templates = Templates, description = "Lose Charger power, clear the latched fault, and verify a controlled restart.")]
+#[dokime::suite(id = SUITE, label = "Power-Loss Recovery", tags = ["device", "recovery"], templates = Templates, description = "Lose Charger power, clear the latched fault, and verify a controlled restart.")]
 impl Suite {}
 
 /* === Public Functions === */

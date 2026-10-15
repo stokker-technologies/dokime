@@ -43,7 +43,6 @@ pub enum Templates {
 #[dokime::suite(
     id = STARTUP_SUITE,
     label = "Charger Power-Up",
-    product = "Onboard Charger",
     tags = ["device", "startup", "ac"],
     templates = Templates, description = "Observe AC startup current, inspect the Charger, and capture settled measurements.")]
 impl StartupSuite {}

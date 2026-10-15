@@ -77,9 +77,6 @@ pub struct SuiteIdentity {
     pub suite_id: String,
     pub source: String,
     pub metadata: Option<Metadata>,
-    // Optional product label declared by the suite's owning artifact.
-    #[row(description = "Optional product label declared by the suite's owning artifact.")]
-    pub product: Option<String>,
 }
 
 #[harmos::message]

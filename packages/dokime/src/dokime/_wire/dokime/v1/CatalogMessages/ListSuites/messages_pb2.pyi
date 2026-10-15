@@ -37,16 +37,14 @@ class Row3(_message.Message):
     def __init__(self, epoch: _Optional[str] = ..., stream: _Optional[str] = ..., position: _Optional[int] = ...) -> None: ...
 
 class Row4(_message.Message):
-    __slots__ = ("suite_id", "source", "metadata", "product")
+    __slots__ = ("suite_id", "source", "metadata")
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
-    PRODUCT_FIELD_NUMBER: _ClassVar[int]
     suite_id: str
     source: str
     metadata: Row5
-    product: str
-    def __init__(self, suite_id: _Optional[str] = ..., source: _Optional[str] = ..., metadata: _Optional[_Union[Row5, _Mapping]] = ..., product: _Optional[str] = ...) -> None: ...
+    def __init__(self, suite_id: _Optional[str] = ..., source: _Optional[str] = ..., metadata: _Optional[_Union[Row5, _Mapping]] = ...) -> None: ...
 
 class Row5(_message.Message):
     __slots__ = ("identifier", "label", "description", "tags", "attributes", "created_at", "updated_at")

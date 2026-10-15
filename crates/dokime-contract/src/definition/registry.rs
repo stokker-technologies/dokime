@@ -39,7 +39,6 @@ pub struct SuiteSet {
 pub struct SuiteSnapshot {
     pub suite_id: String,
     pub source: String,
-    pub product: Option<String>,
     pub tags: Vec<String>,
     pub workflow: Option<String>,
     pub suite: TestSuite,

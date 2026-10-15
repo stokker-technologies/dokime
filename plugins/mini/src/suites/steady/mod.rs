@@ -45,7 +45,6 @@ pub enum Templates {
 #[dokime::suite(
     id = STEADY_SUITE,
     label = "Steady Charging",
-    product = "Onboard Charger",
     tags = ["device", "steady", "ac"],
     templates = Templates, description = "Measure AC voltage and load sweeps with an execution-owned Charger and SDK sampler.")]
 impl SteadySuite {}

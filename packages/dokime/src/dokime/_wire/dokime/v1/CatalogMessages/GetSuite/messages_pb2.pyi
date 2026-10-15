@@ -25,16 +25,14 @@ class Row2(_message.Message):
     def __init__(self, identity: _Optional[_Union[Row3, _Mapping]] = ..., templates: _Optional[_Iterable[_Union[Row4, _Mapping]]] = ..., tags: _Optional[_Iterable[str]] = ..., parameter_groups: _Optional[_Iterable[_Union[Row5, _Mapping]]] = ...) -> None: ...
 
 class Row3(_message.Message):
-    __slots__ = ("suite_id", "source", "metadata", "product")
+    __slots__ = ("suite_id", "source", "metadata")
     SUITE_ID_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
-    PRODUCT_FIELD_NUMBER: _ClassVar[int]
     suite_id: str
     source: str
     metadata: Row6
-    product: str
-    def __init__(self, suite_id: _Optional[str] = ..., source: _Optional[str] = ..., metadata: _Optional[_Union[Row6, _Mapping]] = ..., product: _Optional[str] = ...) -> None: ...
+    def __init__(self, suite_id: _Optional[str] = ..., source: _Optional[str] = ..., metadata: _Optional[_Union[Row6, _Mapping]] = ...) -> None: ...
 
 class Row4(_message.Message):
     __slots__ = ("template_id", "metadata", "parameters", "tags", "files", "steps", "parameter_groups", "continue_on_failure")
