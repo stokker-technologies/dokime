@@ -1154,6 +1154,19 @@ fn execution_slow_output_contract() {
 }
 
 #[test]
+fn execution_replay_deadline_contract() {
+    {
+        eprintln!("Scenario: execution::sampling::replay_deadline_retries");
+        run_scenario(
+            execution::sampling::replay_deadline_retries,
+            false,
+            None,
+            false,
+        );
+    }
+}
+
+#[test]
 fn files_contract() {
     {
         eprintln!("Scenario: files::watch::stream_local_tree");

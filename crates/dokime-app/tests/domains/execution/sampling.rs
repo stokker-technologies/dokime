@@ -88,6 +88,9 @@ const LOGGED_CASES: usize = 5;
 /// Lines each logged case writes into its sidecar stream log.
 const LOGGED_LINES: u32 = 3;
 
+/// Replay page reads the storage backend refuses at its deadline, once.
+const FORCED_REPLAY_DEADLINES: u32 = 1;
+
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -843,6 +846,20 @@ pub(crate) async fn slow_output_read_seals() {
             .all(|execution| execution.saved.is_some()),
         "the logged execution seals although its output read stalled"
     );
+    drop(handle);
+    runtime.shutdown().await.unwrap();
+}
+
+// A replay page read the storage backend refuses at its deadline is read again
+// from the position the replay kept, so the run is still handed every pulse
+// row exactly once and completes.
+pub(crate) async fn replay_deadline_retries() {
+    let root = tempdir().unwrap();
+    let mut refusing =
+        sampling_config(root.path(), serde_json::json!({ "pulse_rows": PULSE_ROWS }));
+    refusing.storage_reads.replay_read_deadlines = FORCED_REPLAY_DEADLINES;
+    let (mut runtime, handle) = started(refusing).await;
+    run_case(&handle, "pulse.deadline").await;
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
