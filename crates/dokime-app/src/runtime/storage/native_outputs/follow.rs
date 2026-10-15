@@ -71,47 +71,40 @@ pub(crate) struct LiveOutput {
 }
 
 /* === Enums === */
+// How A Follow Was Admitted, Decided Under The Original Owner's Lock.
+pub(crate) enum NativeAdmission {
+    // Capture Settled First; Its Descriptor Alone Decides Finished Or Abandoned.
+    Captured {
+        reference: QueryValue<FileReference>,
+        interrupted: bool,
+    },
+    // The Original Production Was Still Retained When The Follower Opened.
+    Live {
+        follower: FileFollower,
+        output: LiveOutput,
+        abandoned: bool,
+    },
+}
+
+// The Dokime-Owned State Of A Followed Production. A Sealed Harmos File Is
+// Finished Even When Its Production Was Abandoned, So Only This Decides.
+pub(crate) enum Settlement {
+    Producing,
+    Abandoned,
+    Finished(Box<QueryValue<FileReference>>),
+}
 
 /* === Traits === */
 
 /* === Implementations === */
 impl ExecutionStorage {
-    pub(crate) async fn captured_output(
-        &self,
-        execution: &TestExecutionId,
-        path: &str,
-    ) -> Result<Option<(QueryValue<FileReference>, bool)>> {
-        let Some(owner) = self.acquisition(execution).await else {
-            return Ok(None);
-        };
-        let acquisition = owner.lock().await;
-        let Some(output) = acquisition.native_outputs.get(path) else {
-            return Ok(None);
-        };
-        if !output.captured {
-            return Ok(None);
-        }
-        let descriptor = output
-            .descriptor
-            .as_ref()
-            .ok_or_else(|| error("captured output has no original descriptor"))?;
-        let maximum = NonZeroUsize::new(descriptor.file.memory_size())
-            .ok_or_else(|| error("captured reference memory is empty"))?;
-        let reference =
-            descriptor.try_project(maximum, |descriptor, _| Ok(descriptor.file.clone()))?;
-        Ok(Some((
-            reference,
-            descriptor.stream_state == Some(SavedStreamState::Interrupted),
-        )))
-    }
-
     pub(crate) async fn native_follower(
         self: &Arc<Self>,
         execution: &TestExecutionId,
         path: &str,
         offset: u64,
         expected: Option<&StagedFile>,
-    ) -> Result<Option<(FileFollower, LiveOutput)>> {
+    ) -> Result<Option<NativeAdmission>> {
         // Retain Accepted Admission And Writes If The Selecting Viewer Cancels.
         let bytes = std::mem::size_of::<TestExecutionId>()
             .checked_add(execution.as_str().len())
@@ -141,7 +134,7 @@ impl ExecutionStorage {
         path: &str,
         offset: u64,
         expected: Option<&StagedFile>,
-    ) -> Result<Option<(FileFollower, LiveOutput)>> {
+    ) -> Result<Option<NativeAdmission>> {
         let Some(owner) = self.acquisition(execution).await else {
             return Ok(None);
         };
@@ -149,10 +142,21 @@ impl ExecutionStorage {
         let Some(output) = acquisition.native_outputs.get_mut(path) else {
             return Ok(None);
         };
-        if output.captured && output.production.is_none() {
-            return Err(error(
-                "output capture completed during follow admission; refresh the output",
-            ));
+        // Decide Captured Or Live Under The Owner Lock That Capture Settles Under.
+        if output.captured {
+            let descriptor = output
+                .descriptor
+                .as_ref()
+                .ok_or_else(|| error("captured output has no original descriptor"))?;
+            let maximum = NonZeroUsize::new(descriptor.file.memory_size())
+                .ok_or_else(|| error("captured reference memory is empty"))?;
+            let reference =
+                descriptor.try_project(maximum, |descriptor, _| Ok(descriptor.file.clone()))?;
+            let interrupted = descriptor.stream_state == Some(SavedStreamState::Interrupted);
+            return Ok(Some(NativeAdmission::Captured {
+                reference,
+                interrupted,
+            }));
         }
         if output.production.is_none() && expected.is_some() {
             return Err(error(
@@ -239,6 +243,7 @@ impl ExecutionStorage {
             .try_into_value()?
             .try_into_shared()?;
         let follower = self.storage.follow_file(&production.staged, offset).await?;
+        let abandoned = production.interrupted;
         let allowance = NonZeroUsize::new(std::mem::size_of::<String>() + path.len())
             .ok_or_else(|| error("output path memory overflows"))?;
         let path = self
@@ -247,15 +252,16 @@ impl ExecutionStorage {
             .try_into_value()?
             .try_into_shared()?;
         drop(acquisition);
-        Ok(Some((
+        Ok(Some(NativeAdmission::Live {
             follower,
-            LiveOutput {
+            output: LiveOutput {
                 owner,
                 storage: self.storage.clone(),
                 path,
                 identity,
             },
-        )))
+            abandoned,
+        }))
     }
 }
 
@@ -321,7 +327,8 @@ impl LiveOutput {
         .map_err(error)?
     }
 
-    pub(crate) async fn reference(&self) -> Result<Option<QueryValue<FileReference>>> {
+    pub(crate) async fn settlement(&self) -> Result<Settlement> {
+        // Read Abandonment And The Seal Together; Capture Sets Both Under This Lock.
         let acquisition = self.owner.lock().await;
         let output = acquisition
             .native_outputs
@@ -335,34 +342,18 @@ impl LiveOutput {
             return Err(error("followed output was replaced"));
         }
         if production.interrupted {
-            return Ok(None);
+            return Ok(Settlement::Abandoned);
         }
         let Some(reference) = production.reference.as_ref() else {
-            return Ok(None);
+            return Ok(Settlement::Producing);
         };
         let bytes = NonZeroUsize::new(reference.memory_size())
             .ok_or_else(|| error("sealed file reference memory is empty"))?;
-        Ok(Some(
+        Ok(Settlement::Finished(Box::new(
             self.storage
                 .produce(bytes, |_| Ok((**reference).clone()))?
                 .try_into_value()?,
-        ))
-    }
-
-    pub(crate) async fn interrupted(&self) -> Result<bool> {
-        let acquisition = self.owner.lock().await;
-        let output = acquisition
-            .native_outputs
-            .get(self.path.as_str())
-            .ok_or_else(|| error("followed output registration disappeared"))?;
-        let production = output
-            .production
-            .as_ref()
-            .ok_or_else(|| error("followed output was remapped"))?;
-        if production.staged != *self.identity {
-            return Err(error("followed output was replaced"));
-        }
-        Ok(production.interrupted)
+        )))
     }
 }
 

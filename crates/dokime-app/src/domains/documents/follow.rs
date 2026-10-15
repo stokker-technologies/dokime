@@ -24,7 +24,10 @@ use harmos::{
 };
 // Local Imports
 use super::saved::{SavedOutputFile, SavedOutputs};
-use crate::{Error, Result, RuntimeHandle, runtime::storage::native_outputs::follow::LiveOutput};
+use crate::{
+    Error, Result, RuntimeHandle,
+    runtime::storage::native_outputs::follow::{LiveOutput, NativeAdmission, Settlement},
+};
 use dokime::{
     core::{Identifier, TestExecutionId},
     execution::saved::SavedStreamState,
@@ -158,57 +161,61 @@ impl RuntimeHandle {
                 finished: false,
             }));
         }
-        if let Some((reference, interrupted)) = self
-            .execution_storage
-            .captured_output(execution, path)
-            .await?
-        {
-            let staged = StagedFile {
-                history: reference.position.history.clone(),
-                id: reference.metadata.id.clone(),
-            };
-            if expected_staged
-                .as_ref()
-                .is_some_and(|expected| expected != &staged)
-            {
-                return Err(invalid("captured output replaced the selected identity"));
-            }
-            if offset > reference.length {
-                return Err(invalid("resume offset exceeds captured output length"));
-            }
-            let reader = self.storage().follow_file(&staged, offset).await?;
-            let metadata = reference.try_project(maximum, |reference, allowance| {
-                let phase = if interrupted {
-                    wire::ExecutionFilePhase::Abandoned
-                } else {
-                    wire::ExecutionFilePhase::Finished
-                };
-                metadata(
-                    &staged,
-                    execution,
-                    path,
-                    &reference.metadata.media_type,
-                    Position {
-                        phase,
-                        length: reference.length,
-                        offset,
-                    },
-                    allowance,
-                )
-            })?;
-            return Ok(Some(ExecutionFileFollower {
-                reader,
-                source: Source::Captured(Box::new(reference), interrupted),
-                metadata,
-                finished: false,
-            }));
-        }
-        let Some((reader, live)) = self
+        let (reader, live, abandoned) = match self
             .execution_storage
             .native_follower(execution, path, offset, expected_staged.as_ref())
             .await?
-        else {
-            return Ok(None);
+        {
+            None => return Ok(None),
+            Some(NativeAdmission::Live {
+                follower,
+                output,
+                abandoned,
+            }) => (follower, output, abandoned),
+            Some(NativeAdmission::Captured {
+                reference,
+                interrupted,
+            }) => {
+                let staged = StagedFile {
+                    history: reference.position.history.clone(),
+                    id: reference.metadata.id.clone(),
+                };
+                if expected_staged
+                    .as_ref()
+                    .is_some_and(|expected| expected != &staged)
+                {
+                    return Err(invalid("captured output replaced the selected identity"));
+                }
+                if offset > reference.length {
+                    return Err(invalid("resume offset exceeds captured output length"));
+                }
+                let reader = self.storage().follow_file(&staged, offset).await?;
+                let metadata = reference.try_project(maximum, |reference, allowance| {
+                    let phase = if interrupted {
+                        wire::ExecutionFilePhase::Abandoned
+                    } else {
+                        wire::ExecutionFilePhase::Finished
+                    };
+                    metadata(
+                        &staged,
+                        execution,
+                        path,
+                        &reference.metadata.media_type,
+                        Position {
+                            phase,
+                            length: reference.length,
+                            offset,
+                        },
+                        allowance,
+                    )
+                })?;
+                return Ok(Some(ExecutionFileFollower {
+                    reader,
+                    source: Source::Captured(Box::new(reference), interrupted),
+                    metadata,
+                    finished: false,
+                }));
+            }
         };
         self.start_execution_file_capture(execution, &live).await?;
         let progress = reader.progress();
@@ -221,7 +228,13 @@ impl RuntimeHandle {
                 path,
                 media,
                 Position {
-                    phase: phase(progress.phase),
+                    // A Live Admission Precedes Capture; The Sealed Harmos Phase Cannot
+                    // Distinguish An Abandoned Production From A Finished One.
+                    phase: if abandoned {
+                        wire::ExecutionFilePhase::Abandoned
+                    } else {
+                        wire::ExecutionFilePhase::Producing
+                    },
                     length: progress.length,
                     offset,
                 },
@@ -374,23 +387,24 @@ impl ExecutionFileFollower {
                 } else if let Some(chunk) = self.reader.next_chunk(maximum).await? {
                     return self.chunk(offset, chunk).map(Some);
                 }
-                if live.interrupted().await? {
-                    return self
-                        .terminal(None, wire::ExecutionFilePhase::Abandoned)
-                        .map(Some);
+                return match live.settlement().await? {
+                    Settlement::Abandoned => {
+                        self.terminal(None, wire::ExecutionFilePhase::Abandoned)
+                    }
+                    Settlement::Finished(reference) => {
+                        self.terminal(Some(&reference), wire::ExecutionFilePhase::Finished)
+                    }
+                    // A Dropped Original Producer Abandons The File Before Any Capture.
+                    Settlement::Producing
+                        if self.reader.progress().phase == FilePhase::Abandoned =>
+                    {
+                        self.terminal(None, wire::ExecutionFilePhase::Abandoned)
+                    }
+                    Settlement::Producing => Err(invalid(
+                        "finished original production has no sealed reference",
+                    )),
                 }
-                let reference = live.reference().await?;
-                if self.reader.progress().phase == FilePhase::Abandoned {
-                    return self
-                        .terminal(None, wire::ExecutionFilePhase::Abandoned)
-                        .map(Some);
-                }
-                let reference = reference.ok_or_else(|| {
-                    invalid("finished original production has no sealed reference")
-                })?;
-                return self
-                    .terminal(Some(&reference), wire::ExecutionFilePhase::Finished)
-                    .map(Some);
+                .map(Some);
             }
             if let Some(chunk) = self.reader.next_chunk(maximum).await? {
                 return self.chunk(offset, chunk).map(Some);
@@ -527,13 +541,6 @@ fn kind(path: &str, media: &str) -> wire::ExecutionFileKind {
         Kind::Binary => wire::ExecutionFileKind::Binary,
         Kind::Media => wire::ExecutionFileKind::Media,
         Kind::Unknown => wire::ExecutionFileKind::Unknown,
-    }
-}
-fn phase(value: FilePhase) -> wire::ExecutionFilePhase {
-    match value {
-        FilePhase::Producing => wire::ExecutionFilePhase::Producing,
-        FilePhase::Finished => wire::ExecutionFilePhase::Finished,
-        FilePhase::Abandoned => wire::ExecutionFilePhase::Abandoned,
     }
 }
 fn history(value: &harmos::storage::StoreHistory) -> checkpoint::StoreHistory {
