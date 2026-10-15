@@ -479,8 +479,11 @@ let mut document = Document::new("default", "Charger Qualification");
 document.section(charging);
 ```
 
-Column handles keep plot expressions tied to the declared data shape. Templates
-can also add parameter-based reference bands; the
+Column handles keep plot expressions tied to the declared data shape, and they
+compare straight into filters: `voltage.only(column.gt(0.0))` narrows a plot,
+and `section.each(column, "Point {value}")` repeats a section once per distinct
+value, in ascending order. Templates can also add parameter-based reference
+bands; the
 [soak starter](crates/cargo-dokime/templates/src/suites/soak/hold.rs) demonstrates
 a target-temperature band and event markers.
 

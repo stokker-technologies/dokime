@@ -745,6 +745,83 @@ pub(crate) async fn document_routes_samples() {
     owner.shutdown().await.unwrap();
 }
 
+pub(crate) async fn repeated_sections_follow_value() {
+    use dokime_app::document::{DocumentDefinition, DocumentSection, DocumentSelection};
+
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (mut owner, runtime) =
+        started_with_fixture(wifi_config(root.path()), executor.clone()).await;
+
+    // Declare A Section Repeated Per Channel, Without An Explicit Order
+    let channel = dokime::expressions::telemetry("host.wifi.channel_occupancy", "wifi_channel");
+    let mut section = DocumentSection::new("Channels");
+    section.note("One section per channel the scan saw.");
+    section
+        .each(channel.clone(), "Channel {value}")
+        .only(channel.ne(13));
+    let mut document = DocumentDefinition::new("default", "Channels");
+    document.section(section);
+    let mut suite = fixture_suite(&["passed"]);
+    suite.test_case_templates[0].document = Some(document);
+    register_python_suite(&runtime, suite.clone()).await;
+
+    // Publish Channels Out Of Order Into The Running Execution
+    let cycle_id = start_cycle(&runtime, suite, false).await;
+    runtime
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        executor.wait_until_entered(),
+    )
+    .await
+    .expect("fixture execution starts within five seconds");
+    let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Running).await;
+    let execution = &cycle.test_executions[0];
+    let channels = [11, 1, 13, 6];
+    let mut batch = samples(
+        "host.wifi.channel_occupancy",
+        channels.len(),
+        Some(execution.scope.clone()),
+    );
+    for (sample, channel) in batch.samples.iter_mut().zip(channels) {
+        sample
+            .values
+            .insert("wifi_channel".to_owned(), Value::Integer(channel));
+    }
+    runtime.publish_telemetry_batch(batch).await.unwrap();
+
+    // Materialized Sections Come Out In Ascending Channel Order
+    let document = runtime
+        .resolve_cycle_document(
+            &cycle_id,
+            &dokime::core::DocumentId::from_identifier("default").unwrap(),
+            DocumentSelection {
+                scope: execution.scope.clone(),
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let labels = section_metadata(&document)
+        .into_iter()
+        .map(|metadata| metadata.label.as_str())
+        .filter(|label| label.starts_with("Channel "))
+        .collect::<Vec<_>>();
+    assert_eq!(labels, ["Channel 1", "Channel 6", "Channel 11"]);
+
+    executor.release();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed),
+    )
+    .await
+    .expect("fixture execution completes within five seconds");
+    drop(runtime);
+    owner.shutdown().await.unwrap();
+}
+
 fn document_nodes(
     document: &dokime_app::document::DocumentPayload,
 ) -> Vec<&dokime_app::document::DocumentNodePayload> {

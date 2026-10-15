@@ -286,3 +286,27 @@ pub(crate) async fn declared_section_so() {
         report.diagnostics()
     );
 }
+
+pub(crate) async fn typed_columns_compare() {
+    // A generated column accessor compares directly, and `only` narrows a
+    // repeat and a plot by the filter it builds.
+    let voltage = SampleRow::column_voltage_v();
+    let mut readings = Section::new("Readings");
+    readings
+        .each(voltage, "{value} V")
+        .only(voltage.gt(0.5))
+        .id("documents.checks.reading.{value}");
+    let mut plot = Plot::time_series("Voltage");
+    plot.only(voltage.exists());
+
+    let repeat = readings.repeat.expect("each sets the repeat");
+    let filter = &repeat.filters[0];
+    assert_eq!(filter.expression, voltage.into());
+    assert_eq!(filter.operator, dokime::document::FilterOperator::Gt);
+    assert_eq!(filter.value, Some(dokime::core::Value::from(0.5)));
+    assert_eq!(plot.filters, [voltage.exists()]);
+    assert_eq!(
+        voltage.eq("CP-03").value,
+        Some(dokime::core::Value::from("CP-03"))
+    );
+}

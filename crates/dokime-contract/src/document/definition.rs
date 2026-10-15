@@ -1607,8 +1607,13 @@ impl DocumentSection {
         self.card(DocumentCard::text(identifier, "Note", text));
     }
 
-    pub fn repeat(&mut self, repeat: DocumentSectionRepeat) {
-        self.repeat = Some(repeat);
+    pub fn each(
+        &mut self,
+        value: impl Into<DataExpression>,
+        label_template: impl Into<String>,
+    ) -> &mut DocumentSectionRepeat {
+        self.repeat
+            .insert(DocumentSectionRepeat::new(value, label_template))
     }
 
     pub fn compact(&mut self) {
@@ -1661,7 +1666,7 @@ impl DocumentCard {
         }
     }
 
-    pub fn filter(&mut self, filter: DocumentFilter) {
+    pub fn only(&mut self, filter: DocumentFilter) {
         self.filters.push(filter);
     }
 }
@@ -1687,7 +1692,7 @@ impl DocumentCardBody {
 }
 
 impl DocumentSectionRepeat {
-    pub fn by(value: impl Into<DataExpression>, label_template: impl Into<String>) -> Self {
+    fn new(value: impl Into<DataExpression>, label_template: impl Into<String>) -> Self {
         Self {
             value: value.into(),
             label_template: label_template.into(),
@@ -1697,16 +1702,72 @@ impl DocumentSectionRepeat {
         }
     }
 
-    pub fn id_template(&mut self, id_template: impl Into<String>) {
-        self.id_template = Some(id_template.into());
+    pub fn id(&mut self, template: impl Into<String>) -> &mut Self {
+        self.id_template = Some(template.into());
+        self
     }
 
-    pub fn order_by(&mut self, order_by: impl Into<DataExpression>) {
+    pub fn order_by(&mut self, order_by: impl Into<DataExpression>) -> &mut Self {
         self.order_by = Some(order_by.into());
+        self
     }
 
-    pub fn filter(&mut self, filter: DocumentFilter) {
+    pub fn only(&mut self, filter: DocumentFilter) -> &mut Self {
         self.filters.push(filter);
+        self
+    }
+}
+
+// Comparisons Build The Filters `only` Takes, One Per Operator.
+impl DataExpression {
+    pub fn eq(self, value: impl Into<Value>) -> DocumentFilter {
+        DocumentFilter::compared(self, FilterOperator::Eq, value)
+    }
+
+    pub fn ne(self, value: impl Into<Value>) -> DocumentFilter {
+        DocumentFilter::compared(self, FilterOperator::Ne, value)
+    }
+
+    pub fn gt(self, value: impl Into<Value>) -> DocumentFilter {
+        DocumentFilter::compared(self, FilterOperator::Gt, value)
+    }
+
+    pub fn gte(self, value: impl Into<Value>) -> DocumentFilter {
+        DocumentFilter::compared(self, FilterOperator::Gte, value)
+    }
+
+    pub fn lt(self, value: impl Into<Value>) -> DocumentFilter {
+        DocumentFilter::compared(self, FilterOperator::Lt, value)
+    }
+
+    pub fn lte(self, value: impl Into<Value>) -> DocumentFilter {
+        DocumentFilter::compared(self, FilterOperator::Lte, value)
+    }
+
+    pub fn contains(self, value: impl Into<Value>) -> DocumentFilter {
+        DocumentFilter::compared(self, FilterOperator::Contains, value)
+    }
+
+    pub fn exists(self) -> DocumentFilter {
+        DocumentFilter {
+            expression: self,
+            operator: FilterOperator::Exists,
+            value: None,
+        }
+    }
+}
+
+impl DocumentFilter {
+    fn compared(
+        expression: DataExpression,
+        operator: FilterOperator,
+        value: impl Into<Value>,
+    ) -> Self {
+        Self {
+            expression,
+            operator,
+            value: Some(value.into()),
+        }
     }
 }
 
@@ -1771,7 +1832,7 @@ impl TelemetrySummaryTileDefinition {
         self.presentation = presentation;
     }
 
-    pub fn filter(&mut self, filter: DocumentFilter) {
+    pub fn only(&mut self, filter: DocumentFilter) {
         self.filters.push(filter);
     }
 
@@ -1967,7 +2028,7 @@ impl PlotDefinition {
         self.series_by_expression = Some(expression.into());
     }
 
-    pub fn filter(&mut self, filter: DocumentFilter) {
+    pub fn only(&mut self, filter: DocumentFilter) {
         self.filters.push(filter);
     }
 
@@ -2734,5 +2795,86 @@ mod tests {
             "mini.charger.charging"
         );
         assert_eq!(section.metadata.label, "Battery Charging");
+    }
+
+    #[test]
+    fn each_repeats_by_value_with_no_order_filter_or_identifier_template() {
+        let mut section = DocumentSection::new("Channels");
+        let repeat = section.each(
+            crate::expressions::telemetry("wifi", "channel"),
+            "Channel {value}",
+        );
+        assert_eq!(repeat.label_template, "Channel {value}");
+
+        let repeat = section.repeat.as_ref().expect("each sets the repeat");
+        assert_eq!(
+            repeat.value,
+            crate::expressions::telemetry("wifi", "channel")
+        );
+        assert_eq!(repeat.order_by, None);
+        assert_eq!(repeat.id_template, None);
+        assert!(repeat.filters.is_empty());
+    }
+
+    #[test]
+    fn each_chains_its_order_filter_and_identifier_template() {
+        let channel = crate::expressions::telemetry("wifi", "channel");
+        let strength = crate::expressions::telemetry("wifi", "strength");
+
+        let mut section = DocumentSection::new("Channels");
+        section
+            .each(channel.clone(), "Channel {value}")
+            .order_by(strength.clone())
+            .only(channel.clone().ne(13))
+            .id("wifi.channel.{value}");
+
+        let repeat = section.repeat.expect("each sets the repeat");
+        assert_eq!(repeat.order_by, Some(strength));
+        assert_eq!(repeat.filters, vec![channel.ne(13)]);
+        assert_eq!(repeat.id_template.as_deref(), Some("wifi.channel.{value}"));
+    }
+
+    #[test]
+    fn comparisons_map_one_to_one_onto_filter_operators() {
+        let point = crate::expressions::telemetry("charger", "point");
+        let cases = [
+            (point.clone().eq("CP-03"), FilterOperator::Eq),
+            (point.clone().ne("CP-03"), FilterOperator::Ne),
+            (point.clone().gt(1), FilterOperator::Gt),
+            (point.clone().gte(1), FilterOperator::Gte),
+            (point.clone().lt(1), FilterOperator::Lt),
+            (point.clone().lte(1), FilterOperator::Lte),
+            (point.clone().contains("CP"), FilterOperator::Contains),
+        ];
+
+        for (filter, operator) in cases {
+            assert_eq!(filter.expression, point);
+            assert_eq!(filter.operator, operator);
+            assert!(filter.value.is_some());
+        }
+        assert_eq!(point.clone().eq("CP-03").value, Some(Value::from("CP-03")));
+
+        let exists = point.clone().exists();
+        assert_eq!(exists.expression, point);
+        assert_eq!(exists.operator, FilterOperator::Exists);
+        assert_eq!(exists.value, None);
+    }
+
+    #[test]
+    fn only_narrows_cards_plots_and_summary_tiles() {
+        let point = crate::expressions::telemetry("charger", "point");
+        let filter = point.clone().eq("CP-03");
+
+        let mut plot = Plot::time_series("Current");
+        plot.only(filter.clone());
+        assert_eq!(plot.filters, vec![filter.clone()]);
+
+        let mut card = DocumentCard::text("charger.note", "Note", "Charging");
+        card.only(filter.clone());
+        assert_eq!(card.filters, vec![filter.clone()]);
+
+        let mut tile = TelemetrySummaryTileDefinition::new("Point", point);
+        tile.only(filter.clone());
+        assert_eq!(tile.filters, vec![filter]);
     }
 }
