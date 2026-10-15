@@ -70,6 +70,9 @@ pub(crate) struct Session {
 struct Pages {
     cursor: u64,
     settled: bool,
+    /// Storage position through which the run has received its captured
+    /// samples back, kept across settling pages the run sends again.
+    replayed: u64,
     stream_log: StreamLog,
     artifacts: ArtifactBridge,
     phase: PhaseTracker,
@@ -95,6 +98,7 @@ impl Session {
             pages: tokio::sync::Mutex::new(Pages {
                 cursor: 0,
                 settled: false,
+                replayed: 0,
                 stream_log: StreamLog::default(),
                 artifacts: ArtifactBridge::new(spill),
                 phase: opened.phase,
@@ -458,7 +462,7 @@ impl Session {
             .release(context, &batch.lease_releases)
             .await?;
         if batch.record_subscriptions_settling && !pages.settled {
-            self.settle_records(true).await?;
+            self.settle_records(Some(&mut pages.replayed)).await?;
             pages.settled = true;
         }
         pages.cursor = pages.cursor.max(batch.cursor);
@@ -533,12 +537,18 @@ impl Session {
             return;
         }
         *replayed = true;
-        if let Err(refusal) = self.settle_records(false).await {
+        if let Err(refusal) = self.settle_records(None).await {
             self.refuse(refusal).await;
         }
     }
 
-    async fn settle_records(&self, close: bool) -> Result<(), ProviderExecutionFailure> {
+    /// Delivers every captured record, and when `replayed` is given closes the
+    /// record subscriptions and replays the captured samples after it.
+    async fn settle_records(
+        &self,
+        replayed: Option<&mut u64>,
+    ) -> Result<(), ProviderExecutionFailure> {
+        let close = replayed.is_some();
         let context = &self.context;
         let execution = &self.execution;
         context
@@ -644,8 +654,8 @@ impl Session {
                 ));
             }
         }
-        if close {
-            super::replay_sample_inputs(context, &self.target, execution).await?;
+        if let Some(replayed) = replayed {
+            super::replay_sample_inputs(context, &self.target, execution, replayed).await?;
         }
         Ok(())
     }
