@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   type CycleLifecycle,
@@ -42,7 +43,15 @@ import { cn } from "@/lib/utils";
 import { useBackendStatus } from "@/shell/backend-status";
 import { consoleAttentionCount } from "@/shell/ConsoleDrawer";
 import { useRouteCycleId } from "@/shell/route-scope";
+import {
+  type BackendOperation,
+  operationPercent,
+  operationPhaseLabel,
+  operationsCountLabel,
+  summarizeOperations,
+} from "@/shell/status-bar-operations";
 import { useSidebarState } from "@/shell/use-sidebar-state";
+import { useHubStore } from "@/stores/hub-store";
 import { useUiStore } from "@/stores/ui-store";
 
 /* === Types === */
@@ -83,9 +92,9 @@ const CONNECTION_LABEL = {
  * Its first cell is the sidebar's column and carries the one collapse toggle,
  * at the bar's own height — so the sidebar simply ends where this bar begins
  * and nothing stands taller than the band beside it. The remaining column
- * holds the four facts in two groups on one baseline: what the backend is and
- * what it stores from the left inset; what needs the operator and what is
- * running from the right.
+ * holds its facts in two groups on one baseline: what the backend is and
+ * what it stores from the left inset; what the backend is busy with, what
+ * needs the operator and what is running from the right.
  */
 export function StatusBar(props: StatusBarProps) {
   const sidebar = useSidebarState();
@@ -133,6 +142,7 @@ export function StatusBar(props: StatusBarProps) {
             <StorageItem />
           </div>
           <div className="flex min-w-0 items-stretch gap-6">
+            <OperationsItem />
             <AttentionItem />
             <ActivityItem />
             <ConsoleItem />
@@ -177,6 +187,92 @@ function ConsoleItem() {
         </Badge>
       ) : null}
     </button>
+  );
+}
+
+/**
+ * The backend's slow work, before what needs the operator.
+ *
+ * One operation shows its label, its phase and how far it has come; several
+ * collapse to a count named after the longest running, and open a list of
+ * every one. The segment is absent while the backend is idle.
+ */
+export function OperationsItem() {
+  const operations = useHubStore((state) => state.operations);
+  const summary = summarizeOperations(operations);
+
+  if (summary.kind === "idle") return null;
+  const shown = summary.kind === "single" ? summary.operation : summary.longest;
+  const listed = summary.kind === "single" ? [summary.operation] : summary.operations;
+  const label = summary.kind === "single" ? shown.label : operationsCountLabel(summary.count);
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={`${label}: ${operationPhaseLabel(shown)}`}
+        className={cn(
+          statusItemClassName,
+          "grid min-w-0 grid-cols-[auto_minmax(0,auto)_4rem] gap-2",
+          shown.status === "failed" ? "text-destructive" : null,
+        )}
+        data-testid="status-operations"
+        type="button"
+      >
+        <span className="truncate font-medium text-foreground">{label}</span>
+        <span className="truncate">
+          {summary.kind === "many" ? shown.label : operationPhaseLabel(shown)}
+        </span>
+        <OperationBar operation={shown} />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="grid w-80 gap-3 text-xs" side="top">
+        <span className="font-medium">Backend Operations</span>
+        {listed.map((operation) => (
+          <span className="grid gap-1" key={operation.id}>
+            <span className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <span className="truncate font-medium">{operation.label}</span>
+              <span className="text-muted-foreground tabular-nums">
+                {operationPercent(operation) === null ? "" : `${operationPercent(operation)}%`}
+              </span>
+            </span>
+            <span
+              className={cn(
+                "truncate",
+                operation.status === "failed" ? "text-destructive" : "text-muted-foreground",
+              )}
+            >
+              {operation.failure ?? operationPhaseLabel(operation)}
+            </span>
+            <OperationBar operation={operation} />
+          </span>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** A thin bar: filled to the fraction, or a shimmer while the backend cannot tell. */
+function OperationBar({ operation }: { operation: BackendOperation }) {
+  const percent = operationPercent(operation);
+  return (
+    <span
+      aria-valuemax={100}
+      aria-valuemin={0}
+      aria-valuenow={percent ?? undefined}
+      className="relative h-1 w-full self-center overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+    >
+      {percent === null && operation.status === "running" ? (
+        <span className="absolute inset-y-0 w-2/5 animate-progress-indeterminate rounded-full bg-primary motion-reduce:animate-none" />
+      ) : (
+        <span
+          className={cn(
+            "absolute inset-y-0 left-0 rounded-full transition-[width]",
+            operation.status === "failed" ? "bg-destructive" : "bg-primary",
+          )}
+          style={{ width: `${operation.status === "running" ? (percent ?? 0) : 100}%` }}
+        />
+      )}
+    </span>
   );
 }
 

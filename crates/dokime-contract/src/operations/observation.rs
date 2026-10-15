@@ -60,6 +60,31 @@ pub struct RuntimeStateFrame {
     pub resynchronized: bool,
     pub shutting_down: bool,
     pub cycle_count: u64,
+    // The slow work the backend is doing now, and work that ended moments ago.
+    // A frame that changes only these repeats the previous cursor.
+    #[row(
+        description = "The slow work the backend is doing now, and work that ended moments ago. A frame that changes only these repeats the previous cursor."
+    )]
+    pub operations: Vec<OperationProgress>,
+}
+
+// One slow backend operation, such as rendering a report or sealing a cycle.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct OperationProgress {
+    pub operation_id: String,
+    pub label: String,
+    pub phase: String,
+    // Every phase entered, oldest first and the current one last; at most 16.
+    #[row(description = "Every phase entered, oldest first and the current one last; at most 16.")]
+    pub phases: Vec<String>,
+    // Absent while the operation cannot tell how far it has come.
+    #[row(description = "Absent while the operation cannot tell how far it has come.")]
+    pub fraction: Option<f64>,
+    pub started_at: Option<Timestamp>,
+    pub status: OperationStatus,
+    pub finished_at: Option<Timestamp>,
+    pub failure: Option<String>,
 }
 
 #[harmos::message]
@@ -171,6 +196,14 @@ pub struct TraceabilityPage {
 }
 
 /* === Enums === */
+#[harmos::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OperationStatus {
+    Unspecified,
+    Running,
+    Finished,
+    Failed,
+}
 
 #[harmos::catalog]
 pub enum Operations {

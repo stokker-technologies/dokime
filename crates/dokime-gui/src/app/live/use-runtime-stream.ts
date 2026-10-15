@@ -21,7 +21,8 @@ import {
 } from "@/features/cycle/server-state";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
-import { useHubStore } from "@/stores/hub-store";
+import { operationsFromFrame } from "@/shell/status-bar-operations";
+import { type BackendOperationsPatch, useHubStore } from "@/stores/hub-store";
 import {
   createRuntimeProjectionRefreshCoordinator,
   type RuntimeProjectionRefreshCoordinator,
@@ -68,10 +69,12 @@ export function useRuntimeStream(): void {
           return;
         }
         setHubState({ connection: "connected", error: null });
+        let observed: string | null = null;
         for await (const frame of stream) {
           if (!active) break;
-          handleRuntimeFrame(
+          observed = handleRuntimeFrame(
             frame,
+            observed,
             queryClient,
             refreshCoordinator,
             setHubState,
@@ -88,7 +91,7 @@ export function useRuntimeStream(): void {
       } finally {
         stream = undefined;
         if (active && session.identity.isCurrent()) {
-          setHubState({ connection: "reconnecting" });
+          setHubState({ connection: "reconnecting", operations: [] });
           retry = window.setTimeout(() => void connect(), 1_000);
         }
       }
@@ -108,21 +111,27 @@ export function useRuntimeStream(): void {
 
 function handleRuntimeFrame(
   frame: RuntimeStateFrame,
+  observed: string | null,
   queryClient: ReturnType<typeof useQueryClient>,
   refreshCoordinator: RuntimeProjectionRefreshCoordinator,
-  setHubState: (patch: {
-    connection?: "connecting" | "connected" | "reconnecting";
-    error?: string | null;
-    lastStreamFrameAt?: number | null;
-  }) => void,
+  setHubState: (patch: BackendOperationsPatch) => void,
   sessionGeneration: string,
   isActive: () => boolean,
-) {
-  setHubState({ lastStreamFrameAt: Date.now(), error: null });
+): string | null {
+  setHubState({
+    error: null,
+    lastStreamFrameAt: Date.now(),
+    operations: operationsFromFrame(frame.operations),
+  });
   if (frame.shuttingDown) {
     setHubState({ connection: "reconnecting" });
   }
-  if (frame.resynchronized || frame.cursor) {
+  /* A frame that only moves the backend's operations repeats its cursor;
+     the projections it would refresh have not changed. */
+  const cursor = frame.cursor
+    ? `${frame.cursor.epoch}/${frame.cursor.stream}/${frame.cursor.position}`
+    : null;
+  if (frame.resynchronized || (cursor !== null && cursor !== observed)) {
     const ensureTrailing =
       queryClient.isFetching({
         predicate: (query) =>
@@ -134,4 +143,5 @@ function handleRuntimeFrame(
       setHubState({ error: error instanceof Error ? error.message : String(error) });
     });
   }
+  return cursor ?? observed;
 }

@@ -65,7 +65,7 @@ pub use request::{
     RuntimeCursor, RuntimeResolution, RuntimeViewQuery, RuntimeViewTopic, RuntimeWindow,
 };
 pub use runtime::{
-    RuntimeCycleSummary, RuntimeExecutionSummary, RuntimeOverviewSnapshot,
+    RuntimeChange, RuntimeCycleSummary, RuntimeExecutionSummary, RuntimeOverviewSnapshot,
     RuntimeRetentionDiagnostics, RuntimeStateNotice, RuntimeStateSnapshot,
 };
 pub use telemetry::{RuntimeTelemetryFrame, RuntimeTelemetryStreamFrame};

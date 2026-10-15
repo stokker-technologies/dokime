@@ -22,7 +22,7 @@ use std::{
 // Third Party Imports
 use sha2::{Digest, Sha256};
 // Local Imports
-use super::Runtime;
+use super::{Runtime, progress::Operation};
 use crate::domains::installed_plugins::contributions::decode_registrations;
 use crate::plugins::{PluginBundle, PluginProvenance, PluginStore};
 use crate::plugins::{
@@ -202,6 +202,12 @@ impl ActivePackage {
 
 impl Runtime {
     pub(super) async fn install_plugins(&mut self) -> Result<()> {
+        let progress = self.handle.operation_progress().begin("Installing Plugins");
+        let installed = self.install_plugins_with(&progress).await;
+        progress.track(installed)
+    }
+
+    async fn install_plugins_with(&mut self, progress: &Operation) -> Result<()> {
         let config = self.handle.config();
         let store = self.handle.plugin_store();
         store.sweep().map_err(operation)?;
@@ -222,8 +228,11 @@ impl Runtime {
         let extraction = extraction_root(&config);
         std::fs::create_dir_all(&extraction).map_err(operation)?;
         sweep_orphaned_extractions(&extraction, &inputs);
+        progress.phase("Preparing Bundles");
+        let total = inputs.len() as u64;
         let mut packages = Vec::new();
-        for input in inputs {
+        for (prepared, input) in inputs.into_iter().enumerate() {
+            progress.progress(prepared as u64, total);
             let reuse = reusable_extraction(&extraction, &input);
             let cached_digest = reuse.as_ref().and_then(|_| match &input.provenance {
                 PluginProvenance::Installed { sha256, .. } => Some(sha256.clone()),
@@ -243,6 +252,9 @@ impl Runtime {
                 }
             }
         }
+        progress.progress(total, total);
+        progress.phase("Validating Catalogs");
+        progress.indeterminate();
         // Program values live under their bundle's install ID; bind the
         // sources before any program is activated with them.
         self.handle.plugin_preferences().bind_installs(

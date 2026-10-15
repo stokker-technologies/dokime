@@ -40,6 +40,7 @@ use crate::execution::context::source::CapturedSource;
 use crate::{
     Error, Result, RuntimeHandle,
     installed_plugins::RuntimeAppearanceFrame,
+    runtime::progress::Operation,
     runtime::storage::{cycle::CycleSnapshot, execution::ExecutionView},
 };
 use dokime::{core::DocumentId, storage::Manager};
@@ -121,6 +122,7 @@ impl HtmlReport {
     pub(super) async fn from_cycle(
         runtime: &RuntimeHandle,
         snapshot: CycleSnapshot,
+        operation: Option<&Operation>,
     ) -> Result<Self> {
         let manager = runtime.storage();
         let count = snapshot.len();
@@ -151,12 +153,16 @@ impl HtmlReport {
         for member in 0..count {
             opened.push(snapshot.member(manager, member).await?);
         }
-        for execution in opened {
+        for (materialized, execution) in opened.into_iter().enumerate() {
+            if let Some(operation) = operation {
+                operation.progress(materialized as u64, count as u64);
+            }
             // Members Repeat The Frozen Catalogs And Every Case Of The Cycle; Once
             // Materialized, The Cycle Report Keeps Only Its Own Case So Retained
             // Members Grow Linearly Instead Of With Catalog And Cycle Size.
             let captured =
-                super::materialize::execution(runtime, &execution, snapshot.is_final()).await?;
+                super::materialize::execution(runtime, &execution, snapshot.is_final(), operation)
+                    .await?;
             let own = captured.input.cycle.test_executions[0].test_case_id.clone();
             let id = captured.execution.execution_id.clone();
             let bytes = allowance(captured.memory_size())?;
@@ -182,6 +188,9 @@ impl HtmlReport {
                 members.values.push(captured);
                 Ok(members)
             })?;
+        }
+        if let Some(operation) = operation {
+            operation.progress(count as u64, count as u64);
         }
         let bytes = allowance(index.memory_size())?;
         let index = index
@@ -261,6 +270,7 @@ impl HtmlReport {
         snapshot: &ExecutionView,
         final_report: bool,
         maximum: NonZeroUsize,
+        operation: Option<&Operation>,
     ) -> Result<Self> {
         let snapshot = snapshot.snapshot(runtime.storage()).await?;
         let evidence = snapshot
@@ -268,7 +278,7 @@ impl HtmlReport {
             .ok_or_else(|| invalid("execution snapshot context is missing"))?
             .clone();
         let manager = runtime.storage();
-        super::materialize::climb(|degradation, cause| {
+        super::materialize::climb(operation, |degradation, cause| {
             let evidence = evidence.clone();
             let snapshot = &snapshot;
             async move {

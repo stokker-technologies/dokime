@@ -16,7 +16,10 @@ pub use super::artifact_reads::ArtifactReader;
 // Standard Library Imports
 use std::{
     num::NonZeroUsize,
-    sync::{Arc, Weak},
+    sync::{
+        Arc, Weak,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 // Third Party Imports
 use harmos::{
@@ -31,7 +34,7 @@ use super::{
     executions::{Acquisition, ExecutionStorage},
     native_outputs::FrozenFile,
 };
-use crate::{Error, Result, RuntimeHandle};
+use crate::{Error, Result, RuntimeHandle, runtime::progress::Operation};
 use dokime::{
     artifacts::{ArtifactRecord, ArtifactStatus, ArtifactUploadInput},
     core::{ArtifactId, Identifier, Metadata, TestExecutionId, Timestamp, UploadId},
@@ -57,7 +60,15 @@ pub struct ArtifactUpload {
     storage: Weak<ExecutionStorage>,
     execution: TestExecutionId,
     id: ArtifactId,
+    progress: Arc<UploadProgress>,
     _owner: Arc<()>,
+}
+
+/// How far an upload has come against the size it declared.
+struct UploadProgress {
+    operation: Operation,
+    sent: AtomicU64,
+    expected: u64,
 }
 
 struct Chunk {
@@ -142,7 +153,7 @@ impl ArtifactUpload {
             })
             .map_err(Error::from)?;
 
-        tokio::spawn(async move {
+        let appended = tokio::spawn(async move {
             let _permit = permit;
             // Retain The Original Charge And Producer Token Through Admission
             let ingress = chunk.value();
@@ -159,7 +170,16 @@ impl ArtifactUpload {
             append(state, &ingress.bytes).await
         })
         .await
-        .map_err(error)?
+        .map_err(error)
+        .and_then(|appended| appended);
+        let sent = self
+            .progress
+            .sent
+            .fetch_add(bytes.len() as u64, Ordering::Relaxed)
+            + bytes.len() as u64;
+        let operation = &self.progress.operation;
+        operation.progress(sent, self.progress.expected);
+        operation.track(appended)
     }
 
     pub async fn finish(&self) -> Result<ArtifactRecord> {
@@ -177,6 +197,19 @@ impl ArtifactUpload {
     }
 
     async fn close_with(&self, complete: bool, sha256: Option<String>) -> Result<ArtifactRecord> {
+        let operation = &self.progress.operation;
+        operation.phase(if complete { "Saving" } else { "Abandoning" });
+        operation.indeterminate();
+        let closed = self.close_once(complete, sha256).await;
+        match &closed {
+            Ok(_) if complete => operation.finish(),
+            Ok(_) => operation.fail("upload abandoned"),
+            Err(error) => operation.fail(error),
+        }
+        closed
+    }
+
+    async fn close_once(&self, complete: bool, sha256: Option<String>) -> Result<ArtifactRecord> {
         let storage = self.storage.upgrade().ok_or(Error::ShuttingDown)?;
         let upload = self.clone();
         tokio::spawn(async move {
@@ -301,13 +334,22 @@ impl RuntimeHandle {
             }
             (cycle.clone(), execution.clone())
         };
+        let operation = self
+            .operation_progress()
+            .begin(format!("Storing {}", input.filename));
+        operation.phase("Receiving");
         let storage = self.execution_storage.clone();
-        tokio::spawn(async move {
+        let progress = operation.clone();
+        let begun = tokio::spawn(async move {
             storage.prepare_execution(&cycle, &execution).await?;
-            storage.begin_artifact(id, input, created_at).await
+            storage
+                .begin_artifact(id, input, created_at, progress)
+                .await
         })
         .await
-        .map_err(error)?
+        .map_err(error)
+        .and_then(|begun| begun);
+        operation.track(begun)
     }
 
     pub async fn finish_execution_for_test(&self, id: &TestExecutionId) -> Result<()> {
@@ -359,6 +401,7 @@ impl ExecutionStorage {
         execution: TestExecutionId,
         input: ArtifactUploadInput,
         created_at: Timestamp,
+        operation: Operation,
     ) -> Result<ArtifactUpload> {
         let acquisition_owner = self
             .acquisition(&execution)
@@ -404,6 +447,11 @@ impl ExecutionStorage {
                 metadata.created_at.expect("runtime artifact creation time"),
             ),
         };
+        let progress = Arc::new(UploadProgress {
+            operation,
+            sent: AtomicU64::new(0),
+            expected: input.size_bytes,
+        });
         let state = Upload {
             file: tokio::fs::File::from_std(tempfile::tempfile().map_err(error)?),
             closing: None,
@@ -422,6 +470,7 @@ impl ExecutionStorage {
             storage: Arc::downgrade(&self),
             execution,
             id,
+            progress,
             _owner: owner,
         })
     }

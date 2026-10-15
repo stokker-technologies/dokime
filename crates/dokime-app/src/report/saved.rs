@@ -160,7 +160,7 @@ impl RuntimeHandle {
             return Err(Error::InvalidReportInputs(reason));
         }
         let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
-        let html = HtmlReport::from_snapshot(self, snapshot, true, maximum).await?;
+        let html = HtmlReport::from_snapshot(self, snapshot, true, maximum, None).await?;
         if html.captured_input()?.owner_node_id != self.state_read().identity.node.node_id {
             return Err(Error::InvalidReportInputs(
                 "report producing node identity differs".into(),
@@ -204,7 +204,7 @@ impl RuntimeHandle {
         .await?
         .ok_or_else(|| Error::InvalidReportInputs("report execution is not saved".into()))?;
         let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
-        let html = HtmlReport::from_snapshot(self, &inspection, true, maximum).await?;
+        let html = HtmlReport::from_snapshot(self, &inspection, true, maximum, None).await?;
         tokio::task::spawn_blocking(move || {
             let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
             let length = html.length(maximum)?;

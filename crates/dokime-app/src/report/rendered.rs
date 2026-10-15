@@ -24,6 +24,7 @@ use harmos::storage::QueryValue;
 use super::html::HtmlReport;
 use crate::{
     Error, Result, RuntimeHandle,
+    runtime::progress::Operation,
     runtime::storage::{cycle::CycleSnapshot, execution::ExecutionView},
 };
 
@@ -47,8 +48,11 @@ pub(crate) async fn cycle(
     runtime: &RuntimeHandle,
     snapshot: CycleSnapshot,
     maximum: NonZeroUsize,
+    operation: &Operation,
 ) -> Result<QueryValue<Vec<u8>>> {
-    let html = HtmlReport::from_cycle(runtime, snapshot).await?;
+    let html = HtmlReport::from_cycle(runtime, snapshot, Some(operation)).await?;
+    operation.phase("Rendering");
+    operation.indeterminate();
     render(html, maximum).await
 }
 
@@ -59,8 +63,12 @@ pub(crate) async fn execution(
     view: &ExecutionView,
     final_report: bool,
     maximum: NonZeroUsize,
+    operation: &Operation,
 ) -> Result<QueryValue<Vec<u8>>> {
-    let html = HtmlReport::from_snapshot(runtime, view, final_report, maximum).await?;
+    let html =
+        HtmlReport::from_snapshot(runtime, view, final_report, maximum, Some(operation)).await?;
+    operation.phase("Rendering");
+    operation.indeterminate();
     render(html, maximum).await
 }
 
