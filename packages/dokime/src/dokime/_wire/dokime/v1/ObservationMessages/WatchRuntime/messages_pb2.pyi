@@ -41,10 +41,11 @@ class Row4(_message.Message):
     def __init__(self, epoch: _Optional[str] = ..., stream: _Optional[str] = ..., position: _Optional[int] = ...) -> None: ...
 
 class Row5(_message.Message):
-    __slots__ = ("operation_id", "label", "phase", "fraction", "started_at", "status", "finished_at", "failure")
+    __slots__ = ("operation_id", "label", "phase", "phases", "fraction", "started_at", "status", "finished_at", "failure")
     OPERATION_ID_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     PHASE_FIELD_NUMBER: _ClassVar[int]
+    PHASES_FIELD_NUMBER: _ClassVar[int]
     FRACTION_FIELD_NUMBER: _ClassVar[int]
     STARTED_AT_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -53,12 +54,13 @@ class Row5(_message.Message):
     operation_id: str
     label: str
     phase: str
+    phases: _containers.RepeatedScalarFieldContainer[str]
     fraction: float
     started_at: Row6
     status: Row7
     finished_at: Row6
     failure: str
-    def __init__(self, operation_id: _Optional[str] = ..., label: _Optional[str] = ..., phase: _Optional[str] = ..., fraction: _Optional[float] = ..., started_at: _Optional[_Union[Row6, _Mapping]] = ..., status: _Optional[_Union[Row7, _Mapping]] = ..., finished_at: _Optional[_Union[Row6, _Mapping]] = ..., failure: _Optional[str] = ...) -> None: ...
+    def __init__(self, operation_id: _Optional[str] = ..., label: _Optional[str] = ..., phase: _Optional[str] = ..., phases: _Optional[_Iterable[str]] = ..., fraction: _Optional[float] = ..., started_at: _Optional[_Union[Row6, _Mapping]] = ..., status: _Optional[_Union[Row7, _Mapping]] = ..., finished_at: _Optional[_Union[Row6, _Mapping]] = ..., failure: _Optional[str] = ...) -> None: ...
 
 class Row6(_message.Message):
     __slots__ = ("seconds", "nanos")

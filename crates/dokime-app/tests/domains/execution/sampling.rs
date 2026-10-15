@@ -622,20 +622,24 @@ pub(crate) async fn report_open_shows_progress() {
         Some(&OperationOutcome::Running),
         "the watch shows the operation start: {seen:?}"
     );
-    let mut phases = seen
-        .iter()
-        .map(|operation| operation.phase.as_str())
-        .filter(|phase| !phase.is_empty())
-        .collect::<Vec<_>>();
-    phases.dedup();
-    assert!(
-        phases.len() >= 2,
-        "the watch shows the operation change phase: {phases:?}"
+    let settled = seen.last().expect("the watch shows the operation");
+    assert_eq!(
+        settled.phases.last(),
+        Some(&settled.phase),
+        "the history ends at the current phase: {settled:?}"
     );
     assert!(
-        phases.contains(&"Materializing Evidence"),
-        "materialization is one phase: {phases:?}"
+        settled.phases.len() >= 2,
+        "the operation changed phase: {:?}",
+        settled.phases
     );
+    for phase in ["Capturing Evidence", "Materializing Evidence", "Rendering"] {
+        assert!(
+            settled.phases.iter().any(|passed| passed == phase),
+            "the history keeps {phase}: {:?}",
+            settled.phases
+        );
+    }
     assert!(
         matches!(
             seen.last().map(|operation| &operation.outcome),

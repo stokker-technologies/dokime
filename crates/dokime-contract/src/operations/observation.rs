@@ -75,6 +75,9 @@ pub struct OperationProgress {
     pub operation_id: String,
     pub label: String,
     pub phase: String,
+    // Every phase entered, oldest first and the current one last; at most 16.
+    #[row(description = "Every phase entered, oldest first and the current one last; at most 16.")]
+    pub phases: Vec<String>,
     // Absent while the operation cannot tell how far it has come.
     #[row(description = "Absent while the operation cannot tell how far it has come.")]
     pub fraction: Option<f64>,

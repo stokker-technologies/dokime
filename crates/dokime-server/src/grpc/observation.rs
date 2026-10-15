@@ -406,6 +406,9 @@ fn operation_frames(
         .map(|operation| {
             value::text(&operation.label)?;
             value::text(&operation.phase)?;
+            for phase in &operation.phases {
+                value::text(phase)?;
+            }
             let (status, finished_at, failure) = match &operation.outcome {
                 OperationOutcome::Running => (wire::OperationStatus::Running, None, None),
                 OperationOutcome::Finished { at } => (
@@ -423,6 +426,7 @@ fn operation_frames(
                 operation_id: operation.operation_id.clone(),
                 label: operation.label.clone(),
                 phase: operation.phase.clone(),
+                phases: operation.phases.clone(),
                 fraction: operation.fraction,
                 started_at: Some(canonical::timestamp(&operation.started_at)?),
                 status,

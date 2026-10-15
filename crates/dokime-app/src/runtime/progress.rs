@@ -43,6 +43,9 @@ pub const MAX_OPERATIONS: usize = 32;
 /// The longest label, phase or failure an operation publishes, in characters.
 pub const MAX_TEXT_CHARS: usize = 160;
 
+/// The most phases an operation remembers, newest kept.
+pub const MAX_PHASES: usize = 16;
+
 /// The smallest change of fraction worth publishing on its own.
 const FRACTION_STEP: f64 = 0.01;
 
@@ -57,6 +60,9 @@ pub struct LiveOperation {
     pub operation_id: String,
     pub label: String,
     pub phase: String,
+    /// Every phase the operation has entered, in order, the current one
+    /// last, so a watcher that joins late still sees each step.
+    pub phases: Vec<String>,
     /// How far the operation has come, from zero to one; absent while it
     /// cannot tell.
     pub fraction: Option<f64>,
@@ -128,6 +134,12 @@ impl LiveOperation {
             .saturating_add(self.operation_id.len())
             .saturating_add(self.label.len())
             .saturating_add(self.phase.len())
+            .saturating_add(
+                self.phases
+                    .iter()
+                    .map(|phase| std::mem::size_of::<String>().saturating_add(phase.len()))
+                    .sum::<usize>(),
+            )
             .saturating_add(failure)
     }
 }
@@ -165,6 +177,7 @@ impl OperationRegistry {
             operation_id: operation_id.clone(),
             label: bounded(label.into()),
             phase: String::new(),
+            phases: Vec::new(),
             fraction: None,
             started_at: Timestamp::now_utc(),
             outcome: OperationOutcome::Running,
@@ -309,6 +322,10 @@ impl Operation {
             if operation.phase == phase {
                 return false;
             }
+            if operation.phases.len() == MAX_PHASES {
+                operation.phases.remove(0);
+            }
+            operation.phases.push(phase.clone());
             operation.phase = phase;
             true
         });
