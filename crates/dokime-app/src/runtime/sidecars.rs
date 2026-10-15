@@ -55,12 +55,12 @@ struct RecordDemandSource {
 
 /* === Implementations === */
 impl PublicationIngest {
-    pub(super) fn frontier(&self) -> harmos::storage::Cursor {
+    fn frontier(&self) -> harmos::storage::Cursor {
         self.streams.frontier()
     }
 
     // Wait until ingest has admitted every publication through `target`.
-    pub(super) async fn reached(&self, target: harmos::storage::Cursor) -> crate::Result<()> {
+    async fn reached(&self, target: harmos::storage::Cursor) -> crate::Result<()> {
         let mut progress = self.progress.clone();
         progress
             .wait_for(|cursor| *cursor >= target)
