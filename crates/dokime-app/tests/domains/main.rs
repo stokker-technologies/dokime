@@ -149,6 +149,15 @@ fn documents_contract() {
         );
     }
     {
+        eprintln!("Scenario: documents::construction::repeated_sections_follow_value");
+        run_scenario(
+            documents::construction::repeated_sections_follow_value,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: documents::construction::saved_report_evidence");
         run_scenario(
             documents::construction::saved_report_evidence,

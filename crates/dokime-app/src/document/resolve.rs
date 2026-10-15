@@ -741,9 +741,16 @@ fn repeat_values<'a>(
         });
     }
 
+    // Without An Explicit Order The Repeated Value Orders Itself, Ascending.
     // Each Distinct Value Has A Unique First Index, So No Further Tie Is Possible.
+    let by_value = repeat.order_by.is_none();
     values.sort_unstable_by(|left, right| {
-        compare_values(left.order.as_deref(), right.order.as_deref())
+        let (left_order, right_order) = if by_value {
+            (Some(&*left.value), Some(&*right.value))
+        } else {
+            (left.order.as_deref(), right.order.as_deref())
+        };
+        compare_values(left_order, right_order)
             .unwrap_or(Ordering::Equal)
             .then_with(|| left.first_index.cmp(&right.first_index))
     });

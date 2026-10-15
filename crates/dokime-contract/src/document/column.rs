@@ -17,6 +17,8 @@ use std::marker::PhantomData;
 // Third Party Imports
 
 // Local Imports
+use crate::core::Value;
+use crate::document::DocumentFilter;
 use crate::expressions::{DataExpression, telemetry};
 use crate::telemetry::TelemetryStream;
 
@@ -68,6 +70,41 @@ impl<R: ?Sized> std::fmt::Debug for Column<R> {
             .debug_struct("Column")
             .field("field", &self.field)
             .finish()
+    }
+}
+
+// A Stream Column Compares Directly, Without An Explicit Conversion.
+impl<R: TelemetryStream> Column<R> {
+    pub fn eq(self, value: impl Into<Value>) -> DocumentFilter {
+        DataExpression::from(self).eq(value)
+    }
+
+    pub fn ne(self, value: impl Into<Value>) -> DocumentFilter {
+        DataExpression::from(self).ne(value)
+    }
+
+    pub fn gt(self, value: impl Into<Value>) -> DocumentFilter {
+        DataExpression::from(self).gt(value)
+    }
+
+    pub fn gte(self, value: impl Into<Value>) -> DocumentFilter {
+        DataExpression::from(self).gte(value)
+    }
+
+    pub fn lt(self, value: impl Into<Value>) -> DocumentFilter {
+        DataExpression::from(self).lt(value)
+    }
+
+    pub fn lte(self, value: impl Into<Value>) -> DocumentFilter {
+        DataExpression::from(self).lte(value)
+    }
+
+    pub fn contains(self, value: impl Into<Value>) -> DocumentFilter {
+        DataExpression::from(self).contains(value)
+    }
+
+    pub fn exists(self) -> DocumentFilter {
+        DataExpression::from(self).exists()
     }
 }
 

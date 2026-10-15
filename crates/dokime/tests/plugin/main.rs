@@ -341,6 +341,10 @@ fn metadata_contract() {
         run_scenario(documents::declared_section_so, false, None, false);
     }
     {
+        eprintln!("Scenario: documents::typed_columns_compare");
+        run_scenario(documents::typed_columns_compare, false, None, false);
+    }
+    {
         eprintln!("Scenario: logging::macros_format_context");
         run_scenario(logging::macros_format_context, false, None, false);
     }
