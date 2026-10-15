@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, OnceLock, RwLock},
 };
 // Third Party Imports
 use harmos::operations::{Context, Operation, OperationManager, host};
@@ -37,6 +37,7 @@ type NativePublication = harmos::sidecar::Publish<
 #[derive(Default)]
 pub(crate) struct Publications {
     residents: RwLock<BTreeMap<String, InstalledSidecar>>,
+    ingest: OnceLock<super::PublicationIngest>,
 }
 
 #[derive(Default)]
@@ -82,6 +83,12 @@ impl Publications {
         }
         residents.insert(owner.to_owned(), resident);
         Ok(())
+    }
+
+    // The stream ring evicts rows its follower has not read, so a producer
+    // must not run further ahead of host ingest than one publication.
+    pub(crate) fn attach(&self, ingest: super::PublicationIngest) {
+        let _ = self.ingest.set(ingest);
     }
 
     pub(crate) fn remove(&self, owner: &str) {
@@ -138,12 +145,27 @@ impl Operation for Invocation {
             self.native =
                 Some(NativePublication::initialize(Arc::new(resident), context.clone()).await?);
         }
+        // Everything staged before this publication is ingested before it is
+        // answered: the producer overlaps ingest by one batch and never laps
+        // the ring of a stream it publishes on.
+        let ingested = self
+            .owner
+            .ingest
+            .get()
+            .map(super::PublicationIngest::frontier);
         // The Original Connection Validates Authority And Retains Receipts.
-        self.native
+        let response = self
+            .native
             .as_mut()
             .expect("native invocation initialized")
             .run(context, request, &mut ())
-            .await
+            .await?;
+        if let (Some(ingest), Some(target)) = (self.owner.ingest.get(), ingested) {
+            // An ingest that stopped has nothing left to wait for; the rows are
+            // staged and the call is answered as published.
+            let _ = ingest.reached(target).await;
+        }
+        Ok(response)
     }
 
     async fn stop(&mut self) -> harmos::Result<()> {

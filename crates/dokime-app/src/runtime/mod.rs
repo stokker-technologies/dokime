@@ -183,6 +183,7 @@ impl Runtime {
             handle.publication_ingest.set(publications.clone()).is_ok(),
             "publication ingest initializes once"
         );
+        handle.publication_core.attach(publications.clone());
         let forwarding = sidecars::spawn_record_forwarding(handle.clone());
         handle.record_ingress.attach(handle.clone());
         let lease_gaps =

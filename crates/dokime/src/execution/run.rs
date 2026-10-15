@@ -260,6 +260,7 @@ async fn execute<T: SidecarTemplate>(
         Ok(template) => template,
         Err(ended) => {
             let cleanup_error = settle_callbacks(&environment, &transport).await;
+            environment.streams().flush().await;
             super::scanning::settle(scanning, &watched, &executions, &token).await;
             if let Err(diagnostic) = finalize_record_inputs(
                 &executions,
@@ -333,6 +334,7 @@ async fn execute<T: SidecarTemplate>(
             // it — and before cleanup, so no observer outlives the handle it
             // reads.
             super::observing::settle(observers).await;
+            environment.streams().flush().await;
             ended
         }
     };
@@ -356,6 +358,8 @@ async fn execute<T: SidecarTemplate>(
     transport.capture_phase(crate::core::CapturePhase::Default);
     let callback_error = settle_callbacks(&environment, &transport).await;
     let cleanup_error = cleanup_error.or(callback_error);
+    // Whatever cleanup pushed reaches the host before the run reports.
+    environment.streams().flush().await;
 
     // The watch stops here, after cleanup has written whatever it was going to
     // write and before the run reports: an artifact reaches the host complete,
@@ -644,6 +648,9 @@ async fn walk<T: SidecarTemplate>(
                 result = work => Some(result),
             }
         };
+        // The step's buffered rows reach the host before its attempt ends,
+        // whichever way it ended, and a refused flush fails the step.
+        environment.streams().flush().await;
 
         let stepped = match stepped {
             Some(Ok(())) => Some(environment.streams().failure().map_or(Ok(()), Err)),

@@ -35,6 +35,8 @@ use crate::transport::{ExecutionTransport, TransportFuture};
 
 /* === Constants === */
 const ARTIFACT_BACKPRESSURE_POLL_INTERVAL: Duration = Duration::from_millis(250);
+// Rows of one stream that publish together without waiting for the window.
+const BATCH_ROWS: usize = 100;
 
 /* === Macros === */
 
@@ -64,6 +66,21 @@ pub(crate) struct ExecutionSampleSink<T: crate::execution::SidecarTemplate> {
     host: Option<crate::execution::SampleOutput>,
     template: std::marker::PhantomData<fn() -> T>,
     publisher: Option<crate::execution::SamplePublisher>,
+    // One lock over every buffered row and every flush, so one stream's rows
+    // reach the host in order and never through two calls at once.
+    pending: tokio::sync::Mutex<Pending>,
+}
+
+// Rows produced for the host, per stream, waiting for one batch publication.
+#[derive(Default)]
+struct Pending {
+    streams: BTreeMap<Identifier, Buffered>,
+}
+
+#[derive(Default)]
+struct Buffered {
+    rows: Vec<crate::execution::StampedRow>,
+    latest: i64,
 }
 
 pub(crate) struct FrameRecordSource {
@@ -154,7 +171,57 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
             host,
             template: std::marker::PhantomData,
             publisher,
+            pending: tokio::sync::Mutex::new(Pending::default()),
         }
+    }
+
+    fn host_output(
+        &self,
+    ) -> Option<
+        Result<
+            (
+                &harmos::sidecar::Supervisor,
+                crate::execution::SamplePublisher,
+            ),
+            String,
+        >,
+    > {
+        match self.host.as_ref()? {
+            crate::execution::SampleOutput::Host(host) => Some(
+                self.publisher
+                    .map(|publish| (host, publish))
+                    .ok_or_else(|| "native workflow has no owning plugin publisher".to_owned()),
+            ),
+            crate::execution::SampleOutput::Embedded(_) => None,
+        }
+    }
+}
+
+impl Pending {
+    // Stamp the row with its production instant, never earlier than the
+    // stream's previous row, and report how many rows the stream now holds.
+    fn push(&mut self, stream: &Identifier, values: BTreeMap<String, Value>) -> usize {
+        let buffered = self.streams.entry(stream.clone()).or_default();
+        let stamp = unix_micros().max(buffered.latest);
+        buffered.latest = stamp;
+        buffered.rows.push(crate::execution::StampedRow {
+            values,
+            published_unix_micros: stamp,
+        });
+        buffered.rows.len()
+    }
+
+    fn take(&mut self, stream: &Identifier) -> Vec<crate::execution::StampedRow> {
+        self.streams
+            .get_mut(stream)
+            .map(|buffered| std::mem::take(&mut buffered.rows))
+            .unwrap_or_default()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.streams
+            .values()
+            .all(|buffered| buffered.rows.is_empty())
     }
 }
 
@@ -199,18 +266,17 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
             {
                 return Err("execution sample inputs are closed".into());
             }
-            if let Some(host) = &self.host {
-                return match host {
-                    crate::execution::SampleOutput::Host(host) => {
-                        let publish = self
-                            .publisher
-                            .ok_or("native workflow has no owning plugin publisher")?;
-                        publish(host, &self.token, stream, &values).await
-                    }
-                    crate::execution::SampleOutput::Embedded(publisher) => {
-                        publisher.publish(&self.token, stream, values)
-                    }
-                };
+            if let Some(output) = self.host_output() {
+                let (host, publish) = output?;
+                let mut pending = self.pending.lock().await;
+                if pending.push(stream, values) < BATCH_ROWS {
+                    return Ok(());
+                }
+                let rows = pending.take(stream);
+                return publish(host, &self.token, stream, &rows).await;
+            }
+            if let Some(crate::execution::SampleOutput::Embedded(publisher)) = &self.host {
+                return publisher.publish(&self.token, stream, values);
             }
 
             let mut executions = lock(&self.executions);
@@ -234,6 +300,33 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
             .get(&self.token)
             .map(|state| state.produced(stream))
             .unwrap_or_default()
+    }
+
+    fn flush(&self) -> TransportFuture<'_, Result<(), (Identifier, String)>> {
+        Box::pin(async move {
+            let Some(Ok((host, publish))) = self.host_output() else {
+                return Ok(());
+            };
+            let mut pending = self.pending.lock().await;
+            let mut refused = None;
+            let streams = pending.streams.keys().cloned().collect::<Vec<_>>();
+            for stream in streams {
+                let rows = pending.take(&stream);
+                if rows.is_empty() {
+                    continue;
+                }
+                if let Err(error) = publish(host, &self.token, &stream, &rows).await {
+                    refused.get_or_insert((stream, error));
+                }
+            }
+            refused.map_or(Ok(()), Err)
+        })
+    }
+
+    fn buffering(&self) -> bool {
+        self.pending
+            .try_lock()
+            .map_or(true, |pending| !pending.is_empty())
     }
 }
 
@@ -474,6 +567,17 @@ impl LeaseRelease for FrameLeaseRelease {
 /* === Public Functions === */
 
 /* === Private Functions === */
+// The publication clock Harmos stamps rows with: system time in Unix
+// microseconds, negative before the epoch.
+fn unix_micros() -> i64 {
+    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => i64::try_from(elapsed.as_micros()).unwrap_or(i64::MAX),
+        Err(error) => {
+            i64::try_from(error.duration().as_micros()).map_or(i64::MIN, |micros| -micros)
+        }
+    }
+}
+
 fn park_at_gate<'a>(
     mut executions: MutexGuard<'a, BTreeMap<String, crate::transport::buffer::ExecutionState>>,
     token: &str,

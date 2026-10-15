@@ -19,7 +19,7 @@ pub use crate::values::field;
 pub use contract::{
     TelemetryColumn, TelemetryCondition, TelemetryConditionEvaluation, TelemetryConditionOperator,
     TelemetryContract, TelemetryFilter, TelemetryRole, evaluate_telemetry_condition,
-    validate_telemetry_sample,
+    validate_normalized_telemetry_sample, validate_telemetry_sample,
 };
 pub use dokime_contract::telemetry::{
     SamplingScope, TelemetryBatch, TelemetryCaptureLease, TelemetrySample, TelemetrySampleKey,

@@ -14,7 +14,7 @@ mod validation;
 /* === Re-Exports === */
 pub use conditions::evaluate_telemetry_condition;
 pub use dokime_contract::telemetry::contract::*;
-pub use validation::validate_telemetry_sample;
+pub use validation::{validate_normalized_telemetry_sample, validate_telemetry_sample};
 
 /* === Imports === */
 // Standard Library Imports

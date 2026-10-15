@@ -276,6 +276,8 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
                     .await;
             }
             Publication::Record(request) => {
+                // A record that follows rows reaches the host after them.
+                self.environment.streams().flush().await;
                 let request = *request;
                 self.transport.emit(request);
             }

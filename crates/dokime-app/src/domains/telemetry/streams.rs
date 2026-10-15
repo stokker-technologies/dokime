@@ -28,7 +28,7 @@ use crate::streams::{CycleTrack, ExecutionTrack, TelemetryRow};
 use crate::unavailable_rejection;
 use dokime::core::{Identifier, RecordScope, Timestamp, Value, scope_visible_in};
 use dokime::telemetry::{
-    TelemetryBatch, TelemetrySample, ValidationMode, validate_telemetry_sample,
+    TelemetryBatch, TelemetrySample, ValidationMode, validate_normalized_telemetry_sample,
 };
 
 /* === Constants === */
@@ -230,16 +230,23 @@ impl RuntimeHandle {
                 );
             }
         }
+        // Each stream's contract is looked up and normalized once per batch;
+        // only the row checks run per row.
+        let lookup = crate::runtime_state::contract_lookup(&state);
+        let mut contracts = BTreeMap::new();
         let mut accepted = Vec::with_capacity(samples.len());
         for sample in samples {
-            let contract = crate::runtime_state::contract_lookup(&state)
-                .telemetry_contract(&sample.stream)
-                .ok_or_else(|| {
+            if !contracts.contains_key(&sample.stream) {
+                let contract = lookup.telemetry_contract(&sample.stream).ok_or_else(|| {
                     validation_rejection("telemetry contract is unavailable", "stream", None)
                 })?;
-            validate_telemetry_sample(Some(&contract), &sample, ValidationMode::Strict)
+                let normalized = contract.normalized();
+                contracts.insert(sample.stream.clone(), (contract, normalized));
+            }
+            let (contract, normalized) = &contracts[&sample.stream];
+            validate_normalized_telemetry_sample(normalized, &sample, ValidationMode::Strict)
                 .map_err(|error| validation_rejection(error.to_string(), "telemetry", None))?;
-            accepted.push((sample, contract, 0));
+            accepted.push((sample, contract.clone(), 0));
         }
         let (rows, cursors) = {
             let known = self
@@ -549,6 +556,7 @@ fn normalize_batch(
     received_at: &Timestamp,
 ) -> crate::Result<()> {
     batch.schema_version = contract.schema_version;
+    let normalized = contract.normalized();
     for sample in &mut batch.samples {
         sample.stream = contract.stream.clone();
         sample.schema_version = contract.schema_version;
@@ -560,7 +568,7 @@ fn normalize_batch(
                 Some("an RFC 3339 timestamp at or after the Unix epoch".to_owned()),
             )
         })?;
-        validate_telemetry_sample(Some(contract), sample, ValidationMode::Strict).map_err(
+        validate_normalized_telemetry_sample(&normalized, sample, ValidationMode::Strict).map_err(
             |error| {
                 validation_rejection(
                     error.to_string(),
