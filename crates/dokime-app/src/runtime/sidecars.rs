@@ -54,6 +54,24 @@ struct RecordDemandSource {
 /* === Traits === */
 
 /* === Implementations === */
+impl PublicationIngest {
+    pub(super) fn frontier(&self) -> harmos::storage::Cursor {
+        self.streams.frontier()
+    }
+
+    // Wait until ingest has admitted every publication through `target`.
+    pub(super) async fn reached(&self, target: harmos::storage::Cursor) -> crate::Result<()> {
+        let mut progress = self.progress.clone();
+        progress
+            .wait_for(|cursor| *cursor >= target)
+            .await
+            .map(|_| ())
+            .map_err(|_| {
+                crate::Error::Operation("publication ingest stopped before draining".into())
+            })
+    }
+}
+
 impl RuntimeHandle {
     pub(crate) fn register_record_demand_source(
         &self,
@@ -306,13 +324,7 @@ pub(crate) fn spawn_publication_ingest(
 }
 
 pub(super) async fn flush_publications(ingest: &PublicationIngest) -> crate::Result<()> {
-    let target = ingest.streams.frontier();
-    let mut progress = ingest.progress.clone();
-    progress
-        .wait_for(|cursor| *cursor >= target)
-        .await
-        .map(|_| ())
-        .map_err(|_| crate::Error::Operation("publication ingest stopped before draining".into()))
+    ingest.reached(ingest.frontier()).await
 }
 
 pub(crate) fn spawn_record_forwarding(handle: RuntimeHandle) -> BackgroundTask {

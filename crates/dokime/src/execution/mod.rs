@@ -104,7 +104,7 @@ pub use tick::Tick;
 #[cfg(feature = "native")]
 pub use template::{
     DeclaredObserver, EvaluationFuture, InitializationFuture, SamplePublisher, SidecarTemplate,
-    StepFuture, TemplateDefinition, TraceabilityFuture,
+    StampedRow, StepFuture, TemplateDefinition, TraceabilityFuture,
 };
 
 #[cfg(feature = "native")]

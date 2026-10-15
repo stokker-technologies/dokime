@@ -36,11 +36,13 @@ use crate::traceability::TraceabilitySection;
 
 /* === Type Aliases === */
 
+// Publishes one stream's rows in order as one batch; rows before a refused
+// row stay published and the refused row and the rest are missed.
 pub type SamplePublisher = for<'a> fn(
     &'a harmos::sidecar::Supervisor,
     &'a str,
     &'a crate::core::Identifier,
-    &'a BTreeMap<String, Value>,
+    &'a [StampedRow],
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
 pub type StepFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Diagnostic>> + Send + 'a>>;
@@ -60,6 +62,14 @@ pub struct TemplateDefinition {
     pub template: TestCaseTemplate,
     pub records: Vec<crate::records::RecordContract>,
     pub streams: Vec<crate::telemetry::TelemetryContract>,
+}
+
+// A row waiting for publication with the instant it was produced, in Unix
+// microseconds on the publication clock.
+#[derive(Clone, Debug)]
+pub struct StampedRow {
+    pub values: BTreeMap<String, Value>,
+    pub published_unix_micros: i64,
 }
 
 #[derive(Clone, Debug)]
@@ -124,7 +134,7 @@ pub trait SidecarTemplate: Send + Sized + 'static {
         _host: &'a harmos::sidecar::Supervisor,
         _token: &'a str,
         stream: &'a crate::core::Identifier,
-        _values: &'a BTreeMap<String, Value>,
+        _rows: &'a [StampedRow],
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
         Box::pin(async move {
             Err(format!(

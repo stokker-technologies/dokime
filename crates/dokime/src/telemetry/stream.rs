@@ -24,6 +24,9 @@ use crate::core::{Identifier, Timestamp, Value};
 use crate::telemetry::TelemetryRow;
 
 /* === Constants === */
+// The longest a buffered row waits before its sink is flushed.
+#[cfg(feature = "native")]
+const FLUSH_WINDOW: std::time::Duration = std::time::Duration::from_millis(10);
 
 /* === Macros === */
 
@@ -39,6 +42,8 @@ pub struct Streams {
     failure: tokio::sync::watch::Sender<Option<crate::diagnostics::Diagnostic>>,
     #[cfg(feature = "native")]
     listening: tokio::sync::broadcast::Sender<crate::execution::PublishedRow>,
+    #[cfg(feature = "native")]
+    flushing: Arc<std::sync::atomic::AtomicBool>,
 }
 
 pub struct StreamSelection<'a, R> {
@@ -71,6 +76,16 @@ pub trait SampleSink: Send + Sync {
     ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
     fn produced(&self, stream: &str) -> u64;
+
+    // Publish every buffered row now, naming the first stream that failed.
+    fn flush(&self) -> crate::transport::TransportFuture<'_, Result<(), (Identifier, String)>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    // Whether rows are waiting for a flush.
+    fn buffering(&self) -> bool {
+        false
+    }
 }
 
 pub trait OwnedStream: TelemetryStream {}
@@ -86,6 +101,8 @@ impl Streams {
             failure: tokio::sync::watch::channel(None).0,
             #[cfg(feature = "native")]
             listening: crate::execution::listening_rows(),
+            #[cfg(feature = "native")]
+            flushing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 
@@ -143,6 +160,14 @@ impl Streams {
         self.sink.produced(stream)
     }
 
+    // Publish every row the sink still buffers; a step ending, a stop and a
+    // record that follows its rows all wait for this.
+    pub(crate) async fn flush(&self) {
+        if let Err((stream, error)) = self.sink.flush().await {
+            self.failed(&stream, &error);
+        }
+    }
+
     pub(crate) async fn published(&self, stream: &Identifier, values: BTreeMap<String, Value>) {
         self.published_as(stream, values, stream.as_str()).await;
     }
@@ -194,19 +219,45 @@ impl Streams {
             // row is already this run's evidence either way.
             let _ = self.listening.send((stream.clone(), values.clone()));
         }
-        if let Err(error) = self.sink.publish(stream, values).await {
-            #[cfg(feature = "native")]
-            self.failure.send_if_modified(|failure| {
-                if failure.is_some() {
-                    return false;
-                }
-                *failure = Some(crate::diagnostics::Diagnostic::of(format!(
-                    "stream {stream} publication failed: {error}"
-                )));
-                true
+        match self.sink.publish(stream, values).await {
+            Ok(()) => self.flush_later(),
+            Err(error) => self.failed(stream, &error),
+        }
+    }
+
+    fn failed(&self, stream: &Identifier, error: &str) {
+        #[cfg(feature = "native")]
+        self.failure.send_if_modified(|failure| {
+            if failure.is_some() {
+                return false;
+            }
+            *failure = Some(crate::diagnostics::Diagnostic::of(format!(
+                "stream {stream} publication failed: {error}"
+            )));
+            true
+        });
+        #[cfg(not(feature = "native"))]
+        let _ = (stream, error);
+    }
+
+    // A buffered row waits at most one window: the first row after a flush
+    // arms one timer, and the timer flushes whatever is buffered by then.
+    fn flush_later(&self) {
+        #[cfg(feature = "native")]
+        if self.sink.buffering()
+            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+            && !self
+                .flushing
+                .swap(true, std::sync::atomic::Ordering::AcqRel)
+        {
+            let streams = self.clone();
+            runtime.spawn(async move {
+                tokio::time::sleep(FLUSH_WINDOW).await;
+                streams
+                    .flushing
+                    .store(false, std::sync::atomic::Ordering::Release);
+                streams.flush().await;
             });
-            #[cfg(not(feature = "native"))]
-            let _ = error;
         }
     }
 }

@@ -44,7 +44,7 @@ type Observer = harmos::sidecar::inventory::observers::Entry;
 pub type Publish = for<'a> fn(
     &'a harmos::sidecar::Supervisor,
     &'a str,
-    &'a std::collections::BTreeMap<String, crate::core::Value>,
+    &'a [crate::execution::StampedRow],
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
 #[cfg(feature = "native")]
@@ -611,18 +611,33 @@ const fn write<E: Copy, const N: usize>(nodes: &[Node<E>], flat: &mut [E; N], at
 fn publish<'a, T, P>(
     host: &'a harmos::sidecar::Supervisor,
     token: &'a str,
-    values: &'a std::collections::BTreeMap<String, crate::core::Value>,
+    rows: &'a [crate::execution::StampedRow],
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>
 where
     T: TelemetryStream<Row: harmos::Message>,
     P: harmos::plugin::Declared,
 {
     Box::pin(async move {
-        let row = <T::Row as TelemetryRow>::from_row(values).map_err(|error| error.to_string())?;
-        host.publisher::<P>()
-            .publish_on_context::<T>(&row, Some(token))
+        let publisher = host.publisher::<P>();
+        let mut batch = publisher.batch::<T>();
+        // A row that cannot be encoded refuses itself and every row after it;
+        // the rows before it are still published, as a refusal at the host
+        // would leave them.
+        let mut refused = None;
+        for row in rows {
+            match <T::Row as TelemetryRow>::from_row(&row.values) {
+                Ok(encoded) => batch.push_at(encoded, row.published_unix_micros),
+                Err(error) => {
+                    refused = Some(error.to_string());
+                    break;
+                }
+            }
+        }
+        publisher
+            .publish_batch_on_context::<T>(&batch, Some(token))
             .await
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        refused.map_or(Ok(()), Err)
     })
 }
 

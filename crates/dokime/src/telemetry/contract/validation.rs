@@ -53,7 +53,16 @@ pub fn validate_telemetry_sample(
         }));
     };
 
-    let contract = contract.normalized();
+    validate_normalized_telemetry_sample(&contract.normalized(), sample, default_mode)
+}
+
+// Validate against a contract already passed through `normalized`, so a batch
+// prepares its contract once instead of once per row.
+pub fn validate_normalized_telemetry_sample(
+    contract: &TelemetryContract,
+    sample: &TelemetrySample,
+    default_mode: ValidationMode,
+) -> crate::Result<BTreeMap<String, Value>> {
     if contract.stream != sample.stream {
         return Err(crate::Error::Telemetry(TelemetryFailure::UnknownStream {
             stream: sample.stream.to_string(),

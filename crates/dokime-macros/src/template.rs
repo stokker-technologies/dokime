@@ -1008,7 +1008,7 @@ fn engine(
         .map(|catalog| quote! {
             for entry in <#catalog as #sdk::catalog::Catalog<#sdk::catalog::Publications<__DokimePlugin>>>::ENTRIES {
                 if stream.as_str() == entry.id {
-                    return (entry.publish)(host, token, values).await;
+                    return (entry.publish)(host, token, rows).await;
                 }
             }
         });
@@ -1134,7 +1134,7 @@ fn engine(
                 host: &'a #sdk::__harmos::sidecar::Supervisor,
                 token: &'a str,
                 stream: &'a #sdk::core::Identifier,
-                values: &'a ::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
+                rows: &'a [#sdk::execution::StampedRow],
             ) -> #sdk::transport::TransportFuture<'a, ::core::result::Result<(), ::std::string::String>> {
                 ::std::boxed::Box::pin(async move {
                     #(#publications)*
