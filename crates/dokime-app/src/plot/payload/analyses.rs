@@ -21,7 +21,9 @@ use harmos::signal::{Series, Summary};
 use serde::Serialize;
 
 // Local Imports
-use super::{PlotPayloadRequest, PlotPoint, PlotSeries, parse_timestamp};
+use super::{
+    PlotPayloadRequest, PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, parse_timestamp,
+};
 use crate::document::PlotType;
 #[cfg(feature = "fft")]
 use crate::document::{FftDetrend, FftWindow, FrequencyLevelUnit};
@@ -153,6 +155,66 @@ pub(super) fn analyze(
         }),
         _ => None,
     }
+}
+
+/// One summary per series of a time series or scatter plot, over the rows
+/// inside the requested summary window, or every row when none is requested.
+/// Other plot types carry none.
+pub(super) fn summarize(
+    series: &[PlotSeries],
+    request: &PlotPayloadRequest,
+) -> Vec<PlotSeriesSummary> {
+    if !summarizes(request) {
+        return Vec::new();
+    }
+    let inside = |x: f64| {
+        request
+            .summary_window
+            .is_none_or(|window| window.from <= x && x <= window.to)
+    };
+    let shown = |entry: &PlotSeries| {
+        entry
+            .points
+            .iter()
+            .filter_map(|point| Some((point_x(point)?, point.y?)))
+            .filter(|(x, _)| inside(*x))
+            .collect::<Vec<_>>()
+    };
+    let rows = series.iter().map(shown).collect::<Vec<_>>();
+    let window = request.summary_window.or_else(|| {
+        let mut xs = rows.iter().flatten().map(|(x, _)| *x);
+        let first = xs.next()?;
+        let (from, to) = xs.fold((first, first), |(from, to), x| (from.min(x), to.max(x)));
+        Some(PlotWindow { from, to })
+    });
+    series
+        .iter()
+        .zip(rows)
+        .map(|(entry, rows)| {
+            let series = Series::from(rows.into_iter().map(|(_, y)| y).collect::<Vec<_>>());
+            // One pass answers the moments; the median alone needs the order.
+            let summary = series.summary();
+            PlotSeriesSummary {
+                series_id: entry.key.clone(),
+                count: summary.count() as usize,
+                min: summary.min(),
+                max: summary.max(),
+                mean: summary.mean(),
+                median: series.median(),
+                std: summary.std(),
+                rms: summary.rms(),
+                window,
+            }
+        })
+        .collect()
+}
+
+pub(super) fn summarizes(request: &PlotPayloadRequest) -> bool {
+    request.analysis.is_none()
+        && matches!(
+            request.plot_type,
+            Some(PlotType::TimeSeries | PlotType::XyScatter)
+        )
 }
 
 pub(super) fn reduce_spectrum(points: Vec<PlotPoint>, max_points: usize) -> (Vec<PlotPoint>, bool) {

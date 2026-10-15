@@ -82,13 +82,14 @@ type FilterOperator = NonNullable<PlotRequest["filters"][number]["operator"]>;
 type PlotCartesianMode = NonNullable<NativePlotCartesianFrame["mode"]>;
 const AnalysisSelectionSchema = plotWire.Row15Schema;
 const DataExpressionSchema = plotWire.Row8Schema;
-const DataTransformSchema = plotWire.Row43Schema;
+const DataTransformSchema = plotWire.Row44Schema;
 const PlotCursorSchema = plotWire.Row10Schema;
 const PlotFftOptionsSchema = plotWire.Row12Schema;
 const PlotFilterSchema = plotWire.Row7Schema;
 const PlotHistogramOptionsSchema = plotWire.Row14Schema;
 const PlotIntervalOptionsSchema = plotWire.Row13Schema;
 const PlotRequestSchema = plotWire.Row3Schema;
+const PlotWindowSchema = plotWire.Row16Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamKind = PlotStreamFrame["kind"];
 type NativeTelemetrySample = Wire<
@@ -131,6 +132,8 @@ export type PlotPayloadRequestInput = {
   /** Absent is the host default (`auto`). */
   technique?: DocumentDownsampleTechnique | null;
   windowS?: number | null;
+  /** The x range a zoomed time series or scatter plot summarizes. */
+  summaryWindow?: { from: number; to: number } | null;
   scope?: RecordScope | null;
   /** Legacy cursors are accepted only when they carry native epoch identity. */
   cursor?: PlotPayloadCursor | null;
@@ -259,6 +262,9 @@ export function toNativePlotRequest(
     ...(input.unit == null ? {} : { unit: input.unit }),
     ...(input.maxPoints == null ? {} : { maxPoints: boundedPlotPoints(input.maxPoints) }),
     ...(input.windowS == null ? {} : { windowS: boundedWindow(input.windowS) }),
+    ...(input.summaryWindow == null
+      ? {}
+      : { summaryWindow: create(PlotWindowSchema, summaryWindow(input.summaryWindow)) }),
     ...(nativeScope ? { scope: nativeScope } : {}),
     ...(nativeCursor ? { cursor: nativeCursor } : {}),
     technique: downsampleTechnique(input.technique),
@@ -770,6 +776,17 @@ function mapNativePlotPayload(payload: NativePlotPayload): PlotPayload {
     x_format: mapNativeValueFormat(payload.xFormat),
     run_started_at: payload.runStartedAt ?? null,
     cycle_started_at: payload.cycleStartedAt ?? null,
+    summaries: payload.summaries.map((summary) => ({
+      series_id: summary.seriesId,
+      count: safeNumber(summary.count, "plot summary count"),
+      min: summary.min ?? null,
+      max: summary.max ?? null,
+      mean: summary.mean ?? null,
+      median: summary.median ?? null,
+      std: summary.std ?? null,
+      rms: summary.rms ?? null,
+      window: summary.window ? { from: summary.window.from, to: summary.window.to } : null,
+    })),
   };
 }
 
@@ -984,6 +1001,13 @@ function boundedPlotPoints(value: number): bigint {
     );
   }
   return BigInt(value);
+}
+
+function summaryWindow(window: { from: number; to: number }): { from: number; to: number } {
+  if (!Number.isFinite(window.from) || !Number.isFinite(window.to) || window.from > window.to) {
+    throw new Error("Native plot summary_window must be a finite range with from <= to.");
+  }
+  return { from: window.from, to: window.to };
 }
 
 function boundedWindow(value: number): number {

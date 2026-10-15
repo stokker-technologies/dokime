@@ -1357,6 +1357,7 @@ async fn plot_watch_pushes_live_deltas_near_ten_hz() {
                 interval: None,
                 histogram: None,
                 analysis: None,
+                summary_window: None,
             }],
         })
         .await

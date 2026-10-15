@@ -7,7 +7,7 @@
  * ***
  */
 
-import type { StatsSummary } from "../statistics";
+import type { SeriesSummary, StatsSummary } from "../statistics";
 import type { DocumentDataExpression, DocumentValueSource } from "../types";
 import type { ParameterDefinition } from "./test";
 import type {
@@ -190,6 +190,8 @@ export type PlotPayload = Pick<
     analysis?: PlotAnalysis | null;
     cartesian?: PlotCartesianFrame | null;
     markers?: PlotMarker[];
+    /** One per series of a time series or scatter plot, over the shown window. */
+    summaries?: SeriesSummary[];
   };
 
 export type PlotPayloadEnvelope = Omit<NativePlotPayloadEnvelope, "payload" | "diagnostics"> & {

@@ -15,14 +15,32 @@ import { useMemo } from "react";
 
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
-import type { StatsSummary, StatsSummaryRow } from "@/lib/statistics";
+import type {
+  SeriesLegendColumn,
+  SeriesLegendRow,
+  StatsSummary,
+  StatsSummaryRow,
+} from "@/lib/statistics";
 import { describeValues, formatStatValue } from "@/lib/statistics";
+import { cn } from "@/lib/utils";
 
 /* === Types === */
 
-type StatsSummaryTableProps = {
-  rows: StatsSummaryRow[];
+/**
+ * A time series or scatter plot's legend: one clickable row per trace that
+ * toggles the trace, with the backend's statistics of the shown window.
+ */
+export type SeriesLegend = {
+  columns: SeriesLegendColumn[];
+  rows: SeriesLegendRow[];
+  /** A new window's statistics are in flight: the old range's numbers dim. */
+  pending: boolean;
+  onToggle?: (key: string) => void;
 };
+
+type StatsSummaryTableProps =
+  | { rows: StatsSummaryRow[]; legend?: undefined }
+  | { legend: SeriesLegend; rows?: undefined };
 
 type DescribedRow = { count: number; label: string; stats: StatsSummary; unit?: string };
 
@@ -60,7 +78,54 @@ const COLUMNS: DataTableColumns<DescribedRow> = [
 
 /* === Components === */
 
-export function StatsSummaryTable({ rows }: StatsSummaryTableProps) {
+export function StatsSummaryTable(props: StatsSummaryTableProps) {
+  return props.legend ? (
+    <SeriesLegendTable legend={props.legend} />
+  ) : (
+    <DescribedStatsTable rows={props.rows} />
+  );
+}
+
+/* === Private Functions === */
+
+function rowLabel(row: DescribedRow): string {
+  return row.label;
+}
+
+function legendRowKey(row: SeriesLegendRow): string {
+  return row.key;
+}
+
+function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLegendRow> {
+  const legend = dataTableColumns<SeriesLegendRow>();
+  return columns.map(({ header, id }) => {
+    if (id === "trace") {
+      return legend.accessor("label", {
+        cell: ({ row }) => <TraceCell row={row.original} />,
+        enableSorting: false,
+        header,
+        id,
+        meta: { label: header, primary: true },
+      });
+    }
+    const read = (row: SeriesLegendRow) => (id === "cursor" ? row.cursor : row.cells[id]);
+    return legend.accessor(read, {
+      cell: ({ getValue, row }) => (
+        <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>
+          {getValue()}
+        </span>
+      ),
+      enableSorting: false,
+      header,
+      id,
+      meta: { align: "end", label: header, truncate: true, width: "w-24" },
+    });
+  }) as DataTableColumns<SeriesLegendRow>;
+}
+
+/* === Private Components === */
+
+function DescribedStatsTable({ rows }: { rows: StatsSummaryRow[] }) {
   const described = useMemo(
     () =>
       rows.map((row) => ({
@@ -89,13 +154,46 @@ export function StatsSummaryTable({ rows }: StatsSummaryTableProps) {
   );
 }
 
-/* === Private Functions === */
-
-function rowLabel(row: DescribedRow): string {
-  return row.label;
+function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
+  const columns = useMemo(() => legendColumns(legend.columns), [legend.columns]);
+  const onToggle = legend.onToggle;
+  return (
+    <DataTable
+      aria-label="Trace statistics"
+      className={cn(
+        "rounded-md bg-muted/20 [--table-surface:transparent] transition-opacity",
+        legend.pending && "opacity-50",
+      )}
+      columns={columns}
+      data={legend.rows}
+      emptyText="No traces recorded."
+      getRowId={legendRowKey}
+      inset="cell"
+      onRowClick={onToggle ? (row) => onToggle(row.key) : undefined}
+      stickyHeader={false}
+    />
+  );
 }
 
-/* === Private Components === */
+/** The trace's colour, filled while it draws and outlined while hidden. */
+function TraceCell({ row }: { row: SeriesLegendRow }) {
+  return (
+    <span
+      className={cn("flex min-w-0 items-center gap-2", row.hidden && "opacity-50")}
+      data-trace-hidden={row.hidden ? "true" : undefined}
+    >
+      <span
+        aria-hidden="true"
+        className="size-2.5 shrink-0 rounded-full border-2"
+        style={{ backgroundColor: row.hidden ? "transparent" : row.color, borderColor: row.color }}
+      />
+      <span className="truncate" title={row.label}>
+        {row.label}
+      </span>
+      {row.hidden ? <span className="sr-only">(hidden)</span> : null}
+    </span>
+  );
+}
 
 function StatsSummaryGrid({ row }: { row: StatsSummaryRow }) {
   const stats = row.statistics ?? describeValues(row.values);

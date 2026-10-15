@@ -17,6 +17,38 @@ export type StatsSummaryRow = {
   count?: number;
 };
 
+/** The backend's statistics of one trace over the rows of the shown window. */
+export type SeriesSummary = {
+  series_id: string;
+  count: number;
+  min?: number | null;
+  max?: number | null;
+  mean?: number | null;
+  median?: number | null;
+  std?: number | null;
+  rms?: number | null;
+  /** The x range the statistics cover, in the plot's cartesian x space. */
+  window?: { from: number; to: number } | null;
+};
+
+/** One trace of a time series or scatter plot, as its legend table lists it. */
+export type SeriesLegendTrace = {
+  key: string;
+  label: string;
+  color: string;
+};
+
+/** A legend table row: the trace, its visibility, and its formatted cells. */
+export type SeriesLegendRow = SeriesLegendTrace & {
+  hidden: boolean;
+  cursor: string;
+  cells: Record<SeriesStatistic, string>;
+};
+
+export type SeriesStatistic = (typeof SERIES_STATISTICS)[number][0];
+
+export type SeriesLegendColumn = { id: "trace" | "cursor" | SeriesStatistic; header: string };
+
 export type StatsSummary = {
   mean?: number;
   median?: number;
@@ -26,7 +58,113 @@ export type StatsSummary = {
   max?: number;
 };
 
+/* === Constants === */
+
+/** The legend table's statistics, in column order; count alone has no unit. */
+export const SERIES_STATISTICS = [
+  ["count", "Count"],
+  ["min", "Min"],
+  ["max", "Max"],
+  ["mean", "Mean"],
+  ["median", "Median"],
+  ["std", "Std"],
+  ["rms", "Rms"],
+] as const;
+
 /* === Public Functions === */
+
+/**
+ * The legend table's columns. The Cursor column reads the pointer over a live
+ * plot, so a report omits it; the unit sits in each value column's header.
+ */
+export function seriesLegendColumns(live: boolean, unit?: string | null): SeriesLegendColumn[] {
+  const withUnit = (title: string) => (unit ? `${title} (${unit})` : title);
+  return [
+    { id: "trace", header: "Trace" },
+    ...(live ? [{ id: "cursor" as const, header: withUnit("Cursor") }] : []),
+    ...SERIES_STATISTICS.map(([id, title]) => ({
+      id,
+      header: id === "count" ? title : withUnit(title),
+    })),
+  ];
+}
+
+/**
+ * One row per trace, in trace order. Statistics come from the backend summary
+ * with the trace's key; a trace without one shows dashes rather than numbers
+ * the browser computed from its reduced points.
+ */
+export function seriesLegendRows({
+  cursorValues,
+  hidden,
+  summaries,
+  traces,
+}: {
+  cursorValues?: readonly (number | null)[] | null;
+  hidden: ReadonlySet<string>;
+  summaries: readonly SeriesSummary[];
+  traces: readonly SeriesLegendTrace[];
+}): SeriesLegendRow[] {
+  const byKey = new Map(summaries.map((summary) => [summary.series_id, summary]));
+  return traces.map((trace, index) => {
+    const summary = byKey.get(trace.key);
+    const cells = Object.fromEntries(
+      SERIES_STATISTICS.map(([id]) => [
+        id,
+        id === "count"
+          ? summary
+            ? String(summary.count)
+            : "-"
+          : formatSummaryValue(summary?.[id]),
+      ]),
+    ) as Record<SeriesStatistic, string>;
+    const cursor = cursorValues?.[index];
+    return {
+      ...trace,
+      hidden: hidden.has(trace.key),
+      cursor: cursor === undefined || cursor === null ? "" : formatSummaryValue(cursor),
+      cells,
+    };
+  });
+}
+
+/** The hidden trace set after a click on one trace's row. */
+export function toggleTrace(hidden: ReadonlySet<string>, key: string): Set<string> {
+  const next = new Set(hidden);
+  if (!next.delete(key)) next.add(key);
+  return next;
+}
+
+/**
+ * The y of the drawn point nearest `at` on x, skipping gaps; `null` when the
+ * trace draws no point. A scatter's x need not ascend, so every point is read.
+ */
+export function nearestDrawnValue(
+  x: readonly number[],
+  y: readonly (number | null | undefined)[],
+  at: number,
+): number | null {
+  if (!Number.isFinite(at)) return null;
+  let best: number | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < x.length; index += 1) {
+    const value = y[index];
+    const gap = Math.abs(x[index] - at);
+    if (value != null && Number.isFinite(value) && gap < distance) {
+      best = value;
+      distance = gap;
+    }
+  }
+  return best;
+}
+
+/** One statistic as the legend table prints it; the unit is in the header. */
+export function formatSummaryValue(value: number | null | undefined): string {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return "-";
+  }
+  return value.toFixed(Math.abs(value) >= 100 ? 0 : 2);
+}
 
 export function describeValues(values: number[]): StatsSummary {
   if (!values.length) {
@@ -52,9 +190,6 @@ export function describeValues(values: number[]): StatsSummary {
 }
 
 export function formatStatValue(value: number | undefined, unit?: string): string {
-  if (value === undefined || !Number.isFinite(value)) {
-    return "-";
-  }
-  const precision = Math.abs(value) >= 100 ? 0 : 2;
-  return unit ? `${value.toFixed(precision)} ${unit}` : value.toFixed(precision);
+  const text = formatSummaryValue(value);
+  return unit && text !== "-" ? `${text} ${unit}` : text;
 }

@@ -102,6 +102,8 @@ export function documentPlotSpec({
     yFormat: plot.y_format ?? series[0]?.format ?? null,
     runStartedAt: epochSecondsOf(payload?.run_started_at),
     cycleStartedAt: epochSecondsOf(payload?.cycle_started_at),
+    summaries: payload?.summaries ?? null,
+    summaryPending: false,
   };
 }
 

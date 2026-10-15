@@ -9,6 +9,7 @@
 
 /* === Local Imports === */
 
+import type { SeriesSummary } from "@/lib/statistics";
 import type {
   DocumentAxisScale,
   DocumentFftOptions,
@@ -62,6 +63,10 @@ export type PlotCardSpec = {
   yFormat?: ValueFormat | null;
   runStartedAt?: number | null;
   cycleStartedAt?: number | null;
+  /** The backend's statistics of each trace over the shown window. */
+  summaries?: SeriesSummary[] | null;
+  /** A new window's statistics are in flight, so the shown ones are dimmed. */
+  summaryPending?: boolean;
 };
 
 export type PlotViewportMode = "fit" | "live";

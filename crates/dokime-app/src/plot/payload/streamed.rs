@@ -224,6 +224,7 @@ impl StreamedPlot {
             x_format: format_context.x_format.clone(),
             run_started_at: format_context.run_started_at.clone(),
             cycle_started_at: format_context.cycle_started_at.clone(),
+            summaries: Vec::new(),
         };
         finish_plot_payload(payload, &request)
     }

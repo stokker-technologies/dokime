@@ -19,7 +19,8 @@ pub use crate::plot::{
     PlotAnalysis, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation,
     PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload, PlotPayloadCursor,
     PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind,
-    PlotPoint, PlotSeries, SigmaBin, SigmaSeries, plot_payload_request_for_descriptor,
+    PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries,
+    plot_payload_request_for_descriptor,
 };
 pub(crate) use analysis::definitions as analysis_definitions;
 pub(crate) use request::request_telemetry_streams;
@@ -37,7 +38,7 @@ use futures_util::future::join_all;
 
 use crate::plot::{
     PlotPayloadContext, build_plot_payload, plot_payload_diagnostics, project_plot_payload,
-    resolved_format,
+    resolved_format, summarizes, window_summaries,
 };
 use crate::records::RecordEntry;
 use crate::{
@@ -59,6 +60,9 @@ const READ_CAPACITY_WAIT: std::time::Duration = std::time::Duration::from_secs(3
 /* === Macros === */
 
 /* === Type Aliases === */
+/// Each request's selected rows, and for an append frame whose series are
+/// summarized, every row of its window.
+type WindowedTelemetry = (Vec<Vec<TelemetrySample>>, Vec<Option<Vec<TelemetrySample>>>);
 
 /* === Structs === */
 
@@ -231,7 +235,7 @@ async fn query_plot_payloads_with_context(
         }
     };
     let (telemetry, records) = tokio::join!(telemetry_reads, record_reads);
-    let telemetry = telemetry?;
+    let (telemetry, window_telemetry) = telemetry?;
     let records = records?;
     let selected_records = requests
         .iter()
@@ -246,14 +250,34 @@ async fn query_plot_payloads_with_context(
             plot_records(&records, request, mode, captured)
         })
         .collect::<Vec<_>>();
+    // An append frame carries only the rows after its cursor, but its series
+    // summaries cover the whole window: they read the rows the cursor filter
+    // dropped from the same read.
+    let window_reads = window_telemetry
+        .into_iter()
+        .zip(&requests)
+        .map(|(telemetry, request)| {
+            let telemetry = telemetry?;
+            let captured = super::records::execution_capture(
+                context.snapshot.state().executions.values(),
+                request
+                    .scope
+                    .as_ref()
+                    .and_then(|scope| scope.test_execution_id.as_ref()),
+            );
+            let records = plot_records(&records, request, RuntimePlotQueryMode::Replace, captured);
+            Some((telemetry, records))
+        })
+        .collect::<Vec<_>>();
 
     join_all(
         requests
             .into_iter()
             .zip(telemetry)
             .zip(selected_records)
-            .zip(analyses)
-            .map(|(((request, telemetry), records), analysis)| async move {
+            .zip(window_reads.into_iter().zip(analyses))
+            .map(|(((request, telemetry), records), reads)| async move {
+                let (window, analysis) = reads;
                 if let Some(analysis) = &analysis {
                     analysis.check_evidence(&telemetry, &request)?;
                 }
@@ -261,6 +285,10 @@ async fn query_plot_payloads_with_context(
                 let mut telemetry = telemetry;
                 telemetry.extend(record_context_samples(&records, &request));
                 let telemetry = context.enrich_telemetry(telemetry, &request);
+                let window = window.map(|(mut telemetry, records)| {
+                    telemetry.extend(record_context_samples(&records, &request));
+                    (context.enrich_telemetry(telemetry, &request), records)
+                });
                 let revision = cursor_revision(&cursor);
                 let plot_id = request
                     .plot_id
@@ -286,7 +314,7 @@ async fn query_plot_payloads_with_context(
                 );
                 let custom = analysis.is_some();
                 let (payload, request) = tokio::task::spawn_blocking(move || {
-                    let payload = if custom {
+                    let mut payload = if custom {
                         project_plot_payload(
                             &telemetry,
                             &records,
@@ -303,6 +331,15 @@ async fn query_plot_payloads_with_context(
                             &format_context,
                         )
                     };
+                    if let Some((telemetry, records)) = window {
+                        payload.summaries = window_summaries(
+                            &telemetry,
+                            &records,
+                            &request,
+                            &generated_at,
+                            &format_context,
+                        );
+                    }
                     (payload, request)
                 })
                 .await?;
@@ -333,7 +370,7 @@ async fn collect_plot_telemetry(
     runtime: &RuntimeHandle,
     requests: &[PlotPayloadRequest],
     mode: RuntimePlotQueryMode,
-) -> crate::Result<Vec<Vec<TelemetrySample>>> {
+) -> crate::Result<WindowedTelemetry> {
     let groups = telemetry_read_groups(requests);
     let collected = join_all(groups.iter().map(|group| {
         let bounded = group
@@ -356,14 +393,22 @@ async fn collect_plot_telemetry(
     }))
     .await;
     let mut telemetry = vec![Vec::new(); requests.len()];
+    let mut window = vec![None; requests.len()];
     for (group, samples) in groups.into_iter().zip(collected) {
         let samples = samples?;
         for request_index in group.request_indexes {
-            telemetry[request_index] =
-                select_plot_telemetry(&samples, &requests[request_index], mode);
+            let request = &requests[request_index];
+            telemetry[request_index] = select_plot_telemetry(&samples, request, mode);
+            if mode == RuntimePlotQueryMode::Append && summarizes(request) {
+                window[request_index] = Some(select_plot_telemetry(
+                    &samples,
+                    request,
+                    RuntimePlotQueryMode::Replace,
+                ));
+            }
         }
     }
-    Ok(telemetry)
+    Ok((telemetry, window))
 }
 
 fn select_plot_telemetry(

@@ -22,7 +22,8 @@ pub use payload::{
     PlotAnalysis, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation,
     PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload, PlotPayloadCursor,
     PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind,
-    PlotPoint, PlotSeries, SigmaBin, SigmaSeries, plot_payload_request_for_descriptor,
+    PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries,
+    plot_payload_request_for_descriptor,
 };
 pub(crate) use payload::{
     PlotPayloadContext, aggregate_group_points, aggregate_method, build_plot_payload,
@@ -30,7 +31,7 @@ pub(crate) use payload::{
     expression_group_value, finish_plot_series, normalize_analysis_fields,
     normalize_histogram_value, numeric_value, parse_timestamp, plot_payload_diagnostics,
     plot_streams, project_plot_payload, resolved_format, retain_window, sample_matches_scope,
-    sample_value, stream_matches_alias,
+    sample_value, stream_matches_alias, summarizes, window_summaries,
 };
 pub(crate) use record_timing::RECORD_CONTEXT_STREAM;
 

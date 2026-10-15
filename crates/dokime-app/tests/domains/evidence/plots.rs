@@ -19,7 +19,8 @@
 // Local Imports
 use super::*;
 use dokime_app::runtime::query::{
-    DownsampleTechnique, PlotPayloadCursor, PlotPayloadRequest, RuntimePlotQueryMode,
+    DownsampleTechnique, PlotPayloadCursor, PlotPayloadRequest, PlotSeriesSummary, PlotWindow,
+    RuntimePlotQueryMode,
 };
 
 /* === Constants === */
@@ -165,6 +166,87 @@ pub(crate) async fn batch_request_cursors() {
         vec![4]
     );
     assert_eq!(envelopes[1].revision, 4);
+}
+
+// a time series plot summarizes each series over the exact rows of its window,
+// whatever the display budget, for the whole window, a trailing window, a
+// zoomed range, and an append frame that carries only the newest rows.
+pub(crate) async fn series_window_summaries() {
+    let root = tempdir().unwrap();
+    let (_owner, runtime) = booted(root.path()).await;
+    register_plot_suite(&runtime).await;
+    // `network_count` is the sample index, one sample per second from midnight.
+    runtime
+        .publish_telemetry_batch(samples("host.wifi.channel_occupancy", 10, None))
+        .await
+        .unwrap();
+    let midnight = 1_767_225_600.0;
+    let mut whole = wifi_request(None, Some(3), None);
+    whole.plot_type = Some(dokime::document::PlotType::TimeSeries);
+    whole.x_key = None;
+    whole.technique = DownsampleTechnique::MinMax;
+    let mut trailing = whole.clone();
+    trailing.window_s = Some(4.0);
+    let mut zoomed = whole.clone();
+    zoomed.summary_window = Some(PlotWindow {
+        from: midnight + 2.0,
+        to: midnight + 4.0,
+    });
+
+    let envelopes = runtime
+        .query_plot_payloads(
+            vec![whole.clone(), trailing, zoomed],
+            RuntimePlotQueryMode::Snapshot,
+        )
+        .await
+        .unwrap();
+
+    // The whole window: 0..=9, though the plot draws three points.
+    assert!(envelopes[0].payload.series[0].points.len() <= 3);
+    assert_summary(
+        &envelopes[0].payload.summaries,
+        10,
+        [0.0, 9.0, 4.5, 4.5, 8.25_f64.sqrt(), 28.5_f64.sqrt()],
+        [midnight, midnight + 9.0],
+    );
+    // The trailing four seconds: 5..=9.
+    assert_summary(
+        &envelopes[1].payload.summaries,
+        5,
+        [5.0, 9.0, 7.0, 7.0, 2.0_f64.sqrt(), 51.0_f64.sqrt()],
+        [midnight + 5.0, midnight + 9.0],
+    );
+    // The zoomed range: 2..=4, over the window the request named.
+    assert_summary(
+        &envelopes[2].payload.summaries,
+        3,
+        [
+            2.0,
+            4.0,
+            3.0,
+            3.0,
+            (2.0_f64 / 3.0).sqrt(),
+            (29.0_f64 / 3.0).sqrt(),
+        ],
+        [midnight + 2.0, midnight + 4.0],
+    );
+
+    // An append frame draws only the rows after its cursor, yet summarizes the
+    // whole window.
+    let mut append = whole;
+    append.cursor = Some(PlotPayloadCursor {
+        telemetry_streams: [("dokime.tel|-|-|host.wifi.channel_occupancy".to_owned(), 7)].into(),
+        record_sequence: None,
+    });
+    let appended = runtime
+        .query_plot_payloads(vec![append], RuntimePlotQueryMode::Append)
+        .await
+        .unwrap();
+    assert_eq!(appended[0].payload.series[0].raw_points, 3);
+    assert_eq!(
+        appended[0].payload.summaries,
+        envelopes[0].payload.summaries
+    );
 }
 
 pub(crate) async fn execution_plots_samples() {
@@ -315,6 +397,43 @@ pub(crate) async fn saturated_reads_plot() {
     assert!(series.raw_points > PLOT_POINTS);
     assert!(series.downsampled);
     assert!(series.points.len() <= PLOT_POINTS);
+}
+
+/// One summary of the `network_count` series: count, then min, max, mean,
+/// median, std and rms, over the inclusive x range `window`.
+fn assert_summary(
+    summaries: &[PlotSeriesSummary],
+    count: usize,
+    statistics: [f64; 6],
+    window: [f64; 2],
+) {
+    let [summary] = summaries else {
+        panic!("one summary per series: {summaries:?}");
+    };
+    assert_eq!(summary.series_id, "network_count");
+    assert_eq!(summary.count, count);
+    let actual = [
+        summary.min,
+        summary.max,
+        summary.mean,
+        summary.median,
+        summary.std,
+        summary.rms,
+    ];
+    for (actual, expected) in actual.into_iter().zip(statistics) {
+        let actual = actual.expect("a non-empty window has every statistic");
+        assert!(
+            (actual - expected).abs() < 1e-9,
+            "{actual} != {expected} in {summary:?}"
+        );
+    }
+    assert_eq!(
+        summary.window,
+        Some(PlotWindow {
+            from: window[0],
+            to: window[1],
+        })
+    );
 }
 
 async fn register_plot_suite(runtime: &RuntimeHandle) {
