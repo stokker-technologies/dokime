@@ -21,14 +21,16 @@ class Row2(_message.Message):
     def __init__(self, cases: _Optional[_Iterable[_Union[Row4, _Mapping]]] = ..., observed_cursor: _Optional[_Union[Row5, _Mapping]] = ...) -> None: ...
 
 class Row3(_message.Message):
-    __slots__ = ("selections", "max_cases", "case_ids")
+    __slots__ = ("selections", "max_cases", "case_ids", "cycle_id")
     SELECTIONS_FIELD_NUMBER: _ClassVar[int]
     MAX_CASES_FIELD_NUMBER: _ClassVar[int]
     CASE_IDS_FIELD_NUMBER: _ClassVar[int]
+    CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     selections: _containers.RepeatedCompositeFieldContainer[Row6]
     max_cases: int
     case_ids: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, selections: _Optional[_Iterable[_Union[Row6, _Mapping]]] = ..., max_cases: _Optional[int] = ..., case_ids: _Optional[_Iterable[str]] = ...) -> None: ...
+    cycle_id: str
+    def __init__(self, selections: _Optional[_Iterable[_Union[Row6, _Mapping]]] = ..., max_cases: _Optional[int] = ..., case_ids: _Optional[_Iterable[str]] = ..., cycle_id: _Optional[str] = ...) -> None: ...
 
 class Row4(_message.Message):
     __slots__ = ("case_id", "suite_id", "template_id", "metadata", "parameters", "ordinal", "selection_index")

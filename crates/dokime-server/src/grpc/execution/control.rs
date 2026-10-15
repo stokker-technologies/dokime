@@ -137,12 +137,17 @@ impl Operation for Create {
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
+        if request
+            .plan
+            .as_ref()
+            .is_some_and(|plan| !plan.cycle_id.is_empty())
+        {
+            return Err(Status::invalid_argument(
+                "a new cycle starts its own case numbering",
+            ));
+        }
         let snapshot = self.runtime.watch_state().latest();
-        let plan = planning::resolve(
-            &snapshot.state().suites,
-            request.plan.take(),
-            &CommandId::new(),
-        )?;
+        let plan = planning::resolve(snapshot.state(), request.plan.take(), &CommandId::new())?;
         let metadata = request
             .metadata
             .as_ref()
@@ -229,12 +234,18 @@ impl Operation for Append {
     ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let id = cycle_id(&request.cycle_id)?;
+        let mut plan = request.plan.take();
+        if let Some(plan) = plan.as_mut().filter(|plan| plan.case_ids.is_empty()) {
+            if plan.cycle_id.is_empty() {
+                plan.cycle_id.clone_from(&request.cycle_id);
+            } else if plan.cycle_id != request.cycle_id {
+                return Err(Status::invalid_argument(
+                    "selection plan numbers a different cycle",
+                ));
+            }
+        }
         let snapshot = self.runtime.watch_state().latest();
-        let plan = planning::resolve(
-            &snapshot.state().suites,
-            request.plan.take(),
-            &CommandId::new(),
-        )?;
+        let plan = planning::resolve(snapshot.state(), plan, &CommandId::new())?;
         self.runtime
             .append_cycle_templates(id, plan.suite, plan.cases, context)
             .await

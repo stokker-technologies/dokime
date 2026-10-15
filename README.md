@@ -329,7 +329,8 @@ selection or metadata flag overrides. For example, `plan register` accepts:
       "files": []
     }],
     "max_cases": 0,
-    "case_ids": []
+    "case_ids": [],
+    "cycle_id": ""
   },
   "idempotency_key": "campaign-1"
 }
@@ -337,12 +338,15 @@ selection or metadata flag overrides. For example, `plan register` accepts:
 
 `plan preview` uses the same `plan` without `idempotency_key`. The backend
 validates expansion and materializes cases; zero `max_cases` selects its limit
-of 1000. A plan selects templates or registered case IDs. For `cycle create`,
+of 1000. A plan selects templates or registered case IDs. Each materialized
+case is labelled `<Template Label> #<n>`, numbered per template from `#1`; a
+`cycle_id` continues that cycle's numbering for cases that will join it, and
+the case's parameter values stay on the case rather than in its label. For `cycle create`,
 save this canonical request as `cycle.json`:
 
 ```json
 {
-  "plan": {"selections": [], "max_cases": 0, "case_ids": ["CASE_ID"]},
+  "plan": {"selections": [], "max_cases": 0, "case_ids": ["CASE_ID"], "cycle_id": ""},
   "metadata": {
     "identifier": "campaign.1",
     "label": "Campaign 1",

@@ -230,6 +230,16 @@ pub(crate) fn overrides_and_sweeps() {
     )
     .unwrap();
     assert_eq!(output.case_count, 4);
+    let labels = output
+        .test_cases
+        .iter()
+        .map(|case| case.metadata.label.as_str())
+        .collect::<Vec<_>>();
+    let label = &template.metadata.label;
+    assert_eq!(
+        labels,
+        (1..=4).map(|n| format!("{label} #{n}")).collect::<Vec<_>>()
+    );
     for case in &output.test_cases {
         assert_eq!(case.parameters["serial"], Value::Null);
         assert!([Value::from(12.0), Value::from(24.0)].contains(&case.parameters["copy"]));

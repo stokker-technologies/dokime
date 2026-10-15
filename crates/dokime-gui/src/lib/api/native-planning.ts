@@ -94,7 +94,7 @@ export async function previewNativeTestCycle(
   session: SessionIdentity,
   request: PreviewTestCycleRequest,
 ): Promise<PreviewTestCycleResponse> {
-  const plan = await nativeSelectionPlan(session, request);
+  const plan = await nativeSelectionPlan(session, request, request.cycle_id ?? "");
   const reply = await rpc.planningPreviewSelection(session, { plan });
   return {
     case_count: reply.cases.length,
@@ -164,7 +164,8 @@ export async function appendNativeTestCycle(
   cycleId: string,
   request: StartTestCycleRequest,
 ): Promise<StartTestCycleResponse> {
-  const plan = await nativeSelectionPlan(session, request);
+  /* The cycle continues each template's case numbering. */
+  const plan = await nativeSelectionPlan(session, request, cycleId);
   const registered = await rpc.planningRegisterSelection(session, {
     plan,
     idempotencyKey: crypto.randomUUID(),
@@ -388,6 +389,7 @@ async function firstSelectedSuite(
 async function nativeSelectionPlan(
   session: SessionIdentity,
   request: PreviewTestCycleRequest | StartTestCycleRequest,
+  cycleId = "",
 ): Promise<Wire<NonNullable<Parameters<typeof rpc.planningPreviewSelection>[1]["plan"]>>> {
   const selections =
     request.selections && request.selections.length > 0
@@ -441,6 +443,7 @@ async function nativeSelectionPlan(
   return {
     selections: nativeSelections,
     maxCases,
+    cycleId,
   };
 }
 

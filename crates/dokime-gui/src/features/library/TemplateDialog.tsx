@@ -256,7 +256,13 @@ export function TemplateDialog({
     setBusy(true);
     setError(null);
     try {
-      setPreview(await previewTestCycle({ parameters: {}, selections: request().selections }));
+      setPreview(
+        await previewTestCycle({
+          cycle_id: appendTo,
+          parameters: {},
+          selections: request().selections,
+        }),
+      );
       setStep("summary");
     } catch (failure: unknown) {
       setError(messageOf(failure));
