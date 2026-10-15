@@ -250,6 +250,7 @@ pub fn materialized_case(
         metadata: metadata(identifier, label),
         parameters: BTreeMap::from([("fixture.result".to_owned(), Value::from(result))]),
         generation_index: 0,
+        label_number: 0,
     }
 }
 

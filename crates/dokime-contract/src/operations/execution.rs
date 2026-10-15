@@ -245,10 +245,10 @@ pub struct ArchiveReply {
     pub archived: bool,
 }
 
-// A label is operator metadata, so a rename is admitted in every lifecycle
-// state. A sealed cycle or execution takes it as a new revision; its sealed
-// report keeps the label it froze. An execution's label is its case's label,
-// so every attempt of that case in the cycle is renamed together.
+// A rename is admitted until the subject seals: a sealed, archived or History
+// cycle and an execution whose case has a sealed attempt refuse it with
+// FailedPrecondition, since the sealed report froze the label. An execution's
+// label is its case's label, so every attempt of that case is renamed together.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenameCycleRequest {
@@ -477,6 +477,9 @@ pub struct CycleSummary {
     pub updated_at: Option<Timestamp>,
     pub result: Option<ResultSummary>,
     pub archived: bool,
+    // The cycle report is sealed: its label no longer changes.
+    #[row(description = "The cycle report is sealed: its label no longer changes.")]
+    pub sealed: bool,
     // The admitted suite identity is retained in the bounded summary so shell
     // consumers need not embed every case/execution just to render its title.
     #[row(
@@ -577,6 +580,9 @@ pub struct ExecutionSummary {
     pub status: ExecutionStatus,
     pub ordinal: u64,
     pub archived: bool,
+    // The execution report is sealed: its case label no longer changes.
+    #[row(description = "The execution report is sealed: its case label no longer changes.")]
+    pub sealed: bool,
 }
 
 // Current-runtime detail. Published historical checkpoints are a separate API.

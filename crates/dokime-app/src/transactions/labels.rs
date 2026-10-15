@@ -30,12 +30,12 @@ use dokime::core::{RecordScope, TestCycleId, TestExecutionId, Timestamp, Value};
 /* === Type Aliases === */
 
 /* === Structs === */
-/// Renames one live cycle or execution.
+/// Renames one live cycle or execution until it seals.
 ///
-/// The label is operator metadata, so a rename is admitted in every lifecycle
-/// state, sealed included; the sealed report keeps the label it froze. An
-/// execution's label is its case's label, so every attempt of that case in
-/// the cycle takes the new label and the case lists follow.
+/// A sealed report froze the label, so a sealed or archived cycle and an
+/// execution whose case has a sealed attempt refuse the rename. An execution's
+/// label is its case's label, so every attempt of that case in the cycle takes
+/// the new label and the case lists follow.
 #[harmos::transaction(id = "dokime.execution.label.rename", version = 1, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RenameLabel {
@@ -63,13 +63,32 @@ impl Transaction<RuntimeState> for RenameLabel {
             return Err("label must not be empty".to_owned());
         }
         match &self.subject {
-            LabelSubject::Cycle(id) if !state.cycles.contains_key(id) => {
-                Err("cycle not found".to_owned())
+            LabelSubject::Cycle(id) => {
+                let cycle = state.cycles.get(id).ok_or("cycle not found")?;
+                if cycle.saved.is_some() {
+                    return Err("cycle is sealed; its report keeps the label it froze".to_owned());
+                }
+                if state.archived_cycles.contains(id) {
+                    return Err("cycle is archived; unarchive it before renaming".to_owned());
+                }
+                Ok(())
             }
-            LabelSubject::Execution(id) if !state.executions.contains_key(id) => {
-                Err("execution not found".to_owned())
+            LabelSubject::Execution(id) => {
+                if !state.executions.contains_key(id) {
+                    return Err("execution not found".to_owned());
+                }
+                if case_attempts(state, id).iter().any(|attempt| {
+                    state
+                        .executions
+                        .get(attempt)
+                        .is_some_and(|execution| execution.saved.is_some())
+                }) {
+                    return Err(
+                        "execution is sealed; its report keeps the label it froze".to_owned()
+                    );
+                }
+                Ok(())
             }
-            _ => Ok(()),
         }
     }
 
@@ -86,6 +105,13 @@ impl Transaction<RuntimeState> for RenameLabel {
                 }
             }
             LabelSubject::Execution(id) => {
+                if let Some(case_id) = state
+                    .executions
+                    .get(id)
+                    .map(|execution| execution.test_case_id.clone())
+                {
+                    state.suites.relabel_case(&case_id, &self.label);
+                }
                 for attempt in case_attempts(state, id) {
                     if let Some(execution) = state.executions.get_mut(&attempt) {
                         execution.snapshot.relabel_case(self.label.clone());

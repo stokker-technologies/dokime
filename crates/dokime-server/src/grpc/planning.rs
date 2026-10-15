@@ -30,7 +30,7 @@ use super::{
 use dokime_app::core::{CaseId, CommandId, TemplateId, TestCycleId};
 use dokime_app::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, SuiteRegistry, TestCase, TestSuite,
-    case_label_number, materialize_template_cases,
+    materialize_template_cases,
 };
 use dokime_app::state::RuntimeState;
 use dokime_app::{Error, RuntimeHandle};
@@ -392,8 +392,8 @@ fn entries<T>(
     Ok(values)
 }
 
-// Each template's next label number, continuing the numbering of the cycle
-// the plan extends.
+// Each template's next label number, continuing the stored case ordinals of
+// the cycle the plan extends.
 fn next_label_numbers(
     state: &RuntimeState,
     cycle_id: &str,
@@ -409,11 +409,12 @@ fn next_label_numbers(
         .get(&id)
         .ok_or_else(|| Status::not_found("cycle not found"))?;
     for case in state.cases_for_cycle(cycle) {
-        if let Some(number) = case_label_number(&case.metadata.label) {
+        // The Stored Ordinal, Not The Label: An Operator May Rename "X #2"
+        if case.label_number > 0 {
             let next = numbers
                 .entry(case.test_case_template_id.clone())
                 .or_insert(1);
-            *next = (*next).max(number + 1);
+            *next = (*next).max(case.label_number as usize + 1);
         }
     }
     Ok(numbers)

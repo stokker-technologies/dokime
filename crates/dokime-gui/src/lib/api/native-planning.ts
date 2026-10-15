@@ -256,6 +256,7 @@ async function assembleNativeCyclePlan(
       metadata: metadataJson(summary.metadata),
       generated_at: generatedAt,
       archived: summary.archived,
+      sealed: summary.sealed,
     },
     templates,
     cases: mappedCases,
@@ -294,6 +295,7 @@ export function mapNativeExecutionSummary(
   const testCase = cases.find((candidate) => candidate.case_id === item.caseId);
   return {
     archived: item.archived,
+    sealed: item.sealed,
     test_execution_id: item.executionId,
     test_cycle_id: cycle.cycleId,
     queue_item_id: item.caseId,

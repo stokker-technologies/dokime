@@ -17,8 +17,7 @@ pub mod suite;
 /* === Re-Exports === */
 pub use case_materialization::{
     CaseMaterializationError, CaseMaterializationOptions, CaseMaterializationOutput,
-    CaseMaterializationSelection, DEFAULT_MATERIALIZED_CASE_CAP, case_label_number,
-    materialize_template_cases,
+    CaseMaterializationSelection, DEFAULT_MATERIALIZED_CASE_CAP, materialize_template_cases,
 };
 pub use conditions::{RuntimeCondition, RuntimeConditionEvaluation};
 pub use parameters::{

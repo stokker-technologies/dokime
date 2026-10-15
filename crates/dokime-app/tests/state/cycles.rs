@@ -135,6 +135,7 @@ fn admitted() -> (RuntimeState, TestCycleId) {
         suite: Some(suite.metadata.clone()),
         parameters: BTreeMap::from([("voltage".into(), Value::from(12_i64))]),
         generation_index: 0,
+        label_number: 0,
     };
     let mut definition = TestSuiteDefinition::new("snapshot.suite", suite).unwrap();
     definition.workflow = Some("fixture.workflow".into());

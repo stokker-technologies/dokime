@@ -110,7 +110,8 @@ export type CycleWorkspaceHeaderProps = {
   /** False in the frozen report: no menu, no prompts. */
   live?: boolean;
   menu: CycleMenu | ExecutionMenu;
-  /** Renames the node; absent, or with `live={false}`, the title is plain. */
+  /** Renames the node; absent once it sealed or archived, or with
+   *  `live={false}`, the title is plain. */
   onRename?: (label: string) => Promise<unknown>;
   /** The prompt band, full width under the identity row. */
   prompts?: ReactNode;

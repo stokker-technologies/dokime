@@ -48,6 +48,7 @@ pub struct Case {
     #[serde(with = "values::map")]
     parameters: Vec<values::Cell>,
     generation_index: u64,
+    label_number: u64,
 }
 
 /* === Enums === */
@@ -90,6 +91,7 @@ impl TryFrom<&TestCase> for Case {
                 .transpose()?,
             parameters: values::encode(&case.parameters)?,
             generation_index: case.generation_index,
+            label_number: case.label_number,
         })
     }
 }
@@ -121,6 +123,7 @@ impl TryFrom<Case> for TestCase {
                 )?
             },
             generation_index: case.generation_index,
+            label_number: case.label_number,
         })
     }
 }

@@ -342,13 +342,14 @@ of 1000. A plan selects templates or registered case IDs. Each materialized
 case is labelled `<Template Label> #<n>`, numbered per template from `#1`; a
 `cycle_id` continues that cycle's numbering for cases that will join it, and
 the case's parameter values stay on the case rather than in its label.
-Operators can rename a cycle or an execution at any point, sealed included,
-with the pencil beside its title in the desktop app or with
-`Execution/RenameCycle` and `Execution/RenameExecution`. Renaming an execution
-renames its case, every attempt included, and each rename is recorded as an
-`operator.label_edited` record carrying the old and new label. A sealed report
-keeps the label it froze. For `cycle create`, save this canonical request as
-`cycle.json`:
+Until a cycle or execution seals, operators can rename it with the pencil
+beside its title in the desktop app or with `Execution/RenameCycle` and
+`Execution/RenameExecution`; a sealed, archived or History subject refuses with
+`FailedPrecondition`. Renaming an execution renames its case, every attempt
+included, and each rename is recorded as an `operator.label_edited` record
+carrying the old and new label. Numbering continues from each case's stored
+ordinal, so a renamed `#2` is never reused. For `cycle create`, save this
+canonical request as `cycle.json`:
 
 ```json
 {

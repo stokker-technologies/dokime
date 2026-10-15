@@ -660,9 +660,9 @@ fn execution_contract() {
         run_scenario(execution::lifecycle::stop_archive_state, false, None, false);
     }
     {
-        eprintln!("Scenario: execution::lifecycle::rename_sealed_labels");
+        eprintln!("Scenario: execution::lifecycle::rename_refuses_sealed");
         run_scenario(
-            execution::lifecycle::rename_sealed_labels,
+            execution::lifecycle::rename_refuses_sealed,
             false,
             None,
             false,

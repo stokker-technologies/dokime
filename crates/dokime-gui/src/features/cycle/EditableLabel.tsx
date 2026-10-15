@@ -14,7 +14,8 @@
  * into an input of the same type size: Enter saves through the runtime, Escape
  * drops the draft, and a refusal stays beside the input instead of a toast.
  * `label-editor-model` owns what each key does. Without `onRename` — the
- * frozen report, a case that never ran — the title is plain text.
+ * frozen report, a sealed or archived subject, a case that never ran — the
+ * title is plain text.
  */
 
 /* === External Imports === */

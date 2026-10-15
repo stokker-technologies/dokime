@@ -66,6 +66,7 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
         metadata: metadata("case.fixture", "Fixture Case"),
         parameters: BTreeMap::from([("fixture.result".to_owned(), Value::from("passed"))]),
         generation_index: 0,
+        label_number: 0,
     };
     let test_execution_id = dokime::core::TestExecutionId::new();
     let mut execution = fixture_test_execution(
@@ -327,6 +328,7 @@ fn fixture_test_execution(
         suite: None,
         parameters: Default::default(),
         generation_index: 0,
+        label_number: 0,
     };
 
     TestExecution {

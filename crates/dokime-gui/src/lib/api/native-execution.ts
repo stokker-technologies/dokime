@@ -405,6 +405,7 @@ function mapNativeExecution(
         }
       : null,
     archived: item.archived,
+    sealed: item.sealed,
     test_execution_id: item.executionId,
     test_cycle_id: detail.cycleId,
     queue_item_id: item.caseId,

@@ -26,7 +26,7 @@ use super::{ORDINARY, RenameCycleRequest, RenameReply};
 /* === Type Aliases === */
 
 /* === Structs === */
-// Renames one live cycle in any lifecycle state, sealed included.
+// Renames one live cycle until it seals or is archived.
 #[harmos::operation(request = RenameCycleRequest, response = RenameReply, id = "dokime.execution.rename_cycle", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "RenameCycle"))]

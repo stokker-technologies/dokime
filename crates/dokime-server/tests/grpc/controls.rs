@@ -307,7 +307,50 @@ pub(crate) async fn labels_rename_state() {
         );
     }
 
-    // The Completed Cycle And Its Execution Take Their New Labels
+    // Before The Run Seals, The Cycle And Its Execution Take Their New Labels
+    let reply = client
+        .unary::<contracts::execution::RenameCycle>(authenticated(rename))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(reply.label, "Charger Burn-In");
+    let execution_id = attempts(&mut client, &id).await[0].execution_id.clone();
+    let execution = contracts::execution::RenameExecutionRequest {
+        execution_id,
+        label: "Charger Soak".into(),
+        context: None,
+    };
+    let reply = client
+        .unary::<contracts::execution::RenameExecution>(authenticated(execution.clone()))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(reply.label, "Charger Soak");
+    let cycle = client
+        .unary::<contracts::execution::GetCycle>(authenticated(
+            contracts::execution::GetCycleRequest {
+                cycle_id: id.clone(),
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(cycle.metadata.unwrap().label, "Charger Burn-In");
+    assert!(!cycle.sealed);
+    let cases = client
+        .unary::<contracts::execution::ListCases>(authenticated(
+            contracts::execution::ListCasesRequest {
+                cycle_id: id.clone(),
+                ..Default::default()
+            },
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases;
+    assert_eq!(cases[0].metadata.as_ref().unwrap().label, "Charger Soak");
+
+    // Once The Run Seals, Both Refuse With FailedPrecondition
     client
         .unary::<contracts::execution::RunCase>(authenticated(
             contracts::execution::RunCaseRequest {
@@ -324,47 +367,44 @@ pub(crate) async fn labels_rename_state() {
         .unwrap();
     gate.release.notify_one();
     completed(&mut client, &id).await;
-    let reply = client
-        .unary::<contracts::execution::RenameCycle>(authenticated(rename))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(reply.label, "Charger Burn-In");
-    let execution_id = attempts(&mut client, &id).await[0].execution_id.clone();
-    let reply = client
-        .unary::<contracts::execution::RenameExecution>(authenticated(
-            contracts::execution::RenameExecutionRequest {
-                execution_id,
-                label: "Charger Soak".into(),
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !client
+            .unary::<contracts::execution::GetCycle>(authenticated(
+                contracts::execution::GetCycleRequest {
+                    cycle_id: id.clone(),
+                },
+            ))
+            .await
+            .unwrap()
+            .into_inner()
+            .sealed
+        {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the completed cycle seals");
+    assert!(attempts(&mut client, &id).await[0].sealed);
+    let late = client
+        .unary::<contracts::execution::RenameCycle>(authenticated(
+            contracts::execution::RenameCycleRequest {
+                cycle_id: id.clone(),
+                label: "Too Late".into(),
                 context: None,
             },
         ))
         .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(reply.label, "Charger Soak");
-    let cycle = client
-        .unary::<contracts::execution::GetCycle>(authenticated(
-            contracts::execution::GetCycleRequest {
-                cycle_id: id.clone(),
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(cycle.metadata.unwrap().label, "Charger Burn-In");
-    let cases = client
-        .unary::<contracts::execution::ListCases>(authenticated(
-            contracts::execution::ListCasesRequest {
-                cycle_id: id.clone(),
-                ..Default::default()
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .cases;
-    assert_eq!(cases[0].metadata.as_ref().unwrap().label, "Charger Soak");
+        .unwrap_err();
+    assert_eq!(late.code(), Code::FailedPrecondition);
+    assert!(late.message().contains("sealed"), "{}", late.message());
+    assert_eq!(
+        client
+            .unary::<contracts::execution::RenameExecution>(authenticated(execution))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::FailedPrecondition
+    );
     assert_eq!(
         client
             .unary::<contracts::execution::RenameExecution>(authenticated(

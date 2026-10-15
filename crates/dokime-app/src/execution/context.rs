@@ -256,12 +256,11 @@ impl ExecutionContext {
             || members.len() != self.cycle.execution_order.len()
             || cases.len() != self.cycle.cases.len()
             || !members.contains(&execution.test_execution_id)
-            // Identity, Not Equality: An Operator Rename Relabels The Case After Capture
             || !self
                 .cycle
                 .cases
                 .iter()
-                .any(|case| case.test_case_id == execution.snapshot.case().test_case_id)
+                .any(|case| case == execution.snapshot.case())
         {
             return Err(invalid(
                 "captured navigation differs from frozen membership",

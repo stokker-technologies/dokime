@@ -535,6 +535,7 @@ pub(super) fn summary(
             CycleStatus::Stopped => wire::CycleStatus::Stopped,
         },
         archived: state.archived_cycles.contains(&cycle.test_cycle_id),
+        sealed: cycle.saved.is_some(),
         case_count: state.cases_for_cycle(cycle).count() as u64,
         execution_count: cycle.execution_ids.len() as u64,
         continue_on_failure: cycle.continue_on_failure,
@@ -885,6 +886,7 @@ pub(super) fn execution_summary(
         case_id: execution.test_case_id.to_string(),
         status: execution_status(&execution.status),
         ordinal: ordinal as u64,
+        sealed: execution.saved.is_some(),
     }
 }
 

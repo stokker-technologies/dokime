@@ -17,7 +17,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::transactions::labels::{LabelSubject, RenameLabel, case_attempts};
+use crate::transactions::labels::{LabelSubject, RenameLabel};
 use crate::{CommandContext, Error, RuntimeHandle, unavailable_rejection};
 use dokime::core::{TestCycleId, TestExecutionId, Timestamp};
 
@@ -35,7 +35,7 @@ use dokime::core::{TestCycleId, TestExecutionId, Timestamp};
 
 /* === Implementations === */
 impl RuntimeHandle {
-    /// Renames one live cycle in any lifecycle state and saves its new revision.
+    /// Renames one live cycle until it seals and saves its new revision.
     pub async fn rename_cycle(
         &self,
         test_cycle_id: TestCycleId,
@@ -44,7 +44,11 @@ impl RuntimeHandle {
     ) -> Result<String, Error> {
         let label = admitted_label(&label)?;
         if !self.state_read().cycles.contains_key(&test_cycle_id) {
-            return Err(Error::not_found("not_found", "cycle not found"));
+            return Err(if self.stored_cycle_exists(&test_cycle_id).await? {
+                Error::conflict("conflict", "cycle is in History; its label is sealed")
+            } else {
+                Error::not_found("not_found", "cycle not found")
+            });
         }
         self.commit_label(
             LabelSubject::Cycle(test_cycle_id.clone()),
@@ -59,8 +63,8 @@ impl RuntimeHandle {
         Ok(label)
     }
 
-    /// Renames one live execution's case in any lifecycle state and saves a
-    /// new revision of every attempt of that case.
+    /// Renames one live execution's case until an attempt of it seals and
+    /// saves a new revision of every attempt of that case.
     pub async fn rename_execution(
         &self,
         test_execution_id: TestExecutionId,
@@ -74,7 +78,11 @@ impl RuntimeHandle {
             .get(&test_execution_id)
             .map(|execution| execution.test_cycle_id.clone())
         else {
-            return Err(Error::not_found("not_found", "execution not found"));
+            return Err(if self.stored_execution_exists(&test_execution_id).await? {
+                Error::conflict("conflict", "execution is in History; its label is sealed")
+            } else {
+                Error::not_found("not_found", "execution not found")
+            });
         };
         self.commit_label(
             LabelSubject::Execution(test_execution_id.clone()),
@@ -82,25 +90,9 @@ impl RuntimeHandle {
             context,
         )
         .await?;
-        // Unsealed Attempts Checkpoint With Their Cycle; Sealed Ones Need Their Own Revision
-        let sealed = {
-            let state = self.state_read();
-            case_attempts(&state, &test_execution_id)
-                .into_iter()
-                .filter(|id| {
-                    state
-                        .executions
-                        .get(id)
-                        .is_some_and(|execution| execution.saved.is_some())
-                })
-                .collect::<Vec<_>>()
-        };
+        // Every Attempt Is Unsealed, So They All Checkpoint With Their Cycle
         self.execution_storage
             .save_cycle(cycle_id)
-            .await
-            .map_err(|error| unsaved(&error))?;
-        self.execution_storage
-            .save_sealed_executions(sealed)
             .await
             .map_err(|error| unsaved(&error))?;
         Ok(label)

@@ -301,7 +301,7 @@ pub(crate) async fn stop_archive_state() {
     );
 }
 
-pub(crate) async fn rename_sealed_labels() {
+pub(crate) async fn rename_refuses_sealed() {
     use dokime_app::runtime::query::cycles::{CycleFilter, CycleOrder, select_cycles};
     let root = tempdir().unwrap();
     let (_owner, runtime) =
@@ -309,20 +309,14 @@ pub(crate) async fn rename_sealed_labels() {
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;
     let test_cycle_id = start_cycle(&runtime, suite, false).await;
-    runtime
-        .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
-        .await;
-    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
-    let sealed = wait_for_cycle_seal(&runtime, &test_cycle_id).await;
-    let first = sealed.test_executions[0].clone();
-    let test_case_id = first.test_case_id.clone();
-    let old_cycle_label = sealed.metadata.label.clone();
+    let ready = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let first = ready.test_executions[0].clone();
+    let old_cycle_label = ready.metadata.label.clone();
     let old_case_label = first.snapshot.case().metadata.label.clone();
-    let before = crate::support::native::checkpoint(&runtime, &first.test_execution_id).await;
     let cycle_before = stored_cycle(&runtime, &test_cycle_id).await;
     let mut records = runtime.subscribe_records();
 
-    // A Sealed Cycle And Execution Take A Rename As Operator Metadata
+    // Before The Run Seals, Both Subjects Take A New Label
     let cycle_label = runtime
         .rename_cycle(
             test_cycle_id.clone(),
@@ -343,9 +337,8 @@ pub(crate) async fn rename_sealed_labels() {
     assert_eq!(case_label, "Charger Soak");
 
     // Each Rename Is An Evidence Record Carrying Both Labels
-    let edits = label_edits(&mut records, 2).await;
     assert_eq!(
-        edits,
+        label_edits(&mut records, 2).await,
         [
             (
                 Some(test_cycle_id.clone()),
@@ -362,55 +355,77 @@ pub(crate) async fn rename_sealed_labels() {
         ]
     );
 
-    // Both Persist As New Revisions; The Seals Stay As They Were
+    // The Cycle Persists A New Revision, And Lists Read The New Labels
     let cycle_after = stored_cycle(&runtime, &test_cycle_id).await;
     assert_eq!(cycle_after.0.metadata.label, "Charger Burn-In");
     assert_ne!(
         cycle_after.1, cycle_before.1,
         "the cycle has a new revision"
     );
-    assert_eq!(cycle_after.0.saved, cycle_before.0.saved);
-    let after = crate::support::native::checkpoint(&runtime, &first.test_execution_id).await;
-    assert_ne!(
-        after.version, before.version,
-        "the execution has a new revision"
-    );
-    let revision = crate::support::native::open(&runtime, &after).await;
+    {
+        let snapshot = runtime.watch_state().latest();
+        let listed = select_cycles(
+            snapshot.state(),
+            &CycleFilter::default(),
+            CycleOrder::default(),
+        );
+        let cycle = listed
+            .iter()
+            .find(|cycle| cycle.test_cycle_id == test_cycle_id)
+            .unwrap();
+        assert_eq!(cycle.metadata.label, "Charger Burn-In");
+        assert_eq!(
+            snapshot
+                .state()
+                .cases_for_cycle(cycle)
+                .map(|case| case.metadata.label.as_str())
+                .collect::<Vec<_>>(),
+            ["Charger Soak"]
+        );
+    }
+
+    // The Sealed Execution Keeps The Label It Ran Under
+    runtime
+        .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
+        .await;
+    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    wait_for_cycle_seal(&runtime, &test_cycle_id).await;
+    let checkpoint = crate::support::native::checkpoint(&runtime, &first.test_execution_id).await;
+    let sealed = crate::support::native::open(&runtime, &checkpoint).await;
     assert_eq!(
-        revision.execution().snapshot.case().metadata.label,
+        sealed.execution().snapshot.case().metadata.label,
         "Charger Soak"
     );
-    assert_eq!(revision.execution().saved, first.saved);
-    revision
-        .snapshot(runtime.storage())
-        .await
-        .unwrap()
-        .context()
-        .expect("the frozen capture still opens under the new label");
+    drop(sealed);
 
-    // Lists Read The New Labels
-    let snapshot = runtime.watch_state().latest();
-    let listed = select_cycles(
-        snapshot.state(),
-        &CycleFilter::default(),
-        CycleOrder::default(),
+    // Once Sealed, Neither Subject Can Be Renamed
+    let refused = |result: Result<String, dokime_app::Error>| match result {
+        Err(dokime_app::Error::Conflict { message, .. }) => message,
+        other => panic!("a sealed subject refuses the rename: {other:?}"),
+    };
+    let cycle = refused(
+        runtime
+            .rename_cycle(
+                test_cycle_id.clone(),
+                "Too Late".into(),
+                CommandContext::default(),
+            )
+            .await,
     );
-    let cycle = listed
-        .iter()
-        .find(|cycle| cycle.test_cycle_id == test_cycle_id)
-        .unwrap();
-    assert_eq!(cycle.metadata.label, "Charger Burn-In");
-    assert_eq!(
-        snapshot
-            .state()
-            .cases_for_cycle(cycle)
-            .map(|case| case.metadata.label.as_str())
-            .collect::<Vec<_>>(),
-        ["Charger Soak"]
+    assert!(cycle.contains("sealed"), "{cycle}");
+    let execution = refused(
+        runtime
+            .rename_execution(
+                first.test_execution_id.clone(),
+                "Too Late".into(),
+                CommandContext::default(),
+            )
+            .await,
     );
-    drop(snapshot);
+    assert!(execution.contains("sealed"), "{execution}");
 
-    // A Re-Run Inherits The Label, And Renaming It Renames Every Attempt
+    // A Re-Run Shares The Sealed Case, So It Refuses Too
+    let test_case_id = first.test_case_id.clone();
     runtime
         .rerun_cycle_case(
             test_cycle_id.clone(),
@@ -420,30 +435,26 @@ pub(crate) async fn rename_sealed_labels() {
         .await
         .unwrap();
     let rerun = cycle_snapshot(&runtime, &test_cycle_id).await;
-    let attempt = rerun
-        .test_executions
-        .last()
-        .unwrap()
-        .test_execution_id
-        .clone();
-    assert_ne!(attempt, first.test_execution_id);
-    assert_eq!(
-        rerun.test_executions[1].snapshot.case().metadata.label,
-        "Charger Soak"
+    let attempt = rerun.test_executions.last().unwrap().clone();
+    assert_ne!(attempt.test_execution_id, first.test_execution_id);
+    assert_eq!(attempt.snapshot.case().metadata.label, "Charger Soak");
+    refused(
+        runtime
+            .rename_execution(
+                attempt.test_execution_id,
+                "Too Late".into(),
+                CommandContext::default(),
+            )
+            .await,
     );
-    runtime
-        .rename_execution(attempt, "Charger Soak 2".into(), CommandContext::default())
-        .await
-        .unwrap();
-    let renamed = cycle_snapshot(&runtime, &test_cycle_id).await;
+    let after = cycle_snapshot(&runtime, &test_cycle_id).await;
+    assert_eq!(after.metadata.label, "Charger Burn-In");
     assert!(
-        renamed
+        after
             .test_executions
             .iter()
-            .all(|execution| execution.snapshot.case().metadata.label == "Charger Soak 2")
+            .all(|execution| execution.snapshot.case().metadata.label == "Charger Soak")
     );
-    let sealed_again = crate::support::native::checkpoint(&runtime, &first.test_execution_id).await;
-    assert_ne!(sealed_again.version, after.version);
 }
 
 pub(crate) async fn rename_refuses_empty() {

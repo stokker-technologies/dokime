@@ -141,12 +141,10 @@ impl Materialization<'_> {
                 "materialize:{}:{registration_id}:{}:{generation_index}",
                 self.suite_id, template.test_case_template_id
             ));
+            let label_number = self.first_label_number + cases.len();
             let metadata = Metadata::new(
                 template.metadata.identifier.clone(),
-                case_label(
-                    &template.metadata.label,
-                    self.first_label_number + cases.len(),
-                ),
+                case_label(&template.metadata.label, label_number),
                 template.metadata.description.clone(),
             );
 
@@ -158,6 +156,7 @@ impl Materialization<'_> {
                 suite: None,
                 parameters,
                 generation_index,
+                label_number: label_number as u64,
             });
 
             return Ok(());
@@ -184,11 +183,6 @@ pub fn materialize_template_cases(
     options: CaseMaterializationOptions,
 ) -> crate::Result<CaseMaterializationOutput> {
     materialize_template_cases_detail(suite_id, template, selection, options).map_err(Into::into)
-}
-
-/// Sequence number a materialized case label carries, `n` in `<Template Label> #<n>`.
-pub fn case_label_number(label: &str) -> Option<usize> {
-    label.rsplit_once(" #")?.1.parse().ok()
 }
 
 /* === Private Functions === */

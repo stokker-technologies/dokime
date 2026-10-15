@@ -26,7 +26,7 @@ use super::{ORDINARY, RenameExecutionRequest, RenameReply};
 /* === Type Aliases === */
 
 /* === Structs === */
-// Renames one live execution's case in any lifecycle state, sealed included.
+// Renames one live execution's case until an attempt of it seals.
 #[harmos::operation(request = RenameExecutionRequest, response = RenameReply, id = "dokime.execution.rename_execution", version = 1,
         policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "RenameExecution"))]

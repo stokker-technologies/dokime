@@ -96,7 +96,7 @@ export type ExecutionSectionsProps = {
   titlePrefix: string;
   /** The execution's label: its case's, which the pencil renames. */
   label: string;
-  /** Renames the execution; `null` for a case that has not run. */
+  /** Renames the execution; `null` for a case that has not run or has sealed. */
   onRename: ((label: string) => Promise<unknown>) | null;
   menu: ExecutionMenu;
   /** The cycle's answerable prompts; the page keeps its own and the cycle's. */
