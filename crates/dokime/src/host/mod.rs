@@ -19,7 +19,8 @@ pub use dokime_contract::telemetry::{HOST_STREAMS, HostTelemetryStream, host_str
 
 // The records the host itself files, beside the streams it samples.
 pub use crate::records::host::{
-    TargetAcquired, TargetLost, TestCycleCompleted, ToolConnectionAcquired, ToolConnectionLost,
+    ProcessExited, StepHandleCancelled, TargetAcquired, TargetLost, TestCycleCompleted,
+    ToolConnectionAcquired, ToolConnectionLost,
 };
 
 /* === Imports === */

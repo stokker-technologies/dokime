@@ -13,6 +13,8 @@
 
 /* === Imports === */
 // Standard Library Imports
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 // Third Party Imports
 use serde::{Deserialize, Serialize};
@@ -54,6 +56,10 @@ pub struct Device {
     pub supply: Supply,
     pub power: Power,
     pub fault: Option<Fault>,
+    // The file the charger appends one status line to per sample, the way a
+    // real unit writes its own log.
+    #[serde(skip)]
+    pub log: Option<PathBuf>,
 }
 
 /* === Enums === */
@@ -109,6 +115,11 @@ impl Device {
         })
     }
 
+    // Logs every sample to this file from now on.
+    pub fn logging(&mut self, path: impl AsRef<Path>) {
+        self.log = Some(path.as_ref().to_owned());
+    }
+
     pub fn start(&mut self) -> Result<(), Error> {
         if self.fault.is_some() {
             return Err(Error::FaultLatched);
@@ -154,6 +165,22 @@ impl Device {
         } else {
             0.0
         };
+
+        if let Some(log) = &self.log {
+            // A log the charger cannot write loses its lines, never the sample.
+            let line = format!(
+                "t={elapsed_s:.3} state={:?} input_power_w={input_power_w:.1}\n",
+                self.power
+            );
+            let written = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(log)
+                .and_then(|mut file| file.write_all(line.as_bytes()));
+            if let Err(error) = written {
+                tracing::warn!(%error, log = %log.display(), "the charger log was not written");
+            }
+        }
 
         Reading {
             elapsed_s,

@@ -99,6 +99,9 @@ struct Filing;
 
 struct Lease;
 
+// The step built-in a suite plugin requires; this host watches no files.
+struct Watching;
+
 struct Publishing {
     hosting: Arc<Hosting>,
     native: Option<Publication>,
@@ -304,6 +307,31 @@ impl Operation for Filing {
     }
 }
 
+impl Operation for Watching {
+    type Declaration = dokime::operations::files::WatchFile;
+    type Resources = Hosting;
+    type Error = harmos::Error;
+    type Context<'a> = Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(_: Arc<Hosting>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
+        Ok(Self)
+    }
+
+    async fn run<'ctx>(
+        &mut self,
+        _: Self::Context<'ctx>,
+        _: &mut dokime::operations::files::WatchFileRequest,
+        _: &mut (),
+    ) -> harmos::Result<harmos::operations::Response<dokime::operations::files::WatchFileOutcome>>
+    {
+        Err(harmos::Error::InvalidInput {
+            field: "file watch",
+            reason: "the test host watches no files",
+        })
+    }
+}
+
 impl harmos::operations::Declares for Lease {
     type Declaration = LeaseStream;
 }
@@ -452,6 +480,11 @@ impl PluginLifecycle for Host {
                 ),
                 self.operations.register_wire_operation::<Publishing>(
                     "fixture.publications",
+                    Lanes::Open,
+                    Arc::clone(&self.hosting),
+                ),
+                self.operations.register_wire_operation::<Watching>(
+                    "fixture.files",
                     Lanes::Open,
                     Arc::clone(&self.hosting),
                 ),
@@ -1077,6 +1110,7 @@ fn executable_declares_identity_and_execution_routes() {
             "mini-sidecar.system",
             "mini.charger.protection.samples",
             "mini.charger.recovery.samples",
+            "mini.charger.startup.log",
             "mini.charger.startup.samples",
             "mini.charger.steady.events",
             "mini.charger.steady.samples",

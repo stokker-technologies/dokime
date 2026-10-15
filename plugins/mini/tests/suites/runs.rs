@@ -540,7 +540,11 @@ async fn drain_runtime<T: SidecarTemplate>(
             .filter(|line| line.message.as_str() == "Charger resources released")
             .count();
         let samples = workflow.take_local_samples(token).unwrap();
-        if stop_after_sample && !stopped && !samples.is_empty() {
+        // A measured sample, not a row read from the charger's log.
+        let measured = samples
+            .iter()
+            .any(|sample| sample.stream.as_str() != "mini.charger.startup.log");
+        if stop_after_sample && !stopped && measured {
             workflow.cancel(token);
             stopped = true;
         }

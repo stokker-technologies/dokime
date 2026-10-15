@@ -17,6 +17,43 @@ Plugin ownership belongs to `dokime-plugin`; document composition belongs to `do
 - One `Environment` per execution carries what the run was given — its inputs decoded into the template's own `#[dokime::parameters]` struct, settings, secrets, the caller that reaches operations through the host, the attempt's own handles, the artifact grant, the stream grant — and every stage reads it the same way. `InitializationContext`, `ResourceContext`, `TraceabilityContext`, `StepContext`, `ObserverContext` and `CleanupContext` are stage aliases over one `Context`; only a step may `prompt` and `listen`, a step or a template observer may `publish` and reach `stream::<Row>()`, only cleanup has `reason()`, and only the stages that run after `resources` reach `ctx.resources()`. Every one of those six — `initialize`, `resources`, `traceability`, a step, an observer, `cleanup` — also reaches `ctx.document()`, adding to what the template's `document()` declared; a criterion reaches no document at all, deciding only from what the run already produced.
 - **A template never names the plugin.** It declares the operations it calls — `requires = Required` on `#[dokime::template]`, a `#[dokime::catalog]` of operation types, the way it already declares `subscribes = Inputs` and `records = Records` — and `ctx.call::<Operation>(request)` is the only road to the plugin from any stage. The dependency runs plugin → suites → templates → operation contracts, so a suite can be served by any plugin that provides or requires what its templates call. There is no `plugin = …` argument and no `ctx.plugin()` on a template stage.
 - `ctx.call::<ReadChamber>(()).await?` is a Harmos child call routed by the host under the operation's declared policy; it carries the run's `ExecutionScope { execution, stage, route }` in the call context, from which the serving operation derives idempotency keys (`ExecutionScope::serving::<Self>(ctx)`). Populated payloads are `#[dokime::message]` values; empty requests and responses use `()`. In the harness, `.answering::<ReadChamber, _>(|request| Ok(reply))` answers the same call in process. `ctx.host()` is the same route as the Harmos `Host` surface: `ctx.host().call(op)` and `ctx.host().submit(op)` take a declaration that is its own request (`call_as`/`submit_as` name one with a separate request), and a submitted instance is cancelled when its handle drops unsettled unless detached. `ctx.host()` is not checked against `requires` at compile time; the host refuses an undeclared operation at run time, so prefer `ctx.call` where it suffices.
+- Two step built-ins answer on `ctx.host()` without being listed in `requires`. `RunProcess` (`dokime::operations::process`) runs a system process inside the plugin process: its working directory is the execution's artifact folder (`DOKIME_ARTIFACTS_DIR`), its environment carries `DOKIME_EXECUTION_ID`, `DOKIME_CYCLE_ID`, `DOKIME_TEMPLATE_ID`, `DOKIME_PLUGIN_ID`, `DOKIME_STEP_ID` and `DOKIME_ATTEMPT` and never the plugin's host connection, stdout lines reach the execution log at info and stderr at warning unless redirected into a produced artifact, and every exit is recorded as `process.exited`. Called, it runs to its exit; submitted, `cancel` sends SIGTERM, waits `grace_ms` (default 2000) and kills, TerminateProcess on Windows. `WatchFile` (`dokime::operations::files`) is the host's file watch over one local or FTP file: Stream captures only what is written after it starts into `artifact` (or `<output>/<file name>`), Mirror and the snapshots copy the whole file, and on Stream its `matchers` turn each captured line into a row of a declared stream through named capture groups and its `markers` file a declared record per matching line, both inside the operation. It settles with `{ artifacts, gaps }` when its `maximum_seconds` bound elapses or the execution seals; cancelling it seals what it captured. The harness and `Caller::local` serve both in process, `WatchFile` over a local file.
+
+```rust
+let exit = ctx
+    .host()
+    .call_as::<RunProcess>(
+        RunProcessRequest::new("flash-tool")
+            .args(["--port", port])
+            .stdout(Output::Artifact("logs/flash.log".into())),
+    )
+    .await?
+    .into_owned(); // ProcessExit { exit_code, duration_ms, cancelled }
+
+let watch = ctx
+    .host()
+    .submit_as::<WatchFile>(WatchFileRequest {
+        execution_id: None,
+        source: Some(FileWatchSource {
+            payload: Some(FileWatchSourcePayload::Local(LocalWatchSource { root: log })),
+        }),
+        output: "device".into(),
+        artifact: Some("device/charger.log".into()),
+        policy: FileWatchPolicy::Stream,
+        poll_interval_ms: Some(100),
+        maximum_seconds: Some(30),
+        maximum_bytes: None,
+        matchers: vec![LineMatcher::publishing::<ChargerLog>(
+            r"t=(?P<elapsed_s>[\d.]+) input_power_w=(?P<input_power_w>[\d.]+)",
+        )],
+        markers: vec![LineMarker::new(r"FAULT (?P<code>\w+)", Fault::RECORD_TYPE)],
+    })
+    .await?;
+// … the work the log describes …
+let captured = watch.join().await?.into_owned(); // WatchFileOutcome { artifacts, gaps }
+```
+
+- Anything a step leaves running is cancelled when the step ends: a handle dropped unsettled cancels its instance at once, and a detached instance, or one still held past its step, is cancelled by the step-end sweep with a `test.step.handle_cancelled { step, kind, name }` warning, `kind` being `process`, `watch` or `operation`.
 - Two compile-time checks stand behind `requires = Required`. A `ctx.call` on an operation the template did not list is refused on the line the call is written. And serving a suite asserts, for every template, that each required operation is either named in the plugin's `requires(...)` or provided by the plugin itself with Private visibility, so an operation the plugin cannot reach is refused at build time rather than at run time.
 - `#[dokime::message]`, `#[dokime::record(...)]` and `#[dokime::row]` are domain-specific declarations over one shared Harmos message implementation. Their codecs/schema are shared; record and row wrappers add their product evidence traits and handles. Preserve `#[record(...)]` and `#[row(...)]` field annotations. The separate `TelemetryRow` derive is retired; the runtime trait remains available through `dokime::telemetry`.
 - A record is a type, declared once, in the file of whatever publishes it: `#[dokime::record(id, label, severity)]` on a struct beside the step that files it, named once in `records = Records` on that template's attribute. The struct's fields are the contract's fields, so there is no `records()` method, no hand-built `RecordContract` and no string-id constant. A suite names a record only when every template it owns publishes it; `dokime::Records<Records, Listeners>` on the plugin's `contributions(...)` names the ones a plugin publishes with no run behind them.

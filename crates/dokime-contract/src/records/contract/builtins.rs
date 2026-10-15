@@ -92,6 +92,7 @@ builtin_record_types! {
     TestStepStarted => "test.step.started",
     TestStepCompleted => "test.step.completed",
     TestStepFailed => "test.step.failed",
+    TestStepHandleCancelled => "test.step.handle_cancelled",
     TestCriterionStarted => "test.criterion.started",
     TestCriterionCompleted => "test.criterion.completed",
     TestCriterionFailed => "test.criterion.failed",
@@ -152,6 +153,7 @@ builtin_record_types! {
     ReportOmissions => "report.omissions",
     HealthAdded => "health.added",
     ProgressMilestone => "progress.milestone",
+    ProcessExited => "process.exited",
 }
 
 /* === Traits === */
@@ -332,6 +334,28 @@ impl BuiltinRecordType {
                     field("title", ValueType::Text),
                     field("level", ValueType::Text).with_default(Value::from("warning")),
                     field("related_artifact_id", ValueType::Text).nullable(),
+                ],
+            ),
+            // A process a step ran exited, by itself or cancelled.
+            Self::ProcessExited => contract(
+                record_type,
+                RecordSeverity::Info,
+                vec![
+                    field("program", ValueType::Text),
+                    field("exit_code", ValueType::Integer).nullable(),
+                    field("duration_ms", ValueType::Integer),
+                    field("cancelled", ValueType::Boolean).with_default(Value::from(false)),
+                ],
+            ),
+            // A process, watch or submitted operation still running when its
+            // step ended, which the step-end sweep cancelled.
+            Self::TestStepHandleCancelled => contract(
+                record_type,
+                RecordSeverity::Warning,
+                vec![
+                    field("step", ValueType::Text),
+                    field("kind", ValueType::Text),
+                    field("name", ValueType::Text),
                 ],
             ),
             Self::ProgressMilestone => contract(
@@ -600,6 +624,8 @@ fn display_for(record_type: &str, severity: RecordSeverity) -> RecordDisplay {
         RecordIconKey::HeartPulse
     } else if record_type.starts_with("progress.") {
         RecordIconKey::TimerReset
+    } else if record_type.starts_with("process.") {
+        RecordIconKey::Cpu
     } else {
         RecordIconKey::Clock
     };

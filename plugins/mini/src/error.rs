@@ -35,6 +35,8 @@ pub enum Error {
     MissingEvidence(String),
     #[error("dokime sdk: {0}")]
     Sdk(#[from] dokime::Error),
+    #[error("host operation: {0}")]
+    Host(#[from] dokime::harmos::sidecar::CallError),
     #[error("device: {0}")]
     Device(#[from] mini_runtime::Error),
     #[error("testbench launch: {0}")]

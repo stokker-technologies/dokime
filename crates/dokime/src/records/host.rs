@@ -141,6 +141,24 @@ host_record!(
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TestCycleCompleted;
 
+// A process a step ran exited, by itself or cancelled.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProcessExited {
+    pub program: String,
+    pub exit_code: Option<i64>,
+    pub duration_ms: i64,
+    pub cancelled: bool,
+}
+
+// Something a step left running that the step-end sweep cancelled: a
+// `process`, a `watch` or another submitted `operation`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StepHandleCancelled {
+    pub step: String,
+    pub kind: String,
+    pub name: String,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ToolConnectionAcquired {
     pub resource_id: String,
@@ -209,6 +227,84 @@ impl DeclaredRecord for TestCycleCompleted {
     }
 }
 
+impl DeclaredRecord for ProcessExited {
+    const RECORD_TYPE: &'static str = "process.exited";
+    const SEVERITY: RecordSeverity = RecordSeverity::Info;
+
+    fn contract() -> RecordContract {
+        builtin(Self::RECORD_TYPE)
+    }
+
+    fn message(&self) -> String {
+        match (self.cancelled, self.exit_code) {
+            (true, _) => format!("{} was cancelled", self.program),
+            (false, Some(code)) => format!("{} exited with {code}", self.program),
+            (false, None) => format!("{} ended by a signal", self.program),
+        }
+    }
+
+    fn into_details(self) -> BTreeMap<String, Value> {
+        BTreeMap::from([
+            ("program".to_owned(), Value::Text(self.program)),
+            (
+                "exit_code".to_owned(),
+                self.exit_code.map_or(Value::Null, Value::Integer),
+            ),
+            ("duration_ms".to_owned(), Value::Integer(self.duration_ms)),
+            ("cancelled".to_owned(), Value::Bool(self.cancelled)),
+        ])
+    }
+
+    fn from_record(record: &Record) -> crate::Result<Self> {
+        checked::<Self>(record)
+    }
+
+    fn from_details(values: &BTreeMap<String, Value>) -> Result<Self, FieldError> {
+        Ok(Self {
+            program: field(values, "program")?,
+            exit_code: field(values, "exit_code")?,
+            duration_ms: field(values, "duration_ms")?,
+            cancelled: field(values, "cancelled")?,
+        })
+    }
+}
+
+impl DeclaredRecord for StepHandleCancelled {
+    const RECORD_TYPE: &'static str = "test.step.handle_cancelled";
+    const SEVERITY: RecordSeverity = RecordSeverity::Warning;
+
+    fn contract() -> RecordContract {
+        builtin(Self::RECORD_TYPE)
+    }
+
+    fn message(&self) -> String {
+        format!(
+            "step `{}` ended with its {} `{}` still running; it was cancelled",
+            self.step, self.kind, self.name
+        )
+    }
+
+    fn into_details(self) -> BTreeMap<String, Value> {
+        BTreeMap::from([
+            ("step".to_owned(), Value::Text(self.step)),
+            ("kind".to_owned(), Value::Text(self.kind)),
+            ("name".to_owned(), Value::Text(self.name)),
+        ])
+    }
+
+    fn from_record(record: &Record) -> crate::Result<Self> {
+        checked::<Self>(record)
+    }
+
+    fn from_details(values: &BTreeMap<String, Value>) -> Result<Self, FieldError> {
+        Ok(Self {
+            step: field(values, "step")?,
+            kind: field(values, "kind")?,
+            name: field(values, "name")?,
+        })
+    }
+}
+
 #[cfg(feature = "native")]
 impl crate::execution::Listenable for TestCycleCompleted {
     type Item = Self;
@@ -240,6 +336,17 @@ pub fn declared() -> Vec<Identifier> {
 
 /* === Private Functions === */
 /* === Functions === */
+
+fn checked<R: DeclaredRecord>(record: &Record) -> crate::Result<R> {
+    if record.record_type.as_str() != R::RECORD_TYPE {
+        return Err(crate::Error::record_mismatched(
+            R::RECORD_TYPE,
+            &record.record_type,
+        ));
+    }
+    R::from_details(&record.details)
+        .map_err(|error| crate::Error::record_field(R::RECORD_TYPE, error))
+}
 
 fn builtin(record_type: &str) -> RecordContract {
     builtin_record_contracts()

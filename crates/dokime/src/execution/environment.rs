@@ -55,6 +55,10 @@ pub struct Environment<'a, C = (), O = (), I = ()> {
     document: Arc<std::sync::Mutex<DocumentIndex>>,
     #[cfg(feature = "native")]
     callbacks: super::Callbacks,
+    #[cfg(feature = "native")]
+    identity: Arc<super::ExecutionIdentity>,
+    #[cfg(feature = "native")]
+    handles: super::instances::Handles,
 }
 
 /* === Enums === */
@@ -87,7 +91,29 @@ impl<'a, C, O, I> Environment<'a, C, O, I> {
             document: Arc::new(std::sync::Mutex::new(DocumentIndex::new(None))),
             #[cfg(feature = "native")]
             callbacks: super::Callbacks::default(),
+            #[cfg(feature = "native")]
+            identity: Arc::default(),
+            #[cfg(feature = "native")]
+            handles: super::instances::Handles::default(),
         }
+    }
+
+    #[cfg(feature = "native")]
+    #[must_use]
+    pub fn identified(mut self, identity: super::ExecutionIdentity) -> Self {
+        self.identity = Arc::new(identity);
+
+        self
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn identity(&self) -> Arc<super::ExecutionIdentity> {
+        Arc::clone(&self.identity)
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn handles(&self) -> &super::instances::Handles {
+        &self.handles
     }
 
     #[cfg(feature = "native")]

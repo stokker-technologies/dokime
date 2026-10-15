@@ -624,9 +624,18 @@ impl ExecutionState {
         for (cursor, encoded, scope) in frames {
             let mut request: crate::records::RecordPublishRequest =
                 serde_json::from_str(&encoded).map_err(|error| Refusal::of(error.to_string()))?;
+            // The host's own record types, such as `process.exited`, are
+            // registered wherever a run is, beside the template's.
             let contract = contracts
                 .iter()
-                .find(|contract| contract.record_type == request.record_type);
+                .find(|contract| contract.record_type == request.record_type)
+                .cloned()
+                .or_else(|| {
+                    crate::records::builtin_record_contracts()
+                        .into_iter()
+                        .find(|contract| contract.record_type == request.record_type)
+                });
+            let contract = contract.as_ref();
             let version = contract.map_or(1, |contract| contract.schema_version);
             request.scope = scope.clone();
             let mut record = request.into_record(

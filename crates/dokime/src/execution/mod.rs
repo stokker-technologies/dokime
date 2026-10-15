@@ -30,7 +30,11 @@ pub mod snapshot;
 pub mod listen;
 
 #[cfg(feature = "native")]
+mod builtins;
+#[cfg(feature = "native")]
 mod calls;
+#[cfg(feature = "native")]
+pub(crate) mod instances;
 
 pub mod scope;
 
@@ -93,6 +97,8 @@ pub(crate) use listen::{PublishedRow, rows as listening_rows};
 
 #[cfg(feature = "native")]
 pub use calls::{Answering, Caller, StepHost};
+#[cfg(feature = "native")]
+pub use instances::{ExecutionIdentity, StepIdentity, StepInstance};
 pub use scope::{ExecutionScope, IdempotencyKey};
 #[cfg(feature = "native")]
 pub use serving::{

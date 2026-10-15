@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 
 // Local Imports
 use super::protocol::ArtifactChunk;
-use super::{ExecutionTransport, TransportFuture};
+use super::{ExecutionTransport, Journal, TransportFuture};
 use crate::artifacts::ArtifactSink;
 use crate::core::{Identifier, Timestamp, Value};
 use crate::execution::lease::{LeaseHold, LeaseRelease};
@@ -41,8 +41,8 @@ use crate::traceability::TraceabilitySection;
 pub struct RecordingTransport {
     answers: VecDeque<PromptResponse>,
     prompts: Vec<PromptRequest>,
-    records: Vec<RecordPublishRequest>,
-    diagnostics: Mutex<Vec<(Level, String)>>,
+    records: Arc<Mutex<Vec<RecordPublishRequest>>>,
+    diagnostics: Arc<Mutex<Vec<(Level, String)>>>,
     progress: Arc<Mutex<Vec<ExecutionProgress>>>,
     steps: Vec<Identifier>,
     step_attempts: Vec<crate::execution::TestStepAttempt>,
@@ -64,6 +64,11 @@ pub struct RecordingSink {
     chunks: Mutex<Vec<ArtifactChunk>>,
     samples: Mutex<Vec<TelemetrySample>>,
     delivered: Mutex<Vec<Record>>,
+}
+
+struct RecordingJournal {
+    records: Arc<Mutex<Vec<RecordPublishRequest>>>,
+    diagnostics: Arc<Mutex<Vec<(Level, String)>>>,
 }
 
 struct RecordingProgressSink {
@@ -95,8 +100,11 @@ impl RecordingTransport {
         &self.prompts
     }
 
-    pub fn records(&self) -> &[RecordPublishRequest] {
-        &self.records
+    pub fn records(&self) -> Vec<RecordPublishRequest> {
+        self.records
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     pub fn diagnostics(&self) -> Vec<(Level, String)> {
@@ -155,6 +163,22 @@ impl RecordingTransport {
     }
 }
 
+impl Journal for RecordingJournal {
+    fn log(&self, level: Level, message: String) {
+        self.diagnostics
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push((level, message));
+    }
+
+    fn record(&self, record: RecordPublishRequest) {
+        self.records
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(record);
+    }
+}
+
 impl ExecutionTransport for RecordingTransport {
     fn execution(&self) -> &str {
         "dokime.recording"
@@ -207,7 +231,17 @@ impl ExecutionTransport for RecordingTransport {
     }
 
     fn emit(&mut self, record: RecordPublishRequest) {
-        self.records.push(record);
+        self.records
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(record);
+    }
+
+    fn journal(&self) -> Arc<dyn Journal> {
+        Arc::new(RecordingJournal {
+            records: Arc::clone(&self.records),
+            diagnostics: Arc::clone(&self.diagnostics),
+        })
     }
 
     fn log(&self, level: Level, message: String) {

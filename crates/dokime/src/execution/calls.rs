@@ -27,6 +27,8 @@ use harmos::operations::{
 use harmos::sidecar::{CallError, Supervisor};
 
 // Local Imports
+use super::builtins::{Binding, served};
+use super::instances::{LocalRun, StepInstance, refused as step_refusal};
 
 /* === Constants === */
 // The JSON-RPC server error code of a refusal raised on the step side of the call.
@@ -51,6 +53,7 @@ pub struct StepHost {
     caller: Caller,
     stage: String,
     context: CallContext,
+    binding: Binding,
 }
 
 /* === Enums === */
@@ -86,12 +89,17 @@ impl Caller {
         self.call_at::<O>("", request).await
     }
 
-    pub(super) fn step_host(&self, stage: &str) -> StepHost {
+    pub(super) fn step_host(&self, stage: &str, binding: Binding) -> StepHost {
         StepHost {
             caller: self.clone(),
             stage: stage.to_owned(),
             context: CallContext::default(),
+            binding,
         }
+    }
+
+    fn hosted(&self) -> bool {
+        matches!(self.0, Road::Host(_))
     }
 
     pub(super) async fn call_at<O>(
@@ -133,7 +141,7 @@ impl Caller {
 
 impl Host for StepHost {
     type Error = CallError;
-    type Instance<O: Callable> = <Supervisor as Host>::Instance<O>;
+    type Instance<O: Callable> = StepInstance<O>;
 
     fn context(&self) -> &CallContext {
         match &self.caller.0 {
@@ -156,19 +164,41 @@ impl Host for StepHost {
         &self,
         request: O::Request,
     ) -> Result<Self::Instance<O>, CallError> {
-        let Road::Host(host) = &self.caller.0 else {
-            return Err(CallError::Unavailable);
-        };
-        routed(host, &self.stage, O::ID)
-            .map_err(refusal)?
-            .submit_as::<O>(request)
-            .await
+        let encoded = request.encode_to_vec();
+        let handles = &self.binding.handles;
+        if let Some(serve) = served(O::ID, self.caller.hosted()) {
+            let binding = self.binding.clone();
+            let payload = encoded.clone();
+            let run = LocalRun::spawn(move |cancel| serve(binding, payload, cancel), true);
+            return Ok(StepInstance::local(handles, run, &encoded));
+        }
+        match &self.caller.0 {
+            Road::Unmounted => Err(CallError::Unavailable),
+            Road::Host(host) => {
+                let instance = routed(host, &self.stage, O::ID)
+                    .map_err(refusal)?
+                    .submit_as::<O>(request)
+                    .await?;
+                Ok(StepInstance::host(handles, instance, &encoded))
+            }
+            Road::Local(operations) => {
+                let answer = operations.get(O::ID).cloned().ok_or_else(|| {
+                    step_refusal("the harness registered no answer for this operation")
+                })?;
+                let payload = encoded.clone();
+                let run = LocalRun::spawn(move |_| answer(payload), false);
+                Ok(StepInstance::local(handles, run, &encoded))
+            }
+        }
     }
 
     async fn call_as<O: Callable>(
         &self,
         request: O::Request,
     ) -> Result<Response<O::Response>, CallError> {
+        if served(O::ID, self.caller.hosted()).is_some() {
+            return self.submit_as::<O>(request).await?.join().await;
+        }
         match &self.caller.0 {
             Road::Unmounted => Err(CallError::Unavailable),
             Road::Host(host) => {
@@ -205,7 +235,7 @@ impl Host for StepHost {
         &self,
         _: O::Request,
         _: Arc<R>,
-    ) -> Result<Self::Instance<O>, CallError> {
+    ) -> Result<StepInstance<O>, CallError> {
         Err(CallError::LocalResources { method: O::ID })
     }
 }

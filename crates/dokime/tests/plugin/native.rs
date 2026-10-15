@@ -110,6 +110,9 @@ struct Question;
 
 struct Lease;
 
+// The step built-in a suite plugin requires; this host watches no files.
+struct Watching;
+
 #[derive(Default)]
 struct Backend {
     services: Option<harmos::operations::OperationManager>,
@@ -510,6 +513,9 @@ impl HostLog {
         operations
             .register_wire_operation::<Lease>(HOST, Lanes::Open, Arc::new(()))
             .unwrap();
+        operations
+            .register_wire_operation::<Watching>(HOST, Lanes::Open, Arc::new(()))
+            .unwrap();
         log
     }
 
@@ -654,6 +660,31 @@ impl harmos::operations::Operation for Lease {
             granted: false,
             message: "the fixture host measures no streams".into(),
         }))
+    }
+}
+
+impl harmos::operations::Operation for Watching {
+    type Declaration = dokime::operations::files::WatchFile;
+    type Resources = ();
+    type Error = harmos::Error;
+    type Context<'a> = harmos::operations::Context<'a>;
+    type Endpoints = ();
+
+    async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> harmos::Result<Self> {
+        Ok(Self)
+    }
+
+    async fn run<'ctx>(
+        &mut self,
+        _: Self::Context<'ctx>,
+        _: &mut dokime::operations::files::WatchFileRequest,
+        _: &mut (),
+    ) -> harmos::Result<harmos::operations::Response<dokime::operations::files::WatchFileOutcome>>
+    {
+        Err(harmos::Error::InvalidInput {
+            field: "file watch",
+            reason: "the fixture host watches no files",
+        })
     }
 }
 
