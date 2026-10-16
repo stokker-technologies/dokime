@@ -152,11 +152,12 @@ pub(crate) async fn duplicate_case_executions() {
     assert!(appended.saved.is_none());
     assert!(ready.saved.is_none());
 
-    runtime
+    let rerun = runtime
         .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
         .await;
-    let completed =
-        wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    crate::support::waits::wait_for_run_settled(&runtime, &rerun.command_id).await;
+    let completed = cycle_snapshot(&runtime, &test_cycle_id).await;
+    assert_eq!(completed.lifecycle, CycleStatus::Completed);
     assert_eq!(completed.test_executions.len(), 2);
     assert_eq!(completed.test_executions[0], original);
     assert_eq!(
@@ -164,7 +165,16 @@ pub(crate) async fn duplicate_case_executions() {
         appended.test_execution_id
     );
     assert_eq!(completed.test_executions[1].status, ExecutionStatus::Passed);
-    assert!(completed.test_executions[1].saved.is_some());
+    let settled = runtime
+        .run_request(&rerun.command_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        completed.test_executions[1].saved.is_some(),
+        "the appended execution seals: {:?}",
+        settled.interruption
+    );
 }
 
 pub(crate) async fn run_queued_results() {

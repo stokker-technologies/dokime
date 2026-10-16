@@ -135,12 +135,17 @@ async fn checkpointed_telemetry_kill() {
     let (mut rebooted, handle) = booted(root.path()).await;
     // A Sealed Cycle Leaves Live State At Boot. A Kill Before The Seal Reached
     // The Journal Leaves It Resident And Stopped; Its Saved Evidence Survives.
+    let resident = handle
+        .cycles()
+        .await
+        .into_iter()
+        .map(|cycle| (cycle.saved.is_some(), cycle.lifecycle))
+        .collect::<Vec<_>>();
     assert!(
-        handle
-            .cycles()
-            .await
+        resident
             .iter()
-            .all(|cycle| cycle.saved.is_none() && cycle.lifecycle == CycleStatus::Stopped)
+            .all(|(saved, lifecycle)| !saved && *lifecycle == CycleStatus::Stopped),
+        "resident cycles are unsealed and stopped: {resident:?}"
     );
     let checkpoint = serde_json::from_slice(&std::fs::read(&marker).unwrap()).unwrap();
     let view = crate::support::native::open(&handle, &checkpoint).await;

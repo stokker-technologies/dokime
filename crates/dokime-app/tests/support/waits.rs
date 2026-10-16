@@ -128,6 +128,20 @@ pub async fn wait_for_cycle_lifecycle(
     );
 }
 
+/// Waits Until A Run Receipt Is Terminal, Which Follows Its Seals Or Unsealed Cause.
+pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime::core::CommandId) {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    while tokio::time::Instant::now() < deadline {
+        if let Ok(Some(receipt)) = runtime.run_request(run).await
+            && receipt.summary.phase.terminal()
+        {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("run {run:?} did not settle");
+}
+
 pub async fn wait_for_execution_document_payload(
     runtime: &RuntimeHandle,
     scope: dokime::core::RecordScope,
