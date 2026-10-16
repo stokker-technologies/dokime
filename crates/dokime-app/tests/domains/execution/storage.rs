@@ -152,6 +152,16 @@ pub(crate) async fn execution_save_sealing() {
     .await
     .unwrap();
     assert_eq!(retained, expected);
+    // Exercise Registration And Sealing Beyond The Former Private Source Cap.
+    let additional_outputs = 257u32;
+    for index in 0..additional_outputs {
+        let target = handle
+            .execution_file_target(&id, format!("outputs/{index}.bin"), false, true)
+            .await
+            .unwrap()
+            .unwrap();
+        std::fs::write(&target.absolute_path, index.to_le_bytes()).unwrap();
+    }
     executor.release();
     let completed = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Completed).await;
     let frame = tokio::time::timeout(Duration::from_secs(5), follower.next_frame(maximum))
@@ -247,6 +257,21 @@ pub(crate) async fn execution_save_sealing() {
         wire::ExecutionFilePhase::Finished
     );
     drop(follower);
+    // Every Registered Output Remains Addressable After Reopening Storage.
+    for index in 0..additional_outputs {
+        let mut output = handle
+            .follow_execution_file(&id, &format!("outputs/{index}.bin"), None, 0)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(output.metadata().phase, wire::ExecutionFilePhase::Finished);
+        let frame = output.next_frame(maximum).await.unwrap().unwrap();
+        let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+            panic!("saved output must return its bytes");
+        };
+        assert_eq!(chunk.offset, 0);
+        assert_eq!(chunk.data, index.to_le_bytes()[..3]);
+    }
     drop(handle);
     reopened.shutdown().await.unwrap();
 }
