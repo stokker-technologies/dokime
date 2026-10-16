@@ -49,7 +49,6 @@ pub struct StorageSettings {
     pub page_rows_ceiling: std::num::NonZeroUsize,
     pub page_bytes_ceiling: std::num::NonZeroUsize,
     pub decoded_bytes: std::num::NonZeroUsize,
-    pub decoded_bytes_ceiling: std::num::NonZeroUsize,
     /// The per-view budget of interactive reads: request receipts, cycle and
     /// execution lists, record pages, plot reads and every live follow. It is
     /// the Harmos default for any read that names no limits and is elastic: a
@@ -114,7 +113,6 @@ impl Default for StorageSettings {
             page_rows_ceiling: nonzero(65_536),
             page_bytes_ceiling: read,
             decoded_bytes: batch,
-            decoded_bytes_ceiling: read,
             interactive: execution,
             ceiling: execution,
             finalization_read_stall: Duration::ZERO,
@@ -137,8 +135,7 @@ impl StorageSettings {
         self.interactive.check_ceiling(self.ceiling)?;
         if self.page_rows > self.page_rows_ceiling
             || self.page_bytes > self.page_bytes_ceiling
-            || self.decoded_bytes > self.decoded_bytes_ceiling
-            || self.decoded_bytes_ceiling > self.budget.read_memory_bytes
+            || self.decoded_bytes > self.budget.read_memory_bytes
             || self.ceiling.memory_bytes > self.budget.read_memory_bytes
         {
             return Err(crate::Error::Operation(
@@ -163,7 +160,6 @@ impl StorageSettings {
             bytes: self.page_bytes_ceiling,
         };
         settings.query_decoded_bytes = self.decoded_bytes;
-        settings.query_decoded_bytes_ceiling = self.decoded_bytes_ceiling;
         settings.query_execution = self.interactive;
         settings.query_execution_ceiling = self.ceiling;
     }
@@ -190,7 +186,6 @@ impl StorageSettings {
                 bytes: self.page_bytes_ceiling,
             },
             query_decoded_bytes: self.decoded_bytes,
-            query_decoded_bytes_ceiling: self.decoded_bytes_ceiling,
             query_execution: self.interactive,
             query_execution_ceiling: self.ceiling,
             replication_limits: harmos::storage::ReadLimits {

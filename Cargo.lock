@@ -3245,7 +3245,7 @@ dependencies = [
 [[package]]
 name = "harmos"
 version = "0.2.0"
-source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#f01b37e9931b792dabe9e0ef6998feb4d759b717"
+source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#becfca5426290e7de60de1612e23c593768a3d6f"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -3285,7 +3285,7 @@ dependencies = [
 [[package]]
 name = "harmos-bundle"
 version = "0.2.0"
-source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#f01b37e9931b792dabe9e0ef6998feb4d759b717"
+source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#becfca5426290e7de60de1612e23c593768a3d6f"
 dependencies = [
  "harmos-contract",
  "semver",
@@ -3301,7 +3301,7 @@ dependencies = [
 [[package]]
 name = "harmos-contract"
 version = "0.2.0"
-source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#f01b37e9931b792dabe9e0ef6998feb4d759b717"
+source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#becfca5426290e7de60de1612e23c593768a3d6f"
 dependencies = [
  "harmos-macros",
  "heck 0.5.0",
@@ -3321,7 +3321,7 @@ dependencies = [
 [[package]]
 name = "harmos-macros"
 version = "0.2.0"
-source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#f01b37e9931b792dabe9e0ef6998feb4d759b717"
+source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#becfca5426290e7de60de1612e23c593768a3d6f"
 dependencies = [
  "heck 0.5.0",
  "proc-macro-crate 3.5.0",
@@ -3335,7 +3335,7 @@ dependencies = [
 [[package]]
 name = "harmos-sidecar"
 version = "0.2.0"
-source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#f01b37e9931b792dabe9e0ef6998feb4d759b717"
+source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#becfca5426290e7de60de1612e23c593768a3d6f"
 dependencies = [
  "futures-util",
  "getrandom 0.4.3",
@@ -3355,7 +3355,7 @@ dependencies = [
 [[package]]
 name = "harmos-signal"
 version = "0.2.0"
-source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#f01b37e9931b792dabe9e0ef6998feb4d759b717"
+source = "git+https://github.com/stokker-technologies/harmos.git?branch=refactor%2Fstreamline#becfca5426290e7de60de1612e23c593768a3d6f"
 dependencies = [
  "rustfft",
  "thiserror 2.0.21",
