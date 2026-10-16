@@ -611,7 +611,7 @@ pub(crate) async fn cancelled_waiter_settlement() {
     backend.close().await.unwrap();
 }
 
-pub(crate) async fn exhausted_read_retry() {
+pub(crate) async fn large_read_reopen() {
     let root = tempfile::tempdir().unwrap();
     let backend = Backend::<()>::primary(
         root.path().to_path_buf(),
@@ -656,20 +656,12 @@ pub(crate) async fn exhausted_read_retry() {
     };
     let mut selection = ReadSelection::new(ReadKind::Records);
     selection.after = 1;
-    let error = backend
+    let page = backend
         .read_records(&view, &selection, None, limits)
         .await
-        .unwrap_err();
-    assert!(
-        matches!(
-            error,
-            harmos::Error::InvalidInput {
-                reason: "owned query state exceeds memory bound",
-                ..
-            }
-        ),
-        "the decoded allocation must be refused before deserialization: {error}"
-    );
+        .unwrap();
+    assert_eq!(page.entries, records[1..]);
+    assert!(page.next.is_none());
     selection.after = 0;
     selection.through = Some(1);
     let page = backend

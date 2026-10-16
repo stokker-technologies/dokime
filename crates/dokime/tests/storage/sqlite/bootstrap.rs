@@ -1152,34 +1152,37 @@ pub(crate) async fn private_row_unchanged() {
     };
     let batch = RetainedBatch::new(&identity, StoragePart::Records(&records), limits).unwrap();
     for _ in 0..2 {
-        assert!(matches!(
-            backend.write_bootstrap(batch).await,
-            Err(harmos::Error::InvalidInput {
-                reason: "owned query state exceeds memory bound",
-                ..
-            })
-        ));
+        backend.write_bootstrap(batch).await.unwrap();
         assert_eq!(backend.cursor_saved().await.unwrap(), prior);
     }
     let small = [StoredRecord {
         payload: vec![1],
         ..records[0].clone()
     }];
-    backend
-        .write_bootstrap(
-            RetainedBatch::new(&identity, StoragePart::Records(&small), limits).unwrap(),
-        )
-        .await
-        .unwrap();
+    assert!(
+        backend
+            .write_bootstrap(
+                RetainedBatch::new(&identity, StoragePart::Records(&small), limits).unwrap(),
+            )
+            .await
+            .is_err()
+    );
     let control = backend.control().await.unwrap();
+    let expected = records[0].clone();
     control
-        .call(|connection| {
+        .call(move |connection| {
             let count: i64 = connection.query_row(
                 "SELECT COUNT(*) FROM storage_bootstrap_entries",
                 [],
                 |row| row.get(0),
             )?;
             assert_eq!(count, 1);
+            let body: Vec<u8> =
+                connection.query_row("SELECT body FROM storage_bootstrap_entries", [], |row| {
+                    row.get(0)
+                })?;
+            let stored: StoredRecord = serde_json::from_slice(&body).unwrap();
+            assert_eq!(stored, expected);
             Ok(())
         })
         .await

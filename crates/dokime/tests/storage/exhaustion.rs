@@ -77,10 +77,11 @@ async fn exhaustion() {
         .await
         .unwrap();
 
-    // Retained Reads Consume Their Slot Until Explicit Release
+    // Independent Views Preserve The Same Saved Frontier
     let saved = backend.cursor_saved().await.unwrap();
     let snapshot = backend.read_view(&saved).await.unwrap();
-    assert!(backend.read_view(&saved).await.is_err());
+    let parallel = backend.read_view(&saved).await.unwrap();
+    backend.release_view(&parallel).await.unwrap();
     let current = ReadView::new(id("exhaustion"), saved.clone(), saved.clone(), snapshot).unwrap();
     let tiny = ReadLimits {
         rows: NonZeroUsize::MIN,

@@ -686,12 +686,12 @@ pub(crate) async fn large_native_limits() {
         rows: NonZeroUsize::new(8).unwrap(),
         bytes: NonZeroUsize::new(2 * 1024 * 1024).unwrap(),
     };
-    assert!(
-        backend
-            .read_records(&saved_view, &selection, None, oversized)
-            .await
-            .is_err()
-    );
+    let page = backend
+        .read_records(&saved_view, &selection, None, oversized)
+        .await
+        .unwrap();
+    assert_eq!(page.entries, records);
+    assert!(page.next.is_none());
     assert_eq!(backend.cursor_saved().await.unwrap(), position(9));
     let bounded = ReadLimits {
         rows: NonZeroUsize::MIN,

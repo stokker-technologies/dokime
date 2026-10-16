@@ -722,8 +722,8 @@ fn rows_contract() {
         );
     }
     {
-        eprintln!("Scenario: sqlite::data::exhausted_read_retry");
-        run_scenario(sqlite::data::exhausted_read_retry, false, None, false);
+        eprintln!("Scenario: sqlite::data::large_read_reopen");
+        run_scenario(sqlite::data::large_read_reopen, false, None, false);
     }
     {
         eprintln!("Scenario: sqlite::data::typed_page_view");
