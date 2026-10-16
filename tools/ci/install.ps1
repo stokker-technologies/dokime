@@ -27,7 +27,7 @@ if ($env:GITHUB_PATH) {
 Invoke-Mise trust mise.toml
 Invoke-Mise install --locked python uv
 $role = if ($env:DOKIME_CI_ROLE) { $env:DOKIME_CI_ROLE } else { 'check' }
-if ($role -notin @('build', 'check', 'contracts', 'test', 'coverage', 'catalog', 'javascript', 'publish')) { throw "Unknown CI role: $role" }
+if ($role -notin @('build', 'check', 'contracts', 'test', 'coverage', 'catalog', 'typescript', 'publish')) { throw "Unknown CI role: $role" }
 if ($role -in @('contracts', 'build', 'test', 'coverage')) {
     # Initialize MSVC Before Cargo-Based Mise Tools Compile.
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'

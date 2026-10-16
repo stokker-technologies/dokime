@@ -282,8 +282,8 @@ jobs:
             target/ci/
           retention-days: 30
 
-  test_integration_javascript:
-    name: Test Integration Javascript (${{ inputs.os }})
+  test_integration_typescript:
+    name: Test Integration Typescript (${{ inputs.os }})
     needs: contracts_prepare_release
     runs-on: ${{ inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
     timeout-minutes: 120
@@ -298,7 +298,7 @@ jobs:
       SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
       GITHUB_TOKEN: ${{ github.token }}
       STKR_COVERAGE: '0'
-      DOKIME_CI_ROLE: javascript
+      DOKIME_CI_ROLE: typescript
       DOKIME_CONTRACT_EXPORT: ${{ github.workspace }}/target/contracts/restored
       DOKIME_CONTRACT_SHA256: ${{ needs.contracts_prepare_release.outputs.sha256 }}
     steps:
@@ -309,12 +309,12 @@ jobs:
       - *windows
       - *contract_download
       - *contract_restore
-      - run: mise run --skip-tools test:integration:javascript
+      - run: mise run --skip-tools test:integration:typescript
       - name: Preserve Correctness Evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: evidence-${{ inputs.os }}-integration-javascript
+          name: evidence-${{ inputs.os }}-integration-typescript
           include-hidden-files: true
           path: .stkr/tests/
           if-no-files-found: error
@@ -524,8 +524,8 @@ jobs:
             target/ci/
           retention-days: 30
 
-  test_system_javascript:
-    name: Test System Javascript (${{ inputs.os }})
+  test_system_typescript:
+    name: Test System Typescript (${{ inputs.os }})
     if: inputs.os == 'windows' && inputs.authorization == 'release'
     needs: build_release
     runs-on: ${{ inputs.os == 'linux' && github.event_name == 'push' && github.repository == 'stokker-technologies/dokime' && github.ref == 'refs/heads/dev' && 'stokker-local-linux-x64' || inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
@@ -551,12 +551,12 @@ jobs:
       - *windows
       - *build_download
       - run: mise run --skip-tools ci:artifacts:restore
-      - run: mise run --skip-tools test:system:javascript
+      - run: mise run --skip-tools test:system:typescript
       - name: Preserve Correctness Evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: evidence-${{ inputs.os }}-system-javascript
+          name: evidence-${{ inputs.os }}-system-typescript
           include-hidden-files: true
           path: .stkr/tests/
           if-no-files-found: error
@@ -565,7 +565,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-diagnostics-${{ inputs.os }}-system-javascript
+          name: test-diagnostics-${{ inputs.os }}-system-typescript
           path: |
             target/validation/default/
             target/cargo-timings/*.html
@@ -640,8 +640,8 @@ jobs:
 
   test:
     name: Test (${{ inputs.os }})
-    if: ${{ !cancelled() && needs.build_release.result == 'success' && (inputs.os != 'windows' || inputs.authorization != 'release' || needs.test_system_javascript.result == 'success') }}
-    needs: [build_release, test_integration_javascript, test_integration_rust, test_integration_python, test_acceptance_rust, test_acceptance_python, test_system_javascript, ci_coverage]
+    if: ${{ !cancelled() && needs.build_release.result == 'success' && (inputs.os != 'windows' || inputs.authorization != 'release' || needs.test_system_typescript.result == 'success') }}
+    needs: [build_release, test_integration_typescript, test_integration_rust, test_integration_python, test_acceptance_rust, test_acceptance_python, test_system_typescript, ci_coverage]
     runs-on: ${{ inputs.os == 'linux' && github.event_name == 'push' && github.repository == 'stokker-technologies/dokime' && github.ref == 'refs/heads/dev' && 'stokker-local-linux-x64' || inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
     timeout-minutes: 60
     env:

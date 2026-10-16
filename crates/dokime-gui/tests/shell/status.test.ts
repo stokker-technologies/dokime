@@ -10,24 +10,25 @@
 /* === Imports === */
 
 import assert from "node:assert/strict";
-import { dirname, resolve } from "node:path";
-import { test } from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
-/* === Constants === */
-
-const gui = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const {
+import { test } from "vitest";
+import {
+  type OperationFrame,
   operationPercent,
   operationPhaseLabel,
   operationsCountLabel,
   operationsFromFrame,
   summarizeOperations,
-} = await import(pathToFileURL(resolve(gui, "src/shell/status-bar-operations.ts")).href);
+} from "@/shell/status-bar-operations";
 
 /* === Fixture === */
 
-function frame(id, status, { fraction, phase = "Materializing Evidence", seconds = 100 } = {}) {
+type FrameOptions = { fraction?: number; phase?: string; seconds?: number };
+
+function frame(
+  id: string,
+  status: string,
+  { fraction, phase = "Materializing Evidence", seconds = 100 }: FrameOptions = {},
+): OperationFrame {
   return {
     fraction,
     label: `Operation ${id}`,
@@ -40,78 +41,69 @@ function frame(id, status, { fraction, phase = "Materializing Evidence", seconds
 
 /* === Tests === */
 
-test("an idle backend shows nothing", () => {
-  assert.deepEqual(summarizeOperations(operationsFromFrame([])), { kind: "idle" });
-  assert.deepEqual(summarizeOperations(operationsFromFrame(undefined)), { kind: "idle" });
-});
-
-test("one running operation shows its label, phase and determinate progress", () => {
+test("Operation Progress", () => {
+  // One Running Operation Shows Its Label, Phase And Determinate Progress
   const summary = summarizeOperations(
     operationsFromFrame([frame("a", "Running", { fraction: 0.426 })]),
   );
-
-  assert.equal(summary.kind, "single");
+  assert.ok(summary.kind === "single");
   assert.equal(summary.operation.label, "Operation a");
   assert.equal(operationPhaseLabel(summary.operation), "Materializing Evidence");
   assert.equal(operationPercent(summary.operation), 43);
   assert.equal(summary.operation.startedAtMs, 100_000);
-});
 
-test("an operation without a fraction is indeterminate", () => {
-  const [operation] = operationsFromFrame([frame("a", "Running", { phase: "" })]);
+  // An Operation Without A Fraction Is Indeterminate
+  const [indeterminate] = operationsFromFrame([frame("a", "Running", { phase: "" })]);
+  assert.equal(operationPercent(indeterminate), null);
+  assert.equal(operationPhaseLabel(indeterminate), "Starting");
 
-  assert.equal(operationPercent(operation), null);
-  assert.equal(operationPhaseLabel(operation), "Starting");
-});
-
-test("fractions outside zero to one are clamped", () => {
+  // Fractions Outside Zero To One Are Clamped
   const [over, under] = operationsFromFrame([
     frame("a", "Running", { fraction: 1.7 }),
     frame("b", "Running", { fraction: -0.2 }),
   ]);
-
   assert.equal(operationPercent(over), 100);
   assert.equal(operationPercent(under), 0);
 });
 
-test("several running operations collapse to a count named after the longest running", () => {
-  const summary = summarizeOperations(
+test("Operation Summary", () => {
+  // An Idle Backend Shows Nothing
+  assert.deepEqual(summarizeOperations(operationsFromFrame([])), { kind: "idle" });
+  assert.deepEqual(summarizeOperations(operationsFromFrame(undefined)), { kind: "idle" });
+
+  // Several Running Operations Collapse To A Count Named After The Longest Running
+  const many = summarizeOperations(
     operationsFromFrame([
       frame("late", "Running", { seconds: 300 }),
       frame("early", "Running", { seconds: 100 }),
       frame("done", "Finished", { seconds: 50 }),
     ]),
   );
-
-  assert.equal(summary.kind, "many");
-  assert.equal(summary.count, 2);
-  assert.equal(operationsCountLabel(summary.count), "2 Operations");
-  assert.equal(summary.longest.id, "early");
+  assert.ok(many.kind === "many");
+  assert.equal(many.count, 2);
+  assert.equal(operationsCountLabel(many.count), "2 Operations");
+  assert.equal(many.longest.id, "early");
   assert.deepEqual(
-    summary.operations.map((operation) => operation.id),
+    many.operations.map((operation) => operation.id),
     ["late", "early"],
   );
-});
 
-test("with nothing running, the last settled operation shows until it retires", () => {
+  // With Nothing Running, The Last Settled Operation Shows Until It Retires
   const finished = summarizeOperations(operationsFromFrame([frame("a", "Finished")]));
-  assert.equal(finished.kind, "single");
+  assert.ok(finished.kind === "single");
   assert.equal(operationPhaseLabel(finished.operation), "Done");
-
   const failed = summarizeOperations(
     operationsFromFrame([{ ...frame("b", "Failed"), failure: "report does not fit" }]),
   );
-  assert.equal(failed.kind, "single");
+  assert.ok(failed.kind === "single");
   assert.equal(failed.operation.status, "failed");
   assert.equal(failed.operation.failure, "report does not fit");
   assert.equal(operationPhaseLabel(failed.operation), "Failed");
-});
 
-test("a running operation outranks one that settled", () => {
-  const summary = summarizeOperations(
+  // A Running Operation Outranks One That Settled
+  const outranked = summarizeOperations(
     operationsFromFrame([frame("done", "Finished"), frame("busy", "Running")]),
   );
-
-  assert.equal(summary.kind, "single");
-  assert.equal(summary.operation.id, "busy");
+  assert.ok(outranked.kind === "single");
+  assert.equal(outranked.operation.id, "busy");
 });

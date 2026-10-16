@@ -26,7 +26,7 @@ mise install --locked python uv
 role=${DOKIME_CI_ROLE:-check}
 case "$role" in
     build|test|coverage) gui=--gui-packages ;;
-    check|contracts|catalog|javascript|publish) gui= ;;
+    check|contracts|catalog|typescript|publish) gui= ;;
     *) printf '%s\n' "Unknown CI role: $role" >&2; exit 1 ;;
 esac
 mise exec -- python tools/python/src/dokime_tools/ci/bootstrap.py $gui --role "$role"

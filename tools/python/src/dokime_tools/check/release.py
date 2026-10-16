@@ -130,14 +130,14 @@ def required_suites(platform: str, profile: str = "release") -> tuple[str, ...]:
     suites = (
         "integration-rust",
         "integration-python",
-        "integration-javascript",
+        "integration-typescript",
         "acceptance-rust",
         "acceptance-python",
     )
     if profile not in {"dev", "release"}:
         raise ValueError("unknown native validation profile")
     return suites + (
-        ("system-javascript",) if platform == "windows" and profile == "release" else ()
+        ("system-typescript",) if platform == "windows" and profile == "release" else ()
     )
 
 

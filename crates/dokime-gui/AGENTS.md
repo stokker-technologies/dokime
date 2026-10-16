@@ -22,14 +22,16 @@ live operator shell and the self-contained report renderer.
   theme handling. Keep transport and browser side effects out of primitives.
 - `src/report` owns static-report boot and appearance behavior. Changes to shared
   theme or document rendering must account for both live and report entrypoints.
+- `tests/<domain>/*.test.ts` holds Vitest stories, one file per production-domain
+  workflow. Extend the story that owns a behavior instead of adding a file per widget.
 
 ## Validation
 
 - Install synchronized dependencies with `mise run sync`.
 - After authored brand changes, rebuild the compiled theme and report with
   `mise run prepare:report`, then run the repository checks.
-- Run `mise run check:types` and `mise run test:integration:javascript` for frontend changes.
-- Run `mise run check` before committing. Use `mise run test:system:javascript` when a
+- Run `mise run check:types` and `mise run test:integration:typescript` for frontend changes.
+- Run `mise run check` before committing. Use `mise run test:system:typescript` when a
   running-stack workflow or browser interaction changes.
 
 ## Canonical Bindings And Transport

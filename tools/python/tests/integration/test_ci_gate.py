@@ -131,7 +131,7 @@ def case_native_roles(tmp_path: Path, monkeypatch, target: str) -> None:
         (role, platform, {"completed": True})
         for platform in platforms
         for role in (
-            ("test:system:javascript",) + gate.ROLES
+            ("test:system:typescript",) + gate.ROLES
             if platform == "windows"
             else gate.ROLES
         )
@@ -181,7 +181,7 @@ def case_workflow_policy(tmp_path: Path, monkeypatch) -> None:
         assert "self-hosted" not in route and "fromJSON" not in route
         assert "'ubuntu-24.04'" in route and "'windows-2022'" in route
     build = platform.split("\n  build_release:\n", 1)[1].split(
-        "\n  test_integration_javascript:\n", 1
+        "\n  test_integration_typescript:\n", 1
     )[0]
     assert "stokker-local-linux-x64" not in build
 
@@ -232,7 +232,7 @@ def case_workflow_policy(tmp_path: Path, monkeypatch) -> None:
         ),
         pytest.param(
             case_platform_failure,
-            ("windows", "test:system:javascript"),
+            ("windows", "test:system:typescript"),
             id="windows-installed-desktop",
         ),
         pytest.param(case_workflow_policy, (), id="workflow-policy"),
