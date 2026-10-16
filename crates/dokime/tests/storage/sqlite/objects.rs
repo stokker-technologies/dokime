@@ -692,7 +692,7 @@ pub(crate) async fn pinned_page_waiting() {
             assert!(matches!(
                 result,
                 Err(harmos::Error::ResourceExhausted {
-                    resource: "storage read memory"
+                    resource: "query retained working memory"
                 })
             ));
             assert_eq!(storage.status().read_bytes, before);

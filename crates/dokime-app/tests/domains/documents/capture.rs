@@ -194,6 +194,8 @@ async fn samples(handle: &RuntimeHandle, count: usize) -> Vec<dokime::telemetry:
                 })
                 .await;
             if rows.len() >= count {
+                // Snapshots Select Persisted Evidence, Not Merely Accepted Publications.
+                handle.storage().flush().await.unwrap();
                 return rows;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;

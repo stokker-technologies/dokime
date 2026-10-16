@@ -448,6 +448,23 @@ impl RuntimeHandle {
             .state_read()
             .capture_scope(&record_scope_from_sampling_scope(&scope))
             .map_err(Error::Operation)?;
+        if let Some(id) = &record_scope.test_execution_id
+            && self.execution_storage.acquisition(id).await.is_none()
+        {
+            // A Lease Can Precede Provider Dispatch; Its Durable Capture Owner Must Exist.
+            let cycle = self
+                .execution_storage
+                .report_source(id, &self.config().storage)
+                .await?;
+            let execution = cycle
+                .test_executions
+                .iter()
+                .find(|execution| &execution.test_execution_id == id)
+                .ok_or_else(|| {
+                    Error::Operation("lease execution is absent from its cycle".into())
+                })?;
+            self.execution_storage.acquire(&cycle, execution).await?;
+        }
         let mut pending = PendingLeases {
             table: self.stream_leases(),
             ids: Vec::with_capacity(streams.len()),

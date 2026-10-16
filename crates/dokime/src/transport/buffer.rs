@@ -210,7 +210,7 @@ impl ExecutionState {
         sample: &crate::telemetry::TelemetrySample,
     ) -> Result<(), String> {
         if let Some(position) = self.sample_positions.get(&sample.sample_id)
-            && self.stream_rows[*position] != *sample
+            && !same_sample(&self.stream_rows[*position], sample, self.local_inputs)
         {
             return Err("sample identity was reused with different admitted contents".into());
         }
@@ -939,6 +939,43 @@ pub(crate) fn lock(executions: &Executions) -> MutexGuard<'_, BTreeMap<String, E
 
 /* === Private Functions === */
 
+// Host Admission Adds Receipt Time And Full Ownership To Locally Produced Rows.
+// Canonical Payload Bytes Are Internal And May Be Absent After Wire Decoding.
+fn same_sample(
+    previous: &crate::telemetry::TelemetrySample,
+    incoming: &crate::telemetry::TelemetrySample,
+    local: bool,
+) -> bool {
+    let scope_matches = if local {
+        match (&previous.scope, &incoming.scope) {
+            (Some(left), Some(right)) => {
+                left.test_cycle_id == right.test_cycle_id
+                    && left.test_execution_id == right.test_execution_id
+                    && left.origin == right.origin
+            }
+            (None, None) => true,
+            _ => false,
+        }
+    } else {
+        previous.scope == incoming.scope
+    };
+    previous.sample_id == incoming.sample_id
+        && previous.stream == incoming.stream
+        && previous.schema_version == incoming.schema_version
+        && previous.sequence == incoming.sequence
+        && previous.timestamp == incoming.timestamp
+        && (local || previous.received_at == incoming.received_at)
+        && previous.source == incoming.source
+        && scope_matches
+        && previous.values == incoming.values
+        && previous.summary == incoming.summary
+        && previous.metadata == incoming.metadata
+        && match (&previous.storage_payload, &incoming.storage_payload) {
+            (Some(left), Some(right)) => left == right,
+            _ => true,
+        }
+}
+
 fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
     use harmos::Message;
     page.encoded_len() <= crate::transport::protocol::MAX_EVIDENCE_PAGE_BYTES
@@ -946,3 +983,45 @@ fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::same_sample;
+    use crate::core::{Identifier, RecordScope, TestExecutionId, Timestamp, Value};
+    use crate::telemetry::TelemetrySample;
+
+    #[test]
+    fn sample_replay_preserves_producer_identity() {
+        let mut original = TelemetrySample::new(
+            Identifier::new("reading").unwrap(),
+            1,
+            Timestamp::now_utc(),
+            "fixture",
+        )
+        .with_storage_payload(vec![1, 2]);
+        original.scope = Some(RecordScope {
+            test_execution_id: Some(TestExecutionId::new()),
+            ..Default::default()
+        });
+        let wire: TelemetrySample =
+            serde_json::from_value(serde_json::to_value(&original).unwrap()).unwrap();
+        assert!(same_sample(&original, &wire, false));
+        let mut admitted = wire.clone();
+        admitted.received_at = Timestamp::new("2000-01-01T00:00:00Z");
+        admitted.scope.as_mut().unwrap().session_id = Some(crate::core::SessionId::new());
+        assert!(same_sample(&original, &admitted, true));
+        assert!(!same_sample(&original, &admitted, false));
+        let mut changed = wire.clone();
+        changed.values.insert("value".into(), Value::from(2.0));
+        assert!(!same_sample(&original, &changed, true));
+        let mut changed = original.clone();
+        changed.storage_payload = Some(vec![3]);
+        assert!(!same_sample(&original, &changed, true));
+        let mut changed = wire;
+        changed.scope = Some(RecordScope {
+            test_execution_id: Some(TestExecutionId::new()),
+            ..Default::default()
+        });
+        assert!(!same_sample(&original, &changed, true));
+    }
+}

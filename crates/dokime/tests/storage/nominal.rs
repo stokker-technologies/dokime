@@ -334,9 +334,9 @@ async fn nominal() {
             expected_sha256: Some(digest),
         };
         let stage = backend.create_file(&metadata).await.unwrap();
-        for (batch, bytes) in bytes.chunks(64 * 1024).enumerate() {
+        for (batch, bytes) in bytes.chunks(128 * 1024).enumerate() {
             backend
-                .write_file(&stage, (batch * 64 * 1024) as u64, bytes)
+                .write_file(&stage, (batch * 128 * 1024) as u64, bytes)
                 .await
                 .unwrap();
         }

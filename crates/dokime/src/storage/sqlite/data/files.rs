@@ -67,8 +67,8 @@ impl State {
         bytes: &[u8],
         preparation: super::super::memory::Reservation,
     ) -> Result<(), Error> {
-        if bytes.is_empty() || bytes.len() > CHUNK_BYTES {
-            return Err(Error::Data("file chunk must contain 1 to 65536 bytes"));
+        if bytes.is_empty() {
+            return Err(Error::Data("file batch must not be empty"));
         }
         let allocation = bytes
             .len()

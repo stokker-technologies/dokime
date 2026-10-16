@@ -84,7 +84,14 @@ pub(super) async fn batches(
         query,
         StreamSettings {
             items: NonZeroUsize::new(1).unwrap(),
-            bytes: settings.budget.read_memory_bytes,
+            // The Transport Claims Bytes With A u32 Semaphore Permit.
+            bytes: nonzero(
+                settings
+                    .budget
+                    .read_memory_bytes
+                    .get()
+                    .min(u32::MAX as usize),
+            )?,
         },
     )?;
     let (_, mut output, completion) = session.split();

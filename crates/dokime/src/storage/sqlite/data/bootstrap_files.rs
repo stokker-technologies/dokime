@@ -123,10 +123,8 @@ impl State {
         preparation: memory::Reservation,
     ) -> Result<(), Error> {
         let Chunk { offset, bytes } = chunk;
-        if bytes.is_empty() || bytes.len() > CHUNK_BYTES {
-            return Err(Error::Data(
-                "private file chunk must contain 1 to 65536 bytes",
-            ));
+        if bytes.is_empty() {
+            return Err(Error::Data("private file batch must not be empty"));
         }
         let (reservation, bytes) = execution.prepare(|| {
             let reservation = self.reserve_query(2 * bytes.len(), execution.limits.memory_bytes)?;

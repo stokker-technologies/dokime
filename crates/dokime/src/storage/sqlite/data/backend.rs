@@ -1178,8 +1178,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         bytes: &'a [u8],
     ) -> StorageFuture<'a, ()> {
         Box::pin(async move {
-            if bytes.is_empty() || bytes.len() > super::bootstrap_files::CHUNK_BYTES {
-                return Err(invalid("private file chunk must contain 1 to 65536 bytes"));
+            if bytes.is_empty() || bytes.len() > self.limits.batch_bytes.get() {
+                return Err(invalid(
+                    "private file batch exceeds the configured byte limit",
+                ));
             }
             self.history.check(&identity.cut().history)?;
             let owner = self.owner.clone().lock_owned().await;
@@ -1521,6 +1523,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         bytes: &'a [u8],
     ) -> StorageFuture<'a, ()> {
         Box::pin(async move {
+            if bytes.is_empty() || bytes.len() > self.limits.batch_bytes.get() {
+                return Err(invalid("file batch exceeds the configured byte limit"));
+            }
             let state = self.owner.lock().await.state()?;
             let reservation = self.file_memory(&state, 0)?;
             let root = self.root.clone();

@@ -570,7 +570,7 @@ impl ExecutionStorage {
                 .try_into_value()?;
             let outputs = outputs
                 .try_project(allowance(outputs.memory_size())?, |outputs, _| {
-                    let mut included = Vec::new();
+                    let mut included = Vec::with_capacity(outputs.len());
                     for output in outputs {
                         if report_boundary.covers(&output.file.position)? {
                             included.push(output.clone());

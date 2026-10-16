@@ -246,7 +246,7 @@ impl Runtime {
             .filter(|execution| execution.saved.is_none() && execution.finished_at.is_none())
             .map(|execution| execution.test_execution_id.clone())
             .collect();
-        self.handle.freeze_report_inputs(report_ids).await?;
+        let report_inputs = self.handle.freeze_report_inputs(report_ids).await;
         if !self.handle.owned_admissions.is_closed() {
             let owned_admissions = self
                 .handle
@@ -289,6 +289,8 @@ impl Runtime {
                 }
             }
 
+            // Cancellation Must Settle Even If Capturing The Report Boundary Failed.
+            report_inputs?;
             // Cancellation Must Settle Even If Native Shutdown Admission Failed.
             shutdown_admission?;
 
@@ -327,6 +329,8 @@ impl Runtime {
                 package.release_dispatchers(&self.handle);
             }
             self.shutdown.prepared = true;
+        } else {
+            report_inputs?;
         }
 
         if !self.shutdown.stopped {
