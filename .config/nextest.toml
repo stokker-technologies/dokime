@@ -4,13 +4,12 @@
 retries = 0
 fail-fast = false
 
-# Stories that prove the shipped read and report budgets by moving more than
-# they hold run one at a time; every other story gets the story budget in
-# crates/dokime-app/tests/support/budgets.rs.
+# Stories that move whole captures and large reports through the shipped
+# storage settings run one at a time so their memory never overlaps.
 [test-groups]
-whole-read-budget = { max-threads = 1 }
+large-transfers = { max-threads = 1 }
 
 [[profile.default.overrides]]
 filter = '''package(dokime-server) & binary(grpc) & test(=evidence_contract)
   | package(dokime-app) & binary(domains) & test(/^execution_(large_case|whole_capture|pool_refusal|running_report|report_progress|contended_reads)_contract$/)'''
-test-group = 'whole-read-budget'
+test-group = 'large-transfers'

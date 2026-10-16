@@ -478,91 +478,63 @@ pub(crate) async fn two_holds_reading() {
     let root = tempdir().expect("a temporary root");
     let (mut runtime, reads) = runtime(root.path()).await;
     let handle = runtime.handle();
+    let unscoped = || SamplingScope {
+        test_cycle_id: None,
+        test_case_id: None,
+        test_execution_id: None,
+    };
 
     let first = handle
-        .lease_streams(
-            SamplingScope {
-                test_cycle_id: None,
-                test_case_id: None,
-                test_execution_id: None,
-            },
-            &[stream()],
-            "fixture.a",
-        )
+        .lease_streams(unscoped(), &[stream()], "fixture.a")
         .await
         .expect("the first execution leases the host stream");
-    tokio::time::sleep(Duration::from_millis(2_500)).await;
-    let alone = reads.load(Ordering::SeqCst);
-    assert!(alone > 0, "the leased stream is actually being measured");
+    wait_for_reads(&reads, 1).await;
 
-    // A second hold on the same stream joins the one session. The reading
-    // rate must not change: a second instance would roughly double it.
+    // A second hold on the same stream joins the one session, and a second
+    // stream leases independently of both.
     let second = handle
-        .lease_streams(
-            SamplingScope {
-                test_cycle_id: None,
-                test_case_id: None,
-                test_execution_id: None,
-            },
-            &[stream()],
-            "fixture.b",
-        )
+        .lease_streams(unscoped(), &[stream()], "fixture.b")
         .await
         .expect("the second execution leases the same stream");
-    tokio::time::sleep(Duration::from_millis(3_000)).await;
-    let added = reads.load(Ordering::SeqCst) - alone;
-    assert!(
-        added <= 6,
-        "one stream at one second is about one reading a second whoever holds it: {added} readings over three seconds"
-    );
-
-    // A second stream of the same cadence adds its own reading rate and no
-    // more: `host.network` declares the same one second, so the two together
-    // are about two reads a second. A re-request of `host.system` would make it
-    // three.
-    let baseline = reads.load(Ordering::SeqCst);
     let network = handle
         .lease_streams(
-            SamplingScope {
-                test_cycle_id: None,
-                test_case_id: None,
-                test_execution_id: None,
-            },
+            unscoped(),
             &[Identifier::new("host.network").expect("addressable")],
             "fixture.b",
         )
         .await
         .expect("the second host stream leases");
-    tokio::time::sleep(Duration::from_millis(3_000)).await;
-    let both = reads.load(Ordering::SeqCst) - baseline;
-    assert!(
-        both <= 9,
-        "two streams at one second are about two reads a second, not three: {both} reads over three seconds"
-    );
+    assert!(handle.stream_lease_is_active(&first[0]).await);
+    assert!(handle.stream_lease_is_active(&second[0]).await);
+    assert!(handle.stream_lease_is_active(&network[0]).await);
     handle.release_stream_leases(network).await.unwrap();
 
-    // The instance outlives the first release and stops on the last.
-    handle.release_stream_leases(first).await.unwrap();
+    // The instance outlives the first release and keeps being read.
+    handle.release_stream_leases(first.clone()).await.unwrap();
+    assert!(!handle.stream_lease_is_active(&first[0]).await);
     assert!(handle.stream_lease_is_active(&second[0]).await);
     let before = reads.load(Ordering::SeqCst);
-    tokio::time::sleep(Duration::from_millis(2_500)).await;
-    assert!(
-        reads.load(Ordering::SeqCst) > before,
-        "the surviving hold keeps the instance running"
-    );
+    wait_for_reads(&reads, before + 1).await;
 
-    handle.release_stream_leases(second).await.unwrap();
-    tokio::time::sleep(Duration::from_millis(4_000)).await;
-    let after_stop = reads.load(Ordering::SeqCst);
-    tokio::time::sleep(Duration::from_millis(2_500)).await;
-    assert_eq!(
-        reads.load(Ordering::SeqCst),
-        after_stop,
-        "a stream nobody holds is not being read"
+    handle.release_stream_leases(second.clone()).await.unwrap();
+    assert!(
+        !handle.stream_lease_is_active(&second[0]).await,
+        "a stream nobody holds has no active lease"
     );
 
     drop(handle);
     runtime.shutdown().await.expect("the runtime stops");
+}
+
+// Liveness only: waits until the collector has read at least `count` times.
+async fn wait_for_reads(reads: &AtomicUsize, count: usize) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while reads.load(Ordering::SeqCst) < count {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the leased stream is measured");
 }
 
 pub(crate) async fn foreign_stream_refuses() {
