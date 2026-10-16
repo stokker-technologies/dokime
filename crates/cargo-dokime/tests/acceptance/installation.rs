@@ -164,13 +164,17 @@ fn explicit_backend_paths_search_hits_and_missing_paths() {
 fn explicit_gui_and_backend_shims_preserve_selected_paths() {
     let installed = installation();
     let shim = installed.path().join("dokime-shim");
-    std::os::unix::fs::symlink(installed.path().join("dokime"), &shim).unwrap();
+    std::os::unix::fs::symlink(installed.path().join("dokime-server"), &shim).unwrap();
     let output = cargo_dokime(installed.path())
         .args(["version", "--json", "--dokime"])
         .arg(&shim)
         .output()
         .unwrap();
-    assert!(output.status.success());
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let arguments = installed.path().join("arguments");
     stub_gui(installed.path(), &arguments);
     let explicit = installed.path().join("custom-gui");

@@ -2089,6 +2089,7 @@ dependencies = [
  "time",
  "tracing",
  "tracing-error",
+ "uuid",
 ]
 
 [[package]]

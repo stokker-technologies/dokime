@@ -1821,11 +1821,11 @@ async fn independent_sidecar_modes() {
 
 #[tokio::test]
 async fn native_grpc_contract() {
-    independent_sidecar_modes().await;
-    charger_telemetry_query_uses_native_prompt_log_telemetry().await;
-    sidecar_execution_streams_evidence_through_native_grpc().await;
-    fixtures_expose_installed_settings_branding_and_diagnostics().await;
-    plot_watch_pushes_live_deltas_near_ten_hz().await;
-    step_awaits_record_listener_hears_one_from_another_execution().await;
-    name_without_media_type_refused_row_lands_on_own_stream().await;
+    Box::pin(independent_sidecar_modes()).await;
+    Box::pin(charger_telemetry_query_uses_native_prompt_log_telemetry()).await;
+    Box::pin(sidecar_execution_streams_evidence_through_native_grpc()).await;
+    Box::pin(fixtures_expose_installed_settings_branding_and_diagnostics()).await;
+    Box::pin(plot_watch_pushes_live_deltas_near_ten_hz()).await;
+    Box::pin(step_awaits_record_listener_hears_one_from_another_execution()).await;
+    Box::pin(name_without_media_type_refused_row_lands_on_own_stream()).await;
 }

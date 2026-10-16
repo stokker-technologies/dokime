@@ -77,3 +77,27 @@ fn artifact_names_validate() {
         &"x".repeat(name::MAX_PATH_BYTES + 1)
     ));
 }
+
+#[test]
+fn fresh_artifact_identities_are_unique() {
+    let identifiers = std::thread::scope(|scope| {
+        let workers = (0..4)
+            .map(|_| {
+                scope.spawn(|| {
+                    (0..10_000)
+                        .map(|_| dokime_contract::core::ArtifactId::new())
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Vec<_>>();
+        workers
+            .into_iter()
+            .flat_map(|worker| worker.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    let mut unique = std::collections::BTreeSet::new();
+    for identifier in identifiers {
+        assert_eq!(identifier.as_str().as_bytes()[14], b'7');
+        assert!(unique.insert(identifier), "fresh identity was reused");
+    }
+}

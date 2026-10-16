@@ -633,13 +633,14 @@ pub(crate) async fn pinned_page_waiting() {
                 .await
                 .unwrap(),
         );
-        let settings = StorageSettings {
+        let mut settings = StorageSettings {
             budget: StorageBudget {
-                read_memory_bytes: NonZeroUsize::new(5 * 1024 * 1024).unwrap(),
+                read_memory_bytes: NonZeroUsize::new(3 * 1024 * 1024).unwrap(),
             },
             query_decoded_bytes: NonZeroUsize::new(4096).unwrap(),
             ..crate::sqlite::storage::storage_settings()
         };
+        settings.query_execution.memory_bytes = NonZeroUsize::new(2 * 1024 * 1024).unwrap();
         let execution = settings.query_execution;
         let storage = StorageManager::new(
             StorageBackends {
@@ -682,8 +683,10 @@ pub(crate) async fn pinned_page_waiting() {
         assert!(first.next_page().await.unwrap().is_none());
         drop(first);
         let before = storage.status().read_bytes;
+        // The Requested Page Exceeds The Pool While An Earlier Page Remains Retained.
         let mut oversized = small();
-        oversized.options.page.as_mut().unwrap().bytes = NonZeroUsize::new(1024 * 1024).unwrap();
+        oversized.options.page.as_mut().unwrap().bytes =
+            NonZeroUsize::new(4 * 1024 * 1024).unwrap();
         let mut refused = storage.query_in(&view, oversized).unwrap();
         for _ in 0..2 {
             let result = tokio::time::timeout(Duration::from_secs(1), refused.next_page())

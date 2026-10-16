@@ -698,8 +698,7 @@ impl ExecutionStorage {
             });
             publish_materialized_final(ctx, &mut acquisition).await
         };
-        let _preparation = preparation;
-        work.await
+        preparation.boxed(work)?.await
     }
 
     pub(super) async fn has_final_report(&self, execution: &TestExecutionId) -> bool {

@@ -13,11 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{
-    fmt,
-    sync::atomic::{AtomicU64, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::fmt;
 // Third Party Imports
 use serde::{Deserialize, Serialize, de};
 // Local Imports
@@ -26,7 +22,6 @@ use serde::{Deserialize, Serialize, de};
 const DOKIME_ID_NAMESPACE: [u8; 16] = [
     0xd0, 0x11, 0xed, 0x1d, 0x5e, 0xed, 0x4d, 0xa7, 0x9c, 0x0f, 0xe1, 0xd5, 0xea, 0x11, 0xab, 0x1e,
 ];
-static UUID_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /* === Macros === */
 macro_rules! typed_uuid {
@@ -213,14 +208,7 @@ pub(crate) fn seeded_uuid(type_name: &str, seed: &str) -> String {
 }
 
 pub(crate) fn fresh_uuid() -> String {
-    let elapsed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let timestamp_millis = elapsed.as_millis() as u64;
-    let sequence = UUID_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-        ^ u64::from(std::process::id())
-        ^ u64::from(elapsed.subsec_nanos());
-    format_uuid(timestamp_millis.rotate_left(16) ^ sequence, sequence, 7)
+    uuid::Uuid::now_v7().to_string()
 }
 
 /* === Private Functions === */
