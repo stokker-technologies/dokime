@@ -109,10 +109,8 @@ impl RuntimeHandle {
             return Err(NoteError::Unavailable("runtime is shutting down".into()));
         }
         let permit = self
-            .owned_admissions
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| NoteError::Overloaded)?;
+            .admit_owned_work()
+            .ok_or_else(|| NoteError::Unavailable("runtime is shutting down".into()))?;
         if self.is_shutting_down() {
             return Err(NoteError::Unavailable("runtime is shutting down".into()));
         }

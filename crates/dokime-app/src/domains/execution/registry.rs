@@ -44,10 +44,8 @@ impl RuntimeHandle {
     ) -> std::result::Result<(), Error> {
         let source = source.into();
         let permit = self
-            .owned_admissions
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| unavailable_rejection("suite admission is at capacity; retry later"))?;
+            .admit_owned_work()
+            .ok_or_else(|| unavailable_rejection("runtime is shutting down"))?;
         let runtime = self.clone();
         tokio::spawn(async move {
             let _permit = permit;

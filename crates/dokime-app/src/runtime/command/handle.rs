@@ -221,19 +221,13 @@ impl RuntimeHandle {
                 unavailable_rejection("runtime is shutting down"),
             );
         }
-        let permit = match self.owned_admissions.clone().try_acquire_owned() {
-            Ok(permit) => permit,
-            Err(_) => {
-                return rejected_receipt(
-                    CommandId::new(),
-                    &context,
-                    Timestamp::now_utc(),
-                    Error::overload(
-                        "execution_admission_busy",
-                        "execution admission is at capacity; retry later",
-                    ),
-                );
-            }
+        let Some(permit) = self.admit_owned_work() else {
+            return rejected_receipt(
+                CommandId::new(),
+                &context,
+                Timestamp::now_utc(),
+                unavailable_rejection("runtime is shutting down"),
+            );
         };
         if self.is_shutting_down() {
             return rejected_receipt(

@@ -39,7 +39,6 @@ use dokime::core::{Identifier, SessionId};
 use dokime::domains::ActionDispatcher;
 
 /* === Constants === */
-pub(crate) const OWNED_ADMISSION_LIMIT: u32 = 16;
 
 /* === Macros === */
 
@@ -97,7 +96,8 @@ pub struct RuntimeHandle {
     pub(crate) provider_tasks: Arc<Mutex<Vec<crate::operations::provider::ProviderTask>>>,
     pub(crate) provider_completion_failure:
         Arc<Mutex<Option<crate::operations::provider::PublicationFailure>>>,
-    pub(crate) owned_admissions: Arc<tokio::sync::Semaphore>,
+    // Detached work shutdown drains before the runtime closes.
+    pub(crate) owned_work: tokio_util::task::TaskTracker,
     pub(crate) plugin_admission: Arc<tokio::sync::Mutex<()>>,
     pub(crate) unavailable_plugins: Arc<RwLock<std::collections::BTreeSet<String>>>,
     pub(crate) state: Arc<RwLock<Arc<RuntimeState>>>,
@@ -129,6 +129,15 @@ impl Drop for BootRuntime {
 }
 
 impl RuntimeHandle {
+    /// Admit detached work that shutdown drains, or `None` once shutdown closed admission.
+    pub(crate) fn admit_owned_work(
+        &self,
+    ) -> Option<tokio_util::task::task_tracker::TaskTrackerToken> {
+        // Take The Token First So A Concurrent Close Either Waits For It Or Is Seen.
+        let token = self.owned_work.token();
+        (!self.owned_work.is_closed()).then_some(token)
+    }
+
     pub fn storage(&self) -> &dokime::storage::Manager {
         &self.storage
     }
@@ -445,9 +454,7 @@ impl RuntimeHandle {
                 shutdown_requested: tokio::sync::watch::channel(false).0,
                 provider_tasks: Default::default(),
                 provider_completion_failure: Default::default(),
-                owned_admissions: Arc::new(tokio::sync::Semaphore::new(
-                    OWNED_ADMISSION_LIMIT as usize,
-                )),
+                owned_work: Default::default(),
                 plugin_admission: Default::default(),
                 unavailable_plugins: resources.analysis.unavailable.clone(),
                 state: Arc::new(RwLock::new(Arc::new(initial_state))),

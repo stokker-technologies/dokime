@@ -46,16 +46,7 @@ impl crate::RuntimeHandle {
                 "registration requires 1 to 1000 cases".into(),
             ));
         }
-        let permit = self
-            .owned_admissions
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| {
-                crate::Error::overload(
-                    "case_admission_busy",
-                    "case admission is at capacity; retry later",
-                )
-            })?;
+        let permit = self.admit_owned_work().ok_or(crate::Error::ShuttingDown)?;
         let runtime = self.clone();
         tokio::spawn(async move {
             let _permit = permit;

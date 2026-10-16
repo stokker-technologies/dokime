@@ -125,20 +125,7 @@ impl RuntimeHandle {
         if self.is_shutting_down() {
             return Err(Error::ShuttingDown);
         }
-        let permit = self
-            .owned_admissions
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| {
-                if self.is_shutting_down() {
-                    Error::ShuttingDown
-                } else {
-                    Error::overload(
-                        "execution_control_busy",
-                        "execution control admission is at capacity; retry later",
-                    )
-                }
-            })?;
+        let permit = self.admit_owned_work().ok_or(Error::ShuttingDown)?;
         let runtime = self.clone();
         tokio::spawn(async move {
             let _permit = permit;

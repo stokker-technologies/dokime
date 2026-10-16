@@ -94,7 +94,7 @@ cssparser = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true, features = ["io"] }
+tokio-util = { workspace = true, features = ["io", "rt"] }
 
 # Networking
 rustls-platform-verifier = { workspace = true }

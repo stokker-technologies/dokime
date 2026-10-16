@@ -247,17 +247,8 @@ impl Runtime {
             .map(|execution| execution.test_execution_id.clone())
             .collect();
         let report_inputs = self.handle.freeze_report_inputs(report_ids).await;
-        if !self.handle.owned_admissions.is_closed() {
-            let owned_admissions = self
-                .handle
-                .owned_admissions
-                .clone()
-                .acquire_many_owned(handle::OWNED_ADMISSION_LIMIT)
-                .await
-                .expect("only shutdown closes the admission gate");
-            self.handle.owned_admissions.close();
-            drop(owned_admissions);
-        }
+        self.handle.owned_work.close();
+        self.handle.owned_work.wait().await;
 
         if !self.shutdown.prepared {
             let admission = self.handle.plugin_admission.lock().await;

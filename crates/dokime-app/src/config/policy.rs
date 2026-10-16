@@ -183,12 +183,7 @@ impl crate::RuntimeHandle {
         policy: StoragePolicy,
     ) -> Result<StoragePolicyView> {
         policy.validate()?;
-        let permit = self
-            .owned_admissions
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|_| Error::ShuttingDown)?;
+        let permit = self.admit_owned_work().ok_or(Error::ShuttingDown)?;
         if *self.shutdown_requested.borrow() {
             return Err(Error::ShuttingDown);
         }
