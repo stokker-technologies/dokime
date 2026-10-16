@@ -1072,6 +1072,7 @@ mod tests {
                 Timestamp::new("2000-01-01T00:00:00Z"),
                 "fixture",
             );
+            sample.values.clear();
             if let Some(value) = &explicit {
                 sample.values.insert("timestamp".into(), value.clone());
             }
