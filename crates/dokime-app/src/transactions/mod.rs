@@ -44,7 +44,7 @@ pub use labels::{LabelSubject, RenameLabel};
 pub use lifecycle::{
     CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, MarkRuntimeStarted,
     RecoverInterruptedCycles, ReportFinalization, ReportLifecycle, RequestCycleReportFinalization,
-    RequestReportFinalization, StartShutdown,
+    RequestReportFinalization, SealCycle, StartShutdown,
 };
 pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
@@ -117,6 +117,7 @@ pub enum Transactions {
     EditOperatorNote(EditOperatorNote),
     MarkRuntimeStarted(MarkRuntimeStarted),
     RecoverInterruptedCycles(RecoverInterruptedCycles),
+    SealCycle(SealCycle),
     EstablishNodeIdentity(EstablishNodeIdentity),
     StartShutdown(StartShutdown),
     ControlCycle(ControlCycle),

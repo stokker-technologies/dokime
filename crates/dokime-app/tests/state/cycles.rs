@@ -1513,6 +1513,41 @@ pub(crate) fn recovery_requires_request() {
     assert_ne!(attempts[1].test_execution_id, sealed.test_execution_id);
 }
 
+pub(crate) fn recovery_keeps_cycle_intent() {
+    use dokime_app::transactions::provider::request::RunPhase;
+
+    let (mut state, cycle_id) = admitted();
+    let completed_at = Timestamp::now_utc();
+    let request = state.run_requests.values_mut().next().unwrap();
+    request.summary.phase = RunPhase::Finishing;
+    request.completion_at = Some(completed_at.clone());
+    let before = request.clone();
+    let mut source = state.cycles[&cycle_id].clone();
+    source.lifecycle = CycleStatus::Completed;
+    source.updated_at = completed_at;
+    let intent = dokime_app::transactions::CycleReportFinalization {
+        source,
+        evidence_at: harmos::storage::StorageCursor {
+            history: harmos::storage::StoreHistory {
+                store: Identifier::new("fixture.store").unwrap(),
+                epoch: Identifier::new("fixture.epoch").unwrap(),
+            },
+            sequence: 1,
+        },
+    };
+    state
+        .cycle_report_finalizations
+        .insert(cycle_id.clone(), intent.clone());
+
+    RecoverInterruptedCycles {
+        at: Timestamp::now_utc(),
+    }
+    .apply(&mut state);
+    assert_eq!(state.cycles[&cycle_id].lifecycle, CycleStatus::Stopped);
+    assert_eq!(state.run_requests.values().next().unwrap(), &before);
+    assert_eq!(state.cycle_report_finalizations[&cycle_id], intent);
+}
+
 pub(crate) fn recovery_seals_receipts() {
     use dokime_app::transactions::provider::request::RunPhase;
 

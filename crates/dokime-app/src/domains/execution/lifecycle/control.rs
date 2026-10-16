@@ -252,6 +252,20 @@ impl RuntimeHandle {
         // The journal still validates and serializes the control transition;
         // the terminal receipt still waits for the final evidence checkpoint.
         let _admission = admit_control(&action, &self.evidence_admission).await;
+        // A Recovered Cycle Whose Report Intent Is Durable Only Awaits Its Seal.
+        let pending_seal = {
+            let state = self.state_read();
+            state
+                .cycle_report_finalizations
+                .contains_key(&test_cycle_id)
+                && state
+                    .cycles
+                    .get(&test_cycle_id)
+                    .is_some_and(|cycle| cycle.saved.is_none())
+        };
+        if matches!(action, Action::Stop) && pending_seal {
+            return self.seal_settled_cycle(&test_cycle_id).await;
+        }
         let occurred_at = Timestamp::now_utc();
         let transaction = Control {
             test_cycle_id: test_cycle_id.clone(),
@@ -330,6 +344,14 @@ impl RuntimeHandle {
                 })
                 .await
                 .map_err(|error| unavailable_rejection(error.to_string()))?;
+        }
+        // A Stop No Run Will Finish Seals The Cycle From Its Persisted Members.
+        if matches!(action, Action::Stop) && !bounded {
+            self.reconcile_sampling().await;
+            self.execution_storage
+                .save_cycle(test_cycle_id.clone())
+                .await?;
+            return self.seal_settled_cycle(&test_cycle_id).await;
         }
         // Persist cycle state separately from execution evidence. During an
         // active request only running captures need a control-boundary flush;

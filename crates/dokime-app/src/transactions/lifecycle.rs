@@ -101,6 +101,14 @@ pub struct RequestCycleReportFinalization {
     pub intent: CycleReportFinalization,
 }
 
+/// Seals a terminal cycle no run request will complete, with its published report.
+#[harmos::transaction(id = "dokime.cycle.seal", version = 1, irreversible)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SealCycle {
+    pub sealed_cycle: dokime::execution::TestCycle,
+    pub sealed_executions: Vec<dokime::execution::saved::ExecutionSeal>,
+}
+
 /* === Enums === */
 
 /* === Traits === */
@@ -149,6 +157,65 @@ impl Transaction<RuntimeState> for RequestCycleReportFinalization {
             .cycle_report_finalizations
             .entry(self.intent.source.test_cycle_id.clone())
             .or_insert_with(|| self.intent.clone());
+    }
+}
+
+impl Transaction<RuntimeState> for SealCycle {
+    type Error = String;
+    fn check(&self, state: &RuntimeState) -> Result<(), String> {
+        let sealed = &self.sealed_cycle;
+        let current = state
+            .cycles
+            .get(&sealed.test_cycle_id)
+            .ok_or("sealed cycle is missing")?;
+        let seal = sealed.saved.as_ref().ok_or("sealed cycle has no seal")?;
+        if current.saved.as_ref().is_some_and(|saved| saved != seal) {
+            return Err("cycle already has a different immutable report seal".into());
+        }
+        if state.run_requests.values().any(|request| {
+            request.summary.cycle_id == sealed.test_cycle_id && !request.summary.phase.terminal()
+        }) {
+            return Err("a run request still owns this cycle".into());
+        }
+        if !crate::transactions::archive::cycle_terminal(sealed.lifecycle)
+            || sealed.execution_ids != current.execution_ids
+            || sealed.metadata != current.metadata
+            || sealed.created_at != current.created_at
+            || sealed.started_at != current.started_at
+        {
+            return Err("sealed cycle differs from its terminal owner".into());
+        }
+        seal.validate(sealed).map_err(|source| source.to_string())?;
+        if self.sealed_executions.len() != sealed.execution_ids.len() {
+            return Err("sealed executions differ from cycle membership".into());
+        }
+        for (id, execution_seal) in sealed.execution_ids.iter().zip(&self.sealed_executions) {
+            if &execution_seal.source.execution.execution_id != id {
+                return Err("sealed executions differ from cycle membership".into());
+            }
+            if state.executions[id]
+                .saved
+                .as_ref()
+                .is_some_and(|saved| saved != execution_seal)
+            {
+                return Err("execution already has a different immutable report seal".into());
+            }
+        }
+        Ok(())
+    }
+    fn apply(&self, state: &mut RuntimeState) {
+        let id = &self.sealed_cycle.test_cycle_id;
+        state.cycles.insert(id.clone(), self.sealed_cycle.clone());
+        state.cycle_report_finalizations.remove(id);
+        for seal in &self.sealed_executions {
+            let member = &seal.source.execution.execution_id;
+            state
+                .executions
+                .get_mut(member)
+                .expect("checked member")
+                .saved = Some(seal.clone());
+            state.report_finalizations.remove(member);
+        }
     }
 }
 
@@ -299,7 +366,13 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         commit_settled_prompts(state, settled);
 
         for request in state.run_requests.values_mut() {
-            if request.summary.phase.terminal() {
+            // A Request Whose Cycle Report Intent Is Durable Has Settled Its
+            // Outcome; Only Its Seal Is Pending, And A Later Stop Completes It.
+            if request.summary.phase.terminal()
+                || state
+                    .cycle_report_finalizations
+                    .contains_key(&request.summary.cycle_id)
+            {
                 continue;
             }
 
@@ -315,9 +388,9 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         // Sealed Cycles Are Served From Native History After A Restart
         state.retire_sealed_cycles();
         for (id, cycle) in &mut state.cycles {
-            // An Unsealed Cycle Report Is Not Resumed: The Cycle Stops, And A
-            // Later Stop Or Close Reports From Its Persisted Members.
-            let mut changed = state.cycle_report_finalizations.remove(id).is_some();
+            // An Unsealed Cycle Report Is Not Resumed: The Live Cycle Stops, And
+            // A Later Stop Seals It From The Persisted Intent's Frozen Source.
+            let mut changed = state.cycle_report_finalizations.contains_key(id);
             changed |= matches!(
                 cycle.lifecycle,
                 CycleStatus::Ready

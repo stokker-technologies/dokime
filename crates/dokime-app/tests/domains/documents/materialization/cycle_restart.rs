@@ -261,12 +261,15 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
         let original_html = opened.html.to_vec();
         drop(opened);
         assert_eq!(runtime.state_read().cycle_report_finalizations[&id], intent);
-        drop(runtime);
-        owner.shutdown().await.unwrap();
-        drop(owner);
-
-        let (mut owner, runtime) =
-            booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
+        // Recovery Stops The Live Cycle; Stopping It Seals From The Frozen Intent.
+        assert_eq!(
+            runtime.state_read().cycles[&id].lifecycle,
+            CycleStatus::Stopped
+        );
+        runtime
+            .stop_cycle(id.clone(), CommandContext::default())
+            .await
+            .unwrap();
         assert!(
             !runtime
                 .state_read()

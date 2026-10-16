@@ -107,6 +107,10 @@ fn domain_contract() {
         cycles::recovery_requires_request();
     }
     {
+        eprintln!("Scenario: cycles::recovery_keeps_cycle_intent");
+        cycles::recovery_keeps_cycle_intent();
+    }
+    {
         eprintln!("Scenario: cycles::recovery_seals_receipts");
         cycles::recovery_seals_receipts();
     }

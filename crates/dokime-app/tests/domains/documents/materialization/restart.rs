@@ -98,6 +98,29 @@ pub(crate) async fn persisted_cycle_restart() {
         .await
         .unwrap();
     let at = backend.open().await.unwrap();
+    let released = backend
+        .local_state()
+        .call(|connection| {
+            let mut statement = connection.prepare("SELECT item FROM storage_object_releases")?;
+            let items = statement
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(items)
+        })
+        .await
+        .unwrap();
+    assert!(
+        !released.iter().any(|item| item == cycle_id.as_str()),
+        "active parent must retain its history: {released:?}"
+    );
+    for member in &before.test_executions {
+        assert!(
+            !released
+                .iter()
+                .any(|item| item == member.test_execution_id.as_str()),
+            "active parent must retain member history: {released:?}"
+        );
+    }
     while !backend
         .prune_objects(&at, NonZeroUsize::new(128).unwrap())
         .await

@@ -27,6 +27,88 @@ use futures_util::{StreamExt, stream::FuturesUnordered};
 /* === Traits === */
 /* === Implementations === */
 impl RuntimeHandle {
+    /// Seal a terminal cycle no running request will finish: from its durable
+    /// report intent when one exists, otherwise from its persisted members now.
+    pub(crate) async fn seal_settled_cycle(&self, id: &dokime::core::TestCycleId) -> Result<()> {
+        let (cycle, completion) = {
+            let state = self.state_read();
+            let cycle = state
+                .cycle_view(id)
+                .ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
+            let completion = state
+                .run_requests
+                .values()
+                .find(|request| {
+                    request.summary.cycle_id == *id && !request.summary.phase.terminal()
+                })
+                .map(|request| {
+                    (
+                        request.summary.request_id.clone(),
+                        request.completion_at.clone(),
+                    )
+                });
+            (cycle, completion)
+        };
+        if cycle.saved.is_some() {
+            return Ok(());
+        }
+        let completion = match completion {
+            Some((request_id, Some(at))) => Some((request_id, at)),
+            Some((_, None)) => return Err(invalid("a running request still owns this cycle")),
+            None => None,
+        };
+        for execution in &cycle.test_executions {
+            if execution.saved.is_none() {
+                self.finish_saved_execution(&cycle, execution).await?;
+            }
+        }
+        let progress = self.operation_progress().begin("Sealing Cycle Report");
+        let sealed = match self.finish_saved_cycle(&cycle, &progress).await {
+            Ok(sealed) => {
+                progress.finish();
+                sealed
+            }
+            Err(error) => {
+                progress.fail(&error);
+                return Err(error);
+            }
+        };
+        match completion {
+            Some((request_id, at)) => {
+                self.commit(crate::transactions::CompleteRun {
+                    request_id: request_id.clone(),
+                    at,
+                    sealed_cycle: Some(sealed.header.clone()),
+                    sealed_executions: sealed.executions.clone(),
+                    unsealed: None,
+                })
+                .await
+                .map_err(|error| Error::Operation(error.to_string()))?;
+                let (summary, interruption) = {
+                    let state = self.state_read();
+                    let request = &state.run_requests[&request_id];
+                    (request.summary.clone(), request.interruption())
+                };
+                self.request_storage
+                    .update(&request_id, |receipt| {
+                        receipt.summary = summary.clone();
+                        receipt.interruption = interruption.clone();
+                    })
+                    .await?;
+            }
+            None => self
+                .commit(crate::transactions::SealCycle {
+                    sealed_cycle: sealed.header.clone(),
+                    sealed_executions: sealed.executions.clone(),
+                })
+                .await
+                .map_err(|error| Error::Operation(error.to_string()))
+                .map(drop)?,
+        }
+        self.execution_storage.retire_cycle_report(id).await;
+        Ok(())
+    }
+
     pub(crate) async fn finish_saved_executions(
         &self,
         cycle: &CycleView,

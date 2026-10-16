@@ -124,8 +124,7 @@ pub(crate) async fn empty_cycle_grows() {
     assert_eq!(completed.test_executions[0].status, ExecutionStatus::Passed);
 }
 
-// Stopping a cycle that never received cases leaves it terminal and unsealed;
-// its report still renders, empty, from current state.
+// Stopping a cycle that never received cases seals it with an empty report.
 pub(crate) async fn empty_cycle_stops() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = booted(root.path()).await;
@@ -143,10 +142,10 @@ pub(crate) async fn empty_cycle_stops() {
         .unwrap();
     let stopped = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Stopped).await;
     assert!(stopped.test_executions.is_empty());
-    assert!(stopped.saved.is_none());
+    assert!(stopped.saved.is_some(), "stopping seals the empty cycle");
 
     let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
-    assert_eq!(report.origin, dokime_app::ReportOrigin::Current);
+    assert_eq!(report.origin, dokime_app::ReportOrigin::Sealed);
     let payload = crate::support::reports::parse(std::str::from_utf8(&report.html).unwrap());
     assert!(
         payload["test_executions"]
