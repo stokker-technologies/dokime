@@ -54,8 +54,6 @@ pub struct StorageSettings {
     /// the Harmos default for any read that names no limits and is elastic: a
     /// view holds a floor and charges what it produces, so many fit the pool.
     pub interactive: harmos::storage::QueryLimits,
-    /// Largest Admissible Budget Of An Ordinary Read.
-    pub ceiling: harmos::storage::QueryLimits,
     /// Test hook: how long each native-output read finalization performs
     /// stalls within its read budget. Zero outside tests.
     #[doc(hidden)]
@@ -114,7 +112,6 @@ impl Default for StorageSettings {
             page_bytes_ceiling: read,
             decoded_bytes: batch,
             interactive: execution,
-            ceiling: execution,
             finalization_read_stall: Duration::ZERO,
             replay_read_deadlines: 0,
         }
@@ -132,11 +129,10 @@ impl StorageSettings {
     }
 
     pub(crate) fn validate(&self) -> crate::Result<()> {
-        self.interactive.check_ceiling(self.ceiling)?;
         if self.page_rows > self.page_rows_ceiling
             || self.page_bytes > self.page_bytes_ceiling
             || self.decoded_bytes > self.budget.read_memory_bytes
-            || self.ceiling.memory_bytes > self.budget.read_memory_bytes
+            || self.interactive.memory_bytes > self.budget.read_memory_bytes
         {
             return Err(crate::Error::Operation(
                 "storage read limits exceed shared capacity".into(),
@@ -161,7 +157,10 @@ impl StorageSettings {
         };
         settings.query_decoded_bytes = self.decoded_bytes;
         settings.query_execution = self.interactive;
-        settings.query_execution_ceiling = self.ceiling;
+        settings.query_execution_ceiling = harmos::storage::QueryLimits {
+            memory_bytes: self.budget.read_memory_bytes,
+            ..self.interactive
+        };
     }
 
     /// Explicit Product Policy For Every Harmos Storage Setting.
@@ -187,7 +186,10 @@ impl StorageSettings {
             },
             query_decoded_bytes: self.decoded_bytes,
             query_execution: self.interactive,
-            query_execution_ceiling: self.ceiling,
+            query_execution_ceiling: harmos::storage::QueryLimits {
+                memory_bytes: self.budget.read_memory_bytes,
+                ..self.interactive
+            },
             replication_limits: harmos::storage::ReadLimits {
                 rows: nonzero(64),
                 bytes: nonzero(64 * 1024),

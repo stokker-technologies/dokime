@@ -100,7 +100,6 @@ pub(crate) async fn contended_reads_stay_interactive() {
             .unwrap()]);
     config.storage.budget.read_memory_bytes = INCIDENT_READ_MEMORY;
     config.storage.interactive.memory_bytes = INCIDENT_READ_MEMORY;
-    config.storage.ceiling.memory_bytes = INCIDENT_READ_MEMORY;
     config.storage.page_bytes = std::num::NonZeroUsize::new(64 * 1024).unwrap();
     config.storage.page_bytes_ceiling = INCIDENT_READ_MEMORY;
     let (mut runtime, handle) = started(config).await;

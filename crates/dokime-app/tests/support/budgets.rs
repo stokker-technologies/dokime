@@ -62,13 +62,11 @@ pub fn story_settings() -> StorageSettings {
     reads
 }
 
-/// Sizes reads for one story: a ledger for its overlapping views, and the
-/// admissible ceiling as its time budget so no read outcome depends on how
-/// loaded the machine is. Stories that assert a deadline set their own after.
+/// Sizes the shared read pool for a story's overlapping views.
+/// Deadline scenarios select their own operation timeout.
 pub fn story_reads(reads: &mut StorageSettings) {
     reads.budget.read_memory_bytes = STORY_READ_MEMORY;
     reads.interactive.memory_bytes = reads.interactive.memory_bytes.min(STORY_READ_MEMORY);
-    reads.ceiling.memory_bytes = reads.ceiling.memory_bytes.min(STORY_READ_MEMORY);
     reads.decoded_bytes = reads.decoded_bytes.min(STORY_READ_MEMORY);
     reads.page_bytes_ceiling = reads.page_bytes_ceiling.min(STORY_READ_MEMORY);
     let scan = NonZeroUsize::new(
@@ -76,7 +74,6 @@ pub fn story_reads(reads: &mut StorageSettings) {
     )
     .unwrap();
     reads.page_bytes = reads.page_bytes.min(scan);
-    reads.interactive.timeout = reads.ceiling.timeout;
 }
 
 /// The shipped ledger for a story that proves a transfer or a report stays

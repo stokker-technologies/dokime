@@ -419,12 +419,7 @@ pub(crate) async fn independent_readers_pages() {
 
 pub(crate) async fn slow_dropped_create() {
     let root = tempfile::tempdir().unwrap();
-    let mut config = runtime_config(root.path());
-    // This Scenario Tests Reader Ownership, Not Instrumented Query Throughput.
-    // Keep The Complete 2,001-Record Read Inside The Declared Bounded Ceiling.
-    if std::env::var("STKR_COVERAGE").as_deref() == Ok("1") {
-        config.storage.interactive.timeout = config.storage.ceiling.timeout;
-    }
+    let config = runtime_config(root.path());
     let mut owner = Runtime::start(config).await.unwrap();
     let handle = owner.handle();
     let slow = handle.captured_records();
@@ -812,7 +807,7 @@ pub(crate) async fn native_entry_independent() {
         .unwrap();
     let view = handle
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().ceiling)
+        .view_with_limits(crate::support::budgets::story_settings().interactive)
         .await
         .unwrap();
     let restored = cycle::read_in(

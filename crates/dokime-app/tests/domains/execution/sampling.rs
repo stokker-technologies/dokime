@@ -947,7 +947,6 @@ fn constrain_report_memory(config: &mut dokime_app::RuntimeConfig) {
     let memory = std::num::NonZeroUsize::new(32 * 1024 * 1024).unwrap();
     config.storage.budget.read_memory_bytes = memory;
     config.storage.interactive.memory_bytes = memory;
-    config.storage.ceiling.memory_bytes = memory;
     config.storage.page_bytes = std::num::NonZeroUsize::new(64 * 1024).unwrap();
     config.storage.page_bytes_ceiling = memory;
     config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();

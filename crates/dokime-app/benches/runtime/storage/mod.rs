@@ -82,7 +82,6 @@ impl Fixture {
         policy.budget.read_memory_bytes = nz(128 * 1024 * 1024);
         policy.request.max_active_queries = nz(concurrency);
         policy.interactive.memory_bytes = nz(64 * 1024 * 1024);
-        policy.ceiling.memory_bytes = nz(128 * 1024 * 1024);
         policy.decoded_bytes = nz(64 * 1024 * 1024);
         policy.page_bytes_ceiling = nz(128 * 1024 * 1024);
         let settings = policy.harmos(Duration::from_millis(10), nz(16 * 1024 * 1024));
