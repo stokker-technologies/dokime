@@ -418,9 +418,6 @@ impl ExecutionStorage {
                 "execution no longer accepts artifacts",
             ));
         }
-        if acquisition.artifacts.len() + acquisition.native_outputs.len() >= 256 {
-            return Err(error("execution output limit of 256 reached"));
-        }
         let id = ArtifactId::new();
         let owner = Arc::new(());
         let filename = crate::exports::storage::paths::safe_artifact_path(&input.filename);

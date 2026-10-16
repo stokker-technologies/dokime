@@ -111,9 +111,6 @@ impl ExecutionStorage {
                     Err(error("log path belongs to a different or closed producer"))
                 };
             }
-            if acquisition.artifacts.len() + acquisition.native_outputs.len() >= 256 {
-                return Err(error("execution output limit of 256 reached"));
-            }
             let mut output = NativeOutput::new(&storage.storage, &path)?;
             output.log = Some(LogPrefix {
                 acknowledged: 0,

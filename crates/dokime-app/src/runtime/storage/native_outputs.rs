@@ -209,9 +209,6 @@ impl ExecutionStorage {
             if acquisition.native_outputs.contains_key(&relative_path) {
                 return Err(error("duplicate execution output path"));
             }
-            if acquisition.artifacts.len() + acquisition.native_outputs.len() >= 256 {
-                return Err(error("execution output limit of 256 reached"));
-            }
             let output = NativeOutput::new(&storage.storage, &relative_path)?;
             let absolute_path = output.file.path().to_string_lossy().into_owned();
             acquisition

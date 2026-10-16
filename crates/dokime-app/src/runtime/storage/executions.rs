@@ -207,8 +207,7 @@ impl Acquisition {
             .native_outputs
             .len()
             .checked_add(self.artifacts.len())
-            .filter(|count| *count <= 256)
-            .ok_or_else(|| invalid("execution output capture exceeds 256 sources"))?;
+            .ok_or_else(|| invalid("execution output source count overflows"))?;
         let descriptors = || {
             self.native_outputs
                 .values()
