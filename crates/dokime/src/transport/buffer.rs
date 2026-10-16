@@ -136,6 +136,15 @@ impl ExecutionState {
         if self.local_inputs {
             sample.scope = Some(self.local_scope.clone());
             sample.received_at = sample.timestamp.clone();
+            if !sample.values.contains_key("timestamp") {
+                let timestamp = sample.timestamp.unix_millis().ok_or_else(|| {
+                    "local sample timestamp is not an RFC 3339 instant at or after the Unix epoch".to_owned()
+                })?;
+                sample.values.insert(
+                    "timestamp".to_owned(),
+                    crate::core::Value::Number(timestamp as f64 / 1_000.0),
+                );
+            }
             if !self.receive(sample.clone())? {
                 return Err("local sample evidence is closed or duplicated".into());
             }
@@ -1039,5 +1048,49 @@ mod tests {
             ..Default::default()
         });
         assert!(sample_difference(&original, &changed, true).is_some());
+    }
+
+    #[test]
+    fn local_sample_replay_keeps_automatic_timestamp() {
+        let request = crate::transport::protocol::RunExecutionRequest {
+            execution_token: "fixture".into(),
+            test_cycle_id: crate::core::TestCycleId::new().to_string(),
+            test_execution_id: TestExecutionId::new().to_string(),
+            template_identifier: "fixture".into(),
+            workflow: "fixture".into(),
+            parameters_json: "{}".into(),
+            secrets_json: "{}".into(),
+            mode: "automatic".into(),
+        };
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        let mut state = super::ExecutionState::new(request, cancel);
+        state.local_inputs = true;
+        for explicit in [None, Some(Value::Number(42.0))] {
+            let mut sample = TelemetrySample::new(
+                Identifier::new("reading").unwrap(),
+                state.produced("reading"),
+                Timestamp::new("2000-01-01T00:00:00Z"),
+                "fixture",
+            );
+            if let Some(value) = &explicit {
+                sample.values.insert("timestamp".into(), value.clone());
+            }
+            state.local_sample(sample).unwrap();
+            let admitted = state.take_local_samples().pop().unwrap();
+            assert_eq!(
+                admitted.values["timestamp"],
+                explicit.unwrap_or(Value::Number(946684800.0))
+            );
+            let mut replay = admitted.clone();
+            replay.received_at = Timestamp::now_utc();
+            state.validate_sample(&replay).unwrap();
+            replay.values.insert("timestamp".into(), Value::Number(0.0));
+            assert!(
+                state
+                    .validate_sample(&replay)
+                    .unwrap_err()
+                    .ends_with(": values")
+            );
+        }
     }
 }

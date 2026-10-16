@@ -65,7 +65,6 @@ pub(crate) async fn sealed_member(
     if source.owner_node_id != seal.source.owner_node_id
         || source.execution_id != seal.source.execution.execution_id
         || source.evidence_through != seal.source.evidence_through
-        || source.outputs != seal.source.outputs
     {
         return Err(invalid(
             "cycle member source differs from its execution seal",
@@ -78,7 +77,19 @@ pub(crate) async fn sealed_member(
             "cycle member source follows its published revision",
         ));
     }
-    let source = source.try_into_shared()?;
+    let maximum = view.decoded_bytes()?;
+    let memory = source
+        .memory_size()
+        .checked_add(seal.source.outputs.memory_size())
+        .and_then(NonZeroUsize::new)
+        .filter(|bytes| *bytes <= maximum)
+        .ok_or_else(|| invalid("cycle member output projection exceeds its allowance"))?;
+    let source = view
+        .project_owned(source, memory, |mut source, _| {
+            source.outputs = seal.source.outputs.clone();
+            Ok(source)
+        })?
+        .try_into_shared()?;
     let inspection = ExecutionView::captured(
         storage,
         view.clone(),

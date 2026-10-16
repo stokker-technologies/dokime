@@ -77,7 +77,8 @@ async fn collect(
 ) -> Result<Collected> {
     let limit = page_limit(query.limit, "telemetry")?;
     let after = Cursor::requested(query.after.as_deref())?;
-    let mut reader = TelemetryReader::open_page(storage, view, stream, after)?;
+    let view = view.snapshot(storage).await?;
+    let mut reader = TelemetryReader::open_page(storage, &view, stream, after)?;
     let checkpoint = view.checkpoint(reader.allowance())?;
     let cursor = reader.project(&checkpoint, |checkpoint, _| {
         Cursor::open(

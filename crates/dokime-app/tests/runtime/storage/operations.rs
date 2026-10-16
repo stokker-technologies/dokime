@@ -86,7 +86,9 @@ pub(crate) async fn storage_operations_view() {
         .submit_endpoints::<Query, _>(request, output)
         .unwrap();
     let result = tokio::time::timeout(Duration::from_secs(5), async {
-        let schema = input.recv().await.expect("schema precedes rows");
+        let Some(schema) = input.recv().await else {
+            panic!("query ended before its schema: {:?}", query.await);
+        };
         assert!(matches!(&*schema, QueryOutput::Schema(_)));
         drop(schema);
         let row = input.recv().await.expect("saved suite is returned");
