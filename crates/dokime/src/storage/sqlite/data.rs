@@ -265,7 +265,6 @@ impl State {
         maximum: NonZeroUsize,
         execution: Option<std::sync::Arc<super::query::Budget>>,
     ) -> Result<Option<ObjectEntry>, Error> {
-        let memory = self.clone();
         self.call_read(execution,move |connection| Ok((|| {
         let schema = key(query.schema.as_str())?;
         let item = key(query.item.as_str())?;
@@ -285,9 +284,6 @@ impl State {
             let encoded = blob(row, 1)?;
             if encoded.len() > maximum.get() { return Err(Error::Data("object exceeds read byte bound")); }
             check_digest(encoded, blob(row, 2)?)?;
-            let _decoded = memory.0.memory.reserve_owned(
-                Entry::decoding_bytes("object", encoded.len())?, usize::MAX
-            )?;
             let entry = Entry::decode("object", encoded)?;
             let Entry::Object(object) = entry else { return Err(Error::Corrupt("object index collection differs")); };
             if object.value.schema.id != query.schema || object.value.item != query.item
@@ -423,12 +419,11 @@ impl State {
                 AND newer.position>entries.position AND newer.position<=?{}
                 AND (newer.retired_at IS NULL OR newer.retired_at>?4))", arguments.len()));
         }
-        let count = if selection.kind == ReadKind::Schemas {
-            1
-        } else {
-            limits.rows.get().min(64)
-        };
-        let bound = if selection.record_filter.is_none() { format!(" LIMIT {}", count + 1) } else { String::new() };
+        let count = limits.rows.get();
+        let lookahead = count.checked_add(1)
+            .and_then(|value| i64::try_from(value).ok())
+            .ok_or(Error::Data("page row limit exceeds SQLite range"))?;
+        let bound = if selection.record_filter.is_none() { format!(" LIMIT {lookahead}") } else { String::new() };
         // A scoped selection walks only its own owner's entries in position
         // order rather than every entry of its kind across the cut.
         let index = if selection.scope.is_some() { "storage_data_scope" } else { "storage_data_kind_position" };
@@ -454,11 +449,7 @@ impl State {
                 let filter = record_filter::Prepared::new(connection, &memory.0.memory, &cut, &selection, entry_bytes)?;
                 let mut statement = connection.prepare(&sql)?;
                 let mut rows = statement.query(rusqlite::params_from_iter(arguments))?;
-                let metadata = count.checked_mul(std::mem::size_of::<Entry>() + std::mem::size_of::<super::memory::Reservation>())
-                    .ok_or(Error::Data("page metadata allocation size overflow"))?;
-                let _metadata = memory.0.memory.reserve_owned(metadata, usize::MAX)?;
-                let mut decoded = Vec::with_capacity(count);
-                let mut entries = Vec::with_capacity(count);
+                let mut entries = Vec::new();
                 let mut bytes = 0usize;
                 while let Some(row) = rows.next()? {
                     super::query::checkpoint()?;
@@ -494,9 +485,6 @@ impl State {
                         }
                         return finish(Page { entries, has_more: true });
                     }
-                    let charge = memory.0.memory.reserve_owned(
-                        Entry::decoding_bytes(kind(selection.kind), body.len())?, usize::MAX
-                    )?;
                     let entry = Entry::decode(kind(selection.kind), body)?;
                     if position(entry.position().sequence) != selected {
                         return Err(Error::Corrupt("entry index position differs"));
@@ -509,7 +497,6 @@ impl State {
                             return finish(Page { entries, has_more: true });
                         }
                     }
-                    decoded.push(charge);
                     bytes += portable;
                     entries.push(entry);
                 }

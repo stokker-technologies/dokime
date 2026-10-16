@@ -246,8 +246,7 @@ impl State {
             offset,
             maximum,
         } = read;
-        let maximum = maximum.get().min(CHUNK_BYTES);
-        let memory = self.0.memory.clone();
+        let maximum = maximum.get();
         self.call_read(execution, move |connection| {
             Ok((|| {
                 let head = saved(connection)?;
@@ -267,9 +266,6 @@ impl State {
                         return Err(Error::Corrupt("saved file reference exceeds metadata bound"));
                     }
                     super::check_digest(body, blob(row, 1)?)?;
-                    let _decoded = memory.reserve_owned(
-                        entry::Entry::decoding_bytes("file", body.len())?, usize::MAX,
-                    )?;
                     let stored: FileReference = serde_json::from_slice(body)?;
                     if stored != reference {
                         return Err(Error::Conflict("file reference differs from saved view"));

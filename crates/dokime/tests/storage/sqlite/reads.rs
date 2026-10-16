@@ -613,12 +613,12 @@ pub(crate) async fn small_rows_orders() {
         .write(write_batch(&[StoragePart::Schemas(&[schema()])]))
         .await
         .unwrap();
-    let records = (2..67).map(record).collect::<Vec<_>>();
+    let records = (2..83).map(record).collect::<Vec<_>>();
     backend
         .write(write_batch(&[StoragePart::Records(&records)]))
         .await
         .unwrap();
-    let view = view(&backend, 66).await;
+    let view = view(&backend, 82).await;
 
     for order in [ReadOrder::Ascending, ReadOrder::Descending] {
         let mut selection = ReadSelection::new(ReadKind::Records);
@@ -628,16 +628,16 @@ pub(crate) async fn small_rows_orders() {
             expected.reverse();
         }
         let first = backend
-            .read_records(&view, &selection, None, limits(256))
+            .read_records(&view, &selection, None, limits(80))
             .await
             .unwrap();
-        assert_eq!(first.entries, expected[..64]);
+        assert_eq!(first.entries, expected[..80]);
         let cursor = first.next.unwrap();
         let last = backend
-            .read_records(&view, &selection, Some(&cursor), limits(256))
+            .read_records(&view, &selection, Some(&cursor), limits(80))
             .await
             .unwrap();
-        assert_eq!(last.entries, expected[64..]);
+        assert_eq!(last.entries, expected[80..]);
         assert!(last.next.is_none());
     }
     backend.release_view(view.snapshot()).await.unwrap();
