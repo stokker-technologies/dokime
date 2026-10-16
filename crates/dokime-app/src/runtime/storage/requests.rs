@@ -369,10 +369,7 @@ impl<S: ReceiptStore> RequestStorage<S> {
         Ok(())
     }
 
-    /// Locks the request owners, reading `id`'s stored receipt first when no
-    /// owner holds it; `None` means an owner does. A receipt is small, so a
-    /// full read ledger is other readers: the read backs off for them with
-    /// the lock released, so receipt updates never wait behind it.
+    /// Reads Storage Without Holding The Request Registry, Then Rechecks Ownership.
     async fn lock_read(
         &self,
         id: &CommandId,
@@ -380,23 +377,19 @@ impl<S: ReceiptStore> RequestStorage<S> {
         tokio::sync::MutexGuard<'_, BTreeMap<CommandId, Active<S>>>,
         Option<Option<S::Receipt>>,
     )> {
-        let deadline = tokio::time::Instant::now() + self.patience;
-        let mut backoff = super::record_capture::CapacityBackoff::new();
-        loop {
-            let active = self.active.lock().await;
-            if active.contains_key(id) {
-                return Ok((active, None));
-            }
-            match self.read(id).await {
-                Err(error) if super::record_capture::read_capacity(&error) => {
-                    drop(active);
-                    if !backoff.wait_until(deadline).await {
-                        return Err(error);
-                    }
-                }
-                stored => return Ok((active, Some(stored?))),
-            }
+        let active = self.active.lock().await;
+        if active.contains_key(id) {
+            return Ok((active, None));
         }
+        drop(active);
+        let stored = tokio::time::timeout(self.patience, self.read(id))
+            .await
+            .map_err(|_| error("stored request read timed out"))?;
+        let active = self.active.lock().await;
+        if active.contains_key(id) {
+            return Ok((active, None));
+        }
+        Ok((active, Some(stored?)))
     }
 
     async fn read(&self, id: &CommandId) -> Result<Option<S::Receipt>> {

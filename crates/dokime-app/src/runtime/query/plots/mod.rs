@@ -125,26 +125,6 @@ pub async fn query_plot_stream_batches(
 }
 
 /* === Private Functions === */
-/// Reads the plot's records once shared storage read capacity is free.
-/// Concurrent readers, such as finalization captures, release it as they
-/// settle, so a plot backs off for them within the interactive deadline; past
-/// it the refusal reaches the plot as its error, and a watch retries later.
-async fn records_when_admitted(
-    runtime: &RuntimeHandle,
-    snapshot: &crate::queries::RuntimeStateSnapshot,
-) -> crate::Result<Vec<RecordEntry>> {
-    let deadline = tokio::time::Instant::now() + runtime.config().storage.interactive.timeout;
-    let mut backoff = crate::runtime::storage::record_capture::CapacityBackoff::new();
-    loop {
-        match runtime.records_at(snapshot).await {
-            Err(error)
-                if crate::runtime::storage::record_capture::read_capacity(&error)
-                    && backoff.wait_until(deadline).await => {}
-            result => return result,
-        }
-    }
-}
-
 fn plot_payload_context(
     request: &PlotPayloadRequest,
     contract: Option<&TelemetryContract>,
@@ -195,7 +175,7 @@ async fn query_plot_payloads_with_context(
             .iter()
             .any(|request| !request_record_types(request).is_empty())
         {
-            records_when_admitted(runtime, &context.snapshot).await
+            runtime.records_at(&context.snapshot).await
         } else {
             Ok(Vec::new())
         }

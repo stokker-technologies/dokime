@@ -20,7 +20,7 @@ use std::sync::Arc;
 // Local Imports
 use crate::{
     Result,
-    runtime::storage::record_capture::{CapacityBackoff, Process, Source, read_capacity},
+    runtime::storage::record_capture::{Process, Source},
 };
 
 /* === Constants === */
@@ -66,7 +66,6 @@ impl RecordSubscription {
     }
 
     pub async fn next(&mut self) -> Option<Result<CapturedRecord>> {
-        let mut backoff = CapacityBackoff::new();
         loop {
             self.reader.release_completed(self.delivered);
             let through = match self
@@ -88,11 +87,6 @@ impl RecordSubscription {
                     return Some(Ok(record));
                 }
                 Ok(None) => self.delivered = through,
-                Err(error) if read_capacity(&error) => {
-                    // Other Captures May Temporarily Own The Shared Read Budget.
-                    // Keep The Original Cursor; Waiting Is Normal For A Live Reader.
-                    backoff.wait().await;
-                }
                 Err(error) => return Some(Err(error)),
             }
         }
@@ -109,23 +103,11 @@ impl CapturedRecords {
     }
 
     pub async fn next(&self, after: u64, through: u64) -> Result<Option<CapturedRecord>> {
-        let mut backoff = CapacityBackoff::new();
-        loop {
-            let result = {
-                let mut reader = self.reader.lock().await;
-                reader.release_completed(after);
-                reader
-                    .next(&self.source, &self.state_manager, after, through)
-                    .await
-            };
-            match result {
-                Err(error) if read_capacity(&error) => {
-                    // Retry the same cut without acknowledging undelivered records.
-                    backoff.wait().await;
-                }
-                result => return result,
-            }
-        }
+        let mut reader = self.reader.lock().await;
+        reader.release_completed(after);
+        reader
+            .next(&self.source, &self.state_manager, after, through)
+            .await
     }
 
     pub async fn wait_after(&self, after: u64) -> Result<Option<u64>> {

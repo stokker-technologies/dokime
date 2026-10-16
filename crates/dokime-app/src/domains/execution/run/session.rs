@@ -34,8 +34,6 @@ use dokime::transport::{
 /* === Constants === */
 const ANSWER_POLL: Duration = Duration::from_millis(100);
 
-const REPLAY_BUDGET: Duration = Duration::from_secs(30);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -590,35 +588,17 @@ impl Session {
             .map_err(|error| failure("sidecar_records", error.to_string()))?;
         let mut remaining = ids;
         if !remaining.is_empty() {
-            let deadline = tokio::time::Instant::now() + REPLAY_BUDGET;
-            let can_wait = |error: &crate::Error| {
-                crate::runtime::storage::record_capture::read_capacity(error)
-                    && tokio::time::Instant::now() < deadline
-            };
-            let mut reader = loop {
-                match context
-                    .runtime
-                    .record_source
-                    .history(&context.runtime.state_manager, 0, through)
-                    .await
-                {
-                    Err(error) if can_wait(&error) => tokio::time::sleep(ANSWER_POLL).await,
-                    result => {
-                        break result
-                            .map_err(|error| failure("sidecar_records", error.to_string()))?;
-                    }
-                }
-            };
+            let mut reader = context
+                .runtime
+                .record_source
+                .history(&context.runtime.state_manager, 0, through)
+                .await
+                .map_err(|error| failure("sidecar_records", error.to_string()))?;
             loop {
-                let record = loop {
-                    match reader.next().await {
-                        Err(error) if can_wait(&error) => tokio::time::sleep(ANSWER_POLL).await,
-                        result => {
-                            break result
-                                .map_err(|error| failure("sidecar_records", error.to_string()))?;
-                        }
-                    }
-                };
+                let record = reader
+                    .next()
+                    .await
+                    .map_err(|error| failure("sidecar_records", error.to_string()))?;
                 let Some(record) = record else {
                     break;
                 };

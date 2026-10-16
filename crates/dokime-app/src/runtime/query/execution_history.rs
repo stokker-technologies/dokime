@@ -311,27 +311,14 @@ impl RuntimeHandle {
         let config = self.config();
         let settings = &config.storage;
         let storage = self.storage();
-        let deadline = tokio::time::Instant::now() + settings.interactive.timeout;
-        let mut backoff = crate::runtime::storage::record_capture::CapacityBackoff::new();
-        let inspection = loop {
-            let result = async {
-                let view = storage.view_with_limits(settings.interactive).await?;
-                crate::runtime::storage::execution::ExecutionView::open_checkpoint(
-                    storage,
-                    view,
-                    checkpoint,
-                    settings.decoded_bytes,
-                )
-                .await
-            }
-            .await;
-            match result {
-                Err(error)
-                    if crate::runtime::storage::record_capture::read_capacity(&error)
-                        && backoff.wait_until(deadline).await => {}
-                result => break result?,
-            }
-        };
+        let view = storage.view_with_limits(settings.interactive).await?;
+        let inspection = crate::runtime::storage::execution::ExecutionView::open_checkpoint(
+            storage,
+            view,
+            checkpoint,
+            settings.decoded_bytes,
+        )
+        .await?;
         inspection.ok_or_else(|| Error::NotFound {
             code: "execution_seal_missing".into(),
             message: "execution checkpoint has no retained exact seal".into(),
@@ -347,28 +334,15 @@ impl RuntimeHandle {
         let settings = &config.storage;
         let storage = self.storage();
         let limit = settings.decoded_bytes;
-        let deadline = tokio::time::Instant::now() + settings.interactive.timeout;
-        let mut backoff = crate::runtime::storage::record_capture::CapacityBackoff::new();
-        let inspection = loop {
-            let result = async {
-                let view = storage.view_with_limits(settings.interactive).await?;
-                crate::runtime::storage::execution::ExecutionView::open(
-                    storage,
-                    view,
-                    &id,
-                    harmos::storage::ObjectVersion::Latest,
-                    limit,
-                )
-                .await
-            }
-            .await;
-            match result {
-                Err(error)
-                    if crate::runtime::storage::record_capture::read_capacity(&error)
-                        && backoff.wait_until(deadline).await => {}
-                result => break result?,
-            }
-        }
+        let view = storage.view_with_limits(settings.interactive).await?;
+        let inspection = crate::runtime::storage::execution::ExecutionView::open(
+            storage,
+            view,
+            &id,
+            harmos::storage::ObjectVersion::Latest,
+            limit,
+        )
+        .await?
         .filter(|inspection| inspection.execution().saved.is_some())
         .ok_or_else(|| Error::NotFound {
             code: "execution_seal_missing".into(),
