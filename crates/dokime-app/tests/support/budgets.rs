@@ -68,7 +68,6 @@ pub fn story_reads(reads: &mut StorageSettings) {
     reads.budget.read_memory_bytes = STORY_READ_MEMORY;
     reads.interactive.memory_bytes = reads.interactive.memory_bytes.min(STORY_READ_MEMORY);
     reads.decoded_bytes = reads.decoded_bytes.min(STORY_READ_MEMORY);
-    reads.page_bytes_ceiling = reads.page_bytes_ceiling.min(STORY_READ_MEMORY);
     let scan = NonZeroUsize::new(
         (STORY_READ_MEMORY.get() / reads.request.max_active_queries.get() / 32).max(1),
     )

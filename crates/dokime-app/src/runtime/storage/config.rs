@@ -42,8 +42,6 @@ pub struct StorageSettings {
     pub response: StorageResponseSettings,
     pub page_rows: std::num::NonZeroUsize,
     pub page_bytes: std::num::NonZeroUsize,
-    pub page_rows_ceiling: std::num::NonZeroUsize,
-    pub page_bytes_ceiling: std::num::NonZeroUsize,
     pub decoded_bytes: std::num::NonZeroUsize,
     /// The per-view budget of interactive reads: request receipts, cycle and
     /// execution lists, record pages, plot reads and every live follow. It is
@@ -102,8 +100,6 @@ impl Default for StorageSettings {
             },
             page_rows: nonzero(4096),
             page_bytes: scan,
-            page_rows_ceiling: nonzero(65_536),
-            page_bytes_ceiling: read,
             decoded_bytes: batch,
             interactive: execution,
             finalization_read_stall: Duration::ZERO,
@@ -123,9 +119,7 @@ impl StorageSettings {
     }
 
     pub(crate) fn validate(&self) -> crate::Result<()> {
-        if self.page_rows > self.page_rows_ceiling
-            || self.page_bytes > self.page_bytes_ceiling
-            || self.decoded_bytes > self.budget.read_memory_bytes
+        if self.decoded_bytes > self.budget.read_memory_bytes
             || self.interactive.memory_bytes > self.budget.read_memory_bytes
         {
             return Err(crate::Error::Operation(
@@ -143,10 +137,7 @@ impl StorageSettings {
             rows: self.page_rows,
             bytes: self.page_bytes,
         };
-        settings.query_page_ceiling = harmos::storage::ReadLimits {
-            rows: self.page_rows_ceiling,
-            bytes: self.page_bytes_ceiling,
-        };
+
         settings.query_decoded_bytes = self.decoded_bytes;
         settings.query_execution = self.interactive;
         settings.query_execution_ceiling = harmos::storage::QueryLimits {
@@ -172,10 +163,7 @@ impl StorageSettings {
                 rows: self.page_rows,
                 bytes: self.page_bytes,
             },
-            query_page_ceiling: harmos::storage::ReadLimits {
-                rows: self.page_rows_ceiling,
-                bytes: self.page_bytes_ceiling,
-            },
+
             query_decoded_bytes: self.decoded_bytes,
             query_execution: self.interactive,
             query_execution_ceiling: harmos::storage::QueryLimits {

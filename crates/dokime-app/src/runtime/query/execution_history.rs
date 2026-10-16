@@ -377,7 +377,7 @@ impl RuntimeHandle {
             ReadLimits {
                 // Execution Objects Include Structured Outputs; Read One Per Page.
                 rows: NonZeroUsize::new(1).unwrap(),
-                bytes: settings.decoded_bytes.min(settings.page_bytes_ceiling),
+                bytes: settings.decoded_bytes,
             },
             projection,
         )?;
