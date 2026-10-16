@@ -206,7 +206,7 @@ impl State {
         &self,
         operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
-        self.dispatch(None, None, operation).await
+        self.dispatch(None, operation).await
     }
 
     pub(crate) fn reserve_query(
@@ -231,13 +231,11 @@ impl State {
         + Send
         + 'static,
     ) -> Result<Result<T, Error>, Error> {
-        let ceiling = query.as_ref().map(|query| query.limits.memory_bytes);
-        self.dispatch(ceiling, query, operation).await
+        self.dispatch(query, operation).await
     }
 
     async fn dispatch<T: Send + 'static>(
         &self,
-        ceiling: Option<NonZeroUsize>,
         query: Option<Arc<query::Budget>>,
         operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
@@ -252,9 +250,6 @@ impl State {
             return Err(Error::Closed);
         }
         tokio::task::spawn_blocking(move || {
-            let _ceiling = ceiling
-                .map(|ceiling| owner.memory.restrict(ceiling))
-                .transpose()?;
             let result = live.as_mut().ok_or(Error::Closed).and_then(|live| {
                 let connection = &mut live.connection;
                 match query {

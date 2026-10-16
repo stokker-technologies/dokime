@@ -44,11 +44,6 @@ pub(crate) struct Reservation {
     bytes: usize,
 }
 
-pub(super) struct Ceiling {
-    owner: Arc<Budget>,
-    previous: usize,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -61,23 +56,6 @@ impl Budget {
                 used: 0,
                 ceiling: ceiling.get(),
             }),
-        })
-    }
-
-    pub(super) fn restrict(self: &Arc<Self>, ceiling: NonZeroUsize) -> Result<Ceiling, Error> {
-        let mut state = self
-            .state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let ceiling = ceiling.get().min(state.ceiling);
-        if state.used > ceiling {
-            return Err(Error::Data("retained SQLite memory exceeds query bound"));
-        }
-        let previous = state.ceiling;
-        state.ceiling = ceiling;
-        Ok(Ceiling {
-            owner: self.clone(),
-            previous,
         })
     }
 
@@ -138,16 +116,6 @@ impl Reservation {
 impl Drop for Reservation {
     fn drop(&mut self) {
         self.owner.release(self.bytes);
-    }
-}
-
-impl Drop for Ceiling {
-    fn drop(&mut self) {
-        self.owner
-            .state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .ceiling = self.previous;
     }
 }
 
