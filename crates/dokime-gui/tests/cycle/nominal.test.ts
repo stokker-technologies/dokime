@@ -39,6 +39,7 @@ import {
 } from "@/features/cycle/label-editor-model";
 import { archivedCycleGroups, type CycleRow } from "@/features/cycles-home/cycles-model";
 import { reportFixturePayload } from "@/report/report-fixture";
+import { focusPresentation } from "@/shell/focus-mode";
 
 /* === Fixture === */
 
@@ -304,4 +305,22 @@ test("Report Steps", () => {
   assert.equal("artifact_links" in payload, false);
   assert.equal(artifact.downloadHref, artifact.href);
   assert.equal(artifact.group_label, "Execution Artifacts");
+});
+
+test("Focus Keeps Controls", () => {
+  // Focus Drops The Heading But Keeps Start, Stop And A Labelled Exit
+  const focused = focusPresentation(true);
+  assert.equal(focused.actions, true);
+  assert.equal(focused.heading, false);
+  assert.equal(focused.toggleLabel, "Leave Focus");
+
+  // Outside Focus The Whole Bar Shows
+  assert.deepEqual(focusPresentation(false), {
+    actions: true,
+    heading: true,
+    toggleLabel: "Focus",
+  });
+
+  // Only A Frozen Report Has No Actions
+  assert.equal(focusPresentation(false, true).actions, false);
 });

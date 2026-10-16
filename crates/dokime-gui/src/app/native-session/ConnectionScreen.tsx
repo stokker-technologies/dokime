@@ -298,7 +298,7 @@ export function ConnectionScreen({
                     <p className="text-xs text-muted-foreground">
                       {launch.localBackendAvailable
                         ? "This desktop owns the backend and closes it on exit."
-                        : "No Dokime backend was found beside this application. Reinstall Dokime with the desktop installer, or attach to a backend below."}
+                        : `No ${defaultBrand.label} backend was found beside this application. Reinstall ${defaultBrand.label} with the desktop installer, or attach to a backend below.`}
                     </p>
                   </div>
                 ) : null}

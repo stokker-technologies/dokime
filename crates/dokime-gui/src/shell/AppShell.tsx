@@ -21,7 +21,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import type { CycleLifecycle } from "@/features/cycle/cycle-workspace-model";
 import { cn } from "@/lib/utils";
 import { ConsoleDrawer } from "@/shell/ConsoleDrawer";
-import { useFocusMode } from "@/shell/focus-mode";
+import { focusPresentation, useFocusMode } from "@/shell/focus-mode";
 import { MenuBar } from "@/shell/MenuBar";
 import { PageChromeProvider, usePageChromeState } from "@/shell/page-chrome";
 import { useRouteCycleScope } from "@/shell/route-scope";
@@ -91,10 +91,10 @@ export function AppShell(props: AppShellProps) {
 /**
  * The frame proper, inside the providers so it can read focus.
  *
- * Focus takes the page bar away and leaves the menu bar, the workspace header
- * and the status bar: the operator keeps the run controls, the connection and
- * the way back out of focus, and gives up only the chrome that names the page
- * they can already see.
+ * Focus keeps every bar and drops only the page bar's heading: the operator
+ * keeps the run controls, the connection and the visible way back out of
+ * focus, and gives up only the chrome that names the page they can already see
+ * (see `focusPresentation`).
  */
 function AppFrame({ children, frozen }: { children: ReactNode; frozen: FrozenShell | null }) {
   const { focused, setFocused } = useFocusMode();
@@ -143,7 +143,7 @@ function AppFrame({ children, frozen }: { children: ReactNode; frozen: FrozenShe
           <Sidebar />
         )}
         <div className="flex min-w-0 flex-1 flex-col">
-          {focused ? null : <PageBar frozen={frozen} />}
+          <PageBar focused={focused} frozen={frozen} />
           {/* overflow-anchor:none — live plot canvases redraw at stream rate
               inside this region; native scroll anchoring reacts to those
               mutations until Chrome disables it and the viewport drifts. */}
@@ -163,8 +163,9 @@ function AppFrame({ children, frozen }: { children: ReactNode; frozen: FrozenShe
   );
 }
 
-function PageBar({ frozen }: { frozen: FrozenShell | null }) {
+function PageBar({ focused, frozen }: { focused: boolean; frozen: FrozenShell | null }) {
   const chrome = usePageChromeState();
+  const { actions, heading } = focusPresentation(focused, frozen !== null);
   /* A frozen file's page bar names the file, not the cycle: the cycle's own
      label is one line below in the workspace header, and printing it twice
      wasted the only persistent position the report's provenance had. */
@@ -179,19 +180,24 @@ function PageBar({ frozen }: { frozen: FrozenShell | null }) {
       className="flex shrink-0 items-center justify-between gap-[var(--bar-gap)] px-[var(--shell-inset)] py-[var(--bar-pad-y)]"
       style={{ height: "var(--page-bar-height)" }}
     >
+      {/* The chevron cell stays reserved on a top-level destination, and in
+          the report which has nowhere to go back to, so the title sits on one
+          line down every route. Focus drops the whole heading; the empty cell
+          keeps the actions at the right edge. */}
       <div className="flex min-w-0 items-center gap-[var(--shell-gap)]">
-        {/* The chevron cell stays reserved on a top-level destination, and in
-            the report which has nowhere to go back to, so the title sits on
-            one line down every route. */}
-        <span className="flex size-[var(--control-height)] shrink-0 items-center justify-center">
-          {frozen ? null : <BackButton />}
-        </span>
-        <h1 className="min-w-0 truncate font-heading font-semibold tracking-wide">{title}</h1>
+        {heading ? (
+          <>
+            <span className="flex size-[var(--control-height)] shrink-0 items-center justify-center">
+              {frozen ? null : <BackButton />}
+            </span>
+            <h1 className="min-w-0 truncate font-heading font-semibold tracking-wide">{title}</h1>
+          </>
+        ) : null}
       </div>
       {/* The slot keeps its width when a page publishes no action so the title
           never shifts between routes. */}
       <div className="flex min-w-32 shrink-0 items-center justify-end gap-[var(--bar-gap)] [&_[data-slot=button]:not([class*='h-['])]:h-[var(--bar-control-height)]">
-        {frozen ? null : chrome.actions}
+        {actions ? chrome.actions : null}
       </div>
     </header>
   );

@@ -39,12 +39,14 @@ import {
   useStagePluginMutation,
 } from "@/features/settings/plugins/plugin-queries";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
+import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Components === */
 
 export function PluginsSection() {
+  const brand = useBrand();
   const desktop = isTauriDesktop();
   const navigate = useNavigate();
   const settings = useSettingsSections();
@@ -72,7 +74,7 @@ export function PluginsSection() {
       continue;
     const name =
       owner?.kind === "host"
-        ? "Dokime Host"
+        ? `${brand.label} Host`
         : owner?.kind === "bundle"
           ? titleCaseIdentifier(owner.package)
           : owner?.kind === "embedded"
@@ -167,7 +169,7 @@ export function PluginsSection() {
           <h1 className="text-lg font-semibold">Plugins</h1>
           <p className="mt-1 max-w-[var(--prose-measure)] text-sm text-muted-foreground">
             Install and manage .dokime plugin bundles. New installs activate only after the next
-            Dokime restart.
+            {brand.label} restart.
           </p>
         </header>
 
@@ -177,7 +179,7 @@ export function PluginsSection() {
               Install A Plugin
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Files are staged for static inspection before Dokime asks for consent.
+              Files are staged for static inspection before {brand.label} asks for consent.
             </p>
           </div>
           <PluginDropZone
@@ -194,7 +196,7 @@ export function PluginsSection() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">Restart Required</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Restart Dokime to apply pending plugin changes.
+                Restart {brand.label} to apply pending plugin changes.
               </p>
             </div>
             {desktop ? (
@@ -205,7 +207,7 @@ export function PluginsSection() {
                 variant="outline"
               >
                 <RotateCcw className={restartMutation.isPending ? "animate-spin" : undefined} />
-                {restartMutation.isPending ? "Restarting…" : "Restart Dokime"}
+                {restartMutation.isPending ? "Restarting…" : `Restart ${brand.label}`}
               </Button>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -214,7 +216,7 @@ export function PluginsSection() {
             )}
             {restartMutation.isError ? (
               <p className="text-sm text-destructive" role="alert">
-                {errorMessage(restartMutation.error, "Dokime could not be restarted.")}
+                {errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}
               </p>
             ) : null}
           </div>
@@ -292,7 +294,7 @@ export function PluginsSection() {
               <h2 className="text-sm font-semibold">{name}</h2>
               <p className="text-xs text-muted-foreground">
                 {members[0]?.owner?.kind === "host"
-                  ? "Built-in Dokime features."
+                  ? `Built-in ${brand.label} features.`
                   : members[0]?.owner?.kind === "bundle"
                     ? "Loaded from the launch configuration; managed outside the installation store."
                     : members[0]?.owner?.kind === "embedded"
@@ -313,15 +315,15 @@ export function PluginsSection() {
       <Dialog open={restartPrompt} onOpenChange={setRestartPrompt}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Restart Dokime?</DialogTitle>
+            <DialogTitle>Restart {brand.label}?</DialogTitle>
             <DialogDescription>
-              Plugin changes are saved. Restart Dokime to apply them. Active work will stop and
-              plugin resources will close before the application restarts.
+              Plugin changes are saved. Restart {brand.label} to apply them. Active work will stop
+              and plugin resources will close before the application restarts.
             </DialogDescription>
           </DialogHeader>
           {restartMutation.isError ? (
             <p role="alert" className="text-sm text-destructive">
-              {errorMessage(restartMutation.error, "Dokime could not be restarted.")}
+              {errorMessage(restartMutation.error, `${brand.label} could not be restarted.`)}
             </p>
           ) : null}
           <DialogFooter>
@@ -363,7 +365,7 @@ export function PluginsSection() {
             <DialogDescription>
               {removeCandidate?.consented_at === null
                 ? "The staged bundle will be discarded immediately. No restart is needed."
-                : "The plugin will stop loading and its managed file will be deleted at the next Dokime restart."}
+                : `The plugin will stop loading and its managed file will be deleted at the next ${brand.label} restart.`}
             </DialogDescription>
           </DialogHeader>
           {removeMutation.isError && removeCandidate ? (
