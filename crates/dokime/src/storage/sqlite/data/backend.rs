@@ -100,7 +100,6 @@ struct ActivePin {
 
 struct OwnedRead<T> {
     result: Result<T, Error>,
-    _planning: memory::Reservation,
     _pin: ActivePin,
 }
 
@@ -434,40 +433,8 @@ impl<C: ObjectCatalog> Backend<C> {
         convert: fn(Entry) -> harmos::Result<T>,
     ) -> harmos::Result<ReadPage<T>> {
         let (state, pin) = self.pin(view).await?;
-        let (planning, read, framing, previous, view) = pin
+        let (read, framing, previous, view) = pin
             .prepare(|| {
-                let selector_bytes = super::entry::check_size(selection, 8192)?;
-                // Simultaneous request, prior/next cursor, SQL and parameter copies are
-                // precharged before cloning. Fixed histories cover the view snapshot,
-                // physical cut/head and continuation; typed conversion has its own
-                // vector headers while the original decoded vector remains retained.
-                let planning_bytes = selector_bytes
-                    .checked_mul(8)
-                    .and_then(|bytes| bytes.checked_add(9 * super::HISTORY_BYTES + 4096))
-                    .and_then(|bytes| {
-                        view.id()
-                            .as_str()
-                            .len()
-                            .checked_mul(3)
-                            .and_then(|identity| bytes.checked_add(identity))
-                    })
-                    .and_then(|bytes| {
-                        limits
-                            .rows
-                            .get()
-                            .min(64)
-                            .checked_mul(std::mem::size_of::<T>())
-                            .and_then(|headers| bytes.checked_add(headers))
-                    })
-                    .and_then(|bytes| {
-                        bytes.checked_add(std::mem::size_of::<OwnedRead<ReadPage<T>>>())
-                    })
-                    .ok_or(Error::Data("SQLite query planning size overflow"))?;
-                let ceiling = pin
-                    .execution
-                    .as_ref()
-                    .map_or(self.limits.memory_bytes, |query| query.limits.memory_bytes);
-                let planning = state.reserve_query(planning_bytes, ceiling)?;
                 let request = selection.clone();
                 let framing = request.clone();
                 let previous = cursor.cloned();
@@ -480,10 +447,10 @@ impl<C: ObjectCatalog> Backend<C> {
                     limits,
                     entry_bytes: self.limits.entry_bytes,
                 };
-                Ok((planning, read, framing, previous, view))
+                Ok((read, framing, previous, view))
             })
             .map_err(|error| failure("prepare SQLite page", error))?;
-        // The physical reader retains the pin and reservations through cursor
+        // The physical reader retains the pin through cursor
         // framing and typed conversion, including cancellation and failure.
         owned_read("read SQLite page", async move {
             let result = state
@@ -517,11 +484,7 @@ impl<C: ObjectCatalog> Backend<C> {
                     })
                 })
                 .await;
-            Ok(OwnedRead {
-                result,
-                _planning: planning,
-                _pin: pin,
-            })
+            Ok(OwnedRead { result, _pin: pin })
         })
         .await
     }
@@ -618,22 +581,11 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move {
             view.check_kind(scan.selection.kind, &scan.selection, None)?;
             super::scan::admission(scan, order)?;
-            let execution = view
-                .execution_limits()
+            view.execution_limits()
                 .ok_or_else(|| invalid("frame scans require execution limits"))?;
             let (state, pin) = self.pin(view).await?;
-            let (planning, cut, read) = pin
+            let (cut, read) = pin
                 .prepare(|| {
-                    let bytes = super::scan::planning_bytes(scan)?
-                        .checked_add(cursor.map_or(0, |cursor| cursor.token.len()))
-                        .and_then(|bytes| {
-                            bytes.checked_add(
-                                std::mem::size_of::<OwnedRead<ScanPage>>()
-                                    + query::Cancellation::memory_bytes(),
-                            )
-                        })
-                        .ok_or(Error::Data("scan planning allocation size overflow"))?;
-                    let planning = state.reserve_query(bytes, execution.memory_bytes)?;
                     let read = super::scan::Read {
                         scan: scan.clone(),
                         order: order.clone(),
@@ -641,7 +593,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                         limits,
                         maximum: self.limits.entry_bytes,
                     };
-                    Ok((planning, pin.cut.clone(), read))
+                    Ok((pin.cut.clone(), read))
                 })
                 .map_err(|error| failure("prepare frame scan", error))?;
             let cancellation = query::Cancellation::new();
@@ -663,11 +615,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                         &pin.runs,
                         pin.computation.as_ref(),
                     );
-                    Ok(Ok(OwnedRead {
-                        result,
-                        _planning: planning,
-                        _pin: pin,
-                    }))
+                    Ok(Ok(OwnedRead { result, _pin: pin }))
                 })
                 .await
                 .map_err(|error| failure("read SQLite frame scan", error))?
@@ -1049,23 +997,8 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     ) -> StorageFuture<'a, Option<ObjectEntry>> {
         Box::pin(async move {
             let (state, pin) = self.pin(view).await?;
-            let (planning, through, query) = pin
-                .prepare(|| {
-                    let selector_bytes = super::entry::check_size(query, 4096)?;
-                    let bytes = selector_bytes
-                        .checked_mul(4)
-                        .and_then(|bytes| bytes.checked_add(2 * super::HISTORY_BYTES + 4096))
-                        .and_then(|bytes| {
-                            bytes.checked_add(std::mem::size_of::<OwnedRead<Option<ObjectEntry>>>())
-                        })
-                        .ok_or(Error::Data("SQLite point planning size overflow"))?;
-                    let ceiling = pin
-                        .execution
-                        .as_ref()
-                        .map_or(self.limits.memory_bytes, |query| query.limits.memory_bytes);
-                    let planning = state.reserve_query(bytes, ceiling)?;
-                    Ok((planning, view.saved().clone(), query.clone()))
-                })
+            let (through, query) = pin
+                .prepare(|| Ok((view.saved().clone(), query.clone())))
                 .map_err(|error| failure("prepare SQLite point query", error))?;
             let maximum = maximum.min(self.limits.entry_bytes);
             owned_read("read SQLite object", async move {
@@ -1078,11 +1011,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                         pin.execution.clone(),
                     )
                     .await;
-                Ok(OwnedRead {
-                    result,
-                    _planning: planning,
-                    _pin: pin,
-                })
+                Ok(OwnedRead { result, _pin: pin })
             })
             .await
         })
@@ -1543,35 +1472,8 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 return Err(invalid("file exceeds view admission frontier"));
             }
             let (state, pin) = self.pin(view).await?;
-            let (planning, root, reference) = pin
-                .prepare(|| {
-                    let selector_bytes = super::entry::check_size(file, 16 * 1024)?;
-                    let planning_bytes = selector_bytes
-                        .checked_mul(4)
-                        .and_then(|bytes| {
-                            bytes.checked_add(4 * super::HISTORY_BYTES + 8 * 16 * 1024 + 4096)
-                        })
-                        .and_then(|bytes| bytes.checked_add(maximum.get().min(64 * 1024)))
-                        .and_then(|bytes| {
-                            self.root
-                                .as_os_str()
-                                .len()
-                                .checked_mul(2)
-                                .and_then(|root| bytes.checked_add(root))
-                        })
-                        .and_then(|bytes| {
-                            bytes.checked_add(std::mem::size_of::<OwnedRead<Vec<u8>>>())
-                        })
-                        .ok_or(Error::Data("SQLite file planning size overflow"))?;
-                    let ceiling = pin
-                        .execution
-                        .as_ref()
-                        .map_or(self.limits.memory_bytes, |query| query.limits.memory_bytes);
-                    let planning = state.reserve_query(planning_bytes, ceiling)?;
-                    let root = self.root.clone();
-                    let reference = file.clone();
-                    Ok((planning, root, reference))
-                })
+            let (root, reference) = pin
+                .prepare(|| Ok((self.root.clone(), file.clone())))
                 .map_err(|error| failure("prepare SQLite file read", error))?;
             owned_read("read SQLite file", async move {
                 let read = super::files::Read {
@@ -1582,11 +1484,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                     maximum,
                 };
                 let result = state.data_read_file(read, pin.execution.clone()).await;
-                Ok(OwnedRead {
-                    result,
-                    _planning: planning,
-                    _pin: pin,
-                })
+                Ok(OwnedRead { result, _pin: pin })
             })
             .await
         })
@@ -1599,9 +1497,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     ) -> StorageFuture<'a, ObjectReleasePage> {
         Box::pin(async move {
             let (state, pin) = self.pin(view).await?;
-            let planning = state
-                .reserve_memory(32 * 1024)
-                .map_err(|error| failure("reserve SQLite release query", error))?;
             let cursor = cursor.cloned();
             let checked_view = view.clone();
             owned_read("read SQLite object releases", async move {
@@ -1617,11 +1512,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                         page.check(&checked_view, cursor.as_ref(), limits)?;
                         Ok(page)
                     });
-                Ok(OwnedRead {
-                    result,
-                    _planning: planning,
-                    _pin: pin,
-                })
+                Ok(OwnedRead { result, _pin: pin })
             })
             .await
         })

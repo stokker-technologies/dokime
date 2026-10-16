@@ -224,13 +224,6 @@ pub(super) fn admission(scan: &Scan, order: &ScanOrder) -> harmos::Result<()> {
     Ok(())
 }
 
-pub(super) fn planning_bytes(scan: &Scan) -> Result<usize, Error> {
-    scan.memory_size()
-        .checked_mul(8)
-        .and_then(|bytes| bytes.checked_add(64 * 1024))
-        .ok_or(Error::Data("scan planning memory overflows"))
-}
-
 pub(super) fn page(
     connection: &Connection,
     memory: &Arc<memory::Budget>,

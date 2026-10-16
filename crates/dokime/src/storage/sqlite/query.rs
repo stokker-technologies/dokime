@@ -87,9 +87,6 @@ impl Cancellation {
     pub(super) fn flag(&self) -> Arc<AtomicBool> {
         self.0.clone()
     }
-    pub(super) fn memory_bytes() -> usize {
-        std::mem::size_of::<Self>() + 3 * std::mem::size_of::<usize>()
-    }
 }
 impl Drop for Cancellation {
     fn drop(&mut self) {
