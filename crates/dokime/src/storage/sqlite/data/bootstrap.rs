@@ -320,9 +320,7 @@ fn publish(
             memory.reserve_owned(Entry::decoding_bytes(kind, body.len())?, usize::MAX)?;
         let value = Entry::decode(kind, body)?;
         let typed = value.part().entries().next().expect("one typed entry");
-        let _planning = memory.reserve_owned(entry::encoding_memory_bytes(typed)?, usize::MAX)?;
-        let (bytes, length) = entry::Encoded::allocation_bytes(typed, maximum.get())?;
-        let _encoded = memory.reserve_owned(bytes, usize::MAX)?;
+        let length = entry::Encoded::encoded_bytes(typed, maximum.get())?;
         let encoded = entry::Encoded::new(typed, length)?;
         if encoded.body != body {
             return Err(Error::Corrupt(
@@ -651,8 +649,6 @@ fn verify_manifest(
                 memory.reserve_owned(Entry::decoding_bytes(label, body.len())?, usize::MAX)?;
             let value = Entry::decode(label, body)?;
             let typed = value.part().entries().next().expect("one typed entry");
-            let _planning =
-                memory.reserve_owned(entry::encoding_memory_bytes(typed)?, usize::MAX)?;
             if index != position(value.position().sequence) || sequence(index)? == 0 {
                 return Err(Error::Corrupt("private import position index differs"));
             }

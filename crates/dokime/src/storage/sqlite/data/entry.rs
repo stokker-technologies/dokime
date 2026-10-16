@@ -225,10 +225,7 @@ impl Write for Buffer {
 }
 
 impl Encoded {
-    pub(super) fn allocation_bytes(
-        value: StorageEntry<'_>,
-        maximum: usize,
-    ) -> Result<(usize, usize), Error> {
+    pub(super) fn encoded_bytes(value: StorageEntry<'_>, maximum: usize) -> Result<usize, Error> {
         let (schema, item, scope, stream, version, body) = match value {
             StorageEntry::Schema(value) => (
                 Some(&value.key),
@@ -271,7 +268,6 @@ impl Encoded {
                 Borrowed::File(value),
             ),
         };
-        let mut strings = 0usize;
         for key in [
             Some(item),
             schema.map(|schema| schema.id.as_str()),
@@ -284,38 +280,18 @@ impl Encoded {
             if key.len() > MAX_KEY_BYTES {
                 return Err(Error::Data("storage index identity exceeds 1024 bytes"));
             }
-            strings = strings
-                .checked_add(key.len())
-                .ok_or(Error::Data("entry allocation size overflow"))?;
         }
-        let schema_bytes = schema
-            .map(|schema| check_size(schema, maximum))
-            .transpose()?
-            .unwrap_or(0);
-        let version_bytes = version
-            .map(|version| check_size(version, maximum))
-            .transpose()?
-            .unwrap_or(0);
-        let identity_bytes = match value {
-            StorageEntry::Schema(_) => Some(23),
-            StorageEntry::Object(_) => Some(23),
-            StorageEntry::Row(_) => Some(23),
-            StorageEntry::Record(_) => 5usize.checked_add(item.len()),
-            StorageEntry::File(_) => 5usize.checked_add(item.len()),
+        if let Some(schema) = schema {
+            check_size(schema, maximum)?;
         }
-        .ok_or(Error::Data("entry allocation size overflow"))?;
+        if let Some(version) = version {
+            check_size(version, maximum)?;
+        }
         let payload_bytes = match value {
             StorageEntry::Object(value) => object::length(value, maximum)?,
             _ => check_size(&body, maximum)?,
         };
-        let allocation = strings
-            .checked_add(schema_bytes)
-            .and_then(|bytes| bytes.checked_add(version_bytes))
-            .and_then(|bytes| bytes.checked_add(identity_bytes))
-            .and_then(|bytes| bytes.checked_mul(2))
-            .and_then(|bytes| bytes.checked_add(payload_bytes))
-            .ok_or(Error::Data("entry allocation size exceeds its bound"))?;
-        Ok((allocation, payload_bytes))
+        Ok(payload_bytes)
     }
 
     pub(super) fn new(value: StorageEntry<'_>, length: usize) -> Result<Self, Error> {
@@ -408,13 +384,6 @@ impl Encoded {
 /* === Public Functions === */
 
 /* === Private Functions === */
-pub(super) fn encoding_memory_bytes(value: StorageEntry<'_>) -> Result<usize, Error> {
-    match value {
-        StorageEntry::Schema(schema) => schema.encoding_memory_bytes().map_err(Error::Runtime),
-        _ => Ok(0),
-    }
-}
-
 pub(super) fn check_size<T: Serialize>(value: &T, maximum: usize) -> Result<usize, Error> {
     let mut counter = Counter { length: 0, maximum };
     serde_json::to_writer(&mut counter, value)?;

@@ -184,61 +184,22 @@ impl State {
         if batch.encoded_bytes() > batch_bytes.get() {
             return Err(Error::Data("SQLite batch exceeds its encoded bound"));
         }
-        let planning = batch.entries().try_fold(0usize, |peak, value| {
-            entry::encoding_memory_bytes(value).map(|bytes| peak.max(bytes))
-        })?;
-        let _planning = self.reserve_memory(planning)?;
-        let mut allocation = batch
-            .len()
-            .checked_mul(std::mem::size_of::<Encoded>())
-            .and_then(|bytes| bytes.checked_add(2 * HISTORY_BYTES))
-            .and_then(|bytes| {
-                root.as_os_str()
-                    .len()
-                    .checked_mul(4)
-                    .and_then(|root_bytes| bytes.checked_add(root_bytes))
-            })
-            .ok_or(Error::Data("batch allocation size overflow"))?;
-        let length_bytes = batch
-            .len()
-            .checked_mul(std::mem::size_of::<usize>())
-            .ok_or(Error::Data("batch length metadata overflows"))?;
-        let _lengths = self.reserve_memory(length_bytes)?;
-        let mut lengths = Vec::with_capacity(batch.len());
-        for value in batch.entries() {
-            batch.first().history.check(&value.position().history)?;
-            let (bytes, length) = Encoded::allocation_bytes(value, entry_bytes.get())?;
-            allocation = allocation
-                .checked_add(bytes)
-                .ok_or(Error::Data("batch allocation size overflow"))?;
-            lengths.push(length);
-        }
-        if batch
-            .entries()
-            .any(|entry| matches!(entry, StorageEntry::File(_)))
-        {
-            allocation = allocation
-                .checked_add(8 * 16 * 1024 + 4 * HISTORY_BYTES + 64 * 1024)
-                .ok_or(Error::Data("file publication working allocation overflow"))?;
-        }
-        let reservation = self.reserve_memory(allocation)?;
         let root = root.to_path_buf();
         let mut prepared = Vec::with_capacity(batch.len());
         let mut bytes = 0usize;
-        for (value, length) in batch.entries().zip(lengths) {
+        for value in batch.entries() {
             batch.first().history.check(&value.position().history)?;
-            let encoded = Encoded::new(value, length)?;
+            let length = Encoded::encoded_bytes(value, entry_bytes.get())?;
             bytes = bytes
-                .checked_add(encoded.body.len())
+                .checked_add(length)
                 .filter(|bytes| *bytes <= batch_bytes.get())
                 .ok_or(Error::Data("SQLite batch framing exceeds its byte bound"))?;
-            prepared.push(encoded);
+            prepared.push(Encoded::new(value, length)?);
         }
         let history = batch.first().history.clone();
         let memory = self.0.memory.clone();
         let owner = self.0.clone();
         self.call(move |connection| {
-            let _reservation = reservation;
             let mut schema = owner.index_schema.lock().unwrap();
             let result = write(
                 connection,

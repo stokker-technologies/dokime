@@ -665,10 +665,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             );
             let (reservation, identity, entries) = execution
                 .prepare(|| {
-                    let planning = batch.part().entries().try_fold(0usize, |peak, value| {
-                        super::entry::encoding_memory_bytes(value).map(|bytes| peak.max(bytes))
-                    })?;
-                    let _planning = state.reserve_query(planning, limits.memory_bytes)?;
                     super::entry::check_size(batch.identity(), super::bootstrap::METADATA_BYTES)?;
                     let mut bytes = batch
                         .len()
