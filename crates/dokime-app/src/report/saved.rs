@@ -606,7 +606,7 @@ impl ReportFile {
     fn capture(manager: &Manager, html: &HtmlReport) -> Result<(Self, Self)> {
         let captured = html.captured_input()?;
         let _identity_memory = manager.prepare_production(allowance(256)?)?;
-        let stem = format!("{}.{}", captured.execution_id, uuid::Uuid::new_v4());
+        let stem = format!("{}.{}", captured.execution_id, uuid::Uuid::now_v7());
         let context = Self::context(manager, html.captured_source()?, &stem)?;
         let maximum = NonZeroUsize::new(usize::MAX).expect("nonzero address-space limit");
         let length = html.length(maximum)?;
