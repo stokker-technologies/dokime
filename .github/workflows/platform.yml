@@ -19,6 +19,9 @@ permissions:
   contents: read
   actions: read
 
+env:
+  STKR_TEST_PROFILE: ${{ inputs.authorization == 'release' && 'release' || 'dev' }}
+
 # Pinned Actions Require Node 24 And Actions Runner 2.327.1 Or Newer.
 jobs:
   check_fast:
@@ -79,7 +82,7 @@ jobs:
       - run: mise run --skip-tools check:fast
 
   contracts_prepare_release:
-    name: Contracts Prepare Release (${{ inputs.os }})
+    name: Contracts Prepare ${{ inputs.authorization == 'release' && 'Release' || 'Dev' }} (${{ inputs.os }})
     needs: check_fast
     runs-on: ${{ inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
     timeout-minutes: 120
@@ -128,7 +131,7 @@ jobs:
             target/tooling/harmos/release/deps/
       - *linux
       - *windows
-      - run: mise run --skip-tools contracts:prepare:release
+      - run: mise run --skip-tools contracts:prepare:${{ env.STKR_TEST_PROFILE }}
       - run: mise run --skip-tools ci:contracts:archive
       - id: contracts
         run: mise run --skip-tools ci:contracts:publish
@@ -161,7 +164,7 @@ jobs:
           path: *portable_compiler_paths
 
   build_release:
-    name: Build Release (${{ inputs.os }})
+    name: Build ${{ inputs.authorization == 'release' && 'Release' || 'Dev' }} (${{ inputs.os }})
     needs: contracts_prepare_release
     environment: ${{ inputs.authorization }}
     runs-on: ${{ inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
@@ -221,7 +224,7 @@ jobs:
       - &contract_restore
         run: mise run --skip-tools ci:contracts:restore
       - id: build
-        run: mise run --skip-tools build:release
+        run: mise run --skip-tools build:${{ env.STKR_TEST_PROFILE }}
       - name: Preserve Installed Tools
         if: always() && steps.tools_cache.outputs.cache-primary-key != ''
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -254,6 +257,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Preserve Installers
+        if: inputs.authorization == 'release'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.build.outputs.installers_artifact_name }}
@@ -261,7 +265,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Preserve Python Distributions
-        if: inputs.os == 'linux'
+        if: inputs.os == 'linux' && inputs.authorization == 'release'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.build.outputs.python_artifact_name }}

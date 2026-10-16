@@ -22,6 +22,7 @@ from pathlib import Path
 
 # Third Party Imports
 # Local Imports
+from dokime_tools.check.release import build_profile
 from dokime_tools.package.wheel import WheelSelectionError, select_wheel
 
 # Type Checking Imports
@@ -100,8 +101,11 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--wheel-dir",
-        default=os.environ.get(WHEEL_DIR_ENV, DEFAULT_WHEEL_DIR),
-        help="Directory containing the exact release wheel used for Python tests.",
+        default=os.environ.get(
+            WHEEL_DIR_ENV,
+            Path("dist/python-dev") if build_profile() == "dev" else DEFAULT_WHEEL_DIR,
+        ),
+        help="Directory containing the exact selected-profile wheel used for Python tests.",
     )
     return parser.parse_args(argv)
 

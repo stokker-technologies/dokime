@@ -768,6 +768,33 @@ def _release(source: Path) -> Path:
     return root
 
 
+def case_development_artifacts(tmp_path: Path) -> None:
+    root = _release(tmp_path)
+    package = root / "linux"
+    path = package / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["profile"] = "dev"
+    removed = {"sdist", "deb", "rpm"}
+    for entry in manifest["files"]:
+        if entry["role"] in removed:
+            (package / entry["path"]).unlink()
+    manifest["files"] = [
+        entry for entry in manifest["files"] if entry["role"] not in removed
+    ]
+    path.write_text(json.dumps(manifest))
+    checks.verify_platform(
+        package, "linux", tmp_path, check_tools=False, expected_profile="dev"
+    )
+    with pytest.raises(ValueError, match="identity mismatch"):
+        verify_release(root, COMMIT, TAG, tmp_path)
+    wheel = next(entry for entry in manifest["files"] if entry["role"] == "wheel")
+    (package / wheel["path"]).write_bytes(b"corrupted")
+    with pytest.raises(ValueError, match="checksum or size mismatch"):
+        checks.verify_platform(
+            package, "linux", tmp_path, check_tools=False, expected_profile="dev"
+        )
+
+
 def _wheel() -> bytes:
     root = "dokime-1.2.3.dist-info"
     payload = {
@@ -809,6 +836,7 @@ def _replace(root: Path, role: str, content: bytes) -> None:
     "scenario",
     [
         pytest.param(case_release_pair, id="release_pair"),
+        pytest.param(case_development_artifacts, id="development_artifacts"),
         pytest.param(case_release_wheel, id="release_wheel"),
         pytest.param(case_release_compiler, id="release_compiler"),
         pytest.param(case_release_distribution, id="release_distribution"),

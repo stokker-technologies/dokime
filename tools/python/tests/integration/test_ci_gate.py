@@ -225,9 +225,7 @@ def case_workflow_policy(tmp_path: Path, monkeypatch) -> None:
         pytest.param(case_native_roles, ("dev",), id="native_roles-dev"),
         pytest.param(case_native_roles, ("main",), id="native_roles-main"),
         pytest.param(case_platform_failure, ("linux", "check:fast"), id="linux-check"),
-        pytest.param(
-            case_platform_failure, ("linux", "build:release"), id="linux-build"
-        ),
+        pytest.param(case_platform_failure, ("linux", "build:dev"), id="linux-build"),
         pytest.param(case_platform_failure, ("linux", "test"), id="linux-test"),
         pytest.param(
             case_platform_failure, ("windows", "check:fast"), id="windows-check"

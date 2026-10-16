@@ -93,6 +93,13 @@ def main() -> int:
     return 0
 
 
+def build_profile() -> str:
+    profile = os.environ.get("STKR_TEST_PROFILE", "dev")
+    if profile not in {"dev", "release"}:
+        raise ValueError("STKR_TEST_PROFILE must be dev or release")
+    return profile
+
+
 def verify_release(directory: Path, commit: str, tag: str, source: Path) -> list[dict]:
     if not re.fullmatch(r"[a-f0-9]{40}", commit) or not re.fullmatch(
         r"v\d+\.\d+\.\d+", tag
@@ -105,6 +112,7 @@ def verify_release(directory: Path, commit: str, tag: str, source: Path) -> list
             source,
             require_validation=True,
             check_tools=False,
+            expected_profile="release",
         )
         for platform in PLATFORMS
     ]
@@ -136,6 +144,7 @@ def verify_platform(
     *,
     require_validation: bool = False,
     check_tools: bool = True,
+    expected_profile: str | None = None,
 ) -> dict:
     manifest = json.loads(_file(root, "manifest.json").read_text(encoding="utf-8"))
     identity = inputs(source)
@@ -145,7 +154,10 @@ def verify_platform(
         or manifest.get("platform") != platform
         or manifest.get("inputs") != identity
         or manifest.get("build_revision") != identity["revision"]
-        or manifest.get("profile") != "release"
+        or manifest.get("profile") not in {"dev", "release"}
+        or (
+            expected_profile is not None and manifest.get("profile") != expected_profile
+        )
         or manifest.get("target") != TARGETS[platform]
         or manifest.get("architecture") != "x86_64"
         or manifest.get("python") != "py3"
@@ -311,10 +323,13 @@ def _artifacts(
         "report-template",
         "plugin",
         "wheel",
-        "sdist",
         "wheel-audit",
     }
-    required |= {"deb", "rpm"} if platform == "linux" else {"installer"}
+    if manifest["profile"] == "release":
+        required.add("sdist")
+        required |= {"deb", "rpm"} if platform == "linux" else {"installer"}
+    elif {"sdist", "deb", "rpm", "installer", "signature", "updater"} & by_role.keys():
+        raise ValueError("development artifacts must not include release distributions")
     required |= {f"fixture:{name}" for name, _, _ in FIXTURES} | {f"fixture:{STAMP}"}
     required |= {f"proto:{name}" for name in contracts.CORE_MEMBERS}
     if not required <= by_role.keys():
@@ -333,7 +348,9 @@ def _artifacts(
         if platform == "linux"
         else {"installer": f"dokime-{version}-windows-x86_64-setup.exe"}
     )
-    for role, expected in installer_names.items():
+    for role, expected in (
+        installer_names.items() if manifest["profile"] == "release" else ()
+    ):
         if PurePosixPath(by_role[role]["path"]).name != expected:
             raise ValueError(
                 "installer filename disagrees with package version or platform"
@@ -347,7 +364,10 @@ def _artifacts(
     version = manifest["package_version"].replace("-dev.0", ".dev0")
     if filename != f"dokime-{version}-py3-none-any.whl":
         raise ValueError("release wheel name disagrees with version or purity")
-    if PurePosixPath(by_role["sdist"]["path"]).name != f"dokime-{version}.tar.gz":
+    if (
+        "sdist" in by_role
+        and PurePosixPath(by_role["sdist"]["path"]).name != f"dokime-{version}.tar.gz"
+    ):
         raise ValueError("release source archive must be the dokime distribution")
     actual_audit = verify_wheel(_file(root, wheel["path"]))["wheel-audit"]
     stored_audit = _file(root, by_role["wheel-audit"]["path"]).read_text(

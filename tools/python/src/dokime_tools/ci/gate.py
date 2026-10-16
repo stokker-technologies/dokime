@@ -30,8 +30,8 @@ from dokime_tools.ci.route import verify as verify_route
 REPOSITORY = "stokker-technologies/dokime"
 ROLES = (
     "check:fast",
-    "contracts:prepare:release",
-    "build:release",
+    "contracts:prepare:dev",
+    "build:dev",
     "test:integration:rust",
     "test:integration:python",
     "test:integration:javascript",

@@ -41,6 +41,7 @@ from dokime_tools.check.release import (
     TEST_EVIDENCE,
     VALIDATION,
     _passed_tests,
+    build_profile,
     digest,
     inputs,
     required_suites,
@@ -101,7 +102,7 @@ def collect(root: Path) -> None:
     products = _products(root)
     audits = verify_wheel(products["wheel"][0])
     protocol = _protocol(root)
-    build_job_id = job_id("build:release", platform())
+    build_job_id = job_id(f"build:{build_profile()}", platform())
     archives = _test_archives(root, build_job_id)
     with tempfile.TemporaryDirectory(dir=destination.parent) as temporary:
         staging = Path(temporary) / platform()
@@ -131,7 +132,7 @@ def collect(root: Path) -> None:
             "version": 1,
             "platform": platform(),
             "architecture": "x86_64",
-            "profile": "release",
+            "profile": build_profile(),
             "target": TARGETS[platform()],
             "python": "py3",
             "abi": "none",
@@ -169,17 +170,22 @@ def collect(root: Path) -> None:
     export(root)
     _artifact_output(f"build-{platform()}-{manifest['build_job_id']}")
     _artifact_output(archives["artifact"], key="archives_artifact_name")
-    stage_assets(root, manifest, INSTALLER_ROLES, ASSETS / platform() / "installers")
-    _artifact_output(
-        f"installers-{platform()}-{build_job_id}", key="installers_artifact_name"
-    )
-    if platform() == "linux":
-        stage_assets(root, manifest, PYTHON_ROLES, ASSETS / "python")
-        _artifact_output(f"python-{build_job_id}", key="python_artifact_name")
+    if build_profile() == "release":
+        stage_assets(
+            root, manifest, INSTALLER_ROLES, ASSETS / platform() / "installers"
+        )
+        _artifact_output(
+            f"installers-{platform()}-{build_job_id}", key="installers_artifact_name"
+        )
+        if platform() == "linux":
+            stage_assets(root, manifest, PYTHON_ROLES, ASSETS / "python")
+            _artifact_output(f"python-{build_job_id}", key="python_artifact_name")
 
 
 def verify(root: Path) -> dict:
-    manifest = verify_platform(directory(root), platform(), root)
+    manifest = verify_platform(
+        directory(root), platform(), root, expected_profile=build_profile()
+    )
     _report_template(root, manifest)
     return manifest
 
@@ -266,7 +272,7 @@ def validate(root: Path) -> None:
         "suites": list(required_suites(platform())),
         "build_manifest_sha256": original_manifest,
         "contract_job_id": job_id(
-            "contracts:prepare:release", platform(), completed=True
+            f"contracts:prepare:{build_profile()}", platform(), completed=True
         ),
         "lane_job_ids": {
             suite: job_id("test:" + suite.replace("-", ":"), platform(), completed=True)
@@ -400,6 +406,9 @@ def _test_archives(root: Path, build_job_id: str | None) -> dict:
 def _products(root: Path) -> dict[str, tuple[Path, str]]:
     """Native build outputs keyed by role, with their package-relative paths."""
     suffix = ".exe" if platform() == "windows" else ""
+    profile = build_profile()
+    cargo_directory = "debug" if profile == "dev" else "release"
+    python_directory = "python-dev" if profile == "dev" else "python"
     products = {
         "license": (root / "LICENSE-APACHE", "licenses/LICENSE-APACHE"),
         "report-template": (
@@ -418,14 +427,17 @@ def _products(root: Path) -> dict[str, tuple[Path, str]]:
         ("desktop", "dokime-gui"),
     ):
         products[role] = (
-            root / f"target/release/{name}{suffix}",
+            root / f"target/{cargo_directory}/{name}{suffix}",
             f"{BINARIES}/{name}{suffix}",
         )
-    for role, pattern in (("wheel", "dokime-*.whl"), ("sdist", "dokime-*.tar.gz")):
+    distributions = [("wheel", "dokime-*.whl")]
+    if profile == "release":
+        distributions.append(("sdist", "dokime-*.tar.gz"))
+    for role, pattern in distributions:
         source = (
-            select_wheel(root / "dist/python", pattern)
+            select_wheel(root / "dist" / python_directory, pattern)
             if role == "wheel"
-            else _one(root / "dist/python", pattern)
+            else _one(root / "dist" / python_directory, pattern)
         )
         products[role] = (source, f"python/{source.name}")
     installers = root / "dist/tauri" / f"{platform()}-x86_64"
@@ -434,10 +446,10 @@ def _products(root: Path) -> dict[str, tuple[Path, str]]:
         if platform() == "linux"
         else (("installer", "*setup.exe"),)
     )
-    for role, pattern in patterns:
+    for role, pattern in patterns if profile == "release" else ():
         source = _one(installers, pattern)
         products[role] = (source, f"installers/{source.name}")
-    if platform() == "windows":
+    if profile == "release" and platform() == "windows":
         for role, pattern in (("signature", "*.exe.sig"), ("updater", "latest.json")):
             if list(installers.glob(pattern)):
                 source = _one(installers, pattern)

@@ -312,6 +312,10 @@ run = [
   { task = "build:desktop:dev" },
   { task = "build:plugins:dev" },
   { task = "build:python:dev" },
+  { task = "fixtures:prepare" },
+  { task = "ci:archives:prepare" },
+  { task = "contracts:archive" },
+  { task = "ci:artifacts:build" },
 ]
 
 # === === Tasks | Screenshots === === #
@@ -468,6 +472,7 @@ run = [
 ]
 
 [tasks."build:release"]
+env.STKR_TEST_PROFILE = "release"
 description = "Build All Release Targets"
 run = [
   { task = "prepare:harmos" },
@@ -488,7 +493,7 @@ run = [
 
 [tasks."ci:archives:prepare"]
 depends = ["prepare:tools", "prepare:report"]
-description = "Prepare Compatible Release Test Executables Once"
+description = "Prepare Compatible Test Executables For The Selected Profile"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 run = "uv run --no-sync python -m dokime_tools.package.artifacts prepare-archives"
 
