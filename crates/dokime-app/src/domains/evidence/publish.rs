@@ -167,7 +167,11 @@ pub(crate) fn retain_running_samples(state: &RuntimeState, batch: &mut Telemetry
     let before = batch.samples.len();
     batch.samples.retain(|sample| {
         sample.scope.as_ref().is_none_or(|scope| {
-            sampling_phase_state(state, scope, None) == SamplingPhaseState::Running
+            scope
+                .test_execution_id
+                .as_ref()
+                .is_none_or(|id| !state.report_finalizations.contains_key(id))
+                && sampling_phase_state(state, scope, None) == SamplingPhaseState::Running
         })
     });
     before.saturating_sub(batch.samples.len()) as u64

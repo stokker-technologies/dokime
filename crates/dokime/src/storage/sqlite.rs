@@ -16,7 +16,7 @@ pub(crate) mod query;
 /* === Re-Exports === */
 pub use crate::storage::error::Error;
 pub use catalog::Source;
-pub use data::{Backend, Limits, Recovery, RecoveryLimits};
+pub use data::{Backend, Limits, StateBackend, StateLimits};
 pub use rusqlite;
 
 /* === Imports === */
@@ -167,7 +167,7 @@ impl State {
             transaction.execute_batch(catalog::SCHEMA)?;
             transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             transaction.commit()?;
-            data::recovery::initialize(&mut connection)?;
+            data::state::initialize(&mut connection)?;
 
             Ok(Self(Arc::new(Owner {
                 live: Arc::new(Mutex::new(Some(Live { connection, lease }))),
@@ -207,13 +207,6 @@ impl State {
     }
 
     pub async fn call<T: Send + 'static>(
-        &self,
-        operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
-    ) -> Result<T, Error> {
-        self.dispatch(None, None, operation).await
-    }
-
-    pub(crate) async fn call_recovery<T: Send + 'static>(
         &self,
         operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {

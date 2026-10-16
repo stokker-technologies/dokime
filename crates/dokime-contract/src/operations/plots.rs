@@ -470,6 +470,9 @@ pub struct PlotSigmaIntervalAnalysis {
 pub struct PlotSigmaSeries {
     pub key: String,
     pub bins: Vec<PlotSigmaBin>,
+    // Samples the bins summarize: every row with a finite x and y.
+    #[row(description = "Samples the bins summarize: every row with a finite x and y.")]
+    pub raw_points: u64,
 }
 
 #[harmos::message]
@@ -480,6 +483,58 @@ pub struct PlotSigmaBin {
     pub mean: f64,
     pub lower: f64,
     pub upper: f64,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotWifiOccupancyAnalysis {
+    // Every channel a series reported, ascending.
+    #[row(description = "Every channel a series reported, ascending.")]
+    pub channels: Vec<i64>,
+    // Channels that held a network in any scan, ascending.
+    #[row(description = "Channels that held a network in any scan, ascending.")]
+    pub occupied_channels: Vec<i64>,
+    pub bands: Vec<PlotWifiBandWindow>,
+    // Scans in time order.
+    #[row(description = "Scans in time order.")]
+    pub scans: Vec<PlotWifiScan>,
+}
+
+// Channels of one band that held a network in any scan of the window.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotWifiBandWindow {
+    pub band: String,
+    pub occupied_channels: u64,
+}
+
+// One scan: the readings sharing a whole second, a channel keeping its
+// largest reading.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotWifiScan {
+    pub time: String,
+    pub channels: Vec<PlotWifiChannelCount>,
+    pub bands: Vec<PlotWifiBandScan>,
+    pub occupied_channels: u64,
+    pub total_networks: u64,
+    pub peak_count: u64,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotWifiChannelCount {
+    pub channel: i64,
+    pub count: u64,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlotWifiBandScan {
+    pub band: String,
+    pub occupied_channels: u64,
+    pub total_networks: u64,
+    pub peak_count: u64,
 }
 
 // Analysis IDs Are Open; Each Contribution Declares Its Parameters And Outputs.
@@ -707,6 +762,7 @@ pub enum PlotAnalysisResult {
     BoxSummary(PlotBoxSummaryAnalysis),
     SigmaInterval(PlotSigmaIntervalAnalysis),
     Error(PlotAnalysisError),
+    WifiOccupancy(PlotWifiOccupancyAnalysis),
 }
 
 #[harmos::catalog]

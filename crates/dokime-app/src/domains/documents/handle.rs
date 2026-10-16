@@ -137,11 +137,11 @@ impl RuntimeHandle {
             test_execution_id,
             None,
             QueryOptions::default(),
-            self.config().storage_reads.decoded_bytes,
+            self.config().storage.decoded_bytes,
         )
         .await?
         {
-            return saved.entries(self.config().storage_reads.decoded_bytes);
+            return saved.entries(self.config().storage.decoded_bytes);
         }
         self.execution_storage
             .native_entries(test_execution_id)
@@ -153,7 +153,7 @@ impl RuntimeHandle {
         test_execution_id: &TestExecutionId,
         map: impl FnOnce(&Vec<ExecutionFileEntry>, NonZeroUsize) -> harmos::Result<U>,
     ) -> Result<QueryValue<U>> {
-        let maximum = self.config().storage_reads.decoded_bytes;
+        let maximum = self.config().storage.decoded_bytes;
         if let Some(mut saved) = SavedOutputs::open(
             self.storage(),
             test_execution_id,
@@ -244,7 +244,7 @@ impl RuntimeHandle {
             id,
             None,
             QueryOptions::default(),
-            self.config().storage_reads.decoded_bytes,
+            self.config().storage.decoded_bytes,
         )
         .await?
         else {
@@ -281,7 +281,7 @@ impl RuntimeHandle {
             test_execution_id,
             None,
             QueryOptions::default(),
-            self.config().storage_reads.decoded_bytes,
+            self.config().storage.decoded_bytes,
         )
         .await?
         else {
@@ -309,7 +309,7 @@ impl RuntimeHandle {
             test_execution_id,
             None,
             QueryOptions::default(),
-            self.config().storage_reads.decoded_bytes,
+            self.config().storage.decoded_bytes,
         )
         .await?
         {
@@ -411,7 +411,7 @@ impl RuntimeHandle {
             test_execution_id,
             None,
             QueryOptions::default(),
-            self.config().storage_reads.decoded_bytes,
+            self.config().storage.decoded_bytes,
         )
         .await?
         else {

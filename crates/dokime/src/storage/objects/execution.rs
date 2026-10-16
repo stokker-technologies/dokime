@@ -88,6 +88,16 @@ native_map!(Documents, DocumentEntry, templates::documents::Document);
 /* === Type Aliases === */
 
 /* === Structs === */
+pub(crate) struct PublicationCheck<'a> {
+    pub source: &'a Revision,
+    pub input: &'a FileReference,
+    pub materialized_input: &'a FileReference,
+    pub report: &'a FileReference,
+    pub evidence: &'a StorageCursor,
+    pub saved: &'a StorageCursor,
+    pub at: &'a str,
+}
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -151,6 +161,7 @@ struct Output {
 #[serde(deny_unknown_fields)]
 pub(crate) struct Seal {
     source: Option<Source>,
+    materialized_input: Option<FileReference>,
     report: Option<FileReference>,
     dependencies_saved: Option<StorageCursor>,
     sealed_at: String,
@@ -2224,25 +2235,28 @@ impl TryFrom<Source> for crate::execution::saved::ExecutionSource {
 }
 
 impl Seal {
-    pub(crate) fn check_publication(
-        &self,
-        source: &Revision,
-        input: &FileReference,
-        report: &FileReference,
-        evidence: &StorageCursor,
-        saved: &StorageCursor,
-        at: &str,
-    ) -> Result<()> {
+    pub(crate) fn check_publication(&self, expected: PublicationCheck<'_>) -> Result<()> {
         let captured = self
             .source
             .as_ref()
             .ok_or(Error::Invalid("execution seal source is missing"))?;
-        if captured.execution.as_ref() != Some(source)
-            || captured.context.as_ref() != Some(input)
-            || captured.evidence_through.as_ref() != Some(evidence)
-            || self.report.as_ref() != Some(report)
-            || self.dependencies_saved.as_ref() != Some(saved)
-            || self.sealed_at != at
+        let materialized = self.materialized_input.as_ref().ok_or(Error::Invalid(
+            "execution seal materialized input is missing",
+        ))?;
+        let execution_id = TestExecutionId::from_uuid(&expected.source.execution_id)?;
+        crate::execution::saved::validate_materialized_input(
+            materialized,
+            &execution_id,
+            expected.input,
+            expected.saved,
+        )?;
+        if captured.execution.as_ref() != Some(expected.source)
+            || captured.context.as_ref() != Some(expected.input)
+            || captured.evidence_through.as_ref() != Some(expected.evidence)
+            || self.materialized_input.as_ref() != Some(expected.materialized_input)
+            || self.report.as_ref() != Some(expected.report)
+            || self.dependencies_saved.as_ref() != Some(expected.saved)
+            || self.sealed_at != expected.at
         {
             return Err(Error::Invalid(
                 "execution seal differs from report publication",
@@ -2254,13 +2268,15 @@ impl Seal {
     pub(crate) fn encoding_memory(value: &crate::execution::saved::ExecutionSeal) -> Result<usize> {
         value.sealed_at.to_datetime()?;
         let source = Source::encoding_memory(&value.source)?;
+        let materialized = value.materialized_input.memory_size();
         let report = value.report.memory_size();
         let saved = value.dependencies_saved.memory_size();
-        if [source, report, saved].contains(&usize::MAX) {
+        if [source, materialized, report, saved].contains(&usize::MAX) {
             return Ok(usize::MAX);
         }
         Ok(std::mem::size_of::<Self>()
             .saturating_add(source.saturating_sub(std::mem::size_of::<Source>()))
+            .saturating_add(materialized.saturating_sub(std::mem::size_of::<FileReference>()))
             .saturating_add(report.saturating_sub(std::mem::size_of::<FileReference>()))
             .saturating_add(saved.saturating_sub(std::mem::size_of::<StorageCursor>()))
             .saturating_add(value.sealed_at.as_str().len()))
@@ -2276,6 +2292,7 @@ impl TryFrom<&crate::execution::saved::ExecutionSeal> for Seal {
         }
         Ok(Self {
             source: Some(Source::try_from(&value.source)?),
+            materialized_input: Some(value.materialized_input.clone()),
             report: Some(value.report.clone()),
             dependencies_saved: Some(value.dependencies_saved.clone()),
             sealed_at: value.sealed_at.as_str().to_owned(),
@@ -2291,6 +2308,9 @@ impl Seal {
             .as_ref()
             .ok_or(Error::Invalid("execution seal source is missing"))?
             .projection_memory()?;
+        let materialized = self.materialized_input.as_ref().ok_or(Error::Invalid(
+            "execution seal materialized input is missing",
+        ))?;
         let report = self
             .report
             .as_ref()
@@ -2299,11 +2319,21 @@ impl Seal {
             .dependencies_saved
             .as_ref()
             .ok_or(Error::Invalid("execution seal saved frontier is missing"))?;
-        if [source, report.memory_size(), saved.memory_size()].contains(&usize::MAX) {
+        if [
+            source,
+            materialized.memory_size(),
+            report.memory_size(),
+            saved.memory_size(),
+        ]
+        .contains(&usize::MAX)
+        {
             return Ok(usize::MAX);
         }
         let fields = [
             source.saturating_sub(std::mem::size_of::<crate::execution::saved::ExecutionSource>()),
+            materialized
+                .memory_size()
+                .saturating_sub(std::mem::size_of_val(materialized)),
             report
                 .memory_size()
                 .saturating_sub(std::mem::size_of_val(report)),
@@ -2332,6 +2362,9 @@ impl TryFrom<Seal> for crate::execution::saved::ExecutionSeal {
                 .source
                 .ok_or(Error::Invalid("execution seal source is missing"))?
                 .try_into()?,
+            materialized_input: row.materialized_input.ok_or(Error::Invalid(
+                "execution seal materialized input is missing",
+            ))?,
             report: row
                 .report
                 .ok_or(Error::Invalid("execution seal report is missing"))?,
@@ -2376,6 +2409,17 @@ impl TryFrom<&crate::execution::saved::ExecutionRevision> for Revision {
 }
 
 impl Revision {
+    pub(crate) fn check_saved(&self, saved: &StorageCursor) -> Result<()> {
+        let position = self
+            .position
+            .as_ref()
+            .ok_or(Error::Invalid("execution revision position is missing"))?;
+        if !saved.covers(position)? {
+            return Err(Error::Invalid("execution revision exceeds durability cut"));
+        }
+        Ok(())
+    }
+
     pub(crate) fn check_cut(&self, through: &StorageCursor) -> Result<&str> {
         if self.execution_id.len() != 36
             || self
@@ -2395,9 +2439,7 @@ impl Revision {
             .as_ref()
             .ok_or(Error::Invalid("execution revision version is missing"))?;
         version.check_position(position)?;
-        if !through.covers(position)? {
-            return Err(Error::Invalid("execution revision exceeds evidence cut"));
-        }
+        through.history.check(&position.history)?;
         Ok(&self.execution_id)
     }
 
@@ -2460,7 +2502,7 @@ impl Identified for Execution {
 }
 impl StoredObject for Execution {
     type Key = str;
-    const RETENTION: ObjectRetention = ObjectRetention::Latest;
+    const RETENTION: ObjectRetention = ObjectRetention::UntilReleased;
     fn key(&self) -> &str {
         &self.test_execution_id
     }

@@ -339,6 +339,7 @@ impl SampleSink for RecordingSink {
         &'a self,
         stream: &'a Identifier,
         values: BTreeMap<String, Value>,
+        storage_payload: Option<Vec<u8>>,
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let mut samples = self
@@ -352,6 +353,7 @@ impl SampleSink for RecordingSink {
             let mut sample =
                 TelemetrySample::new(stream.clone(), sequence, Timestamp::now_utc(), "recording");
             sample.values = values;
+            sample.storage_payload = storage_payload;
             samples.push(sample);
             Ok(())
         })

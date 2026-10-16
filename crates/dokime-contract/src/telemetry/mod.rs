@@ -24,7 +24,7 @@ pub use contract::{
 pub use evidence::{TelemetryBatch, TelemetrySample};
 pub use host::{
     HOST_STREAMS, HostTelemetryStream, UnknownHostStream, host_stream_identifiers,
-    host_telemetry_contract, host_telemetry_contracts,
+    host_telemetry_contract, host_telemetry_contracts, host_telemetry_payload,
 };
 pub use row::TelemetryRow;
 pub use sampling::{

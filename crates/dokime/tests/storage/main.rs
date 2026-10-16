@@ -10,6 +10,9 @@
 #![cfg(feature = "storage")]
 
 /* === Modules === */
+mod cancellation;
+mod exhaustion;
+mod nominal;
 pub(crate) mod objects;
 pub(crate) mod reports;
 #[path = "sqlite/main.rs"]
@@ -282,56 +285,6 @@ fn recovery_contract() {
     {
         eprintln!("Scenario: sqlite::files::sealed_files_publication");
         run_scenario(sqlite::files::sealed_files_publication, false, None, false);
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::native_frames_result");
-        run_scenario(sqlite::frames::native_frames_result, false, None, false);
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::missing_null_distinct");
-        run_scenario(sqlite::frames::missing_null_distinct, false, None, false);
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::frame_refusals_view");
-        run_scenario(sqlite::frames::frame_refusals_view, false, None, false);
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::cached_batch_detects");
-        run_scenario(sqlite::frames::cached_batch_detects, false, None, false);
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::native_correlations_order");
-        run_scenario(
-            sqlite::frames::native_correlations_order,
-            false,
-            None,
-            false,
-        );
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::dropped_queued_view");
-        run_scenario(sqlite::frames::dropped_queued_view, false, None, false);
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::filtered_record_pages_cut");
-        run_scenario(
-            sqlite::frames::filtered_record_pages_cut,
-            false,
-            None,
-            false,
-        );
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::postcard_frames_cut");
-        run_scenario(sqlite::frames::postcard_frames_cut, false, None, false);
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::keyed_scans_writes");
-        run_scenario(sqlite::frames::keyed_scans_writes, false, None, false);
-    }
-    {
-        eprintln!("Scenario: sqlite::frames::frame_in_budget");
-        run_scenario(sqlite::frames::frame_in_budget, false, None, false);
     }
     {
         eprintln!("Scenario: sqlite::integrity::physical_pages_boundaries");

@@ -18,11 +18,8 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{
-    Identifier, MemorySize, Message,
-    storage::{
-        QueryOptions, QueryValue, ReadLimits, RecordWrite, SchemaKey, StorageProduction,
-        StreamQuery, StreamQueryResult, StreamWrite,
-    },
+    Identifier, MemorySize,
+    storage::{QueryValue, ReadLimits, RecordWrite, SchemaKey, StorageProduction, StreamWrite},
 };
 
 // Local Imports
@@ -30,7 +27,7 @@ use super::execution::ExecutionView;
 use crate::{Error, Result};
 use dokime::storage::{
     Manager,
-    telemetry::{self, TelemetryEntry, TelemetryRow},
+    telemetry::{self, TelemetryEntry},
 };
 
 /* === Constants === */
@@ -48,15 +45,26 @@ pub(crate) struct PreparedTelemetry {
     source: Identifier,
     scope: Option<Identifier>,
     ordinal: u64,
+    source_time: std::time::SystemTime,
     payload: Vec<u8>,
 }
 
 pub struct TelemetryReader {
-    reader: StreamQueryResult<TelemetryRow>,
-    view: ExecutionView,
-    context: bool,
+    storage: Manager,
+    readers: Vec<TypedRead>,
+    page: ReadLimits,
+    after: u64,
+    _view: ExecutionView,
     projection: NonZeroUsize,
     pending: Option<QueryValue<Vec<PositionedTelemetry>>>,
+}
+
+struct TypedRead {
+    reader: harmos::storage::query::QueryReader,
+    codec: telemetry::TypedCodec,
+    head: Option<QueryValue<Vec<PositionedTelemetry>>>,
+    offset: usize,
+    finished: bool,
 }
 
 /* === Enums === */
@@ -94,7 +102,7 @@ impl PreparedTelemetry {
                 scope: self.scope.as_ref(),
                 item: &self.item,
                 source: Some(&self.source),
-                source_time: None,
+                source_time: Some(self.source_time),
                 payload: &self.payload,
             },
         }
@@ -109,20 +117,65 @@ impl TelemetryReader {
         projection: NonZeroUsize,
         context: bool,
     ) -> Result<Self> {
-        let query = selected_query(
-            view,
-            QueryOptions {
-                page: Some(page),
-                decoded_bytes: Some(projection),
-                ..QueryOptions::default()
-            },
-        )?;
-        let mut reader = storage.query_in(view.view(), query)?;
-        reader.retain_view()?;
+        Self::selected(storage, view, page, projection, context, None, 0)
+    }
+
+    fn selected(
+        storage: &Manager,
+        view: &ExecutionView,
+        page: ReadLimits,
+        projection: NonZeroUsize,
+        _context: bool,
+        stream: Option<&Identifier>,
+        after: u64,
+    ) -> Result<Self> {
+        use harmos::storage::query::{Query, RowSlice, Source, StreamSelection};
+        let captured = view
+            .captured_source()
+            .ok_or_else(|| invalid("typed telemetry read requires captured producer schemas"))?;
+        let scope = Identifier::new(view.execution().test_execution_id.as_str())
+            .map_err(|source| codec_error(source.into()))?;
+        let mut readers = Vec::new();
+        for (id, versions) in &captured.telemetry_contracts {
+            if stream.is_some_and(|selected| selected != id) {
+                continue;
+            }
+            for contract in versions.values() {
+                let codec = telemetry::codec(contract)?;
+                let reader = storage.query_in(
+                    view.view(),
+                    Query {
+                        at: view.evidence_through()?.clone(),
+                        source: Source::Stream(StreamSelection {
+                            schema: codec.schema().clone(),
+                            scope: Some(scope.clone()),
+                            item: None,
+                            stream: Some(contract.stream.clone()),
+                            source_start: None,
+                            source_end: None,
+                        }),
+                        transforms: vec![],
+                        slice: RowSlice {
+                            offset: 0,
+                            limit: None,
+                        },
+                    },
+                )?;
+                readers.push(TypedRead {
+                    reader,
+                    codec,
+                    head: None,
+                    offset: 0,
+                    finished: false,
+                });
+            }
+        }
         Ok(Self {
-            reader,
-            view: view.clone(),
-            context,
+            storage: storage.clone(),
+            readers,
+            page,
+            after,
+            _view: view.clone(),
             projection,
             pending: None,
         })
@@ -134,32 +187,12 @@ impl TelemetryReader {
         stream: &Identifier,
         after: u64,
     ) -> Result<Self> {
-        let execution = view.execution().test_execution_id.as_str();
-        let selection = stream
-            .memory_size()
-            .checked_add(std::mem::size_of::<Identifier>())
-            .and_then(|bytes| bytes.checked_add(execution.len()))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(exhausted)?;
-        let _selection = storage.prepare_production(selection)?;
-        let mut query = selected_query(
-            view,
-            QueryOptions {
-                after,
-                ..QueryOptions::default()
-            },
-        )?;
-        query.stream = Some(stream.clone());
-        let mut reader = storage.query_in(view.view(), query)?;
-        reader.retain_view()?;
-        let projection = reader.decoded_bytes();
-        Ok(Self {
-            reader,
-            view: view.clone(),
-            context: false,
-            projection,
-            pending: None,
-        })
+        let projection = view.view().decoded_bytes()?;
+        let page = ReadLimits {
+            rows: NonZeroUsize::new(65_536).unwrap(),
+            bytes: projection,
+        };
+        Self::selected(storage, view, page, projection, false, Some(stream), after)
     }
 
     pub(super) fn allowance(&self) -> NonZeroUsize {
@@ -171,40 +204,19 @@ impl TelemetryReader {
         value: &QueryValue<T>,
         map: impl FnOnce(&T, NonZeroUsize) -> harmos::Result<U>,
     ) -> Result<QueryValue<U>> {
-        Ok(self.reader.project(value, self.projection, map)?)
+        Ok(value.try_project(self.projection, map)?)
     }
 
     pub async fn next(&mut self) -> Result<Option<QueryValue<Vec<TelemetryEntry>>>> {
         if self.pending.is_none() {
             self.pending = self.next_positioned().await?;
         }
-        let Some(positioned) = &self.pending else {
+        let Some(positioned) = self.pending.take() else {
             return Ok(None);
         };
-        let projected = self
-            .reader
-            .project(positioned, self.projection, |rows, allowance| {
-                let memory = rows
-                    .iter()
-                    .try_fold(std::mem::size_of::<Vec<TelemetryEntry>>(), |bytes, row| {
-                        bytes.checked_add(row.captured.memory_size())
-                    })
-                    .ok_or_else(exhausted)?;
-                if memory > allowance.get() {
-                    return Err(exhausted());
-                }
-                let mut entries = Vec::new();
-                entries
-                    .try_reserve_exact(rows.len())
-                    .map_err(|_| exhausted())?;
-                if entries.capacity() > rows.len() {
-                    return Err(exhausted());
-                }
-                entries.extend(rows.iter().map(|row| row.captured.clone()));
-                Ok(entries)
-            })?;
-        self.pending = None;
-        Ok(Some(projected))
+        Ok(Some(positioned.try_map(self.projection, |rows, _| {
+            Ok(rows.into_iter().map(|row| row.captured).collect())
+        })?))
     }
 
     pub(super) async fn next_positioned(
@@ -215,96 +227,104 @@ impl TelemetryReader {
                 "telemetry reader has an unsettled domain projection",
             ));
         }
-        let execution = self.view.execution();
-        let context = self.context;
-        let selected = self
-            .reader
-            .next_page_projected(self.projection, |rows, allowance| {
-                let slots = rows
-                    .len()
-                    .checked_mul(std::mem::size_of::<PositionedTelemetry>())
-                    .and_then(|bytes| {
-                        bytes.checked_add(std::mem::size_of::<Vec<PositionedTelemetry>>())
-                    })
-                    .ok_or_else(|| {
-                        codec_error(dokime::storage::Error::Invalid(
-                            "telemetry page slot memory overflow",
-                        ))
-                    })?;
-                let bytes = rows
-                    .iter()
-                    .try_fold(slots, |bytes, row| {
-                        bytes
-                            .checked_add(row.record.payload.projection_memory()?)
-                            .and_then(|bytes| bytes.checked_add(row.record.payload.memory_size()))
-                            .and_then(|bytes| bytes.checked_add(row.record.item.memory_size()))
-                            .and_then(|bytes| bytes.checked_add(row.record.source.memory_size()))
-                            .ok_or(dokime::storage::Error::Invalid(
-                                "telemetry projection memory overflow",
-                            ))
-                    })
-                    .map_err(codec_error)?;
-                if bytes > allowance.get() {
-                    return Err(harmos::Error::ResourceExhausted {
-                        resource: "telemetry projection memory",
-                    });
-                }
-                let mut selected = Vec::with_capacity(rows.len());
-                let capacity = selected
-                    .capacity()
-                    .saturating_sub(rows.len())
-                    .checked_mul(std::mem::size_of::<PositionedTelemetry>())
-                    .and_then(|unused| bytes.checked_add(unused));
-                if capacity.is_none_or(|bytes| bytes > allowance.get()) {
-                    return Err(harmos::Error::ResourceExhausted {
-                        resource: "telemetry page capacity",
-                    });
-                }
-                for row in rows {
-                    let entry = row
-                        .record
-                        .payload
-                        .clone()
-                        .into_entry(allowance)
-                        .map_err(codec_error)?;
-                    let scope = entry.sample.scope.as_ref().and_then(|scope| {
-                        scope
-                            .test_execution_id
-                            .as_ref()
-                            .map(|id| id.as_str())
-                            .or_else(|| scope.test_cycle_id.as_ref().map(|id| id.as_str()))
-                    });
-                    if row.sequence != entry.ordinal
-                        || row.stream != entry.sample.stream
-                        || row.record.item.as_str() != entry.sample.sample_id.as_str()
-                        || row.record.source.as_ref().map(|source| source.as_str())
-                            != Some(entry.epoch.as_str())
-                        || row.record.scope.as_ref().map(|scope| scope.as_str()) != scope
-                        || row.record.source_time.is_some()
-                    {
-                        return Err(codec_error(dokime::storage::Error::Invalid(
-                            "telemetry envelope differs from original producer identity",
-                        )));
-                    }
-                    let matches = entry.sample.scope.as_ref().is_some_and(|scope| {
-                        scope.test_execution_id.as_ref() == Some(&execution.test_execution_id)
-                            && scope.test_cycle_id.as_ref() == Some(&execution.test_cycle_id)
-                    }) || (context
-                        && super::context_records::matches(
-                            Some(&execution.test_cycle_id),
-                            entry.sample.scope.as_ref(),
-                        ));
-                    if matches {
-                        selected.push(PositionedTelemetry {
-                            position: row.record.position.sequence,
-                            captured: entry,
-                        });
+        // Each Head Retains One Bounded Batch; Merge By Durable Storage Position.
+        let mut selected = Vec::new();
+        let claim = self.storage.prepare_production(self.projection)?;
+        let mut bytes = std::mem::size_of::<Vec<PositionedTelemetry>>();
+        while selected.len() < self.page.rows.get() {
+            for source in &mut self.readers {
+                while !source.finished && source.head.is_none() {
+                    match source.reader.next().await? {
+                        Some(harmos::storage::query::QueryOutput::Schema(_)) => {}
+                        Some(harmos::storage::query::QueryOutput::Batch(batch)) => {
+                            let raw = batch.as_record_batch();
+                            let metadata = raw
+                                .column_by_name("_storage")
+                                .and_then(|column| {
+                                    column.as_any().downcast_ref::<arrow_array::StructArray>()
+                                })
+                                .ok_or_else(|| {
+                                    invalid("typed telemetry storage metadata is absent")
+                                })?;
+                            let positions = metadata
+                                .column_by_name("position")
+                                .and_then(|column| {
+                                    column.as_any().downcast_ref::<arrow_array::UInt64Array>()
+                                })
+                                .ok_or_else(|| invalid("typed telemetry positions are absent"))?;
+                            let bound = self
+                                .projection
+                                .get()
+                                .checked_add(
+                                    raw.num_rows()
+                                        .checked_mul(std::mem::size_of::<PositionedTelemetry>())
+                                        .ok_or_else(exhausted)?,
+                                )
+                                .and_then(NonZeroUsize::new)
+                                .ok_or_else(exhausted)?;
+                            let retained = self.storage.prepare_production(bound)?;
+                            let decoded =
+                                telemetry::decode_batch(&source.codec, &batch, self.projection)?;
+                            let rows = decoded
+                                .into_iter()
+                                .enumerate()
+                                .filter(|(index, _)| positions.value(*index) > self.after)
+                                .map(|(index, captured)| PositionedTelemetry {
+                                    position: positions.value(index),
+                                    captured,
+                                })
+                                .collect::<Vec<_>>();
+                            if !rows.is_empty() {
+                                let retained = retained.finish(rows)?.try_into_value()?;
+                                source.head = Some(retained);
+                                source.offset = 0;
+                            }
+                        }
+                        None => {
+                            source.reader.completion()?;
+                            source.finished = true;
+                        }
                     }
                 }
-                Ok(selected)
-            })
-            .await?;
-        Ok(selected)
+            }
+            let next = self
+                .readers
+                .iter()
+                .enumerate()
+                .filter_map(|(index, source)| {
+                    source
+                        .head
+                        .as_ref()
+                        .map(|rows| (index, rows[source.offset].position))
+                })
+                .min_by_key(|(_, position)| *position);
+            let Some((index, _)) = next else {
+                break;
+            };
+            let source = &mut self.readers[index];
+            let rows = source.head.as_ref().expect("selected head exists");
+            let row = &rows[source.offset];
+            let needed = bytes.checked_add(row.memory_size()).ok_or_else(exhausted)?;
+            if needed > self.projection.get() {
+                if selected.is_empty() {
+                    return Err(exhausted().into());
+                }
+                break;
+            }
+            selected.push(PositionedTelemetry {
+                position: row.position,
+                captured: row.captured.clone(),
+            });
+            bytes = needed;
+            source.offset += 1;
+            if source.offset == rows.len() {
+                source.head = None;
+            }
+        }
+        if selected.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(claim.finish(selected)?.try_into_value()?))
     }
 }
 
@@ -315,17 +335,76 @@ pub(crate) struct TelemetryAdmission {
     _memory: harmos::storage::StorageProductionPreparation,
 }
 
+pub(crate) struct CommittedTelemetry {
+    pub accepted: QueryValue<Vec<bool>>,
+    pub failure: Option<Error>,
+}
+
 impl TelemetryAdmission {
-    pub(crate) async fn commit(self) -> Result<()> {
-        if !self.rows.is_empty() {
-            let writes = self
-                .rows
-                .iter()
-                .map(|row| row.value().write())
-                .collect::<Vec<_>>();
-            self.storage.write_stream(&writes).await?;
+    pub(crate) async fn commit(
+        self,
+        sampling: &crate::services::telemetry::Sampling,
+    ) -> Result<CommittedTelemetry> {
+        let bound = NonZeroUsize::new(
+            std::mem::size_of::<Vec<bool>>()
+                .checked_add(self.rows.len())
+                .ok_or_else(exhausted)?,
+        )
+        .ok_or_else(exhausted)?;
+        let retained = self.storage.prepare_production(bound)?;
+        let mut accepted = vec![false; self.rows.len()];
+        let mut groups = std::collections::BTreeMap::<&str, Vec<usize>>::new();
+        for (index, row) in self.rows.iter().enumerate() {
+            let scope = row
+                .value()
+                .scope
+                .as_ref()
+                .ok_or_else(|| invalid("native telemetry has no execution owner"))?;
+            groups.entry(scope.as_str()).or_default().push(index);
         }
-        Ok(())
+        let mut failure = None;
+        'groups: for (scope, indices) in groups {
+            let writes = indices
+                .iter()
+                .map(|index| self.rows[*index].value().write())
+                .collect::<Vec<_>>();
+            let mut offset = 0;
+            while offset < writes.len() {
+                if sampling.measurement_closed(scope).await {
+                    break;
+                }
+                let length = match self.storage.stream_batch_len(&writes[offset..]) {
+                    Ok(length) => length,
+                    Err(source) if accepted.iter().any(|accepted| *accepted) => {
+                        failure = Some(source.into());
+                        break 'groups;
+                    }
+                    Err(source) => return Err(source.into()),
+                };
+                let batch = &writes[offset..offset + length];
+                // Harmos Enqueue Has No Await Between Ownership Transfer And Its Ready Receipt.
+                // Poll The Receipt First; Cancellation Only Drops An Unaccepted Pending Enqueue.
+                tokio::select! {
+                    biased;
+                    result = self.storage.write_stream(batch) => {
+                        match result {
+                            Ok(_) => for index in &indices[offset..offset + length] { accepted[*index] = true; },
+                            Err(source) if accepted.iter().any(|accepted| *accepted) => {
+                                failure = Some(source.into());
+                                break 'groups;
+                            }
+                            Err(source) => return Err(source.into()),
+                        }
+                    }
+                    _ = sampling.wait_measurement_closed(scope) => break,
+                }
+                offset += length;
+            }
+        }
+        Ok(CommittedTelemetry {
+            accepted: retained.finish(accepted)?.try_into_value()?,
+            failure,
+        })
     }
 }
 
@@ -410,7 +489,8 @@ impl super::executions::ExecutionStorage {
                     + std::mem::size_of::<
                         tokio::sync::OwnedMutexGuard<super::executions::Acquisition>,
                     >()
-                    + harmos::btree_map_memory::<&dokime::core::TestExecutionId, ()>(1),
+                    + 8 * std::mem::size_of::<usize>()
+                    + harmos::btree_map_memory::<&str, Vec<usize>>(1),
             )
             .and_then(|bytes| bytes.checked_add(std::mem::size_of::<TelemetryAdmission>()))
             .and_then(NonZeroUsize::new)
@@ -452,7 +532,8 @@ impl super::executions::ExecutionStorage {
             owners.push(acquisition);
         }
         let mut rows = Vec::with_capacity(samples.len());
-        for (sample, _, ordinal) in samples {
+        let mut codecs = std::collections::BTreeMap::new();
+        for (sample, contract, ordinal) in samples {
             if sample
                 .scope
                 .as_ref()
@@ -475,11 +556,31 @@ impl super::executions::ExecutionStorage {
                     })
                 },
             )?;
-            rows.push(prepare(
-                &self.storage,
-                entry.value(),
-                NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-            )?);
+            let key = (contract.stream.clone(), contract.schema_version);
+            if !codecs.contains_key(&key) {
+                let graph = contract.storage_schema.as_ref().ok_or_else(|| {
+                    invalid("telemetry producer requires an explicit storage row schema")
+                })?;
+                let codec = telemetry::TypedCodec::new(
+                    &contract.stream,
+                    contract.schema_version,
+                    graph,
+                    &harmos::config::SchemaSettings::default(),
+                )?;
+                self.storage
+                    .write_schema(codec.schema(), codec.graph())
+                    .await?;
+                codecs.insert(key.clone(), codec);
+            }
+            let codec = &codecs[&key];
+            let limit = NonZeroUsize::new(
+                codec
+                    .encoding_memory(entry.value())?
+                    .saturating_add(entry.value().memory_size())
+                    .saturating_add(std::mem::size_of::<PreparedTelemetry>()),
+            )
+            .ok_or_else(|| invalid("typed telemetry encoding memory overflows"))?;
+            rows.push(prepare(&self.storage, entry.value(), codec, limit)?);
         }
         Ok(TelemetryAdmission {
             storage: self.storage.clone(),
@@ -491,14 +592,31 @@ impl super::executions::ExecutionStorage {
 }
 
 /* === Public Functions === */
+/// Producer Schemas Are Durable Before An Execution Can Start Acquiring.
+pub(crate) async fn register_schemas(
+    storage: &Manager,
+    contracts: &[dokime::telemetry::TelemetryContract],
+) -> Result<()> {
+    let mut last = None;
+    for contract in contracts.iter().filter(|contract| !contract.foreign) {
+        let codec = telemetry::codec(contract)?;
+        last = Some(storage.write_schema(codec.schema(), codec.graph()).await?);
+    }
+    if let Some(cursor) = last {
+        storage.flush_until(&cursor).await?;
+    }
+    Ok(())
+}
+
 pub(crate) fn prepare(
     storage: &Manager,
     entry: &TelemetryEntry,
+    codec: &telemetry::TypedCodec,
     limit: NonZeroUsize,
 ) -> Result<StorageProduction<PreparedTelemetry>> {
     let sample = &entry.sample;
     let scope = captured_scope(sample)?;
-    let native = TelemetryRow::encoding_memory(entry)?;
+    let native = codec.encoding_memory(entry)?;
     let metadata = [
         sample.stream.as_str(),
         sample.sample_id.as_str(),
@@ -519,33 +637,9 @@ pub(crate) fn prepare(
         if native == usize::MAX || simultaneous > allowance.get() {
             return Err(exhausted());
         }
-        let row = TelemetryRow::from_entry(entry).map_err(codec_error)?;
-        let wire = row.encoded_len();
-        if simultaneous
-            .checked_add(wire)
-            .is_none_or(|bytes| bytes > allowance.get())
-        {
-            return Err(exhausted());
-        }
-        let mut payload = Vec::new();
-        payload.try_reserve_exact(wire).map_err(|_| exhausted())?;
-        if simultaneous
-            .checked_add(payload.capacity())
-            .is_none_or(|bytes| bytes > allowance.get())
-        {
-            return Err(exhausted());
-        }
-        row.encode_into(&mut payload);
-        if payload.len() != wire
-            || simultaneous
-                .checked_add(payload.capacity())
-                .is_none_or(|bytes| bytes > allowance.get())
-        {
-            return Err(exhausted());
-        }
-        drop(row);
+        let payload = codec.encode(entry, allowance.get()).map_err(codec_error)?;
         Ok(PreparedTelemetry {
-            schema: telemetry::schema(),
+            schema: codec.schema().clone(),
             stream: Identifier::new(sample.stream.as_str())
                 .map_err(|source| codec_error(source.into()))?,
             item: Identifier::new(sample.sample_id.as_str())
@@ -554,44 +648,21 @@ pub(crate) fn prepare(
                 .map_err(|source| codec_error(source.into()))?,
             scope: Some(Identifier::new(scope).map_err(|source| codec_error(source.into()))?),
             ordinal: entry.ordinal,
+            source_time: {
+                let at = sample.timestamp.to_datetime().map_err(|_| {
+                    codec_error(dokime::storage::Error::Invalid(
+                        "typed telemetry timestamp is invalid",
+                    ))
+                })?;
+                let seconds = u64::try_from(at.unix_timestamp()).map_err(|_| exhausted())?;
+                std::time::UNIX_EPOCH
+                    .checked_add(std::time::Duration::new(seconds, at.nanosecond()))
+                    .ok_or_else(exhausted)?
+            },
             payload,
         })
     })?;
     Ok(output)
-}
-
-pub(crate) async fn initialize(storage: &Manager) -> Result<()> {
-    use harmos::schema::Described;
-    let graph = harmos::schema::graph::Schema::from_declaration(
-        telemetry::TelemetryRow::DEFINITION,
-        &harmos::config::SchemaSettings::default(),
-    )
-    .map_err(|error| {
-        harmos::Error::backend(
-            "resolve native telemetry schema",
-            harmos::BackendFailure::Permanent,
-            error,
-        )
-    })?;
-    let schema = telemetry::schema();
-    let mut selection = harmos::storage::SchemaQuery::new();
-    selection.schema = Some(schema.clone());
-    selection.options.page = Some(ReadLimits {
-        rows: NonZeroUsize::new(1).unwrap(),
-        bytes: NonZeroUsize::new(64 * 1024).unwrap(),
-    });
-    let mut schemas = storage.query(selection).await?;
-    let existing = schemas.next_page().await?;
-    drop(schemas);
-    if let Some(existing) = existing {
-        if existing.len() != 1 || existing[0].key != schema || existing[0].schema != graph {
-            return Err(invalid("stored native telemetry schema differs"));
-        }
-        return Ok(());
-    }
-    let declared = storage.write_schema(&schema, &graph).await?;
-    storage.flush_until(&declared).await?;
-    Ok(())
 }
 
 /* === Private Functions === */
@@ -599,45 +670,6 @@ fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted {
         resource: "telemetry projection memory",
     }
-}
-
-fn selected_query(
-    view: &ExecutionView,
-    mut options: QueryOptions,
-) -> Result<StreamQuery<TelemetryRow>> {
-    // Every read of a captured execution keeps the limits its view was opened
-    // with, so a finalization capture's pages keep the finalization budget.
-    options.execution = view.view().execution_limits()?;
-    let through = view.evidence_through()?;
-    if !view.view().saved()?.covers(through)? {
-        return Err(invalid(
-            "telemetry evidence exceeds the original saved view",
-        ));
-    }
-    let mut query = native_query(options);
-    query.options.through = Some(through.sequence);
-    // Native capture admits only execution-addressed samples and files each
-    // under its execution, so the envelope scope selects this execution's
-    // rows in storage instead of decoding every execution's history.
-    query.scope = Some(
-        Identifier::new(view.execution().test_execution_id.as_str())
-            .map_err(|source| codec_error(source.into()))?,
-    );
-    Ok(query)
-}
-
-pub(crate) fn native_query(options: QueryOptions) -> StreamQuery<TelemetryRow> {
-    let mut query = StreamQuery::new(telemetry::schema(), |bytes, allowance| {
-        let bound = TelemetryRow::decoding_memory(bytes).map_err(codec_error)?;
-        if bound == usize::MAX || bound > allowance.get() {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "native telemetry decoding memory",
-            });
-        }
-        TelemetryRow::from_bytes(bytes, allowance.get()).map_err(codec_error)
-    });
-    query.options = options;
-    query
 }
 
 fn captured_scope(sample: &dokime::telemetry::TelemetrySample) -> Result<&str> {
@@ -665,3 +697,112 @@ fn invalid(reason: &'static str) -> Error {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+    use harmos::{Application, Runtime, storage::StorageBackends};
+    use std::{sync::Arc, time::Duration};
+
+    struct TestApp;
+    impl Application for TestApp {
+        type State = ();
+        type Transaction = harmos::state::Never;
+        type Record = harmos::state::Never;
+        type Streams = ();
+        type Resources = ();
+    }
+
+    #[harmos::message]
+    struct Reading {
+        value: String,
+    }
+
+    #[tokio::test]
+    async fn later_refusal_preserves_the_accepted_prefix_without_replay() {
+        let root = tempfile::tempdir().unwrap();
+        let backend = Arc::new(
+            dokime::storage::sqlite::Backend::primary(
+                root.path().to_owned(),
+                dokime::storage::sqlite::Limits::default(),
+            )
+            .await
+            .unwrap(),
+        );
+        let state = Arc::new(backend.state(dokime::storage::sqlite::StateLimits::default()));
+        let storage = Manager::new(
+            StorageBackends {
+                primary: backend,
+                state,
+                replicas: Vec::new(),
+            },
+            crate::config::StorageSettings::default().harmos(
+                Duration::from_secs(60),
+                NonZeroUsize::new(128 * 1024).unwrap(),
+            ),
+        )
+        .unwrap();
+        let runtime = Runtime::<TestApp>::builder((), ())
+            .runtime_with_storage(&storage)
+            .await
+            .unwrap();
+        let contract = dokime::telemetry::TelemetryContract::declared("partial.fixture", "Partial")
+            .typed::<Reading>();
+        let codec = telemetry::codec(&contract).unwrap();
+        storage
+            .write_schema(codec.schema(), codec.graph())
+            .await
+            .unwrap();
+        let execution = dokime::core::TestExecutionId::from_seed("partial.scope");
+        let mut rows = Vec::new();
+        for (index, value) in ["first".to_owned(), "x".repeat(256 * 1024)]
+            .into_iter()
+            .enumerate()
+        {
+            let row = Reading { value };
+            let mut sample = dokime::telemetry::TelemetrySample::new(
+                contract.stream.clone(),
+                index as u64,
+                dokime::core::Timestamp::from_datetime(time::OffsetDateTime::UNIX_EPOCH),
+                "partial.fixture",
+            )
+            .typed(&row);
+            sample.scope = Some(dokime::core::RecordScope {
+                test_execution_id: Some(execution.clone()),
+                ..Default::default()
+            });
+            let entry = TelemetryEntry {
+                epoch: dokime::core::SessionId::from_seed("partial.epoch"),
+                ordinal: index as u64,
+                sample,
+            };
+            let bound = codec
+                .encoding_memory(&entry)
+                .unwrap()
+                .saturating_add(entry.memory_size())
+                .saturating_add(std::mem::size_of::<PreparedTelemetry>());
+            rows.push(
+                prepare(&storage, &entry, &codec, NonZeroUsize::new(bound).unwrap()).unwrap(),
+            );
+        }
+        let before = storage.cursor_accepted();
+        let admission = TelemetryAdmission {
+            storage: storage.clone(),
+            rows,
+            _owners: Vec::new(),
+            _memory: storage
+                .prepare_production(NonZeroUsize::new(4096).unwrap())
+                .unwrap(),
+        };
+        let result = admission
+            .commit(&crate::services::telemetry::Sampling::default())
+            .await
+            .unwrap();
+        assert_eq!(&*result.accepted, &[true, false]);
+        assert!(result.failure.is_some());
+        assert_eq!(storage.cursor_accepted().sequence, before.sequence + 1);
+        drop(result);
+        storage.flush().await.unwrap();
+        runtime.stop().await.unwrap();
+    }
+}

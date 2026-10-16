@@ -18,16 +18,14 @@ use std::{num::NonZeroUsize, sync::Arc};
 use harmos::{
     MemorySize,
     storage::{
-        ObjectReceipt, ObjectVersion, QueryValue, SharedQueryValue, StorageProductionPreparation,
+        FileReference, ObjectReceipt, ObjectVersion, QueryValue, SharedQueryValue, StorageCursor,
+        StorageProductionPreparation,
     },
 };
 use tokio::sync::Mutex;
 // Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
-use crate::{
-    Error, Result, RuntimeHandle, execution::CycleView, report::cycle::CycleReport,
-    runtime::progress::Operation,
-};
+use crate::{Error, Result, RuntimeHandle, execution::CycleView, runtime::progress::Operation};
 use dokime::{
     core::TestCycleId,
     execution::{
@@ -47,9 +45,7 @@ use dokime::{
 pub(super) struct PendingCycle {
     snapshot: CycleSnapshot,
     executions: SharedQueryValue<Vec<ExecutionSeal>>,
-    // Retains every materialized member until the report file is written; the
-    // seal then releases it, before publication and the cycle object save.
-    report: Option<CycleReport>,
+    report: Option<SharedQueryValue<FileReference>>,
     seal: Option<SharedQueryValue<CycleSeal>>,
     native: Option<QueryValue<Cycle>>,
     publication: Option<reports::Prepared>,
@@ -84,16 +80,133 @@ impl MemorySize for CompletedCycle {
 
 /* === Implementations === */
 impl super::executions::ExecutionStorage {
-    /// Forgets a cycle report that has not produced its file yet, so a retry
-    /// prepares it again under a fresh view and budget.
-    pub(crate) async fn restart_cycle_report(&self, id: &TestCycleId) {
-        let mut reports = self.cycle_reports.lock().await;
-        let Some(owner) = reports.get(id) else {
-            return;
-        };
-        if owner.lock().await.seal.is_none() {
-            reports.remove(id);
+    pub(crate) async fn cycle_finalization_intent(
+        &self,
+        id: &TestCycleId,
+    ) -> Result<Option<QueryValue<crate::transactions::CycleReportFinalization>>> {
+        self.state_manager
+            .state()
+            .read(|state| {
+                state
+                    .cycle_report_finalizations
+                    .get(id)
+                    .map(|intent| {
+                        self.storage
+                            .produce(bound(intent.memory_size())?, |_| Ok(intent.clone()))?
+                            .try_into_value()
+                            .map_err(Error::from)
+                    })
+                    .transpose()
+            })
+            .await?
+            .value
+    }
+
+    pub(crate) async fn cycle_materialization_cursor(
+        &self,
+        id: &TestCycleId,
+    ) -> Result<Option<StorageCursor>> {
+        let owner = self.cycle_reports.lock().await.get(id).cloned();
+        if let Some(owner) = owner {
+            return Ok(Some(owner.lock().await.snapshot.view().saved()?));
         }
+        Ok(self
+            .state_manager
+            .state()
+            .read(|state| {
+                state
+                    .cycle_report_finalizations
+                    .get(id)
+                    .map(|intent| intent.evidence_at.clone())
+            })
+            .await?
+            .value)
+    }
+
+    pub(crate) async fn cycle_materialization(
+        &self,
+        id: &TestCycleId,
+        at: &StorageCursor,
+        limits: harmos::storage::QueryLimits,
+        operation: &Operation,
+    ) -> Result<
+        Option<(
+            CycleSnapshot,
+            SharedQueryValue<Vec<ExecutionSeal>>,
+            Option<SharedQueryValue<FileReference>>,
+        )>,
+    > {
+        let owner = self.cycle_reports.lock().await.get(id).cloned();
+        let owner = if let Some(owner) = owner {
+            owner
+        } else {
+            let intent = self.cycle_finalization_intent(id).await?;
+            let Some(intent) = intent else {
+                return Ok(None);
+            };
+            if intent.evidence_at != *at {
+                return Err(invalid(
+                    "cycle request differs from persisted finalization boundary",
+                ));
+            }
+            let source = self
+                .storage
+                .produce(bound(intent.source.memory_size())?, |_| {
+                    Ok(intent.source.clone())
+                })?
+                .try_into_value()?
+                .try_into_shared()?;
+            let pending = self
+                .prepare_cycle_report(source, at, limits, operation)
+                .await?;
+            let owner = Arc::new(Mutex::new(pending));
+            self.cycle_reports
+                .lock()
+                .await
+                .insert(id.clone(), owner.clone());
+            owner
+        };
+        let pending = owner.lock().await;
+        if pending.snapshot.view().saved()? != *at {
+            return Err(invalid("cycle materialization changes its frozen cursor"));
+        }
+        Ok(Some((
+            pending.snapshot.clone(),
+            pending.executions.clone(),
+            pending.report.clone(),
+        )))
+    }
+
+    pub(crate) async fn retain_cycle_report(
+        &self,
+        id: &TestCycleId,
+        at: &StorageCursor,
+        report: FileReference,
+    ) -> Result<()> {
+        let owner = self
+            .cycle_reports
+            .lock()
+            .await
+            .get(id)
+            .cloned()
+            .ok_or_else(|| invalid("cycle finalization owner disappeared"))?;
+        let mut pending = owner.lock().await;
+        if pending.snapshot.view().saved()? != *at {
+            return Err(invalid("cycle report boundary changed"));
+        }
+        if let Some(existing) = &pending.report {
+            if **existing != report {
+                return Err(invalid("cycle report was already published"));
+            }
+            return Ok(());
+        }
+        pending.report = Some(
+            self.storage
+                .produce(bound(report.memory_size())?, |_| Ok(report))?
+                .try_into_value()?
+                .try_into_shared()?,
+        );
+        Ok(())
     }
 
     pub(crate) async fn retire_cycle_report(&self, id: &TestCycleId) {
@@ -110,6 +223,87 @@ impl super::executions::ExecutionStorage {
 }
 
 impl RuntimeHandle {
+    async fn recover_saved_cycle(
+        &self,
+        intent: &crate::transactions::CycleReportFinalization,
+    ) -> Result<Option<SharedQueryValue<CompletedCycle>>> {
+        let view = self
+            .storage()
+            .view_with_limits(self.config().storage.finalization())
+            .await?;
+        let limit = view.decoded_bytes()?;
+        let Some(revision) = dokime::storage::objects::cycle::read_in(
+            self.storage(),
+            &view,
+            &intent.source.test_cycle_id,
+            ObjectVersion::Latest,
+            limit,
+        )
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(seal) = &revision.value.saved else {
+            return Ok(None);
+        };
+        if !same_header(&revision.value, &intent.source)
+            || seal.evidence_through != intent.evidence_at
+        {
+            return Err(invalid(
+                "durable cycle seal differs from its frozen finalization intent",
+            ));
+        }
+        seal.validate(&revision.value)
+            .map_err(dokime::storage::Error::from)?;
+        let mut executions = self
+            .storage()
+            .produce(bound(std::mem::size_of::<Vec<ExecutionSeal>>())?, |_| {
+                Ok(Vec::new())
+            })?
+            .try_into_value()?;
+        for member in &seal.executions {
+            let execution = ExecutionView::open(
+                self.storage(),
+                view.clone(),
+                &member.execution_id,
+                ObjectVersion::Exact(member.version.clone()),
+                limit,
+            )
+            .await?
+            .ok_or_else(|| invalid("durable cycle member revision is missing"))?;
+            if execution.revision()?.position != member.position {
+                return Err(invalid("durable cycle member revision differs"));
+            }
+            let member_seal = execution
+                .execution()
+                .saved
+                .as_ref()
+                .ok_or_else(|| invalid("durable cycle member is unsealed"))?;
+            let bytes = executions
+                .memory_size()
+                .saturating_add(member_seal.memory_size());
+            executions = executions.try_map(bound(bytes)?, |mut executions, _| {
+                executions.try_reserve_exact(1).map_err(|_| exhausted())?;
+                executions.push(member_seal.clone());
+                Ok(executions)
+            })?;
+        }
+        let bytes = std::mem::size_of::<CompletedCycle>()
+            .saturating_add(revision.value.memory_size())
+            .saturating_add(executions.memory_size());
+        Ok(Some(
+            self.storage()
+                .produce(bound(bytes)?, |_| {
+                    Ok(CompletedCycle {
+                        header: revision.value.clone(),
+                        executions: (*executions).clone(),
+                    })
+                })?
+                .try_into_value()?
+                .try_into_shared()?,
+        ))
+    }
+
     pub(crate) async fn finish_saved_cycle(
         &self,
         source: &CycleView,
@@ -138,13 +332,87 @@ impl RuntimeHandle {
             operation.phase("Waiting for Earlier Saves");
             operation.indeterminate();
             let _order = runtime.execution_storage.cycle_save.lock().await;
-            let id = &frozen.test_cycle_id;
+            let id = frozen.test_cycle_id.clone();
+            let intent = runtime
+                .execution_storage
+                .cycle_finalization_intent(&id)
+                .await?;
+            let intent = if let Some(intent) = intent {
+                intent
+            } else {
+                // Child Seals Must Be Durable Before The Cycle Boundary Is Chosen.
+                let evidence_at = runtime.storage().flush().await?;
+                let verified = runtime
+                    .storage()
+                    .view_at(&evidence_at, runtime.config().storage.finalization())
+                    .await?;
+                for member in &frozen.execution_ids {
+                    let execution = ExecutionView::open(
+                        runtime.storage(),
+                        verified.clone(),
+                        member,
+                        ObjectVersion::Latest,
+                        verified.decoded_bytes()?,
+                    )
+                    .await?
+                    .ok_or_else(|| invalid("cycle intent requires every persisted member"))?;
+                    let seal = execution.execution().saved.as_ref().ok_or_else(|| {
+                        invalid("cycle intent requires every member seal to be durable")
+                    })?;
+                    if !evidence_at.covers(&execution.revision()?.position)?
+                        || !execution
+                            .revision()?
+                            .position
+                            .covers(&seal.dependencies_saved)?
+                    {
+                        return Err(invalid("cycle intent precedes a member seal dependency"));
+                    }
+                }
+                drop(verified);
+                let bytes = frozen
+                    .memory_size()
+                    .saturating_add(evidence_at.memory_size())
+                    .saturating_add(std::mem::size_of::<
+                        crate::transactions::CycleReportFinalization,
+                    >());
+                let intent = runtime
+                    .storage()
+                    .produce(bound(bytes)?, |_| {
+                        Ok(crate::transactions::CycleReportFinalization {
+                            source: (*frozen).clone(),
+                            evidence_at,
+                        })
+                    })?
+                    .try_into_value()?;
+                let _journal_copy = runtime
+                    .storage()
+                    .prepare_production(bound(intent.memory_size())?)?;
+                runtime
+                    .commit(crate::transactions::RequestCycleReportFinalization {
+                        intent: (*intent).clone(),
+                    })
+                    .await
+                    .map_err(|error| Error::Operation(error.to_string()))?;
+                intent
+            };
+            // Rendering Must Never Outrun The Durable Intent Journal.
+            runtime.storage().flush_recovery().await?;
+            let frozen = runtime
+                .storage()
+                .produce(bound(intent.source.memory_size())?, |_| {
+                    Ok(intent.source.clone())
+                })?
+                .try_into_value()?
+                .try_into_shared()?;
+            if let Some(completed) = runtime.recover_saved_cycle(&intent).await? {
+                return Ok(completed);
+            }
             let existing = runtime
                 .execution_storage
                 .cycle_reports
                 .lock()
                 .await
-                .get(id)
+                .get(&id)
                 .cloned();
             let owner = if let Some(owner) = existing {
                 if **owner.lock().await.snapshot.source() != *frozen {
@@ -153,7 +421,13 @@ impl RuntimeHandle {
                 owner
             } else {
                 let pending = runtime
-                    .prepare_cycle_report(frozen.clone(), &operation)
+                    .execution_storage
+                    .prepare_cycle_report(
+                        frozen.clone(),
+                        &intent.evidence_at,
+                        runtime.config().storage.finalization(),
+                        &operation,
+                    )
                     .await?;
                 let owner = Arc::new(Mutex::new(pending));
                 runtime
@@ -164,6 +438,18 @@ impl RuntimeHandle {
                     .insert(id.clone(), owner.clone());
                 owner
             };
+            let at = owner.lock().await.snapshot.view().saved()?;
+            drop(_order);
+            runtime
+                .operations()
+                .call_as::<dokime::operations::reports::MaterializeReport>(
+                    dokime::operations::reports::MaterializeReportRequest {
+                        subject: dokime::operations::reports::ReportSubject::Cycle(id.to_string()),
+                        at,
+                    },
+                )
+                .await?;
+            let _order = runtime.execution_storage.cycle_save.lock().await;
             let mut pending = owner.lock().await;
             if let Some(completed) = &pending.completed {
                 return Ok(completed.clone());
@@ -171,12 +457,11 @@ impl RuntimeHandle {
             if pending.seal.is_none() {
                 operation.phase("Writing Report");
                 operation.indeterminate();
-                let report = pending
+                let report = (**pending
                     .report
-                    .as_mut()
-                    .ok_or_else(|| invalid("unsealed cycle report has no retained members"))?
-                    .finish()
-                    .await?;
+                    .as_ref()
+                    .ok_or_else(|| invalid("cycle materialization did not publish a file"))?)
+                .clone();
                 let saved = runtime.storage().flush_until(&report.position).await?;
                 if !saved.covers(&report.position)? {
                     return Err(invalid("cycle report is not saved"));
@@ -211,8 +496,6 @@ impl RuntimeHandle {
                 seal.validate(pending.snapshot.source())
                     .map_err(dokime::storage::Error::from)?;
                 pending.seal = Some(seal);
-                // The Written Report Has Consumed Its Members; Release Them Now.
-                pending.report = None;
             }
             operation.phase("Publishing Report");
             if pending.publication.is_none() {
@@ -231,6 +514,22 @@ impl RuntimeHandle {
                         Ok(inputs)
                     })?
                     .try_into_value()?;
+                let bytes = pending.executions.iter().fold(
+                    std::mem::size_of::<Vec<FileReference>>(),
+                    |bytes, execution| {
+                        bytes.saturating_add(execution.materialized_input.memory_size())
+                    },
+                );
+                let materialized_inputs = runtime
+                    .storage()
+                    .produce(bound(bytes)?, |_| {
+                        Ok(pending
+                            .executions
+                            .iter()
+                            .map(|execution| execution.materialized_input.clone())
+                            .collect::<Vec<_>>())
+                    })?
+                    .try_into_value()?;
                 let publication = reports::Prepared::new(
                     runtime.storage(),
                     &reports::Input {
@@ -243,6 +542,7 @@ impl RuntimeHandle {
                         dependencies_saved: &seal.dependencies_saved,
                         executions: &seal.executions,
                         inputs: &inputs,
+                        materialized_inputs: &materialized_inputs,
                         file: &seal.report,
                     },
                 )?;
@@ -317,28 +617,28 @@ impl RuntimeHandle {
         })
         .await?
     }
+}
 
-    async fn prepare_cycle_report(
+impl super::executions::ExecutionStorage {
+    pub(super) async fn prepare_cycle_report(
         &self,
         source: SharedQueryValue<TestCycle>,
+        at: &StorageCursor,
+        limits: harmos::storage::QueryLimits,
         operation: &Operation,
     ) -> Result<PendingCycle> {
         operation.phase("Collecting Sealed Members");
-        self.storage().flush().await?;
-        let view = self
-            .storage()
-            .view_with_limits(self.config().storage_reads.finalization())
-            .await?;
+        let view = self.storage.view_at(at, limits).await?;
         let limit = view.decoded_bytes()?;
         let mut revisions = self
-            .storage()
+            .storage
             .produce(
                 bound(std::mem::size_of::<Vec<ExecutionRevision>>())?,
                 |_| Ok(Vec::new()),
             )?
             .try_into_value()?;
         let mut executions = self
-            .storage()
+            .storage
             .produce(bound(std::mem::size_of::<Vec<ExecutionSeal>>())?, |_| {
                 Ok(Vec::new())
             })?
@@ -347,10 +647,8 @@ impl RuntimeHandle {
         let total = source.execution_ids.len() as u64;
         for (collected, id) in source.execution_ids.iter().enumerate() {
             operation.progress(collected as u64, total);
-            if let Some((context, original, execution)) = self
-                .execution_storage
-                .original_cycle_member(id, &view)
-                .await?
+            if let Some((context, original, execution)) =
+                self.original_cycle_member(id, &view).await?
             {
                 let computation = view.begin_computation()?;
                 let seal = execution
@@ -373,7 +671,7 @@ impl RuntimeHandle {
                 })?;
                 if appearance.is_none() {
                     appearance = Some(
-                        self.storage()
+                        self.storage
                             .produce(bound(context.appearance.memory_size())?, |_| {
                                 Ok(context.appearance.clone())
                             })?
@@ -385,7 +683,7 @@ impl RuntimeHandle {
                 continue;
             }
             let inspection = ExecutionView::open(
-                self.storage(),
+                &self.storage,
                 view.clone(),
                 id,
                 ObjectVersion::Latest,
@@ -403,9 +701,9 @@ impl RuntimeHandle {
                 executions.push(seal.clone());
                 Ok(executions)
             })?;
-            let snapshot = inspection.snapshot(self.storage()).await?;
+            let snapshot = inspection.snapshot(&self.storage).await?;
             let context = snapshot.context()?;
-            let original = inspection.revision();
+            let original = inspection.revision()?;
             let revision_bytes = std::mem::size_of::<ExecutionRevision>()
                 .saturating_add(id.memory_size())
                 .saturating_add(original.position.memory_size())
@@ -422,7 +720,7 @@ impl RuntimeHandle {
             })?;
             if appearance.is_none() {
                 appearance = Some(
-                    self.storage()
+                    self.storage
                         .produce(bound(context.appearance.memory_size())?, |_| {
                             Ok(context.appearance.clone())
                         })?
@@ -438,25 +736,65 @@ impl RuntimeHandle {
                 .await?
                 .try_into_shared()?,
         };
+        // The Native Seal May Have Committed Before Managed Adoption Failed.
+        // Current-Report Opens Reuse That Exact File Rather Than Publishing Again.
+        let latest_view = self.storage.view_with_limits(limits).await?;
+        let latest = dokime::storage::objects::cycle::read_in(
+            &self.storage,
+            &latest_view,
+            &source.test_cycle_id,
+            ObjectVersion::Latest,
+            limit,
+        )
+        .await?;
+        let published = if let Some(latest) = &latest {
+            if let Some(seal) = &latest.value.saved {
+                if !same_header(&latest.value, &source) || seal.evidence_through != *at {
+                    return Err(invalid(
+                        "published cycle differs from frozen finalization source",
+                    ));
+                }
+                seal.validate(&latest.value)
+                    .map_err(dokime::storage::Error::from)?;
+                Some(
+                    self.storage
+                        .produce(bound(seal.report.memory_size())?, |_| {
+                            Ok(seal.report.clone())
+                        })?
+                        .try_into_value()?
+                        .try_into_shared()?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        drop(latest);
+        drop(latest_view);
         let revisions = revisions.try_into_shared()?;
         let snapshot = CycleSnapshot::capture(
-            self.storage(),
+            &self.storage,
             view,
             source.clone(),
             revisions,
             appearance,
-            &self.state_read().identity.node.node_id,
+            &self
+                .state_manager
+                .state()
+                .read(|state| state.identity.node.node_id.clone())
+                .await?
+                .value,
         )?;
-        let report = CycleReport::prepare(self, snapshot.clone(), Some(operation)).await?;
         let bytes = std::mem::size_of::<Mutex<PendingCycle>>()
             + 2 * std::mem::size_of::<usize>()
             + harmos::btree_map_memory::<TestCycleId, Arc<Mutex<PendingCycle>>>(1)
             + source.test_cycle_id.memory_size();
-        let registry = self.storage().prepare_production(bound(bytes)?)?;
+        let registry = self.storage.prepare_production(bound(bytes)?)?;
         Ok(PendingCycle {
             snapshot,
             executions: executions.try_into_shared()?,
-            report: Some(report),
+            report: published,
             seal: None,
             native: None,
             publication: None,
@@ -470,7 +808,21 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-pub(super) fn header_memory(cycle: &CycleView) -> usize {
+fn same_header(left: &TestCycle, right: &TestCycle) -> bool {
+    left.test_cycle_id == right.test_cycle_id
+        && left.session_id == right.session_id
+        && left.metadata == right.metadata
+        && left.lifecycle == right.lifecycle
+        && left.created_at == right.created_at
+        && left.started_at == right.started_at
+        && left.updated_at == right.updated_at
+        && left.execution_ids == right.execution_ids
+        && left.records == right.records
+        && left.continue_on_failure == right.continue_on_failure
+        && left.result == right.result
+}
+
+pub(crate) fn header_memory(cycle: &CycleView) -> usize {
     let fields = [
         (
             cycle.test_cycle_id.memory_size(),
@@ -519,7 +871,7 @@ pub(super) fn header_memory(cycle: &CycleView) -> usize {
         })
 }
 
-pub(super) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
+pub(crate) fn header(cycle: &CycleView, saved: Option<CycleSeal>) -> TestCycle {
     TestCycle {
         saved,
         test_cycle_id: cycle.test_cycle_id.clone(),

@@ -273,7 +273,7 @@ fn telemetry_config(root: impl Into<std::path::PathBuf>) -> RuntimeConfig {
 fn telemetry_sample(stream: &Identifier, value: i64) -> TelemetrySample {
     let mut sample = TelemetrySample::new(stream.clone(), 0, Timestamp::now_utc(), "runtime.test");
     sample.values.insert("value".to_owned(), Value::from(value));
-    sample
+    crate::support::contracts::typed_fixture_sample(sample)
 }
 
 /* === Tests === */

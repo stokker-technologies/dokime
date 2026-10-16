@@ -503,10 +503,17 @@ impl DesktopSession {
 impl Resources {
     async fn shutdown(&mut self) -> Result<(), Error> {
         if let Some(local) = self.local.as_mut() {
-            local
+            let status = local
                 .shutdown()
                 .await
                 .map_err(|message| Error::Shutdown { message })?;
+            if !status.success() {
+                return Err(Error::Shutdown {
+                    message: format!(
+                        "The Dokime backend did not close cleanly ({status}); reports may be incomplete."
+                    ),
+                });
+            }
             self.local = None;
         }
         Ok(())

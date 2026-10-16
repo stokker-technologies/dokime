@@ -29,6 +29,7 @@ use crate::document::PlotType;
 use crate::document::{FftDetrend, FftWindow, FrequencyLevelUnit};
 
 /* === Constants === */
+const WIFI_BANDS: [&str; 3] = ["2.4 GHz", "5 GHz", "6 GHz"];
 
 /* === Macros === */
 
@@ -83,16 +84,67 @@ pub struct SigmaBin {
 pub struct SigmaSeries {
     pub key: String,
     pub bins: Vec<SigmaBin>,
+    /// Samples the bins summarize: every row with a finite x and y.
+    pub raw_points: usize,
+}
+/// Networks one scan saw on one channel.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct WifiChannelCount {
+    pub channel: i64,
+    pub count: usize,
+}
+/// One band's occupancy within one scan.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct WifiBandScan {
+    pub band: String,
+    pub occupied_channels: usize,
+    pub total_networks: usize,
+    pub peak_count: usize,
+}
+/// One scan: the readings sharing a whole second, a channel keeping its
+/// largest reading.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct WifiScan {
+    /// The scan's x value as the series carried it.
+    pub time: String,
+    pub channels: Vec<WifiChannelCount>,
+    pub bands: Vec<WifiBandScan>,
+    pub occupied_channels: usize,
+    pub total_networks: usize,
+    pub peak_count: usize,
+}
+/// Channels of one band that held a network in any scan of the window.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct WifiBandWindow {
+    pub band: String,
+    pub occupied_channels: usize,
 }
 
 /* === Enums === */
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PlotAnalysis {
-    Error { message: String },
-    Histogram { series: Vec<HistogramSeries> },
-    BoxSummary { series: Vec<BoxSummary> },
-    SigmaInterval { series: Vec<SigmaSeries> },
+    Error {
+        message: String,
+    },
+    Histogram {
+        series: Vec<HistogramSeries>,
+    },
+    BoxSummary {
+        series: Vec<BoxSummary>,
+    },
+    SigmaInterval {
+        series: Vec<SigmaSeries>,
+    },
+    WifiOccupancy {
+        /// Every channel a series reported, ascending.
+        channels: Vec<i64>,
+        /// Channels that held a network in any scan, ascending.
+        occupied_channels: Vec<i64>,
+        bands: Vec<WifiBandWindow>,
+        /// Scans in time order.
+        scans: Vec<WifiScan>,
+    },
 }
 
 /* === Traits === */
@@ -153,6 +205,7 @@ pub(super) fn analyze(
                 .map(|entry| interval(entry, request))
                 .collect(),
         }),
+        PlotType::WifiChannelOccupancy => Some(wifi_occupancy(series)),
         _ => None,
     }
 }
@@ -389,7 +442,7 @@ fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
             }
         }
     }
-    let bins = groups
+    let bins: Vec<SigmaBin> = groups
         .into_iter()
         .map(|(index, values)| {
             let count = values.len();
@@ -413,7 +466,137 @@ fn interval(entry: &PlotSeries, request: &PlotPayloadRequest) -> SigmaSeries {
         .collect();
     SigmaSeries {
         key: entry.key.clone(),
+        raw_points: bins.iter().map(|bin| bin.count).sum(),
         bins,
+    }
+}
+
+fn wifi_occupancy(series: &[PlotSeries]) -> PlotAnalysis {
+    // Whole second -> (x as carried, channel -> largest reading).
+    let mut scans = BTreeMap::<i64, (String, BTreeMap<i64, usize>)>::new();
+    let mut channels = Vec::new();
+    for entry in series {
+        let Some(channel) = series_channel(entry) else {
+            continue;
+        };
+        channels.push(channel);
+        for point in &entry.points {
+            let Some(second) = point_x(point).map(|x| x.floor() as i64) else {
+                continue;
+            };
+            let count = point
+                .y
+                .filter(|value| value.is_finite())
+                .map_or(0, |value| value.round().max(0.0) as usize);
+            let time = point
+                .x
+                .as_str()
+                .map_or_else(|| point.x.to_string(), ToOwned::to_owned);
+            let (_, counts) = scans
+                .entry(second)
+                .or_insert_with(|| (time, BTreeMap::new()));
+            let slot = counts.entry(channel).or_default();
+            *slot = (*slot).max(count);
+        }
+    }
+    channels.sort_unstable();
+    channels.dedup();
+    let mut occupied = scans
+        .values()
+        .flat_map(|(_, counts)| counts.iter())
+        .filter(|(_, count)| **count > 0)
+        .map(|(channel, _)| *channel)
+        .collect::<Vec<_>>();
+    occupied.sort_unstable();
+    occupied.dedup();
+    let bands = WIFI_BANDS
+        .iter()
+        .filter_map(|band| {
+            let occupied_channels = occupied
+                .iter()
+                .filter(|channel| wifi_band(**channel) == Some(*band))
+                .count();
+            (occupied_channels > 0).then(|| WifiBandWindow {
+                band: (*band).to_owned(),
+                occupied_channels,
+            })
+        })
+        .collect();
+    let scans = scans
+        .into_values()
+        .map(|(time, counts)| {
+            let (occupied_channels, total_networks, peak_count) = occupancy(counts.values());
+            WifiScan {
+                time,
+                bands: WIFI_BANDS
+                    .iter()
+                    .filter_map(|band| {
+                        let in_band = counts
+                            .iter()
+                            .filter(|(channel, _)| wifi_band(**channel) == Some(*band))
+                            .map(|(_, count)| count)
+                            .collect::<Vec<_>>();
+                        if in_band.is_empty() {
+                            return None;
+                        }
+                        let (occupied_channels, total_networks, peak_count) =
+                            occupancy(in_band.into_iter());
+                        Some(WifiBandScan {
+                            band: (*band).to_owned(),
+                            occupied_channels,
+                            total_networks,
+                            peak_count,
+                        })
+                    })
+                    .collect(),
+                channels: counts
+                    .into_iter()
+                    .map(|(channel, count)| WifiChannelCount { channel, count })
+                    .collect(),
+                occupied_channels,
+                total_networks,
+                peak_count,
+            }
+        })
+        .collect();
+    PlotAnalysis::WifiOccupancy {
+        channels,
+        occupied_channels: occupied,
+        bands,
+        scans,
+    }
+}
+
+/// Occupied channels, total networks and the busiest channel's count.
+fn occupancy<'a>(counts: impl Iterator<Item = &'a usize>) -> (usize, usize, usize) {
+    counts.fold((0, 0, 0), |(occupied, total, peak), count| {
+        (
+            occupied + usize::from(*count > 0),
+            total + count,
+            peak.max(*count),
+        )
+    })
+}
+
+/// A series names its channel by its label, or by the last `:` part of its key.
+fn series_channel(entry: &PlotSeries) -> Option<i64> {
+    let channel = |text: &str| {
+        text.trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite() && value.fract() == 0.0)
+            .map(|value| value as i64)
+    };
+    channel(&entry.label).or_else(|| entry.key.rsplit(':').next().and_then(channel))
+}
+
+/// The band of a channel; 6 GHz channels are encoded as 1000 plus their number.
+fn wifi_band(channel: i64) -> Option<&'static str> {
+    match channel {
+        1..=14 => Some(WIFI_BANDS[0]),
+        32..=177 => Some(WIFI_BANDS[1]),
+        1_001..=1_233 if (channel - 1_000) % 4 == 1 => Some(WIFI_BANDS[2]),
+        _ => None,
     }
 }
 

@@ -10,10 +10,12 @@
 /* === Modules === */
 mod download_cycle_report;
 mod download_execution_report;
+mod materialize_report;
 
 /* === Re-Exports === */
 pub use download_cycle_report::DownloadCycleReport;
 pub use download_execution_report::DownloadExecutionReport;
+pub use materialize_report::MaterializeReport;
 
 /* === Imports === */
 
@@ -35,6 +37,27 @@ use super::{Access, Endpoint, TRANSFER};
 /* === Type Aliases === */
 
 /* === Structs === */
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct MaterializeReportRequest {
+    pub subject: ReportSubject,
+    pub at: harmos::storage::StorageCursor,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct MaterializedReport {
+    pub report: harmos::storage::FileReference,
+    pub materialized_input: Option<harmos::storage::FileReference>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub enum ReportSubject {
+    Execution(String),
+    Cycle(String),
+}
+
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DownloadCycleReportRequest {
@@ -96,9 +119,6 @@ pub struct ReportHtmlCompletion {
 pub enum ReportOrigin {
     // The report finalization sealed, read back unchanged.
     Sealed,
-    // The sealed report was unreadable, so it was rendered again from the
-    // sealed evidence. Nothing is written back.
-    Regenerated,
     // The subject is not sealed: rendered from its current evidence.
     Current,
 }
@@ -113,6 +133,7 @@ pub enum ReportHtmlFramePayload {
 
 #[harmos::catalog]
 pub enum Operations {
+    MaterializeReport(MaterializeReport),
     DownloadCycleReport(DownloadCycleReport),
     DownloadExecutionReport(DownloadExecutionReport),
 }
@@ -120,6 +141,11 @@ pub enum Operations {
 /* === Traits === */
 
 /* === Implementations === */
+impl Endpoint for MaterializeReport {
+    const PATH: &'static str = "/dokime.v1.Reports/MaterializeReport";
+    const ACCESS: Access = Access::Control;
+}
+
 impl Endpoint for DownloadCycleReport {
     const PATH: &'static str = "/dokime.v1.Reports/DownloadCycleReport";
     const ACCESS: Access = Access::Read;

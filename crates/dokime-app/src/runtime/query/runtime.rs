@@ -221,7 +221,7 @@ impl RuntimeHandle {
     /// like finalization and scans the whole store, so it reads under the
     /// finalization budget instead of the interactive deadline.
     pub(crate) async fn shutdown_overview(&self) -> crate::Result<RuntimeOverviewSnapshot> {
-        self.overview(Some(self.config().storage_reads.finalization()))
+        self.overview(Some(self.config().storage.finalization()))
             .await
     }
 

@@ -168,6 +168,7 @@ fn non_appendable_plot_type(plot_type: &PlotType) -> bool {
             | PlotType::XyInterval
             | PlotType::Trajectory
             | PlotType::FrequencySeries
+            | PlotType::WifiChannelOccupancy
             | PlotType::Histogram
             | PlotType::BoxSummary
     )

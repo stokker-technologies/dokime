@@ -25,13 +25,11 @@ const EMPTY_REPORT_PAYLOAD: ReportPayload = {
   documents: {},
   test_cycle_plan: null,
   test_executions: [],
-  test_steps: [],
   plots: {},
   histograms: {},
   box_summaries: {},
   case_runs: [],
   cycle_summary: null,
-  artifact_links: [],
   warnings: ["Report data is unavailable."],
 };
 
@@ -50,7 +48,6 @@ export function readReportPayload(): ReportPayload {
       ...EMPTY_REPORT_PAYLOAD,
       ...parsed,
       test_executions: parsed.test_executions ?? [],
-      test_steps: parsed.test_steps ?? [],
       documents: parsed.documents ?? {},
       plots: capturedPlots(parsed.plots),
       histograms: parsed.histograms ?? {},
@@ -61,7 +58,6 @@ export function readReportPayload(): ReportPayload {
         plots: capturedPlots(caseRun.plots),
       })),
       cycle_summary: parsed.cycle_summary ?? null,
-      artifact_links: parsed.artifact_links ?? [],
       warnings: parsed.warnings ?? [],
     };
   } catch (exc) {

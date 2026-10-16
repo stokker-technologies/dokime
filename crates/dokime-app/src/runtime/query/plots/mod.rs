@@ -8,7 +8,7 @@
  */
 
 /* === Modules === */
-mod analysis;
+pub(crate) mod analysis;
 mod context;
 mod request;
 mod stream;
@@ -19,8 +19,8 @@ pub use crate::plot::{
     PlotAnalysis, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame, PlotComputation,
     PlotComputedSeries, PlotDomain, PlotEvidence, PlotMarker, PlotPayload, PlotPayloadCursor,
     PlotPayloadDiagnostics, PlotPayloadEnvelope, PlotPayloadRequest, PlotPayloadStreamKind,
-    PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries,
-    plot_payload_request_for_descriptor,
+    PlotPoint, PlotSeries, PlotSeriesSummary, PlotWindow, SigmaBin, SigmaSeries, WifiBandScan,
+    WifiBandWindow, WifiChannelCount, WifiScan, plot_payload_request_for_descriptor,
 };
 pub(crate) use analysis::definitions as analysis_definitions;
 pub(crate) use request::request_telemetry_streams;
@@ -37,8 +37,8 @@ use futures_util::future::join_all;
 // Local Imports
 
 use crate::plot::{
-    PlotPayloadContext, build_plot_payload, plot_payload_diagnostics, project_plot_payload,
-    resolved_format, summarizes, window_summaries,
+    PlotPayloadContext, build_plot_payload, complete_window, plot_payload_diagnostics,
+    project_plot_payload, reads_window, resolved_format,
 };
 use crate::records::RecordEntry;
 use crate::{
@@ -69,37 +69,6 @@ type WindowedTelemetry = (Vec<Vec<TelemetrySample>>, Vec<Option<Vec<TelemetrySam
 /* === Traits === */
 
 /* === Implementations === */
-impl RuntimeHandle {
-    pub(crate) async fn analyze_projected_plot(
-        &self,
-        request: &PlotPayloadRequest,
-        telemetry: &[dokime::telemetry::TelemetrySample],
-        payload: crate::plot::PlotPayload,
-        contract: Option<&dokime::telemetry::TelemetryContract>,
-    ) -> crate::Result<crate::plot::PlotPayload> {
-        let state = self.state_read();
-        let Some(prepared) = analysis::Prepared::resolve(self, &state, request)? else {
-            return Ok(payload);
-        };
-        prepared.check_evidence(telemetry, request)?;
-        let mut cursor = crate::plot::PlotPayloadCursor::default();
-        for sample in telemetry.iter().filter(|sample| {
-            sample.stream.as_str() == request.stream
-                && crate::plot::sample_matches_scope(sample.scope.as_ref(), request.scope.as_ref())
-        }) {
-            let key = crate::domains::telemetry::telemetry_stream_id(
-                sample.scope.as_ref(),
-                &sample.stream,
-            );
-            let ordinal = cursor.telemetry_streams.entry(key).or_default();
-            *ordinal = (*ordinal).max(sample.sequence);
-        }
-        prepared
-            .execute(self, request, &cursor, payload, contract)
-            .await
-    }
-}
-
 /* === Public Functions === */
 
 pub async fn query_plot_payloads(
@@ -164,7 +133,7 @@ async fn records_when_admitted(
     runtime: &RuntimeHandle,
     snapshot: &crate::queries::RuntimeStateSnapshot,
 ) -> crate::Result<Vec<RecordEntry>> {
-    let deadline = tokio::time::Instant::now() + runtime.config().storage_reads.interactive.timeout;
+    let deadline = tokio::time::Instant::now() + runtime.config().storage.interactive.timeout;
     let mut backoff = crate::runtime::storage::record_capture::CapacityBackoff::new();
     loop {
         match runtime.records_at(snapshot).await {
@@ -248,8 +217,8 @@ async fn query_plot_payloads_with_context(
         })
         .collect::<Vec<_>>();
     // An append frame carries only the rows after its cursor, but its series
-    // summaries cover the whole window: they read the rows the cursor filter
-    // dropped from the same read.
+    // summaries and cartesian domains and point count cover the whole window:
+    // they read the rows the cursor filter dropped from the same read.
     let window_reads = window_telemetry
         .into_iter()
         .zip(&requests)
@@ -329,7 +298,8 @@ async fn query_plot_payloads_with_context(
                         )
                     };
                     if let Some((telemetry, records)) = window {
-                        payload.summaries = window_summaries(
+                        complete_window(
+                            &mut payload,
                             &telemetry,
                             &records,
                             &request,
@@ -396,7 +366,7 @@ async fn collect_plot_telemetry(
         for request_index in group.request_indexes {
             let request = &requests[request_index];
             telemetry[request_index] = select_plot_telemetry(&samples, request, mode);
-            if mode == RuntimePlotQueryMode::Append && summarizes(request) {
+            if mode == RuntimePlotQueryMode::Append && reads_window(request) {
                 window[request_index] = Some(select_plot_telemetry(
                     &samples,
                     request,

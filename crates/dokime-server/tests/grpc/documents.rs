@@ -284,7 +284,9 @@ pub(crate) async fn summary_complete_telemetry() {
                 .values
                 .insert("progress".into(), Value::Number(index as f64));
             sample.scope = Some(scope.clone());
-            sample
+            sample.with_storage_payload(harmos::Message::encode_to_vec(&common::ProgressRow {
+                progress: index as f64,
+            }))
         })
         .collect();
     let mut unrelated = TelemetrySample::new(
@@ -296,7 +298,11 @@ pub(crate) async fn summary_complete_telemetry() {
     unrelated
         .values
         .insert("progress".into(), Value::Number(999.0));
-    samples.push(unrelated);
+    samples.push(
+        unrelated.with_storage_payload(harmos::Message::encode_to_vec(&common::ProgressRow {
+            progress: 999.0,
+        })),
+    );
     handle
         .publish_telemetry_batch(TelemetryBatch::new(stream, samples))
         .await

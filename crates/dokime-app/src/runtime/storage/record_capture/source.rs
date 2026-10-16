@@ -50,7 +50,7 @@ const MAX_GROUP_ROWS: usize = 256;
 /* === Structs === */
 pub(crate) struct Source {
     storage: dokime::storage::Manager,
-    reads: crate::config::StorageReadSettings,
+    reads: crate::config::StorageSettings,
     schema: SchemaKey,
     epoch: Identifier,
     closed: watch::Sender<bool>,
@@ -110,7 +110,7 @@ impl Source {
     pub(crate) fn new(
         epoch: &dokime::core::SessionId,
         storage: dokime::storage::Manager,
-        reads: crate::config::StorageReadSettings,
+        reads: crate::config::StorageSettings,
     ) -> Result<Self> {
         reads.validate()?;
         Ok(Self {

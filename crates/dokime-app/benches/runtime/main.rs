@@ -11,6 +11,7 @@
 mod capture;
 mod frames;
 mod report;
+mod storage;
 
 /* === Re-Exports === */
 
@@ -36,6 +37,7 @@ criterion_group! {
         capture::benchmark,
         frames::benchmark,
         report::benchmark,
+        storage::benchmark,
         bench_evidence_selection_and_materialization
 }
 

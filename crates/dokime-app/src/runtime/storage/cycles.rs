@@ -22,7 +22,6 @@ use crate::{Error, Result};
 use dokime::{core::TestCycleId, storage::objects::cycle::Cycle};
 
 /* === Constants === */
-const MAX_CYCLE_BYTES: usize = 16 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -199,7 +198,7 @@ fn invalid() -> Error {
 }
 fn allowance(bytes: usize) -> Result<NonZeroUsize> {
     NonZeroUsize::new(bytes)
-        .filter(|bytes| bytes.get() <= MAX_CYCLE_BYTES)
+        .filter(|bytes| bytes.get() != usize::MAX)
         .ok_or_else(invalid)
 }
 

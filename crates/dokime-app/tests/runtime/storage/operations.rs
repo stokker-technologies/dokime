@@ -19,9 +19,9 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::operations::{StreamSettings, stream};
 use harmos::storage::ObjectCatalog;
-use harmos::storage::operations::{
-    ObjectResult, ObjectSelection, QueryStorage, QueryStorageRequest, ReadObjects,
-    ReadObjectsRequest,
+use harmos::storage::operations::{Query, QueryStorage, QueryStorageRequest};
+use harmos::storage::query::{
+    ObjectSelection, ObjectVersions, Query as QueryRequest, QueryOutput, RowSlice, Source,
 };
 
 // Local Imports
@@ -66,42 +66,43 @@ pub(crate) async fn storage_operations_view() {
     assert_eq!(info.accepted, handle.storage().cursor_accepted());
     assert!(info.saved.covers(&receipt.position).unwrap());
 
-    let (output, mut input) = stream::<ObjectResult>(StreamSettings {
+    let (output, mut input) = stream::<QueryOutput>(StreamSettings {
         items: NonZeroUsize::MIN,
         bytes: maximum,
     })
     .unwrap();
-    let request = ReadObjectsRequest {
-        selection: ObjectSelection {
+    let request = QueryRequest {
+        at: info.saved.clone(),
+        source: Source::Objects(ObjectSelection {
             schema: Some(encoded.schema.clone()),
             key: Some(encoded.item.clone()),
-            ..Default::default()
-        },
-        fields: None,
+            versions: ObjectVersions::Latest,
+        }),
+        transforms: Vec::new(),
+        slice: RowSlice::default(),
     };
     let query = handle
         .operations()
-        .submit_endpoints::<ReadObjects, _>(request, output)
+        .submit_endpoints::<Query, _>(request, output)
         .unwrap();
     let result = tokio::time::timeout(Duration::from_secs(5), async {
+        let schema = input.recv().await.expect("schema precedes rows");
+        assert!(matches!(&*schema, QueryOutput::Schema(_)));
+        drop(schema);
         let row = input.recv().await.expect("saved suite is returned");
-        let ObjectResult::Value(object) = &*row else {
-            panic!("expected the native suite object");
+        let QueryOutput::Batch(batch) = &*row else {
+            panic!("expected an Arrow suite batch");
         };
-        assert_eq!(object.position, receipt.position);
-        assert_eq!(object.version, receipt.version);
-        assert_eq!(object.value, encoded);
-        assert_eq!(
-            Objects::decode::<Suite>(&object.value, maximum).unwrap(),
-            suite
-        );
+        assert_eq!(batch.as_record_batch().num_rows(), 1);
+        assert!(batch.as_record_batch().column_by_name("payload").is_some());
         drop(row);
         assert!(input.recv().await.is_none());
         query.await.unwrap()
     })
     .await
     .expect("bounded query completes");
-    assert!(result.covers(&receipt.position).unwrap());
+    assert!(result.at.covers(&receipt.position).unwrap());
+    assert_eq!(result.rows, 1);
 
     drop(handle);
     runtime.shutdown().await.unwrap();

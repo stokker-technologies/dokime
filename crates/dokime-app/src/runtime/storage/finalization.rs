@@ -8,115 +8,245 @@
  */
 
 /* === Modules === */
-
 /* === Re-Exports === */
-
 /* === Imports === */
-// Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
-// Third Party Imports
-use futures_util::{StreamExt, stream::FuturesUnordered};
-use harmos::{MemorySize, storage::StorageProductionPreparation};
-// Local Imports
-use super::{execution::ExecutionView, executions::CaptureInputs};
+use super::execution::ExecutionView;
 use crate::{
     Error, Result, RuntimeHandle,
-    execution::{CycleView, TestExecution, context::source::CapturedSource},
+    execution::{CycleView, TestExecution},
 };
-use dokime::{core::TestExecutionId, execution::ExecutionStatus};
-
+use dokime::core::{TestExecutionId, Timestamp};
+use dokime::execution::ExecutionStatus;
+use dokime::operations::reports::{MaterializeReport, MaterializeReportRequest, ReportSubject};
+use futures_util::{StreamExt, stream::FuturesUnordered};
+use harmos::MemorySize;
 /* === Constants === */
-
 /* === Macros === */
-
 /* === Type Aliases === */
-
 /* === Structs === */
-struct FinalizationOrder {
-    source_bytes: usize,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
-    _memory: StorageProductionPreparation,
+struct PendingRun {
+    request_id: dokime::core::CommandId,
+    at: Timestamp,
 }
-
+impl MemorySize for PendingRun {
+    fn memory_size(&self) -> usize {
+        self.request_id
+            .memory_size()
+            .saturating_add(self.at.memory_size())
+    }
+}
 /* === Enums === */
-
 /* === Traits === */
-
 /* === Implementations === */
 impl RuntimeHandle {
-    /// Seals each execution's final report and returns those that failed,
-    /// each with its own cause. One execution's failure never stops its
-    /// siblings from sealing.
+    /// Resume Publication Without Dispatching Providers Or Changing Frozen Outcomes.
+    pub(crate) async fn retry_pending_reports(&self) -> Result<()> {
+        let state = self.state_read();
+        let bytes = state.run_requests.iter().fold(
+            harmos::btree_map_memory::<dokime::core::TestCycleId, PendingRun>(
+                state.run_requests.len(),
+            ),
+            |bytes, (id, request)| {
+                bytes
+                    .saturating_add(id.memory_size())
+                    .saturating_add(request.summary.cycle_id.memory_size())
+                    .saturating_add(request.completion_at.memory_size())
+            },
+        );
+        let selected = self
+            .storage()
+            .produce(bound(bytes)?, |_| {
+                let mut selected = std::collections::BTreeMap::new();
+                for (id, request) in &state.run_requests {
+                    let Some(at) = &request.completion_at else {
+                        continue;
+                    };
+                    if !state.cycles.contains_key(&request.summary.cycle_id) {
+                        continue;
+                    }
+                    let newer = selected
+                        .get(&request.summary.cycle_id)
+                        .is_none_or(|previous: &PendingRun| previous.at.as_str() < at.as_str());
+                    if newer {
+                        selected.insert(
+                            request.summary.cycle_id.clone(),
+                            PendingRun {
+                                request_id: id.clone(),
+                                at: at.clone(),
+                            },
+                        );
+                    }
+                }
+                Ok(selected)
+            })?
+            .try_into_value()?;
+        drop(state);
+        for (cycle_id, pending) in selected.iter() {
+            let PendingRun { request_id, at } = pending;
+            if self
+                .state_read()
+                .cycles
+                .get(cycle_id)
+                .is_some_and(|cycle| cycle.saved.is_some())
+            {
+                self.sync_report_receipt(request_id).await?;
+                self.execution_storage.retire_cycle_report(cycle_id).await;
+                continue;
+            }
+            let complete = crate::transactions::CompleteRun {
+                request_id: request_id.clone(),
+                at: at.clone(),
+                sealed_cycle: None,
+                sealed_executions: Vec::new(),
+                unsealed: None,
+            };
+            let cycle = {
+                use harmos::state::Transaction;
+                let state = self.state_read();
+                let request = state
+                    .run_requests
+                    .get(request_id)
+                    .ok_or_else(|| Error::Operation("report request disappeared".into()))?;
+                let header = state
+                    .cycles
+                    .get(cycle_id)
+                    .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
+                let members = header.execution_ids.iter().try_fold(0usize, |bytes, id| {
+                    let member = state
+                        .executions
+                        .get(id)
+                        .ok_or_else(|| Error::Operation("report member disappeared".into()))?;
+                    bytes
+                        .checked_add(id.memory_size())
+                        .and_then(|bytes| bytes.checked_add(member.memory_size()))
+                        .ok_or_else(|| Error::Operation("report preview memory overflows".into()))
+                })?;
+                // Cover The Focused State, Its Lifecycle Mutations And The Extracted Cycle Together.
+                let bytes = std::mem::size_of::<crate::state::RuntimeState>()
+                    .saturating_add(uuid::fmt::Hyphenated::LENGTH)
+                    .saturating_add("1970-01-01T00:00:00Z".len())
+                    .saturating_add(state.session_id.memory_size().saturating_mul(2))
+                    .saturating_add(harmos::btree_map_memory::<
+                        dokime::core::CommandId,
+                        crate::transactions::provider::request::RunRequest,
+                    >(1))
+                    .saturating_add(request.memory_size())
+                    .saturating_add(request_id.memory_size())
+                    .saturating_add(harmos::btree_map_memory::<
+                        dokime::core::TestCycleId,
+                        dokime::execution::TestCycle,
+                    >(1))
+                    .saturating_add(harmos::btree_map_memory::<
+                        dokime::core::TestExecutionId,
+                        crate::execution::TestExecution,
+                    >(header.execution_ids.len()))
+                    .saturating_add(header.memory_size().saturating_mul(3))
+                    .saturating_add(members.saturating_mul(3));
+                let limit = std::num::NonZeroUsize::new(bytes)
+                    .filter(|bytes| bytes.get() != usize::MAX)
+                    .ok_or_else(|| Error::Operation("report preview memory overflows".into()))?;
+                let memory = self.storage().prepare_production(limit)?;
+                let mut preview = crate::state::RuntimeState::new(state.session_id.clone());
+                preview
+                    .run_requests
+                    .insert(request_id.clone(), request.clone());
+                preview.cycles.insert(cycle_id.clone(), header.clone());
+                for id in &header.execution_ids {
+                    preview
+                        .executions
+                        .insert(id.clone(), state.executions[id].clone());
+                }
+                complete.check(&preview).map_err(Error::Operation)?;
+                complete.apply(&mut preview);
+                let cycle = preview
+                    .cycle_view(cycle_id)
+                    .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
+                drop(preview);
+                memory.finish(cycle)?.try_into_value()?
+            };
+            if !matches!(
+                cycle.lifecycle,
+                dokime::execution::CycleStatus::Completed
+                    | dokime::execution::CycleStatus::Failed
+                    | dokime::execution::CycleStatus::Blocked
+                    | dokime::execution::CycleStatus::Stopped
+            ) {
+                continue;
+            }
+            for execution in &cycle.test_executions {
+                if execution.saved.is_none() {
+                    self.finish_saved_execution(&cycle, execution).await?;
+                }
+            }
+            let progress = self
+                .operation_progress()
+                .begin("Retrying Report Publication");
+            let sealed = match self.finish_saved_cycle(&cycle, &progress).await {
+                Ok(sealed) => {
+                    progress.finish();
+                    sealed
+                }
+                Err(error) => {
+                    progress.fail(&error);
+                    return Err(error);
+                }
+            };
+            self.commit(crate::transactions::CompleteRun {
+                sealed_cycle: Some(sealed.header.clone()),
+                sealed_executions: sealed.executions.clone(),
+                ..complete
+            })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
+            self.sync_report_receipt(request_id).await?;
+            self.execution_storage.retire_cycle_report(cycle_id).await;
+        }
+        Ok(())
+    }
+
+    async fn sync_report_receipt(&self, request_id: &dokime::core::CommandId) -> Result<()> {
+        let (summary, interruption) = {
+            let state = self.state_read();
+            let request = state
+                .run_requests
+                .get(request_id)
+                .ok_or_else(|| invalid("retried run request disappeared"))?;
+            (request.summary.clone(), request.interruption())
+        };
+        let bytes = summary
+            .memory_size()
+            .saturating_add(interruption.memory_size());
+        self.request_storage
+            .update(request_id, bytes, |receipt| {
+                receipt.summary = summary.clone();
+                receipt.interruption = interruption.clone();
+            })
+            .await?;
+        Ok(())
+    }
+
     pub(crate) async fn finish_saved_executions(
         &self,
         cycle: &CycleView,
         executions: Vec<TestExecution>,
     ) -> Result<Vec<(TestExecutionId, Error)>> {
-        let memory = self.storage().prepare_production(bound(
-            std::mem::size_of::<FinalizationOrder>() + 2 * std::mem::size_of::<usize>(),
-        )?)?;
-        let order = Arc::new(FinalizationOrder {
-            source_bytes: source_header_bytes(cycle)?,
-            _guard: self.execution_storage.cycle_save.clone().lock_owned().await,
-            _memory: memory,
-        });
-        // Keep Four Independent Captures Active Until The Original Set Settles.
-        let Some(first) = executions.first() else {
-            return Ok(Vec::new());
-        };
-        let capture = self.finish_saved_execution_attributed(cycle, first, order.clone());
-        let capture_bytes = std::mem::size_of_val(&capture)
-            .checked_add(256)
-            .and_then(|bytes| bytes.checked_mul(4))
-            .ok_or_else(|| invalid("terminal capture pool memory overflows"))?;
-        let _captures = self.storage().prepare_production(bound(capture_bytes)?)?;
-        drop(capture);
-        let mut failures = Vec::new();
-        let mut pending = executions.iter().collect::<Vec<_>>();
-        let mut concurrency = 4;
-        loop {
-            let mut remaining = pending.iter();
-            let mut active = FuturesUnordered::new();
-            for execution in remaining.by_ref().take(concurrency) {
-                active.push(self.finish_saved_execution_attributed(
-                    cycle,
-                    execution,
-                    order.clone(),
-                ));
-            }
-            let mut refused = Vec::new();
-            while let Some((execution, result)) = active.next().await {
-                match result {
-                    Ok(()) => {}
-                    // Large Reports May Fit Individually But Not As A Parallel Group.
-                    Err(error)
-                        if concurrency > 1 && super::record_capture::read_capacity(&error) =>
-                    {
-                        refused.push(execution);
-                    }
-                    Err(error) => failures.push((execution.test_execution_id.clone(), error)),
-                }
-                if let Some(execution) = remaining.next() {
-                    active.push(self.finish_saved_execution_attributed(
-                        cycle,
-                        execution,
-                        order.clone(),
-                    ));
-                }
-            }
-            if refused.is_empty() {
-                return Ok(failures);
-            }
-            concurrency = 1;
-            pending = refused;
+        let mut remaining = executions.iter();
+        let mut active = FuturesUnordered::new();
+        for execution in remaining.by_ref().take(4) {
+            active.push(self.finish_saved_execution_attributed(cycle, execution));
         }
+        let mut failures = Vec::new();
+        while let Some((execution, result)) = active.next().await {
+            if let Err(error) = result {
+                failures.push((execution.test_execution_id.clone(), error));
+            }
+            if let Some(execution) = remaining.next() {
+                active.push(self.finish_saved_execution_attributed(cycle, execution));
+            }
+        }
+        Ok(failures)
     }
 
-    /// Earlier settled attempts of this cycle whose final report was never
-    /// produced. The cycle seal still requires them, so the next finalization
-    /// seals them too. Attempts a restart interrupted are not sealed here. A
-    /// member whose seal cannot be read is left to the cycle seal, which
-    /// reports it.
     pub(crate) async fn unsealed_members(
         &self,
         cycle: &CycleView,
@@ -160,7 +290,7 @@ impl RuntimeHandle {
     async fn saved_seal(&self, id: &TestExecutionId) -> Result<bool> {
         let view = self
             .storage()
-            .view_with_limits(self.config().storage_reads.finalization())
+            .view_with_limits(self.config().storage.finalization())
             .await?;
         let limit = view.decoded_bytes()?;
         let latest = ExecutionView::open(
@@ -178,12 +308,11 @@ impl RuntimeHandle {
         &self,
         cycle: &CycleView,
         execution: &'a TestExecution,
-        order: Arc<FinalizationOrder>,
     ) -> (&'a TestExecution, Result<()>) {
-        let result = self
-            .finish_saved_execution_ordered(cycle, execution, order)
-            .await;
-        (execution, result)
+        (
+            execution,
+            self.finish_saved_execution(cycle, execution).await,
+        )
     }
 
     pub(crate) async fn finish_saved_execution(
@@ -191,263 +320,68 @@ impl RuntimeHandle {
         cycle: &CycleView,
         execution: &TestExecution,
     ) -> Result<()> {
-        let memory = self.storage().prepare_production(bound(
-            std::mem::size_of::<FinalizationOrder>() + 2 * std::mem::size_of::<usize>(),
-        )?)?;
-        let order = Arc::new(FinalizationOrder {
-            source_bytes: source_header_bytes(cycle)?,
-            _guard: self.execution_storage.cycle_save.clone().lock_owned().await,
-            _memory: memory,
-        });
-        self.finish_saved_execution_ordered(cycle, execution, order)
-            .await
-    }
-
-    async fn finish_saved_execution_ordered(
-        &self,
-        cycle: &CycleView,
-        execution: &TestExecution,
-        order: Arc<FinalizationOrder>,
-    ) -> Result<()> {
-        let bytes = order
-            .source_bytes
-            .checked_add(execution.memory_size())
-            .filter(|bytes| *bytes != usize::MAX)
-            .ok_or_else(|| invalid("terminal source memory overflows"))?;
-        let source = self
-            .storage()
-            .produce(bound(bytes)?, |_| {
-                Ok(CycleView {
-                    saved: cycle.saved.clone(),
-                    test_cycle_id: cycle.test_cycle_id.clone(),
-                    session_id: cycle.session_id.clone(),
-                    metadata: cycle.metadata.clone(),
-                    lifecycle: cycle.lifecycle,
-                    created_at: cycle.created_at.clone(),
-                    started_at: cycle.started_at.clone(),
-                    updated_at: cycle.updated_at.clone(),
-                    test_executions: vec![execution.clone()],
-                    records: cycle.records.clone(),
-                    continue_on_failure: cycle.continue_on_failure,
-                    result: cycle.result.clone(),
-                })
-            })?
-            .try_into_value()?;
-        let id = execution.test_execution_id.clone();
-        let runtime = self.clone();
-        tokio::spawn(async move {
-            let _order = order;
-            if runtime.execution_storage.has_final_report(&id).await {
-                runtime.execution_storage.retry_final_report(&id).await?;
-                return Ok(());
-            }
-            let execution = source
-                .test_executions
-                .iter()
-                .find(|execution| execution.test_execution_id == id)
-                .ok_or_else(|| invalid("terminal execution is absent from its cycle"))?;
-            // Skipped Executions Have No Producers, But Still Close Their Admission.
-            if runtime.execution_storage.acquisition(&id).await.is_none() {
-                runtime
-                    .execution_storage
-                    .acquire(&source, execution)
-                    .await?;
-            }
-            runtime.execution_storage.finish_outputs(&id).await?;
-            let inputs = runtime
-                .execution_storage
-                .prepare_capture(&source, execution, true)
-                .await?;
-            let inspection = runtime.capture_execution_view(&source, &inputs).await?;
-            let view = inspection.view();
-            let limit = view.decoded_bytes()?;
-
-            let outputs = view.project_shared(&inputs.outputs, limit, |outputs, allowance| {
-                check(outputs.memory_size(), allowance)?;
-                Ok(outputs.clone())
-            })?;
-            let prepared = runtime
-                .prepare_final_execution_report(&inspection, outputs)
-                .await?;
-            let omissions = prepared.captured_input().input.omissions.clone();
-            runtime
-                .execution_storage
-                .publish_final_report(inspection, prepared, dokime::core::Timestamp::now_utc())
-                .await?;
-            if !omissions.is_empty() {
-                // Recorded once the cycle settles: a record admitted while
-                // the cycle is still being sealed would change what it seals.
-                runtime
-                    .execution_storage
-                    .report_omissions
-                    .lock()
-                    .await
-                    .entry(execution.test_cycle_id.clone())
-                    .or_default()
-                    .push((execution.test_execution_id.clone(), omissions));
-            }
-            Ok(())
-        })
-        .await?
-    }
-    pub(super) async fn capture_execution_view(
-        &self,
-        source: &CycleView,
-        inputs: &CaptureInputs,
-    ) -> Result<ExecutionView> {
-        // Pin The Saved Revision And Every Frozen Output Before Reading Evidence.
-        let through = &*inputs.through;
-        if !through.covers(&inputs.revision.position)? {
-            return Err(invalid("report evidence precedes its captured revision"));
+        let id = &execution.test_execution_id;
+        if execution.saved.is_some() {
+            return Err(invalid("sealed execution must read its published report"));
         }
-        for output in inputs.outputs.iter() {
-            if !through.covers(&output.file.position)? {
-                return Err(invalid("report evidence precedes its captured output"));
-            }
+        // A Previous Attempt May Have Persisted Its Seal Before Managed Adoption Failed.
+        if self.saved_seal(id).await? {
+            return Ok(());
         }
-        self.storage().flush_until(through).await?;
-        let view = self
-            .storage()
-            .view_with_limits(self.config().storage_reads.finalization())
-            .await?;
-        let limit = view.decoded_bytes()?;
-        let captured_at = dokime::core::Timestamp::now_utc();
-        let capture_work = view.begin_computation()?;
-        let preparation = self.storage().prepare_production(limit)?;
-        let (mut context, logo, owner_node_id, record_contracts, telemetry_contracts) = {
-            let state = self.state_read();
-            let brand = self.execution_storage.brand.read().unwrap();
-            let captured = super::presentation::capture_prepared(
-                &state,
-                source,
-                &inputs.execution,
-                brand.as_ref(),
-                None,
-            )?;
-            let records = state.historical_record_contracts();
-            let telemetry = &state.telemetry_definitions;
-            let telemetry_bytes = telemetry.values().fold(
-                harmos::btree_map_memory::<
-                    dokime::core::Identifier,
-                    BTreeMap<u32, dokime::telemetry::TelemetryContract>,
-                >(telemetry.len()),
-                |bytes, contract| {
-                    bytes
-                        .saturating_add(contract.memory_size())
-                        .saturating_add(contract.stream.memory_size())
-                        .saturating_add(harmos::btree_map_memory::<
-                            u32,
-                            dokime::telemetry::TelemetryContract,
-                        >(1))
+        let intent = self
+            .state_manager
+            .state()
+            .read(|state| state.report_finalizations.get(id).cloned())
+            .await?
+            .value;
+        let at = if let Some(intent) = intent {
+            intent.evidence_at
+        } else {
+            // Normal Completion May Await Accepted Samples; Stop Already Has Its Earlier Intent.
+            let evidence_at = self.storage().flush().await?;
+            self.commit(crate::transactions::RequestReportFinalization {
+                executions: vec![id.clone()],
+                intent: crate::transactions::ReportFinalization {
+                    evidence_at: evidence_at.clone(),
+                    requested_at: Timestamp::now_utc(),
+                    lifecycle: None,
                 },
-            );
-            check(
-                records
-                    .memory_size()
-                    .saturating_add(telemetry_bytes)
-                    .saturating_add(captured.context.memory_size())
-                    .saturating_add(inputs.revision.memory_size())
-                    .saturating_add(inputs.outputs.memory_size())
-                    .saturating_add(captured_at.memory_size()),
-                limit,
-            )?;
-            let telemetry = telemetry
-                .values()
-                .map(|contract| {
-                    (
-                        contract.stream.clone(),
-                        BTreeMap::from([(contract.schema_version, contract.clone())]),
-                    )
-                })
-                .collect();
-            (
-                captured.context,
-                captured.logo,
-                state.identity.node.node_id.clone(),
-                records.clone(),
-                telemetry,
-            )
+            })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
+            evidence_at
         };
-        // A plot nobody configured draws with the application defaults, frozen
-        // here so a report rendered again from this capture draws the same.
-        let defaults = self.settings().read(|document| document.report);
-        for document in context.execution_documents.values_mut() {
-            defaults.apply(document);
+        if self.execution_storage.acquisition(id).await.is_none() {
+            self.execution_storage.acquire(cycle, execution).await?;
         }
-        if let Some(asset) = logo {
-            let captured = super::presentation::capture_logo(self.storage(), &view, &asset).await?;
-            if let Some(logo) = &mut context.appearance.logo {
-                logo.url = (*captured).clone();
-            }
+        let gate = self.execution_storage.materialization_gate(id).await?;
+        self.capture_report_lifecycle(execution).await?;
+        let completed = self
+            .operations
+            .call_as::<MaterializeReport>(MaterializeReportRequest {
+                subject: ReportSubject::Execution(id.to_string()),
+                at: at.clone(),
+            })
+            .await?;
+        if completed.materialized_input.is_none() {
+            return Err(invalid(
+                "execution materialization returned no frozen input",
+            ));
         }
-        let captured = preparation
-            .finish(CapturedSource {
-                captured_at,
-                owner_node_id: owner_node_id.clone(),
-                execution: (*inputs.revision).clone(),
-                evidence_through: through.clone(),
-                outputs: (*inputs.outputs).clone(),
-                context,
-                record_contracts,
-                telemetry_contracts,
-            })?
-            .try_into_value()?
-            .try_into_shared()?;
-        drop(capture_work);
-        let inspection = ExecutionView::captured(
-            self.storage(),
-            view.clone(),
-            captured.clone(),
-            &owner_node_id,
-            limit,
-            self.config().storage_reads.finalization_read_stall,
-        )
-        .await?;
-        Ok(inspection)
-    }
-}
-
-/* === Public Functions === */
-
-/* === Private Functions === */
-fn source_header_bytes(cycle: &CycleView) -> Result<usize> {
-    let members = cycle
-        .test_executions
-        .iter()
-        .try_fold(0usize, |bytes, member| {
-            bytes
-                .checked_add(member.memory_size())
-                .ok_or_else(|| invalid("terminal members memory overflows"))
-        })?;
-    cycle
-        .memory_size()
-        .checked_sub(members)
-        .filter(|bytes| *bytes != usize::MAX)
-        .ok_or_else(|| invalid("terminal source memory overflows"))
-}
-
-fn bound(bytes: usize) -> Result<NonZeroUsize> {
-    NonZeroUsize::new(bytes).ok_or_else(|| invalid("terminal source memory overflows"))
-}
-fn check(bytes: usize, allowance: NonZeroUsize) -> harmos::Result<()> {
-    if bytes == usize::MAX || bytes > allowance.get() {
-        tracing::debug!(
-            requested = bytes,
-            allowed = allowance.get(),
-            "terminal report allocation exceeds allowance"
-        );
-        Err(exhausted())
-    } else {
+        let _guard = gate.lock().await;
+        // Only Finalization Seals The Subject, After The Full Publication Is Durable.
+        self.execution_storage.retry_final_report(id).await?;
         Ok(())
     }
 }
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "final report materialization memory",
-    }
+/* === Public Functions === */
+/* === Private Functions === */
+fn bound(bytes: usize) -> Result<std::num::NonZeroUsize> {
+    std::num::NonZeroUsize::new(bytes)
+        .filter(|bytes| bytes.get() != usize::MAX)
+        .ok_or_else(|| invalid("report retry selection memory overflows"))
 }
-fn invalid(reason: &'static str) -> Error {
-    Error::Storage(dokime::storage::Error::Invalid(reason))
+fn invalid(reason: &str) -> Error {
+    Error::InvalidReportInputs(reason.into())
 }
-
 /* === Tests === */

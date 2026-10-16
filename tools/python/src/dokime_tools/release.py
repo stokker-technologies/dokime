@@ -79,7 +79,11 @@ def inputs(directory: Path) -> dict:
                     source = "path:" + relative
                 else:
                     overrides.append(
-                        {"package": package["name"], "manifest": manifest.as_posix()}
+                        {
+                            "package": package["name"],
+                            "manifest": manifest.as_posix(),
+                            "source": _override_source(manifest.parent),
+                        }
                     )
                     source = "local:" + manifest.as_posix()
             identities[package["id"]] = (
@@ -321,6 +325,8 @@ def stage(directory: Path, settings: dict, folder: Path) -> None:
         raise _policy.ToolError("prepared package version differs from release tag")
     version.run(directory, "check")
     identity = inputs(directory)
+    if identity.get("local_overrides"):
+        raise _policy.ToolError("release staging rejects local dependency overrides")
     sha = evidence.revision(directory)
     if not identity["source_tree"] or not sha:
         raise _policy.ToolError("release staging requires clean committed source")
@@ -424,6 +430,12 @@ def verify_platform(
             "release SHA or tag differs; new commits require a new build"
         )
     current = inputs(directory)
+    if current.get("local_overrides") or receipt.get("inputs", {}).get(
+        "local_overrides"
+    ):
+        raise _policy.ToolError(
+            "release verification rejects local dependency overrides"
+        )
     # Platform environment remains in the original receipt; common locked/source inputs must match.
     for name in ["source_tree", "graph", "locks"]:
         if (
@@ -549,6 +561,37 @@ def run(directory: Path, verb: str) -> None:
 
 
 # === Private Functions === #
+
+
+def _override_source(directory: Path) -> str:
+    """Bind Local Development Evidence To The External Checkout Contents."""
+    root = Path(
+        subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+        ).stdout.strip()
+    )
+    files = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    digest = hashlib.sha256()
+    for name in sorted(set(files) - {b""}):
+        path = root / os.fsdecode(name)
+        digest.update(name + b"\0")
+        if path.is_symlink():
+            digest.update(b"link\0" + os.fsencode(os.readlink(path)))
+        elif path.is_file():
+            digest.update(b"file\0" + hashlib.sha256(path.read_bytes()).digest())
+        else:
+            digest.update(b"missing\0")
+    return digest.hexdigest()
 
 
 @cache

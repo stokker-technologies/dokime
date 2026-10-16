@@ -47,6 +47,7 @@ pub struct TelemetryRow {
     pub timestamp_millis: u64,
     pub stream: String,
     pub payload: Vec<u8>,
+    pub storage_payload: Option<Vec<u8>>,
 }
 
 /* === Enums === */

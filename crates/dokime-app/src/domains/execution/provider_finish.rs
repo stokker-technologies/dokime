@@ -26,16 +26,6 @@ use crate::{
 };
 
 /* === Constants === */
-/// The warning a sealed report that left evidence out records on its cycle.
-const REPORT_OMISSIONS_RECORD: &str = "report.omissions";
-/// How many times one finalization may exhaust its computation budget or be
-/// refused by the storage read pool before that is final. A slow or loaded host
-/// can overrun the budget or fill the pool once; doing so repeatedly means the
-/// report cannot be produced here.
-const EXHAUSTED_ATTEMPTS: u32 = 3;
-/// The wait before the first retry of an exhausted finalization; each later
-/// retry waits twice as long, so other captures can release the pool.
-const EXHAUSTED_BACKOFF: std::time::Duration = std::time::Duration::from_secs(1);
 /// The wait before retrying any other transient finalization failure.
 const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
 
@@ -51,59 +41,6 @@ const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100
 
 /* === Implementations === */
 impl RuntimeHandle {
-    /// Each sealed execution report that left evidence out says so in itself,
-    /// and once more as a host warning record naming its cycle and execution
-    /// once the cycle settles. The record never joins the sealed cycle.
-    async fn record_report_omissions(&self, cycle_id: &dokime::core::TestCycleId) {
-        let Some(reports) = self
-            .execution_storage
-            .report_omissions
-            .lock()
-            .await
-            .remove(cycle_id)
-        else {
-            return;
-        };
-        for (execution, omissions) in reports {
-            let request = dokime::records::RecordPublishRequest {
-                record_type: dokime::core::Identifier::new(REPORT_OMISSIONS_RECORD)
-                    .expect("valid report omissions record type"),
-                timestamp: None,
-                severity: dokime::records::RecordSeverity::Warning,
-                message: Some(format!(
-                    "The sealed report of execution {execution} left evidence out to fit its budget."
-                )),
-                error: None,
-                details: std::collections::BTreeMap::from([
-                    (
-                        "test_cycle_id".to_owned(),
-                        dokime::core::Value::from(cycle_id.to_string()),
-                    ),
-                    (
-                        "test_execution_id".to_owned(),
-                        dokime::core::Value::from(execution.to_string()),
-                    ),
-                    (
-                        "omissions".to_owned(),
-                        dokime::core::Value::Array(
-                            omissions
-                                .into_iter()
-                                .map(dokime::core::Value::from)
-                                .collect(),
-                        ),
-                    ),
-                ]),
-                scope: None,
-                related_sample_id: None,
-                related_stream_id: None,
-                related_artifact_id: None,
-            };
-            if let Err(error) = self.publish_record(request).await {
-                tracing::warn!(%error, %cycle_id, execution_id = %execution, "report omissions were not recorded");
-            }
-        }
-    }
-
     pub(crate) async fn finish_provider_cycle(&self, finish: Finish) -> Result<()> {
         let runtime = self.clone();
         tokio::spawn(async move { runtime.finish_provider_cycle_inner(finish).await })
@@ -191,15 +128,69 @@ impl RuntimeHandle {
             sealed_executions: Vec::new(),
             unsealed: None,
         };
-        let (summary, cycle) = {
+        let cycle = {
             use harmos::state::Transaction;
-            let mut preview = self.state_read().as_ref().clone();
+            let state = self.state_read();
+            let request = state
+                .run_requests
+                .get(&request_id)
+                .ok_or_else(|| Error::Operation("report request disappeared".into()))?;
+            let header = state
+                .cycles
+                .get(&cycle_id)
+                .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
+            let members = header.execution_ids.iter().try_fold(0usize, |bytes, id| {
+                let member = state
+                    .executions
+                    .get(id)
+                    .ok_or_else(|| Error::Operation("report member disappeared".into()))?;
+                bytes
+                    .checked_add(id.memory_size())
+                    .and_then(|bytes| bytes.checked_add(member.memory_size()))
+                    .ok_or_else(|| Error::Operation("report preview memory overflows".into()))
+            })?;
+            // Cover The Focused State, Its Lifecycle Mutations And The Extracted Cycle Together.
+            let bytes = std::mem::size_of::<crate::state::RuntimeState>()
+                .saturating_add(uuid::fmt::Hyphenated::LENGTH)
+                .saturating_add("1970-01-01T00:00:00Z".len())
+                .saturating_add(state.session_id.memory_size().saturating_mul(2))
+                .saturating_add(harmos::btree_map_memory::<
+                    dokime::core::CommandId,
+                    crate::transactions::provider::request::RunRequest,
+                >(1))
+                .saturating_add(request.memory_size())
+                .saturating_add(request_id.memory_size())
+                .saturating_add(harmos::btree_map_memory::<
+                    dokime::core::TestCycleId,
+                    dokime::execution::TestCycle,
+                >(1))
+                .saturating_add(harmos::btree_map_memory::<
+                    dokime::core::TestExecutionId,
+                    crate::execution::TestExecution,
+                >(header.execution_ids.len()))
+                .saturating_add(header.memory_size().saturating_mul(3))
+                .saturating_add(members.saturating_mul(3));
+            let limit = std::num::NonZeroUsize::new(bytes)
+                .filter(|bytes| bytes.get() != usize::MAX)
+                .ok_or_else(|| Error::Operation("report preview memory overflows".into()))?;
+            let memory = self.storage().prepare_production(limit)?;
+            let mut preview = crate::state::RuntimeState::new(state.session_id.clone());
+            preview
+                .run_requests
+                .insert(request_id.clone(), request.clone());
+            preview.cycles.insert(cycle_id.clone(), header.clone());
+            for id in &header.execution_ids {
+                preview
+                    .executions
+                    .insert(id.clone(), state.executions[id].clone());
+            }
             complete.check(&preview).map_err(Error::Operation)?;
             complete.apply(&mut preview);
-            (
-                preview.run_requests[&request_id].summary.clone(),
-                preview.cycle_view(&cycle_id).expect("request cycle exists"),
-            )
+            let cycle = preview
+                .cycle_view(&cycle_id)
+                .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
+            drop(preview);
+            memory.finish(cycle)?.try_into_value()?
         };
         let mut pending = cycle
             .test_executions
@@ -219,13 +210,11 @@ impl RuntimeHandle {
         pending.extend(self.unsealed_members(&cycle, &pending).await);
         let mut unsealed = Vec::new();
         let mut cause = None;
-        let mut exhausted = 0;
-        let mut exhausted_members = std::collections::BTreeMap::new();
         while !pending.is_empty() {
             let failures = match self.finish_saved_executions(&cycle, pending.clone()).await {
                 Ok(failures) => failures,
                 Err(error) if self.is_shutting_down() => return Err(error),
-                Err(error) => match retry_after(&error, &mut exhausted) {
+                Err(error) => match retry_after(&error) {
                     Some(wait) => {
                         tracing::debug!(%error, %cycle_id, "final execution saves will retry");
                         tokio::time::sleep(wait).await;
@@ -250,7 +239,7 @@ impl RuntimeHandle {
                     return Err(error);
                 }
                 tracing::debug!(%error, %cycle_id, execution_id = %id, "final execution save failed");
-                match retry_after(&error, exhausted_members.entry(id.clone()).or_default()) {
+                match retry_after(&error) {
                     Some(after) => {
                         wait = wait.max(Some(after));
                         retry.push(id);
@@ -278,7 +267,6 @@ impl RuntimeHandle {
         // A cycle whose members are not all sealed can never be sealed itself.
         let sealed_cycle = if terminal && cause.is_none() {
             let operation = self.operation_progress().begin("Finalizing Cycle");
-            let mut exhausted = 0;
             let mut attempt = 1;
             loop {
                 match self.finish_saved_cycle(&cycle, &operation).await {
@@ -290,14 +278,9 @@ impl RuntimeHandle {
                         operation.fail(&error);
                         return Err(error);
                     }
-                    Err(error) => match retry_after(&error, &mut exhausted) {
+                    Err(error) => match retry_after(&error) {
                         Some(wait) => {
                             tracing::debug!(%error, %cycle_id, "final cycle save will retry");
-                            // An exhausted report restarts under a fresh view and
-                            // budget, releasing every member it retained meanwhile.
-                            if exhausts_finalization(&error) {
-                                self.execution_storage.restart_cycle_report(&cycle_id).await;
-                            }
                             attempt += 1;
                             operation.phase(format!("Retrying (Attempt {attempt})"));
                             operation.indeterminate();
@@ -315,11 +298,6 @@ impl RuntimeHandle {
         } else {
             None
         };
-        // Admitted beside the settlement rather than before it: a record on
-        // the cycle waits for the run that is being completed here.
-        let recorder = self.clone();
-        let recorded = cycle_id.clone();
-        tokio::spawn(async move { recorder.record_report_omissions(&recorded).await });
         if let Some(sealed_cycle) = sealed_cycle {
             let bytes = sealed_cycle
                 .memory_size()
@@ -334,22 +312,14 @@ impl RuntimeHandle {
                 .map_err(|error| Error::Operation(error.to_string()))?;
             self.execution_storage.retire_cycle_report(&cycle_id).await;
         } else {
-            // A permanent failure settles the run Failed with its cause. The
-            // cycle is terminal and unsealed; nothing claims a report that was
-            // never produced, and the next finalization starts afresh.
+            // Report publication failure leaves the frozen inputs available
+            // for retry. It does not change the recorded test outcome.
             if let Some(cause) = &cause {
                 tracing::error!(%cycle_id, %cause, "final report could not be sealed");
-                let mut released = Vec::with_capacity(unsealed.len());
-                for id in unsealed {
-                    if self.execution_storage.release_finalization(&id).await {
-                        released.push(id);
-                    }
-                }
                 complete.unsealed = Some(crate::transactions::Unsealed {
                     cause: cause.clone(),
-                    execution_ids: released,
+                    execution_ids: unsealed,
                 });
-                self.execution_storage.retire_cycle_report(&cycle_id).await;
             }
             self.commit(complete)
                 .await
@@ -369,21 +339,19 @@ impl RuntimeHandle {
         // The durable terminal receipt acknowledges both sealed executions and
         // their final cycle row, or the permanent cause they were not sealed.
         // A failed transient save leaves it nonterminal.
-        let summary = if cause.is_some() {
-            self.state_read().run_requests[&request_id].summary.clone()
-        } else {
-            summary
+        let (summary, interruption) = {
+            let state = self.state_read();
+            let request = &state.run_requests[&request_id];
+            (request.summary.clone(), request.interruption())
         };
         let growth = harmos::MemorySize::memory_size(&summary)
-            .saturating_add(cause.as_ref().map_or(0, String::len));
+            .saturating_add(interruption.as_ref().map_or(0, String::len));
         loop {
             match self
                 .request_storage
                 .update(&request_id, growth, |receipt| {
                     receipt.summary = summary.clone();
-                    if cause.is_some() {
-                        receipt.interruption = cause.clone();
-                    }
+                    receipt.interruption = interruption.clone();
                 })
                 .await
             {
@@ -526,81 +494,24 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// How long to wait before retrying a failed finalization save, or `None` when
-/// the failure is final. An exhausted computation budget or a read pool refusal
-/// is transient until it recurs `EXHAUSTED_ATTEMPTS` times for the same save,
-/// each retry waiting twice as long as the one before.
-fn retry_after(error: &Error, exhausted: &mut u32) -> Option<std::time::Duration> {
-    if !exhausts_finalization(error) {
-        return (!cannot_retry_save(error)).then_some(RETRY_INTERVAL);
-    }
-    *exhausted += 1;
-    (*exhausted < EXHAUSTED_ATTEMPTS).then(|| EXHAUSTED_BACKOFF * (1 << (*exhausted - 1)))
+/// Retry Transient Persistence Failures At The Original Evidence Boundary.
+fn retry_after(error: &Error) -> Option<std::time::Duration> {
+    transient_persistence(error).then_some(RETRY_INTERVAL)
 }
 
-/// Failures that exhaust what one finalization may use: its computation budget
-/// or the storage read pool every report is held in.
-fn exhausts_finalization(error: &Error) -> bool {
-    computation_exhausted(error) || crate::runtime::storage::record_capture::read_capacity(error)
-}
-
-/// The permanent cause recorded against an unsealed `subject` report. A pool
-/// refusal names the pool, since retrying alone never fits the report in it.
 fn unsealed_cause(subject: &str, error: &Error) -> String {
-    if crate::runtime::storage::record_capture::read_capacity(error) {
-        format!(
-            "final {subject} report was not sealed: {error} after {EXHAUSTED_ATTEMPTS} attempts; \
-             the report does not fit the storage read pool"
-        )
-    } else {
-        format!("final {subject} report was not sealed: {error}")
-    }
+    format!("final {subject} report was not sealed: {error}")
 }
 
-fn computation_exhausted(error: &Error) -> bool {
-    matches!(
-        error,
-        Error::Harmos(harmos::Error::ResourceExhausted {
-            resource: "query computation time"
-        }) | Error::Storage(dokime::storage::Error::Runtime(
-            harmos::Error::ResourceExhausted {
-                resource: "query computation time"
-            }
-        ))
-    )
-}
-
-fn cannot_retry_save(error: &Error) -> bool {
-    let source = match error {
-        Error::Harmos(source) | Error::Storage(dokime::storage::Error::Runtime(source)) => source,
-        Error::InvalidReportInputs(_) | Error::Storage(_) => return true,
-        _ => return false,
-    };
-    // Shared Read Admission Can Be Refused While Other Captures Own Capacity.
-    // Retry The Original Finalization; Its Own Size And Computation Limits Remain Final.
-    if matches!(
-        source,
-        harmos::Error::ResourceExhausted {
-            resource: "storage views" | "storage read memory"
+fn transient_persistence(error: &(dyn std::error::Error + 'static)) -> bool {
+    let mut current = Some(error);
+    while let Some(error) = current {
+        if let Some(harmos::Error::Backend { kind, .. }) = error.downcast_ref::<harmos::Error>() {
+            return *kind == harmos::BackendFailure::Transient;
         }
-    ) {
-        return false;
+        current = error.source();
     }
-    matches!(
-        source,
-        harmos::Error::ResourceExhausted { .. }
-            | harmos::Error::ViewExpired
-            | harmos::Error::InvalidInput { .. }
-            | harmos::Error::DifferentHistory
-            | harmos::Error::Gap { .. }
-            | harmos::Error::Backend {
-                kind: harmos::BackendFailure::Permanent
-                    | harmos::BackendFailure::Corrupt
-                    | harmos::BackendFailure::Conflict
-                    | harmos::BackendFailure::Unsupported,
-                ..
-            }
-    )
+    false
 }
 
 /* === Tests === */

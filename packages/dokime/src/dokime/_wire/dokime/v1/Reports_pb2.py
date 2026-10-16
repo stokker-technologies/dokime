@@ -23,6 +23,7 @@ from dokime._wire import _pool
 # @@protoc_insertion_point(imports)
 from dokime._wire.dokime.v1.ReportsMessages.DownloadCycleReport import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_ReportsMessages_dot_DownloadCycleReport_dot_messages__pb2
 from dokime._wire.dokime.v1.ReportsMessages.DownloadExecutionReport import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_ReportsMessages_dot_DownloadExecutionReport_dot_messages__pb2
+from dokime._wire.dokime.v1.ReportsMessages.MaterializeReport import messages_pb2 as dokime_dot___wire_dot_dokime_dot_v1_dot_ReportsMessages_dot_MaterializeReport_dot_messages__pb2
 
 # Type Checking Imports
 
@@ -47,19 +48,19 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n$dokime/_wire/dokime/v1/Reports.proto\x12\tdokime.v1\x1aIdokime/_wire/dokime/v1/ReportsMessages/DownloadCycleReport/messages.proto\x1aMdokime/_wire/dokime/v1/ReportsMessages/DownloadExecutionReport/messages.proto\"\xc9\x01\n ReportsDownloadCycleReportOutput\x12I\n\x04item\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row3H\x00R\x04item\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row2H\x00R\x08responseB\x07\n\x05value\"\xd5\x01\n$ReportsDownloadExecutionReportOutput\x12M\n\x04item\x18\x01 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row3H\x00R\x04item\x12U\n\x08response\x18\x02 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row2H\x00R\x08responseB\x07\n\x05value2\x8c\x02\n\x07Reports\x12y\n\x13\x44ownloadCycleReport\x12\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row1\x1a+.dokime.v1.ReportsDownloadCycleReportOutput0\x01\x12\x85\x01\n\x17\x44ownloadExecutionReport\x12\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row1\x1a/.dokime.v1.ReportsDownloadExecutionReportOutput0\x01\x62\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\n$dokime/_wire/dokime/v1/Reports.proto\x12\tdokime.v1\x1aIdokime/_wire/dokime/v1/ReportsMessages/DownloadCycleReport/messages.proto\x1aMdokime/_wire/dokime/v1/ReportsMessages/DownloadExecutionReport/messages.proto\x1aGdokime/_wire/dokime/v1/ReportsMessages/MaterializeReport/messages.proto\"\xc9\x01\n ReportsDownloadCycleReportOutput\x12I\n\x04item\x18\x01 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row3H\x00R\x04item\x12Q\n\x08response\x18\x02 \x01(\x0b\x32\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row2H\x00R\x08responseB\x07\n\x05value\"\xd5\x01\n$ReportsDownloadExecutionReportOutput\x12M\n\x04item\x18\x01 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row3H\x00R\x04item\x12U\n\x08response\x18\x02 \x01(\x0b\x32\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row2H\x00R\x08responseB\x07\n\x05value2\x87\x03\n\x07Reports\x12y\n\x13\x44ownloadCycleReport\x12\x33.dokime.v1.ReportsMessages.DownloadCycleReport.Row1\x1a+.dokime.v1.ReportsDownloadCycleReportOutput0\x01\x12\x85\x01\n\x17\x44ownloadExecutionReport\x12\x37.dokime.v1.ReportsMessages.DownloadExecutionReport.Row1\x1a/.dokime.v1.ReportsDownloadExecutionReportOutput0\x01\x12y\n\x11MaterializeReport\x12\x31.dokime.v1.ReportsMessages.MaterializeReport.Row1\x1a\x31.dokime.v1.ReportsMessages.MaterializeReport.Row2b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _pool.build(DESCRIPTOR, 'dokime._wire.dokime.v1.Reports_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_start=206
-  _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_end=407
-  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_start=410
-  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_end=623
-  _globals['_REPORTS']._serialized_start=626
-  _globals['_REPORTS']._serialized_end=894
+  _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_start=279
+  _globals['_REPORTSDOWNLOADCYCLEREPORTOUTPUT']._serialized_end=480
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_start=483
+  _globals['_REPORTSDOWNLOADEXECUTIONREPORTOUTPUT']._serialized_end=696
+  _globals['_REPORTS']._serialized_start=699
+  _globals['_REPORTS']._serialized_end=1090
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

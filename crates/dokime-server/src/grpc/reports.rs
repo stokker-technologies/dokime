@@ -200,7 +200,6 @@ async fn deliver(
                 generated_at: Some(canonical::timestamp(&generated_at)?),
                 origin: match origin {
                     ReportOrigin::Sealed => wire::ReportOrigin::Sealed,
-                    ReportOrigin::Regenerated => wire::ReportOrigin::Regenerated,
                     ReportOrigin::Current => wire::ReportOrigin::Current,
                 },
                 warnings: Vec::new(),

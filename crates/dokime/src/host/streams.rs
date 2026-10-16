@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::core::{Timestamp, Value};
+use crate::core::Value;
 use crate::telemetry::{
     FieldError, FieldValue, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow,
     TelemetryStream, field,
@@ -40,6 +40,7 @@ macro_rules! host_rows {
         )*
     ) => {
         $(
+            #[harmos::message]
             #[derive(Clone, Debug, Default, PartialEq)]
             pub struct $stream {
                 $(
@@ -99,7 +100,7 @@ macro_rules! host_rows {
                 const PUBLISHED: bool = false;
 
                 fn contract() -> TelemetryContract {
-                    host_telemetry_contract(HostTelemetryStream::$stream)
+                    host_telemetry_contract(HostTelemetryStream::$stream).typed::<Self>()
                 }
             }
 
@@ -146,3 +147,62 @@ dokime_contract::host_streams!(host_rows);
 /* === Private Functions === */
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::Timestamp;
+    use harmos::Message;
+
+    #[test]
+    fn host_messages_preserve_optional_lists_and_timestamps() {
+        fn round_trip<T: Message + TelemetryRow>(stream: HostTelemetryStream, field: &str) {
+            let timestamp = Value::from(Timestamp::new("2026-10-15T12:34:56.123456789Z"));
+            let contract = host_telemetry_contract(stream);
+            let schema = contract
+                .storage_schema
+                .as_ref()
+                .expect("host storage schema");
+            let validator = harmos::schema::Validator::from_schema(
+                schema,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("valid host schema");
+
+            for list in [
+                None,
+                Some(Value::Null),
+                Some(Value::Array(vec![])),
+                Some(Value::Array(vec![Value::Text("example".to_owned())])),
+            ] {
+                let mut values = BTreeMap::from([("timestamp".to_owned(), timestamp.clone())]);
+                if let Some(list) = &list {
+                    values.insert(field.to_owned(), list.clone());
+                }
+                let bytes = dokime_contract::telemetry::host_telemetry_payload(stream, &values)
+                    .expect("encode host row");
+                validator
+                    .validate(&bytes)
+                    .expect("payload matches storage schema");
+                let row = T::decode(&bytes).expect("decode typed host row");
+                assert_eq!(row.encode_to_vec(), bytes);
+                let projected = row.into_row();
+                assert_eq!(projected.get(field), Some(&list.unwrap_or(Value::Null)));
+                assert_eq!(projected.get("timestamp"), Some(&timestamp));
+                #[cfg(feature = "native")]
+                {
+                    let mut stored = crate::storage::telemetry::decode_values(&validator, &bytes)
+                        .expect("project stored host payload");
+                    dokime_contract::telemetry::host::contracts::project_host_values(
+                        stream,
+                        &mut stored,
+                    )
+                    .expect("restore host value semantics");
+                    assert_eq!(stored, projected);
+                }
+            }
+        }
+
+        round_trip::<Network>(HostTelemetryStream::Network, "local_addresses");
+        round_trip::<Bluetooth>(HostTelemetryStream::Bluetooth, "bluetooth_device_names");
+    }
+}

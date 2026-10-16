@@ -17,6 +17,7 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
+use harmos::MemorySize;
 
 // Local Imports
 use crate::{Error, Result};
@@ -55,6 +56,7 @@ struct Contract {
     template_id: Option<String>,
     owner: Option<String>,
     columns: Vec<Column>,
+    storage_schema: Option<harmos::schema::graph::Schema>,
     default_x: Option<String>,
     interval: Option<u64>,
     plot_window: Option<u64>,
@@ -190,6 +192,7 @@ impl TryFrom<Contracts> for Declarations {
 impl Contract {
     fn encoding_memory(value: &TelemetryContract) -> Result<usize> {
         let mut bytes = std::mem::size_of::<Self>()
+            .saturating_add(value.storage_schema.memory_size())
             .saturating_add(value.stream.as_str().len())
             .saturating_add(value.template_id.as_ref().map_or(0, |id| id.as_str().len()))
             .saturating_add(value.owner.as_ref().map_or(0, |id| id.as_str().len()))
@@ -213,6 +216,7 @@ impl Contract {
             .as_ref()
             .ok_or_else(|| invalid("telemetry contract metadata is missing"))?;
         let mut bytes = std::mem::size_of::<TelemetryContract>()
+            .saturating_add(self.storage_schema.memory_size())
             .saturating_add(self.stream.capacity())
             .saturating_add(self.template_id.as_ref().map_or(0, String::capacity))
             .saturating_add(self.owner.as_ref().map_or(0, String::capacity))
@@ -245,6 +249,7 @@ impl TryFrom<&TelemetryContract> for Contract {
             template_id: value.template_id.as_ref().map(|id| id.as_str().to_owned()),
             owner: value.owner.as_ref().map(|id| id.as_str().to_owned()),
             columns,
+            storage_schema: value.storage_schema.clone(),
             default_x: value.default_x.clone(),
             interval: value.interval.map(|duration| duration.0),
             plot_window: value.plot_window.map(|duration| duration.0),
@@ -283,6 +288,7 @@ impl TryFrom<Contract> for TelemetryContract {
                 .transpose()
                 .map_err(dokime::storage::Error::from)?,
             columns,
+            storage_schema: value.storage_schema,
             default_x: value.default_x,
             interval: value.interval.map(DurationMillis),
             plot_window: value.plot_window.map(DurationMillis),

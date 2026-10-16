@@ -142,6 +142,7 @@ pub struct LineField {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LineMatcher {
+    pub storage_schema: harmos::schema::graph::Schema,
     pub pattern: String,
     pub stream: String,
     pub fields: Vec<LineField>,

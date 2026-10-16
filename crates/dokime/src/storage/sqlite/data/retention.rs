@@ -15,6 +15,7 @@
 // Standard Library Imports
 use std::num::NonZeroUsize;
 // Third Party Imports
+use harmos::storage::{ObjectReleaseCursor, ObjectReleasePage, ObjectRetentionRelease};
 use harmos::{catalog::Projection, storage::*};
 use rusqlite::params;
 // Local Imports
@@ -35,6 +36,101 @@ use super::{position, saved, sequence};
 
 /* === Implementations === */
 impl State {
+    pub(crate) async fn data_object_releases(
+        &self,
+        cut: super::SavedData,
+        after: Option<ObjectReleaseCursor>,
+        limits: ReadLimits,
+        execution: Option<std::sync::Arc<super::super::query::Budget>>,
+    ) -> Result<ObjectReleasePage, Error> {
+        let reservation = self.reserve_memory(
+            limits
+                .bytes
+                .get()
+                .checked_mul(4)
+                .and_then(|bytes| bytes.checked_add(16 * 1024))
+                .ok_or(Error::Data("object release page allocation overflow"))?,
+        )?;
+        self.call_read(execution, move |connection| Ok((|| {
+            let _reservation = reservation;
+            let mut statement = connection.prepare(
+                "SELECT r.schema_key,r.item,r.through FROM storage_object_releases AS r
+                 WHERE r.generation<=?1 AND r.through<=?2
+                 AND r.generation=(SELECT MAX(newer.generation) FROM storage_object_releases AS newer
+                     WHERE newer.schema_id=r.schema_id AND newer.item=r.item
+                     AND newer.generation<=?1 AND newer.through<=?2)
+                 AND (r.schema_id,r.schema_version,r.encoding,r.item)>(?3,?4,?5,?6)
+                 ORDER BY r.schema_id,r.schema_version,r.encoding,r.item LIMIT ?7")?;
+            let mut rows = statement.query(params![position(cut.retention_generation), position(cut.sequence),
+                after.as_ref().map_or("", |after| after.schema.id.as_str()),
+                after.as_ref().map_or(0, |after| after.schema.version.get()),
+                after.as_ref().map_or(0, |after| after.schema.payload_encoding as u8),
+                after.as_ref().map_or("", |after| after.item.as_str()),
+                limits.rows.get().min(64) as i64 + 1])?;
+            let mut entries = Vec::new();
+            let mut bytes = 0usize;
+            let mut more = false;
+            while let Some(row) = rows.next()? {
+                super::super::query::checkpoint()?;
+                let key: String = row.get(0)?;
+                let item: String = row.get(1)?;
+                if key.len() > 8192 || item.len() > 1024 {
+                    return Err(Error::Corrupt("object release identity exceeds its bound"));
+                }
+                let release = ObjectRetentionRelease {
+                    schema: serde_json::from_str(&key)?,
+                    item: ObjectKey::new(&item, NonZeroUsize::new(1024).unwrap())?,
+                    through: StorageCursor { history: cut.history.clone(), sequence: sequence(&row.get::<_,String>(2)?)? },
+                };
+                let length = super::entry::check_size(&release, limits.bytes.get())?;
+                if entries.len() == limits.rows.get().min(64) || bytes + length > limits.bytes.get() {
+                    if entries.is_empty() { return Err(Error::Data("object release exceeds page byte bound")); }
+                    more = true;
+                    break;
+                }
+                bytes += length;
+                entries.push(release);
+            }
+            let next = if more { entries.last().map(ObjectRetentionRelease::cursor) } else { None };
+            Ok(ObjectReleasePage { entries, next })
+        })())).await?
+    }
+    pub(crate) async fn data_release_object_history(
+        &self,
+        schema: SchemaKey,
+        item: ObjectKey,
+        through: StorageCursor,
+    ) -> Result<(), Error> {
+        self.call(move |connection| Ok((|| {
+            let transaction = connection.transaction()?;
+            super::bootstrap::check_writes(&transaction)?;
+            let head = saved(&transaction)?;
+            head.history.check(&through.history)?;
+            if through.sequence > head.sequence {
+                return Err(Error::Data("object history release exceeds saved frontier"));
+            }
+            let previous: Option<String> = transaction.query_row(
+                "SELECT MAX(through) FROM storage_object_releases WHERE schema_id=?1 AND item=?2",
+                params![schema.id.as_str(), item.as_str()], |row| row.get(0),
+            )?;
+            if previous.as_deref().is_some_and(|previous| previous >= position(through.sequence).as_str()) {
+                return Ok(());
+            }
+            let generation = head.retention_generation.checked_add(1)
+                .ok_or(Error::Data("retention generation exhausted"))?;
+            transaction.execute(
+                "INSERT INTO storage_object_releases(schema_id,schema_key,schema_version,encoding,item,through,generation) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+                params![schema.id.as_str(), serde_json::to_string(&schema)?, schema.version.get(),
+                    schema.payload_encoding as u8, item.as_str(), position(through.sequence), position(generation)],
+            )?;
+            transaction.execute(
+                "UPDATE storage_data_head SET retention_generation=?1 WHERE singleton=1",
+                [position(generation)],
+            )?;
+            transaction.commit()?;
+            Ok(())
+        })())).await?
+    }
     pub(crate) async fn data_prune<C: ObjectCatalog>(
         &self,
         through: StorageCursor,
@@ -46,16 +142,22 @@ impl State {
         // Validated catalog identities are at most 1024 bytes; each descriptor
         // callback's temporary identity coexists with the retained policy vector.
         let allocation = C::definition_count()
-            .checked_mul(std::mem::size_of::<(String, i64)>() + 1024)
+            .checked_mul(std::mem::size_of::<(String, i64, bool)>() + 1024)
             .and_then(|bytes| bytes.checked_add(1024 + 128 * (std::mem::size_of::<String>() + 16)))
             .ok_or(Error::Data("retention policy allocation size overflow"))?;
         let reservation = self.reserve_memory(allocation)?;
         let mut policies = Vec::with_capacity(C::definition_count());
         C::definitions().try_for_each(|definition| {
             let schema = definition.schema()?;
-            let keep = i64::try_from(definition.retention().versions().get())
-                .map_err(|_| Error::Data("retention count exceeds SQLite range"))?;
-            policies.push((schema.id.to_string(), keep));
+            let (keep, released) = match definition.retention() {
+                ObjectRetention::UntilReleased => (1, true),
+                policy => (
+                    i64::try_from(policy.versions().get())
+                        .map_err(|_| Error::Data("retention count exceeds SQLite range"))?,
+                    false,
+                ),
+            };
+            policies.push((schema.id.to_string(), keep, released));
             Ok::<(), Error>(())
         })?;
         let maximum = maximum.get().min(64);
@@ -67,7 +169,7 @@ impl State {
             head.history.check(&through.history)?;
             if through.sequence > head.sequence { return Err(Error::Data("retention exceeds saved frontier")); }
             let mut retired = Vec::with_capacity(maximum);
-            for (schema, keep) in &policies {
+            for (schema, keep, released) in &policies {
                 if retired.len() == maximum { break; }
                 // Only New Object Versions Can Change Logical Retention Eligibility.
                 // File And Evidence Saves Still Reclaim Rows Released By Old Pins.
@@ -85,6 +187,9 @@ impl State {
                     "SELECT entries.position FROM storage_data_entries AS entries
                      INDEXED BY storage_data_live_object_key WHERE entries.kind='object'
                      AND entries.schema_id=?1 AND entries.position<=?2 AND entries.retired_at IS NULL
+                     AND (?6=0 OR EXISTS(SELECT 1 FROM storage_object_releases AS released
+                         WHERE released.schema_id=entries.schema_id AND released.item=entries.item
+                         AND entries.position<=released.through))
                      AND entries.item IN (SELECT changed.item FROM storage_data_entries AS changed
                          INDEXED BY storage_data_live_object_position WHERE changed.kind='object'
                          AND changed.retired_at IS NULL AND changed.schema_id=?1
@@ -95,7 +200,7 @@ impl State {
                          AND newer.item=entries.item AND newer.position>entries.position
                          AND newer.position<=?2 AND newer.retired_at IS NULL LIMIT ?3)) >= ?3
                      ORDER BY entries.item,entries.position LIMIT ?4")?;
-                let mut rows = statement.query(params![schema,position(through.sequence),keep,(maximum-retired.len()) as i64,position(after)])?;
+                let mut rows = statement.query(params![schema,position(through.sequence),keep,(maximum-retired.len()) as i64,position(after),released])?;
                 while let Some(row)=rows.next()? { retired.push(row.get::<_,String>(0)?); }
             }
             if !retired.is_empty() {

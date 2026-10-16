@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::*;
-use crate::support::reports::{parse, payload_text, render};
+use crate::support::reports::{parse, payload_text, render, render_annotated};
 use dokime::core::{TraceabilityId, Value};
 use dokime::definition::TestCase;
 use dokime_app::document::capture::{Capture, SectionBinding};
@@ -113,7 +113,6 @@ fn fixture_input(cycle_label: &str) -> CycleReportInput {
         artifact_links: Vec::new(),
         appearance: None,
         generated_at: Timestamp::now_utc(),
-        omissions: Vec::new(),
     }
 }
 
@@ -832,7 +831,7 @@ pub(crate) async fn execution_template_cases() {
     let html = render(&input).await;
     let payload = parse(&html);
     assert_eq!(payload["test_executions"][0]["template_id"], template_id);
-    let steps = payload["test_steps"].as_array().unwrap();
+    let steps = payload["test_executions"][0]["steps"].as_array().unwrap();
     assert_eq!(steps.len(), 2);
     assert_eq!(steps[0]["record_type"], "step");
     assert_eq!(steps[1]["record_type"], "criterion");
@@ -996,7 +995,7 @@ pub(crate) async fn rendered_report_interval() {
             sample
                 .values
                 .insert("sample_index".to_owned(), Value::from(index as i64));
-            sample
+            crate::support::contracts::typed_fixture_sample(sample)
         })
         .collect();
 
@@ -1261,7 +1260,7 @@ pub(crate) async fn failed_step_frames() {
 
     let html = render(&input).await;
     let payload = parse(&html);
-    let step = payload["test_steps"]
+    let step = payload["test_executions"][0]["steps"]
         .as_array()
         .expect("the report carries its step rows")
         .iter()
@@ -1285,6 +1284,105 @@ pub(crate) async fn failed_step_frames() {
     assert!(!html.contains("thermo_bench::suites::soak::hold"));
 }
 
+pub(crate) async fn normalised_report_rows() {
+    use dokime::execution::{HealthItem, HealthSeverity, OperatorNote};
+    use dokime_app::report::ReportArtifactLink;
+
+    let mut input = fixture_input("Normalised Rows");
+    let execution = &mut input.cycle.test_executions[0];
+    let scope = execution.scope.clone();
+    let owner = execution.test_execution_id.to_string();
+    for (label, criteria) in [("First", 1), ("Second", 0)] {
+        execution.steps.push(dokime_app::execution::StepRecord {
+            step_id: dokime::core::StepId::new(),
+            metadata: metadata("fixture.step", label),
+            status: dokime_app::execution::StepStatus::Passed,
+            started_at: None,
+            finished_at: None,
+            measurements: Vec::new(),
+            criteria: (0..criteria)
+                .map(|_| dokime_app::execution::CriterionResult {
+                    criterion_id: dokime::core::CriterionId::new(),
+                    metadata: metadata("fixture.criterion", "Fixture Criterion"),
+                    status: dokime_app::execution::CriterionStatus::Passed,
+                    observed: None,
+                    message: None,
+                })
+                .collect(),
+            detail: None,
+        });
+    }
+    input.artifact_links.push(ReportArtifactLink {
+        artifact_id: "artifact-1".into(),
+        label: "summary.json".into(),
+        href: "data:application/json;base64,e30=".into(),
+        path: "summary.json".into(),
+        media_type: Some("application/json".into()),
+        description: Some("Execution summary".into()),
+        size_bytes: Some(2),
+        group_id: Some("outputs".into()),
+        group_label: Some("Outputs".into()),
+        scope: Some(scope.clone()),
+    });
+    // The Newer Edit Comes First, So Only Its Timestamp Can Select It.
+    let note_id = dokime::core::NoteId::new();
+    let note = |message: &str, at: &str| OperatorNote {
+        note_id: note_id.clone(),
+        scope: scope.clone(),
+        author: Some("operator".into()),
+        message: message.into(),
+        created_at: Timestamp::new(at),
+    };
+    let notes = vec![
+        note("Edited", "2026-01-01T00:00:02Z"),
+        note("Original", "2026-01-01T00:00:01Z"),
+    ];
+    let health_id = dokime::core::HealthItemId::new();
+    let item = |message: &str, at: &str| HealthItem {
+        health_item_id: health_id.clone(),
+        scope: scope.clone(),
+        severity: HealthSeverity::Warning,
+        message: message.into(),
+        detail: None,
+        observed_at: Timestamp::new(at),
+    };
+    let health = vec![
+        item("Recovered", "2026-01-01T00:00:04Z"),
+        item("Degraded", "2026-01-01T00:00:03Z"),
+    ];
+
+    let payload = parse(&render_annotated(&input, notes, health).await);
+
+    // One Canonical Row Per Subject, At Its Latest Observation
+    let notes = payload["snapshot"]["notes"].as_array().unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0]["text"], "Edited");
+    let health = payload["snapshot"]["health"].as_array().unwrap();
+    assert_eq!(health.len(), 1);
+    assert_eq!(health[0]["title"], "Recovered");
+
+    // Artifacts Arrive Complete With Their Download Target
+    let artifacts = payload["snapshot"]["artifacts"].as_array().unwrap();
+    assert_eq!(artifacts.len(), 1);
+    assert_eq!(artifacts[0]["href"], "data:application/json;base64,e30=");
+    assert_eq!(artifacts[0]["downloadHref"], artifacts[0]["href"]);
+    assert_eq!(artifacts[0]["description"], "Execution summary");
+    assert_eq!(artifacts[0]["group_label"], "Outputs");
+    assert!(payload.get("artifact_links").is_none());
+
+    // Steps Arrive Grouped Under Their Own Execution In Recorded Order
+    assert!(payload.get("test_steps").is_none());
+    let steps = payload["test_executions"][0]["steps"].as_array().unwrap();
+    assert_eq!(
+        steps
+            .iter()
+            .map(|row| format!("{}:{}", row["record_type"].as_str().unwrap(), row["order"]))
+            .collect::<Vec<_>>(),
+        ["step:0", "criterion:0", "step:1"]
+    );
+    assert!(steps.iter().all(|row| row["test_execution_id"] == owner));
+}
+
 pub(crate) async fn telemetry_index_endpoints() {
     use dokime::telemetry::TelemetrySample;
 
@@ -1301,7 +1399,9 @@ pub(crate) async fn telemetry_index_endpoints() {
         sample
             .values
             .insert("ordinal".into(), Value::Unsigned(ordinal));
-        input.telemetry.push(sample);
+        input
+            .telemetry
+            .push(crate::support::contracts::typed_fixture_sample(sample));
     }
     // All Sort Keys Tie; Input Order Must Still Select The Same Endpoints.
     let html = render(&input).await;

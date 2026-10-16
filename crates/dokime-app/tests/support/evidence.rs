@@ -177,14 +177,8 @@ pub fn python_outcome(
                     stream: "tracking".to_owned(),
                     label: "Tracking".to_owned(),
                     samples: vec![
-                        BTreeMap::from([
-                            ("elapsed_s".to_owned(), Value::Number(1.0)),
-                            ("target_locked".to_owned(), Value::Bool(status == "passed")),
-                        ]),
-                        BTreeMap::from([
-                            ("elapsed_s".to_owned(), Value::Number(2.0)),
-                            ("target_locked".to_owned(), Value::Bool(status == "passed")),
-                        ]),
+                        crate::support::contracts::provider_tracking_row(1.0, status == "passed"),
+                        crate::support::contracts::provider_tracking_row(2.0, status == "passed"),
                     ],
                 }],
                 criteria: vec![ProviderCriterionOutcome {
@@ -311,7 +305,9 @@ pub async fn publish_tracking_sample(
     runtime
         .publish_telemetry_batch(TelemetryBatch::new(
             Identifier::new("tracking").unwrap(),
-            vec![sample],
+            vec![crate::support::contracts::typed_minimal_tracking_sample(
+                sample,
+            )],
         ))
         .await
         .unwrap();
@@ -397,7 +393,10 @@ pub fn tracking_batch() -> TelemetryBatch {
     sample
         .values
         .insert("distance_m".to_owned(), Value::Number(1.0));
-    TelemetryBatch::new(identifier("tracking"), vec![sample])
+    TelemetryBatch::new(
+        identifier("tracking"),
+        vec![crate::support::contracts::typed_fixture_sample(sample)],
+    )
 }
 
 pub fn host_system_batch() -> TelemetryBatch {
@@ -417,7 +416,10 @@ pub fn host_system_batch() -> TelemetryBatch {
         .values
         .insert("battery_percent".to_owned(), Value::Number(99.0));
 
-    TelemetryBatch::new(identifier("host.system"), vec![sample])
+    TelemetryBatch::new(
+        identifier("host.system"),
+        vec![crate::support::contracts::typed_fixture_sample(sample)],
+    )
 }
 
 pub fn tracking_transition_batch() -> TelemetryBatch {
@@ -437,7 +439,13 @@ pub fn tracking_transition_batch() -> TelemetryBatch {
     insert_sample_value(&mut samples[4], "connection_loss_distance_m", 4.0);
     insert_sample_value(&mut samples[4], "connection_acquired_distance_m", 6.0);
 
-    TelemetryBatch::new(identifier("tracking"), samples.into_iter().collect())
+    TelemetryBatch::new(
+        identifier("tracking"),
+        samples
+            .into_iter()
+            .map(crate::support::contracts::typed_fixture_sample)
+            .collect(),
+    )
 }
 
 pub fn insert_sample_value(
@@ -446,6 +454,8 @@ pub fn insert_sample_value(
     value: f64,
 ) {
     sample.values.insert(key.into(), Value::Number(value));
+    sample.storage_payload =
+        crate::support::contracts::typed_fixture_sample(sample.clone()).storage_payload;
 }
 
 pub fn tracking_status_sample(
@@ -479,7 +489,7 @@ pub fn tracking_status_sample(
     sample
         .values
         .insert("tool_connected".to_owned(), Value::from(tool_connected));
-    sample
+    crate::support::contracts::typed_fixture_sample(sample)
 }
 
 pub fn relay_resource_opened_record() -> ProviderRecordOutcome {
@@ -574,7 +584,7 @@ pub fn samples(stream: &str, count: usize, scope: Option<RecordScope>) -> Teleme
                 sample.values.insert(column.to_owned(), value);
             }
 
-            sample
+            crate::support::contracts::typed_fixture_sample(sample)
         })
         .collect();
 

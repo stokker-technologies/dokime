@@ -29,7 +29,7 @@ use harmos::{
 };
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, RecoveryLimits};
+use dokime::storage::sqlite::{Backend, Limits, StateLimits};
 
 /* === Constants === */
 
@@ -103,16 +103,16 @@ pub(crate) async fn scalar_failure_cursor() {
             })
             .await
             .unwrap();
-        let recovery = Arc::new(backend.recovery(RecoveryLimits::default()));
+        let recovery = Arc::new(backend.state(StateLimits::default()));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                recovery,
+                state: recovery,
                 replicas: vec![],
             },
             StorageSettings {
                 flush_interval: Duration::from_secs(60),
-                ..StorageSettings::default()
+                ..crate::sqlite::storage::storage_settings()
             },
         )
         .unwrap();
@@ -271,13 +271,13 @@ pub(crate) async fn query_page_drop() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                recovery: Arc::new(backend.recovery(RecoveryLimits::default())),
+                state: Arc::new(backend.state(StateLimits::default())),
                 replicas: vec![],
             },
             StorageSettings {
                 query_decoded_bytes: NonZeroUsize::new(4096).unwrap(),
                 flush_interval: Duration::from_secs(60),
-                ..StorageSettings::default()
+                ..crate::sqlite::storage::storage_settings()
             },
         )
         .unwrap();
@@ -370,10 +370,10 @@ pub(crate) async fn stream_frames_charge() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                recovery: Arc::new(backend.recovery(RecoveryLimits::default())),
+                state: Arc::new(backend.state(StateLimits::default())),
                 replicas: vec![],
             },
-            StorageSettings::default(),
+            crate::sqlite::storage::storage_settings(),
         )
         .unwrap();
         let runtime = Runtime::<Bench>::builder((), ())
@@ -520,10 +520,10 @@ pub(crate) async fn file_query_offset() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                recovery: Arc::new(backend.recovery(RecoveryLimits::default())),
+                state: Arc::new(backend.state(StateLimits::default())),
                 replicas: vec![],
             },
-            StorageSettings::default(),
+            crate::sqlite::storage::storage_settings(),
         )
         .unwrap();
         let runtime = Runtime::<Bench>::builder((), ())
@@ -545,7 +545,7 @@ pub(crate) async fn file_query_offset() {
             .unwrap();
         storage.flush().await.unwrap();
         let view = storage
-            .view_with_limits(StorageSettings::default().query_execution)
+            .view_with_limits(crate::sqlite::storage::storage_settings().query_execution)
             .await
             .unwrap();
         let mut metadata = storage.query_in(&view, FileQuery::new()).unwrap();
@@ -634,15 +634,17 @@ pub(crate) async fn pinned_page_waiting() {
                 .unwrap(),
         );
         let settings = StorageSettings {
-            read_memory_bytes: NonZeroUsize::new(5 * 1024 * 1024).unwrap(),
+            budget: StorageBudget {
+                read_memory_bytes: NonZeroUsize::new(5 * 1024 * 1024).unwrap(),
+            },
             query_decoded_bytes: NonZeroUsize::new(4096).unwrap(),
-            ..StorageSettings::default()
+            ..crate::sqlite::storage::storage_settings()
         };
         let execution = settings.query_execution;
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                recovery: Arc::new(backend.recovery(RecoveryLimits::default())),
+                state: Arc::new(backend.state(StateLimits::default())),
                 replicas: vec![],
             },
             settings,
@@ -725,10 +727,10 @@ pub(crate) async fn private_object_version() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: source.clone(),
-                recovery: Arc::new(source.recovery(RecoveryLimits::default())),
+                state: Arc::new(source.state(StateLimits::default())),
                 replicas: vec![],
             },
-            StorageSettings::default(),
+            crate::sqlite::storage::storage_settings(),
         )
         .unwrap();
         let runtime = Runtime::<Bench>::builder((), ())
@@ -878,7 +880,7 @@ pub(crate) async fn private_object_version() {
             .begin_bootstrap(
                 &identity,
                 &prior,
-                StorageSettings::default().query_execution,
+                crate::sqlite::storage::storage_settings().query_execution,
             )
             .await
             .unwrap();
@@ -910,6 +912,7 @@ pub(crate) async fn private_object_version() {
         ] {
             manifest.finish_collection(kind);
         }
+        manifest.finish_releases();
         target.finish_bootstrap(&manifest).await.unwrap();
         assert_eq!(target.cursor_saved().await.unwrap(), admitted.position);
         let target_snapshot = target.read_view(&admitted.position).await.unwrap();

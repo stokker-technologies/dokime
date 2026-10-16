@@ -47,7 +47,6 @@ use dokime::storage::Manager;
 use dokime::telemetry::contract::TelemetryContract;
 
 /* === Constants === */
-const MAX_CAPTURE_BYTES: usize = 128 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -59,7 +58,9 @@ const MAX_CAPTURE_BYTES: usize = 128 * 1024 * 1024;
 pub struct CapturedExecutionReportInput {
     pub final_report: bool,
     pub owner_node_id: NodeId,
-    pub execution: ExecutionRevision,
+    pub execution_id: dokime::core::TestExecutionId,
+    pub execution: Option<ExecutionRevision>,
+    pub lifecycle_id: String,
     pub evidence_through: StorageCursor,
     pub telemetry_contracts: BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>,
     pub record_contracts: BTreeMap<Identifier, BTreeMap<u32, RecordContract>>,
@@ -72,6 +73,7 @@ pub struct PreparedExecutionReport {
     captured: SharedQueryValue<CapturedExecutionReportInput>,
     outputs: QueryValue<Vec<ExecutionOutput>>,
     context: ReportFile,
+    materialized: ReportFile,
     report: ReportFile,
     sealed_at: Option<QueryValue<Timestamp>>,
 }
@@ -96,6 +98,14 @@ struct ReportFileData {
 impl harmos::MemorySize for CapturedExecutionReportInput {
     fn memory_size(&self) -> usize {
         let fields = [
+            (
+                self.execution_id.memory_size(),
+                std::mem::size_of_val(&self.execution_id),
+            ),
+            (
+                self.lifecycle_id.memory_size(),
+                std::mem::size_of_val(&self.lifecycle_id),
+            ),
             (
                 self.context.memory_size(),
                 std::mem::size_of_val(&self.context),
@@ -150,48 +160,14 @@ impl MemorySize for ReportFileData {
 }
 
 impl RuntimeHandle {
-    pub(crate) async fn prepare_final_execution_report(
-        &self,
-        snapshot: &ExecutionView,
-        outputs: QueryValue<Vec<ExecutionOutput>>,
-    ) -> Result<PreparedExecutionReport> {
-        outputs.check_origin(self.storage())?;
-        if let Some(reason) = self.providers.final_report_refusal(snapshot.execution()) {
-            return Err(Error::InvalidReportInputs(reason));
-        }
-        let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
-        let html = HtmlReport::from_snapshot(self, snapshot, true, maximum, None).await?;
-        if html.captured_input()?.owner_node_id != self.state_read().identity.node.node_id {
-            return Err(Error::InvalidReportInputs(
-                "report producing node identity differs".into(),
-            ));
-        }
-        let render = move || PreparedExecutionReport::prepare_html(html, outputs);
-        let bytes = std::mem::size_of_val(&render)
-            .checked_add(std::mem::size_of::<StorageProductionPreparation>())
-            .ok_or_else(|| {
-                Error::InvalidReportInputs("report rendering task memory overflows".into())
-            })?;
-        let memory = self.storage().prepare_production(allowance(bytes)?)?;
-        tokio::task::spawn_blocking(move || {
-            let _memory = memory;
-            render()
-        })
-        .await?
-    }
-
-    /// Materializes and renders a sealed execution's report again, as cycle
-    /// finalization does for each member, and returns its HTML. Benchmarks
-    /// report materialization; nothing is stored.
-    #[doc(hidden)]
+    // Benchmarks And Callers Read The Immutable Published Bytes Of Sealed Subjects.
     pub async fn render_saved_execution_report(
         &self,
         execution: &dokime::core::TestExecutionId,
     ) -> Result<Vec<u8>> {
-        let reads = &self.config().storage_reads;
         let view = self
             .storage()
-            .view_with_limits(reads.finalization())
+            .view_with_limits(self.config().storage.finalization())
             .await?;
         let limit = view.decoded_bytes()?;
         let inspection = ExecutionView::open(
@@ -202,15 +178,19 @@ impl RuntimeHandle {
             limit,
         )
         .await?
-        .ok_or_else(|| Error::InvalidReportInputs("report execution is not saved".into()))?;
-        let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
-        let html = HtmlReport::from_snapshot(self, &inspection, true, maximum, None).await?;
-        tokio::task::spawn_blocking(move || {
-            let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
-            let length = html.length(maximum)?;
-            html.bytes(length)
-        })
-        .await?
+        .ok_or_else(|| Error::InvalidReportInputs("execution is not saved".into()))?;
+        let seal = inspection.execution().saved.as_ref().ok_or_else(|| {
+            Error::InvalidReportInputs("execution has no published report".into())
+        })?;
+        let mut reader = inspection.read_file(&seal.report).await?;
+        let mut bytes = Vec::new();
+        while let Some(batch) = reader
+            .next_chunk(NonZeroUsize::new(64 * 1024).unwrap())
+            .await?
+        {
+            bytes.extend_from_slice(&batch);
+        }
+        Ok(bytes)
     }
 }
 
@@ -220,12 +200,20 @@ impl CapturedExecutionReportInput {
     }
 
     pub fn validate(&self) -> Result<()> {
-        self.execution
-            .version
-            .check_position(&self.execution.position)?;
-        if !self.evidence_through.covers(&self.execution.position)?
-            || self.input.cycle.test_executions.len() != 1
-        {
+        if let Some(anchor) = &self.execution {
+            anchor.version.check_position(&anchor.position)?;
+            self.evidence_through
+                .history
+                .check(&anchor.position.history)?;
+            if anchor.execution_id != self.execution_id {
+                return Err(Error::InvalidReportInputs(
+                    "report primary anchor identity differs".into(),
+                ));
+            }
+        }
+        uuid::Uuid::parse_str(&self.lifecycle_id)
+            .map_err(|_| Error::InvalidReportInputs("invalid report lifecycle identity".into()))?;
+        if self.input.cycle.test_executions.len() != 1 {
             return Err(Error::InvalidReportInputs(
                 "report requires one exact saved execution".into(),
             ));
@@ -321,19 +309,28 @@ impl CapturedExecutionReportInput {
         self.validate()
     }
 
-    fn execution(&self) -> Result<&TestExecution> {
+    pub(crate) fn execution(&self) -> Result<&TestExecution> {
         self.input
             .cycle
             .test_executions
             .first()
-            .filter(|execution| execution.test_execution_id == self.execution.execution_id)
+            .filter(|execution| execution.test_execution_id == self.execution_id)
             .ok_or_else(|| Error::InvalidReportInputs("report execution identity differs".into()))
     }
 
-    fn source_memory(&self, outputs: &[ExecutionOutput]) -> usize {
+    pub(crate) fn source_memory(&self, outputs: &[ExecutionOutput]) -> usize {
         std::mem::size_of::<CapturedSource>()
             .saturating_add(self.owner_node_id.memory_size())
             .saturating_add(self.execution.memory_size())
+            .saturating_add(self.execution_id.memory_size())
+            .saturating_add(self.lifecycle_id.memory_size())
+            .saturating_add(
+                self.input
+                    .cycle
+                    .test_executions
+                    .first()
+                    .map_or(0, MemorySize::memory_size),
+            )
             .saturating_add(self.evidence_through.memory_size())
             .saturating_add(self.context.memory_size())
             .saturating_add(self.record_contracts.memory_size())
@@ -345,11 +342,14 @@ impl CapturedExecutionReportInput {
             ))
     }
 
-    fn source(&self, outputs: &[ExecutionOutput]) -> CapturedSource {
+    pub(crate) fn source(&self, outputs: &[ExecutionOutput]) -> CapturedSource {
         CapturedSource {
             captured_at: self.input.generated_at.clone(),
             owner_node_id: self.owner_node_id.clone(),
+            execution_id: self.execution_id.clone(),
             execution: self.execution.clone(),
+            lifecycle_id: self.lifecycle_id.clone(),
+            lifecycle: self.input.cycle.test_executions[0].clone(),
             evidence_through: self.evidence_through.clone(),
             context: self.context.clone(),
             record_contracts: self.record_contracts.clone(),
@@ -368,22 +368,10 @@ impl PreparedExecutionReport {
         &self.outputs
     }
 
-    pub fn prepare(
-        manager: Manager,
-        captured: SharedQueryValue<CapturedExecutionReportInput>,
+    pub(super) fn prepare_html(
+        html: HtmlReport,
         outputs: QueryValue<Vec<ExecutionOutput>>,
     ) -> Result<Self> {
-        let source = captured
-            .try_project(
-                allowance(captured.source_memory(&outputs))?,
-                |captured, _| Ok(captured.source(&outputs)),
-            )?
-            .try_into_shared()?;
-        let html = HtmlReport::from_capture(&manager, &captured, &source)?;
-        Self::prepare_html(html, outputs)
-    }
-
-    fn prepare_html(html: HtmlReport, outputs: QueryValue<Vec<ExecutionOutput>>) -> Result<Self> {
         let manager = html.manager.clone();
         let captured = html.captured_input()?.clone();
         captured.check_origin(&manager)?;
@@ -391,17 +379,13 @@ impl PreparedExecutionReport {
         let scratch =
             output_validation_memory(&outputs).saturating_add(captured.validation_memory());
         let _scratch = manager.prepare_production(allowance(scratch)?)?;
-        captured.validate_final()?;
-        validate_outputs(
-            &captured.execution.execution_id,
-            &captured.evidence_through,
-            &outputs,
-        )
-        .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
-        drop(_scratch);
-        let (context, report) = ReportFile::capture(&manager, &html)?;
+        captured.validate()?;
+        validate_outputs(&captured.execution_id, &captured.evidence_through, &outputs)
+            .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
+        let (context, materialized, report) = ReportFile::capture(&manager, &html)?;
         if outputs.iter().any(|output| {
             output.file.metadata.id == context.data.metadata.id
+                || output.file.metadata.id == materialized.data.metadata.id
                 || output.file.metadata.id == report.data.metadata.id
         }) {
             return Err(Error::InvalidReportInputs(
@@ -413,15 +397,63 @@ impl PreparedExecutionReport {
             captured,
             outputs,
             context,
+            materialized,
             report,
             sealed_at: None,
+        })
+    }
+
+    pub(crate) async fn publish_current(
+        &mut self,
+        revision: &ExecutionRevision,
+    ) -> Result<dokime::operations::reports::MaterializedReport> {
+        self.captured.validate()?;
+        tokio::try_join!(
+            self.context.write(&self.manager),
+            self.materialized.write(&self.manager),
+            self.report.write(&self.manager)
+        )?;
+        let context = self.context.finish(&self.manager).await?;
+        let materialized_input = self.materialized.finish(&self.manager).await?;
+        let report = self.report.finish(&self.manager).await?;
+        let last = [
+            &context.position,
+            &materialized_input.position,
+            &report.position,
+        ]
+        .into_iter()
+        .max_by_key(|cursor| cursor.sequence)
+        .unwrap();
+        let dependencies_saved = self.manager.flush_until(last).await?;
+        let mut publication = dokime::storage::reports::Prepared::new(
+            &self.manager,
+            &dokime::storage::reports::Input {
+                owner: dokime::storage::reports::Owner::Execution(&self.captured.execution_id),
+                generated_at: &self.captured.input.generated_at,
+                final_report: false,
+                evidence_through: &self.captured.evidence_through,
+                dependencies_saved: &dependencies_saved,
+                executions: std::slice::from_ref(revision),
+                inputs: std::slice::from_ref(&context),
+                file: &report,
+                cycle: None,
+                execution: None,
+                materialized_inputs: std::slice::from_ref(&materialized_input),
+            },
+        )?;
+        publication.finish().await?;
+        Ok(dokime::operations::reports::MaterializedReport {
+            report,
+            materialized_input: Some(materialized_input),
         })
     }
 
     pub async fn save_dependencies(
         &mut self,
         sealed_at: &Timestamp,
+        revision: &ExecutionRevision,
     ) -> Result<QueryValue<ExecutionSeal>> {
+        self.captured.validate_final()?;
         if self
             .sealed_at
             .as_ref()
@@ -443,7 +475,7 @@ impl PreparedExecutionReport {
         // Reserve Seal Copies And Validation Scratch Before File Receipts Arrive.
         let bytes = std::mem::size_of::<ExecutionSeal>()
             .saturating_add(self.captured.owner_node_id.memory_size())
-            .saturating_add(self.captured.execution.memory_size())
+            .saturating_add(revision.memory_size())
             .saturating_add(
                 self.captured
                     .evidence_through
@@ -452,24 +484,40 @@ impl PreparedExecutionReport {
             )
             .saturating_add(self.outputs.memory_size())
             .saturating_add(self.context.data.metadata.memory_size())
+            .saturating_add(self.materialized.data.metadata.memory_size())
             .saturating_add(self.report.data.metadata.memory_size())
-            .saturating_add(2 * std::mem::size_of::<FileReference>())
+            .saturating_add(3 * std::mem::size_of::<FileReference>())
             .saturating_add(sealed_at.memory_size())
             .saturating_add(output_validation_memory(&self.outputs));
         let production = self.manager.prepare_production(allowance(bytes)?)?;
         self.manager
             .flush_until(&self.captured.evidence_through)
             .await?;
-        // Stage Both Original Files Before Publishing Their Ordered References.
+        // Stage Frozen Context, Analytical Input And HTML Before Publication.
         tokio::try_join!(
             self.context.write(&self.manager),
+            self.materialized.write(&self.manager),
             self.report.write(&self.manager),
         )?;
         let context = self.context.finish(&self.manager).await?;
+        let materialized_input = self.materialized.finish(&self.manager).await?;
         let report = self.report.finish(&self.manager).await?;
-        self.manager.flush_until(&report.position).await?;
-        // Use the fixed report position, not a later unrelated saved frontier.
-        let dependencies_saved = report.position.clone();
+        let last = [
+            &context.position,
+            &materialized_input.position,
+            &report.position,
+        ]
+        .into_iter()
+        .max_by_key(|cursor| cursor.sequence)
+        .unwrap();
+        let dependencies_saved = self.manager.flush_until(last).await?;
+        for file in [&context, &materialized_input, &report] {
+            if !dependencies_saved.covers(&file.position)? {
+                return Err(Error::InvalidReportInputs(
+                    "report dependency is not durable".into(),
+                ));
+            }
+        }
         let mut outputs = Vec::new();
         outputs
             .try_reserve_exact(self.outputs.len())
@@ -484,11 +532,12 @@ impl PreparedExecutionReport {
             source: ExecutionSource {
                 owner_node_id: self.captured.owner_node_id.clone(),
                 evidence_through: self.captured.evidence_through.clone(),
-                execution: self.captured.execution.clone(),
+                execution: revision.clone(),
                 context,
                 outputs,
             },
             report,
+            materialized_input,
             dependencies_saved,
             sealed_at: (**self.sealed_at.as_ref().expect("retained seal time")).clone(),
         };
@@ -509,17 +558,20 @@ impl ReportFile {
         }
     }
 
-    fn context(manager: &Manager, captured: &SharedQueryValue<CapturedSource>) -> Result<Self> {
+    fn context(
+        manager: &Manager,
+        captured: &SharedQueryValue<CapturedSource>,
+        stem: &str,
+    ) -> Result<Self> {
         captured.check_origin(manager)?;
         let native_bytes = allowance(NativeSource::encoding_memory(captured)?)?;
         let native = captured.try_project(native_bytes, |value, _| {
             NativeSource::try_from(value).map_err(native_projection_error)
         })?;
-        let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
+        let maximum = NonZeroUsize::new(usize::MAX).expect("nonzero address-space limit");
         let length = native.encoded_length(maximum)?;
-        let execution_id = &captured.execution.execution_id;
-        let metadata_bytes = execution_id
-            .as_str()
+        let execution_id = &captured.execution_id;
+        let metadata_bytes = stem
             .len()
             .saturating_mul(2)
             .saturating_add(".context".len())
@@ -532,7 +584,7 @@ impl ReportFile {
                 (|| -> Result<_> {
                     let bytes = native.encode_counted(length)?;
                     let metadata = file_metadata(
-                        report_file_id(execution_id.as_str(), ".context")?,
+                        report_file_id(stem, ".context")?,
                         Identifier::new(execution_id.as_str())
                             .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
                         MEDIA_TYPE,
@@ -546,15 +598,49 @@ impl ReportFile {
         Ok(Self::new(data))
     }
 
-    fn capture(manager: &Manager, html: &HtmlReport) -> Result<(Self, Self)> {
+    fn materialized(
+        _manager: &Manager,
+        captured: &SharedQueryValue<CapturedExecutionReportInput>,
+        stem: &str,
+    ) -> Result<Self> {
+        let length = super::persisted::encoded_length(captured)?;
+        let bytes = std::mem::size_of::<ReportFileData>()
+            .saturating_add(length)
+            .saturating_add(stem.len().saturating_mul(2))
+            .saturating_add(1024);
+        let data = captured
+            .try_project(allowance(bytes)?, |captured, _| {
+                let bytes =
+                    super::persisted::encode(captured, length).map_err(native_projection_error)?;
+                let metadata = file_metadata(
+                    report_file_id(stem, ".materialized-input").map_err(native_projection_error)?,
+                    Identifier::new(captured.execution_id.as_str()).map_err(|_| {
+                        harmos::Error::InvalidInput {
+                            field: "report scope",
+                            reason: "invalid execution id",
+                        }
+                    })?,
+                    super::persisted::MEDIA_TYPE,
+                    &bytes,
+                )
+                .map_err(native_projection_error)?;
+                Ok(ReportFileData { metadata, bytes })
+            })?
+            .try_into_shared()?;
+        Ok(Self::new(data))
+    }
+
+    fn capture(manager: &Manager, html: &HtmlReport) -> Result<(Self, Self, Self)> {
         let captured = html.captured_input()?;
-        let context = Self::context(manager, html.captured_source()?)?;
-        let maximum = NonZeroUsize::new(MAX_CAPTURE_BYTES).expect("nonzero report limit");
+        let _identity_memory = manager.prepare_production(allowance(256)?)?;
+        let stem = format!("{}.{}", captured.execution_id, uuid::Uuid::new_v4());
+        let context = Self::context(manager, html.captured_source()?, &stem)?;
+        let materialized = Self::materialized(manager, captured, &stem)?;
+        let maximum = NonZeroUsize::new(usize::MAX).expect("nonzero address-space limit");
         let length = html.length(maximum)?;
-        let execution_id = &captured.execution.execution_id;
-        let suffix = ".final-report";
-        let metadata_bytes = execution_id
-            .as_str()
+        let execution_id = &captured.execution_id;
+        let suffix = ".report";
+        let metadata_bytes = stem
             .len()
             .saturating_mul(2)
             .saturating_add(suffix.len())
@@ -567,7 +653,7 @@ impl ReportFile {
                 (|| -> Result<_> {
                     let bytes = html.bytes(length)?;
                     let metadata = file_metadata(
-                        report_file_id(execution_id.as_str(), suffix)?,
+                        report_file_id(&stem, suffix)?,
                         Identifier::new(execution_id.as_str())
                             .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
                         "text/html",
@@ -578,7 +664,7 @@ impl ReportFile {
                 .map_err(native_projection_error)
             })?
             .try_into_shared()?;
-        Ok((context, Self::new(data)))
+        Ok((context, materialized, Self::new(data)))
     }
 
     async fn finish(&mut self, manager_reference: &Manager) -> Result<FileReference> {

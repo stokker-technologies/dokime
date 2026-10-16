@@ -248,7 +248,7 @@ pub(crate) async fn shared_sha_identity() {
     let retained = backend
         .read_retained_view(
             &backend.cursor_saved().await.unwrap(),
-            StorageSettings::default().query_execution,
+            crate::sqlite::storage::storage_settings().query_execution,
         )
         .await
         .unwrap();

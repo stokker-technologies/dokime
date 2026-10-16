@@ -42,7 +42,9 @@ pub use installation::{InstallPlugin, RemovePlugin};
 pub use invalidation::InvalidateExecutions;
 pub use labels::{LabelSubject, RenameLabel};
 pub use lifecycle::{
-    EstablishNodeIdentity, MarkRuntimeStarted, RecoverInterruptedCycles, StartShutdown,
+    CaptureReportLifecycle, CycleReportFinalization, EstablishNodeIdentity, MarkRuntimeStarted,
+    RecoverInterruptedCycles, ReportFinalization, ReportLifecycle, RequestCycleReportFinalization,
+    RequestReportFinalization, StartShutdown,
 };
 pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
@@ -83,6 +85,9 @@ use serde::{Deserialize, Serialize};
 #[harmos::transactions(state = crate::state::RuntimeState, error = String)]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Transactions {
+    RequestCycleReportFinalization(RequestCycleReportFinalization),
+    RequestReportFinalization(RequestReportFinalization),
+    CaptureReportLifecycle(CaptureReportLifecycle),
     InvalidateExecutions(InvalidateExecutions),
     #[serde(alias = "InstallArtifact")]
     InstallPlugin(InstallPlugin),

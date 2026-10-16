@@ -44,6 +44,14 @@ pub(crate) const OWNED_ADMISSION_LIMIT: u32 = 16;
 /* === Macros === */
 
 /* === Type Aliases === */
+#[cfg(test)]
+type BackendDecorator = Box<
+    dyn FnOnce(
+            harmos::storage::StorageBackends<dokime::storage::objects::Objects>,
+        ) -> harmos::storage::StorageBackends<dokime::storage::objects::Objects>
+        + Send,
+>;
+
 pub(crate) type InstalledPlugins = BTreeMap<String, InstalledPlugin>;
 
 /* === Structs === */
@@ -94,7 +102,7 @@ pub struct RuntimeHandle {
     pub(crate) unavailable_plugins: Arc<RwLock<std::collections::BTreeSet<String>>>,
     pub(crate) state: Arc<RwLock<Arc<RuntimeState>>>,
     pub(crate) state_watch: tokio::sync::watch::Sender<crate::queries::RuntimeStateSnapshot>,
-    action_dispatchers: Arc<RwLock<BTreeMap<Identifier, Arc<dyn ActionDispatcher>>>>,
+    pub(crate) action_dispatchers: Arc<RwLock<BTreeMap<Identifier, Arc<dyn ActionDispatcher>>>>,
     pub(crate) routing: Arc<std::sync::OnceLock<harmos::plugin::Router>>,
     config: Arc<RuntimeConfig>,
     settings: crate::config::Settings,
@@ -181,6 +189,32 @@ impl RuntimeHandle {
         providers: BTreeMap<String, Arc<dyn ExecutionFixture>>,
         install_builtins: bool,
     ) -> Result<(HarmosRuntime, Self)> {
+        #[cfg(test)]
+        {
+            Self::boot_inner(config, providers, install_builtins, None).await
+        }
+        #[cfg(not(test))]
+        {
+            Self::boot_inner(config, providers, install_builtins).await
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn boot_with_backends(
+        config: RuntimeConfig,
+        providers: BTreeMap<String, Arc<dyn ExecutionFixture>>,
+        install_builtins: bool,
+        decorate: BackendDecorator,
+    ) -> Result<(HarmosRuntime, Self)> {
+        Self::boot_inner(config, providers, install_builtins, Some(decorate)).await
+    }
+
+    async fn boot_inner(
+        config: RuntimeConfig,
+        providers: BTreeMap<String, Arc<dyn ExecutionFixture>>,
+        install_builtins: bool,
+        #[cfg(test)] decorate: Option<BackendDecorator>,
+    ) -> Result<(HarmosRuntime, Self)> {
         let boot_started = std::time::Instant::now();
         if config.save_interval.is_zero()
             || boot_started.checked_add(config.save_interval).is_none()
@@ -217,7 +251,7 @@ impl RuntimeHandle {
                 )));
             }
         }
-        config.storage_reads.validate()?;
+        config.storage.validate()?;
         dokime_filesystem::publication::create_dir_all(&config.storage_root)?;
         let backend_limits = dokime::storage::sqlite::Limits::default();
         let backend = Arc::new(
@@ -248,38 +282,45 @@ impl RuntimeHandle {
         let sampling = Sampling::default();
         let providers = ProviderExecutorRegistry::new(providers);
         dokime_filesystem::publication::create_dir_all(&config.storage_root)?;
-        let recovery =
-            Arc::new(backend.recovery(dokime::storage::sqlite::RecoveryLimits::default()));
-        let mut settings = harmos::storage::StorageSettings {
-            flush_interval: config.save_interval,
-            queue_capacity: std::num::NonZeroUsize::new(4096).unwrap(),
-            // Canonical Batch Framing Is Larger Than Native Object Payloads.
-            // The Backend Independently Enforces Its Per-Entry Payload Bound.
-            max_batch_bytes: backend_limits.batch_bytes,
-            ..Default::default()
-        };
-        config.storage_reads.apply(&mut settings);
+        let recovery = Arc::new(backend.state(dokime::storage::sqlite::StateLimits::default()));
+        let settings = config
+            .storage
+            .harmos(config.save_interval, backend_limits.batch_bytes);
         tracing::info!(
-            read_pool_bytes = settings.read_memory_bytes.get(),
+            read_pool_bytes = settings.budget.read_memory_bytes.get(),
             max_views = settings.max_views.get(),
             max_followers = settings.max_followers.get(),
             "storage read pool sized"
         );
-        let storage = dokime::storage::Manager::new(
-            harmos::storage::StorageBackends {
-                primary: backend.clone(),
-                recovery,
-                replicas: vec![],
-            },
-            settings,
-        )?;
+        let backends = harmos::storage::StorageBackends {
+            primary: backend.clone(),
+            state: recovery,
+            replicas: vec![],
+        };
+        #[cfg(test)]
+        let backends = match decorate {
+            Some(decorate) => decorate(backends),
+            None => backends,
+        };
+        let storage = dokime::storage::Manager::new(backends, settings)?;
         let record_source = Arc::new(crate::runtime::storage::record_capture::Source::new(
             state.process_epoch(),
             storage.clone(),
-            config.storage_reads.clone(),
+            config.storage.clone(),
         )?);
-        let harmos_runtime =
-            crate::runtime::storage::build(state, record_source.clone(), &storage).await;
+        let resources = crate::app::Resources::new(config.storage.clone());
+        *resources
+            .analysis
+            .dispatchers
+            .write()
+            .expect("analysis dispatcher registry is healthy") = config.action_dispatchers.clone();
+        let harmos_runtime = crate::runtime::storage::build(
+            state,
+            record_source.clone(),
+            &storage,
+            resources.clone(),
+        )
+        .await;
         let harmos_runtime = match harmos_runtime {
             Ok(runtime) => runtime,
             Err(mut source) => {
@@ -353,7 +394,7 @@ impl RuntimeHandle {
             let request_storage = crate::runtime::storage::requests::RequestStorage::new(
                 storage.clone(),
                 node_identity.node_id.clone(),
-                config.storage_reads.interactive.timeout,
+                config.storage.interactive.timeout,
             );
             request_storage
                 .recover(|id| {
@@ -421,10 +462,10 @@ impl RuntimeHandle {
                     OWNED_ADMISSION_LIMIT as usize,
                 )),
                 plugin_admission: Default::default(),
-                unavailable_plugins: Default::default(),
+                unavailable_plugins: resources.analysis.unavailable.clone(),
                 state: Arc::new(RwLock::new(Arc::new(initial_state))),
                 state_watch,
-                action_dispatchers: Arc::new(RwLock::new(config.action_dispatchers.clone())),
+                action_dispatchers: resources.analysis.dispatchers.clone(),
                 routing: Arc::new(std::sync::OnceLock::new()),
                 config: Arc::new(config.clone()),
                 settings: application_settings,
@@ -457,7 +498,11 @@ impl RuntimeHandle {
                     .await
                     .map_err(|error| Error::Operation(error.to_string()))?;
             }
+            let contracts = runtime.state_read().telemetry_contracts();
+            crate::runtime::storage::telemetry::register_schemas(runtime.storage(), &contracts)
+                .await?;
             crate::operations::runtime::register(&runtime)?;
+            crate::operations::reports::register(&runtime)?;
             Ok::<_, Error>(runtime)
         }
         .await;

@@ -38,6 +38,12 @@ use dokime_app::{InstalledPlugin, Runtime};
 /* === Type Aliases === */
 
 /* === Structs === */
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+struct GatewayRow {
+    rssi: f64,
+}
+
 #[derive(Default)]
 struct RecordingSidecar {
     calls: Mutex<Vec<(String, Vec<u8>)>>,
@@ -89,6 +95,12 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
             dokime::core::Value::from(1.0),
         );
 
+        let host_stream = dokime_host::HostTelemetryStream::try_from(stream)
+            .map_err(|error| error.to_string())?;
+        sample.storage_payload = Some(
+            dokime_contract::telemetry::host_telemetry_payload(host_stream, &sample.values)
+                .map_err(|error| error.to_string())?,
+        );
         Ok(Some(TelemetryBatch::new(identifier, vec![sample])))
     }
 }
@@ -227,6 +239,7 @@ fn gateway_artifact() -> InstalledPlugin {
         enabled: true,
         telemetry_contracts: vec![
             TelemetryContract::declared("gateway.rssi", "Gateway signal")
+                .typed::<GatewayRow>()
                 .column(TelemetryColumn::declared(
                     "rssi",
                     "RSSI",
@@ -273,7 +286,10 @@ fn gateway_batch(rssi: f64) -> TelemetryBatch {
     let mut sample = TelemetrySample::new(foreign_stream(), 0, Timestamp::now_utc(), "gateway");
     sample.values.insert("rssi".to_owned(), Value::from(rssi));
 
-    TelemetryBatch::new(foreign_stream(), vec![sample])
+    TelemetryBatch::new(
+        foreign_stream(),
+        vec![sample.with_storage_payload(harmos::Message::encode_to_vec(&GatewayRow { rssi }))],
+    )
 }
 
 async fn admitted_execution(handle: &RuntimeHandle, index: usize) -> TestExecutionId {

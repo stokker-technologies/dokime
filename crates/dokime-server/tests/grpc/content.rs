@@ -1356,7 +1356,7 @@ pub(crate) async fn large_artifact_buffering() {
         common::metadata("grpc.content.bundle", "Content"),
     );
     // Streaming 300 MiB Moves More Than One Story's Share Of Reads.
-    crate::common::budgets::whole_read_budget(&mut config.storage_reads);
+    crate::common::budgets::whole_read_budget(&mut config.storage);
     let mut owner = Runtime::with_execution_fixture(config, "fixture", Arc::new(LargeArtifact))
         .await
         .unwrap();

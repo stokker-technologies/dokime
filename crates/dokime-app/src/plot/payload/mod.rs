@@ -11,13 +11,12 @@
 mod analyses;
 pub(crate) mod builtins;
 mod cartesian;
-pub(crate) mod streamed;
 mod types;
 
 /* === Re-Exports === */
 pub use analyses::{
     BoxSummary, HistogramBin, HistogramSeries, HistogramStatistics, PlotAnalysis, SigmaBin,
-    SigmaSeries,
+    SigmaSeries, WifiBandScan, WifiBandWindow, WifiChannelCount, WifiScan,
 };
 pub use types::{
     DownsampleTechnique, PlotCartesianFrame, PlotCartesianMode, PlotCartesianSeriesFrame,
@@ -330,22 +329,41 @@ pub(crate) fn project_plot_payload(
     }
 }
 
-/// Whether a plot of this request carries series summaries.
-pub(crate) fn summarizes(request: &PlotPayloadRequest) -> bool {
-    analyses::summarizes(request)
+/// Whether an append frame of this request also reads its whole window: for
+/// its series summaries or its cartesian domains and point count.
+pub(crate) fn reads_window(request: &PlotPayloadRequest) -> bool {
+    request.analysis.is_none()
+        && (analyses::summarizes(request)
+            || request
+                .plot_type
+                .as_ref()
+                .is_some_and(cartesian::draws_cartesian))
 }
 
-/// The series summaries of `request` over every row of its window, for a
-/// frame whose own series hold only part of it.
-pub(crate) fn window_summaries(
+/// Completes an append frame, whose series hold only the rows after its
+/// cursor, with what its whole window answers: the series summaries, and the
+/// cartesian domains and point count a snapshot of that window carries.
+pub(crate) fn complete_window(
+    payload: &mut PlotPayload,
     telemetry: &[TelemetrySample],
     records: &[RecordEntry],
     request: &PlotPayloadRequest,
     generated_at: &str,
     format_context: &PlotPayloadContext,
-) -> Vec<PlotSeriesSummary> {
-    let payload = project_plot_payload(telemetry, records, request, generated_at, format_context);
-    analyses::summarize(&payload.series, request)
+) {
+    let window = build_plot_payload(
+        telemetry,
+        records,
+        request.clone(),
+        generated_at,
+        format_context,
+    );
+    payload.summaries = window.summaries;
+    if let (Some(frame), Some(window)) = (payload.cartesian.as_mut(), window.cartesian) {
+        frame.x_domain = window.x_domain;
+        frame.y_domain = window.y_domain;
+        frame.point_count = window.point_count;
+    }
 }
 
 pub(crate) fn finish_plot_payload(

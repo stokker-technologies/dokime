@@ -122,7 +122,7 @@ impl RuntimeHandle {
         &self,
         id: &TestExecutionId,
     ) -> Result<bool, Error> {
-        let reads = self.config().storage_reads.interactive;
+        let reads = self.config().storage.interactive;
         let view = self.storage().view_with_limits(reads).await?;
         let limit = view.decoded_bytes()?;
         Ok(ExecutionView::open(

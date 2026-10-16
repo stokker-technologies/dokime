@@ -243,3 +243,45 @@ def test_harmos_branch(tmp_path: Path) -> None:
 )
 def test_bootstrap_contract(contract: type[unittest.TestCase]) -> None:
     contract("case_contract").debug()
+
+
+def test_local_harmos_tool_identity(tmp_path: Path, monkeypatch) -> None:
+    for name in ("CI", "GITHUB_ACTIONS", "DOKIME_CI_ROLE", "GITHUB_PATH"):
+        monkeypatch.delenv(name, raising=False)
+    checkout = tmp_path / "harmos"
+    for package in ("harmos", "cargo-harmos"):
+        directory = checkout / "crates" / package
+        directory.mkdir(parents=True)
+        (directory / "Cargo.toml").write_text(f'[package]\nname = "{package}"\n')
+    config = tmp_path / "local.toml"
+    config.write_text(
+        f'[patch."{bootstrap.HARMOS_REPOSITORY}"]\n'
+        f'harmos = {{ path = "{(checkout / "crates/harmos").as_posix()}" }}\n'
+    )
+    source = ["first-source"]
+    monkeypatch.setattr(bootstrap, "_override_source", lambda path: source[0])
+    monkeypatch.setattr(
+        bootstrap.subprocess, "check_output", lambda *args, **kwargs: "toolchain"
+    )
+    calls = []
+
+    def install(command):
+        calls.append(command)
+        destination = Path(command[command.index("--root") + 1]) / "bin"
+        destination.mkdir()
+        name = "cargo-harmos.exe" if bootstrap.os.name == "nt" else "cargo-harmos"
+        (destination / name).write_bytes(b"local tool")
+
+    monkeypatch.setattr(bootstrap, "_run", install)
+    bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=config)
+    assert "--path" in calls[0]
+    assert "--git" not in calls[0]
+    bootstrap.prepare_harmos(tmp_path, allow_install=False, cargo_config=config)
+    assert len(calls) == 1
+    source[0] = "changed-source"
+    with pytest.raises(ValueError, match="consumers never rebuild"):
+        bootstrap.prepare_harmos(tmp_path, allow_install=False, cargo_config=config)
+    monkeypatch.setenv("CI", "true")
+    with pytest.raises(ValueError, match="CI refuses local"):
+        bootstrap.prepare_harmos(tmp_path, allow_install=True, cargo_config=config)
+    assert len(calls) == 1

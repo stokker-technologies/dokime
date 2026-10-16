@@ -17,10 +17,10 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::{recovery::*, *};
+use harmos::storage::{state::*, *};
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, RecoveryLimits, State};
+use dokime::storage::sqlite::{Backend, Limits, State, StateLimits};
 
 /* === Constants === */
 
@@ -51,14 +51,18 @@ pub(crate) async fn primary_close_until() {
     let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
         .await
         .unwrap();
-    let recovery = backend.recovery(RecoveryLimits::default());
-    RecoveryBackend::open(&recovery).await.unwrap();
+    let recovery = backend.state(StateLimits::default());
+    StateBackend::open(&recovery).await.unwrap();
     let at = RecoveryPosition {
         history: backend.history().clone(),
         sequence: 1,
     };
     recovery
         .write_entries(&[RecoveryEntry {
+            required_data: StorageCursor {
+                history: backend.history().clone(),
+                sequence: 0,
+            },
             position: at.clone(),
             payload: vec![7],
         }])
@@ -68,13 +72,13 @@ pub(crate) async fn primary_close_until() {
     assert!(backend.cursor_saved().await.is_err());
     assert_eq!(recovery.flush(&at).await.unwrap(), at);
     assert!(State::open(root.path()).await.is_err());
-    RecoveryBackend::close(&recovery).await.unwrap();
+    StateBackend::close(&recovery).await.unwrap();
     let owner = State::open(root.path()).await.unwrap();
     owner.close().await.unwrap();
     backend.open().await.unwrap();
-    assert_eq!(RecoveryBackend::open(&recovery).await.unwrap(), at);
+    assert_eq!(StateBackend::open(&recovery).await.unwrap(), at);
     StorageBackend::close(&backend).await.unwrap();
-    RecoveryBackend::close(&recovery).await.unwrap();
+    StateBackend::close(&recovery).await.unwrap();
 }
 
 pub(crate) async fn snapshot_tail_frontier() {
@@ -82,8 +86,8 @@ pub(crate) async fn snapshot_tail_frontier() {
     let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
         .await
         .unwrap();
-    let recovery = backend.recovery(RecoveryLimits::default());
-    RecoveryBackend::open(&recovery).await.unwrap();
+    let recovery = backend.state(StateLimits::default());
+    StateBackend::open(&recovery).await.unwrap();
     let history = backend.history().clone();
     let at = |sequence| RecoveryPosition {
         history: history.clone(),
@@ -91,6 +95,10 @@ pub(crate) async fn snapshot_tail_frontier() {
     };
     let entries = (1..=3)
         .map(|sequence| RecoveryEntry {
+            required_data: StorageCursor {
+                history: backend.history().clone(),
+                sequence: 0,
+            },
             position: at(sequence),
             payload: vec![sequence as u8],
         })
@@ -98,6 +106,10 @@ pub(crate) async fn snapshot_tail_frontier() {
     recovery.write_entries(&entries).await.unwrap();
     recovery.write_entries(&entries).await.unwrap();
     let snapshot = RecoverySnapshot {
+        required_data: StorageCursor {
+            history: history.clone(),
+            sequence: 0,
+        },
         through: at(2),
         payload: b"snapshot".to_vec(),
     };
@@ -114,14 +126,14 @@ pub(crate) async fn snapshot_tail_frontier() {
     assert_eq!(tail.entries, entries[2..]);
     assert!(tail.next.is_none());
     StorageBackend::close(&backend).await.unwrap();
-    RecoveryBackend::close(&recovery).await.unwrap();
+    StateBackend::close(&recovery).await.unwrap();
     backend.open().await.unwrap();
-    assert_eq!(RecoveryBackend::open(&recovery).await.unwrap().sequence, 3);
+    assert_eq!(StateBackend::open(&recovery).await.unwrap().sequence, 3);
     assert_eq!(
         recovery.read_snapshot(bound(4096)).await.unwrap(),
         Some(snapshot)
     );
     assert_eq!(backend.cursor_saved().await.unwrap().sequence, 0);
     StorageBackend::close(&backend).await.unwrap();
-    RecoveryBackend::close(&recovery).await.unwrap();
+    StateBackend::close(&recovery).await.unwrap();
 }

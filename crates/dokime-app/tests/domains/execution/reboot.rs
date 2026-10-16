@@ -202,7 +202,7 @@ async fn run_telemetry_kill_child(published: usize) {
             sample
                 .values
                 .insert("target_locked".to_owned(), Value::Bool(true));
-            sample
+            crate::support::contracts::typed_minimal_tracking_sample(sample)
         })
         .collect();
     handle
@@ -322,7 +322,7 @@ fn unscoped_tracking_batch(count: u64) -> TelemetryBatch {
             sample
                 .values
                 .insert("target_locked".to_owned(), Value::Bool(true));
-            sample
+            crate::support::contracts::typed_minimal_tracking_sample(sample)
         })
         .collect();
     TelemetryBatch::new(stream, samples)

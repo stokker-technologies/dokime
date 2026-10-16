@@ -25,7 +25,7 @@ use harmos::{Application, DefinitionId, Identified, Runtime, state::Never, stora
 // Local Imports
 use super::storage::write_batch;
 use super::storage::{history, id, limits, position, view};
-use dokime::storage::sqlite::{Backend as NativeBackend, Limits as NativeLimits, RecoveryLimits};
+use dokime::storage::sqlite::{Backend as NativeBackend, Limits as NativeLimits, StateLimits};
 
 /* === Constants === */
 
@@ -422,11 +422,11 @@ pub(crate) async fn manager_replicates_collections() {
         .await
         .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(primary.state(StateLimits::default()));
     let storage = StorageManager::new(
         StorageBackends {
             primary,
-            recovery,
+            state: recovery,
             replicas: vec![ReplicaTarget {
                 id: id("secondary"),
                 backend: replica.clone(),
@@ -435,7 +435,7 @@ pub(crate) async fn manager_replicates_collections() {
         StorageSettings {
             flush_interval: Duration::from_secs(60),
             replication_shutdown: Duration::from_secs(5),
-            ..StorageSettings::default()
+            ..crate::sqlite::storage::storage_settings()
         },
     )
     .unwrap();

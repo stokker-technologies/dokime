@@ -23,7 +23,7 @@ use std::path::PathBuf;
 // Local Imports
 use dokime::core::Metadata;
 use dokime_app::RuntimeConfig;
-use dokime_app::config::StorageReadSettings;
+use dokime_app::config::StorageSettings;
 use harmos::storage::StorageProductionPreparation;
 
 /* === Constants === */
@@ -50,14 +50,14 @@ pub const STORY_READ_MEMORY: NonZeroUsize = NonZeroUsize::new(512 * 1024 * 1024)
 /// A runtime configuration whose read budgets fit one story on a loaded machine.
 pub fn runtime_config(root: impl Into<PathBuf>, hub_metadata: Metadata) -> RuntimeConfig {
     let mut config = RuntimeConfig::new(root, hub_metadata);
-    story_reads(&mut config.storage_reads);
+    story_reads(&mut config.storage);
     config
 }
 
 /// The read settings every story runtime gets; views a story opens directly
 /// must carry the same execution limits as the runtime they read.
-pub fn story_settings() -> StorageReadSettings {
-    let mut reads = StorageReadSettings::default();
+pub fn story_settings() -> StorageSettings {
+    let mut reads = StorageSettings::default();
     story_reads(&mut reads);
     reads
 }
@@ -65,18 +65,27 @@ pub fn story_settings() -> StorageReadSettings {
 /// Sizes reads for one story: a ledger for its overlapping views, and the
 /// admissible ceiling as its time budget so no read outcome depends on how
 /// loaded the machine is. Stories that assert a deadline set their own after.
-pub fn story_reads(reads: &mut StorageReadSettings) {
-    reads.memory_bytes = STORY_READ_MEMORY;
+pub fn story_reads(reads: &mut StorageSettings) {
+    reads.budget.read_memory_bytes = STORY_READ_MEMORY;
+    reads.interactive.memory_bytes = reads.interactive.memory_bytes.min(STORY_READ_MEMORY);
+    reads.ceiling.memory_bytes = reads.ceiling.memory_bytes.min(STORY_READ_MEMORY);
+    reads.decoded_bytes = reads.decoded_bytes.min(STORY_READ_MEMORY);
+    reads.decoded_bytes_ceiling = reads.decoded_bytes_ceiling.min(STORY_READ_MEMORY);
+    reads.page_bytes_ceiling = reads.page_bytes_ceiling.min(STORY_READ_MEMORY);
+    let scan = NonZeroUsize::new(
+        (STORY_READ_MEMORY.get() / reads.request.max_active_queries.get() / 32).max(1),
+    )
+    .unwrap();
+    reads.page_bytes = reads.page_bytes.min(scan);
     reads.interactive.timeout = reads.ceiling.timeout;
-    reads.report.timeout = reads.ceiling.timeout;
 }
 
 /// The shipped ledger for a story that proves a transfer or a report stays
 /// inside the shipped budgets while moving more bytes than they hold, keeping
 /// the load-independent time budget. Such a story really allocates what it
 /// reserves, so nextest runs it in the `whole-read-budget` group, one at a time.
-pub fn whole_read_budget(reads: &mut StorageReadSettings) {
-    reads.memory_bytes = StorageReadSettings::default().memory_bytes;
+pub fn whole_read_budget(reads: &mut StorageSettings) {
+    reads.budget.read_memory_bytes = StorageSettings::default().budget.read_memory_bytes;
 }
 
 /// Holds the storage read ledger until only `headroom` bytes remain free,

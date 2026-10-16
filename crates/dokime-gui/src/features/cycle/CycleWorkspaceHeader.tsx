@@ -85,7 +85,7 @@ export type CycleMenu = {
   followActive: boolean;
   onAddCases: () => void;
   onCopyCycle: () => void;
-  /** Opens the report the cycle has now: current, sealed or regenerated. */
+  /** Opens the report the cycle has now: current or sealed. */
   onOpenReport: () => void;
   onRuntimePolicy: () => void;
   onToggleFollowActive: () => void;
@@ -96,7 +96,7 @@ export type ExecutionMenu = {
   kind: "execution";
   /** `null` for a case that has not run, which has no execution to archive. */
   archive: ArchiveAction | null;
-  /** Opens the report the execution has now: current, sealed or regenerated;
+  /** Opens the report the execution has now: current or sealed;
    *  `null` for a case that has not run, which has no report of its own. */
   onOpenReport: (() => void) | null;
   /** Re-Run the execution's case; `null` while the attempt has not ended. */

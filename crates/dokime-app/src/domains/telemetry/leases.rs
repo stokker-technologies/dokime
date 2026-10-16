@@ -519,13 +519,31 @@ impl RuntimeHandle {
         }
     }
 
-    pub(crate) async fn forward_leased_rows(&self, delivery: LeasedRows) {
+    pub(crate) async fn forward_leased_rows(
+        &self,
+        delivery: LeasedRows,
+        accepted: &[(
+            Option<dokime::core::TestExecutionId>,
+            dokime::core::TelemetrySampleId,
+        )],
+    ) {
         for (stream, holders) in delivery.holders {
             for holder in holders {
+                if let Some(id) = holder.scope.test_execution_id.as_ref()
+                    && self.sampling().measurement_closed(id.as_str()).await
+                {
+                    continue;
+                }
                 let samples = delivery
                     .samples
                     .iter()
                     .filter(|sample| sample.stream == stream)
+                    .filter(|sample| {
+                        accepted.iter().any(|(execution, id)| {
+                            id == &sample.sample_id
+                                && execution.as_ref() == holder.scope.test_execution_id.as_ref()
+                        })
+                    })
                     .filter(|sample| {
                         super::streams::lease_accepts_sample(sample.scope.as_ref(), &holder.scope)
                     })

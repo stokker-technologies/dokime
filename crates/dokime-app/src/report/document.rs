@@ -46,12 +46,6 @@ pub(crate) fn document_warnings(input: &CycleReportInput) -> impl Iterator<Item 
         )
         .flat_map(|document| document.warnings.iter())
         .map(|warning| (warning.code.as_str(), warning.message.as_str()))
-        .chain(
-            input
-                .omissions
-                .iter()
-                .map(|omission| ("report.omitted", omission.as_str())),
-        )
 }
 
 /* === Private Functions === */

@@ -34,6 +34,7 @@ pub enum Publication {
     Row {
         stream: Identifier,
         values: BTreeMap<String, Value>,
+        payload: Vec<u8>,
     },
     Record(Box<RecordPublishRequest>),
 }

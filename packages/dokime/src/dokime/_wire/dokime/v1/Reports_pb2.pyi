@@ -1,5 +1,6 @@
 from dokime._wire.dokime.v1.ReportsMessages.DownloadCycleReport import messages_pb2 as _messages_pb2
 from dokime._wire.dokime.v1.ReportsMessages.DownloadExecutionReport import messages_pb2 as _messages_pb2_1
+from dokime._wire.dokime.v1.ReportsMessages.MaterializeReport import messages_pb2 as _messages_pb2_1_1
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Mapping as _Mapping

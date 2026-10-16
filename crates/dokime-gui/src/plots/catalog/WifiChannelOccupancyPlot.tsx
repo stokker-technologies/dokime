@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Slider } from "@/components/ui/slider";
 
+import type { PlotAnalysis, WifiOccupancyScan } from "@/lib/types";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Types === */
@@ -24,21 +25,12 @@ type ChannelBand = {
   channels: number[];
 };
 
-type OccupancyReading = {
-  channel: number;
-  timeKey: string;
-  timeValue: unknown;
-  count: number;
-};
+type OccupancyAnalysis = Extract<PlotAnalysis, { kind: "wifi_occupancy" }>;
 
-type OccupancyScan = {
-  key: string;
-  timeValue: unknown;
+/** A backend scan with its display label and a channel lookup. */
+type OccupancyScan = WifiOccupancyScan & {
   label: string;
   counts: Map<number, number>;
-  occupiedChannels: number;
-  peakCount: number;
-  totalNetworks: number;
 };
 
 /* === Constants === */
@@ -53,7 +45,7 @@ const SIX_GHZ_CHANNELS = Array.from({ length: 59 }, (_, index) => 1_001 + index 
 /* === Components === */
 
 export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
-  const readings = useMemo(() => occupancyReadings(plot), [plot]);
+  const analysis = plot.analysis?.kind === "wifi_occupancy" ? plot.analysis : null;
   const activeChannel = finiteNumber(
     plot.context?.active_wifi_channel ?? plot.context?.activeWifiChannel,
   );
@@ -61,8 +53,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
     plot.context?.active_wifi_band ?? plot.context?.activeWifiBand,
     activeChannel,
   );
-  const sampleKeys = useMemo(() => sampleTimeKeys(readings), [readings]);
-  const scans = useMemo(() => occupancyScans(readings, sampleKeys), [readings, sampleKeys]);
+  const scans = useMemo(() => occupancyScans(analysis), [analysis]);
   const latestIndex = Math.max(0, scans.length - 1);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [followLatest, setFollowLatest] = useState(true);
@@ -72,12 +63,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
   }, [followLatest, latestIndex]);
 
   const selectedScan = scans[selectedIndex] ?? null;
-  const reportedChannels = [...new Set(readings.map((reading) => reading.channel))].sort(
-    (left, right) => left - right,
-  );
-  const occupiedWindowChannels = [
-    ...new Set(readings.filter((reading) => reading.count > 0).map((reading) => reading.channel)),
-  ].sort((left, right) => left - right);
+  const reportedChannels = analysis?.channels ?? [];
   const bands = channelBands(activeChannel, reportedChannels);
   const onlyActiveChannelReported =
     activeChannel !== null &&
@@ -90,7 +76,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
         : `Active ${activeBand}`
       : `Active ${activeBand ?? channelBandLabel(activeChannel) ?? "WiFi"} Ch ${channelDisplay(activeChannel)}`;
   const summaryLabel = selectedScan
-    ? `${scans.length} scans in window, selected ${selectedScan.label}, ${selectedScan.occupiedChannels} occupied channels, ${selectedScan.totalNetworks} networks`
+    ? `${scans.length} scans in window, selected ${selectedScan.label}, ${selectedScan.occupied_channels} occupied channels, ${selectedScan.total_networks} networks`
     : (plot.stateDetail ?? "No nearby WiFi channel occupancy samples are available.");
 
   return (
@@ -120,7 +106,9 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
             activeBand={activeBand}
             activeChannel={activeChannel}
             band={band}
-            observedChannels={occupiedWindowChannels}
+            observedChannels={
+              analysis?.bands.find((entry) => entry.band === band.label)?.occupied_channels ?? 0
+            }
             key={band.label}
             scan={selectedScan}
           />
@@ -147,7 +135,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
           }}
         />
       ) : null}
-      {!readings.length ? (
+      {!scans.length ? (
         <p className="text-xs text-muted-foreground">
           {plot.stateDetail ?? "No nearby WiFi channel occupancy samples are available."}
         </p>
@@ -168,18 +156,15 @@ function BandHeatmap({
   activeBand: string | null;
   activeChannel: number | null;
   band: ChannelBand;
-  observedChannels: number[];
+  observedChannels: number;
   scan: OccupancyScan | null;
 }) {
   const isActiveBand = activeBand === band.label;
   const columns = `4.75rem repeat(${band.channels.length}, minmax(1.45rem, 1fr))`;
-  const bandObservedChannels = observedChannels.filter((channel) =>
-    band.channels.includes(channel),
-  ).length;
-  const bandCounts = band.channels.map((channel) => scan?.counts.get(channel) ?? 0);
-  const occupiedChannels = bandCounts.filter((count) => count > 0).length;
-  const totalNetworks = bandCounts.reduce((total, count) => total + count, 0);
-  const peakCount = Math.max(0, ...bandCounts);
+  const bandScan = scan?.bands.find((entry) => entry.band === band.label);
+  const occupiedChannels = bandScan?.occupied_channels ?? 0;
+  const totalNetworks = bandScan?.total_networks ?? 0;
+  const peakCount = bandScan?.peak_count ?? 0;
 
   return (
     <section
@@ -191,9 +176,7 @@ function BandHeatmap({
         <strong className="text-sm">{band.label}</strong>
         <span className="text-right text-xs text-muted-foreground">
           {occupiedChannels}/{band.channels.length} occupied now · {totalNetworks} networks
-          {bandObservedChannels !== occupiedChannels
-            ? ` · ${bandObservedChannels} seen in window`
-            : ""}
+          {observedChannels !== occupiedChannels ? ` · ${observedChannels} seen in window` : ""}
         </span>
       </div>
       <div className="overflow-x-auto pb-1">
@@ -315,12 +298,12 @@ function ScanSlider({
           {followLatest ? "Latest Scan" : "Selected Scan"} {clampedSelectedIndex + 1}/{scans.length}
         </span>
         <span className="tabular-nums">
-          {scan ? `${scan.label} · ${scan.totalNetworks} networks` : "No scan"}
+          {scan ? `${scan.label} · ${scan.total_networks} networks` : "No scan"}
         </span>
       </div>
       <Slider
         aria-label="WiFi occupancy scan"
-        aria-valuetext={scan ? `${scan.label}, ${scan.totalNetworks} networks` : "No scan"}
+        aria-valuetext={scan ? `${scan.label}, ${scan.total_networks} networks` : "No scan"}
         max={latestIndex}
         min={0}
         step={1}
@@ -355,68 +338,12 @@ function ScanSlider({
 
 /* === Private Functions === */
 
-function occupancyReadings(plot: PlotCardSpec): OccupancyReading[] {
-  return plot.series.flatMap((series) => {
-    const channel = channelFromSeries(series.label, series.key);
-    if (channel === null) {
-      return [];
-    }
-    return series.points
-      .map((point) => ({
-        channel,
-        timeKey: scanKey(point.x),
-        timeValue: point.x,
-        count: Math.max(0, Math.round(Number(point.y ?? 0))),
-      }))
-      .filter((reading) => Number.isFinite(reading.count));
-  });
-}
-
-function sampleTimeKeys(readings: OccupancyReading[]): string[] {
-  const rows = new Map<string, unknown>();
-  readings.forEach((reading) => {
-    rows.set(reading.timeKey, reading.timeValue);
-  });
-  return [...rows.entries()]
-    .sort((left, right) => comparableTime(left[1]) - comparableTime(right[1]))
-    .map(([key]) => key);
-}
-
-function occupancyScans(readings: OccupancyReading[], sampleKeys: string[]): OccupancyScan[] {
-  const timeValues = new Map<string, unknown>();
-  const countsByTime = new Map<string, Map<number, number>>();
-  readings.forEach((reading) => {
-    timeValues.set(reading.timeKey, reading.timeValue);
-    let counts = countsByTime.get(reading.timeKey);
-    if (!counts) {
-      counts = new Map();
-      countsByTime.set(reading.timeKey, counts);
-    }
-    counts.set(reading.channel, Math.max(counts.get(reading.channel) ?? 0, reading.count));
-  });
-
-  return sampleKeys.map((key) => {
-    const counts = countsByTime.get(key) ?? new Map<number, number>();
-    const values = [...counts.values()];
-    const occupiedChannels = values.filter((count) => count > 0).length;
-    const totalNetworks = values.reduce((total, count) => total + count, 0);
-    const timeValue = timeValues.get(key);
-
-    return {
-      key,
-      timeValue,
-      label: scanTimeLabel(timeValue),
-      counts,
-      occupiedChannels,
-      peakCount: Math.max(0, ...values),
-      totalNetworks,
-    };
-  });
-}
-
-function channelFromSeries(label: string, key: string): number | null {
-  const keyParts = key.split(":");
-  return finiteNumber(label) ?? finiteNumber(keyParts[keyParts.length - 1]);
+function occupancyScans(analysis: OccupancyAnalysis | null): OccupancyScan[] {
+  return (analysis?.scans ?? []).map((scan) => ({
+    ...scan,
+    label: scanTimeLabel(scan.time),
+    counts: new Map(scan.channels.map((entry) => [entry.channel, entry.count])),
+  }));
 }
 
 function channelBands(activeChannel: number | null, observedChannels: number[]): ChannelBand[] {
@@ -500,46 +427,16 @@ function finiteNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
-function comparableTime(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
+function scanTimeLabel(value: string): string {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
     return value;
   }
-  if (typeof value === "string") {
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : Number(value) || 0;
-  }
-  return 0;
-}
-
-function scanKey(value: unknown): string {
-  if (typeof value === "string") {
-    const parsed = Date.parse(value);
-    if (Number.isFinite(parsed)) {
-      return `time:${Math.floor(parsed / 1000)}`;
-    }
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return `index:${value}`;
-  }
-  return String(value);
-}
-
-function scanTimeLabel(value: unknown): string {
-  if (typeof value === "string") {
-    const parsed = Date.parse(value);
-    if (Number.isFinite(parsed)) {
-      return new Date(parsed).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-    }
-    return value;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2);
-  }
-  return "Unknown time";
+  return new Date(parsed).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function occupancyLabel(band: string, channel: number, count: number): string {

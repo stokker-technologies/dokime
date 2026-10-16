@@ -113,7 +113,7 @@ impl RuntimeHandle {
             execution,
             None,
             QueryOptions::default(),
-            self.config().storage_reads.decoded_bytes,
+            self.config().storage.decoded_bytes,
         )
         .await?
         {

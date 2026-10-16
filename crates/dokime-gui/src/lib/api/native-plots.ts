@@ -856,8 +856,40 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
             lower: bin.lower,
             upper: bin.upper,
           })),
+          raw_points: safeNumber(series.rawPoints, "interval raw_points"),
         })),
       };
+    case "WifiOccupancy": {
+      const occupancy = result.value.field0;
+      if (!occupancy) throw new Error("Native plot analysis is missing its result.");
+      return {
+        kind: "wifi_occupancy",
+        channels: occupancy.channels.map((channel) => safeNumber(channel, "wifi channel")),
+        occupied_channels: occupancy.occupiedChannels.map((channel) =>
+          safeNumber(channel, "wifi occupied channel"),
+        ),
+        bands: occupancy.bands.map((band) => ({
+          band: band.band,
+          occupied_channels: safeNumber(band.occupiedChannels, "wifi band occupied channels"),
+        })),
+        scans: occupancy.scans.map((scan) => ({
+          time: scan.time,
+          channels: scan.channels.map((entry) => ({
+            channel: safeNumber(entry.channel, "wifi scan channel"),
+            count: safeNumber(entry.count, "wifi scan count"),
+          })),
+          bands: scan.bands.map((band) => ({
+            band: band.band,
+            occupied_channels: safeNumber(band.occupiedChannels, "wifi scan band occupied"),
+            total_networks: safeNumber(band.totalNetworks, "wifi scan band networks"),
+            peak_count: safeNumber(band.peakCount, "wifi scan band peak"),
+          })),
+          occupied_channels: safeNumber(scan.occupiedChannels, "wifi scan occupied channels"),
+          total_networks: safeNumber(scan.totalNetworks, "wifi scan networks"),
+          peak_count: safeNumber(scan.peakCount, "wifi scan peak"),
+        })),
+      };
+    }
   }
 }
 

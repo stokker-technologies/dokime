@@ -74,7 +74,7 @@ pub(crate) async fn execution_save_sealing() {
     handle.storage().flush().await.unwrap();
     let view = handle
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().ceiling)
         .await
         .unwrap();
     let running = dokime::storage::objects::execution::read_in(
@@ -203,7 +203,7 @@ pub(crate) async fn execution_save_sealing() {
     );
     let view = handle
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().ceiling)
         .await
         .unwrap();
     let saved_cycle = dokime::storage::objects::cycle::read_in(

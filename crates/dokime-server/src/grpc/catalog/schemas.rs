@@ -15,6 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
+use harmos::MemorySize;
 use tonic::Status;
 // Local Imports
 use super::super::value::canonical;
@@ -130,6 +131,7 @@ pub(crate) fn telemetry(contract: &TelemetryContract) -> Result<wire::TelemetryS
         })
     }))?;
     Ok(wire::TelemetrySchema {
+        storage_schema: contract.storage_schema.clone(),
         stream: contract.stream.as_str().to_owned(),
         schema_version: contract.schema_version,
         metadata: Some(metadata(&contract.metadata)?),
@@ -199,6 +201,11 @@ pub(crate) fn record_memory(source: &RecordContract) -> Result<usize, Status> {
 }
 
 pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Status> {
+    if let Some(graph) = &source.storage_schema {
+        graph
+            .preparation(&harmos::config::SchemaSettings::default())
+            .map_err(|error| Status::resource_exhausted(error.to_string()))?;
+    }
     value::collection(source.columns.len())?;
     value::text(source.stream.as_str())?;
     if let Some(id) = &source.template_id {
@@ -208,6 +215,7 @@ pub(crate) fn telemetry_memory(source: &TelemetryContract) -> Result<usize, Stat
         value::text(x)?;
     }
     let mut bytes = std::mem::size_of::<wire::TelemetrySchema>()
+        .saturating_add(source.storage_schema.memory_size())
         .saturating_add(source.stream.as_str().len())
         .saturating_add(metadata_heap(&source.metadata)?)
         .saturating_add(

@@ -60,12 +60,7 @@ const SPECTRUM_ROWS: u32 = 1_024;
 const OVERSIZED_SPECTRUM_ROWS: u32 = 8_192;
 
 /// How a report too large for its whole budget names what it ran out of.
-const EXHAUSTED: &str = "final report materialization memory";
-
-/// A storage read pool that admits running the cycle but never holds the cycle
-/// report retaining every member, as the 256 MiB production pool cannot
-/// hold a large enough cycle.
-const REFUSING_POOL_BYTES: usize = 128 * 1024 * 1024;
+const EXHAUSTED: &str = "memory";
 
 /// Members of the cycle the refusing pool cannot hold at once.
 const POOLED_MEMBERS: usize = 9;
@@ -73,11 +68,10 @@ const POOLED_MEMBERS: usize = 9;
 /// Rows of each member's whole-capture stream: within one report's budget.
 const POOLED_SPECTRUM_ROWS: u32 = 1_536;
 
-/// An interactive query budget well below one stalled finalization read.
-const TIGHT_QUERY_BUDGET: Duration = Duration::from_millis(200);
+/// Ordinary Query Deadline Also Applies To Report Reads.
+const SHARED_QUERY_BUDGET: Duration = Duration::from_secs(5);
 
-/// How long each native-output read finalization performs stalls within its
-/// budget: past the interactive budget, well within finalization's own.
+/// Artificial Backend Delay Within The Ordinary Query Deadline.
 const OUTPUT_READ_STALL: Duration = Duration::from_secs(1);
 
 /// How much slower the last case may settle than the first. Work that grows
@@ -118,7 +112,7 @@ fn sampling_config(root: &Path, settings: serde_json::Value) -> RuntimeConfig {
 // The budget-edge stories prove the shipped report budget at the shipped ledger.
 fn budget_edge_config(root: &Path, settings: serde_json::Value) -> RuntimeConfig {
     let mut config = sampling_config(root, settings);
-    crate::support::budgets::whole_read_budget(&mut config.storage_reads);
+    crate::support::budgets::whole_read_budget(&mut config.storage);
     config
 }
 
@@ -477,7 +471,7 @@ pub(crate) async fn running_report_follows_live_plot() {
             .unwrap_or_else(|error| panic!("render {attempt} of the running report: {error}"));
         let payload = crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
         assert_live_plot(&payload, pulse, attempt);
-        let steps = payload["test_steps"].as_array().unwrap();
+        let steps = payload["test_executions"][0]["steps"].as_array().unwrap();
         assert!(
             steps
                 .iter()
@@ -722,13 +716,11 @@ fn assert_live_plot(payload: &serde_json::Value, plot: &str, attempt: usize) {
     assert!(window["from"].as_f64().unwrap() <= window["to"].as_f64().unwrap());
 }
 
-// a report whose kept rows exceed the whole report budget still opens while
-// the run holds and seals when it settles: the plot that cannot fit is omitted,
-// and the report says so in itself and in a host warning record.
-pub(crate) async fn oversized_report_seals_with_omissions() {
+// A Permanent Materialization Refusal Leaves Evidence And The Execution Unsealed.
+pub(crate) async fn oversized_report_remains_unsealed() {
     let root = tempdir().unwrap();
     let release = root.path().join("release");
-    let (mut runtime, handle) = started(
+    let mut constrained =
         config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
             .configured(
                 "fixture-suites",
@@ -738,9 +730,9 @@ pub(crate) async fn oversized_report_seals_with_omissions() {
                     "execution_release": release,
                 }),
             )
-            .unwrap()]),
-    )
-    .await;
+            .unwrap()]);
+    constrain_report_memory(&mut constrained);
+    let (mut runtime, handle) = started(constrained).await;
     let suite = handle
         .test_suites()
         .await
@@ -771,89 +763,45 @@ pub(crate) async fn oversized_report_seals_with_omissions() {
     let execution =
         handle.watch_state().latest().state().cycles[&cycle_id].execution_ids[0].clone();
 
-    // Running: the report opens without the plot it cannot hold, and says so.
-    let opened = tokio::time::timeout(Duration::from_secs(300), async {
+    let failure = tokio::time::timeout(Duration::from_secs(300), async {
         loop {
-            let opened = handle
-                .open_execution_report(&execution)
-                .await
-                .expect("a running report always opens");
-            let payload =
-                crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
-            if !omissions(&payload).is_empty() {
-                break payload;
+            if let Err(error) = handle.open_execution_report(&execution).await {
+                let message = error.to_string();
+                assert!(
+                    message.contains(EXHAUSTED) || message.contains("exhaust"),
+                    "{message}"
+                );
+                break message;
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     })
     .await
-    .expect("the running report lists its omissions once the spectrum is published");
-    assert_spectrum_omitted(&opened);
-
-    // Sealed: the run completes and its report keeps the same omission.
+    .expect("oversized materialization returns an explicit failure");
+    assert!(!failure.is_empty());
     std::fs::write(&release, b"").unwrap();
-    let settled = tokio::time::timeout(Duration::from_secs(300), async {
-        loop {
-            let receipt = handle
-                .run_request(&receipt.command_id)
-                .await
-                .unwrap()
-                .unwrap();
-            if receipt.summary.phase.terminal() {
-                break receipt;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("an oversized report settles its run");
-    assert_eq!(
-        settled.summary.phase,
-        RunPhase::Completed,
-        "{:?}",
-        settled.interruption
-    );
     let cycle = handle
         .cycles()
         .await
         .into_iter()
         .find(|cycle| cycle.test_cycle_id == cycle_id)
         .unwrap();
-    assert!(cycle.saved.is_some(), "the cycle seals with its omissions");
-    let html = crate::support::native::report(&handle, &execution).await;
-    assert_spectrum_omitted(&crate::support::reports::parse(&html));
-    let recorded = tokio::time::timeout(Duration::from_secs(60), async {
-        loop {
-            let evidence = handle.evidence_snapshot().await.unwrap();
-            if evidence
-                .records
-                .iter()
-                .any(|record| record.record_type.as_str() == "report.omissions")
-            {
-                break true;
-            }
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-    })
-    .await
-    .unwrap_or(false);
-    assert!(recorded, "the omission is a host warning record");
-    // The record stays outside the seal: both reports are still the sealed bytes.
-    let sealed = handle.open_cycle_report(&cycle_id).await.unwrap();
-    assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
-    let sealed = handle.open_execution_report(&execution).await.unwrap();
-    assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
-    assert_spectrum_omitted(&crate::support::reports::parse(
-        std::str::from_utf8(&sealed.html).unwrap(),
-    ));
+    assert!(cycle.saved.is_none());
+    assert!(
+        cycle
+            .test_executions
+            .iter()
+            .all(|execution| execution.saved.is_none())
+    );
+    assert!(handle.open_execution_report(&execution).await.is_err());
     drop(handle);
-    runtime.shutdown().await.unwrap();
+    assert!(
+        runtime.shutdown().await.is_err(),
+        "shutdown reports unfinished materialization"
+    );
 }
 
-// A cycle whose members together exceed the storage read pool still seals in
-// bounded time: refused member reports wait for the pool or degrade until
-// they fit, and whatever they left out is recorded, instead of the cycle
-// staying Running or failing.
+// A Refused Pool Never Publishes A Degraded Cycle Report.
 pub(crate) async fn pool_refusal_settles() {
     let root = tempdir().unwrap();
     let mut refusing =
@@ -863,7 +811,7 @@ pub(crate) async fn pool_refusal_settles() {
                 serde_json::json!({ "spectrum_rows": POOLED_SPECTRUM_ROWS }),
             )
             .unwrap()]);
-    refusing.storage_reads.memory_bytes = std::num::NonZeroUsize::new(REFUSING_POOL_BYTES).unwrap();
+    constrain_report_memory(&mut refusing);
     let (mut runtime, handle) = started(refusing).await;
     let suite = handle
         .test_suites()
@@ -905,75 +853,25 @@ pub(crate) async fn pool_refusal_settles() {
     })
     .await
     .expect("a cycle the pool refuses settles its run in bounded time");
-    assert_eq!(
+    assert_ne!(
         settled.summary.phase,
         RunPhase::Completed,
-        "{:?}",
-        settled.interruption
+        "permanent refusal cannot complete a report"
     );
-
-    // Sealed: the cycle keeps every member and its report is the sealed bytes.
     let cycle = handle
         .cycles()
         .await
         .into_iter()
         .find(|cycle| cycle.test_cycle_id == cycle_id)
         .unwrap();
-    assert_eq!(cycle.lifecycle, CycleStatus::Completed);
-    assert!(cycle.saved.is_some(), "a refused cycle report still seals");
-    assert_eq!(cycle.test_executions.len(), POOLED_MEMBERS);
-    let sealed = handle.open_cycle_report(&cycle_id).await.unwrap();
-    assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
-    let mut omitted = Vec::new();
-    for execution in &cycle.test_executions {
-        let sealed = handle
-            .open_execution_report(&execution.test_execution_id)
-            .await
-            .unwrap();
-        assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
-        let payload = crate::support::reports::parse(std::str::from_utf8(&sealed.html).unwrap());
-        omitted.extend(omissions(&payload));
-    }
-
-    // Recorded: what the pool forced out is a host warning, never a failure.
-    let recorded = tokio::time::timeout(Duration::from_secs(60), async {
-        if omitted.is_empty() {
-            return true;
-        }
-        loop {
-            let evidence = handle.evidence_snapshot().await.unwrap();
-            if evidence
-                .records
-                .iter()
-                .any(|record| record.record_type.as_str() == "report.omissions")
-            {
-                break true;
-            }
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-    })
-    .await
-    .unwrap_or(false);
-    assert!(
-        recorded,
-        "what the pool forced out is recorded: {omitted:?}"
-    );
-    let evidence = handle.evidence_snapshot().await.unwrap();
-    assert!(
-        !evidence
-            .records
-            .iter()
-            .any(|record| record.record_type.as_str() == "test.cycle.finalization.failed"),
-        "a degraded report is not a failed finalization"
-    );
+    assert!(cycle.saved.is_none(), "refused report remains unsealed");
+    assert!(handle.open_cycle_report(&cycle_id).await.is_err());
     drop(handle);
-    runtime.shutdown().await.unwrap();
+    assert!(runtime.shutdown().await.is_err());
 }
 
-// Finalization reads native outputs under its own budget: a logged case whose
-// every output read stalls past the interactive budget still seals, where a
-// read under the interactive deadline would have exhausted it.
-pub(crate) async fn slow_output_read_seals() {
+// Report Output Reads Use The Same Configured Deadline As Ordinary Reads.
+pub(crate) async fn slow_output_read_uses_shared_deadline() {
     let root = tempdir().unwrap();
     let mut slow =
         config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
@@ -982,9 +880,8 @@ pub(crate) async fn slow_output_read_seals() {
                 serde_json::json!({ "log_lines": LOGGED_LINES }),
             )
             .unwrap()]);
-    slow.storage_reads.interactive.timeout = TIGHT_QUERY_BUDGET;
-    slow.storage_reads.report.timeout = TIGHT_QUERY_BUDGET;
-    slow.storage_reads.finalization_read_stall = OUTPUT_READ_STALL;
+    slow.storage.interactive.timeout = SHARED_QUERY_BUDGET;
+    slow.storage.finalization_read_stall = OUTPUT_READ_STALL;
     let (mut runtime, handle) = started(slow).await;
     let suite = handle
         .test_suites()
@@ -1056,39 +953,20 @@ pub(crate) async fn replay_deadline_retries() {
     let root = tempdir().unwrap();
     let mut refusing =
         sampling_config(root.path(), serde_json::json!({ "pulse_rows": PULSE_ROWS }));
-    refusing.storage_reads.replay_read_deadlines = FORCED_REPLAY_DEADLINES;
+    refusing.storage.replay_read_deadlines = FORCED_REPLAY_DEADLINES;
     let (mut runtime, handle) = started(refusing).await;
     run_case(&handle, "pulse.deadline").await;
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
 
-fn omissions(payload: &serde_json::Value) -> Vec<String> {
-    payload["warnings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|warning| warning.as_str())
-        .filter(|warning| warning.starts_with("report.omitted: "))
-        .map(str::to_owned)
-        .collect()
-}
-
-fn assert_spectrum_omitted(payload: &serde_json::Value) {
-    let spectrum = &payload["case_runs"][0]["plots"]["fixture.checks.smoke.spectrum"];
-    let reason = spectrum["omitted"]
-        .as_str()
-        .unwrap_or_else(|| panic!("the spectrum is a placeholder naming why: {spectrum}"));
-    assert!(reason.contains(EXHAUSTED), "{reason}");
-    assert!(
-        omissions(payload)
-            .iter()
-            .any(|omission| omission.contains(reason)),
-        "the report lists the omission: {:?}",
-        omissions(payload)
-    );
-    assert!(
-        !payload["test_steps"].as_array().unwrap().is_empty(),
-        "steps survive every degradation"
-    );
+fn constrain_report_memory(config: &mut dokime_app::RuntimeConfig) {
+    let memory = std::num::NonZeroUsize::new(32 * 1024 * 1024).unwrap();
+    config.storage.budget.read_memory_bytes = memory;
+    config.storage.interactive.memory_bytes = memory;
+    config.storage.ceiling.memory_bytes = memory;
+    config.storage.page_bytes = std::num::NonZeroUsize::new(64 * 1024).unwrap();
+    config.storage.page_bytes_ceiling = memory;
+    config.storage.decoded_bytes_ceiling = memory;
+    config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();
 }

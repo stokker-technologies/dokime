@@ -593,6 +593,9 @@ pub(crate) async fn watch_file_matchers() {
         maximum_seconds: Some(2),
         maximum_bytes: None,
         matchers: vec![LineMatcher {
+            storage_schema: crate::support::contracts::minimal_tracking_contract()
+                .storage_schema
+                .unwrap(),
             pattern: r"elapsed=(?P<elapsed_s>[\d.]+) locked=(?P<target_locked>\w+)".to_owned(),
             stream: "tracking".to_owned(),
             fields: vec![

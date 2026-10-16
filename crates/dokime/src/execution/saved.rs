@@ -29,6 +29,10 @@ use crate::core::{Metadata, NodeId, TestCycleId, TestExecutionId, Timestamp};
 pub(crate) const MAX_OUTPUTS: usize = 256;
 pub const EXECUTION_CONTEXT_MEDIA_TYPE: &str = "application/vnd.dokime.execution-context+protobuf";
 pub const EXECUTION_CONTEXT_SCHEMA_VERSION: u32 = 1;
+pub const MATERIALIZED_REPORT_INPUT_MEDIA_TYPE: &str =
+    "application/vnd.dokime.materialized-report-input+json";
+pub const MATERIALIZED_REPORT_INPUT_SCHEMA_VERSION: u32 = 1;
+pub const MATERIALIZED_REPORT_INPUT_SUFFIX: &str = ".materialized-input";
 
 /* === Macros === */
 macro_rules! owned_memory {
@@ -87,6 +91,7 @@ pub struct ExecutionOutput {
 #[serde(deny_unknown_fields)]
 pub struct ExecutionSeal {
     pub source: ExecutionSource,
+    pub materialized_input: FileReference,
     pub report: FileReference,
     pub dependencies_saved: StorageCursor,
     pub sealed_at: Timestamp,
@@ -147,7 +152,14 @@ owned_memory!(
     stream_state,
     content
 );
-owned_memory!(ExecutionSeal, source, report, dependencies_saved, sealed_at);
+owned_memory!(
+    ExecutionSeal,
+    source,
+    materialized_input,
+    report,
+    dependencies_saved,
+    sealed_at
+);
 owned_memory!(VerifiedReplicaFile, source, local);
 owned_memory!(
     CycleSeal,
@@ -196,12 +208,16 @@ impl ExecutionSource {
         self.execution
             .version
             .check_position(&self.execution.position)?;
-        require_saved(&self.evidence_through, &self.execution.position)?;
+        self.evidence_through
+            .history
+            .check(&self.execution.position.history)?;
         check_file(&self.context, id)?;
         self.evidence_through
             .history
             .check(&self.context.position.history)?;
-        if self.context.position.sequence <= self.evidence_through.sequence {
+        if self.context.position.sequence <= self.evidence_through.sequence
+            || self.context.position.sequence <= self.execution.position.sequence
+        {
             return Err(SavedEvidenceError::Invalid(
                 "execution context must follow fixed evidence",
             ));
@@ -236,6 +252,22 @@ impl ExecutionSeal {
             return Err(SavedEvidenceError::Invalid("execution has not settled"));
         }
         self.source.validate(&execution.test_execution_id)?;
+        validate_materialized_input(
+            &self.materialized_input,
+            &execution.test_execution_id,
+            &self.source.context,
+            &self.dependencies_saved,
+        )?;
+        if self
+            .files()
+            .filter(|file| file.metadata.id == self.materialized_input.metadata.id)
+            .count()
+            != 1
+        {
+            return Err(SavedEvidenceError::Invalid(
+                "materialized input reuses a source file identity",
+            ));
+        }
         check_file(&self.report, &execution.test_execution_id)?;
         if self.report.metadata.media_type != "text/html" || self.report.length == 0 {
             return Err(SavedEvidenceError::Invalid(
@@ -253,6 +285,7 @@ impl ExecutionSeal {
             ));
         }
         require_saved(&self.dependencies_saved, &self.source.evidence_through)?;
+        require_saved(&self.dependencies_saved, &self.source.execution.position)?;
         require_saved(&self.dependencies_saved, &self.source.context.position)?;
         require_saved(&self.dependencies_saved, &self.report.position)?;
         if self.report.position.sequence <= self.source.context.position.sequence {
@@ -266,6 +299,7 @@ impl ExecutionSeal {
     pub fn files(&self) -> impl Iterator<Item = &FileReference> {
         std::iter::once(&self.source.context)
             .chain(self.source.outputs.iter().map(|output| &output.file))
+            .chain(std::iter::once(&self.materialized_input))
             .chain(std::iter::once(&self.report))
     }
 
@@ -280,7 +314,7 @@ impl ExecutionSeal {
         self.validate(execution)?;
         require_saved(source_received, &self.dependencies_saved)?;
         require_saved(local_saved, local_data_admitted)?;
-        if verified.len() != self.source.outputs.len() + 2 {
+        if verified.len() != self.source.outputs.len() + 3 {
             return Err(SavedEvidenceError::Invalid("replica file set differs"));
         }
         for required in self.files() {
@@ -527,6 +561,43 @@ fn require_saved(saved: &StorageCursor, dependency: &StorageCursor) -> Result<()
     if !saved.covers(dependency)? {
         return Err(SavedEvidenceError::Invalid(
             "dependency exceeds saved boundary",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_materialized_input(
+    file: &FileReference,
+    id: &TestExecutionId,
+    context: &FileReference,
+    dependencies: &StorageCursor,
+) -> Result<()> {
+    check_file(file, id)?;
+    let prefix = format!("{}.", id.as_str());
+    let token = file
+        .metadata
+        .id
+        .as_str()
+        .strip_prefix(&prefix)
+        .and_then(|value| value.strip_suffix(MATERIALIZED_REPORT_INPUT_SUFFIX))
+        .ok_or(SavedEvidenceError::Invalid(
+            "materialized input file identity differs",
+        ))?;
+    if token.len() != 36
+        || TestExecutionId::from_uuid(token).is_err()
+        || token.bytes().any(|byte| byte.is_ascii_uppercase())
+        || file.metadata.media_type != MATERIALIZED_REPORT_INPUT_MEDIA_TYPE
+        || file.length == 0
+    {
+        return Err(SavedEvidenceError::Invalid(
+            "materialized input identity or media type differs",
+        ));
+    }
+    require_saved(dependencies, &file.position)?;
+    file.position.history.check(&context.position.history)?;
+    if file.position.sequence <= context.position.sequence {
+        return Err(SavedEvidenceError::Invalid(
+            "materialized input must follow frozen execution context",
         ));
     }
     Ok(())

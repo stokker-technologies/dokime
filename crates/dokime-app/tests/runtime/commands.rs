@@ -246,7 +246,7 @@ async fn kill_recovers_cycle() {
     let (mut runtime_owner, runtime) = booted(root.path()).await;
     let view = runtime
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().ceiling)
         .await
         .unwrap();
     let cycle = dokime::storage::objects::cycle::read_in(

@@ -77,7 +77,7 @@ impl ArtifactReader {
             })?;
         let descriptor =
             view.view()
-                .project_shared(view.revision(), projection, |_, allowance| {
+                .project_shared(view.revision()?, projection, |_, allowance| {
                     let bytes = output.memory_size();
                     if bytes == usize::MAX || bytes > allowance.get() {
                         return Err(harmos::Error::ResourceExhausted {

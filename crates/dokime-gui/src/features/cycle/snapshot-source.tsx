@@ -73,7 +73,6 @@ export type CycleSnapshotSource = {
   plotPayloads: (executionId: string | null) => FrozenPlotPayloads;
   traceability: (executionId: string | null) => TraceabilitySnapshot | null;
   /** What the report left out or cut to fit its budget, and why. */
-  omissions: string[];
 };
 
 /* === Constants === */

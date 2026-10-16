@@ -14,9 +14,13 @@ mod artifact_reads;
 pub(crate) mod artifacts;
 mod assembly;
 pub(crate) mod captures;
+pub mod config;
 pub(crate) mod context_records;
 pub(crate) mod cycle;
-mod cycle_finalization;
+pub(crate) mod cycle_finalization;
+#[cfg(test)]
+#[path = "../../../tests/domains/documents/materialization/cycle_restart.rs"]
+mod cycle_restart;
 mod cycles;
 pub(crate) mod execution;
 pub(crate) mod executions;

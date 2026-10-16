@@ -73,6 +73,7 @@ pub trait SampleSink: Send + Sync {
         &'a self,
         stream: &'a Identifier,
         values: BTreeMap<String, Value>,
+        storage_payload: Option<Vec<u8>>,
     ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
     fn produced(&self, stream: &str) -> u64;
@@ -168,14 +169,21 @@ impl Streams {
         }
     }
 
-    pub(crate) async fn published(&self, stream: &Identifier, values: BTreeMap<String, Value>) {
-        self.published_as(stream, values, stream.as_str()).await;
+    pub(crate) async fn published(
+        &self,
+        stream: &Identifier,
+        values: BTreeMap<String, Value>,
+        payload: Vec<u8>,
+    ) {
+        self.published_as(stream, values, Some(payload), stream.as_str())
+            .await;
     }
 
     pub(crate) async fn published_as(
         &self,
         stream: &Identifier,
         mut values: BTreeMap<String, Value>,
+        storage_payload: Option<Vec<u8>>,
         row_type: &str,
     ) {
         // The one place every row this execution produces is stamped: a
@@ -219,7 +227,7 @@ impl Streams {
             // row is already this run's evidence either way.
             let _ = self.listening.send((stream.clone(), values.clone()));
         }
-        match self.sink.publish(stream, values).await {
+        match self.sink.publish(stream, values, storage_payload).await {
             Ok(()) => self.flush_later(),
             Err(error) => self.failed(stream, &error),
         }
@@ -300,10 +308,16 @@ impl<R: TelemetryStream<Row = R> + TelemetryRow> StreamSelection<'_, R> {
     }
 }
 
-impl<R: TelemetryRow> Pushing<'_, R> {
+impl<R: TelemetryRow + harmos::Message> Pushing<'_, R> {
     pub async fn push(&self, row: R) {
+        let payload = row.encode_to_vec();
         self.streams
-            .published_as(&self.stream, row.into_row(), std::any::type_name::<R>())
+            .published_as(
+                &self.stream,
+                row.into_row(),
+                Some(payload),
+                std::any::type_name::<R>(),
+            )
             .await;
     }
 

@@ -21,13 +21,13 @@ use std::{
 
 // Third Party Imports
 use harmos::storage::{
-    recovery::{RecoveryBackend, RecoveryEntry},
+    state::{RecoveryEntry, StateBackend},
     *,
 };
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, RecoveryLimits};
+use dokime::storage::sqlite::{Backend, Limits, StateLimits};
 
 /* === Constants === */
 
@@ -69,7 +69,7 @@ pub(crate) async fn private_file_bytes() {
         .begin_bootstrap(
             &identity,
             &prior,
-            StorageSettings::default().query_execution,
+            crate::sqlite::storage::storage_settings().query_execution,
         )
         .await
         .unwrap();
@@ -177,7 +177,7 @@ pub(crate) async fn private_file_restart() {
         retention_generation: NonZeroU64::MIN,
     })
     .unwrap();
-    let limits = StorageSettings::default().query_execution;
+    let limits = crate::sqlite::storage::storage_settings().query_execution;
     let metadata = FileMetadata {
         id: harmos::Identifier::new("same.file").unwrap(),
         scope: None,
@@ -205,6 +205,7 @@ pub(crate) async fn private_file_restart() {
     ] {
         empty.finish_collection(kind);
     }
+    empty.finish_releases();
     assert!(
         backend
             .finish_bootstrap(&empty)
@@ -337,7 +338,7 @@ pub(crate) async fn private_import_ownership() {
         retention_generation: NonZeroU64::MIN,
     })
     .unwrap();
-    let limits = StorageSettings::default().query_execution;
+    let limits = crate::sqlite::storage::storage_settings().query_execution;
     let metadata = FileMetadata {
         id: harmos::Identifier::new("ordinary.owner").unwrap(),
         scope: None,
@@ -391,6 +392,7 @@ pub(crate) async fn private_import_ownership() {
         ] {
             manifest.finish_collection(kind);
         }
+        manifest.finish_releases();
         if completes {
             // Exact Saved Receipts May Be Reused Without Replacing Their Owner
             assert_eq!(backend.finish_bootstrap(&manifest).await.unwrap(), position);
@@ -467,7 +469,7 @@ pub(crate) async fn private_import_abort() {
         let mut other = coverage.clone();
         other.retention_generation = NonZeroU64::new(2).unwrap();
         let other = BootstrapId::new(&other).unwrap();
-        let limits = StorageSettings::default().query_execution;
+        let limits = crate::sqlite::storage::storage_settings().query_execution;
         let metadata = FileMetadata {
             id: harmos::Identifier::new("old.stage").unwrap(),
             scope: None,
@@ -500,21 +502,22 @@ pub(crate) async fn private_import_abort() {
                 .is_err()
         );
         assert_eq!(backend.cursor_saved().await.unwrap(), prior);
-        let recovery = backend.recovery(RecoveryLimits::default());
-        RecoveryBackend::open(&recovery).await.unwrap();
+        let recovery = backend.state(StateLimits::default());
+        StateBackend::open(&recovery).await.unwrap();
         let recovered = RecoveryPosition {
             history: prior.history.clone(),
             sequence: 1,
         };
         recovery
             .write_entries(&[RecoveryEntry {
+                required_data: prior.clone(),
                 position: recovered.clone(),
                 payload: vec![7],
             }])
             .await
             .unwrap();
         assert_eq!(recovery.flush(&recovered).await.unwrap(), recovered);
-        RecoveryBackend::close(&recovery).await.unwrap();
+        StateBackend::close(&recovery).await.unwrap();
         assert_eq!(backend.cursor_saved().await.unwrap(), prior);
         let schema = StorageSchema::new(
             StorageCursor {
@@ -562,9 +565,9 @@ pub(crate) async fn private_import_abort() {
             .await
             .unwrap();
         assert_eq!(reopened.cursor_saved().await.unwrap(), prior);
-        let recovery = reopened.recovery(RecoveryLimits::default());
-        assert_eq!(RecoveryBackend::open(&recovery).await.unwrap(), recovered);
-        RecoveryBackend::close(&recovery).await.unwrap();
+        let recovery = reopened.state(StateLimits::default());
+        assert_eq!(StateBackend::open(&recovery).await.unwrap(), recovered);
+        StateBackend::close(&recovery).await.unwrap();
         assert!(reopened.write(batch).await.is_err());
         reopened
             .begin_bootstrap(&identity, &prior, limits)
@@ -636,7 +639,7 @@ pub(crate) async fn failed_private_fence() {
         })
         .await
         .unwrap();
-    let limits = StorageSettings::default().query_execution;
+    let limits = crate::sqlite::storage::storage_settings().query_execution;
     assert!(
         backend
             .begin_bootstrap(&identity, &prior, limits)
@@ -763,7 +766,7 @@ pub(crate) async fn private_rows_atomically() {
         .begin_bootstrap(
             &identity,
             &prior,
-            StorageSettings::default().query_execution,
+            crate::sqlite::storage::storage_settings().query_execution,
         )
         .await
         .unwrap();
@@ -857,6 +860,7 @@ pub(crate) async fn private_rows_atomically() {
     ] {
         manifest.finish_collection(kind);
     }
+    manifest.finish_releases();
     assert!(
         backend
             .finish_bootstrap(&manifest)
@@ -949,6 +953,7 @@ pub(crate) async fn private_rows_atomically() {
     ] {
         empty.finish_collection(kind);
     }
+    empty.finish_releases();
     let error = backend.finish_bootstrap(&empty).await.unwrap_err();
     assert!(
         error
@@ -1039,7 +1044,7 @@ pub(crate) async fn private_rows_atomically() {
             .begin_bootstrap(
                 &identity,
                 &prior,
-                StorageSettings::default().query_execution
+                crate::sqlite::storage::storage_settings().query_execution
             )
             .await
             .unwrap_err()
@@ -1111,7 +1116,7 @@ pub(crate) async fn private_row_unchanged() {
     .unwrap();
     let execution = QueryLimits {
         memory_bytes: NonZeroUsize::new(2 * 1024 * 1024).unwrap(),
-        ..StorageSettings::default().query_execution
+        ..crate::sqlite::storage::storage_settings().query_execution
     };
     backend
         .begin_bootstrap(&identity, &prior, execution)
@@ -1248,7 +1253,7 @@ pub(crate) async fn private_manifest_schema() {
                 .begin_bootstrap(
                     &identity,
                     &prior,
-                    StorageSettings::default().query_execution,
+                    crate::sqlite::storage::storage_settings().query_execution,
                 )
                 .await
                 .unwrap();
@@ -1278,6 +1283,7 @@ pub(crate) async fn private_manifest_schema() {
             ] {
                 manifest.finish_collection(kind);
             }
+            manifest.finish_releases();
             let error = backend.finish_bootstrap(&manifest).await.unwrap_err();
             assert!(error.to_string().contains(expected), "{error}");
             assert_eq!(backend.cursor_saved().await.unwrap(), prior);
@@ -1307,7 +1313,7 @@ pub(crate) async fn private_import_floor() {
             .begin_bootstrap(
                 &identity,
                 &prior,
-                StorageSettings::default().query_execution,
+                crate::sqlite::storage::storage_settings().query_execution,
             )
             .await
             .unwrap();
@@ -1355,6 +1361,7 @@ pub(crate) async fn private_import_floor() {
         ] {
             manifest.finish_collection(kind);
         }
+        manifest.finish_releases();
         if floor == 0 {
             let failure = backend
                 .finish_bootstrap(&manifest)

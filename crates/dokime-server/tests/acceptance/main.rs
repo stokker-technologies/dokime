@@ -73,6 +73,8 @@ struct NativeHub {
     connection: Client,
 }
 
+#[dokime::message]
+#[derive(Clone, PartialEq)]
 struct HomedRow {
     value: f64,
 }
@@ -160,6 +162,7 @@ impl dokime_app::telemetry::TelemetryStream for HomedRow {
             "Steady Events",
         )
         .columns(<Self as dokime_app::telemetry::TelemetryRow>::columns())
+        .typed::<Self>()
         .strict()
     }
 }

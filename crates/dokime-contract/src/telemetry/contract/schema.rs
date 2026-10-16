@@ -37,6 +37,8 @@ pub struct TelemetryContract {
     pub template_id: Option<TemplateId>,
     pub owner: Option<SuiteId>,
     pub columns: Vec<TelemetryColumn>,
+    /// Authoritative finite row schema; display columns do not define storage types.
+    pub storage_schema: Option<harmos::schema::graph::Schema>,
     pub default_x: Option<String>,
     pub interval: Option<crate::core::DurationMillis>,
     pub plot_window: Option<crate::core::DurationMillis>,
@@ -78,6 +80,10 @@ pub enum TelemetryRole {
 impl harmos::MemorySize for TelemetryContract {
     fn memory_size(&self) -> usize {
         let fields = [
+            (
+                harmos::MemorySize::memory_size(&self.storage_schema),
+                std::mem::size_of_val(&self.storage_schema),
+            ),
             (
                 harmos::MemorySize::memory_size(&self.stream),
                 std::mem::size_of_val(&self.stream),
@@ -190,6 +196,7 @@ impl TelemetryContract {
             template_id: None,
             owner: None,
             columns: Vec::new(),
+            storage_schema: None,
             default_x: None,
             interval: None,
             plot_window: None,
@@ -199,6 +206,20 @@ impl TelemetryContract {
             foreign: false,
         }
         .normalized()
+    }
+
+    pub fn with_storage_schema(mut self, schema: harmos::schema::graph::Schema) -> Self {
+        self.storage_schema = Some(schema);
+        self
+    }
+
+    pub fn typed<T: harmos::Message + harmos::schema::Described>(self) -> Self {
+        let graph = harmos::schema::graph::Schema::from_declaration(
+            T::DEFINITION,
+            &harmos::config::SchemaSettings::default(),
+        )
+        .expect("a declared telemetry row has a valid finite schema");
+        self.with_storage_schema(graph)
     }
 
     pub fn described(mut self, description: impl Into<String>) -> Self {

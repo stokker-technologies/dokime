@@ -73,10 +73,10 @@ windows-sys = { version = "0.61.2" }
 zeroize = { version = "=1.9.1" }
 
 # Serialization
-arrow-array = { version = "60.0.0" }
-arrow-ipc = { version = "60.0.0" }
-arrow-schema = { version = "60.0.0" }
-arrow-select = { version = "60.0.0" }
+arrow-array = { version = "=59.3.0" }
+arrow-ipc = { version = "=59.3.0" }
+arrow-schema = { version = "=59.3.0" }
+arrow-select = { version = "=59.3.0" }
 base64 = { version = "0.23.1" }
 hound = { version = "3.5.1" }
 # Excludes every default image codec (AVIF encoding pulls rav1e and rayon); Dokime encodes JPEG and PNG.
@@ -87,7 +87,7 @@ prost-types = { version = "=0.14.4" }
 protoc-bin-vendored = { version = "=3.3.0" }
 schemars = { version = "1.2.2" }
 serde = { version = "1.0.229", features = ["derive"] }
-serde_arrow = { version = "0.15.1", features = ["arrow-60"] }
+serde_arrow = { version = "0.15.1", features = ["arrow-59"] }
 serde_json = { version = "1.0.154" }
 toml = { version = "1.1.8" }
 toml_edit = { version = "0.25.17" }

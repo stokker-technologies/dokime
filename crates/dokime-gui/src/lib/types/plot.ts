@@ -171,8 +171,36 @@ export type PlotAnalysis =
       series: {
         key: string;
         bins: { x: number; count: number; mean: number; lower: number; upper: number }[];
+        /** Samples the bins summarize. */
+        raw_points: number;
       }[];
+    }
+  | {
+      kind: "wifi_occupancy";
+      /** Every channel a series reported, ascending. */
+      channels: number[];
+      /** Channels that held a network in any scan, ascending. */
+      occupied_channels: number[];
+      bands: { band: string; occupied_channels: number }[];
+      /** Scans in time order. */
+      scans: WifiOccupancyScan[];
     };
+
+export type WifiOccupancyScan = {
+  time: string;
+  channels: { channel: number; count: number }[];
+  bands: WifiOccupancyBandScan[];
+  occupied_channels: number;
+  total_networks: number;
+  peak_count: number;
+};
+
+export type WifiOccupancyBandScan = {
+  band: string;
+  occupied_channels: number;
+  total_networks: number;
+  peak_count: number;
+};
 
 // Renderer payloads also represent locally materialized, partial plot data.
 export type PlotPayload = Pick<

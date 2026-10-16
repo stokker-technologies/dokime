@@ -636,7 +636,7 @@ pub(crate) async fn native_query_capacity() {
         memory_bytes: NonZeroUsize::MIN,
         spill_bytes: 0,
         timeout: std::time::Duration::from_secs(5),
-        ..StorageSettings::default().query_execution
+        ..crate::sqlite::storage::storage_settings().query_execution
     };
     assert!(backend.read_query_view(&position(0), tiny).await.is_err());
     for (memory_bytes, spill_bytes) in [(4 * 1024 * 1024, 0), (64 * 1024 * 1024, 64 * 1024 * 1024)]
@@ -645,7 +645,7 @@ pub(crate) async fn native_query_capacity() {
             memory_bytes: NonZeroUsize::new(memory_bytes).unwrap(),
             spill_bytes,
             timeout: std::time::Duration::from_secs(5),
-            ..StorageSettings::default().query_execution
+            ..crate::sqlite::storage::storage_settings().query_execution
         };
         let pin = backend
             .read_query_view(&position(0), requested)

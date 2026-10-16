@@ -111,7 +111,7 @@ def request(
                     raise _policy.ToolError(
                         "GitLab reads require GITLAB_TOKEN with read_api access"
                     )
-                headers = {"PRIVATE-TOKEN": token}
+                headers = {"Authorization": "Bearer " + token}
             else:
                 allowed = (
                     method == "PUT" and endpoint.startswith("packages/generic/")
@@ -137,7 +137,7 @@ def request(
                         "GitLab CI publication requires CI_JOB_TOKEN"
                     )
                 elif token:
-                    headers = {"PRIVATE-TOKEN": token}
+                    headers = {"Authorization": "Bearer " + token}
                 else:
                     raise _policy.ToolError(
                         "GitLab local publication requires GITLAB_TOKEN"

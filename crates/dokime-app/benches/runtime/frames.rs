@@ -23,7 +23,7 @@ use harmos::{
     state::Never,
     storage::{
         QueryOptions, ReadKind, ReadSelection, RecordWrite, StorageBackends, StorageManager,
-        StorageSettings, StreamWrite,
+        StreamWrite,
         frame::{Expr, Frame, FrameQuery, GroupBy, ScalarField, ScalarPath},
         reduce::{Agg, ScalarKind},
     },
@@ -35,7 +35,7 @@ use dokime::core::{
     Timestamp, Value,
 };
 use dokime::storage::{
-    sqlite::{Backend, Limits, RecoveryLimits},
+    sqlite::{Backend, Limits, StateLimits},
     telemetry,
 };
 use dokime::telemetry::TelemetrySample;
@@ -76,30 +76,26 @@ impl Fixture {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+        let recovery = Arc::new(data.state(StateLimits::default()));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
-                recovery,
+                state: recovery,
                 replicas: vec![],
             },
-            StorageSettings {
-                flush_interval: Duration::from_secs(60),
-                ..StorageSettings::default()
-            },
+            dokime_app::config::StorageSettings::default().harmos(
+                Duration::from_secs(60),
+                std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+            ),
         )
         .unwrap();
         let runtime = Runtime::<Bench>::builder((), ())
             .runtime_with_storage(&storage)
             .await
             .unwrap();
-        let graph = harmos::schema::graph::Schema::from_declaration(
-            <telemetry::TelemetryRow as harmos::schema::Described>::DEFINITION,
-            &harmos::config::SchemaSettings::default(),
-        )
-        .unwrap();
+        let codec = codec();
         storage
-            .write_schema(&telemetry::schema(), &graph)
+            .write_schema(codec.schema(), codec.graph())
             .await
             .unwrap();
         let fixture = Self {
@@ -113,7 +109,7 @@ impl Fixture {
 
     async fn append(&self, from: u64, rows: u64) {
         let stream = id("meter");
-        let schema = telemetry::schema();
+        let schema = codec().schema().clone();
         let scope = id(TestExecutionId::from_seed("execution").as_str());
         for start in (from..from + rows).step_by(BATCH as usize) {
             let end = (start + BATCH).min(from + rows);
@@ -138,7 +134,15 @@ impl Fixture {
                     },
                 })
                 .collect::<Vec<_>>();
-            self.storage.write_stream(&writes).await.unwrap();
+            let mut offset = 0;
+            while offset < writes.len() {
+                let length = self.storage.stream_batch_len(&writes[offset..]).unwrap();
+                self.storage
+                    .write_stream(&writes[offset..offset + length])
+                    .await
+                    .unwrap();
+                offset += length;
+            }
         }
         self.storage.flush().await.unwrap();
     }
@@ -146,18 +150,21 @@ impl Fixture {
     async fn collect(&self, rows: u64, keyed: bool) -> harmos::Result<()> {
         let view = self
             .storage
-            .view_with_limits(StorageSettings::default().query_execution)
+            .view_with_limits(dokime_app::config::StorageSettings::default().interactive)
             .await?;
         let mut selection = ReadSelection::new(ReadKind::Stream);
-        selection.schema = Some(telemetry::schema());
+        selection.schema = Some(codec().schema().clone());
         selection.stream = Some(id("meter"));
         let mut frame = Frame::new(NonZeroUsize::new(rows as usize).unwrap(), NonZeroUsize::MIN);
         let scan = frame.scan(
             selection,
             vec![
                 field(&["values", "value"], ScalarKind::Float),
-                field(&["scope", "test_execution_id"], ScalarKind::Text),
-                field(&["timestamp"], ScalarKind::Datetime),
+                field(
+                    &["metadata", "scope", "test_execution_id"],
+                    ScalarKind::Text,
+                ),
+                field(&["metadata", "timestamp"], ScalarKind::Datetime),
             ],
         );
         let group_by = if keyed {
@@ -229,6 +236,18 @@ fn field(names: &[&str], kind: ScalarKind) -> ScalarField {
     }
 }
 
+#[harmos::message]
+struct Meter {
+    value: f64,
+}
+
+fn codec() -> telemetry::TypedCodec {
+    telemetry::codec(
+        &dokime::telemetry::TelemetryContract::declared("meter", "Meter").typed::<Meter>(),
+    )
+    .unwrap()
+}
+
 fn sample(index: u64) -> Vec<u8> {
     let timestamp = Timestamp::new(format!(
         "2026-10-10T12:{:02}:{:02}.{:03}Z",
@@ -254,16 +273,20 @@ fn sample(index: u64) -> Vec<u8> {
         values: BTreeMap::from([("value".into(), Value::Number(index as f64 * 0.5))]),
         summary: BTreeMap::new(),
         metadata: BTreeMap::new(),
+        storage_payload: Some(harmos::Message::encode_to_vec(&Meter {
+            value: index as f64 * 0.5,
+        })),
     };
-    telemetry::encode(
-        &telemetry::TelemetryEntry {
-            epoch: SessionId::from_seed("producer"),
-            ordinal: index,
-            sample,
-        },
-        1024 * 1024,
-    )
-    .unwrap()
+    codec()
+        .encode(
+            &telemetry::TelemetryEntry {
+                epoch: SessionId::from_seed("producer"),
+                ordinal: index,
+                sample,
+            },
+            1024 * 1024,
+        )
+        .unwrap()
 }
 
 /* === Tests === */

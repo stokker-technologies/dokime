@@ -97,6 +97,8 @@ struct InitializationResource;
 
 /* === Streams === */
 
+#[dokime::message]
+#[derive(Clone, PartialEq)]
 struct PulseRow {
     index: i64,
     value: f64,
@@ -128,6 +130,7 @@ impl dokime::execution::EmbeddedPublisher for PublishedExecutionRows {
         execution: &str,
         stream: &dokime::core::Identifier,
         values: BTreeMap<String, Value>,
+        storage_payload: Vec<u8>,
     ) -> Result<(), String> {
         let sequence = {
             let mut rows = self.0.lock().unwrap();
@@ -143,6 +146,7 @@ impl dokime::execution::EmbeddedPublisher for PublishedExecutionRows {
             SOURCE,
         );
         sample.values = values;
+        sample.storage_payload = Some(storage_payload);
         sample.scope = Some(scope.clone());
         sample.received_at = sample.timestamp.clone();
         self.1
@@ -158,6 +162,7 @@ impl dokime::execution::EmbeddedPublisher for RefusedPublication {
         _: &str,
         _: &dokime::core::Identifier,
         _: BTreeMap<String, Value>,
+        _: Vec<u8>,
     ) -> Result<(), String> {
         Err(self.0.clone())
     }
@@ -229,6 +234,7 @@ impl dokime::telemetry::TelemetryStream for PulseRow {
             <Self as dokime::StreamSpec>::ID,
             "Probe Pulse",
         )
+        .typed::<Self>()
         .columns(<Self as dokime::telemetry::TelemetryRow>::columns())
         .strict()
     }
@@ -246,7 +252,9 @@ impl dokime::Publishable for PulseRow {
 
 impl From<PulseRow> for dokime::publication::Publication {
     fn from(row: PulseRow) -> Self {
+        let payload = dokime::Message::encode_to_vec(&row);
         Self::Row {
+            payload,
             stream: <PulseRow as dokime::telemetry::TelemetryStream>::stream_id(),
             values: <PulseRow as dokime::telemetry::TelemetryRow>::into_row(row),
         }

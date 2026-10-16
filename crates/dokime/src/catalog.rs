@@ -25,8 +25,6 @@ use crate::definition::DeclaredTemplate;
 #[cfg(feature = "native")]
 use crate::execution::SidecarTemplate;
 use crate::records::{DeclaredRecord, RecordContract};
-#[cfg(feature = "native")]
-use crate::telemetry::TelemetryRow;
 use crate::telemetry::{TelemetryContract, TelemetryStream};
 
 /* === Constants === */
@@ -625,7 +623,11 @@ where
         // would leave them.
         let mut refused = None;
         for row in rows {
-            match <T::Row as TelemetryRow>::from_row(&row.values) {
+            let bytes = row
+                .storage_payload
+                .as_ref()
+                .ok_or_else(|| "typed stream publication requires original row bytes".to_owned())?;
+            match <T::Row as harmos::Message>::decode(bytes) {
                 Ok(encoded) => batch.push_at(encoded, row.published_unix_micros),
                 Err(error) => {
                     refused = Some(error.to_string());

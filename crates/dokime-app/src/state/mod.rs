@@ -70,6 +70,11 @@ pub struct RuntimeState {
     pub telemetry_definitions: BTreeMap<dokime::core::Identifier, TelemetryContract>,
     pub cycles: BTreeMap<TestCycleId, crate::execution::TestCycle>,
     pub executions: BTreeMap<dokime::core::TestExecutionId, crate::execution::TestExecution>,
+    /// Pending report boundaries survive restart independently of later stop metadata.
+    pub cycle_report_finalizations:
+        BTreeMap<TestCycleId, crate::transactions::CycleReportFinalization>,
+    pub report_finalizations:
+        BTreeMap<dokime::core::TestExecutionId, crate::transactions::ReportFinalization>,
     pub run_requests:
         BTreeMap<dokime::core::CommandId, crate::transactions::provider::request::RunRequest>,
     pub note_admissions: BTreeMap<dokime::core::NoteId, crate::execution::notes::NoteAdmission>,
@@ -136,6 +141,19 @@ impl RuntimeState {
                 if &execution.test_cycle_id != cycle_id {
                     return Err("execution belongs to another cycle".into());
                 }
+            }
+        }
+        for (id, intent) in &self.cycle_report_finalizations {
+            let owner = self
+                .cycles
+                .get(id)
+                .ok_or("cycle report intent has no owner")?;
+            if &intent.source.test_cycle_id != id
+                || intent.source.execution_ids != owner.execution_ids
+                || intent.source.saved.is_some()
+                || intent.source.session_id.is_none()
+            {
+                return Err("cycle report intent differs from its canonical owner".into());
             }
         }
         if membership.len() != self.executions.len() {
@@ -321,6 +339,8 @@ impl RuntimeState {
             cycles: BTreeMap::new(),
             executions: BTreeMap::new(),
             run_requests: BTreeMap::new(),
+            cycle_report_finalizations: BTreeMap::new(),
+            report_finalizations: BTreeMap::new(),
             note_admissions: BTreeMap::new(),
             records: EvidenceRecords::default(),
             resources: ResourceRegistry::default(),

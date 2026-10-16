@@ -54,9 +54,6 @@ const MAX_ACTIVE_OWNERS: usize = 10_000;
 /* === Macros === */
 
 /* === Type Aliases === */
-/// What each sealed execution report left out, keyed by its cycle.
-type ReportOmissions = BTreeMap<dokime::core::TestCycleId, Vec<(TestExecutionId, Vec<String>)>>;
-
 /* === Structs === */
 pub(crate) struct TailStop {
     pub(crate) lease: Mutex<Option<crate::services::Lease>>,
@@ -69,13 +66,11 @@ pub(crate) struct TailStopPreparation {
 }
 
 pub(crate) struct ExecutionStorage {
-    pub(super) storage: Manager,
+    pub(crate) storage: Manager,
     pub(super) state_manager: StateManager,
     pub(super) context_epoch: SessionId,
     pub(super) brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
-    pub(super) cycle_save: Arc<Mutex<()>>,
-    /// Held until the cycle settles and records it.
-    pub(crate) report_omissions: Mutex<ReportOmissions>,
+    pub(crate) cycle_save: Arc<Mutex<()>>,
     pub(super) cycle_reports: Mutex<
         BTreeMap<dokime::core::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>,
     >,
@@ -85,11 +80,12 @@ pub(crate) struct ExecutionStorage {
     pub(crate) captures: super::captures::Captures,
 }
 
-pub(super) struct Acquisition {
+pub(crate) struct Acquisition {
     pub(super) storage: Manager,
     pub(super) execution_id: TestExecutionId,
     pub(super) execution: SharedQueryValue<TestExecution>,
     pub(super) gate: Arc<Mutex<()>>,
+    materialization_gate: Arc<Mutex<()>>,
     pub(super) finish_requested: bool,
     pub(super) outputs_sealed: bool,
     pub(super) outputs_quiescent: bool,
@@ -112,8 +108,9 @@ pub(super) struct CycleMemberContext {
 
 pub(crate) struct CaptureInputs {
     pub execution: SharedQueryValue<TestExecution>,
-    pub revision: SharedQueryValue<ExecutionRevision>,
+    pub lifecycle_id: String,
     pub outputs: SharedQueryValue<Vec<ExecutionOutput>>,
+    pub unavailable_outputs: QueryValue<Vec<String>>,
     pub through: QueryValue<StorageCursor>,
     _memory: StorageProductionPreparation,
 }
@@ -360,7 +357,6 @@ impl ExecutionStorage {
             context_epoch,
             brand,
             cycle_save: Arc::new(Mutex::new(())),
-            report_omissions: Mutex::new(BTreeMap::new()),
             cycle_reports: Mutex::new(BTreeMap::new()),
             active: Mutex::new(BTreeMap::new()),
             artifact_admission: Arc::new(tokio::sync::Semaphore::new(4)),
@@ -369,7 +365,7 @@ impl ExecutionStorage {
         })
     }
 
-    pub(super) async fn acquisition(
+    pub(crate) async fn acquisition(
         &self,
         id: &TestExecutionId,
     ) -> Option<Arc<Mutex<Acquisition>>> {
@@ -445,10 +441,23 @@ impl ExecutionStorage {
         .map_err(|source| Error::Join { source })?
     }
 
+    pub(crate) async fn materialization_gate(
+        &self,
+        execution: &TestExecutionId,
+    ) -> Result<Arc<Mutex<()>>> {
+        let owner = self
+            .acquisition(execution)
+            .await
+            .ok_or_else(|| invalid("report has no acquisition owner"))?;
+        let gate = owner.lock().await.materialization_gate.clone();
+        Ok(gate)
+    }
+
     pub(crate) async fn prepare_capture(
         self: &Arc<Self>,
         cycle: &CycleView,
         execution: &TestExecution,
+        at: &StorageCursor,
         final_report: bool,
     ) -> Result<CaptureInputs> {
         validate_owner(cycle, execution)?;
@@ -476,6 +485,40 @@ impl ExecutionStorage {
             .try_into_value()?
             .try_into_shared()?;
         let storage = self.storage.clone();
+        if !self.storage.cursor_saved().covers(at)? {
+            return Err(invalid("report cursor is not durable"));
+        }
+        let intent = self
+            .state_manager
+            .state()
+            .read(|state| {
+                state
+                    .report_finalizations
+                    .get(&execution.test_execution_id)
+                    .cloned()
+            })
+            .await?
+            .value;
+        let report_boundary = intent.as_ref().map(|intent| intent.evidence_at.clone());
+        let lifecycle_id = match intent.and_then(|intent| intent.lifecycle) {
+            Some(lifecycle) if lifecycle.execution == *execution => lifecycle.id.to_string(),
+            Some(_) => return Err(invalid("capture differs from immutable lifecycle intent")),
+            None if final_report => {
+                return Err(invalid(
+                    "final report requires an immutable lifecycle intent",
+                ));
+            }
+            None => uuid::Uuid::now_v7().to_string(),
+        };
+        if report_boundary
+            .as_ref()
+            .is_some_and(|boundary| boundary != at)
+        {
+            return Err(invalid(
+                "report request differs from its persisted finalization boundary",
+            ));
+        }
+        let report_boundary = at.clone();
         let operation = async move {
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
@@ -500,9 +543,6 @@ impl ExecutionStorage {
                 acquisition.finalizing = Some(frozen.clone());
                 acquisition.finish_requested = true;
             }
-            if acquisition.pending.is_some() {
-                save_working_revision(&mut acquisition).await?;
-            }
             let frozen = if final_report {
                 acquisition
                     .finalizing
@@ -512,32 +552,47 @@ impl ExecutionStorage {
             } else {
                 frozen
             };
-            if *acquisition.execution != *frozen || acquisition.working.is_none() {
-                acquisition.execution = frozen.clone();
-                save_working_revision(&mut acquisition).await?;
-            }
             let outputs = if final_report {
                 acquisition.settle_outputs().await?
             } else {
                 acquisition.snapshot_outputs().await?
             };
-            let revision = acquisition
-                .working
-                .as_ref()
-                .expect("original capture revision saved")
-                .clone();
-            // Freeze Evidence While This Owner Still Excludes New Admissions.
-            let through = storage
-                .produce(allowance(revision.position.memory_size())?, |_| {
-                    Ok(storage.cursor_accepted())
+            let unavailable_outputs = storage
+                .produce(allowance(outputs.memory_size())?, |_| {
+                    let mut unavailable = Vec::new();
+                    for output in outputs.iter() {
+                        if !report_boundary.covers(&output.file.position)? {
+                            unavailable.push(output.relative_path.clone());
+                        }
+                    }
+                    Ok(unavailable)
                 })?
                 .try_into_value()?;
-            let memory =
-                storage.prepare_production(allowance(std::mem::size_of::<CaptureInputs>())?)?;
+            let outputs = outputs
+                .try_project(allowance(outputs.memory_size())?, |outputs, _| {
+                    let mut included = Vec::new();
+                    for output in outputs {
+                        if report_boundary.covers(&output.file.position)? {
+                            included.push(output.clone());
+                        }
+                    }
+                    Ok(included)
+                })?
+                .try_into_shared()?;
+            // Freeze Evidence While This Owner Still Excludes New Admissions.
+            let through = storage
+                .produce(allowance(report_boundary.memory_size())?, |_| {
+                    Ok(report_boundary)
+                })?
+                .try_into_value()?;
+            let memory = storage.prepare_production(allowance(
+                std::mem::size_of::<CaptureInputs>().saturating_add(lifecycle_id.capacity()),
+            )?)?;
             Ok::<_, Error>(CaptureInputs {
                 execution: frozen,
-                revision,
+                lifecycle_id,
                 outputs,
+                unavailable_outputs,
                 through,
                 _memory: memory,
             })
@@ -554,15 +609,52 @@ impl ExecutionStorage {
         .map_err(|source| Error::Join { source })?
     }
 
-    pub(crate) async fn publish_final_report(
+    pub(crate) async fn has_report_lifecycle(&self, id: &TestExecutionId) -> Result<bool> {
+        Ok(self
+            .state_manager
+            .state()
+            .read(|state| {
+                state
+                    .report_finalizations
+                    .get(id)
+                    .is_some_and(|intent| intent.lifecycle.is_some())
+            })
+            .await?
+            .value)
+    }
+
+    pub(crate) async fn publication_revision(
+        &self,
+        execution: &TestExecution,
+    ) -> Result<SharedQueryValue<ExecutionRevision>> {
+        let owner = self
+            .acquisition(&execution.test_execution_id)
+            .await
+            .ok_or_else(|| invalid("report has no acquisition"))?;
+        let gate = owner.lock().await.gate.clone();
+        let _guard = gate.lock().await;
+        let mut acquisition = owner.lock().await;
+        validate_identity(&acquisition, execution)?;
+        if acquisition.pending.is_some() || acquisition.working.is_none() {
+            save_working_revision(&mut acquisition).await?;
+        }
+        acquisition
+            .working
+            .clone()
+            .ok_or_else(|| invalid("publication has no native revision"))
+    }
+
+    pub(crate) async fn materialize_final_report(
         self: &Arc<Self>,
         inspection: super::execution::ExecutionView,
         prepared: PreparedExecutionReport,
         sealed_at: Timestamp,
-    ) -> Result<SharedQueryValue<ExecutionRevision>> {
+    ) -> Result<dokime::operations::reports::MaterializedReport> {
         prepared.captured_input().check_origin(&self.storage)?;
         prepared.settled_outputs().check_origin(&self.storage)?;
-        inspection.revision().check_origin(&self.storage)?;
+        if let Ok(revision) = inspection.revision() {
+            revision.check_origin(&self.storage)?;
+        }
         inspection
             .captured_source()
             .ok_or_else(|| invalid("report requires an original captured source"))?
@@ -571,12 +663,14 @@ impl ExecutionStorage {
         let storage = self.clone();
         let work = async move {
             let owner = storage
-                .acquisition(&prepared.captured_input().execution.execution_id)
+                .acquisition(&prepared.captured_input().execution_id)
                 .await
                 .ok_or_else(|| invalid("report has no original acquisition owner"))?;
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
             let mut acquisition = owner.lock().await;
+            bind_publication_revision(&mut acquisition, prepared.captured_input().execution()?)
+                .await?;
             let computation = inspection.view().begin_computation()?;
             validate_report(&acquisition, &inspection, &prepared)?;
             if acquisition.report.is_some() {
@@ -601,7 +695,7 @@ impl ExecutionStorage {
                 publication: None,
                 _admission: memory,
             });
-            settle_final_report(&mut acquisition).await
+            publish_materialized_final(&mut acquisition).await
         };
         let work = preparation.boxed(work)?;
         tokio::spawn(work)
@@ -617,22 +711,24 @@ impl ExecutionStorage {
         acquisition.report.is_some() || acquisition.execution.saved.is_some()
     }
 
-    /// Releases the input a permanently failed finalization retained, so the
-    /// execution can settle with its cause and a later finalization captures it
-    /// afresh. Returns false when its report was sealed after all.
-    pub(crate) async fn release_finalization(&self, execution: &TestExecutionId) -> bool {
+    pub(crate) async fn retry_materialized_report(
+        &self,
+        execution: &TestExecutionId,
+        at: &StorageCursor,
+    ) -> Result<Option<dokime::operations::reports::MaterializedReport>> {
         let Some(owner) = self.acquisition(execution).await else {
-            return true;
+            return Ok(None);
         };
         let gate = owner.lock().await.gate.clone();
-        let _boundary = gate.lock().await;
+        let _guard = gate.lock().await;
         let mut acquisition = owner.lock().await;
-        if acquisition.execution.saved.is_some() {
-            return false;
+        let Some(report) = acquisition.report.as_ref() else {
+            return Ok(None);
+        };
+        if report.prepared.captured_input().evidence_through != *at {
+            return Err(invalid("report retry changes the frozen evidence cursor"));
         }
-        acquisition.report = None;
-        acquisition.finalizing = None;
-        true
+        publish_materialized_final(&mut acquisition).await.map(Some)
     }
 
     pub(crate) async fn retry_final_report(
@@ -799,7 +895,7 @@ impl ExecutionStorage {
         Ok(claim.finish(ids)?.try_into_value()?)
     }
 
-    pub(super) async fn acquire(
+    pub(crate) async fn acquire(
         &self,
         cycle: &CycleView,
         execution: &TestExecution,
@@ -824,8 +920,8 @@ impl ExecutionStorage {
             harmos::btree_map_memory::<TestExecutionId, Arc<Mutex<Acquisition>>>(1)
                 .checked_add(std::mem::size_of::<Mutex<Acquisition>>())
                 .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<usize>()))
-                .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Mutex<()>>()))
-                .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<usize>()))
+                .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<Mutex<()>>()))
+                .and_then(|bytes| bytes.checked_add(4 * std::mem::size_of::<usize>()))
                 .and_then(|bytes| bytes.checked_add(execution.test_execution_id.as_str().len()))
                 .and_then(|bytes| bytes.checked_add(execution.test_execution_id.as_str().len()))
                 .ok_or_else(|| invalid("acquisition registry memory overflows"))?;
@@ -838,6 +934,7 @@ impl ExecutionStorage {
             execution_id: id.clone(),
             execution: frozen,
             gate: Arc::new(Mutex::new(())),
+            materialization_gate: Arc::new(Mutex::new(())),
             finish_requested: false,
             outputs_sealed: false,
             outputs_quiescent: false,
@@ -899,15 +996,19 @@ fn validate_report(
         || !acquisition.outputs_quiescent
         || acquisition.execution.saved.is_some()
         || acquisition.pending.is_some()
-        || captured.execution != **revision
-        || source.execution != **revision
+        || captured.execution != source.execution
+        || captured.execution_id != revision.execution_id
+        || captured.lifecycle_id != source.lifecycle_id
         || captured.owner_node_id != source.owner_node_id
         || captured.evidence_through != source.evidence_through
         || captured.context != source.context
         || captured.telemetry_contracts != source.telemetry_contracts
         || captured.record_contracts != source.record_contracts
-        || source.outputs.as_slice() != outputs.as_slice()
-        || prepared.settled_outputs().as_slice() != outputs.as_slice()
+        || source
+            .outputs
+            .iter()
+            .any(|output| !outputs.contains(output))
+        || prepared.settled_outputs().as_slice() != source.outputs.as_slice()
         || captured.input.cycle.test_executions.as_slice() != std::slice::from_ref(&**terminal)
         || inspection.execution() != &**terminal
         || *acquisition.execution != **terminal
@@ -919,11 +1020,14 @@ fn validate_report(
     Ok(())
 }
 
-async fn settle_final_report(
+async fn publish_materialized_final(
     acquisition: &mut Acquisition,
-) -> Result<SharedQueryValue<ExecutionRevision>> {
-    if acquisition.execution.saved.is_some() {
-        return complete_final_report(acquisition);
+) -> Result<dokime::operations::reports::MaterializedReport> {
+    if let Some(seal) = &acquisition.execution.saved {
+        return Ok(dokime::operations::reports::MaterializedReport {
+            report: seal.report.clone(),
+            materialized_input: Some(seal.materialized_input.clone()),
+        });
     }
     if acquisition
         .report
@@ -934,10 +1038,17 @@ async fn settle_final_report(
             .report
             .as_mut()
             .ok_or_else(|| invalid("finalization has no retained report"))?;
-        let seal = report.prepared.save_dependencies(&report.sealed_at).await?;
+        let revision = acquisition
+            .working
+            .as_ref()
+            .ok_or_else(|| invalid("publication has no real native revision"))?;
+        let seal = report
+            .prepared
+            .save_dependencies(&report.sealed_at, revision)
+            .await?;
         seal.check_origin(&acquisition.storage)?;
         let computation = report.inspection.view().begin_computation()?;
-        if seal.source.execution != report.prepared.captured_input().execution
+        if seal.source.execution.execution_id != report.prepared.captured_input().execution_id
             || seal.source.owner_node_id != report.prepared.captured_input().owner_node_id
             || seal.source.evidence_through != report.prepared.captured_input().evidence_through
             || seal.source.outputs.as_slice() != report.prepared.settled_outputs().as_slice()
@@ -971,6 +1082,7 @@ async fn settle_final_report(
                 executions: std::slice::from_ref(&seal.source.execution),
                 inputs: std::slice::from_ref(&seal.source.context),
                 file: &seal.report,
+                materialized_inputs: std::slice::from_ref(&seal.materialized_input),
             },
         )?);
     }
@@ -981,6 +1093,24 @@ async fn settle_final_report(
         .finish()
         .await?;
 
+    let seal = acquisition
+        .report
+        .as_ref()
+        .and_then(|report| report.seal.as_ref())
+        .ok_or_else(|| invalid("published report has no retained dependencies"))?;
+    Ok(dokime::operations::reports::MaterializedReport {
+        report: seal.report.clone(),
+        materialized_input: Some(seal.materialized_input.clone()),
+    })
+}
+
+async fn settle_final_report(
+    acquisition: &mut Acquisition,
+) -> Result<SharedQueryValue<ExecutionRevision>> {
+    if acquisition.execution.saved.is_some() {
+        return complete_final_report(acquisition);
+    }
+    publish_materialized_final(acquisition).await?;
     if acquisition.pending.is_none() {
         let report = acquisition
             .report
@@ -1098,6 +1228,29 @@ fn copy_tail_name(source: &str) -> Result<String> {
     }
     name.push_str(source);
     Ok(name)
+}
+
+async fn bind_publication_revision(
+    acquisition: &mut Acquisition,
+    execution: &TestExecution,
+) -> Result<()> {
+    if acquisition.pending.is_some() {
+        save_working_revision(acquisition).await?;
+    }
+    if acquisition.execution.saved.is_some() {
+        return Err(invalid("cannot replace a sealed execution"));
+    }
+    if *acquisition.execution != *execution || acquisition.working.is_none() {
+        acquisition.execution = acquisition
+            .storage
+            .produce(allowance(execution.memory_size())?, |_| {
+                Ok(execution.clone())
+            })?
+            .try_into_value()?
+            .try_into_shared()?;
+        save_working_revision(acquisition).await?;
+    }
+    Ok(())
 }
 
 async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {

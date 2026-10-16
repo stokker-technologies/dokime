@@ -16,14 +16,14 @@
 use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::storage::{
-    ReadLimits, RecoveryPosition, StoreHistory,
-    recovery::{RecoveryEntry, RecoveryPage, RecoverySnapshot},
+    ReadLimits, RecoveryPosition, StorageCursor, StoreHistory,
+    state::{RecoveryEntry, RecoveryPage, RecoverySnapshot},
 };
 use rusqlite::{Connection, params};
 use sha2::{Digest, Sha256};
 // Local Imports
 use super::super::{Error, State};
-use super::{blob, check_digest, position, sequence};
+use super::{blob, position, sequence};
 
 /* === Constants === */
 const SCHEMA: &str = "
@@ -34,13 +34,13 @@ CREATE TABLE IF NOT EXISTS storage_recovery_head (
     singleton INTEGER PRIMARY KEY CHECK(singleton=1),
     saved TEXT NOT NULL CHECK(length(saved)=16),
     base TEXT NOT NULL CHECK(length(base)=16),
-    snapshot BLOB, digest BLOB,
-    CHECK((snapshot IS NULL AND digest IS NULL) OR
-          (snapshot IS NOT NULL AND length(digest)=32))
+    snapshot BLOB, digest BLOB, required_data BLOB,
+    CHECK((snapshot IS NULL AND digest IS NULL AND required_data IS NULL) OR
+          (snapshot IS NOT NULL AND length(digest)=32 AND required_data IS NOT NULL))
 );
 CREATE TABLE IF NOT EXISTS storage_recovery_entries (
     position TEXT PRIMARY KEY CHECK(length(position)=16),
-    payload BLOB NOT NULL, digest BLOB NOT NULL CHECK(length(digest)=32)
+    payload BLOB NOT NULL, digest BLOB NOT NULL CHECK(length(digest)=32), required_data BLOB NOT NULL
 ) WITHOUT ROWID;
 ";
 
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS storage_recovery_entries (
 
 /* === Structs === */
 #[derive(Clone, Copy)]
-pub struct RecoveryLimits {
+pub struct StateLimits {
     pub entry_bytes: NonZeroUsize,
     pub batch_bytes: NonZeroUsize,
     pub snapshot_bytes: NonZeroUsize,
@@ -66,7 +66,7 @@ struct Head {
 /* === Traits === */
 
 /* === Implementations === */
-impl Default for RecoveryLimits {
+impl Default for StateLimits {
     fn default() -> Self {
         Self {
             entry_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
@@ -77,11 +77,11 @@ impl Default for RecoveryLimits {
 }
 
 impl State {
-    pub(crate) async fn recovery_open(
+    pub(crate) async fn state_open(
         &self,
         history: StoreHistory,
     ) -> Result<RecoveryPosition, Error> {
-        self.call_recovery(move |connection| {
+        self.call(move |connection| {
             Ok((|| {
                 let transaction = connection.transaction()?;
                 let encoded = serde_json::to_vec(&history)?;
@@ -91,7 +91,7 @@ impl State {
                 )?;
                 check_history(&transaction, &history)?;
                 transaction.execute(
-                    "INSERT OR IGNORE INTO storage_recovery_head VALUES (1,?1,?1,NULL,NULL)",
+                    "INSERT OR IGNORE INTO storage_recovery_head VALUES (1,?1,?1,NULL,NULL,NULL)",
                     [position(0)],
                 )?;
                 let sequence = head(&transaction)?.saved;
@@ -102,11 +102,11 @@ impl State {
         .await?
     }
 
-    pub(crate) async fn recovery_flush(
+    pub(crate) async fn state_flush(
         &self,
         through: RecoveryPosition,
     ) -> Result<RecoveryPosition, Error> {
-        self.call_recovery(move |connection| {
+        self.call(move |connection| {
             Ok((|| {
                 check_history(connection, &through.history)?;
                 let head = head(connection)?;
@@ -122,11 +122,11 @@ impl State {
         .await?
     }
 
-    pub(crate) async fn recovery_write(
+    pub(crate) async fn state_write(
         &self,
         history: StoreHistory,
         entries: Vec<RecoveryEntry>,
-        limits: RecoveryLimits,
+        limits: StateLimits,
     ) -> Result<(), Error> {
         let mut bytes = 0usize;
         for entry in &entries {
@@ -134,35 +134,40 @@ impl State {
             if entry.payload.len() > limits.entry_bytes.get() {
                 return Err(Error::Data("recovery entry exceeds byte bound"));
             }
-            // Include each row's fixed indexing and checksum overhead before
-            // cloning even empty payloads, so row metadata is also bounded.
+            let dependency_bytes =
+                super::entry::check_size(&entry.required_data, super::HISTORY_BYTES)?;
+            // Include The Durable Dependency And Fixed Journal Indexing Before Cloning.
             bytes = bytes
                 .checked_add(entry.payload.len())
+                .and_then(|bytes| bytes.checked_add(dependency_bytes))
                 .and_then(|bytes| bytes.checked_add(64))
                 .filter(|bytes| *bytes <= limits.batch_bytes.get())
                 .ok_or(Error::Data("recovery batch exceeds byte bound"))?;
         }
-        self.call_recovery(move |connection| {
+        self.call(move |connection| {
             Ok((|| {
                 let transaction = connection.transaction()?;
                 check_history(&transaction, &history)?;
                 let mut head = head(&transaction)?;
                 for entry in entries {
+                    check_dependency(&transaction, &entry.required_data)?;
+                    let required = serde_json::to_vec(&entry.required_data)?;
                     let at = entry.position.sequence;
                     if at <= head.base {
                         return Err(gap(at, head.base));
                     }
                     if at <= head.saved {
                         let mut statement = transaction.prepare(
-                            "SELECT payload,digest FROM storage_recovery_entries WHERE position=?1",
+                            "SELECT payload,digest,required_data FROM storage_recovery_entries WHERE position=?1",
                         )?;
                         let mut rows = statement.query([position(at)])?;
                         let row = rows
                             .next()?
                             .ok_or(Error::Corrupt("missing durable recovery entry"))?;
                         let payload = blob(row, 0)?;
-                        check_digest(payload, blob(row, 1)?)?;
-                        if payload != entry.payload {
+                        let stored_required = blob(row, 2)?;
+                        check_state_digest(payload, stored_required, blob(row, 1)?)?;
+                        if payload != entry.payload || stored_required != required {
                             return Err(Error::Conflict("recovery retry has different bytes"));
                         }
                         continue;
@@ -170,10 +175,10 @@ impl State {
                     if head.saved.checked_add(1) != Some(at) {
                         return Err(Error::Data("recovery write has a gap"));
                     }
-                    let digest = Sha256::digest(&entry.payload);
+                    let digest = state_digest(&entry.payload, &required);
                     transaction.execute(
-                        "INSERT INTO storage_recovery_entries VALUES (?1,?2,?3)",
-                        params![position(at), entry.payload, digest.as_slice()],
+                        "INSERT INTO storage_recovery_entries VALUES (?1,?2,?3,?4)",
+                        params![position(at), entry.payload, digest.as_slice(), required],
                     )?;
                     head.saved = at;
                 }
@@ -188,18 +193,18 @@ impl State {
         .await?
     }
 
-    pub(crate) async fn recovery_snapshot(
+    pub(crate) async fn state_snapshot(
         &self,
         history: StoreHistory,
         maximum: NonZeroUsize,
     ) -> Result<Option<RecoverySnapshot>, Error> {
         let memory = self.clone();
-        self.call_recovery(move |connection| {
+        self.call(move |connection| {
             Ok((|| {
                 check_history(connection, &history)?;
                 let head = head(connection)?;
                 let mut statement = connection.prepare(
-                    "SELECT snapshot,digest FROM storage_recovery_head WHERE singleton=1",
+                    "SELECT snapshot,digest,required_data FROM storage_recovery_head WHERE singleton=1",
                 )?;
                 let mut rows = statement.query([])?;
                 let row = rows
@@ -214,23 +219,25 @@ impl State {
                 }
                 let allocation = payload
                     .len()
-                    .checked_add(std::mem::size_of::<RecoverySnapshot>() + super::HISTORY_BYTES)
+                    .checked_add(std::mem::size_of::<RecoverySnapshot>() + 4 * super::HISTORY_BYTES)
                     .ok_or(Error::Data("recovery snapshot allocation size overflow"))?;
                 let _reservation = memory.reserve_memory(allocation)?;
-                check_digest(payload, blob(row, 1)?)?;
+                let required_data = decode_dependency(connection, blob(row, 2)?)?;
+                check_state_digest(payload, blob(row, 2)?, blob(row, 1)?)?;
                 Ok(Some(RecoverySnapshot {
                     through: RecoveryPosition {
                         history,
                         sequence: head.base,
                     },
                     payload: payload.to_vec(),
+                    required_data,
                 }))
             })())
         })
         .await?
     }
 
-    pub(crate) async fn recovery_store_snapshot(
+    pub(crate) async fn state_store_snapshot(
         &self,
         snapshot: RecoverySnapshot,
         maximum: NonZeroUsize,
@@ -238,33 +245,35 @@ impl State {
         if snapshot.payload.len() > maximum.get() {
             return Err(Error::Data("recovery snapshot exceeds write byte bound"));
         }
-        self.call_recovery(move |connection| Ok((|| {
+        self.call(move |connection| Ok((|| {
             let transaction = connection.transaction()?;
             check_history(&transaction, &snapshot.through.history)?;
+            check_dependency(&transaction, &snapshot.required_data)?;
+            let required = serde_json::to_vec(&snapshot.required_data)?;
             let head = head(&transaction)?;
             let through = snapshot.through.sequence;
             if through < head.base { return Err(gap(through,head.base)); }
             if through > head.saved { return Err(Error::Data("snapshot exceeds durable recovery frontier")); }
             if through == head.base {
-                let mut statement = transaction.prepare("SELECT snapshot,digest FROM storage_recovery_head WHERE singleton=1")?;
+                let mut statement = transaction.prepare("SELECT snapshot,digest,required_data FROM storage_recovery_head WHERE singleton=1")?;
                 let mut rows = statement.query([])?;
                 let row = rows.next()?.ok_or(Error::Corrupt("missing recovery head"))?;
                 if row.get_ref(0)?.data_type() != rusqlite::types::Type::Null {
                     let payload = blob(row,0)?;
-                    check_digest(payload,blob(row,1)?)?;
-                    return if payload == snapshot.payload { Ok(()) }
+                    check_state_digest(payload,blob(row,2)?,blob(row,1)?)?;
+                    return if payload == snapshot.payload && blob(row,2)? == required { Ok(()) }
                         else { Err(Error::Conflict("snapshot retry has different bytes")) };
                 }
             }
-            let digest = Sha256::digest(&snapshot.payload);
-            transaction.execute("UPDATE storage_recovery_head SET base=?1,snapshot=?2,digest=?3 WHERE singleton=1", params![position(through),snapshot.payload,digest.as_slice()])?;
+            let digest = state_digest(&snapshot.payload, &required);
+            transaction.execute("UPDATE storage_recovery_head SET base=?1,snapshot=?2,digest=?3,required_data=?4 WHERE singleton=1", params![position(through),snapshot.payload,digest.as_slice(),required])?;
             transaction.execute("DELETE FROM storage_recovery_entries WHERE position<=?1", [position(through)])?;
             transaction.commit()?;
             Ok(())
         })())).await?
     }
 
-    pub(crate) async fn recovery_page(
+    pub(crate) async fn state_page(
         &self,
         after: RecoveryPosition,
         through: RecoveryPosition,
@@ -276,15 +285,15 @@ impl State {
             return Err(Error::Data("recovery range is reversed"));
         }
         let memory = self.clone();
-        self.call_recovery(move |connection| Ok((|| {
+        self.call(move |connection| Ok((|| {
             check_history(connection, &through.history)?;
             let head = head(connection)?;
             if after.sequence < head.base { return Err(gap(after.sequence,head.base)); }
             if through.sequence > head.saved { return Err(Error::Data("recovery read exceeds durable frontier")); }
-            let mut statement = connection.prepare("SELECT position,payload,digest FROM storage_recovery_entries WHERE position>?1 AND position<=?2 ORDER BY position LIMIT ?3")?;
+            let mut statement = connection.prepare("SELECT position,payload,digest,required_data FROM storage_recovery_entries WHERE position>?1 AND position<=?2 ORDER BY position LIMIT ?3")?;
             let count = limits.rows.get().min(64);
             let mut rows = statement.query(params![position(after.sequence),position(through.sequence),count as i64])?;
-            let allocation = count.checked_mul(std::mem::size_of::<RecoveryEntry>() + super::HISTORY_BYTES)
+            let allocation = count.checked_mul(std::mem::size_of::<RecoveryEntry>() + 4 * super::HISTORY_BYTES)
                 .and_then(|bytes| bytes.checked_add(limits.bytes.get()))
                 .ok_or(Error::Data("recovery page allocation size overflow"))?;
             let _reservation = memory.reserve_memory(allocation)?;
@@ -296,8 +305,9 @@ impl State {
                 if previous.checked_add(1) != Some(at) { return Err(Error::Corrupt("durable recovery range has a gap")); }
                 let payload = blob(row,1)?;
                 if payload.len() > entry_bytes.get() { return Err(Error::Corrupt("stored recovery entry exceeds its byte bound")); }
-                check_digest(payload,blob(row,2)?)?;
-                let entry = RecoveryEntry { position: RecoveryPosition { history: through.history.clone(),sequence: at },payload: payload.to_vec() };
+                let required_data = decode_dependency(connection, blob(row,3)?)?;
+                check_state_digest(payload,blob(row,3)?,blob(row,2)?)?;
+                let entry = RecoveryEntry { position: RecoveryPosition { history: through.history.clone(),sequence: at },payload: payload.to_vec(), required_data };
                 let next_bytes = bytes.checked_add(encoded_bytes(&entry)?).filter(|bytes| *bytes <= limits.bytes.get());
                 let Some(next_bytes) = next_bytes else {
                     if entries.is_empty() { return Err(Error::Data("recovery entry exceeds page byte bound")); }
@@ -319,7 +329,56 @@ impl State {
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn state_digest(payload: &[u8], required: &[u8]) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update((payload.len() as u64).to_le_bytes());
+    digest.update(payload);
+    digest.update(required);
+    digest.finalize().into()
+}
+fn check_state_digest(payload: &[u8], required: &[u8], digest: &[u8]) -> Result<(), Error> {
+    if state_digest(payload, required).as_slice() != digest {
+        return Err(Error::Corrupt(
+            "state payload or evidence dependency checksum differs",
+        ));
+    }
+    Ok(())
+}
+fn check_dependency(connection: &Connection, required: &StorageCursor) -> Result<(), Error> {
+    let data = super::saved(connection)?;
+    if !(StorageCursor {
+        history: data.history,
+        sequence: data.sequence,
+    })
+    .covers(required)?
+    {
+        return Err(Error::Data(
+            "state write requires evidence beyond the durable frontier",
+        ));
+    }
+    Ok(())
+}
+fn decode_dependency(connection: &Connection, bytes: &[u8]) -> Result<StorageCursor, Error> {
+    if bytes.len() > super::HISTORY_BYTES {
+        return Err(Error::Corrupt("state dependency exceeds history bound"));
+    }
+    let required: StorageCursor = serde_json::from_slice(bytes)?;
+    check_dependency(connection, &required)?;
+    Ok(required)
+}
+
 pub(in crate::storage::sqlite) fn initialize(recovery: &mut Connection) -> Result<(), Error> {
+    let incompatible: bool = recovery.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_recovery_head')
+         AND (NOT EXISTS(SELECT 1 FROM pragma_table_info('storage_recovery_head') WHERE name='required_data')
+              OR NOT EXISTS(SELECT 1 FROM pragma_table_info('storage_recovery_entries') WHERE name='required_data'))",
+        [], |row| row.get(0),
+    )?;
+    if incompatible {
+        return Err(Error::Conflict(
+            "state journal without evidence dependencies requires a fresh storage root",
+        ));
+    }
     let transaction = recovery.transaction()?;
     transaction.execute_batch(SCHEMA)?;
     transaction.pragma_update(None, "user_version", super::super::SCHEMA_VERSION)?;

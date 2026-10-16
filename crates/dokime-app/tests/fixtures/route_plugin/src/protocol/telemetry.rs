@@ -59,6 +59,7 @@ impl dokime::StreamSpec for Readings {
 impl dokime::telemetry::TelemetryStream for Readings {
     fn contract() -> TelemetryContract {
         TelemetryContract::declared("fixture-sidecar.reading", "Reading")
+            .typed::<Reading>()
             .columns([TelemetryColumn::declared(
                 "value",
                 "Value",

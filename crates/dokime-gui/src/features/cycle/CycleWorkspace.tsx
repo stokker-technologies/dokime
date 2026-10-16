@@ -257,12 +257,7 @@ export function CycleWorkspace({
       .mutateAsync(executionId)
       .then((origin) =>
         toast.success("Report Opened", {
-          description:
-            origin === "Current"
-              ? "Generated from the run so far."
-              : origin === "Regenerated"
-                ? "The sealed report was missing, so it was generated again from its evidence."
-                : undefined,
+          description: origin === "Current" ? "Generated from the run so far." : undefined,
         }),
       )
       .catch((error: unknown) =>

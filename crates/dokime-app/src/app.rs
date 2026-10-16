@@ -47,6 +47,23 @@ pub type Simulated = harmos::simulation::SimulatedRuntime<Dokime>;
 #[derive(Clone, Copy, Debug)]
 pub struct Dokime;
 
+#[derive(Clone)]
+pub struct Resources {
+    pub(crate) analysis: crate::report::analysis::Resources,
+    pub(crate) renderer: crate::report::Renderer,
+    pub(crate) storage_settings: crate::config::StorageSettings,
+}
+
+impl Resources {
+    pub fn new(storage_settings: crate::config::StorageSettings) -> Self {
+        Self {
+            analysis: crate::report::analysis::Resources::new(),
+            renderer: crate::report::Renderer,
+            storage_settings,
+        }
+    }
+}
+
 /* === Enums === */
 #[harmos::lanes]
 pub enum Lanes {
@@ -64,13 +81,13 @@ impl Application for Dokime {
     type Transaction = Transactions;
     type Record = Records;
     type Streams = StreamCatalog;
-    type Resources = ();
+    type Resources = Resources;
 }
 
 /* === Public Functions === */
 /* === Functions === */
 
-pub(crate) fn builder(origin: impl Into<Origin>, resources: ()) -> Builder {
+pub(crate) fn builder(origin: impl Into<Origin>, resources: Resources) -> Builder {
     HarmosRuntime::builder(origin, resources)
         // Retain SDK Initialization While Admitting Its Nested Host Publications.
         .operation_settings(harmos::operations::Settings {
@@ -113,7 +130,12 @@ pub fn simulate(
     origin: impl Into<Origin>,
     seed: u64,
 ) -> Result<Simulated, harmos::runtime::Incompatible> {
-    builder(origin, ()).entropy_seed(seed).simulate()
+    builder(
+        origin,
+        Resources::new(crate::config::StorageSettings::default()),
+    )
+    .entropy_seed(seed)
+    .simulate()
 }
 
 /* === Private Functions === */

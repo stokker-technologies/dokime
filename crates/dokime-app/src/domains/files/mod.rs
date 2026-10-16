@@ -147,6 +147,20 @@ impl RuntimeHandle {
             },
             context_execution,
         )?;
+        for matcher in &request.matchers {
+            let stream = dokime::core::Identifier::new(&matcher.stream)
+                .map_err(|error| invalid(error.to_string()))?;
+            let state = self.state_read();
+            let contract = state
+                .telemetry_definitions
+                .get(&stream)
+                .ok_or_else(|| invalid(format!("matcher stream {stream} is not registered")))?;
+            if contract.storage_schema.as_ref() != Some(&matcher.storage_schema) {
+                return Err(invalid(format!(
+                    "matcher stream {stream} has a different declared row schema"
+                )));
+            }
+        }
         settings.artifact = request.artifact.clone();
         settings.lines = LineMatchers::compile(&request.matchers, &request.markers)
             .map_err(|source| invalid(source.to_string()))?;

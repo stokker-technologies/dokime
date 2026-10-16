@@ -102,21 +102,31 @@ def locate(messages: Path) -> Path:
     return root
 
 
-def prepare(messages: Path, *, profile: str, root: Path) -> Path:
+def prepare(
+    messages: Path, *, profile: str, root: Path, cargo_config: Path | None = None
+) -> Path:
+    if cargo_config is not None:
+        cargo_config = cargo_config.resolve(strict=True)
+        if not cargo_config.is_file():
+            raise ValueError("Cargo configuration must be a file")
     messages.parent.mkdir(parents=True, exist_ok=True)
     temporary = messages.with_suffix(".pending")
-    command = [
-        "cargo",
-        "build",
-        "--locked",
-        "-p",
-        "dokime-contract",
-        "--bin",
-        "dokime-contract-export",
-        "--features",
-        "descriptors",
-        "--message-format=json-render-diagnostics",
-    ]
+    command = ["cargo"]
+    if cargo_config is not None:
+        command.extend(["--config", str(cargo_config)])
+    command.extend(
+        [
+            "build",
+            "--locked",
+            "-p",
+            "dokime-contract",
+            "--bin",
+            "dokime-contract-export",
+            "--features",
+            "descriptors",
+            "--message-format=json-render-diagnostics",
+        ]
+    )
     if profile == "release":
         command.append("--release")
     try:
@@ -343,6 +353,7 @@ def main() -> None:
     selected.add_argument("messages", type=Path)
     build = subcommands.add_parser("prepare")
     build.add_argument("--profile", choices=("dev", "release"), default="dev")
+    build.add_argument("--cargo-config", type=Path)
     build.add_argument(
         "--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON")
     )
@@ -374,7 +385,14 @@ def main() -> None:
         else:
             if args.build_json is None:
                 parser.error("--build-json must select the contract producer")
-            print(prepare(args.build_json, profile=args.profile, root=root))
+            print(
+                prepare(
+                    args.build_json,
+                    profile=args.profile,
+                    root=root,
+                    cargo_config=args.cargo_config,
+                )
+            )
     elif args.command == "restore":
         print(restore(args.archive, args.sha256, args.revision, args.output))
     elif args.command == "archive":

@@ -8,21 +8,24 @@
  */
 
 /* === Modules === */
+pub(crate) mod analysis;
 pub mod asset;
 pub(crate) mod cycle;
 mod document;
 mod html;
 pub mod input;
-mod materialize;
+pub(crate) mod materialize;
 mod output;
+pub(crate) mod persisted;
+pub(crate) mod query;
 mod render;
-pub(crate) mod rendered;
+mod renderer;
 pub mod saved;
 pub mod value;
 
 /* === Re-Exports === */
 pub use input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument};
-pub(crate) use materialize::contended;
+pub use renderer::Renderer;
 pub(crate) use saved::{CapturedExecutionReportInput, PreparedExecutionReport};
 
 /* === Imports === */

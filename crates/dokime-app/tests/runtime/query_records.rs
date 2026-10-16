@@ -423,7 +423,7 @@ pub(crate) async fn slow_dropped_create() {
     // This Scenario Tests Reader Ownership, Not Instrumented Query Throughput.
     // Keep The Complete 2,001-Record Read Inside The Declared Bounded Ceiling.
     if std::env::var("STKR_COVERAGE").as_deref() == Ok("1") {
-        config.storage_reads.interactive.timeout = config.storage_reads.ceiling.timeout;
+        config.storage.interactive.timeout = config.storage.ceiling.timeout;
     }
     let mut owner = Runtime::start(config).await.unwrap();
     let handle = owner.handle();
@@ -812,7 +812,7 @@ pub(crate) async fn native_entry_independent() {
         .unwrap();
     let view = handle
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().ceiling)
         .await
         .unwrap();
     let restored = cycle::read_in(

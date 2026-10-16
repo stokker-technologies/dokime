@@ -259,8 +259,18 @@ async fn publish(
     for line in lines {
         for found in matchers.matches(&line) {
             match found {
-                LineMatch::Row { stream, values } => match Identifier::new(&stream) {
-                    Ok(stream) => binding.streams.published(&stream, values).await,
+                LineMatch::Row {
+                    stream,
+                    values,
+                    storage_schema,
+                } => match Identifier::new(&stream) {
+                    Ok(stream) => match crate::telemetry::capture_payload(&storage_schema, &values)
+                    {
+                        Ok(payload) => binding.streams.published(&stream, values, payload).await,
+                        Err(error) => binding
+                            .journal
+                            .log(crate::execution::log::Level::Warn, error),
+                    },
                     Err(error) => binding.journal.log(
                         crate::execution::log::Level::Warn,
                         format!("matcher stream {stream:?}: {error}"),

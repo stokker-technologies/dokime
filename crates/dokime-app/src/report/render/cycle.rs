@@ -21,7 +21,7 @@ use serde::{
 };
 // Local Imports
 use super::*;
-use crate::report::cycle::Index;
+use crate::report::cycle::{AnnotationKind, Index};
 use dokime::storage::Manager;
 
 /* === Constants === */
@@ -46,17 +46,16 @@ struct SnapshotRows<'a, 'r>(&'a Report<'r>);
 struct PlanRows<'a, 'r>(&'a Report<'r>);
 struct Telemetry<'a, 'r>(&'a Report<'r>);
 struct Samples<'a, 'r>(&'a Report<'r>, &'a [crate::report::cycle::Sample]);
+struct Steps<'a, 'r>(&'a Report<'r>, &'a crate::report::cycle::Member);
+struct Annotations<'a, 'r>(&'a Report<'r>, AnnotationKind);
 
 /* === Enums === */
 #[derive(Clone, Copy)]
 enum Section {
     Artifacts,
-    Notes,
-    Health,
     Cases,
     Records,
     Executions,
-    Steps,
     Warnings,
     Templates,
     PlanCases,
@@ -84,9 +83,8 @@ impl Serialize for DocumentWarningText<'_> {
 }
 impl Serialize for Report<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields = serializer.serialize_map(Some(15))?;
+        let mut fields = serializer.serialize_map(Some(13))?;
         fields.serialize_entry("appearance", self.appearance)?;
-        fields.serialize_entry("artifact_links", &Rows(self, Section::Artifacts))?;
         fields.serialize_entry("box_summaries", &BTreeMap::<String, JsonValue>::new())?;
         fields.serialize_entry("case_runs", &Rows(self, Section::Cases))?;
         fields.serialize_entry("documents", &self.header.documents)?;
@@ -105,7 +103,6 @@ impl Serialize for Report<'_> {
         fields.serialize_entry("snapshot", &SnapshotRows(self))?;
         fields.serialize_entry("test_cycle_plan", &PlanRows(self))?;
         fields.serialize_entry("test_executions", &Rows(self, Section::Executions))?;
-        fields.serialize_entry("test_steps", &Rows(self, Section::Steps))?;
         fields.serialize_entry("warnings", &Rows(self, Section::Warnings))?;
         fields.end()
     }
@@ -179,52 +176,26 @@ impl Serialize for Rows<'_, '_> {
             }
             return rows.end();
         }
-        if matches!(self.1, Section::Executions | Section::Steps) {
+        if matches!(self.1, Section::Executions) {
             let computation = (report.computation)().map_err(serde::ser::Error::custom)?;
             for (ordinal, member) in report.index.executions.iter().enumerate() {
-                if matches!(self.1, Section::Executions) {
-                    rows.serialize_element(&ExecutionRow {
-                        test_execution_id: member.id.as_str(),
-                        test_cycle_id: report.header.cycle.test_cycle_id.as_str(),
-                        queue_item_id: member.case.as_str(),
-                        case_id: member.case.as_str(),
-                        template_id: member.template.as_str(),
-                        attempt_index: ordinal,
-                        status: execution_status(&member.status),
-                        started_at: member.started_at.as_ref(),
-                        finished_at: member.finished_at.as_ref(),
+                rows.serialize_element(&ExecutionRow {
+                    test_execution_id: member.id.as_str(),
+                    test_cycle_id: report.header.cycle.test_cycle_id.as_str(),
+                    queue_item_id: member.case.as_str(),
+                    case_id: member.case.as_str(),
+                    template_id: member.template.as_str(),
+                    attempt_index: ordinal,
+                    status: execution_status(&member.status),
+                    started_at: member.started_at.as_ref(),
+                    finished_at: member.finished_at.as_ref(),
+                    parameters: ReportValues(&member.parameters),
+                    metadata: ExecutionMetadata {
+                        result: member.result.as_ref(),
                         parameters: ReportValues(&member.parameters),
-                        metadata: ExecutionMetadata {
-                            result: member.result.as_ref(),
-                            parameters: ReportValues(&member.parameters),
-                        },
-                    })?;
-                } else {
-                    for (order, step) in member.steps.iter().enumerate() {
-                        let owner = || StepOwner {
-                            id: member.id.as_str(),
-                            case: member.case.as_str(),
-                            template: member.template.as_str(),
-                            scope: &member.scope,
-                        };
-                        rows.serialize_element(&step_with_owner(
-                            report.header,
-                            owner(),
-                            step,
-                            order,
-                            None,
-                        ))?;
-                        for (order, criterion) in step.criteria.iter().enumerate() {
-                            rows.serialize_element(&step_with_owner(
-                                report.header,
-                                owner(),
-                                step,
-                                order,
-                                Some(criterion),
-                            ))?;
-                        }
-                    }
-                }
+                    },
+                    steps: Steps(report, member),
+                })?;
             }
             computation.check().map_err(serde::ser::Error::custom)?;
             return rows.end();
@@ -250,38 +221,12 @@ impl Serialize for Rows<'_, '_> {
                     let row = case_session(input, execution.snapshot.case());
                     rows.serialize_element(&row)?;
                 }
-                Section::Notes | Section::Health => match &captured {
-                    crate::report::html::Member::Captured(captured) => match self.1 {
-                        Section::Notes => {
-                            for note in &captured.context.notes {
-                                rows.serialize_element(&NoteRow {
-                                    note_id: note.note_id.as_str(),
-                                    author: note.author.as_deref(),
-                                    text: &note.message,
-                                    timestamp: &note.created_at,
-                                    scope: &note.scope,
-                                })?;
-                            }
-                        }
-                        Section::Health => {
-                            for item in &captured.context.health {
-                                rows.serialize_element(&HealthRow {
-                                    health_id: item.health_item_id.as_str(),
-                                    level: &item.severity,
-                                    title: &item.message,
-                                    message: item.detail.as_deref(),
-                                    details: BTreeMap::new(),
-                                    created_at: &item.observed_at,
-                                    scope: &item.scope,
-                                })?;
-                            }
-                        }
-                        _ => unreachable!(),
-                    },
-                },
                 Section::Artifacts => {
                     for link in &input.artifact_links {
-                        rows.serialize_element(link)?;
+                        rows.serialize_element(&ArtifactRow {
+                            link,
+                            download_href: &link.href,
+                        })?;
                     }
                 }
                 Section::Records => {
@@ -313,11 +258,11 @@ impl Serialize for SnapshotRows<'_, '_> {
         fields.serialize_entry("records", &Rows(self.0, Section::Records))?;
         fields.serialize_entry("telemetry", &Telemetry(self.0))?;
         fields.serialize_entry("pending_prompts", &snapshot.pending_prompts)?;
-        fields.serialize_entry("notes", &Rows(self.0, Section::Notes))?;
-        fields.serialize_entry("health", &Rows(self.0, Section::Health))?;
+        fields.serialize_entry("notes", &Annotations(self.0, AnnotationKind::Note))?;
+        fields.serialize_entry("health", &Annotations(self.0, AnnotationKind::Health))?;
         fields.serialize_entry("result_summary", &snapshot.result_summary)?;
         fields.serialize_entry("traceability", &snapshot.traceability)?;
-        fields.serialize_entry("artifacts", &snapshot.artifacts)?;
+        fields.serialize_entry("artifacts", &Rows(self.0, Section::Artifacts))?;
         fields.serialize_entry("updated_at", &snapshot.updated_at)?;
         fields.end()
     }
@@ -393,6 +338,85 @@ impl Serialize for Telemetry<'_, '_> {
             )?;
         }
         fields.end()
+    }
+}
+impl Serialize for Steps<'_, '_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let Self(report, member) = *self;
+        let owner = || StepOwner {
+            id: member.id.as_str(),
+            case: member.case.as_str(),
+            template: member.template.as_str(),
+            scope: &member.scope,
+        };
+        let mut rows = serializer.serialize_seq(None)?;
+        for (order, step) in member.steps.iter().enumerate() {
+            rows.serialize_element(&step_with_owner(report.header, owner(), step, order, None))?;
+            for (order, criterion) in step.criteria.iter().enumerate() {
+                rows.serialize_element(&step_with_owner(
+                    report.header,
+                    owner(),
+                    step,
+                    order,
+                    Some(criterion),
+                ))?;
+            }
+        }
+        rows.end()
+    }
+}
+impl Serialize for Annotations<'_, '_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+        let Self(report, kind) = *self;
+        let mut rows = serializer.serialize_seq(None)?;
+        // Consecutive Annotations From One Member Share One Loaded Capture.
+        let mut loaded = None;
+        for annotation in report
+            .index
+            .annotations
+            .iter()
+            .filter(|annotation| annotation.kind == kind)
+        {
+            if loaded
+                .as_ref()
+                .is_none_or(|(member, _)| *member != annotation.member)
+            {
+                drop(loaded.take());
+                loaded = Some((
+                    annotation.member,
+                    (report.read)(annotation.member).map_err(serde::ser::Error::custom)?,
+                ));
+            }
+            let computation = (report.computation)().map_err(serde::ser::Error::custom)?;
+            let crate::report::html::Member::Captured(captured) = &loaded.as_ref().unwrap().1;
+            let context = &captured.context;
+            match kind {
+                AnnotationKind::Note => {
+                    let note = &context.notes[annotation.position];
+                    rows.serialize_element(&NoteRow {
+                        note_id: note.note_id.as_str(),
+                        author: note.author.as_deref(),
+                        text: &note.message,
+                        timestamp: &note.created_at,
+                        scope: &note.scope,
+                    })?;
+                }
+                AnnotationKind::Health => {
+                    let item = &context.health[annotation.position];
+                    rows.serialize_element(&HealthRow {
+                        health_id: item.health_item_id.as_str(),
+                        level: &item.severity,
+                        title: &item.message,
+                        message: item.detail.as_deref(),
+                        details: BTreeMap::new(),
+                        created_at: &item.observed_at,
+                        scope: &item.scope,
+                    })?;
+                }
+            }
+            computation.check().map_err(serde::ser::Error::custom)?;
+        }
+        rows.end()
     }
 }
 impl Serialize for Samples<'_, '_> {

@@ -76,7 +76,7 @@ export function intervalSeries(plot: PlotCardSpec): PlotSeries[] {
   return plot.analysis.series.map((summary) => ({
     key: summary.key,
     label: plot.series.find((series) => series.key === summary.key)?.label ?? summary.key,
-    raw_points: summary.bins.reduce((count, bin) => count + bin.count, 0),
+    raw_points: summary.raw_points,
     downsampled: false,
     points: summary.bins
       .filter(

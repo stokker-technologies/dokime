@@ -53,15 +53,7 @@ const RECONNECT_MAX_MS = 10_000;
 
 /* === Types === */
 
-export type LivePlotStatus =
-  | "idle"
-  | "loading"
-  | "live"
-  | "stale"
-  | "reconnecting"
-  | "error"
-  /** A frozen report left the plot out to fit its budget. */
-  | "omitted";
+export type LivePlotStatus = "idle" | "loading" | "live" | "stale" | "reconnecting" | "error";
 
 export type LivePlotState = {
   /** The reduced frame the renderer draws. */
@@ -713,23 +705,15 @@ function appendCartesianFrame(
   return rebuildCartesianFrame(update, series);
 }
 
+/**
+ * A frame holding `series` in place of its own. Domains and point count stay
+ * the backend's: every frame carries them for its whole window.
+ */
 function rebuildCartesianFrame(
   frame: PlotCartesianFrame,
   series: PlotCartesianFrame["series"],
 ): PlotCartesianFrame {
-  return {
-    ...frame,
-    series,
-    x_domain: numericDomain(series.flatMap((item) => item.x)),
-    y_domain: numericDomain(
-      series.flatMap((item) => item.y.filter((value): value is number => Number.isFinite(value))),
-    ),
-    point_count: series.reduce(
-      (count, item) => count + item.y.filter((value) => Number.isFinite(value)).length,
-      0,
-    ),
-    signature: cartesianSignature(series),
-  };
+  return { ...frame, series, signature: cartesianSignature(series) };
 }
 
 function retainCartesianSeries(
@@ -766,17 +750,6 @@ function retainPlotPoints(
 
 function pick<T>(values: readonly T[], indices: readonly number[]): T[] {
   return indices.map((index) => values[index]);
-}
-
-function numericDomain(values: number[]): { min: number; max: number } | null {
-  const finite = values.filter(Number.isFinite);
-  if (!finite.length) {
-    return null;
-  }
-  return {
-    min: Math.min(...finite),
-    max: Math.max(...finite),
-  };
 }
 
 function cartesianSignature(series: PlotCartesianFrame["series"]): string {

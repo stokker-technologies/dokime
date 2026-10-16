@@ -628,19 +628,17 @@ function reportPlotStates(
     documentPlots.flatMap((plot) => {
       const payload = reportPlots[plot.plot_id];
       if (!payload) return [];
-      /* A report that could not fit a plot names it and says why. */
-      const omitted = (payload as { omitted?: unknown }).omitted;
       return [
         [
           plot.plot_id,
           {
-            payload: typeof omitted === "string" ? null : payload,
+            payload,
             buffer: null,
             cursor: null,
             diagnostics: null,
             revision: 0,
-            status: typeof omitted === "string" ? ("omitted" as const) : ("live" as const),
-            error: typeof omitted === "string" ? omitted : null,
+            status: "live" as const,
+            error: null,
             droppedBatches: 0,
             summaryInFlight: false,
           },

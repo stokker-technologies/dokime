@@ -27,6 +27,7 @@ use std::sync::{
 };
 // Third Party Imports
 use tauri::Manager;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogResult};
 // Local Imports
 use crate::bindings;
 
@@ -170,6 +171,16 @@ fn start_tauri_app() -> tauri::Result<()> {
     let shutdown_started = Arc::new(AtomicBool::new(false));
     let shutdown_complete = Arc::new(AtomicBool::new(false));
     app.run(move |app, event| {
+        if let tauri::RunEvent::WindowEvent {
+            event: tauri::WindowEvent::CloseRequested { api, .. },
+            ..
+        } = &event
+            && !shutdown_complete.load(Ordering::Acquire)
+        {
+            api.prevent_close();
+            app.exit(0);
+            return;
+        }
         if let tauri::RunEvent::ExitRequested { code, api, .. } = event
             && !shutdown_complete.load(Ordering::Acquire)
         {
@@ -177,16 +188,52 @@ fn start_tauri_app() -> tauri::Result<()> {
             if !shutdown_started.swap(true, Ordering::AcqRel) {
                 let app = app.clone();
                 let complete = Arc::clone(&shutdown_complete);
+                let started = Arc::clone(&shutdown_started);
+                for window in app.webview_windows().values() {
+                    let _ = window.set_title("Dokime — Finishing Reports…");
+                }
                 tauri::async_runtime::spawn(async move {
-                    if let Err(error) = app
-                        .state::<crate::native_session::DesktopSessionControl>()
-                        .shutdown()
-                        .await
-                    {
-                        eprintln!("native desktop shutdown failed: {error:?}");
+                    loop {
+                        let result = app
+                            .state::<crate::native_session::DesktopSessionControl>()
+                            .shutdown()
+                            .await;
+                        if let Err(error) = result {
+                            tracing::error!(?error, "native desktop shutdown failed");
+                            for window in app.webview_windows().values() {
+                                let _ = window.set_title("Dokime — Report Finalization Failed");
+                            }
+                            let (send, receive) = tokio::sync::oneshot::channel();
+                            app.dialog()
+                                .message(format!(
+                                    "Dokime could not finish closing cleanly. Reports may be incomplete.\n\n{error:?}"
+                                ))
+                                .title("Report Finalization Failed")
+                                .buttons(MessageDialogButtons::YesNoCancelCustom(
+                                    "Retry".into(),
+                                    "Exit Without Completed Reports".into(),
+                                    "Keep Open".into(),
+                                ))
+                                .show_with_result(move |answer| { let _ = send.send(answer); });
+                            match receive.await {
+                                Ok(MessageDialogResult::Yes) => continue,
+                                Ok(MessageDialogResult::Custom(answer)) if answer == "Retry" => continue,
+                                Ok(MessageDialogResult::No) => {},
+                                Ok(MessageDialogResult::Custom(answer))
+                                    if answer == "Exit Without Completed Reports" => {},
+                                _ => {
+                                    started.store(false, Ordering::Release);
+                                    return;
+                                }
+                            }
+                            complete.store(true, Ordering::Release);
+                            app.exit(1);
+                            return;
+                        }
+                        complete.store(true, Ordering::Release);
+                        app.exit(code.unwrap_or(0));
+                        return;
                     }
-                    complete.store(true, Ordering::Release);
-                    app.exit(code.unwrap_or(0));
                 });
             }
         }

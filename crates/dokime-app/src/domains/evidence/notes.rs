@@ -327,7 +327,7 @@ impl RuntimeHandle {
             return NotePublication::NoExistingDatasets;
         }
         let config = self.config();
-        let limits = config.storage_reads.interactive;
+        let limits = config.storage.interactive;
         let mut targets = Vec::new();
         for id in &admission.checkpoint_targets {
             match self

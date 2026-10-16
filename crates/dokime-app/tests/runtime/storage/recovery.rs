@@ -196,9 +196,35 @@ fn wide_config(root: &Path) -> RuntimeConfig {
             version: "test".to_owned(),
             description: "Fixture Host".to_owned(),
             enabled: true,
-            telemetry_contracts: vec![fixture_host_contract(STREAM, "Fixture Wide", columns)],
+            telemetry_contracts: vec![
+                fixture_host_contract(STREAM, "Fixture Wide", columns)
+                    .with_storage_schema(wide_schema()),
+            ],
             ..Default::default()
         }])
+}
+
+fn wide_schema() -> harmos::schema::graph::Schema {
+    use harmos::schema::{
+        Cardinality,
+        graph::{Field, Kind, Schema},
+    };
+    let mut fields = vec![Field {
+        name: "timestamp".into(),
+        tag: 1,
+        kind: Kind::String,
+        cardinality: Cardinality::Required,
+    }];
+    fields.extend((0..COLUMNS).map(|index| Field {
+        name: format!("value_{index:02}").into(),
+        tag: index as u32 + 2,
+        kind: Kind::F64,
+        cardinality: Cardinality::Required,
+    }));
+    Schema {
+        root: 0,
+        definitions: vec![fields],
+    }
 }
 
 fn wide_batch(scope: RecordScope) -> TelemetryBatch {
@@ -210,12 +236,19 @@ fn wide_batch(scope: RecordScope) -> TelemetryBatch {
                 Timestamp::now_utc(),
                 "fixture.host",
             );
+            let mut payload = Vec::new();
+            harmos::message::postcard::Value::write(
+                &sample.timestamp.as_str().to_owned(),
+                &mut payload,
+            );
             for index in 0..COLUMNS {
-                sample.values.insert(
-                    format!("value_{index:02}"),
-                    Value::Number(index as f64 + sequence as f64 / 4.0),
-                );
+                let value = index as f64 + sequence as f64 / 4.0;
+                harmos::message::postcard::Value::write(&value, &mut payload);
+                sample
+                    .values
+                    .insert(format!("value_{index:02}"), Value::Number(value));
             }
+            sample.storage_payload = Some(payload);
             sample.scope = Some(scope.clone());
             sample
         })

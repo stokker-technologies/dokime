@@ -27,7 +27,7 @@ pub use handle::{CapturedRecord, CapturedRecords, RuntimeHandle};
 pub(crate) use native_telemetry::Admission as ExecutionPublicationAdmission;
 pub use state::RuntimeState;
 pub use storage::artifacts::{ArtifactReader, ArtifactUpload};
-pub use storage::report_open::{MAX_OPENED_REPORT_BYTES, OpenedReport, ReportOrigin};
+pub use storage::report_open::{OpenedReport, ReportOrigin};
 
 // Reachable only from this crate's test targets. Kept at the root so those
 // targets name one path, not a private module tree.
@@ -238,6 +238,15 @@ impl Runtime {
 
         let shutdown_started = std::time::Instant::now();
         self.handle.shutdown_requested.send_replace(true);
+        let report_ids = self
+            .handle
+            .state_read()
+            .executions
+            .values()
+            .filter(|execution| execution.saved.is_none() && execution.finished_at.is_none())
+            .map(|execution| execution.test_execution_id.clone())
+            .collect();
+        self.handle.freeze_report_inputs(report_ids).await?;
         if !self.handle.owned_admissions.is_closed() {
             let owned_admissions = self
                 .handle
@@ -282,6 +291,10 @@ impl Runtime {
 
             // Cancellation Must Settle Even If Native Shutdown Admission Failed.
             shutdown_admission?;
+
+            // Reports Need Live Operation Admission And Plugin Renderers.
+            // Failure Leaves Preparation Open So Shutdown Retry Uses The Same Inputs.
+            self.handle.retry_pending_reports().await?;
 
             if let Some(manager) = &mut self.plugin_manager {
                 let mut lifecycle = plugins::lifecycle::Adapter {

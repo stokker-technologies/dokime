@@ -21,6 +21,10 @@ use super::{identifier, metadata};
 use dokime::core::{Identifier, ValueType};
 use dokime::records::{RecordContract, RecordField, RecordSeverity};
 use dokime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+use harmos::{
+    Message,
+    schema::{Described, graph::Schema},
+};
 
 /* === Constants === */
 
@@ -29,6 +33,97 @@ use dokime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 /* === Type Aliases === */
 
 /* === Structs === */
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MinimalTrackingRow {
+    pub elapsed_s: f64,
+    pub target_locked: bool,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FixtureValueRow {
+    pub timestamp: String,
+    pub value: Option<f64>,
+    pub sample_index: Option<i64>,
+    pub ordinal: Option<u64>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrackingRow {
+    pub timestamp: String,
+    pub elapsed_s: Option<f64>,
+    pub distance_m: Option<f64>,
+    pub position_x_m: Option<f64>,
+    pub position_y_m: Option<f64>,
+    pub speed_m_per_s: Option<f64>,
+    pub velocity_x_m_per_s: Option<f64>,
+    pub velocity_y_m_per_s: Option<f64>,
+    pub target_locked: Option<bool>,
+    pub tool_connected: Option<bool>,
+    pub target_reacquire_time_s: Option<f64>,
+    pub connection_acquired_time_s: Option<f64>,
+    pub connection_loss_distance_m: Option<f64>,
+    pub connection_acquired_distance_m: Option<f64>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SystemRow {
+    pub timestamp: String,
+    pub cpu_load_percent: Option<f64>,
+    pub memory_pressure_percent: Option<f64>,
+    pub battery_percent: Option<f64>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WifiRow {
+    pub timestamp: String,
+    pub wifi_signal_percent: Option<f64>,
+    pub wifi_rx_phy_mbps: Option<f64>,
+    pub wifi_tx_phy_mbps: Option<f64>,
+    pub wifi_rx_mbps: Option<f64>,
+    pub wifi_tx_mbps: Option<f64>,
+    pub wifi_network_congestion_score: Option<f64>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LatencyRow {
+    pub timestamp: String,
+    pub wifi_latency_ms: Option<f64>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OccupancyRow {
+    pub timestamp: String,
+    pub sample_index: Option<i64>,
+    pub active_wifi_channel: Option<i64>,
+    pub wifi_channel: Option<i64>,
+    pub network_count: Option<i64>,
+    pub scan_network_count: Option<i64>,
+    pub wifi_network_congestion_score: Option<f64>,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BluetoothRow {
+    pub timestamp: String,
+    pub bluetooth_adapter_count: Option<f64>,
+    pub bluetooth_connected_device_count: Option<f64>,
+    pub bluetooth_present_device_count: Option<f64>,
+}
 
 /* === Enums === */
 
@@ -37,6 +132,65 @@ use dokime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 /* === Implementations === */
 
 /* === Public Functions === */
+pub fn fixture_schema(stream: &str) -> Option<Schema> {
+    let settings = harmos::config::SchemaSettings::default();
+    let definition = match stream {
+        "fixture.telemetry" | "synthetic.samples" => FixtureValueRow::DEFINITION,
+        "tracking" | "plt400.ract.tracking.tracking" => TrackingRow::DEFINITION,
+        "host.system" => SystemRow::DEFINITION,
+        "host.wifi" => WifiRow::DEFINITION,
+        "host.wifi.latency" => LatencyRow::DEFINITION,
+        "host.wifi.channel_occupancy" => OccupancyRow::DEFINITION,
+        "host.bluetooth" => BluetoothRow::DEFINITION,
+        _ => return None,
+    };
+    Some(Schema::from_declaration(definition, &settings).unwrap())
+}
+
+pub fn typed_minimal_tracking_sample(
+    mut sample: dokime::telemetry::TelemetrySample,
+) -> dokime::telemetry::TelemetrySample {
+    sample.storage_payload = Some(fixture_payload::<MinimalTrackingRow>(&sample));
+    sample
+}
+
+pub fn provider_tracking_row(
+    elapsed_s: f64,
+    target_locked: bool,
+) -> dokime::transport::ProviderTelemetryRow {
+    let row = MinimalTrackingRow {
+        elapsed_s,
+        target_locked,
+    };
+    dokime::transport::ProviderTelemetryRow {
+        values: std::collections::BTreeMap::from([
+            ("elapsed_s".into(), dokime::core::Value::Number(elapsed_s)),
+            (
+                "target_locked".into(),
+                dokime::core::Value::Bool(target_locked),
+            ),
+        ]),
+        payload: row.encode_to_vec(),
+    }
+}
+
+pub fn typed_fixture_sample(
+    mut sample: dokime::telemetry::TelemetrySample,
+) -> dokime::telemetry::TelemetrySample {
+    let bytes = match sample.stream.as_str() {
+        "fixture.telemetry" | "synthetic.samples" => fixture_payload::<FixtureValueRow>(&sample),
+        "tracking" | "plt400.ract.tracking.tracking" => fixture_payload::<TrackingRow>(&sample),
+        "host.system" => fixture_payload::<SystemRow>(&sample),
+        "host.wifi" => fixture_payload::<WifiRow>(&sample),
+        "host.wifi.latency" => fixture_payload::<LatencyRow>(&sample),
+        "host.wifi.channel_occupancy" => fixture_payload::<OccupancyRow>(&sample),
+        "host.bluetooth" => fixture_payload::<BluetoothRow>(&sample),
+        stream => panic!("fixture stream has no explicit typed row: {stream}"),
+    };
+    sample.storage_payload = Some(bytes);
+    sample
+}
+
 pub fn fixture_record_contract() -> RecordContract {
     RecordContract {
         record_type: identifier("fixture.event"),
@@ -59,6 +213,7 @@ pub fn fixture_telemetry_contract() -> TelemetryContract {
         metadata: metadata("fixture.telemetry", "Fixture Telemetry"),
         template_id: None,
         owner: None,
+        storage_schema: fixture_schema("fixture.telemetry"),
         columns: vec![TelemetryColumn::new(
             metadata("value", "Value"),
             ValueType::Number,
@@ -203,6 +358,7 @@ pub fn fixture_host_contract(
         template_id: None,
         owner: None,
         columns,
+        storage_schema: fixture_schema(stream),
         default_x: Some("timestamp".to_owned()),
         // A host stream declares its cadence the way the real ones do, so a
         // fixture is leasable on the same terms.
@@ -231,6 +387,7 @@ pub fn tracking_contract() -> TelemetryContract {
         metadata: metadata("tracking", "Tracking"),
         template_id: None,
         owner: None,
+        storage_schema: fixture_schema("tracking"),
         columns: vec![
             TelemetryColumn::new(
                 metadata("elapsed_s", "Elapsed"),
@@ -325,6 +482,13 @@ pub fn tracking_contract() -> TelemetryContract {
 
 pub fn minimal_tracking_contract() -> TelemetryContract {
     TelemetryContract {
+        storage_schema: Some(
+            Schema::from_declaration(
+                MinimalTrackingRow::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .unwrap(),
+        ),
         columns: tracking_contract()
             .columns
             .into_iter()
@@ -362,6 +526,7 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
         metadata: metadata("host.wifi.channel_occupancy", "WiFi Occupancy"),
         template_id: None,
         owner: None,
+        storage_schema: fixture_schema("host.wifi.channel_occupancy"),
         columns: vec![
             TelemetryColumn::new(
                 metadata("sample_index", "Sample Index"),
@@ -390,5 +555,24 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
 }
 
 /* === Private Functions === */
+fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(
+    sample: &dokime::telemetry::TelemetrySample,
+) -> Vec<u8> {
+    let mut values = serde_json::to_value(&sample.values).unwrap();
+    let graph = Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default())
+        .unwrap();
+    if graph.definitions[graph.root]
+        .iter()
+        .any(|field| field.name == "timestamp")
+    {
+        values.as_object_mut().unwrap().insert(
+            "timestamp".into(),
+            serde_json::Value::String(sample.timestamp.as_str().to_owned()),
+        );
+    } else {
+        values.as_object_mut().unwrap().remove("timestamp");
+    }
+    serde_json::from_value::<T>(values).unwrap().encode_to_vec()
+}
 
 /* === Tests === */

@@ -278,10 +278,14 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
 
     pub async fn publish<V: Publishable>(&mut self, value: V) {
         match value.publication().into() {
-            Publication::Row { stream, values } => {
+            Publication::Row {
+                stream,
+                values,
+                payload,
+            } => {
                 self.environment
                     .streams()
-                    .published_as(&stream, values, std::any::type_name::<V>())
+                    .published_as(&stream, values, Some(payload), std::any::type_name::<V>())
                     .await;
             }
             Publication::Record(request) => {
@@ -311,10 +315,14 @@ impl<'a, C, O, I> Context<'a, C, O, I, Observing> {
 
     pub async fn publish<V: Publishable>(&mut self, value: V) {
         match value.publication().into() {
-            Publication::Row { stream, values } => {
+            Publication::Row {
+                stream,
+                values,
+                payload,
+            } => {
                 self.environment
                     .streams()
-                    .published_as(&stream, values, std::any::type_name::<V>())
+                    .published_as(&stream, values, Some(payload), std::any::type_name::<V>())
                     .await;
             }
             Publication::Record(request) => {
@@ -328,8 +336,16 @@ impl<'a, C, O, I> Context<'a, C, O, I, Observing> {
         }
     }
 
-    pub async fn publish_row(&mut self, stream: &Identifier, values: BTreeMap<String, Value>) {
-        self.environment.streams().published(stream, values).await;
+    pub async fn publish_row(
+        &mut self,
+        stream: &Identifier,
+        values: BTreeMap<String, Value>,
+        payload: Vec<u8>,
+    ) {
+        self.environment
+            .streams()
+            .published(stream, values, payload)
+            .await;
     }
 
     pub fn stream<R: TelemetryRow>(&self) -> StreamSelection<'a, R> {

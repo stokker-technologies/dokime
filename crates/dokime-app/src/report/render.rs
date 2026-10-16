@@ -39,7 +39,7 @@ use crate::execution::{
 };
 use crate::report::{
     asset::REPORT_APP_TEMPLATE,
-    input::{CycleReportInput, ReportCaseDocument},
+    input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument},
 };
 use crate::traceability::{TraceabilityEntry, TraceabilitySnapshot, derived_traceability_group};
 use crate::{Error, Result};
@@ -62,7 +62,7 @@ struct CaseRun<'a> {
 }
 
 #[derive(Serialize)]
-struct ExecutionRow<'a> {
+struct ExecutionRow<'a, S> {
     test_execution_id: &'a str,
     test_cycle_id: &'a str,
     queue_item_id: &'a str,
@@ -74,6 +74,18 @@ struct ExecutionRow<'a> {
     finished_at: Option<&'a Timestamp>,
     parameters: ReportValues<'a>,
     metadata: ExecutionMetadata<'a>,
+    /// The execution's own step and criterion rows, in recorded order.
+    steps: S,
+}
+
+/// One reachable artifact: its link already carries the record's description
+/// and grouping, so the row is complete once the download target is named.
+#[derive(Serialize)]
+struct ArtifactRow<'a> {
+    #[serde(flatten)]
+    link: &'a ReportArtifactLink,
+    #[serde(rename = "downloadHref")]
+    download_href: &'a str,
 }
 
 #[derive(Serialize)]
@@ -110,7 +122,6 @@ struct Snapshot<'a> {
     pending_prompts: &'static [()],
     result_summary: Option<Summary<'a>>,
     traceability: Option<()>,
-    artifacts: &'static [()],
     updated_at: &'a Timestamp,
 }
 
@@ -489,7 +500,6 @@ fn snapshot(input: Header<'_>) -> Snapshot<'_> {
         }),
         // Cycle-Level Traceability Is Read Per Case.
         traceability: None,
-        artifacts: &[],
         updated_at: input.generated_at,
     }
 }

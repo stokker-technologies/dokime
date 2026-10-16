@@ -67,16 +67,16 @@ pub(crate) async fn materialized_cases_reader() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let storage = Manager::new(
         StorageBackends {
             primary,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
         StorageSettings {
             flush_interval: Duration::from_secs(60),
-            ..Default::default()
+            ..super::sqlite::storage::storage_settings()
         },
     )
     .unwrap();
@@ -119,14 +119,14 @@ pub(crate) async fn materialized_cases_reader() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let storage = Manager::new(
         StorageBackends {
             primary,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
-        StorageSettings::default(),
+        crate::sqlite::storage::storage_settings(),
     )
     .unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -173,13 +173,13 @@ pub(crate) async fn suite_definitions_producer() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let backends = StorageBackends {
         primary,
-        recovery,
+        state: recovery,
         replicas: vec![],
     };
-    let storage = Manager::new(backends, StorageSettings::default()).unwrap();
+    let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
         .runtime_with_storage(&storage)
         .await
@@ -223,13 +223,13 @@ pub(crate) async fn suite_definitions_producer() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let backends = StorageBackends {
         primary,
-        recovery,
+        state: recovery,
         replicas: vec![],
     };
-    let storage = Manager::new(backends, StorageSettings::default()).unwrap();
+    let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
         .runtime_with_storage(&storage)
         .await
@@ -255,13 +255,13 @@ pub(crate) async fn cycles_reopen_producers() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let backends = StorageBackends {
         primary,
-        recovery,
+        state: recovery,
         replicas: vec![],
     };
-    let storage = Manager::new(backends, StorageSettings::default()).unwrap();
+    let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
         .runtime_with_storage(&storage)
         .await
@@ -314,13 +314,13 @@ pub(crate) async fn cycles_reopen_producers() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let backends = StorageBackends {
         primary,
-        recovery,
+        state: recovery,
         replicas: vec![],
     };
-    let storage = Manager::new(backends, StorageSettings::default()).unwrap();
+    let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
         .runtime_with_storage(&storage)
         .await
@@ -329,7 +329,7 @@ pub(crate) async fn cycles_reopen_producers() {
     let limit = super::FRAME_BYTES.try_into().unwrap();
     let read_bytes_before = storage.status().read_bytes;
     let view = storage
-        .view_with_limits(StorageSettings::default().query_execution)
+        .view_with_limits(crate::sqlite::storage::storage_settings().query_execution)
         .await
         .unwrap();
     let saved = dokime::storage::objects::cycle::read_in(
@@ -381,13 +381,13 @@ pub(crate) async fn executions_reopen_results() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let backends = StorageBackends {
         primary,
-        recovery,
+        state: recovery,
         replicas: vec![],
     };
-    let storage = Manager::new(backends, StorageSettings::default()).unwrap();
+    let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
         .runtime_with_storage(&storage)
         .await
@@ -482,13 +482,13 @@ pub(crate) async fn executions_reopen_results() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let backends = StorageBackends {
         primary,
-        recovery,
+        state: recovery,
         replicas: vec![],
     };
-    let storage = Manager::new(backends, StorageSettings::default()).unwrap();
+    let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
         .runtime_with_storage(&storage)
         .await
@@ -496,7 +496,7 @@ pub(crate) async fn executions_reopen_results() {
 
     let limit = super::FRAME_BYTES.try_into().unwrap();
     let view = storage
-        .view_with_limits(StorageSettings::default().query_execution)
+        .view_with_limits(crate::sqlite::storage::storage_settings().query_execution)
         .await
         .unwrap();
     let saved = dokime::storage::objects::execution::read_in(

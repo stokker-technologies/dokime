@@ -187,7 +187,7 @@ pub(crate) fn captured_logo_asset(
 }
 
 /* === Private Functions === */
-fn capture_appearance_state(
+pub(crate) fn capture_appearance_state(
     state: &crate::RuntimeState,
     brand: Option<&ResolvedBrand>,
     max_bytes: usize,

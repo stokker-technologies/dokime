@@ -972,12 +972,13 @@ fn append_provider_evidence(
                 format!("Provider telemetry stream {stream} is not registered."),
             )
         })?;
-        for values in &group.samples {
+        for row in &group.samples {
             let mut sample = TelemetrySample::new(stream.clone(), 0, at.clone(), "provider");
             sample.schema_version = contract.schema_version;
             sample.received_at = at.clone();
             sample.scope = Some(execution.scope.clone());
-            sample.values = values.clone();
+            sample.values = row.values.clone();
+            sample.storage_payload = Some(row.payload.clone());
             // A reported sample that already carries its own "timestamp"
             // keeps it; one that does not is stamped with the provider's
             // finish instant, the only production time this batch carries.

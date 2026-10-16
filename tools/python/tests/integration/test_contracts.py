@@ -292,7 +292,7 @@ class ContractExportTests(unittest.TestCase):
                 self.assertEqual(client.read_bytes(), b"sdk behavior")
                 self.assertEqual(generated.read_bytes(), b"generated-v1\n\n" + exports)
             self.assertEqual(len(calls), 4)
-            prepared.assert_called_with(root, allow_install=False)
+            prepared.assert_called_with(root, allow_install=False, cargo_config=None)
 
             # Generated Formatting Preserves Opaque Assets And Product Exports
             source = root / "normalized"

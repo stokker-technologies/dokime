@@ -323,6 +323,17 @@ impl RuntimeHandle {
                 );
             }
         }
+        let contracts = self.state_read().telemetry_contracts();
+        if let Err(error) =
+            crate::runtime::storage::telemetry::register_schemas(self.storage(), &contracts).await
+        {
+            return rejected_receipt(
+                command_id.clone(),
+                &context,
+                Timestamp::now_utc(),
+                unavailable_rejection(error.to_string()),
+            );
+        }
         // Provider admission runs against the published plan, so a cycle whose
         // projection admission deferred has to be published first. Everything
         // after this point assumes its executions are durable.

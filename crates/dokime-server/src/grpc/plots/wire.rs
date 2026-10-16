@@ -778,6 +778,7 @@ fn plot_analysis(
                     .map(|series| {
                         Ok(dokime_contract::operations::plots::PlotSigmaSeries {
                             key: bounded_text(series.key)?,
+                            raw_points: count(series.raw_points)?,
                             bins: series
                                 .bins
                                 .into_iter()
@@ -796,10 +797,78 @@ fn plot_analysis(
                     .collect::<Result<_, Status>>()?,
             })
         }
+        PlotAnalysis::WifiOccupancy {
+            channels,
+            occupied_channels,
+            bands,
+            scans,
+        } => Analysis::WifiOccupancy(wifi_occupancy(channels, occupied_channels, bands, scans)?),
     };
 
     Ok(dokime_contract::operations::plots::PlotAnalysis {
         result: Some(result),
+    })
+}
+
+fn wifi_occupancy(
+    channels: Vec<i64>,
+    occupied_channels: Vec<i64>,
+    bands: Vec<dokime_app::runtime::query::WifiBandWindow>,
+    scans: Vec<dokime_app::runtime::query::WifiScan>,
+) -> Result<dokime_contract::operations::plots::PlotWifiOccupancyAnalysis, Status> {
+    use dokime_contract::operations::plots::{
+        PlotWifiBandScan, PlotWifiBandWindow, PlotWifiChannelCount, PlotWifiOccupancyAnalysis,
+        PlotWifiScan,
+    };
+
+    let count = |value| {
+        u64::try_from(value).map_err(|_| Status::internal("wifi occupancy count does not fit wire"))
+    };
+    Ok(PlotWifiOccupancyAnalysis {
+        channels,
+        occupied_channels,
+        bands: bands
+            .into_iter()
+            .map(|band| {
+                Ok(PlotWifiBandWindow {
+                    band: bounded_text(band.band)?,
+                    occupied_channels: count(band.occupied_channels)?,
+                })
+            })
+            .collect::<Result<_, Status>>()?,
+        scans: scans
+            .into_iter()
+            .map(|scan| {
+                Ok(PlotWifiScan {
+                    time: bounded_text(scan.time)?,
+                    channels: scan
+                        .channels
+                        .into_iter()
+                        .map(|channel| {
+                            Ok(PlotWifiChannelCount {
+                                channel: channel.channel,
+                                count: count(channel.count)?,
+                            })
+                        })
+                        .collect::<Result<_, Status>>()?,
+                    bands: scan
+                        .bands
+                        .into_iter()
+                        .map(|band| {
+                            Ok(PlotWifiBandScan {
+                                band: bounded_text(band.band)?,
+                                occupied_channels: count(band.occupied_channels)?,
+                                total_networks: count(band.total_networks)?,
+                                peak_count: count(band.peak_count)?,
+                            })
+                        })
+                        .collect::<Result<_, Status>>()?,
+                    occupied_channels: count(scan.occupied_channels)?,
+                    total_networks: count(scan.total_networks)?,
+                    peak_count: count(scan.peak_count)?,
+                })
+            })
+            .collect::<Result<_, Status>>()?,
     })
 }
 

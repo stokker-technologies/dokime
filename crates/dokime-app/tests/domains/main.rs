@@ -275,6 +275,15 @@ fn documents_contract() {
         );
     }
     {
+        eprintln!("Scenario: documents::report_payloads::normalised_report_rows");
+        run_scenario(
+            documents::report_payloads::normalised_report_rows,
+            false,
+            None,
+            false,
+        );
+    }
+    {
         eprintln!("Scenario: documents::report_payloads::telemetry_index_endpoints");
         run_scenario(
             documents::report_payloads::telemetry_index_endpoints,
@@ -309,6 +318,34 @@ fn documents_contract() {
         eprintln!("Scenario: documents::reports::cycle_report_reboot");
         run_scenario(documents::reports::cycle_report_reboot, false, None, false);
     }
+}
+
+#[test]
+fn report_materialization_contract() {
+    run_scenario(
+        documents::materialization::persisted::persisted_input_refusals,
+        false,
+        None,
+        false,
+    );
+    run_scenario(
+        documents::materialization::cancellation::stopped_report_boundary,
+        false,
+        None,
+        false,
+    );
+    run_scenario(
+        documents::materialization::restart::persisted_cycle_restart,
+        false,
+        None,
+        false,
+    );
+    run_scenario(
+        documents::materialization::publication::dependency_publication_retry,
+        false,
+        None,
+        false,
+    );
 }
 
 #[test]
@@ -363,6 +400,18 @@ fn evidence_contract() {
     {
         eprintln!("Scenario: evidence::plots::series_window_summaries");
         run_scenario(evidence::plots::series_window_summaries, false, None, false);
+    }
+    {
+        eprintln!("Scenario: evidence::plots::wifi_occupancy_scans");
+        run_scenario(evidence::plots::wifi_occupancy_scans, false, None, false);
+    }
+    {
+        eprintln!("Scenario: evidence::plots::interval_raw_points");
+        run_scenario(evidence::plots::interval_raw_points, false, None, false);
+    }
+    {
+        eprintln!("Scenario: evidence::plots::append_frame_domains");
+        run_scenario(evidence::plots::append_frame_domains, false, None, false);
     }
     {
         eprintln!("Scenario: evidence::plots::execution_plots_samples");
@@ -1135,9 +1184,9 @@ fn execution_whole_capture_contract() {
 #[test]
 fn execution_oversized_report_contract() {
     {
-        eprintln!("Scenario: execution::sampling::oversized_report_seals_with_omissions");
+        eprintln!("Scenario: execution::sampling::oversized_report_remains_unsealed");
         run_scenario(
-            execution::sampling::oversized_report_seals_with_omissions,
+            execution::sampling::oversized_report_remains_unsealed,
             false,
             None,
             false,
@@ -1200,9 +1249,9 @@ fn execution_contended_reads_contract() {
 #[test]
 fn execution_slow_output_contract() {
     {
-        eprintln!("Scenario: execution::sampling::slow_output_read_seals");
+        eprintln!("Scenario: execution::sampling::slow_output_read_uses_shared_deadline");
         run_scenario(
-            execution::sampling::slow_output_read_seals,
+            execution::sampling::slow_output_read_uses_shared_deadline,
             false,
             None,
             false,

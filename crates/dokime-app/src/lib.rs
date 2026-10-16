@@ -10,7 +10,13 @@
 // Operation Initializers Capture Runtime Handles; Proving Their Futures Send Needs This Depth.
 #![recursion_limit = "256"]
 
+#[cfg(test)]
+extern crate self as dokime_app;
+
 /* === Modules === */
+#[cfg(test)]
+#[path = "../tests/support/mod.rs"]
+pub mod support;
 #[macro_use]
 mod macros;
 pub mod app;

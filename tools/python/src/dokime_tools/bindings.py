@@ -61,8 +61,9 @@ def generate(
     *,
     check: bool = False,
     export: Path | None = None,
+    cargo_config: Path | None = None,
 ) -> None:
-    prepare_harmos(root, allow_install=False)
+    prepare_harmos(root, allow_install=False, cargo_config=cargo_config)
     if export is None:
         if messages is None:
             raise ValueError("a selected contract build is required")
@@ -293,6 +294,7 @@ def main() -> None:
         "--build-json", type=Path, default=os.environ.get("DOKIME_CONTRACT_BUILD_JSON")
     )
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--cargo-config", type=Path)
     parser.add_argument(
         "--export", type=Path, default=os.environ.get("DOKIME_CONTRACT_EXPORT")
     )
@@ -324,7 +326,12 @@ def main() -> None:
             command.append("--check")
         subprocess.run(command, cwd=ROOT, check=True)
     else:
-        generate(args.build_json, check=args.check, export=export)
+        generate(
+            args.build_json,
+            check=args.check,
+            export=export,
+            cargo_config=args.cargo_config,
+        )
 
 
 # === Private Functions === #

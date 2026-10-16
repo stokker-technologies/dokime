@@ -53,6 +53,7 @@ pub struct Publication {
     dependencies_saved: Option<StorageCursor>,
     executions: Vec<Revision>,
     inputs: Vec<FileReference>,
+    materialized_inputs: Vec<FileReference>,
     file: Option<FileReference>,
     cycle: Option<Cycle>,
     execution: Option<Seal>,
@@ -66,6 +67,7 @@ pub struct Input<'a> {
     pub dependencies_saved: &'a StorageCursor,
     pub executions: &'a [ExecutionRevision],
     pub inputs: &'a [FileReference],
+    pub materialized_inputs: &'a [FileReference],
     pub file: &'a FileReference,
     pub cycle: Option<&'a crate::execution::TestCycle>,
     pub execution: Option<&'a crate::execution::saved::ExecutionSeal>,
@@ -217,6 +219,14 @@ impl Publication {
             .saturating_add(inputs)
             .saturating_add(
                 input
+                    .materialized_inputs
+                    .iter()
+                    .fold(0usize, |bytes, file| {
+                        bytes.saturating_add(file.memory_size())
+                    }),
+            )
+            .saturating_add(
+                input
                     .execution
                     .map(Seal::encoding_memory)
                     .transpose()?
@@ -248,6 +258,7 @@ impl Publication {
             dependencies_saved: Some(input.dependencies_saved.clone()),
             executions,
             inputs: input.inputs.to_vec(),
+            materialized_inputs: input.materialized_inputs.to_vec(),
             file: Some(input.file.clone()),
             cycle: input.cycle.map(Cycle::try_from).transpose()?,
             execution: input.execution.map(Seal::try_from).transpose()?,
@@ -258,6 +269,17 @@ impl Publication {
         self.file
             .as_ref()
             .ok_or(Error::Invalid("report publication has no file"))
+    }
+
+    pub fn materialized_inputs(&self) -> &[FileReference] {
+        &self.materialized_inputs
+    }
+
+    pub fn files(&self) -> impl Iterator<Item = &FileReference> {
+        self.inputs
+            .iter()
+            .chain(self.materialized_inputs.iter())
+            .chain(self.file.iter())
     }
 
     pub fn owner(&self) -> &str {
@@ -297,6 +319,7 @@ impl Publication {
             || !saved.covers(&file.position)?
             || file.metadata.media_type != "text/html"
             || self.inputs.len() != self.executions.len()
+            || self.materialized_inputs.len() != self.executions.len()
             || file.metadata.scope.as_ref().map(Identifier::as_str) != Some(owner)
         {
             return Err(Error::Invalid("invalid report dependencies"));
@@ -318,14 +341,17 @@ impl Publication {
             _ => return Err(Error::Invalid("report owner differs from its cycle header")),
         }
         match (kind, self.final_report, &self.execution) {
-            ("execution", true, Some(seal)) => seal.check_publication(
-                &self.executions[0],
-                &self.inputs[0],
-                file,
-                evidence,
-                saved,
-                &self.generated_at,
-            )?,
+            ("execution", true, Some(seal)) => {
+                seal.check_publication(super::objects::execution::PublicationCheck {
+                    source: &self.executions[0],
+                    input: &self.inputs[0],
+                    materialized_input: &self.materialized_inputs[0],
+                    report: file,
+                    evidence,
+                    saved,
+                    at: &self.generated_at,
+                })?
+            }
             ("execution", true, None) => {
                 return Err(Error::Invalid("final execution report has no seal"));
             }
@@ -336,8 +362,15 @@ impl Publication {
                 ));
             }
         }
-        for (source, input) in self.executions.iter().zip(&self.inputs) {
+        for (index, (source, input)) in self.executions.iter().zip(&self.inputs).enumerate() {
             let execution = source.check_cut(evidence)?;
+            crate::execution::saved::validate_materialized_input(
+                &self.materialized_inputs[index],
+                &TestExecutionId::from_uuid(execution)?,
+                input,
+                saved,
+            )?;
+            source.check_saved(saved)?;
             if (kind == "execution" && execution != owner)
                 || !saved.covers(&input.position)?
                 || input.metadata.scope.as_ref().map(Identifier::as_str) != Some(execution)
@@ -436,7 +469,9 @@ fn validate(input: &Input<'_>) -> Result<()> {
     if input.file.metadata.scope.as_ref().map(Identifier::as_str) != Some(owner) {
         return Err(Error::Invalid("report file scope differs from owner"));
     }
-    if input.executions.len() != input.inputs.len() {
+    if input.executions.len() != input.inputs.len()
+        || input.executions.len() != input.materialized_inputs.len()
+    {
         return Err(Error::Invalid(
             "report source and captured input counts differ",
         ));
@@ -459,6 +494,7 @@ fn validate(input: &Input<'_>) -> Result<()> {
             if seal.source.execution == input.executions[0]
                 && input.inputs.first() == Some(&seal.source.context)
                 && seal.source.evidence_through == *input.evidence_through
+                && input.materialized_inputs.first() == Some(&seal.materialized_input)
                 && seal.report == *input.file
                 && seal.dependencies_saved == *input.dependencies_saved
                 && seal.sealed_at == *input.generated_at => {}
@@ -474,9 +510,19 @@ fn validate(input: &Input<'_>) -> Result<()> {
             ));
         }
     }
-    for (source, captured) in input.executions.iter().zip(input.inputs) {
+    for (index, (source, captured)) in input.executions.iter().zip(input.inputs).enumerate() {
         source.version.check_position(&source.position)?;
-        if !input.evidence_through.covers(&source.position)?
+        crate::execution::saved::validate_materialized_input(
+            &input.materialized_inputs[index],
+            &source.execution_id,
+            captured,
+            input.dependencies_saved,
+        )?;
+        input
+            .evidence_through
+            .history
+            .check(&source.position.history)?;
+        if !input.dependencies_saved.covers(&source.position)?
             || !input.dependencies_saved.covers(&captured.position)?
             || captured.metadata.scope.as_ref().map(Identifier::as_str)
                 != Some(source.execution_id.as_str())

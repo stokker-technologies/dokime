@@ -19,16 +19,16 @@ mod inventory;
 mod mutations;
 mod production;
 mod record_filter;
-pub(super) mod recovery;
 mod retained;
 mod retention;
 mod scan;
+pub(super) mod state;
 
 /* === Re-Exports === */
-pub use backend::{Backend, Limits, Recovery};
+pub use backend::{Backend, Limits, StateBackend};
 pub(crate) use entry::Entry;
 pub(super) use index::IndexSchema;
-pub use recovery::RecoveryLimits;
+pub use state::StateLimits;
 
 /* === Imports === */
 // Standard Library Imports
@@ -61,6 +61,13 @@ CREATE TABLE IF NOT EXISTS storage_data_entries (
     object_version TEXT, body BLOB NOT NULL,
     digest BLOB NOT NULL CHECK(length(digest) = 32), retired_at TEXT, object_fields BLOB
 ) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS storage_object_releases (
+    schema_id TEXT NOT NULL, schema_key TEXT NOT NULL, schema_version INTEGER NOT NULL,
+    encoding INTEGER NOT NULL, item TEXT NOT NULL,
+    through TEXT NOT NULL CHECK(length(through)=16),
+    generation TEXT NOT NULL CHECK(length(generation)=16),
+    PRIMARY KEY(schema_id,item,generation)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS storage_object_scalars (
     position TEXT NOT NULL CHECK(length(position)=16),
     tag INTEGER NOT NULL CHECK(tag>0), kind TEXT NOT NULL,
@@ -79,6 +86,11 @@ CREATE TABLE IF NOT EXISTS storage_bootstrap_entries (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS storage_bootstrap_kind_position
     ON storage_bootstrap_entries(kind, position);
+CREATE TABLE IF NOT EXISTS storage_bootstrap_releases (
+    schema_id TEXT NOT NULL, schema_version INTEGER NOT NULL, encoding INTEGER NOT NULL,
+    item TEXT NOT NULL, body BLOB NOT NULL,
+    PRIMARY KEY(schema_id,schema_version,encoding,item)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS storage_bootstrap_schemas (
     schema_key TEXT NOT NULL,
     position TEXT NOT NULL UNIQUE CHECK(length(position)=16),

@@ -55,6 +55,12 @@ use dokime_app::{InstalledPlugin, Runtime, RuntimeCredentialConfig, RuntimeHandl
 /* === Type Aliases === */
 
 /* === Structs === */
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+pub struct ProgressRow {
+    pub progress: f64,
+}
+
 pub struct TestEnvironment {
     pub root: tempfile::TempDir,
     _runtime_owner: Runtime,
@@ -572,6 +578,13 @@ fn fixture_progress_contract() -> TelemetryContract {
     TelemetryContract {
         stream: Identifier::new("fixture.progress").unwrap(),
         schema_version: 1,
+        storage_schema: Some(
+            harmos::schema::graph::Schema::from_declaration(
+                <ProgressRow as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .unwrap(),
+        ),
         metadata: metadata("fixture.progress", "Fixture Progress"),
         template_id: None,
         owner: None,
@@ -594,10 +607,10 @@ fn fixture_progress_telemetry(progress: f64) -> ProviderTelemetryOutcome {
     ProviderTelemetryOutcome {
         stream: "fixture.progress".to_owned(),
         label: "Fixture Progress".to_owned(),
-        samples: vec![BTreeMap::from([(
-            "progress".to_owned(),
-            Value::Number(progress),
-        )])],
+        samples: vec![dokime::transport::ProviderTelemetryRow {
+            values: BTreeMap::from([("progress".to_owned(), Value::Number(progress))]),
+            payload: harmos::Message::encode_to_vec(&ProgressRow { progress }),
+        }],
     }
 }
 

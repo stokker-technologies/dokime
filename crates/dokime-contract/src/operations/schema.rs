@@ -97,6 +97,7 @@ pub struct TelemetryColumn {
 pub struct TelemetrySchema {
     pub stream: String,
     pub schema_version: u32,
+    pub storage_schema: Option<harmos::schema::graph::Schema>,
     pub metadata: Option<Metadata>,
     pub template_identifier: Option<String>,
     pub owner_suite_id: Option<String>,

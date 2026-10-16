@@ -37,6 +37,9 @@ pub struct TelemetrySample {
     pub source: String,
     pub scope: Option<RecordScope>,
     pub values: BTreeMap<String, Value>,
+    /// Original canonical row bytes, preserved before convenience-map projection.
+    #[serde(skip)]
+    pub storage_payload: Option<Vec<u8>>,
     pub summary: BTreeMap<String, Value>,
     pub metadata: BTreeMap<String, Value>,
 }
@@ -49,6 +52,10 @@ pub struct TelemetrySample {
 impl harmos::MemorySize for TelemetrySample {
     fn memory_size(&self) -> usize {
         let fields = [
+            (
+                harmos::MemorySize::memory_size(&self.storage_payload),
+                std::mem::size_of_val(&self.storage_payload),
+            ),
             (
                 harmos::MemorySize::memory_size(&self.sample_id),
                 std::mem::size_of_val(&self.sample_id),
@@ -99,6 +106,15 @@ impl harmos::MemorySize for TelemetrySample {
 }
 
 impl TelemetrySample {
+    pub fn with_storage_payload(mut self, bytes: Vec<u8>) -> Self {
+        self.storage_payload = Some(bytes);
+        self
+    }
+
+    pub fn typed<T: harmos::Message>(self, row: &T) -> Self {
+        self.with_storage_payload(row.encode_to_vec())
+    }
+
     pub fn new(
         stream: Identifier,
         sequence: u64,
@@ -125,6 +141,7 @@ impl TelemetrySample {
             source: source.into(),
             scope: None,
             values,
+            storage_payload: None,
             summary: BTreeMap::new(),
             metadata: BTreeMap::new(),
         }

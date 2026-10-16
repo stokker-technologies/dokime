@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 use super::RuntimeHandle;
 use dokime::core::{Identifier, RecordScope, Timestamp, Value};
 use dokime::telemetry::{TelemetryBatch, TelemetrySample};
-use harmos::schema::{Event, PathElement, Scalar, Validator};
+use harmos::schema::Validator;
 
 /* === Constants === */
 
@@ -172,6 +172,7 @@ impl Decoder {
                         values.insert("timestamp".into(), Value::from(now.clone()));
                         let mut sample = TelemetrySample::new(stream.clone(), cursor.0, now, owner);
                         sample.values = values;
+                        sample.storage_payload = Some(row.payload.clone());
                         sample.scope = scope.clone();
                         Ok(sample)
                     })
@@ -238,6 +239,7 @@ impl Decoder {
                 values.insert("timestamp".into(), Value::from(now.clone()));
                 let mut sample = TelemetrySample::new(stream.clone(), sequence, now, owner);
                 sample.values = values;
+                sample.storage_payload = Some(row.payload.clone());
                 sample.scope = scope.clone();
                 // The shared capture reader cannot wait for one paused cycle.
                 // Domain admission still filters paused/closed scopes; expose any
@@ -291,7 +293,12 @@ impl Decoder {
                     .map_err(|error| error.to_string())?;
             self.descriptors.insert(key.clone(), descriptor);
         }
-        values(&self.descriptors[&key], bytes)
+        dokime::storage::telemetry::decode_stream_values(
+            definition.id(),
+            &self.descriptors[&key],
+            bytes,
+        )
+        .map_err(|error| error.to_string())
     }
 }
 
@@ -319,6 +326,27 @@ pub(super) fn validate(
                     contract.stream, artifact.source
                 )
             })?;
+        let declared = contract.storage_schema.as_ref().ok_or_else(|| {
+            format!(
+                "telemetry `{}` has no authoritative storage row schema",
+                contract.stream
+            )
+        })?;
+        if !stream
+            .row
+            .equivalent(
+                stream.row.root,
+                declared,
+                declared.root,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .map_err(|error| error.to_string())?
+        {
+            return Err(format!(
+                "telemetry `{}` storage graph differs from its native stream",
+                contract.stream
+            ));
+        }
         if stream.schema != contract.schema_version {
             return Err(format!(
                 "telemetry `{}` disagrees with its native stream schema version",
@@ -461,69 +489,6 @@ fn publication_time(published_unix_micros: Option<i64>) -> Result<Timestamp, Str
         .format(&time::format_description::well_known::Rfc3339)
         .map_err(|error| format!("producer timestamp cannot be represented: {error}"))?;
     Ok(Timestamp::new(encoded))
-}
-
-fn values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<String, Value>, String> {
-    let mut containers = Vec::new();
-    let mut root = None;
-    validator
-        .visit(bytes, |path, event| {
-            match event {
-                Event::BeginMessage => containers.push(Value::Object(BTreeMap::new())),
-                Event::BeginRepeated { .. } => containers.push(Value::Array(Vec::new())),
-                Event::EndMessage | Event::EndRepeated => {
-                    let value = containers.pop().ok_or("missing telemetry container")?;
-                    if containers.is_empty() {
-                        root = Some(value);
-                    } else {
-                        attach(&mut containers, path, value)?;
-                    }
-                }
-                Event::Optional { present: false } => {
-                    attach(&mut containers, path, Value::Null)?;
-                }
-                Event::Scalar(scalar) => attach(&mut containers, path, value(scalar))?,
-                Event::Optional { present: true } | Event::Variant { .. } => {}
-            }
-            Ok::<(), String>(())
-        })
-        .map_err(|error| error.to_string())?;
-    match root {
-        Some(Value::Object(values)) if containers.is_empty() => Ok(values),
-        _ => Err("telemetry root is not a complete message".into()),
-    }
-}
-
-fn attach(containers: &mut [Value], path: &[PathElement<'_>], value: Value) -> Result<(), String> {
-    match (containers.last_mut(), path.last()) {
-        (Some(Value::Object(fields)), Some(PathElement::Field { name, .. })) => {
-            fields.insert((*name).to_owned(), value);
-        }
-        (Some(Value::Array(items)), Some(PathElement::Index(index))) if *index == items.len() => {
-            items.push(value);
-        }
-        _ => return Err("telemetry value does not match its container".into()),
-    }
-    Ok(())
-}
-
-fn value(value: Scalar<'_>) -> Value {
-    match value {
-        Scalar::Bool(value) => Value::Bool(value),
-        Scalar::I32(value) => Value::Integer(i64::from(value)),
-        Scalar::I64(value) => Value::Integer(value),
-        Scalar::U32(value) => Value::Unsigned(u64::from(value)),
-        Scalar::U64(value) => Value::Unsigned(value),
-        Scalar::F32(value) => Value::Number(f64::from(value)),
-        Scalar::F64(value) => Value::Number(value),
-        Scalar::String(value) => Value::Text(value.to_owned()),
-        Scalar::Bytes(value) => Value::Array(
-            value
-                .iter()
-                .map(|byte| Value::Integer(i64::from(*byte)))
-                .collect(),
-        ),
-    }
 }
 
 /* === Tests === */

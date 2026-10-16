@@ -22,15 +22,13 @@ use sha2::Digest;
 
 // Local Imports
 use dokime::execution::saved::ExecutionRevision;
+use dokime::execution::{HealthItem, OperatorNote};
 use dokime::records::RecordContract;
-use dokime::storage::sqlite::{Limits, RecoveryLimits};
+use dokime::storage::sqlite::{Limits, StateLimits};
 use dokime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime::telemetry::contract::TelemetryContract;
-use dokime_app::report::{
-    CycleReportInput,
-    saved::{CapturedExecutionReportInput, PreparedExecutionReport},
-};
-use harmos::storage::{StorageBackends, StorageSettings};
+use dokime_app::report::{CycleReportInput, saved::CapturedExecutionReportInput};
+use harmos::storage::StorageBackends;
 
 /* === Constants === */
 
@@ -57,7 +55,7 @@ impl harmos::Application for ReportOwner {
 /* === Public Functions === */
 pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
     let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().finalization())
         .await
         .unwrap();
     let mut reader = view.read_file(file).await.unwrap();
@@ -103,6 +101,15 @@ pub fn payload_text(html: &str) -> &str {
 }
 
 pub async fn render(input: &CycleReportInput) -> String {
+    render_annotated(input, Vec::new(), Vec::new()).await
+}
+
+/// Renders one execution whose frozen context carries these notes and health items.
+pub async fn render_annotated(
+    input: &CycleReportInput,
+    notes: Vec<OperatorNote>,
+    health: Vec<HealthItem>,
+) -> String {
     assert_eq!(input.cycle.test_executions.len(), 1);
 
     let root = tempfile::tempdir().unwrap();
@@ -111,17 +118,17 @@ pub async fn render(input: &CycleReportInput) -> String {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(primary.state(StateLimits::default()));
     let manager = Manager::new(
         StorageBackends {
             primary,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
-        StorageSettings {
-            flush_interval: Duration::from_secs(60),
-            ..Default::default()
-        },
+        crate::support::budgets::story_settings().harmos(
+            Duration::from_secs(60),
+            std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+        ),
     )
     .unwrap();
     let owner = harmos::Runtime::<ReportOwner>::builder((), ())
@@ -151,8 +158,8 @@ pub async fn render(input: &CycleReportInput) -> String {
         },
         execution_documents: BTreeMap::new(),
         prompts: Vec::new(),
-        health: Vec::new(),
-        notes: Vec::new(),
+        health,
+        notes,
         traceability: input.traceability.clone(),
         appearance: serde_json::from_value(serde_json::json!({
             "app_name": "Fixture", "theme_family_locked": false,
@@ -173,6 +180,10 @@ pub async fn render(input: &CycleReportInput) -> String {
     for sample in &input.telemetry {
         let mut contract = TelemetryContract::declared(sample.stream.as_str(), "Fixture Stream");
         contract.schema_version = sample.schema_version;
+        contract.storage_schema = Some(
+            crate::support::contracts::fixture_schema(sample.stream.as_str())
+                .expect("report fixture declares its row schema"),
+        );
         telemetry_contracts
             .entry(sample.stream.clone())
             .or_default()
@@ -181,11 +192,13 @@ pub async fn render(input: &CycleReportInput) -> String {
     let captured = CapturedExecutionReportInput {
         final_report: true,
         owner_node_id: dokime::core::NodeId::from_seed("fixture.report.owner"),
-        execution: ExecutionRevision {
+        execution_id: execution.test_execution_id.clone(),
+        lifecycle_id: "00000000-0000-4000-8000-000000000001".into(),
+        execution: Some(ExecutionRevision {
             execution_id: execution.test_execution_id.clone(),
             position: receipt.position.clone(),
             version: receipt.version,
-        },
+        }),
         evidence_through: receipt.position,
         telemetry_contracts,
         record_contracts,
@@ -204,6 +217,7 @@ pub async fn render(input: &CycleReportInput) -> String {
         .unwrap()
         .try_into_shared()
         .unwrap();
+    let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = manager
         .produce(
             NonZeroUsize::new(std::mem::size_of::<
@@ -215,10 +229,11 @@ pub async fn render(input: &CycleReportInput) -> String {
         .unwrap()
         .try_into_value()
         .unwrap();
-    let mut prepared =
-        PreparedExecutionReport::prepare(manager.clone(), captured, outputs).unwrap();
+    let mut prepared = dokime_app::report::Renderer
+        .execution(manager.clone(), captured, outputs)
+        .unwrap();
     let seal = prepared
-        .save_dependencies(&execution.finished_at.clone().unwrap())
+        .save_dependencies(&execution.finished_at.clone().unwrap(), &revision)
         .await
         .unwrap();
     let mut reader = manager.read_file(&seal.report).await.unwrap();

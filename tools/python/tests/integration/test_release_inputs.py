@@ -51,9 +51,13 @@ def case_override_local(
     second = release.inputs(tmp_path / "project")
 
     assert first == second
-    assert first["local_overrides"] == [
-        {"package": "harmos", "manifest": sibling.as_posix()}
-    ]
+    override = first["local_overrides"][0]
+    assert override["package"] == "harmos"
+    assert override["manifest"] == sibling.as_posix()
+    assert len(override["source"]) == 64
+    sibling.write_text("[workspace]\n# Changed Dependency\n", encoding="utf-8")
+    changed = release.inputs(tmp_path / "project")
+    assert changed["local_overrides"][0]["source"] != override["source"]
     assert any(
         node["package"] == f"harmos@0.1.0|local:{sibling.as_posix()}"
         for node in first["graph"]
@@ -108,6 +112,8 @@ def _resolved(
     project.mkdir()
     (project / "Cargo.toml").write_text('[workspace]\nmembers = ["."]\n')
     sibling = (tmp_path / "harmos/Cargo.toml").resolve()
+    sibling.parent.mkdir()
+    sibling.write_text("[workspace]\n", encoding="utf-8")
     dependency = {
         "name": "harmos",
         "version": "0.1.0",
@@ -141,7 +147,13 @@ def _resolved(
         "metadata": json.dumps(metadata),
     }
 
-    def run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+    def run(
+        command: list[str], **_: object
+    ) -> subprocess.CompletedProcess[str | bytes]:
+        if command == ["git", "rev-parse", "--show-toplevel"]:
+            return subprocess.CompletedProcess(command, 0, stdout=str(sibling.parent))
+        if command[1] == "ls-files":
+            return subprocess.CompletedProcess(command, 0, stdout=b"Cargo.toml\0")
         return subprocess.CompletedProcess(command, 0, stdout=outputs[command[1]])
 
     monkeypatch.setattr(release.subprocess, "run", run)

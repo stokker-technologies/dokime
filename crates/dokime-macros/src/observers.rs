@@ -109,8 +109,54 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
         quote!(.strict())
     };
     let published = !foreign;
-    let stripped = crate::row::stripped(&declared);
-    let shared = crate::facade::harmos_attribute("stream", quote!(#forwarded), quote!(#stripped));
+    let mut stripped = crate::row::stripped(&declared);
+    if columns > 0 {
+        let derives = stripped
+            .attrs
+            .iter()
+            .filter(|attribute| attribute.path().is_ident("derive"))
+            .map(|attribute| {
+                attribute.parse_args_with(Punctuated::<syn::Path, Token![,]>::parse_terminated)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let has = |name: &str| {
+            derives
+                .iter()
+                .flatten()
+                .any(|path| path.segments.last().is_some_and(|part| part.ident == name))
+        };
+        let mut added = Vec::new();
+        if !has("Clone") {
+            added.push(quote!(Clone));
+        }
+        if !has("Serialize") {
+            added.push(quote!(#sdk::__harmos::__private::serde::Serialize));
+        }
+        if !has("Deserialize") {
+            added.push(quote!(#sdk::__harmos::__private::serde::Deserialize));
+        }
+        if !added.is_empty() {
+            stripped
+                .attrs
+                .push(syn::parse_quote!(#[derive(#(#added),*)]));
+        }
+        if !has("Serialize") && !has("Deserialize") {
+            let serde_path = syn::LitStr::new(
+                &format!("{}::__harmos::__private::serde", quote!(#sdk)).replace(' ', ""),
+                proc_macro2::Span::call_site(),
+            );
+            stripped
+                .attrs
+                .push(syn::parse_quote!(#[serde(crate = #serde_path)]));
+        }
+    }
+    // Named Dokime Streams Always Carry A Typed Storage Payload.
+    let shape = if columns > 0 {
+        crate::facade::harmos_attribute("message", quote!(), quote!(#stripped))
+    } else {
+        quote!(#stripped)
+    };
+    let shared = crate::facade::harmos_attribute("stream", quote!(#forwarded), shape);
     let owned = (!foreign).then(|| {
         quote! {
             #[automatically_derived]
@@ -130,7 +176,9 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
         #[automatically_derived]
         impl #generics ::core::convert::From<#name #types> for #sdk::publication::Publication #predicates {
             fn from(row: #name #types) -> Self {
+                let payload = #sdk::Message::encode_to_vec(&row);
                 Self::Row {
+                    payload,
                     stream: <#name #types as #sdk::telemetry::TelemetryStream>::stream_id(),
                     values: <#name #types as #sdk::telemetry::TelemetryRow>::into_row(row),
                 }
@@ -156,6 +204,7 @@ fn declare(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Er
                         &metadata.label,
                     )
                         .columns(<#row as #sdk::telemetry::TelemetryRow>::columns())
+                        .typed::<#row>()
                         #closing
                 }
             }

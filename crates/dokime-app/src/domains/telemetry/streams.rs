@@ -19,6 +19,7 @@ use std::{
 };
 // Third Party Imports
 use futures_util::{Stream, StreamExt};
+use harmos::MemorySize;
 // Local Imports
 use crate::evidence::{
     PublishReceipt, TelemetrySelection, retain_running_samples, validation_rejection,
@@ -47,9 +48,18 @@ pub(crate) struct SampleAdmission {
     _order: tokio::sync::OwnedMutexGuard<()>,
     execution: crate::runtime::storage::telemetry::TelemetryAdmission,
     accepted: Vec<PreparedSample>,
+    supplied: Vec<(
+        Option<dokime::core::TestExecutionId>,
+        dokime::core::TelemetrySampleId,
+    )>,
     rows: Vec<TelemetryRow>,
     delivery: super::leases::LeasedRows,
-    cursors: BTreeMap<String, u64>,
+    _supplied_memory: harmos::storage::StorageProductionPreparation,
+}
+
+pub(crate) struct CapturedPublication {
+    pub receipt: PublishReceipt,
+    pub failure: Option<crate::Error>,
 }
 
 /* === Enums === */
@@ -116,8 +126,7 @@ impl RuntimeHandle {
 
         normalize_batch(&mut batch, &contract, &received_at)?;
 
-        let accepted = batch.samples.len() as u64;
-        let stream_cursors = self
+        let mut receipt = self
             .write_samples_to_streams(&batch.samples)
             .await
             .map_err(|error| {
@@ -126,8 +135,7 @@ impl RuntimeHandle {
         // Admission also delivers the frozen lease batch while this publish
         // guard is held. Quiescence therefore waits for both capture and
         // physical delivery; a later lease never receives an uncaptured row.
-        let mut receipt = PublishReceipt::accepted(accepted, stream_cursors, revision);
-        receipt.dropped = dropped;
+        receipt.dropped += dropped;
 
         Ok(receipt)
     }
@@ -136,10 +144,23 @@ impl RuntimeHandle {
         &self,
         completion: crate::services::telemetry::CapturedSamples,
         received_at: Timestamp,
-    ) -> crate::Result<PublishReceipt> {
+    ) -> crate::Result<CapturedPublication> {
         let sampling = self.sampling();
         let _publish = sampling.begin_publish().await;
         let mut batch = completion.into_batch();
+        let closed = sampling.closing_executions().await;
+        let dropped = retain_open_execution_samples(&mut batch, &closed);
+        let revision = self.state_manager.applied().0;
+        if batch.samples.is_empty() {
+            return Ok(CapturedPublication {
+                receipt: PublishReceipt::dropped(
+                    dropped,
+                    revision,
+                    "unsent captured samples discarded after execution stop",
+                ),
+                failure: None,
+            });
+        }
         let contract = crate::runtime_state::contract_lookup(&self.state_read())
             .telemetry_contract(&batch.stream)
             .ok_or_else(|| {
@@ -150,18 +171,19 @@ impl RuntimeHandle {
                 )
             })?;
         normalize_batch(&mut batch, &contract, &received_at)?;
-        let accepted = batch.samples.len() as u64;
-        let revision = self.state_manager.applied().0;
         // The Original Storage Admission Rejects A Closed Acquisition And Retains Capacity.
         let admission = self.prepare_sample_admission(&batch.samples).await?;
-        let cursors = self.admit_samples(admission).await?;
-        Ok(PublishReceipt::accepted(accepted, cursors, revision))
+        let runtime = self.clone();
+        let mut published =
+            tokio::spawn(async move { runtime.admit_samples_owned(admission).await }).await??;
+        published.receipt.dropped += dropped;
+        Ok(published)
     }
 
     async fn write_samples_to_streams(
         &self,
         samples: &[TelemetrySample],
-    ) -> crate::Result<BTreeMap<String, u64>> {
+    ) -> crate::Result<PublishReceipt> {
         let runtime = self.clone();
         let samples = samples.to_vec();
         tokio::spawn(async move {
@@ -182,7 +204,50 @@ impl RuntimeHandle {
                 "telemetry capture exceeds 4096 rows; split the batch",
             ));
         }
+        // Fresh Data May Rearm A Transient Worker; Previously Accepted Batches Stay With Storage.
+        self.storage().retry_transient_persistence();
         let order = self.telemetry_admission.clone().lock_owned().await;
+        let supplied_bytes = samples.iter().fold(
+            std::mem::size_of::<
+                Vec<(
+                    Option<dokime::core::TestExecutionId>,
+                    dokime::core::TelemetrySampleId,
+                )>,
+            >(),
+            |bytes, sample| {
+                bytes
+                    .saturating_add(std::mem::size_of::<PreparedSample>())
+                    .saturating_add(std::mem::size_of::<(
+                        Option<dokime::core::TestExecutionId>,
+                        dokime::core::TelemetrySampleId,
+                    )>())
+                    .saturating_add(sample.sample_id.memory_size())
+                    .saturating_add(
+                        sample
+                            .scope
+                            .as_ref()
+                            .and_then(|scope| scope.test_execution_id.as_ref())
+                            .map_or(0, harmos::MemorySize::memory_size),
+                    )
+            },
+        );
+        let supplied_memory = self.storage().prepare_production(
+            std::num::NonZeroUsize::new(supplied_bytes).ok_or_else(|| {
+                crate::Error::Operation("telemetry supplied input memory overflows".into())
+            })?,
+        )?;
+        let supplied = samples
+            .iter()
+            .map(|sample| {
+                (
+                    sample
+                        .scope
+                        .as_ref()
+                        .and_then(|scope| scope.test_execution_id.clone()),
+                    sample.sample_id.clone(),
+                )
+            })
+            .collect();
         let mut delivery = self.leased_rows(samples).await;
         let open = self.execution_storage.telemetry_scopes().await?;
         let mut leased = BTreeMap::new();
@@ -248,7 +313,7 @@ impl RuntimeHandle {
                 .map_err(|error| validation_rejection(error.to_string(), "telemetry", None))?;
             accepted.push((sample, contract.clone(), 0));
         }
-        let (rows, cursors) = {
+        let rows = {
             let known = self
                 .telemetry_cursors
                 .lock()
@@ -266,7 +331,7 @@ impl RuntimeHandle {
                 *ordinal = *next;
                 rows.push(telemetry_row(sample, *next)?);
             }
-            (rows, cursors)
+            rows
         };
         let host_count = accepted
             .iter()
@@ -284,9 +349,10 @@ impl RuntimeHandle {
         Ok(SampleAdmission {
             _order: order,
             execution,
+            supplied,
+            _supplied_memory: supplied_memory,
             accepted,
             rows,
-            cursors,
             delivery,
         })
     }
@@ -294,27 +360,109 @@ impl RuntimeHandle {
     pub(crate) async fn admit_samples(
         &self,
         admission: SampleAdmission,
-    ) -> crate::Result<BTreeMap<String, u64>> {
+    ) -> crate::Result<PublishReceipt> {
         let runtime = self.clone();
-        tokio::spawn(async move { runtime.admit_samples_owned(admission).await }).await?
+        Ok(
+            tokio::spawn(async move { runtime.admit_samples_owned(admission).await })
+                .await??
+                .receipt,
+        )
     }
 
     async fn admit_samples_owned(
         &self,
         admission: SampleAdmission,
-    ) -> crate::Result<BTreeMap<String, u64>> {
+    ) -> crate::Result<CapturedPublication> {
         let SampleAdmission {
             _order,
             execution,
             accepted,
+            supplied,
             rows,
-            cursors,
+            _supplied_memory,
             delivery,
         } = admission;
-        execution.commit().await?;
-        for row in rows {
+        let fold_bytes = accepted
+            .iter()
+            .try_fold(
+                std::mem::size_of::<Vec<PreparedSample>>(),
+                |bytes, (sample, _, _)| {
+                    bytes
+                        .checked_add(std::mem::size_of::<PreparedSample>())
+                        .and_then(|bytes| {
+                            bytes.checked_add(std::mem::size_of::<(
+                                Option<dokime::core::TestExecutionId>,
+                                dokime::core::TelemetrySampleId,
+                            )>())
+                        })
+                        .and_then(|bytes| bytes.checked_add(sample.sample_id.memory_size()))
+                        .and_then(|bytes| {
+                            bytes.checked_add(
+                                sample
+                                    .scope
+                                    .as_ref()
+                                    .and_then(|scope| scope.test_execution_id.as_ref())
+                                    .map_or(0, harmos::MemorySize::memory_size),
+                            )
+                        })
+                },
+            )
+            .and_then(std::num::NonZeroUsize::new)
+            .ok_or_else(|| {
+                crate::Error::Operation("telemetry receipt fold memory overflows".into())
+            })?;
+        let _fold_memory = self.storage().prepare_production(fold_bytes)?;
+        let admitted = execution.commit(&self.sampling()).await?;
+        let mut native = admitted.accepted.iter();
+        let mut kept = Vec::with_capacity(accepted.len());
+        let mut cursors = BTreeMap::<String, u64>::new();
+        for ((sample, contract, ordinal), row) in accepted.into_iter().zip(rows) {
+            let scoped = sample
+                .scope
+                .as_ref()
+                .is_some_and(|scope| scope.test_execution_id.is_some());
+            if scoped
+                && !*native.next().ok_or_else(|| {
+                    crate::Error::Operation("native admission receipt is incomplete".into())
+                })?
+            {
+                continue;
+            }
             self.streams.publish(row);
+            let stream = telemetry_stream_id(sample.scope.as_ref(), &sample.stream);
+            cursors
+                .entry(stream)
+                .and_modify(|current| *current = (*current).max(ordinal))
+                .or_insert(ordinal);
+            kept.push((sample, contract, ordinal));
         }
+        let accepted_count = supplied
+            .iter()
+            .filter(|(execution, sample_id)| {
+                kept.iter().any(|(sample, _, _)| {
+                    &sample.sample_id == sample_id
+                        && sample
+                            .scope
+                            .as_ref()
+                            .and_then(|scope| scope.test_execution_id.as_ref())
+                            == execution.as_ref()
+                })
+            })
+            .count() as u64;
+        let dropped_count = supplied.len() as u64 - accepted_count;
+        let delivered = kept
+            .iter()
+            .map(|(sample, _, _)| {
+                (
+                    sample
+                        .scope
+                        .as_ref()
+                        .and_then(|scope| scope.test_execution_id.clone()),
+                    sample.sample_id.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let accepted = kept;
         {
             let mut host = self
                 .host_traceability
@@ -345,8 +493,17 @@ impl RuntimeHandle {
             }
         }
         drop(_order);
-        self.forward_leased_rows(delivery).await;
-        Ok(cursors)
+        self.forward_leased_rows(delivery, &delivered).await;
+        let mut receipt =
+            PublishReceipt::accepted(accepted_count, cursors, self.state_manager.applied().0);
+        receipt.dropped = dropped_count;
+        receipt.message = admitted.failure.as_ref().map(|source| {
+            format!("telemetry was partially accepted; unaccepted samples were dropped: {source}")
+        });
+        Ok(CapturedPublication {
+            receipt,
+            failure: admitted.failure,
+        })
     }
 
     pub async fn watch_plot_telemetry(
@@ -561,6 +718,23 @@ fn normalize_batch(
         sample.stream = contract.stream.clone();
         sample.schema_version = contract.schema_version;
         sample.received_at = received_at.clone();
+        if sample.storage_payload.is_none()
+            && let Ok(host) = dokime::host::HostTelemetryStream::try_from(contract.stream.as_str())
+        {
+            sample.storage_payload = Some(
+                dokime_contract::telemetry::host::host_telemetry_payload(host, &sample.values)
+                    .map_err(|error| {
+                        validation_rejection(error.to_string(), "telemetry.payload", None)
+                    })?,
+            );
+        }
+        if contract.storage_schema.is_none() || sample.storage_payload.is_none() {
+            return Err(validation_rejection(
+                "telemetry storage requires an explicit row graph and original canonical payload bytes",
+                "telemetry.payload",
+                None,
+            ));
+        }
         ensure_telemetry_timestamp(sample).map_err(|message| {
             validation_rejection(
                 message,
@@ -598,6 +772,7 @@ fn telemetry_row(sample: &TelemetrySample, ordinal: u64) -> crate::Result<Teleme
         timestamp_millis: timestamp,
         stream: sample.stream.to_string(),
         payload,
+        storage_payload: sample.storage_payload.clone(),
     })
 }
 
@@ -605,6 +780,7 @@ fn sample_from_row(row: TelemetryRow) -> crate::Result<TelemetrySample> {
     let mut sample: TelemetrySample = crate::persistence::from_slice(&row.payload)
         .map_err(|error| crate::Error::Operation(format!("invalid telemetry row: {error}")))?;
     sample.sequence = row.ordinal;
+    sample.storage_payload = row.storage_payload;
     Ok(sample)
 }
 

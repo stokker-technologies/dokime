@@ -17,9 +17,12 @@
 // Third Party Imports
 
 // Local Imports
-use crate::core::{Identifier, Metadata, ValueType};
+use crate::core::{Identifier, Metadata, Timestamp, Value, ValueType};
 use crate::telemetry::contract::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use crate::telemetry::host::{HOST_STREAMS, HostTelemetryStream};
+use crate::values::{FieldError, FieldValue};
+use harmos::Message;
+use std::collections::BTreeMap;
 
 /* === Constants === */
 
@@ -36,12 +39,47 @@ macro_rules! host_contracts {
             }
         )*
     ) => {
-                pub fn host_telemetry_contract(stream: HostTelemetryStream) -> TelemetryContract {
+        $(
+            #[harmos::message]
+            #[derive(Clone, PartialEq)]
+            struct $stream { $( $field: $ty, )* }
+        )*
+
+        pub fn host_telemetry_payload(
+            stream: HostTelemetryStream, values: &BTreeMap<String, Value>,
+        ) -> Result<Vec<u8>, crate::values::FieldError> {
+            match stream {
+                $( HostTelemetryStream::$stream => {
+                    let declared = [$( stringify!($field), )*];
+                    if let Some(name) = values.keys().find(|name| name.as_str() != "timestamp" && !declared.contains(&name.as_str())) {
+                        return Err(crate::values::FieldError { field: name.clone(), declared: ValueType::Object,
+                            found: Some("undeclared host row field".to_owned()) });
+                    }
+                    let row = $stream { $( $field: crate::values::field(values, stringify!($field))?, )* };
+                    Ok(row.encode_to_vec())
+                }, )*
+            }
+        }
+
+        pub fn project_host_values(
+            stream: HostTelemetryStream,
+            values: &mut BTreeMap<String, Value>,
+        ) -> Result<(), FieldError> {
+            match stream {
+                $( HostTelemetryStream::$stream => {
+                    $( project_host_field(values, stringify!($field), ValueType::$value_type)?; )*
+                }, )*
+            }
+            Ok(())
+        }
+
+        pub fn host_telemetry_contract(stream: HostTelemetryStream) -> TelemetryContract {
             match stream {
                 $(
                     HostTelemetryStream::$stream => TelemetryContract {
                         stream: identifier($id),
                         schema_version: 1,
+                        storage_schema: None,
                         metadata: Metadata::new(identifier($id), $label, None),
                         template_id: None,
                         owner: None,
@@ -67,7 +105,7 @@ macro_rules! host_contracts {
                         scalar: false,
                         validation_mode: None,
                         foreign: false,
-                    },
+                    }.typed::<$stream>(),
                 )*
             }
         }
@@ -81,12 +119,48 @@ crate::host_streams!(host_contracts);
 /* === Type Aliases === */
 
 /* === Structs === */
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+pub struct HostTimestamp {
+    pub value: String,
+}
+
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+pub struct HostTextList {
+    pub values: Vec<String>,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl FieldValue for HostTimestamp {
+    const VALUE_TYPE: ValueType = ValueType::Datetime;
+
+    fn into_value(self) -> Value {
+        Value::from(Timestamp::new(self.value))
+    }
+
+    fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
+        Timestamp::from_value(value).map(|timestamp| Self {
+            value: timestamp.as_str().to_owned(),
+        })
+    }
+}
+
+impl FieldValue for HostTextList {
+    const VALUE_TYPE: ValueType = ValueType::Array;
+
+    fn into_value(self) -> Value {
+        self.values.into_value()
+    }
+
+    fn from_value(value: Option<&Value>) -> Result<Self, FieldError> {
+        Vec::<String>::from_value(value).map(|values| Self { values })
+    }
+}
 
 /* === Public Functions === */
 pub fn host_telemetry_contracts() -> Vec<TelemetryContract> {
@@ -98,6 +172,51 @@ pub fn host_telemetry_contracts() -> Vec<TelemetryContract> {
 }
 
 /* === Private Functions === */
+fn project_host_field(
+    values: &mut BTreeMap<String, Value>,
+    name: &str,
+    kind: ValueType,
+) -> Result<(), FieldError> {
+    let member = match kind {
+        ValueType::Datetime => "value",
+        ValueType::Array => "values",
+        _ => return Ok(()),
+    };
+    let Some(value) = values.remove(name) else {
+        return Ok(());
+    };
+    if value == Value::Null {
+        values.insert(name.to_owned(), value);
+        return Ok(());
+    }
+    let invalid = || FieldError {
+        field: name.to_owned(),
+        declared: kind.clone(),
+        found: Some("invalid host message value".to_owned()),
+    };
+    let Value::Object(mut object) = value else {
+        return Err(invalid());
+    };
+    if object.len() != 1 {
+        return Err(invalid());
+    }
+    let value = object.remove(member).ok_or_else(invalid)?;
+    let value = match (&kind, value) {
+        (ValueType::Datetime, Value::Text(text)) => {
+            Value::Datetime(Timestamp::new(text).to_datetime().map_err(|_| invalid())?)
+        }
+        (ValueType::Array, Value::Array(items)) => {
+            if items.iter().any(|item| !matches!(item, Value::Text(_))) {
+                return Err(invalid());
+            }
+            Value::Array(items)
+        }
+        _ => return Err(invalid()),
+    };
+    values.insert(name.to_owned(), value);
+    Ok(())
+}
+
 fn column(
     identifier_value: &str,
     label: &str,

@@ -50,6 +50,7 @@ pub type SettlementError = Box<dyn std::error::Error + Send + Sync>;
 pub(crate) struct Sampling {
     state: Arc<Mutex<SamplingState>>,
     publish_gate: Arc<RwLock<()>>,
+    fence_changed: Arc<tokio::sync::Notify>,
     poll_interval: Duration,
     idle_grace: Duration,
 }
@@ -108,7 +109,7 @@ pub(crate) struct CapturedSamples {
 struct CollectedSamples {
     batches: Vec<TelemetryBatch>,
     next: usize,
-    accepted: usize,
+    accounted: usize,
     received_at: Timestamp,
 }
 
@@ -214,7 +215,7 @@ impl SamplingOwner {
                 self.returned = Some(CollectedSamples {
                     batches,
                     next: 0,
-                    accepted: 0,
+                    accounted: 0,
                     received_at: Timestamp::now_utc(),
                 });
                 self.publish_returned(runtime).await?;
@@ -242,6 +243,19 @@ impl SamplingOwner {
     ) -> std::result::Result<(), ProduceError> {
         loop {
             if let Some(publication) = self.publication.as_mut() {
+                let stopped = match self.owed.get(&publication.lease_id) {
+                    Some(demand) => capture_stopped(runtime, &demand.scope).await,
+                    None => false,
+                };
+                if stopped && publication.failure.is_some() {
+                    self.owed.remove(&publication.lease_id);
+                    self.returned
+                        .as_mut()
+                        .expect("returned rows remain owned")
+                        .accounted += 1;
+                    self.publication = None;
+                    continue;
+                }
                 if let Some(source) = &publication.failure {
                     return Err(ProduceError::CaptureAdmission {
                         source: Arc::clone(source),
@@ -275,7 +289,7 @@ impl SamplingOwner {
                 self.returned
                     .as_mut()
                     .expect("the original rows remain owned")
-                    .accepted += 1;
+                    .accounted += 1;
                 self.publication = None;
             }
 
@@ -291,13 +305,13 @@ impl SamplingOwner {
                 .iter()
                 .find(|(_, demand)| demand.request.stream == batch.stream.as_str());
             let Some((lease_id, demand)) = target else {
-                if returned.accepted == 0 && !batch.samples.is_empty() {
+                if returned.accounted == 0 && !batch.samples.is_empty() {
                     return Err(ProduceError::UnownedCollection {
                         stream: batch.stream.to_string(),
                     });
                 }
                 returned.next += 1;
-                returned.accepted = 0;
+                returned.accounted = 0;
                 continue;
             };
             let lease_id = lease_id.clone();
@@ -404,6 +418,7 @@ impl Default for Sampling {
         Self {
             state: Arc::new(Mutex::new(SamplingState::default())),
             publish_gate: Arc::new(RwLock::new(())),
+            fence_changed: Arc::new(tokio::sync::Notify::new()),
             poll_interval: POLL_INTERVAL,
             idle_grace: IDLE_GRACE,
         }
@@ -720,6 +735,36 @@ impl Sampling {
             .take();
     }
 
+    /// Prevent New Samples Without Waiting For Already Accepted Storage Work.
+    pub(crate) async fn fence_executions(&self, ids: &[TestExecutionId]) {
+        let mut state = self.state.lock().await;
+        state.fencing_executions.extend(ids.iter().cloned());
+        state.closing_executions.extend(ids.iter().cloned());
+        drop(state);
+        self.fence_changed.notify_waiters();
+    }
+
+    pub(crate) async fn measurement_closed(&self, execution: &str) -> bool {
+        self.state
+            .lock()
+            .await
+            .closing_executions
+            .iter()
+            .any(|id| id.as_str() == execution)
+    }
+
+    pub(crate) async fn wait_measurement_closed(&self, execution: &str) {
+        loop {
+            let changed = self.fence_changed.notified();
+            tokio::pin!(changed);
+            changed.as_mut().enable();
+            if self.measurement_closed(execution).await {
+                return;
+            }
+            changed.await;
+        }
+    }
+
     pub(crate) async fn begin_publish(&self) -> tokio::sync::RwLockReadGuard<'_, ()> {
         self.publish_gate.read().await
     }
@@ -843,7 +888,7 @@ impl Sampling {
                     owner.returned = Some(CollectedSamples {
                         batches,
                         next: 0,
-                        accepted: 0,
+                        accounted: 0,
                         received_at: Timestamp::now_utc(),
                     });
                     owner.publish_returned(runtime).await?;
@@ -927,7 +972,7 @@ impl Sampling {
                 owner.returned = Some(CollectedSamples {
                     batches,
                     next: 0,
-                    accepted: 0,
+                    accounted: 0,
                     received_at: Timestamp::now_utc(),
                 });
                 owner.publish_returned(runtime).await?;
@@ -1086,15 +1131,46 @@ async fn publish_to_capture(
     received_at: Timestamp,
 ) -> std::result::Result<(), ProduceError> {
     let expected = batch.samples.len() as u64;
+    let stream = batch.stream.clone();
+    if capture_stopped(runtime, scope).await {
+        return Ok(());
+    }
     let completion = CapturedSamples::new(scope, batch);
-    let receipt = runtime
+    let publication = match runtime
         .publish_captured_telemetry(completion, received_at)
         .await
-        .map_err(|source| ProduceError::DestinationRefused {
-            lease_id: lease_id.to_owned(),
-            source: Box::new(source),
-        })?;
-    if receipt.dropped != 0 || receipt.accepted != expected {
+    {
+        Ok(publication) => publication,
+        Err(_) if capture_stopped(runtime, scope).await => return Ok(()),
+        Err(source) if transient_capture_failure(&source) => {
+            let message =
+                format!("telemetry collection dropped during a transient storage outage: {source}");
+            record_destination_failure(runtime, lease_id, scope, &message).await;
+            runtime.forward_lease_gap(&stream, &message).await;
+            return Ok(());
+        }
+        Err(source) => {
+            return Err(ProduceError::DestinationRefused {
+                lease_id: lease_id.to_owned(),
+                source: Box::new(source),
+            });
+        }
+    };
+    if let Some(source) = &publication.failure
+        && transient_capture_failure(source)
+    {
+        let message = format!(
+            "telemetry collection partially accepted during a transient storage outage; rejected remainder dropped: {source}"
+        );
+        record_destination_failure(runtime, lease_id, scope, &message).await;
+        runtime.forward_lease_gap(&stream, &message).await;
+        return Ok(());
+    }
+    let receipt = publication.receipt;
+    // Explicitly Discarded Stop Buffers Are Accounted For, Not Destination Failures.
+    if receipt.accepted.checked_add(receipt.dropped) != Some(expected)
+        || (receipt.dropped != 0 && !capture_stopped(runtime, scope).await)
+    {
         let message = receipt.message.unwrap_or_else(|| {
             format!(
                 "capture accepted {} of {expected} original rows",
@@ -1108,6 +1184,32 @@ async fn publish_to_capture(
         });
     }
     Ok(())
+}
+
+fn transient_capture_failure(error: &crate::Error) -> bool {
+    fn runtime(error: &harmos::Error) -> bool {
+        match error {
+            harmos::Error::Backend {
+                kind: harmos::BackendFailure::Transient,
+                ..
+            } => true,
+            harmos::Error::Persistence { source } => runtime(source),
+            _ => false,
+        }
+    }
+    match error {
+        crate::Error::Harmos(source)
+        | crate::Error::Storage(dokime::storage::Error::Runtime(source)) => runtime(source),
+        _ => false,
+    }
+}
+
+async fn capture_stopped(runtime: &RuntimeHandle, scope: &RecordScope) -> bool {
+    let Some(id) = scope.test_execution_id.as_ref() else {
+        return false;
+    };
+    runtime.sampling().closing_executions().await.contains(id)
+        || runtime.state_read().report_finalizations.contains_key(id)
 }
 
 async fn record_destination_failure(
@@ -1130,3 +1232,33 @@ async fn record_destination_failure(
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod destination_tests {
+    use super::*;
+
+    #[test]
+    fn only_transient_storage_failures_allow_fresh_collection() {
+        let transient = harmos::Error::Persistence {
+            source: Arc::new(harmos::Error::backend(
+                "storage",
+                harmos::BackendFailure::Transient,
+                std::io::Error::other("connection dropped"),
+            )),
+        };
+        assert!(transient_capture_failure(&crate::Error::Storage(
+            dokime::storage::Error::Runtime(transient)
+        )));
+        let permanent = harmos::Error::backend(
+            "storage",
+            harmos::BackendFailure::Corrupt,
+            std::io::Error::other("invalid stored payload"),
+        );
+        assert!(!transient_capture_failure(&crate::Error::Harmos(permanent)));
+        assert!(!transient_capture_failure(&crate::Error::Harmos(
+            harmos::Error::InvalidInput {
+                field: "telemetry schema",
+                reason: "incompatible payload",
+            }
+        )));
+    }
+}

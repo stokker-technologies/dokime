@@ -76,12 +76,31 @@ impl Transaction<RuntimeState> for SetArchived {
         match (&self.subject, self.archived) {
             (ArchiveSubject::Cycle(id), true) => {
                 state.archived_cycles.insert(id.clone());
+                state.cycle_report_finalizations.remove(id);
+                if let Some(cycle) = state.cycles.get(id) {
+                    for member in &cycle.execution_ids {
+                        if state
+                            .executions
+                            .get(member)
+                            .is_some_and(|execution| execution.saved.is_some())
+                        {
+                            state.report_finalizations.remove(member);
+                        }
+                    }
+                }
             }
             (ArchiveSubject::Cycle(id), false) => {
                 state.archived_cycles.remove(id);
             }
             (ArchiveSubject::Execution(id), true) => {
                 state.archived_executions.insert(id.clone());
+                if state
+                    .executions
+                    .get(id)
+                    .is_some_and(|execution| execution.saved.is_some())
+                {
+                    state.report_finalizations.remove(id);
+                }
             }
             (ArchiveSubject::Execution(id), false) => {
                 state.archived_executions.remove(id);

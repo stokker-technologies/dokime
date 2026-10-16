@@ -13,28 +13,13 @@ import type { DocumentCapturePayload } from "./document-normalizer";
 import type {
   HubSnapshot,
   PlotPayload,
-  RecordScope,
   ResolvedCycleSummary,
-  StepExecutionRecord,
   TestCyclePlan,
   TestExecution,
   TraceabilitySnapshot,
 } from "./types";
 
 /* === Types === */
-
-export type ReportArtifactLink = {
-  artifact_id: string;
-  label: string;
-  href: string;
-  path: string;
-  media_type?: string | null;
-  description?: string | null;
-  size_bytes?: number | null;
-  group_id?: string | null;
-  group_label?: string | null;
-  scope?: RecordScope | null;
-};
 
 export type DocumentHistogramPayload = {
   histogram_id: string;
@@ -86,17 +71,17 @@ export type ReportPayload = {
   schema_version: number;
   generated_at?: string | null;
   hub?: ReportHubInfo | null;
+  /** Notes and health arrive once per subject, artifacts with their download target. */
   snapshot?: HubSnapshot | null;
   documents: Record<string, DocumentCapturePayload>;
   test_cycle_plan?: TestCyclePlan | null;
+  /** Each execution already carries its own step and criterion rows. */
   test_executions: TestExecution[];
-  test_steps: StepExecutionRecord[];
   plots: Record<string, PlotPayload>;
   histograms: Record<string, DocumentHistogramPayload>;
   box_summaries: Record<string, DocumentBoxSummaryPayload>;
   case_runs: ReportCaseRunPayload[];
   cycle_summary?: ResolvedCycleSummary | null;
-  artifact_links: ReportArtifactLink[];
   /** The hub appearance frame captured at generation time (theme contract for the frozen report). */
   appearance?: unknown;
   warnings: string[];

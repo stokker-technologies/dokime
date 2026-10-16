@@ -1733,7 +1733,7 @@ async fn replay_sample_inputs(
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let scope = harmos::Identifier::new(execution.test_execution_id.as_str())
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-    let mut forced = context.runtime.config().storage_reads.replay_read_deadlines;
+    let mut forced = context.runtime.config().storage.replay_read_deadlines;
     loop {
         // Shared read capacity can be held by other captures; each page waits
         // for it on its own, so a long replay is not failed by its length.
@@ -1840,95 +1840,130 @@ async fn replay_page(
     through: u64,
     after: u64,
 ) -> harmos::Result<Option<harmos::storage::QueryValue<Vec<ReplayedSample>>>> {
+    use harmos::storage::query::transform::{
+        FieldPath, Transform,
+        filter::{Clause, Compare, Condition, Filter, Term},
+    };
     use harmos::{
         MemorySize,
-        storage::{QueryOptions, ReadLimits},
+        storage::query::{Query, QueryOutput, RowSlice, Source, StreamSelection},
     };
-    let limit = REPLAY_PAGE_BYTES;
-    let mut query = crate::runtime::storage::telemetry::native_query(QueryOptions {
-        after,
-        through: Some(through),
-        page: Some(ReadLimits {
-            rows: REPLAY_PAGE_ROWS,
-            bytes: limit,
-        }),
-        decoded_bytes: Some(limit),
-        ..QueryOptions::default()
-    });
-    query.scope = Some(scope.clone());
-    let mut reader = context.runtime.storage().query(query).await?;
-    let Some(page) = reader.next_page().await? else {
-        return Ok(None);
-    };
-    drop(reader);
-    page.try_project(limit, |rows, allowance| {
-        let mut entries = Vec::new();
-        entries
-            .try_reserve_exact(rows.len())
-            .map_err(|_| replay_exhausted())?;
-        let mut retained = entries
-            .capacity()
-            .saturating_mul(std::mem::size_of::<ReplayedSample>());
-        for row in rows {
-            let remaining = allowance
-                .get()
-                .checked_sub(retained)
-                .and_then(std::num::NonZeroUsize::new)
-                .ok_or_else(replay_exhausted)?;
-            let bytes = row
-                .record
-                .payload
-                .projection_memory()
-                .map_err(|source| {
-                    harmos::Error::backend(
-                        "project native sample",
-                        harmos::BackendFailure::Corrupt,
-                        source,
-                    )
-                })?
-                .saturating_add(row.record.payload.memory_size());
-            if bytes > remaining.get() {
-                return Err(replay_exhausted());
-            }
-            let entry = row
-                .record
-                .payload
-                .clone()
-                .into_entry(remaining)
-                .map_err(|source| {
-                    harmos::Error::backend(
-                        "decode native sample",
-                        harmos::BackendFailure::Corrupt,
-                        source,
-                    )
-                })?;
-            if row.sequence != entry.ordinal
-                || row.stream != entry.sample.stream
-                || row.record.item.as_str() != entry.sample.sample_id.as_str()
-                || row.record.source.as_ref().map(|source| source.as_str())
-                    != Some(entry.epoch.as_str())
-                || row.record.scope.as_ref().map(|scope| scope.as_str())
-                    != Some(execution.test_execution_id.as_str())
-                || row.record.source_time.is_some()
-            {
-                return Err(harmos::Error::InvalidInput {
+    let storage = context.runtime.storage();
+    let mut at = storage.cursor_saved();
+    at.sequence = through;
+    let contracts = context.runtime.state_read().telemetry_contracts();
+    let claim = storage.prepare_production(REPLAY_PAGE_BYTES)?;
+    let mut selected = Vec::new();
+    let mut retained = std::mem::size_of::<Vec<ReplayedSample>>();
+    for contract in contracts.iter().filter(|contract| !contract.foreign) {
+        let codec = dokime::storage::telemetry::codec(contract).map_err(replay_codec_error)?;
+        let mut reader = storage
+            .query(Query {
+                at: at.clone(),
+                source: Source::Stream(StreamSelection {
+                    schema: codec.schema().clone(),
+                    scope: Some(scope.clone()),
+                    item: None,
+                    stream: Some(contract.stream.clone()),
+                    source_start: None,
+                    source_end: None,
+                }),
+                transforms: vec![Transform::Filter(Filter {
+                    clauses: vec![Clause {
+                        terms: vec![Term {
+                            field: FieldPath::from("_storage.position"),
+                            condition: Condition::Compare {
+                                op: Compare::Gt,
+                                value: harmos::storage::reduce::ScalarValue::Unsigned(after),
+                            },
+                            negate: false,
+                        }],
+                    }],
+                })],
+                slice: RowSlice {
+                    offset: 0,
+                    limit: Some(REPLAY_PAGE_ROWS.get() as u64),
+                },
+            })
+            .await?;
+        while let Some(output) = reader.next().await? {
+            let QueryOutput::Batch(batch) = output else {
+                continue;
+            };
+            let raw = batch.as_record_batch();
+            let positions = raw
+                .column_by_name("_storage")
+                .and_then(|column| column.as_any().downcast_ref::<arrow_array::StructArray>())
+                .and_then(|metadata| metadata.column_by_name("position"))
+                .and_then(|column| column.as_any().downcast_ref::<arrow_array::UInt64Array>())
+                .ok_or(harmos::Error::InvalidInput {
                     field: "sample replay",
-                    reason: "native sample envelope differs",
-                });
+                    reason: "storage positions are missing",
+                })?;
+            let _decoding = storage.prepare_production(REPLAY_PAGE_BYTES)?;
+            let entries =
+                dokime::storage::telemetry::decode_batch(&codec, &batch, REPLAY_PAGE_BYTES)
+                    .map_err(replay_codec_error)?;
+            for (index, entry) in entries.into_iter().enumerate() {
+                if entry
+                    .sample
+                    .scope
+                    .as_ref()
+                    .and_then(|scope| scope.test_execution_id.as_ref())
+                    != Some(&execution.test_execution_id)
+                {
+                    return Err(harmos::Error::InvalidInput {
+                        field: "sample replay",
+                        reason: "native sample scope differs",
+                    });
+                }
+                let position = positions.value(index);
+                if selected.len() == REPLAY_PAGE_ROWS.get()
+                    && selected
+                        .last()
+                        .is_some_and(|row: &ReplayedSample| row.position < position)
+                {
+                    continue;
+                }
+                let row = ReplayedSample { position, entry };
+                let bytes = row.memory_size();
+                if bytes
+                    > REPLAY_PAGE_BYTES
+                        .get()
+                        .saturating_sub(std::mem::size_of::<Vec<ReplayedSample>>())
+                {
+                    return Err(replay_exhausted());
+                }
+                retained = retained.checked_add(bytes).ok_or_else(replay_exhausted)?;
+                let index = selected
+                    .partition_point(|previous: &ReplayedSample| previous.position < position);
+                selected.insert(index, row);
+                while selected.len() > REPLAY_PAGE_ROWS.get() || retained > REPLAY_PAGE_BYTES.get()
+                {
+                    let removed = selected
+                        .pop()
+                        .expect("nonempty replay page exceeds its bound");
+                    retained -= removed.memory_size();
+                }
             }
-            retained = retained.saturating_add(
-                entry
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of_val(&entry)),
-            );
-            entries.push(ReplayedSample {
-                position: row.record.position.sequence,
-                entry,
-            });
         }
-        Ok(entries)
-    })
-    .map(Some)
+        reader.completion()?;
+    }
+    if selected.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(claim.finish(selected)?.try_into_value()?))
+}
+
+fn replay_codec_error(source: dokime::storage::Error) -> harmos::Error {
+    match source {
+        dokime::storage::Error::Runtime(source) => source,
+        source => harmos::Error::backend(
+            "decode typed sample replay",
+            harmos::BackendFailure::Corrupt,
+            source,
+        ),
+    }
 }
 
 fn replay_exhausted() -> harmos::Error {

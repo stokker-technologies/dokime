@@ -309,7 +309,7 @@ impl RuntimeHandle {
         checkpoint: &ExecutionCheckpoint,
     ) -> Result<crate::runtime::storage::execution::ExecutionView> {
         let config = self.config();
-        let settings = &config.storage_reads;
+        let settings = &config.storage;
         let storage = self.storage();
         let deadline = tokio::time::Instant::now() + settings.interactive.timeout;
         let mut backoff = crate::runtime::storage::record_capture::CapacityBackoff::new();
@@ -344,7 +344,7 @@ impl RuntimeHandle {
         map: impl FnOnce(&ExecutionCheckpoint, NonZeroUsize) -> harmos::Result<U>,
     ) -> Result<QueryValue<U>> {
         let config = self.config();
-        let settings = &config.storage_reads;
+        let settings = &config.storage;
         let storage = self.storage();
         let limit = settings.decoded_bytes;
         let deadline = tokio::time::Instant::now() + settings.interactive.timeout;
@@ -393,7 +393,7 @@ impl RuntimeHandle {
             return Err(error("execution page limit must be 1..=1000"));
         }
         let config = self.config();
-        let settings = &config.storage_reads;
+        let settings = &config.storage;
         let storage = self.storage();
         let view = storage.view_with_limits(settings.interactive).await?;
         let projection = settings.decoded_bytes;
@@ -498,7 +498,7 @@ impl RuntimeHandle {
         let view = view.snapshot(self.storage()).await?;
         let limit = self
             .config()
-            .storage_reads
+            .storage
             .decoded_bytes
             .min(view.view().decoded_bytes()?);
         view.project_context(limit, |context, allowance| {
@@ -535,7 +535,7 @@ impl RuntimeHandle {
         let view = self.checkpoint_execution(&checkpoint).await?;
         let limit = self
             .config()
-            .storage_reads
+            .storage
             .decoded_bytes
             .min(view.view().decoded_bytes()?);
         view.project_outputs(limit, |outputs, allowance| {
@@ -553,7 +553,7 @@ impl RuntimeHandle {
         let outputs = view.outputs()?;
         let limit = self
             .config()
-            .storage_reads
+            .storage
             .decoded_bytes
             .min(view.view().decoded_bytes()?);
         view.project_source(limit, |captured, allowance| {
@@ -622,7 +622,7 @@ impl RuntimeHandle {
         let view = view.snapshot(self.storage()).await?;
         let limit = self
             .config()
-            .storage_reads
+            .storage
             .decoded_bytes
             .min(view.view().decoded_bytes()?);
         view.project_context(limit, |context, allowance| {

@@ -54,6 +54,8 @@ pub struct RunRequest {
     pub stopped_execution_ids: Vec<TestExecutionId>,
     pub conclusion: Option<CycleStatus>,
     pub failure: Option<String>,
+    #[serde(default)]
+    pub publication_failure: Option<String>,
     pub completion_at: Option<Timestamp>,
 }
 
@@ -83,6 +85,86 @@ pub struct AdvanceRunGroup {
 /* === Traits === */
 
 /* === Implementations === */
+impl harmos::MemorySize for RunGroup {
+    fn memory_size(&self) -> usize {
+        std::mem::size_of::<Self>()
+            .saturating_add(self.target.source.capacity())
+            .saturating_add(self.target.binding.workflow.capacity())
+            .saturating_add(
+                deque_memory(&self.pending).saturating_sub(std::mem::size_of_val(&self.pending)),
+            )
+    }
+}
+
+impl harmos::MemorySize for RunRequest {
+    fn memory_size(&self) -> usize {
+        let fields = [
+            (
+                self.summary.memory_size(),
+                std::mem::size_of_val(&self.summary),
+            ),
+            (
+                self.test_execution_id.memory_size(),
+                std::mem::size_of_val(&self.test_execution_id),
+            ),
+            (
+                deque_memory(&self.pending),
+                std::mem::size_of_val(&self.pending),
+            ),
+            (
+                deque_memory(&self.groups),
+                std::mem::size_of_val(&self.groups),
+            ),
+            (
+                self.settled_execution_ids.memory_size(),
+                std::mem::size_of_val(&self.settled_execution_ids),
+            ),
+            (
+                self.stopped_execution_ids.memory_size(),
+                std::mem::size_of_val(&self.stopped_execution_ids),
+            ),
+            (
+                self.failure.memory_size(),
+                std::mem::size_of_val(&self.failure),
+            ),
+            (
+                self.publication_failure.memory_size(),
+                std::mem::size_of_val(&self.publication_failure),
+            ),
+            (
+                self.completion_at.memory_size(),
+                std::mem::size_of_val(&self.completion_at),
+            ),
+        ];
+        fields.into_iter().fold(
+            std::mem::size_of::<Self>()
+                .saturating_add(self.target.source.capacity())
+                .saturating_add(self.target.binding.workflow.capacity()),
+            |bytes, (owned, inline)| bytes.saturating_add(owned.saturating_sub(inline)),
+        )
+    }
+}
+
+fn deque_memory<T: harmos::MemorySize>(values: &VecDeque<T>) -> usize {
+    values.iter().fold(
+        std::mem::size_of_val(values)
+            .saturating_add(values.capacity().saturating_mul(std::mem::size_of::<T>())),
+        |bytes, value| {
+            bytes.saturating_add(value.memory_size().saturating_sub(std::mem::size_of::<T>()))
+        },
+    )
+}
+
+impl RunRequest {
+    pub(crate) fn interruption(&self) -> Option<String> {
+        match (&self.failure, &self.publication_failure) {
+            (Some(provider), Some(publication)) => Some(format!("{provider}; {publication}")),
+            (Some(cause), None) | (None, Some(cause)) => Some(cause.clone()),
+            (None, None) => None,
+        }
+    }
+}
+
 impl Transaction<RuntimeState> for PrepareAttempt {
     type Error = String;
     fn check(&self, state: &RuntimeState) -> Result<(), String> {
@@ -363,6 +445,7 @@ pub(super) fn queue(
             stopped_execution_ids: Vec::new(),
             conclusion: None,
             failure: None,
+            publication_failure: None,
             completion_at: None,
         },
     );

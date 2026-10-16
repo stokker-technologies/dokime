@@ -11,51 +11,30 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { executionsWithSteps, reportOmissions } from "../src/report/report-steps.ts";
+import { reportFixturePayload } from "../src/report/report-fixture.ts";
 
 /* === Tests === */
 
-test("each report execution gets back its own step and criterion rows in order", () => {
-  const step = (execution, id, record_type = "step") => ({
-    record_type,
-    step_id: id,
-    test_execution_id: execution,
-  });
-  const executions = executionsWithSteps({
-    test_executions: [{ test_execution_id: "one" }, { test_execution_id: "two" }],
-    test_steps: [
-      step("one", "connect"),
-      step("one", "connect", "criterion"),
-      step("two", "connect"),
-      step("one", "measure"),
-    ],
-  });
+test("a written report carries its steps under their own execution", () => {
+  const payload = reportFixturePayload();
 
-  assert.deepEqual(
-    executions[0].steps.map((row) => `${row.record_type}:${row.step_id}`),
-    ["step:connect", "criterion:connect", "step:measure"],
-  );
-  assert.deepEqual(
-    executions[1].steps.map((row) => row.step_id),
-    ["connect"],
-  );
+  assert.equal("test_steps" in payload, false);
+  for (const execution of payload.test_executions) {
+    assert.deepEqual(
+      execution.steps.map((row) => row.record_type),
+      ["step", "criterion"],
+    );
+    assert.ok(
+      execution.steps.every((row) => row.test_execution_id === execution.test_execution_id),
+    );
+  }
 });
 
-test("an execution with no recorded steps reads an empty list", () => {
-  const [execution] = executionsWithSteps({
-    test_executions: [{ test_execution_id: "pending" }],
-    test_steps: [],
-  });
+test("a written report carries each artifact complete with its download target", () => {
+  const payload = reportFixturePayload();
+  const [artifact] = payload.snapshot.artifacts;
 
-  assert.deepEqual(execution.steps, []);
-});
-
-test("the report lists only what it left out to fit its budget", () => {
-  assert.deepEqual(
-    reportOmissions([
-      "report.no_result_summary: No result summary has been produced for this cycle.",
-      "report.omitted: Plot Spectrum omitted: the report did not fit its budget.",
-    ]),
-    ["Plot Spectrum omitted: the report did not fit its budget."],
-  );
+  assert.equal("artifact_links" in payload, false);
+  assert.equal(artifact.downloadHref, artifact.href);
+  assert.equal(artifact.group_label, "Execution Artifacts");
 });

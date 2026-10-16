@@ -32,6 +32,7 @@ pub use provider::{
     ProviderCriterionOutcome, ProviderCycleOutcome, ProviderDependencyProbe,
     ProviderExecutionErrorDetail, ProviderExecutionFailure, ProviderExecutionOutcome,
     ProviderPhaseOutcome, ProviderRecordOutcome, ProviderStatusOutcome, ProviderTelemetryOutcome,
+    ProviderTelemetryRow,
 };
 
 /* === Imports === */

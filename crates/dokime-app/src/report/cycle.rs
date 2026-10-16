@@ -10,7 +10,7 @@
 mod index;
 
 /* === Re-Exports === */
-pub(crate) use index::{Index, Sample};
+pub(crate) use index::{AnnotationKind, Index, Member, Sample};
 
 /* === Imports === */
 // Standard Library Imports
@@ -28,14 +28,12 @@ use harmos::{
 // Local Imports
 use super::html::HtmlReport;
 use crate::{
-    Error, Result, RuntimeHandle,
+    Error, Result,
     runtime::{progress::Operation, storage::cycle::CycleSnapshot},
 };
 use dokime::{core::Identifier, storage::Manager};
 
 /* === Constants === */
-const CHUNK_BYTES: usize = 64 * 1024;
-const MAX_REPORT_BYTES: usize = 128 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -45,7 +43,8 @@ const MAX_REPORT_BYTES: usize = 128 * 1024 * 1024;
 pub(crate) struct CycleReport {
     source: Arc<HtmlReport>,
     file: Arc<Mutex<File>>,
-    _memory: StorageProductionPreparation,
+    batch_bytes: NonZeroUsize,
+    _memory: Arc<StorageProductionPreparation>,
 }
 struct File {
     metadata: QueryValue<FileMetadata>,
@@ -53,11 +52,11 @@ struct File {
     written: bool,
     memory: Option<StorageProductionPreparation>,
 }
-struct Chunks<'a> {
+struct Batches<'a> {
     producer: &'a mut StorageFile,
     executor: &'a tokio::runtime::Handle,
     manager: &'a Manager,
-    bytes: [u8; CHUNK_BYTES],
+    bytes: Vec<u8>,
     length: usize,
     total: usize,
     failure: Option<Error>,
@@ -70,16 +69,21 @@ struct Chunks<'a> {
 /* === Implementations === */
 impl CycleReport {
     pub(crate) async fn prepare(
-        runtime: &RuntimeHandle,
+        manager: &Manager,
         snapshot: CycleSnapshot,
+        captured_members: Vec<QueryValue<super::CapturedExecutionReportInput>>,
+        batch_bytes: NonZeroUsize,
         operation: Option<&Operation>,
     ) -> Result<Self> {
-        let manager = runtime.storage();
         let bytes = std::mem::size_of::<File>()
-            + std::mem::size_of::<Chunks<'_>>()
+            + std::mem::size_of::<Batches<'_>>()
             + 8 * std::mem::size_of::<usize>();
+        let bytes = bytes
+            .checked_add(batch_bytes.get())
+            .ok_or_else(|| Error::InvalidReportInputs("report batch memory overflows".into()))?;
         let memory = manager.prepare_production(allowance(bytes)?)?;
-        let source = Arc::new(HtmlReport::from_cycle(runtime, snapshot, operation).await?);
+        let source =
+            Arc::new(HtmlReport::from_cycle(manager, snapshot, captured_members, operation).await?);
         let id_length =
             source.header().cycle.test_cycle_id.as_str().len() + 36 + ".cycle-report.".len();
         let metadata = manager
@@ -122,19 +126,23 @@ impl CycleReport {
             .try_into_value()?;
         Ok(Self {
             source,
+            batch_bytes,
             file: Arc::new(Mutex::new(File {
                 metadata,
                 producer: None,
                 written: false,
                 memory: None,
             })),
-            _memory: memory,
+            _memory: Arc::new(memory),
         })
     }
     pub(crate) async fn finish(&mut self) -> Result<FileReference> {
         let source = self.source.clone();
         let file = self.file.clone();
+        let batch_bytes = self.batch_bytes;
+        let memory = self._memory.clone();
         tokio::task::spawn_blocking(move || {
+            let _memory = memory;
             let (_, executor) = source.saved_source()?;
             let mut file = file.lock().unwrap();
             if !file.written {
@@ -156,11 +164,21 @@ impl CycleReport {
                     .prepare_production(allowance(std::mem::size_of_val(&create))?)?;
                 file.producer = Some(executor.block_on(create)?);
                 drop(future_memory);
-                let mut writer = Chunks {
+                let mut bytes = Vec::new();
+                bytes
+                    .try_reserve_exact(batch_bytes.get())
+                    .map_err(|error| Error::Operation(error.to_string()))?;
+                if bytes.capacity() > batch_bytes.get() {
+                    return Err(Error::InvalidReportInputs(
+                        "report batch exceeds reserved capacity".into(),
+                    ));
+                }
+                bytes.resize(batch_bytes.get(), 0);
+                let mut writer = Batches {
                     producer: file.producer.as_mut().unwrap(),
                     executor,
                     manager: &source.manager,
-                    bytes: [0; CHUNK_BYTES],
+                    bytes,
                     length: 0,
                     total: 0,
                     failure: None,
@@ -186,20 +204,19 @@ impl CycleReport {
         .await?
     }
 }
-impl Write for Chunks<'_> {
+impl Write for Batches<'_> {
     fn write(&mut self, mut bytes: &[u8]) -> io::Result<usize> {
         let length = bytes.len();
         self.total = self
             .total
             .checked_add(length)
-            .filter(|length| *length <= MAX_REPORT_BYTES)
-            .ok_or_else(|| io::Error::other("report output exceeds its byte limit"))?;
+            .ok_or_else(|| io::Error::other("report output length overflows"))?;
         while !bytes.is_empty() {
-            let count = bytes.len().min(CHUNK_BYTES - self.length);
+            let count = bytes.len().min(self.bytes.len() - self.length);
             self.bytes[self.length..self.length + count].copy_from_slice(&bytes[..count]);
             self.length += count;
             bytes = &bytes[count..];
-            if self.length == CHUNK_BYTES {
+            if self.length == self.bytes.len() {
                 self.flush()?;
             }
         }

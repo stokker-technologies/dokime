@@ -157,6 +157,7 @@ impl Sample {
             values,
             summary,
             metadata,
+            storage_payload: None,
         })
     }
 }

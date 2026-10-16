@@ -50,7 +50,7 @@ impl harmos::Application for ReportReader {
 
 pub(crate) async fn report_save_receipt() {
     use dokime::execution::saved::ExecutionRevision;
-    use dokime::storage::sqlite::{Limits, RecoveryLimits};
+    use dokime::storage::sqlite::{Limits, StateLimits};
     use dokime::storage::{
         Backend,
         objects::execution::{self, Execution},
@@ -63,12 +63,9 @@ pub(crate) async fn report_save_receipt() {
     };
     use dokime_app::{
         execution::CycleView,
-        report::{
-            CycleReportInput,
-            saved::{CapturedExecutionReportInput, PreparedExecutionReport},
-        },
+        report::{CycleReportInput, saved::CapturedExecutionReportInput},
     };
-    use harmos::storage::{ObjectVersion, StorageBackends, StorageSettings};
+    use harmos::storage::{ObjectVersion, StorageBackends};
     use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
     let reads = crate::support::budgets::story_settings();
@@ -78,21 +75,18 @@ pub(crate) async fn report_save_receipt() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(primary.state(StateLimits::default()));
     let manager = Manager::new(
         StorageBackends {
             primary,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
         // The Runtime Admits Its Configured Execution Read Budget.
-        StorageSettings {
-            flush_interval: Duration::from_secs(60),
-            query_execution: reads.interactive,
-            query_execution_ceiling: reads.ceiling,
-            read_memory_bytes: NonZeroUsize::new(256 * 1024 * 1024).unwrap(),
-            ..Default::default()
-        },
+        reads.harmos(
+            Duration::from_secs(60),
+            NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+        ),
     )
     .unwrap();
     let runtime = harmos::Runtime::<ReportReader>::builder((), ())
@@ -178,7 +172,6 @@ pub(crate) async fn report_save_receipt() {
             .unwrap(),
         ),
         generated_at: finished_at.clone(),
-        omissions: Vec::new(),
     };
     let row = Execution::try_from(&original_execution).unwrap();
     let receipt = manager.write_object(&row).await.unwrap();
@@ -219,11 +212,13 @@ pub(crate) async fn report_save_receipt() {
     let captured = CapturedExecutionReportInput {
         final_report: true,
         owner_node_id: NodeId::from_seed("fixture.report.owner"),
-        execution: ExecutionRevision {
+        execution_id: original_execution.test_execution_id.clone(),
+        lifecycle_id: "00000000-0000-4000-8000-000000000002".into(),
+        execution: Some(ExecutionRevision {
             execution_id: original_execution.test_execution_id.clone(),
             position: receipt.position.clone(),
             version: receipt.version,
-        },
+        }),
         evidence_through: receipt.position,
         telemetry_contracts: BTreeMap::new(),
         record_contracts: BTreeMap::new(),
@@ -241,6 +236,7 @@ pub(crate) async fn report_save_receipt() {
         .unwrap()
         .try_into_shared()
         .unwrap();
+    let revision = captured.execution.as_ref().unwrap().clone();
     let outputs = manager
         .produce(
             NonZeroUsize::new(std::mem::size_of::<
@@ -252,18 +248,25 @@ pub(crate) async fn report_save_receipt() {
         .unwrap()
         .try_into_value()
         .unwrap();
-    let mut prepared =
-        PreparedExecutionReport::prepare(manager.clone(), captured.clone(), outputs).unwrap();
+    let mut prepared = dokime_app::report::Renderer
+        .execution(manager.clone(), captured.clone(), outputs)
+        .unwrap();
     assert_eq!(manager.status().accepted, before);
     let sealed_at = finished_at;
-    let original = prepared.save_dependencies(&sealed_at).await.unwrap();
+    let original = prepared
+        .save_dependencies(&sealed_at, &revision)
+        .await
+        .unwrap();
     let saved = manager.status().saved;
-    let repeated = prepared.save_dependencies(&sealed_at).await.unwrap();
+    let repeated = prepared
+        .save_dependencies(&sealed_at, &revision)
+        .await
+        .unwrap();
     assert_eq!(*original, *repeated);
     assert_eq!(manager.status().saved, saved);
     assert!(
         prepared
-            .save_dependencies(&Timestamp::new("2030-01-01T00:00:00Z"))
+            .save_dependencies(&Timestamp::new("2030-01-01T00:00:00Z"), &revision)
             .await
             .is_err()
     );
@@ -292,7 +295,7 @@ pub(crate) async fn report_save_receipt() {
     sealed_execution.saved = Some((*original).clone());
     let sealed = Execution::try_from(&sealed_execution).unwrap();
     let before_seal = manager
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().ceiling)
         .await
         .unwrap();
     let receipt = manager.write_object(&sealed).await.unwrap();
@@ -300,7 +303,7 @@ pub(crate) async fn report_save_receipt() {
         .await
         .unwrap();
     let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().ceiling)
         .await
         .unwrap();
     let restored = execution::read_in(
@@ -478,7 +481,7 @@ pub(crate) async fn report_save_receipt() {
     drop(view);
 
     let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().ceiling)
         .await
         .unwrap();
     let unchanged = execution::read_in(
@@ -537,7 +540,7 @@ pub(crate) async fn open_report_any_state() {
     let sealed = runtime.open_execution_report(&execution).await.unwrap();
     assert_eq!(sealed.origin, dokime_app::ReportOrigin::Sealed);
 
-    // Deleted From The Root: Rendered Again From Sealed Evidence, Never Rewritten
+    // Missing Published Bytes Are An Error; A Seal Is Never Regenerated
     let name = seal
         .report
         .sha256
@@ -549,11 +552,7 @@ pub(crate) async fn open_report_any_state() {
         removed,
         "the sealed cycle report file must exist under the root"
     );
-    let regenerated = runtime.open_cycle_report(&id).await.unwrap();
-    assert_eq!(regenerated.origin, dokime_app::ReportOrigin::Regenerated);
-    let payload = crate::support::reports::parse(std::str::from_utf8(&regenerated.html).unwrap());
-    let original = crate::support::reports::parse(std::str::from_utf8(&published).unwrap());
-    assert_eq!(payload["case_runs"], original["case_runs"]);
+    assert!(runtime.open_cycle_report(&id).await.is_err());
     assert_eq!(cycle_snapshot(&runtime, &id).await.saved, Some(seal));
     owner.shutdown().await.unwrap();
 }
@@ -584,14 +583,13 @@ pub(crate) async fn open_report_repeatedly() {
         assert_eq!(opened.origin, dokime_app::ReportOrigin::Current);
         let payload = crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
         drop(opened);
-        let steps = payload["test_steps"]
+        let steps = payload["test_executions"]
             .as_array()
             .unwrap()
             .iter()
-            .filter(|row| {
-                row["record_type"] == "step"
-                    && row["test_execution_id"] == execution.test_execution_id.as_str()
-            })
+            .filter(|row| row["test_execution_id"] == execution.test_execution_id.as_str())
+            .flat_map(|row| row["steps"].as_array().unwrap())
+            .filter(|row| row["record_type"] == "step")
             .count();
         assert_eq!(
             steps, recorded,
@@ -606,7 +604,15 @@ pub(crate) async fn open_report_repeatedly() {
             .unwrap_or_else(|error| panic!("cycle render {attempt}: {error}"));
     }
     assert_eq!(renders[0]["case_runs"], renders[2]["case_runs"]);
-    assert_eq!(renders[0]["test_steps"], renders[2]["test_steps"]);
+    let steps = |render: &serde_json::Value| {
+        render["test_executions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["steps"].clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(steps(&renders[0]), steps(&renders[2]));
     assert_eq!(renders[0]["warnings"], renders[2]["warnings"]);
     assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
 
@@ -806,7 +812,7 @@ pub(crate) async fn cycle_report_reboot() {
     );
     let view = handle
         .storage()
-        .view_with_limits(crate::support::budgets::story_settings().report)
+        .view_with_limits(crate::support::budgets::story_settings().ceiling)
         .await
         .unwrap();
     let stored = dokime::storage::objects::cycle::read_in(

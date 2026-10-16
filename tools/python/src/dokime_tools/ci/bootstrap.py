@@ -28,8 +28,8 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
+from ..release import _override_source
 
 # Type Checking Imports
 
@@ -81,6 +81,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         prepare_harmos(
             Path.cwd(),
             allow_install=os.environ.get("DOKIME_CI_ROLE") in {None, "contracts"},
+            cargo_config=arguments.cargo_config,
         )
         return 0
     system = platform.system()
@@ -108,6 +109,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--harmos-key", action="store_true")
     parser.add_argument("--harmos-tools", action="store_true")
+    parser.add_argument("--cargo-config", type=Path)
     parser.add_argument(
         "--role",
         choices=(
@@ -215,9 +217,54 @@ def harmos_pin(root: Path) -> dict[str, str]:
     )
 
 
-def prepare_harmos(root: Path, *, allow_install: bool) -> None:
+def prepare_harmos(
+    root: Path,
+    *,
+    allow_install: bool,
+    cargo_config: Path | None = None,
+) -> None:
+    local_source = None
+    if cargo_config is not None:
+        if (
+            os.environ.get("CI")
+            or os.environ.get("GITHUB_ACTIONS")
+            or os.environ.get("DOKIME_CI_ROLE")
+        ):
+            raise ValueError("CI refuses local Harmos tool overrides")
+        config = cargo_config.resolve(strict=True)
+        patch = tomllib.loads(config.read_text(encoding="utf-8"))["patch"][
+            HARMOS_REPOSITORY
+        ]["harmos"]
+        crate = Path(patch["path"])
+        if not crate.is_absolute():
+            raise ValueError(
+                "local Harmos tool configuration requires an absolute patch path"
+            )
+        crate = crate.resolve(strict=True)
+        package = tomllib.loads((crate / "Cargo.toml").read_text(encoding="utf-8"))[
+            "package"
+        ]
+        if package["name"] != "harmos":
+            raise ValueError("local Harmos patch does not identify the harmos package")
+        local_source = crate.parent.parent
+        tool = local_source / "crates/cargo-harmos"
+        if (
+            tomllib.loads((tool / "Cargo.toml").read_text(encoding="utf-8"))["package"][
+                "name"
+            ]
+            != "cargo-harmos"
+        ):
+            raise ValueError("local Harmos checkout has no canonical tool package")
+        source_identity = {
+            "local_source": str(local_source),
+            "source": _override_source(local_source),
+            "cargo_config_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
+            "package": "cargo-harmos",
+        }
+    else:
+        source_identity = harmos_pin(root)
     identity = {
-        **harmos_pin(root),
+        **source_identity,
         "platform": platform.system(),
         "architecture": platform.machine(),
         "rustc": subprocess.check_output(
@@ -268,6 +315,11 @@ def prepare_harmos(root: Path, *, allow_install: bool) -> None:
                 "exact prepared Harmos tool artifact is missing or incompatible; consumers never rebuild it"
             )
         destination.parent.mkdir(parents=True, exist_ok=True)
+        source_arguments = (
+            ["--path", str(local_source / "crates/cargo-harmos")]
+            if local_source is not None
+            else ["--git", identity["git"], "--rev", identity["rev"]]
+        )
         with tempfile.TemporaryDirectory(
             prefix="harmos-tool-", dir=destination.parent
         ) as temporary:
@@ -279,10 +331,7 @@ def prepare_harmos(root: Path, *, allow_install: bool) -> None:
                     "--",
                     "cargo",
                     "install",
-                    "--git",
-                    identity["git"],
-                    "--rev",
-                    identity["rev"],
+                    *source_arguments,
                     "--locked",
                     "--root",
                     str(staged),
@@ -291,6 +340,11 @@ def prepare_harmos(root: Path, *, allow_install: bool) -> None:
                     identity["package"],
                 ]
             )
+            if (
+                local_source is not None
+                and _override_source(local_source) != identity["source"]
+            ):
+                raise ValueError("Harmos source changed while preparing the local tool")
             executable = staged / "bin" / binary.name
             if executable.is_symlink() or not executable.is_file():
                 raise ValueError("published Harmos package omitted its required CLI")
@@ -318,7 +372,8 @@ def prepare_harmos(root: Path, *, allow_install: bool) -> None:
     if github_path:
         with Path(github_path).open("a", encoding="utf-8") as output:
             output.write(str(binary.parent) + "\n")
-    _step(f"Harmos CLI uses {identity['rev']} with verified installed bytes")
+    selected = identity.get("rev", identity.get("source"))
+    _step(f"Harmos CLI uses {selected} with verified installed bytes")
 
 
 def install_gui_packages() -> None:

@@ -71,6 +71,7 @@ pub trait EmbeddedPublisher: Send + Sync {
         execution: &str,
         stream: &crate::core::Identifier,
         values: BTreeMap<String, Value>,
+        storage_payload: Vec<u8>,
     ) -> Result<(), String>;
 }
 

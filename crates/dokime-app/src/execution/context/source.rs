@@ -41,7 +41,10 @@ use dokime::{
 pub(crate) struct CapturedSource {
     pub captured_at: dokime::core::Timestamp,
     pub owner_node_id: NodeId,
-    pub execution: ExecutionRevision,
+    pub execution_id: dokime::core::TestExecutionId,
+    pub execution: Option<ExecutionRevision>,
+    pub lifecycle_id: String,
+    pub lifecycle: dokime::execution::TestExecution,
     pub evidence_through: StorageCursor,
     pub outputs: Vec<ExecutionOutput>,
     pub context: ExecutionContext,
@@ -57,6 +60,18 @@ pub(crate) struct CapturedSource {
 impl MemorySize for CapturedSource {
     fn memory_size(&self) -> usize {
         let fields = [
+            (
+                self.execution_id.memory_size(),
+                std::mem::size_of_val(&self.execution_id),
+            ),
+            (
+                self.lifecycle_id.memory_size(),
+                std::mem::size_of_val(&self.lifecycle_id),
+            ),
+            (
+                self.lifecycle.memory_size(),
+                std::mem::size_of_val(&self.lifecycle),
+            ),
             (
                 self.captured_at.memory_size(),
                 std::mem::size_of_val(&self.captured_at),
@@ -108,16 +123,28 @@ impl CapturedSource {
     }
 
     pub(crate) fn validate_header(&self) -> Result<()> {
-        self.execution
-            .version
-            .check_position(&self.execution.position)?;
-        if !self.evidence_through.covers(&self.execution.position)?
-            || self.context.scope.test_execution_id.as_ref() != Some(&self.execution.execution_id)
-        {
-            return Err(Error::Storage(dokime::storage::Error::Invalid(
-                "execution source boundary or owner differs",
-            )));
+        if let Some(anchor) = &self.execution {
+            anchor.version.check_position(&anchor.position)?;
+            self.evidence_through
+                .history
+                .check(&anchor.position.history)?;
+            if anchor.execution_id != self.execution_id {
+                return Err(Error::InvalidReportInputs(
+                    "native anchor belongs to another execution".into(),
+                ));
+            }
         }
+        uuid::Uuid::parse_str(&self.lifecycle_id)
+            .map_err(|_| Error::InvalidReportInputs("invalid lifecycle identity".into()))?;
+        if self.lifecycle.test_execution_id != self.execution_id
+            || self.lifecycle.saved.is_some()
+            || self.context.scope.test_execution_id.as_ref() != Some(&self.execution_id)
+        {
+            return Err(Error::InvalidReportInputs(
+                "captured lifecycle identity differs from owner".into(),
+            ));
+        }
+        self.context.validate(&self.lifecycle)?;
         time::OffsetDateTime::parse(
             self.captured_at.as_str(),
             &time::format_description::well_known::Rfc3339,

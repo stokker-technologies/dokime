@@ -69,6 +69,7 @@ pub struct TemplateDefinition {
 #[derive(Clone, Debug)]
 pub struct StampedRow {
     pub values: BTreeMap<String, Value>,
+    pub storage_payload: Option<Vec<u8>>,
     pub published_unix_micros: i64,
 }
 

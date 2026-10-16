@@ -12,7 +12,7 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-use crate::{Error, Result, report::CycleReportInput};
+use crate::{Error, Result, report::saved::CapturedExecutionReportInput};
 use dokime::{
     core::{
         CaseId, Identifier, Metadata, RecordScope, TemplateId, TestExecutionId, Timestamp, Value,
@@ -68,6 +68,15 @@ pub(crate) struct Sample {
     received_at: Timestamp,
     id: String,
 }
+/// Where one note or health observation sits among the captured members.
+#[derive(Clone)]
+pub(crate) struct Annotation {
+    pub kind: AnnotationKind,
+    pub member: usize,
+    pub position: usize,
+    id: String,
+    at: Timestamp,
+}
 #[derive(Clone)]
 pub(crate) struct Index {
     pub members: usize,
@@ -75,10 +84,17 @@ pub(crate) struct Index {
     pub counts: Vec<[usize; 3]>,
     pub cases: Vec<Case>,
     pub samples: Vec<Sample>,
+    /// The latest observation of each note and health item, in member order.
+    pub annotations: Vec<Annotation>,
     seen: BTreeMap<CaseId, usize>,
     templates: BTreeSet<TemplateId>,
 }
 /* === Enums === */
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum AnnotationKind {
+    Note,
+    Health,
+}
 
 /* === Traits === */
 
@@ -116,6 +132,16 @@ impl MemorySize for Member {
                     bytes.saturating_add(owned.saturating_sub(inline))
                 }
             })
+    }
+}
+impl Annotation {
+    fn construction_memory(id: &str, at: &Timestamp) -> usize {
+        std::mem::size_of::<Self>()
+            .saturating_add(id.len())
+            .saturating_add(
+                at.memory_size()
+                    .saturating_sub(std::mem::size_of::<Timestamp>()),
+            )
     }
 }
 impl Member {
@@ -193,9 +219,35 @@ impl MemorySize for Sample {
             .saturating_add(self.id.capacity())
     }
 }
+impl MemorySize for Annotation {
+    fn memory_size(&self) -> usize {
+        std::mem::size_of::<Self>()
+            .saturating_add(self.id.capacity())
+            .saturating_add(
+                self.at
+                    .memory_size()
+                    .saturating_sub(std::mem::size_of::<Timestamp>()),
+            )
+    }
+}
 impl MemorySize for Index {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
+            .saturating_add(
+                self.annotations
+                    .capacity()
+                    .saturating_mul(std::mem::size_of::<Annotation>()),
+            )
+            .saturating_add(
+                self.annotations
+                    .iter()
+                    .map(|annotation| {
+                        annotation
+                            .memory_size()
+                            .saturating_sub(std::mem::size_of::<Annotation>())
+                    })
+                    .fold(0usize, usize::saturating_add),
+            )
             .saturating_add(
                 self.executions
                     .memory_size()
@@ -292,11 +344,13 @@ impl Index {
             counts: Vec::new(),
             cases: Vec::new(),
             samples: Vec::new(),
+            annotations: Vec::new(),
             seen: BTreeMap::new(),
             templates: BTreeSet::new(),
         }
     }
-    pub(crate) fn capture_growth(&self, input: &CycleReportInput) -> usize {
+    pub(crate) fn capture_growth(&self, captured: &CapturedExecutionReportInput) -> usize {
+        let input = &captured.input;
         let execution = &input.cycle.test_executions[0];
         let case = execution.snapshot.case();
         let keys = harmos::btree_map_memory::<CaseId, usize>(1)
@@ -317,13 +371,23 @@ impl Index {
                 .saturating_add(sample.received_at.memory_size())
                 .saturating_add(sample.sample_id.as_str().len())
         });
+        let notes =
+            captured.context.notes.iter().map(|note| {
+                Annotation::construction_memory(note.note_id.as_str(), &note.created_at)
+            });
+        let health = captured.context.health.iter().map(|item| {
+            Annotation::construction_memory(item.health_item_id.as_str(), &item.observed_at)
+        });
+        let annotations = notes.chain(health).fold(0usize, usize::saturating_add);
         self.memory_size()
+            .saturating_add(annotations)
             .saturating_add(Member::construction_memory(execution))
             .saturating_add(std::mem::size_of::<[usize; 3]>())
             .saturating_add(keys)
             .saturating_add(samples)
     }
-    pub(crate) fn push_capture(&mut self, input: &CycleReportInput) -> Result<()> {
+    pub(crate) fn push_capture(&mut self, captured: &CapturedExecutionReportInput) -> Result<()> {
+        let input = &captured.input;
         let execution = &input.cycle.test_executions[0];
         let case = execution.snapshot.case();
         if let Some(index) = self.seen.get(&case.test_case_id).copied() {
@@ -360,6 +424,28 @@ impl Index {
                 id: value.sample_id.to_string(),
             });
         }
+        let context = &captured.context;
+        self.annotations
+            .try_reserve_exact(context.notes.len().saturating_add(context.health.len()))
+            .map_err(|source| Error::Operation(source.to_string()))?;
+        for (position, note) in context.notes.iter().enumerate() {
+            self.annotations.push(Annotation {
+                kind: AnnotationKind::Note,
+                member: self.members,
+                position,
+                id: note.note_id.to_string(),
+                at: note.created_at.clone(),
+            });
+        }
+        for (position, item) in context.health.iter().enumerate() {
+            self.annotations.push(Annotation {
+                kind: AnnotationKind::Health,
+                member: self.members,
+                position,
+                id: item.health_item_id.to_string(),
+                at: item.observed_at.clone(),
+            });
+        }
         self.executions
             .try_reserve_exact(1)
             .map_err(|source| Error::Operation(source.to_string()))?;
@@ -384,6 +470,24 @@ impl Index {
                 .then_with(|| left.id.cmp(&right.id))
                 .then_with(|| left.member.cmp(&right.member))
                 .then_with(|| left.sample.cmp(&right.sample))
+        });
+        // Members Repeat Cycle Annotations; Keep Each Identity Once At Its Latest
+        // Observation, Later Members Winning Ties, Then Restore Member Order.
+        self.annotations.sort_unstable_by(|left, right| {
+            left.kind
+                .cmp(&right.kind)
+                .then_with(|| left.id.cmp(&right.id))
+                .then_with(|| right.at.cmp(&left.at))
+                .then_with(|| right.member.cmp(&left.member))
+                .then_with(|| right.position.cmp(&left.position))
+        });
+        self.annotations
+            .dedup_by(|later, kept| later.kind == kept.kind && later.id == kept.id);
+        self.annotations.sort_unstable_by(|left, right| {
+            left.kind
+                .cmp(&right.kind)
+                .then_with(|| left.member.cmp(&right.member))
+                .then_with(|| left.position.cmp(&right.position))
         });
     }
 }

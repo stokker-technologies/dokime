@@ -35,6 +35,63 @@ use dokime::core::{TestCycleId, TestExecutionId, Timestamp};
 
 /* === Implementations === */
 impl RuntimeHandle {
+    /// Fence Measurements And Remember The Already-Persisted Boundary.
+    pub(crate) async fn freeze_report_inputs(
+        &self,
+        ids: Vec<TestExecutionId>,
+    ) -> crate::Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        self.sampling().fence_executions(&ids).await;
+        let evidence_at = self.storage().cursor_saved();
+        self.commit(crate::transactions::RequestReportFinalization {
+            executions: ids,
+            intent: crate::transactions::ReportFinalization {
+                evidence_at,
+                requested_at: Timestamp::now_utc(),
+                lifecycle: None,
+            },
+        })
+        .await
+        .map_err(|error| crate::Error::Operation(error.to_string()))?;
+        Ok(())
+    }
+
+    pub(crate) async fn capture_report_lifecycle(
+        &self,
+        execution: &crate::execution::TestExecution,
+    ) -> crate::Result<crate::transactions::ReportLifecycle> {
+        if let Some(lifecycle) = self
+            .state_read()
+            .report_finalizations
+            .get(&execution.test_execution_id)
+            .and_then(|intent| intent.lifecycle.clone())
+        {
+            if lifecycle.execution != *execution {
+                return Err(crate::Error::Operation(
+                    "report lifecycle changed after its capture".into(),
+                ));
+            }
+            return Ok(lifecycle);
+        }
+        self.commit(crate::transactions::CaptureReportLifecycle {
+            lifecycle: crate::transactions::ReportLifecycle {
+                id: uuid::Uuid::now_v7(),
+                execution: execution.clone(),
+            },
+        })
+        .await
+        .map_err(|error| crate::Error::Operation(error.to_string()))?;
+        self.state_read()
+            .report_finalizations
+            .get(&execution.test_execution_id)
+            .and_then(|intent| intent.lifecycle.clone())
+            .ok_or_else(|| {
+                crate::Error::Operation("report lifecycle capture was not applied".into())
+            })
+    }
+
     pub async fn pause_execution(
         &self,
         id: TestExecutionId,
@@ -116,6 +173,9 @@ impl RuntimeHandle {
                 request.summary.cycle_id.clone(),
             )
         };
+        if matches!(action, Action::Stop) {
+            self.freeze_report_inputs(vec![id.clone()]).await?;
+        }
         self.commit_with_key(context.idempotency_key, transaction)
             .await?;
         drop(_admission);
@@ -211,6 +271,22 @@ impl RuntimeHandle {
             action,
             occurred_at: occurred_at.clone(),
         };
+        if matches!(action, Action::Stop) {
+            harmos::state::Transaction::check(&transaction, &*self.state_read())
+                .map_err(|reason| Error::conflict("cycle_control_refused", reason))?;
+            let ids = self
+                .state_read()
+                .executions
+                .values()
+                .filter(|execution| {
+                    execution.test_cycle_id == test_cycle_id
+                        && execution.saved.is_none()
+                        && execution.finished_at.is_none()
+                })
+                .map(|execution| execution.test_execution_id.clone())
+                .collect();
+            self.freeze_report_inputs(ids).await?;
+        }
         let committed = self
             .commit_with_key(context.idempotency_key, transaction)
             .await?;

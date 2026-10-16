@@ -16,7 +16,6 @@ pub(crate) mod catalog;
 pub(crate) mod data;
 pub(crate) mod encoding;
 pub(crate) mod files;
-pub(crate) mod frames;
 pub(crate) mod integrity;
 pub(crate) mod managed;
 pub(crate) mod migration;

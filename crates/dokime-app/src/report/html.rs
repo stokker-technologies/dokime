@@ -26,7 +26,7 @@ use std::{
 // Third Party Imports
 use harmos::{
     MemorySize,
-    storage::{SharedQueryValue, StorageProductionPreparation, StorageView},
+    storage::{QueryValue, SharedQueryValue, StorageProductionPreparation, StorageView},
 };
 
 // Local Imports
@@ -38,10 +38,8 @@ use super::{
 use crate::document::capture::Capture;
 use crate::execution::context::source::CapturedSource;
 use crate::{
-    Error, Result, RuntimeHandle,
-    installed_plugins::RuntimeAppearanceFrame,
-    runtime::progress::Operation,
-    runtime::storage::{cycle::CycleSnapshot, execution::ExecutionView},
+    Error, Result, installed_plugins::RuntimeAppearanceFrame, runtime::progress::Operation,
+    runtime::storage::cycle::CycleSnapshot,
 };
 use dokime::{core::DocumentId, storage::Manager};
 
@@ -56,8 +54,7 @@ pub(super) struct HtmlReport {
     pub(super) manager: Manager,
     index: SharedQueryValue<Index>,
     source: Source,
-    /// The length the last count measured, so a report checked against its
-    /// limit while it was degraded is not counted twice.
+    /// The measured length avoids counting the same immutable report twice.
     /// Zero until counted; a report is never empty.
     counted: AtomicUsize,
     _memory: StorageProductionPreparation,
@@ -120,12 +117,12 @@ impl Computation {
 
 impl HtmlReport {
     pub(super) async fn from_cycle(
-        runtime: &RuntimeHandle,
+        manager: &Manager,
         snapshot: CycleSnapshot,
+        captured_members: Vec<QueryValue<CapturedExecutionReportInput>>,
         operation: Option<&Operation>,
     ) -> Result<Self> {
-        let manager = runtime.storage();
-        let count = snapshot.len();
+        let count = captured_members.len();
         let documents = cycle_document(&snapshot)?;
         let memory = manager.prepare_production(allowance(std::mem::size_of::<Self>())?)?;
         let executor = tokio::runtime::Handle::try_current()
@@ -144,27 +141,17 @@ impl HtmlReport {
         let mut index = manager
             .produce(allowance(index.memory_size())?, |_| Ok(index))?
             .try_into_value()?;
-        // Each member revision is read under its own default-limit view; read
-        // them all before any materialized member is retained beside one.
-        let mut opened = Vec::new();
-        opened
-            .try_reserve_exact(count)
-            .map_err(|_| invalid("cycle report member memory overflows"))?;
-        for member in 0..count {
-            opened.push(snapshot.member(manager, member).await?);
-        }
-        for (materialized, execution) in opened.into_iter().enumerate() {
+        // Compose Frozen Member Results Without Reading Pruned Raw Evidence.
+        for (materialized, captured) in captured_members.into_iter().enumerate() {
+            captured.check_origin(manager)?;
+            if captured.input.cycle.test_cycle_id != snapshot.source().test_cycle_id {
+                return Err(invalid("materialized member belongs to another cycle"));
+            }
             if let Some(operation) = operation {
                 operation.progress(materialized as u64, count as u64);
             }
-            // Members Repeat The Frozen Catalogs And Every Case Of The Cycle; Once
-            // Materialized, The Cycle Report Keeps Only Its Own Case So Retained
-            // Members Grow Linearly Instead Of With Catalog And Cycle Size.
-            let captured =
-                super::materialize::execution(runtime, &execution, snapshot.is_final(), operation)
-                    .await?;
             let own = captured.input.cycle.test_executions[0].test_case_id.clone();
-            let id = captured.execution.execution_id.clone();
+            let id = captured.execution_id.clone();
             let bytes = allowance(captured.memory_size())?;
             let captured = captured
                 .try_map(bytes, |mut captured, _| {
@@ -178,9 +165,9 @@ impl HtmlReport {
                     Ok(captured)
                 })?
                 .try_into_shared()?;
-            let growth = allowance(index.capture_growth(&captured.input))?;
+            let growth = allowance(index.capture_growth(&captured))?;
             index = index.try_map(growth, |mut index, _| {
-                index.push_capture(&captured.input).map_err(failure)?;
+                index.push_capture(&captured).map_err(failure)?;
                 Ok(index)
             })?;
             let bytes = allowance(members.memory_size())?;
@@ -263,46 +250,6 @@ impl HtmlReport {
         }
     }
 
-    /// One execution's report no longer than `maximum`, degraded step by step
-    /// until both its materialization and its HTML fit.
-    pub(super) async fn from_snapshot(
-        runtime: &RuntimeHandle,
-        snapshot: &ExecutionView,
-        final_report: bool,
-        maximum: NonZeroUsize,
-        operation: Option<&Operation>,
-    ) -> Result<Self> {
-        let snapshot = snapshot.snapshot(runtime.storage()).await?;
-        let evidence = snapshot
-            .captured_source()
-            .ok_or_else(|| invalid("execution snapshot context is missing"))?
-            .clone();
-        let manager = runtime.storage();
-        super::materialize::climb(operation, |degradation, cause| {
-            let evidence = evidence.clone();
-            let snapshot = &snapshot;
-            async move {
-                let materialized = super::materialize::attempt(
-                    runtime,
-                    snapshot,
-                    final_report,
-                    degradation,
-                    cause,
-                )
-                .await?
-                .try_into_shared()?;
-                let report = Self::from_capture(manager, &materialized, &evidence)?;
-                tokio::task::spawn_blocking(move || {
-                    let length = report.length(maximum)?;
-                    report.counted.store(length, Ordering::Relaxed);
-                    Ok::<_, Error>(report)
-                })
-                .await?
-            }
-        })
-        .await
-    }
-
     pub(super) fn captured_input(&self) -> Result<&SharedQueryValue<CapturedExecutionReportInput>> {
         match &self.source {
             Source::Captured { input, .. } => Ok(input),
@@ -325,11 +272,11 @@ impl HtmlReport {
         captured.check_origin(manager)?;
         evidence.check_origin(manager)?;
         let index = Index::new();
-        let bytes = index.capture_growth(&captured.input);
+        let bytes = index.capture_growth(captured);
         let index = captured
             .try_project(allowance(bytes)?, |input, _| {
                 let mut index = index;
-                index.push_capture(&input.input).map_err(failure)?;
+                index.push_capture(input).map_err(failure)?;
                 index.sort();
                 Ok(index)
             })?

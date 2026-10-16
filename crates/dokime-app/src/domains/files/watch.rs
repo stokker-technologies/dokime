@@ -646,7 +646,21 @@ impl State {
         for line in lines {
             for found in self.lines.matches(&line) {
                 match found {
-                    LineMatch::Row { stream, values } => {
+                    LineMatch::Row {
+                        stream,
+                        values,
+                        storage_schema,
+                    } => {
+                        let payload = match dokime::telemetry::capture_payload(
+                            &storage_schema,
+                            &values,
+                        ) {
+                            Ok(payload) => payload,
+                            Err(error) => {
+                                tracing::warn!(%error, %stream, "file matcher row was rejected");
+                                continue;
+                            }
+                        };
                         let Ok(identifier) = Identifier::new(&stream) else {
                             continue;
                         };
@@ -656,6 +670,7 @@ impl State {
                         *sequence += 1;
                         sample.scope = Some(self.scope.clone());
                         sample.values.extend(values);
+                        sample.storage_payload = Some(payload);
                         rows.entry(stream).or_default().push(sample);
                     }
                     LineMatch::Marker {

@@ -17,7 +17,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 // Third Party Imports
 use async_trait::async_trait;
-use harmos::Message;
 use harmos::sidecar::StreamDeclaration;
 // Local Imports
 use super::{RuntimeHandle, native_telemetry};
@@ -25,10 +24,7 @@ use crate::state::ProviderCatalog;
 use crate::{Error, InstalledPlugin, Result};
 use dokime::core::{Identifier, Value};
 use dokime::execution::{EmbeddedPublisher, Runnable, SampleOutput};
-use dokime::schema::{
-    Cardinality,
-    graph::{Field, Kind, Schema},
-};
+use dokime::schema::graph::Schema;
 
 /* === Constants === */
 
@@ -414,17 +410,22 @@ impl EmbeddedPublisher for Publisher {
         &self,
         token: &str,
         stream: &Identifier,
-        mut values: BTreeMap<String, Value>,
+        _values: BTreeMap<String, Value>,
+        payload: Vec<u8>,
     ) -> std::result::Result<(), String> {
         self.executions.scope(&self.owner, token, stream)?;
         let publication = self
             .streams
             .get(stream)
             .ok_or("stream was not admitted for this provider")?;
-        // The engine's observation timestamp is metadata rather than a payload column.
-        // Like sidecar publication, stamp submission at the transport boundary.
-        values.remove("timestamp");
-        let payload = encode(&publication.schema, &values)?;
+        let validator = harmos::schema::Validator::from_schema(
+            &publication.schema,
+            &harmos::config::SchemaSettings::default(),
+        )
+        .map_err(|error| error.to_string())?;
+        validator
+            .validate(&payload)
+            .map_err(|error| error.to_string())?;
         let published_unix_micros =
             i64::try_from(time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000)
                 .map_err(|_| "publication time exceeds the protocol range")?;
@@ -511,120 +512,6 @@ fn template_contracts(catalog: &InstalledPlugin) -> Result<Vec<harmos::operation
 
 fn operation(error: impl std::fmt::Display) -> Error {
     Error::Operation(error.to_string())
-}
-
-fn encode(
-    schema: &Schema,
-    values: &BTreeMap<String, Value>,
-) -> std::result::Result<Vec<u8>, String> {
-    let mut bytes = Vec::new();
-    schema
-        .prepare(&harmos::config::SchemaSettings::default())
-        .map_err(|error| error.to_string())?;
-    let fields = schema.root().map_err(|error| error.to_string())?.fields();
-    encode_fields(schema, fields, values, &mut bytes)?;
-    Ok(bytes)
-}
-
-fn encode_fields(
-    schema: &Schema,
-    fields: &[Field],
-    values: &BTreeMap<String, Value>,
-    bytes: &mut Vec<u8>,
-) -> std::result::Result<(), String> {
-    if let Some(name) = values.keys().find(|name| {
-        !fields
-            .iter()
-            .any(|field| field.name.as_ref() == name.as_str())
-    }) {
-        return Err(format!("undeclared stream field `{name}`"));
-    }
-    if fields
-        .first()
-        .is_some_and(|field| field.cardinality == Cardinality::Variant)
-    {
-        if values.len() != 1 {
-            return Err("stream enum requires exactly one selected variant".into());
-        }
-        let (index, field) = fields
-            .iter()
-            .enumerate()
-            .find(|(_, field)| values.contains_key(field.name.as_ref()))
-            .ok_or("stream enum has no selected variant")?;
-        (index as u32).encode_into(bytes);
-        return encode_value(schema, &field.kind, &values[field.name.as_ref()], bytes);
-    }
-    for field in fields {
-        let value = values.get(field.name.as_ref());
-        if field.cardinality == Cardinality::Optional {
-            let present = !matches!(value, None | Some(Value::Null));
-            present.encode_into(bytes);
-            if !present {
-                continue;
-            }
-        }
-        let value = value.ok_or_else(|| format!("missing stream field `{}`", field.name))?;
-        if field.cardinality == Cardinality::Repeated {
-            let Value::Array(items) = value else {
-                return Err(format!("stream field `{}` requires an array", field.name));
-            };
-            items.len().encode_into(bytes);
-            for value in items {
-                encode_value(schema, &field.kind, value, bytes)?;
-            }
-        } else {
-            encode_value(schema, &field.kind, value, bytes)?;
-        }
-    }
-    Ok(())
-}
-
-fn encode_value(
-    schema: &Schema,
-    kind: &Kind,
-    value: &Value,
-    bytes: &mut Vec<u8>,
-) -> std::result::Result<(), String> {
-    let mismatch = || format!("stream value does not match {kind:?}");
-    match (kind, value) {
-        (Kind::Bool, Value::Bool(value)) => value.encode_into(bytes),
-        (Kind::I32, Value::Integer(value)) => {
-            let value: i32 = (*value).try_into().map_err(|_| mismatch())?;
-            value.encode_into(bytes);
-        }
-        (Kind::I64, Value::Integer(value)) => value.encode_into(bytes),
-        (Kind::U32, Value::Unsigned(value)) => {
-            let value: u32 = (*value).try_into().map_err(|_| mismatch())?;
-            value.encode_into(bytes);
-        }
-        (Kind::U64, Value::Unsigned(value)) => value.encode_into(bytes),
-        (Kind::F32, Value::Integer(value)) => (*value as f32).encode_into(bytes),
-        (Kind::F64, Value::Integer(value)) => (*value as f64).encode_into(bytes),
-        (Kind::F32, Value::Number(value)) if !value.is_finite() || (*value as f32).is_finite() => {
-            (*value as f32).encode_into(bytes);
-        }
-        (Kind::F64, Value::Number(value)) => value.encode_into(bytes),
-        (Kind::String, Value::Text(value)) => value.encode_into(bytes),
-        (Kind::Bytes, Value::Array(items)) => {
-            items.len().encode_into(bytes);
-            for value in items {
-                let byte = match value {
-                    Value::Integer(value) => u8::try_from(*value).map_err(|_| mismatch())?,
-                    _ => return Err(mismatch()),
-                };
-                byte.encode_into(bytes);
-            }
-        }
-        (Kind::Message { definition }, Value::Object(values)) => {
-            let fields = schema
-                .view(*definition)
-                .map_err(|error| error.to_string())?
-                .fields();
-            encode_fields(schema, fields, values, bytes)?;
-        }
-        _ => return Err(mismatch()),
-    }
-    Ok(())
 }
 
 /* === Tests === */

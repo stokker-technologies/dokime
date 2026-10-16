@@ -317,9 +317,18 @@ pub(crate) async fn cycle_report_executions() {
     assert_eq!(payload["test_cycle_plan"]["queue"][0]["attempt_count"], 2);
     let artifacts = member_payloads
         .iter()
-        .flat_map(|member| member["artifact_links"].as_array().unwrap().iter().cloned())
+        .flat_map(|member| {
+            member["snapshot"]["artifacts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .cloned()
+        })
         .collect::<Vec<_>>();
-    assert_eq!(payload["artifact_links"], serde_json::json!(artifacts));
+    assert_eq!(
+        payload["snapshot"]["artifacts"],
+        serde_json::json!(artifacts)
+    );
     let records = member_payloads
         .iter()
         .flat_map(|member| {

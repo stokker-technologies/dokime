@@ -23,14 +23,14 @@ use std::{
 use harmos::{
     Application, Runtime,
     state::{Never, SnapshotPolicy},
-    storage::recovery::RecoveryBackend,
+    storage::state::StateBackend,
     storage::*,
 };
 use prost::Message;
 
 // Local Imports
 use super::storage::{history, id, key, limits, read_all, record, schema, view};
-use dokime::storage::sqlite::{Backend, Limits as BackendLimits, RecoveryLimits};
+use dokime::storage::sqlite::{Backend, Limits as BackendLimits, StateLimits};
 
 /* === Constants === */
 
@@ -187,7 +187,7 @@ fn policy() -> StorageSettings {
         flush_interval: Duration::from_secs(60),
         max_retries: 0,
         query_page: limits(1),
-        ..StorageSettings::default()
+        ..crate::sqlite::storage::storage_settings()
     }
 }
 
@@ -217,11 +217,11 @@ pub(crate) async fn compacted_snapshots_receipts() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+        let recovery = Arc::new(data.state(StateLimits::default()));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data.clone(),
-                recovery: recovery.clone(),
+                state: recovery.clone(),
                 replicas: vec![],
             },
             policy(),
@@ -345,7 +345,7 @@ pub(crate) fn cancelled_backend_instance() {
                     .is_err()
             );
 
-            let recovery = data.recovery(RecoveryLimits::default());
+            let recovery = data.state(StateLimits::default());
             let (release, blocked) = std::sync::mpsc::channel::<()>();
             let (started, ready) = tokio::sync::oneshot::channel();
             let worker = tokio::task::spawn_blocking(move || {
@@ -377,11 +377,11 @@ pub(crate) async fn manager_queries_evidence() {
             .unwrap(),
     );
     let history = data.history().clone();
-    let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(data.state(StateLimits::default()));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data.clone(),
-            recovery: recovery.clone(),
+            state: recovery.clone(),
             replicas: vec![],
         },
         policy(),
@@ -533,11 +533,11 @@ pub(crate) async fn manager_queries_evidence() {
             .unwrap(),
     );
     assert_eq!(data.history(), &history);
-    let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(data.state(StateLimits::default()));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
         policy(),
@@ -591,11 +591,11 @@ pub(crate) async fn managed_journal_backends() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+        let recovery = Arc::new(data.state(StateLimits::default()));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
-                recovery,
+                state: recovery,
                 replicas: vec![],
             },
             policy(),
@@ -645,11 +645,11 @@ pub(crate) async fn captured_records_duplicates() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+        let recovery = Arc::new(data.state(StateLimits::default()));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
-                recovery,
+                state: recovery,
                 replicas: vec![],
             },
             policy(),
@@ -774,11 +774,11 @@ pub(crate) async fn cancelled_boot_storage() {
             .unwrap(),
     );
     let history = data.history().clone();
-    let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(data.state(StateLimits::default()));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
         policy(),
@@ -798,7 +798,7 @@ pub(crate) async fn cancelled_boot_storage() {
         .await
         .unwrap();
     assert_eq!(data.history(), &history);
-    let recovery = data.recovery(RecoveryLimits::default());
+    let recovery = data.state(StateLimits::default());
     recovery.open().await.unwrap();
     recovery.close().await.unwrap();
     data.close().await.unwrap();
@@ -826,11 +826,11 @@ pub(crate) async fn oversized_admission_order() {
         .await
         .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(primary.state(StateLimits::default()));
     let storage = StorageManager::new(
         StorageBackends {
             primary: primary.clone(),
-            recovery,
+            state: recovery,
             replicas: vec![ReplicaTarget {
                 id: id("secondary"),
                 backend: replica.clone(),
@@ -917,11 +917,11 @@ pub(crate) async fn follower_bridges_admissions() {
         .await
         .unwrap(),
     );
-    let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(data.state(StateLimits::default()));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
         policy(),
@@ -995,11 +995,11 @@ pub(crate) async fn replay_tail_saving() {
         .await
         .unwrap(),
     );
-    let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+    let recovery = Arc::new(data.state(StateLimits::default()));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
         policy(),
@@ -1089,11 +1089,11 @@ pub(crate) async fn managed_producer_restart() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+        let recovery = Arc::new(data.state(StateLimits::default()));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
-                recovery,
+                state: recovery,
                 replicas: vec![],
             },
             policy(),
@@ -1201,11 +1201,11 @@ pub(crate) async fn replays_dense_journal_pages() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.recovery(RecoveryLimits::default()));
+        let recovery = Arc::new(data.state(StateLimits::default()));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
-                recovery,
+                state: recovery,
                 replicas: vec![],
             },
             policy(),

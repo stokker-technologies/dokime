@@ -19,11 +19,10 @@ use std::{num::NonZeroUsize, sync::Arc};
 // Third Party Imports
 use harmos::{
     MemorySize,
-    storage::{ObjectVersion, SharedQueryValue, StorageProductionPreparation, StorageView},
+    storage::{SharedQueryValue, StorageProductionPreparation, StorageView},
 };
 
 // Local Imports
-use super::execution::ExecutionView;
 use crate::{Error, Result, installed_plugins::RuntimeAppearanceFrame};
 use dokime::{
     core::{NodeId, SessionId, Timestamp},
@@ -51,9 +50,6 @@ struct State {
     appearance: SharedQueryValue<RuntimeAppearanceFrame>,
     captured_at: SharedQueryValue<Timestamp>,
     owner_node_id: SharedQueryValue<NodeId>,
-    /// The members of a cycle that is not sealed, captured as they stand;
-    /// `None` for the sealed revisions a final report reads.
-    current: Option<Vec<ExecutionView>>,
     _memory: StorageProductionPreparation,
 }
 
@@ -114,18 +110,16 @@ impl CycleSnapshot {
             appearance,
             captured_at,
             owner_node_id,
-            current: None,
             _memory: memory,
         })))
     }
 
-    /// A snapshot of a cycle that is not sealed, over members captured as
-    /// they stand. It renders a report from current evidence and never seals.
+    /// Frozen Presentation Metadata For An Unsealed Cycle Report.
+    /// The Operation Supplies Its Separately Materialized Member Inputs.
     pub(crate) fn current(
         storage: &Manager,
         view: StorageView,
         source: SharedQueryValue<TestCycle>,
-        members: Vec<ExecutionView>,
         appearance: SharedQueryValue<RuntimeAppearanceFrame>,
         owner_node_id: &NodeId,
     ) -> Result<Self> {
@@ -135,11 +129,6 @@ impl CycleSnapshot {
             return Err(invalid(
                 "current cycle snapshot requires an unsealed source and its session",
             ));
-        }
-        for member in &members {
-            if member.execution().test_cycle_id != source.test_cycle_id {
-                return Err(invalid("current cycle snapshot member belongs elsewhere"));
-            }
         }
         let revisions = storage
             .produce(
@@ -160,13 +149,7 @@ impl CycleSnapshot {
             .try_into_value()?
             .try_into_shared()?;
         let memory = storage.prepare_production(bound(
-            std::mem::size_of::<State>()
-                .saturating_add(2 * std::mem::size_of::<usize>())
-                .saturating_add(
-                    members
-                        .capacity()
-                        .saturating_mul(std::mem::size_of::<ExecutionView>()),
-                ),
+            std::mem::size_of::<State>().saturating_add(2 * std::mem::size_of::<usize>()),
         )?)?;
         Ok(Self(Arc::new(State {
             view,
@@ -175,22 +158,8 @@ impl CycleSnapshot {
             appearance,
             captured_at,
             owner_node_id,
-            current: Some(members),
             _memory: memory,
         })))
-    }
-
-    /// Whether the members are the sealed revisions a final report reads.
-    pub(crate) fn is_final(&self) -> bool {
-        self.0.current.is_none()
-    }
-
-    /// How many members the report covers.
-    pub(crate) fn len(&self) -> usize {
-        match &self.0.current {
-            Some(members) => members.len(),
-            None => self.0.revisions.len(),
-        }
     }
 
     pub(crate) fn view(&self) -> &StorageView {
@@ -217,48 +186,6 @@ impl CycleSnapshot {
             .session_id
             .as_ref()
             .expect("validated frozen cycle session")
-    }
-
-    pub(crate) async fn member(&self, storage: &Manager, index: usize) -> Result<ExecutionView> {
-        if let Some(members) = &self.0.current {
-            return members
-                .get(index)
-                .ok_or_else(|| invalid("cycle snapshot member index is out of bounds"))?
-                .snapshot(storage)
-                .await;
-        }
-        let revision = self
-            .0
-            .revisions
-            .get(index)
-            .ok_or_else(|| invalid("cycle snapshot member index is out of bounds"))?;
-        let _selection = storage.prepare_production(bound(
-            revision
-                .version
-                .memory_size()
-                .saturating_add(std::mem::size_of::<ObjectVersion>()),
-        )?)?;
-        let member = ExecutionView::open(
-            storage,
-            self.0.view.clone(),
-            &revision.execution_id,
-            ObjectVersion::Exact(revision.version.clone()),
-            self.0.view.decoded_bytes()?,
-        )
-        .await?
-        .ok_or_else(|| invalid("cycle snapshot member is missing"))?;
-        let work = self.0.view.begin_computation()?;
-        if member.revision().position != revision.position
-            || member.execution().test_cycle_id != self.0.source.test_cycle_id
-            || member.execution().saved.is_none()
-        {
-            return Err(invalid(
-                "cycle snapshot member revision, owner or seal differs",
-            ));
-        }
-        work.check()?;
-        drop(work);
-        member.snapshot(storage).await
     }
 }
 

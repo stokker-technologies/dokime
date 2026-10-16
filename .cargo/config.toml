@@ -6,3 +6,11 @@
 
 [build]
 target-dir = "target"
+
+[patch."https://github.com/stokker-technologies/harmos.git"]
+harmos = { path = "/home/riccardo/Documents/repositories/stokker-technologies/open-source/harmos.wt/streamline/crates/harmos" }
+harmos-bundle = { path = "/home/riccardo/Documents/repositories/stokker-technologies/open-source/harmos.wt/streamline/crates/harmos-bundle" }
+harmos-contract = { path = "/home/riccardo/Documents/repositories/stokker-technologies/open-source/harmos.wt/streamline/crates/harmos-contract" }
+harmos-macros = { path = "/home/riccardo/Documents/repositories/stokker-technologies/open-source/harmos.wt/streamline/crates/harmos-macros" }
+harmos-sidecar = { path = "/home/riccardo/Documents/repositories/stokker-technologies/open-source/harmos.wt/streamline/crates/harmos-sidecar" }
+harmos-signal = { path = "/home/riccardo/Documents/repositories/stokker-technologies/open-source/harmos.wt/streamline/crates/harmos-signal" }

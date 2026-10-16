@@ -95,6 +95,9 @@ impl Transaction<RuntimeState> for CompleteRun {
                 .saved
                 .as_ref()
                 .ok_or("completed cycle has no saved seal")?;
+            if current.saved.as_ref().is_some_and(|saved| saved != seal) {
+                return Err("cycle already has a different immutable report seal".into());
+            }
             seal.validate(sealed).map_err(|source| source.to_string())?;
             if self.sealed_executions.len() != sealed.execution_ids.len()
                 || self
@@ -106,6 +109,13 @@ impl Transaction<RuntimeState> for CompleteRun {
                 return Err("sealed executions differ from cycle membership".into());
             }
             for (member, seal) in seal.executions.iter().zip(&self.sealed_executions) {
+                if state.executions[&member.execution_id]
+                    .saved
+                    .as_ref()
+                    .is_some_and(|saved| saved != seal)
+                {
+                    return Err("execution already has a different immutable report seal".into());
+                }
                 if !member
                     .position
                     .covers(&seal.dependencies_saved)
@@ -149,22 +159,34 @@ impl Transaction<RuntimeState> for CompleteRun {
             .get_mut(&self.request_id)
             .expect("checked request");
         if request.summary.phase.terminal() {
+            if self.sealed_cycle.is_some() {
+                request.publication_failure = None;
+                request.summary.phase = outcome_phase(conclusion(request));
+                self.install_seals(state);
+            }
             return;
         }
+        let status = conclusion(request);
         if let Some(unsealed) = &self.unsealed {
             let records = self.unsealed_drafts(state, unsealed);
-            fail_unsealed(state, &self.request_id, unsealed);
+            record_publication_failure(
+                state
+                    .run_requests
+                    .get_mut(&self.request_id)
+                    .expect("checked request"),
+                &unsealed.cause,
+            );
             records.apply(state);
         }
         let request = state
             .run_requests
             .get_mut(&self.request_id)
             .expect("checked request");
-        let status = conclusion(request);
-        request.summary.phase = match status {
-            CycleStatus::Completed => RunPhase::Completed,
-            CycleStatus::Stopped => RunPhase::Stopped,
-            _ => RunPhase::Failed,
+        request.summary.phase = if self.unsealed.is_some() {
+            RunPhase::Failed
+        } else {
+            request.publication_failure = None;
+            outcome_phase(status)
         };
         request.summary.finished_at = Some(self.at.clone());
         // A target group the policy or a Stop never let start still owes the
@@ -193,7 +215,10 @@ impl Transaction<RuntimeState> for CompleteRun {
                 .executions
                 .get_mut(id)
                 .expect("cycle execution owner exists");
-            if execution.status == ExecutionStatus::Skipped && execution.finished_at.is_none() {
+            if self.unsealed.is_none()
+                && execution.status == ExecutionStatus::Skipped
+                && execution.finished_at.is_none()
+            {
                 execution.finished_at = Some(self.at.clone());
                 execution.result = Some(ResultSummary {
                     skipped: 1,
@@ -226,24 +251,33 @@ impl Transaction<RuntimeState> for CompleteRun {
         } else {
             status
         };
-        if self.unsealed.is_some() && cycle.lifecycle != CycleStatus::Ready {
-            cycle.lifecycle = CycleStatus::Failed;
-        }
         cycle.touch_at(self.at.clone());
+        self.install_seals(state);
+    }
+}
+
+impl CompleteRun {
+    fn install_seals(&self, state: &mut RuntimeState) {
         if let Some(sealed) = &self.sealed_cycle {
-            *cycle = sealed.clone();
+            state
+                .cycles
+                .insert(sealed.test_cycle_id.clone(), sealed.clone());
+            state
+                .cycle_report_finalizations
+                .remove(&sealed.test_cycle_id);
             for seal in &self.sealed_executions {
                 state
                     .executions
                     .get_mut(&seal.source.execution.execution_id)
                     .expect("checked member")
                     .saved = Some(seal.clone());
+                state
+                    .report_finalizations
+                    .remove(&seal.source.execution.execution_id);
             }
         }
     }
-}
 
-impl CompleteRun {
     /// The permanent finalization cause, recorded once against every execution
     /// it left unsealed and once against the cycle as its terminal diagnosis.
     fn unsealed_drafts(
@@ -417,31 +451,17 @@ impl Transaction<RuntimeState> for SettleRun {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Settles every execution whose final report was never produced as Failed,
-/// and the request's diagnosis with the cause.
-fn fail_unsealed(state: &mut RuntimeState, request_id: &CommandId, unsealed: &Unsealed) {
-    let mut failed = 0;
-    for id in &unsealed.execution_ids {
-        let execution = state.executions.get_mut(id).expect("checked cycle member");
-        if execution.status != ExecutionStatus::Failed {
-            failed += 1;
-        }
-        execution.status = ExecutionStatus::Failed;
-        let result = execution
-            .result
-            .get_or_insert_with(|| summary(ResultStatus::Failed));
-        result.status = ResultStatus::Failed;
-        result.failed = result.failed.max(1);
+/// Keep Publication Diagnosis Separate From The Actual Test Outcome And Counts.
+fn record_publication_failure(request: &mut RunRequest, cause: &str) {
+    request.publication_failure = Some(cause.to_owned());
+}
+
+fn outcome_phase(status: CycleStatus) -> RunPhase {
+    match status {
+        CycleStatus::Completed => RunPhase::Completed,
+        CycleStatus::Stopped => RunPhase::Stopped,
+        _ => RunPhase::Failed,
     }
-    let request = state
-        .run_requests
-        .get_mut(request_id)
-        .expect("checked request");
-    request.summary.failed += failed;
-    request.failure = Some(match request.failure.take() {
-        Some(failure) => format!("{failure}; {}", unsealed.cause),
-        None => unsealed.cause.clone(),
-    });
 }
 
 fn conclusion(request: &RunRequest) -> CycleStatus {
@@ -472,3 +492,138 @@ fn outcomes_settled(state: &RuntimeState, request_id: &CommandId) -> Result<(), 
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settled_request(stopped: bool) -> (RuntimeState, CompleteRun) {
+        let mut state = RuntimeState::default();
+        let cycle_id = TestCycleId::from_seed("publication-failure-cycle");
+        let request_id = CommandId::from_seed("publication-failure-request");
+        let at = Timestamp::now_utc();
+        state.cycles.insert(
+            cycle_id.clone(),
+            dokime::execution::TestCycle {
+                saved: None,
+                test_cycle_id: cycle_id.clone(),
+                session_id: None,
+                metadata: Metadata::new(
+                    Identifier::new("publication.fixture").unwrap(),
+                    "Publication",
+                    None,
+                ),
+                lifecycle: CycleStatus::Running,
+                created_at: at.clone(),
+                started_at: Some(at.clone()),
+                updated_at: at.clone(),
+                execution_ids: Vec::new(),
+                records: Default::default(),
+                continue_on_failure: false,
+                result: None,
+            },
+        );
+        state.run_requests.insert(
+            request_id.clone(),
+            RunRequest {
+                summary: RunSummary {
+                    mode: Default::default(),
+                    request_id: request_id.clone(),
+                    cycle_id,
+                    phase: RunPhase::Finishing,
+                    paused: false,
+                    stop_requested: stopped,
+                    planned: 0,
+                    prepared: 0,
+                    finished: 0,
+                    unstarted: 0,
+                    failed: 0,
+                    accepted_at: at.clone(),
+                    provider_started_at: Some(at.clone()),
+                    finished_at: None,
+                },
+                target: ExecutionProviderTarget {
+                    source: "fixture".into(),
+                    binding: dokime::domains::SidecarExecutionBinding {
+                        workflow: "fixture".into(),
+                    },
+                },
+                test_execution_id: None,
+                pending: Default::default(),
+                groups: Default::default(),
+                settled_execution_ids: Vec::new(),
+                stopped_execution_ids: Vec::new(),
+                conclusion: Some(CycleStatus::Completed),
+                failure: None,
+                publication_failure: None,
+                completion_at: Some(at.clone()),
+            },
+        );
+        (
+            state,
+            CompleteRun {
+                request_id,
+                at,
+                sealed_cycle: None,
+                sealed_executions: Vec::new(),
+                unsealed: Some(Unsealed {
+                    cause: "report memory exhausted".into(),
+                    execution_ids: Vec::new(),
+                }),
+            },
+        )
+    }
+
+    #[test]
+    fn publication_refusal_preserves_actual_cycle_outcomes_and_counts() {
+        for stopped in [false, true] {
+            let (mut state, complete) = settled_request(stopped);
+            complete.check(&state).unwrap();
+            complete.apply(&mut state);
+            let request = &state.run_requests[&complete.request_id];
+            assert_eq!(request.summary.phase, RunPhase::Failed);
+            assert_eq!(request.summary.failed, 0);
+            assert!(request.failure.is_none());
+            assert_eq!(
+                request.publication_failure.as_deref(),
+                Some("report memory exhausted")
+            );
+            let cycle = &state.cycles[&request.summary.cycle_id];
+            assert_eq!(
+                cycle.lifecycle,
+                if stopped {
+                    CycleStatus::Stopped
+                } else {
+                    CycleStatus::Completed
+                }
+            );
+            assert!(cycle.saved.is_none());
+            let record_count = state.record_count;
+            let summary = request.summary.clone();
+            complete.check(&state).unwrap();
+            complete.apply(&mut state);
+            assert_eq!(
+                state.record_count, record_count,
+                "retrying a failed completion adds no duplicate records"
+            );
+            assert_eq!(state.run_requests[&complete.request_id].summary, summary);
+        }
+    }
+
+    #[test]
+    fn publication_diagnosis_does_not_replace_a_provider_failure() {
+        let (mut state, complete) = settled_request(false);
+        let request = state.run_requests.get_mut(&complete.request_id).unwrap();
+        request.failure = Some("device disconnected".into());
+        record_publication_failure(request, "report memory exhausted");
+        assert_eq!(
+            request.interruption().as_deref(),
+            Some("device disconnected; report memory exhausted")
+        );
+        request.publication_failure = None;
+        assert_eq!(
+            request.interruption().as_deref(),
+            Some("device disconnected")
+        );
+        assert_eq!(conclusion(request), CycleStatus::Failed);
+    }
+}

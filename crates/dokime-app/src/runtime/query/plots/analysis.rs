@@ -37,7 +37,7 @@ use harmos::Message;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct Prepared {
+pub(crate) struct Prepared {
     definition: Definition,
     selection: Selection,
     target: Target,
@@ -52,12 +52,33 @@ enum Target {
     },
 }
 
+pub(crate) enum Environment<'a, 'ctx> {
+    Live(&'a RuntimeHandle),
+    Report {
+        ctx: &'a harmos::operations::Context<'ctx>,
+        resources: &'a crate::report::analysis::Resources,
+        epoch: &'a str,
+    },
+}
+
 /* === Traits === */
 
 /* === Implementations === */
 impl Prepared {
     pub(super) fn resolve(
         runtime: &RuntimeHandle,
+        state: &crate::runtime::state::RuntimeState,
+        request: &PlotPayloadRequest,
+    ) -> crate::Result<Option<Self>> {
+        Self::resolve_with(
+            &crate::report::analysis::Resources::from_runtime(runtime),
+            state,
+            request,
+        )
+    }
+
+    pub(crate) fn resolve_with(
+        resources: &crate::report::analysis::Resources,
         state: &crate::runtime::state::RuntimeState,
         request: &PlotPayloadRequest,
     ) -> crate::Result<Option<Self>> {
@@ -99,13 +120,13 @@ impl Prepared {
                 .ok_or_else(|| {
                     unavailable("selected analysis is unavailable in this build or installation")
                 })?;
-            if !runtime.plugin_available(&artifact.source) {
+            if !resources.available(&artifact.source) {
                 return Err(unavailable("analysis owner is unavailable"));
             }
             let source =
                 Identifier::new(&artifact.source).map_err(|error| invalid(error.to_string()))?;
-            let dispatcher = runtime
-                .action_dispatcher(&source)
+            let dispatcher = resources
+                .dispatcher(&source)
                 .ok_or_else(|| unavailable("analysis owner is not admitted"))?;
             (definition, Target::Plugin { source, dispatcher })
         };
@@ -120,7 +141,7 @@ impl Prepared {
         }))
     }
 
-    pub(super) fn check_evidence(
+    pub(crate) fn check_evidence(
         &self,
         telemetry: &[TelemetrySample],
         request: &PlotPayloadRequest,
@@ -193,6 +214,24 @@ impl Prepared {
     pub(super) async fn execute(
         self,
         runtime: &RuntimeHandle,
+        request: &PlotPayloadRequest,
+        cursor: &PlotPayloadCursor,
+        payload: PlotPayload,
+        contract: Option<&TelemetryContract>,
+    ) -> crate::Result<PlotPayload> {
+        self.execute_in(
+            Environment::Live(runtime),
+            request,
+            cursor,
+            payload,
+            contract,
+        )
+        .await
+    }
+
+    pub(crate) async fn execute_in(
+        self,
+        environment: Environment<'_, '_>,
         request: &PlotPayloadRequest,
         cursor: &PlotPayloadCursor,
         mut payload: PlotPayload,
@@ -272,28 +311,19 @@ impl Prepared {
                 .check(self.definition.limits)
                 .map_err(|error| invalid(error.to_string()))?;
             let count = samples.values.len();
-            let first_axis = samples.axis[0];
+            let first_axis = *samples
+                .axis
+                .first()
+                .ok_or_else(|| invalid("analysis series contains no finite points"))?;
             let last_axis = *samples.axis.last().unwrap();
             let call = Request {
                 samples: Some(samples),
                 parameters: serde_json::to_vec(&self.selection.parameters)
                     .map_err(|error| invalid(error.to_string()))?,
             };
-            let output = match &self.target {
-                Target::Builtin => {
-                    let bytes = runtime
-                        .operations
-                        .call_encoded(&self.definition.id, call.encode_to_vec())
-                        .await?;
-                    dokime::analysis::Response::decode(bytes.as_slice())
-                        .map_err(|error| invalid(error.to_string()))?
-                }
-                Target::Plugin { source, dispatcher } => {
-                    runtime
-                        .analyze_with_dispatcher(source, dispatcher, &self.definition.id, call)
-                        .await?
-                }
-            };
+            let output = environment
+                .invoke(&self.target, &self.definition.id, call)
+                .await?;
             output
                 .check(&self.definition)
                 .map_err(|error| invalid(error.to_string()))?;
@@ -338,7 +368,7 @@ impl Prepared {
             definition: self.definition,
             selection: self.selection,
             source: PlotEvidence {
-                epoch: runtime.process_epoch().to_string(),
+                epoch: environment.epoch(),
                 stream: request.stream.clone(),
                 scope: request.scope.clone(),
                 cursor: cursor.clone(),
@@ -352,6 +382,48 @@ impl Prepared {
         payload.analysis = None;
         payload.cartesian = None;
         Ok(payload)
+    }
+}
+
+impl Environment<'_, '_> {
+    fn epoch(&self) -> String {
+        match self {
+            Self::Live(runtime) => runtime.process_epoch().to_string(),
+            Self::Report { epoch, .. } => (*epoch).to_owned(),
+        }
+    }
+
+    async fn invoke(
+        &self,
+        target: &Target,
+        operation: &str,
+        request: Request,
+    ) -> crate::Result<dokime::analysis::Response> {
+        match (self, target) {
+            (Self::Live(runtime), Target::Builtin) => {
+                let bytes = runtime
+                    .operations
+                    .call_encoded(operation, request.encode_to_vec())
+                    .await?;
+                dokime::analysis::Response::decode(&bytes)
+                    .map_err(|error| invalid(error.to_string()))
+            }
+            (Self::Live(runtime), Target::Plugin { source, dispatcher }) => {
+                runtime
+                    .analyze_with_dispatcher(source, dispatcher, operation, request)
+                    .await
+            }
+            (Self::Report { ctx, .. }, Target::Builtin) => {
+                let bytes = ctx.call_encoded(operation, request.encode_to_vec()).await?;
+                dokime::analysis::Response::decode(&bytes)
+                    .map_err(|error| invalid(error.to_string()))
+            }
+            (Self::Report { resources, .. }, Target::Plugin { source, dispatcher }) => {
+                resources
+                    .invoke(source, dispatcher, operation, request)
+                    .await
+            }
+        }
     }
 }
 

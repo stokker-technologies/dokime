@@ -21,6 +21,7 @@ use std::{
 };
 
 // Third Party Imports
+use harmos::storage::ObjectRetentionRelease;
 use harmos::{MemorySize, storage::*};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -60,6 +61,43 @@ struct Completed {
 
 /* === Implementations === */
 impl State {
+    pub(super) async fn data_bootstrap_releases(
+        &self,
+        identity: BootstrapId,
+        releases: Vec<ObjectRetentionRelease>,
+        reservation: memory::Reservation,
+    ) -> Result<(), Error> {
+        self.call(move |connection| Ok((|| {
+            let _reservation = reservation;
+            let transaction = connection.transaction()?;
+            matching(&transaction, &identity)?;
+            let mut previous = None;
+            for release in releases {
+                if !identity.cut().covers(&release.through)? {
+                    return Err(Error::Data("private release exceeds import cut"));
+                }
+                let cursor = release.cursor();
+                if previous.as_ref().is_some_and(|previous: &harmos::storage::ObjectReleaseCursor| !previous.precedes(&cursor)) {
+                    return Err(Error::Data("private release page is unordered"));
+                }
+                previous = Some(cursor);
+                let body = entry::encode(&release, METADATA_BYTES)?;
+                transaction.execute(
+                    "INSERT INTO storage_bootstrap_releases VALUES (?1,?2,?3,?4,?5)
+                     ON CONFLICT(schema_id,schema_version,encoding,item) DO NOTHING",
+                    params![release.schema.id.as_str(), release.schema.version.get(),
+                        release.schema.payload_encoding as u8, release.item.as_str(), &body])?;
+                let stored: Vec<u8> = transaction.query_row(
+                    "SELECT body FROM storage_bootstrap_releases WHERE schema_id=?1 AND schema_version=?2 AND encoding=?3 AND item=?4",
+                    params![release.schema.id.as_str(), release.schema.version.get(), release.schema.payload_encoding as u8, release.item.as_str()],
+                    |row| row.get(0),
+                )?;
+                if stored != body { return Err(Error::Conflict("private release retry differs")); }
+            }
+            transaction.commit()?;
+            Ok(())
+        })())).await?
+    }
     pub(super) async fn data_begin_bootstrap(
         &self,
         import: Import,
@@ -242,6 +280,24 @@ fn publish(
     drop(rows);
     drop(statement);
 
+    transaction.execute("DELETE FROM storage_object_releases", [])?;
+    let mut release_statement = transaction.prepare("SELECT body FROM storage_bootstrap_releases ORDER BY schema_id,schema_version,encoding,item")?;
+    let mut release_rows = release_statement.query([])?;
+    while let Some(row) = release_rows.next()? {
+        query::checkpoint()?;
+        let body = blob(row, 0)?;
+        if body.len() > METADATA_BYTES {
+            return Err(Error::Corrupt("private release exceeds its bound"));
+        }
+        let release: ObjectRetentionRelease = serde_json::from_slice(body)?;
+        transaction.execute(
+            "INSERT INTO storage_object_releases(schema_id,schema_key,schema_version,encoding,item,through,generation) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![release.schema.id.as_str(), serde_json::to_string(&release.schema)?, release.schema.version.get(),
+                release.schema.payload_encoding as u8, release.item.as_str(), position(release.through.sequence), position(generation)],
+        )?;
+    }
+    drop(release_rows);
+    drop(release_statement);
     transaction.execute("DELETE FROM storage_object_scalars", [])?;
     transaction.execute("DELETE FROM storage_data_entries", [])?;
     transaction.execute("DELETE FROM storage_data_inventory", [])?;
@@ -325,6 +381,7 @@ fn cleanup_completed(
     super::bootstrap_files::cleanup(connection, root, identity, false)?;
     let transaction = connection.transaction()?;
     matching_owner(&transaction, identity)?;
+    transaction.execute("DELETE FROM storage_bootstrap_releases", [])?;
     transaction.execute("DELETE FROM storage_bootstrap_schemas", [])?;
     transaction.execute("DELETE FROM storage_bootstrap_entries", [])?;
     transaction.execute("DELETE FROM storage_bootstrap WHERE singleton=1", [])?;
@@ -462,6 +519,7 @@ fn abort(connection: &mut Connection, root: &Path, identity: &BootstrapId) -> Re
     let transaction = connection.transaction()?;
     matching_owner(&transaction, identity)?;
     transaction.execute("DELETE FROM storage_bootstrap_files", [])?;
+    transaction.execute("DELETE FROM storage_bootstrap_releases", [])?;
     transaction.execute("DELETE FROM storage_bootstrap_schemas", [])?;
     transaction.execute("DELETE FROM storage_bootstrap_entries", [])?;
     transaction.execute("DELETE FROM storage_bootstrap WHERE singleton=1", [])?;
@@ -623,6 +681,21 @@ fn verify_manifest(
         }
         actual.finish_collection(kind);
     }
+    let mut releases = connection.prepare("SELECT body FROM storage_bootstrap_releases ORDER BY schema_id,schema_version,encoding,item")?;
+    let mut rows = releases.query([])?;
+    while let Some(row) = rows.next()? {
+        query::checkpoint()?;
+        let body = blob(row, 0)?;
+        if body.len() > METADATA_BYTES {
+            return Err(Error::Corrupt("private release exceeds its bound"));
+        }
+        let release: ObjectRetentionRelease = serde_json::from_slice(body)?;
+        if entry::encode(&release, METADATA_BYTES)? != body {
+            return Err(Error::Corrupt("private release is not canonical"));
+        }
+        actual.record_releases(std::slice::from_ref(&release))?;
+    }
+    actual.finish_releases();
     if actual != *expected {
         return Err(Error::Conflict(
             "private import collection manifest differs",
@@ -813,7 +886,7 @@ pub(super) fn matching_owner(
 
 fn has_rows(connection: &Connection) -> Result<bool, Error> {
     Ok(connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM storage_bootstrap_entries) OR EXISTS(SELECT 1 FROM storage_bootstrap_schemas) OR EXISTS(SELECT 1 FROM storage_bootstrap_files) OR EXISTS(SELECT 1 FROM storage_bootstrap_installs) OR EXISTS(SELECT 1 FROM storage_bootstrap_abort)",
+        "SELECT EXISTS(SELECT 1 FROM storage_bootstrap_releases) OR EXISTS(SELECT 1 FROM storage_bootstrap_entries) OR EXISTS(SELECT 1 FROM storage_bootstrap_schemas) OR EXISTS(SELECT 1 FROM storage_bootstrap_files) OR EXISTS(SELECT 1 FROM storage_bootstrap_installs) OR EXISTS(SELECT 1 FROM storage_bootstrap_abort)",
         [],
         |row| row.get(0),
     )?)

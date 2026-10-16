@@ -31,6 +31,11 @@ use dokime_app::{
 /* === Type Aliases === */
 
 /* === Structs === */
+#[harmos::message]
+#[derive(Clone, PartialEq)]
+struct CountRow {
+    count: i64,
+}
 
 /* === Enums === */
 
@@ -67,6 +72,7 @@ pub(crate) async fn schemas_exact_pages() {
             .strict(),
     ];
     let mut telemetry = TelemetryContract::declared("fixture.samples", "Samples")
+        .typed::<CountRow>()
         .column(TelemetryColumn::declared(
             "count",
             "Count",

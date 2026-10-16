@@ -64,6 +64,7 @@ pub(crate) async fn read_execution(
     let validation_memory = captured
         .memory_size()
         .checked_add(source.outputs.memory_size())
+        .and_then(|bytes| bytes.checked_add(execution.value.memory_size()))
         .and_then(|bytes| bytes.checked_add(captured.validation_memory()))
         .ok_or_else(|| invalid("captured owner validation memory overflows"))?;
     let validation_memory = allowance(validation_memory, maximum, "captured owner validation")?;
@@ -72,15 +73,32 @@ pub(crate) async fn read_execution(
     Ok(
         view.project_owned(captured, validation_memory, |captured, _| {
             if captured.owner_node_id != source.owner_node_id
-                || captured.execution != source.execution
+                || captured.execution_id != source.execution.execution_id
                 || captured.evidence_through != source.evidence_through
             {
                 return Err(corrupt(invalid("captured file differs from sealed source")));
             }
-            captured
-                .context
-                .validate(&execution.value)
-                .map_err(corrupt)?;
+            captured.validate_header().map_err(corrupt)?;
+            if let Some(anchor) = &captured.execution
+                && !source
+                    .execution
+                    .position
+                    .covers(&anchor.position)
+                    .map_err(Error::from)
+                    .map_err(corrupt)?
+            {
+                return Err(corrupt(invalid(
+                    "captured anchor follows its published revision",
+                )));
+            }
+            let mut lifecycle = execution.value.clone();
+            lifecycle.saved = None;
+            if captured.lifecycle != lifecycle {
+                return Err(corrupt(invalid(
+                    "captured lifecycle differs from sealed execution",
+                )));
+            }
+            captured.context.validate(&lifecycle).map_err(corrupt)?;
             let mut captured = captured;
             captured.outputs = source.outputs.clone();
             Ok(captured)

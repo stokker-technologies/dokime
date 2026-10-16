@@ -19,13 +19,13 @@ use std::{num::NonZeroUsize, path::Path};
 use harmos::{
     BackendFailure, Identifier,
     storage::{
-        ReadLimits, RecoveryPosition, StorageBackend, StoreHistory,
-        recovery::{RecoveryBackend, RecoveryEntry, RecoverySnapshot},
+        ReadLimits, RecoveryPosition, StorageBackend, StorageCursor, StoreHistory,
+        state::{RecoveryEntry, RecoverySnapshot, StateBackend},
     },
 };
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, Recovery, RecoveryLimits};
+use dokime::storage::sqlite::{Backend, Limits, StateBackend as SQLiteStateBackend, StateLimits};
 
 /* === Constants === */
 
@@ -60,6 +60,10 @@ fn at(sequence: u64) -> RecoveryPosition {
 
 fn entry(sequence: u64) -> RecoveryEntry {
     RecoveryEntry {
+        required_data: StorageCursor {
+            history: history(),
+            sequence: 0,
+        },
         position: at(sequence),
         payload: format!("transition-{sequence}").into_bytes(),
     }
@@ -72,15 +76,15 @@ fn page(rows: usize) -> ReadLimits {
     }
 }
 
-async fn native(root: &Path, limits: RecoveryLimits) -> (Backend<()>, Recovery) {
+async fn native(root: &Path, limits: StateLimits) -> (Backend<()>, SQLiteStateBackend) {
     let primary = Backend::<()>::replica(root.to_path_buf(), Limits::default(), history())
         .await
         .unwrap();
-    let recovery = primary.recovery(limits);
+    let recovery = primary.state(limits);
     (primary, recovery)
 }
 
-async fn close(primary: &Backend<()>, recovery: &Recovery) {
+async fn close(primary: &Backend<()>, recovery: &SQLiteStateBackend) {
     recovery.close().await.unwrap();
     primary.close().await.unwrap();
 }
@@ -102,7 +106,7 @@ async fn recovery_sql<T: Send + 'static>(
 
 pub(crate) async fn durable_prefix_rollback() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, backend) = native(root.path(), StateLimits::default()).await;
     assert_eq!(backend.open().await.unwrap(), at(0));
     backend.write_entries(&[entry(1), entry(2)]).await.unwrap();
     // Acknowledged SQLite Writes Are Already Durable
@@ -119,7 +123,7 @@ pub(crate) async fn durable_prefix_rollback() {
     assert_eq!(backend.flush(&at(2)).await.unwrap(), at(2));
     close(&primary, &backend).await;
 
-    let (primary, reopened) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
     assert_eq!(reopened.open().await.unwrap(), at(2));
     assert_eq!(
         reopened
@@ -141,7 +145,7 @@ pub(crate) async fn durable_prefix_rollback() {
 
 pub(crate) async fn retries_conflicts_explicit() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, backend) = native(root.path(), StateLimits::default()).await;
     backend.open().await.unwrap();
     backend.write_entries(&[entry(1)]).await.unwrap();
     backend.write_entries(&[entry(1)]).await.unwrap();
@@ -190,13 +194,17 @@ pub(crate) async fn retries_conflicts_explicit() {
 
 pub(crate) async fn snapshot_transaction_tail() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, backend) = native(root.path(), StateLimits::default()).await;
     backend.open().await.unwrap();
     backend
         .write_entries(&(1..=5).map(entry).collect::<Vec<_>>())
         .await
         .unwrap();
     let snapshot = RecoverySnapshot {
+        required_data: StorageCursor {
+            history: history(),
+            sequence: 0,
+        },
         through: at(2),
         payload: b"logical state".to_vec(),
     };
@@ -232,7 +240,7 @@ pub(crate) async fn snapshot_transaction_tail() {
     );
     close(&primary, &backend).await;
 
-    let (primary, reopened) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
     assert_eq!(reopened.open().await.unwrap(), at(5));
     assert_eq!(
         reopened
@@ -256,7 +264,7 @@ pub(crate) async fn snapshot_transaction_tail() {
 pub(crate) async fn saved_corruption_rows() {
     for missing in [false, true] {
         let root = tempfile::tempdir().unwrap();
-        let (primary, backend) = native(root.path(), RecoveryLimits::default()).await;
+        let (primary, backend) = native(root.path(), StateLimits::default()).await;
         backend.open().await.unwrap();
         backend.write_entries(&[entry(1), entry(2)]).await.unwrap();
         recovery_sql(root.path(), move |connection| {
@@ -268,7 +276,7 @@ pub(crate) async fn saved_corruption_rows() {
         }).await.unwrap();
         close(&primary, &backend).await;
 
-        let (primary, reopened) = native(root.path(), RecoveryLimits::default()).await;
+        let (primary, reopened) = native(root.path(), StateLimits::default()).await;
         assert_eq!(reopened.open().await.unwrap(), at(2));
         assert!(matches!(
             reopened.read_entries(&at(0), &at(2), page(2)).await,
@@ -291,7 +299,7 @@ pub(crate) async fn saved_corruption_rows() {
 
 pub(crate) async fn primary_recovery_owner() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, backend) = native(root.path(), StateLimits::default()).await;
     backend.open().await.unwrap();
     assert!(matches!(
         Backend::<()>::primary(root.path().to_path_buf(), Limits::default()).await,
@@ -314,14 +322,14 @@ pub(crate) async fn primary_recovery_owner() {
         Backend::<()>::replica(root.path().to_path_buf(), Limits::default(), other).await,
         Err(harmos::Error::DifferentHistory)
     ));
-    let (primary, reopened) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
     assert_eq!(reopened.open().await.unwrap(), at(0));
     close(&primary, &reopened).await;
 }
 
 pub(crate) async fn input_snapshot_bounded() {
     let root = tempfile::tempdir().unwrap();
-    let limits = RecoveryLimits {
+    let limits = StateLimits {
         entry_bytes: NonZeroUsize::new(512).unwrap(),
         batch_bytes: NonZeroUsize::new(2048).unwrap(),
         snapshot_bytes: NonZeroUsize::new(1024).unwrap(),
@@ -336,6 +344,10 @@ pub(crate) async fn input_snapshot_bounded() {
     ));
     backend.write_entries(&[entry(1)]).await.unwrap();
     let snapshot = RecoverySnapshot {
+        required_data: StorageCursor {
+            history: history(),
+            sequence: 0,
+        },
         through: at(1),
         payload: b"state".to_vec(),
     };
@@ -359,7 +371,7 @@ pub(crate) async fn input_snapshot_bounded() {
 
 pub(crate) async fn failed_snapshot_retry() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, backend) = native(root.path(), StateLimits::default()).await;
     backend.open().await.unwrap();
     backend.write_entries(&[entry(1), entry(2)]).await.unwrap();
     recovery_sql(root.path(), |connection| {
@@ -371,6 +383,10 @@ pub(crate) async fn failed_snapshot_retry() {
     .await
     .unwrap();
     let snapshot = RecoverySnapshot {
+        required_data: StorageCursor {
+            history: history(),
+            sequence: 0,
+        },
         through: at(1),
         payload: b"state".to_vec(),
     };
@@ -402,7 +418,7 @@ pub(crate) async fn failed_snapshot_retry() {
     .unwrap();
     backend.write_snapshot(&snapshot).await.unwrap();
     close(&primary, &backend).await;
-    let (primary, reopened) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
     assert_eq!(reopened.open().await.unwrap(), at(2));
     assert_eq!(
         reopened
@@ -424,10 +440,14 @@ pub(crate) async fn failed_snapshot_retry() {
 
 pub(crate) async fn snapshot_requires_frontier() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, backend) = native(root.path(), StateLimits::default()).await;
     backend.open().await.unwrap();
     backend.write_entries(&[entry(1)]).await.unwrap();
     let snapshot = RecoverySnapshot {
+        required_data: StorageCursor {
+            history: history(),
+            sequence: 0,
+        },
         through: at(2),
         payload: b"state at two".to_vec(),
     };
@@ -444,7 +464,7 @@ pub(crate) async fn snapshot_requires_frontier() {
     );
     assert_eq!(backend.flush(&at(1)).await.unwrap(), at(1));
     close(&primary, &backend).await;
-    let (primary, reopened) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
     assert_eq!(reopened.open().await.unwrap(), at(1));
     assert!(
         reopened
@@ -468,7 +488,7 @@ pub(crate) async fn snapshot_requires_frontier() {
 
 pub(crate) async fn cancelled_waiter_owned() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, backend) = native(root.path(), StateLimits::default()).await;
     backend.open().await.unwrap();
     let entries = [entry(1)];
     let mut write = backend.write_entries(&entries);
@@ -478,7 +498,7 @@ pub(crate) async fn cancelled_waiter_owned() {
     }
     drop(write);
     close(&primary, &backend).await;
-    let (primary, reopened) = native(root.path(), RecoveryLimits::default()).await;
+    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
     assert_eq!(reopened.open().await.unwrap(), at(1));
     assert_eq!(
         reopened

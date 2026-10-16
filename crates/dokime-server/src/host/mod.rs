@@ -179,7 +179,7 @@ async fn development_control(
     });
     loop {
         let line = tokio::select! {
-            _ = tokio::signal::ctrl_c() => break,
+            _ = stop_signal() => break,
             line = commands.recv() => match line { Some(line) => line, None => break },
         };
         let result = async {
@@ -384,7 +384,7 @@ async fn verify_plugins(
 
 async fn shutdown_signal(stdin: bool) {
     if !stdin {
-        let _ = tokio::signal::ctrl_c().await;
+        stop_signal().await;
         return;
     }
     let (closed, eof) = tokio::sync::oneshot::channel();
@@ -394,9 +394,30 @@ async fn shutdown_signal(stdin: bool) {
         let _ = closed.send(());
     });
     tokio::select! {
-        _ = tokio::signal::ctrl_c() => {}
+        _ = stop_signal() => {}
         _ = eof => {}
     }
+}
+
+/// Both Service Termination And Interactive Stop Finalize Persisted Evidence.
+async fn stop_signal() {
+    #[cfg(unix)]
+    {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {},
+                    _ = terminate.recv() => {},
+                }
+            }
+            Err(error) => {
+                tracing::error!(%error, "could not install SIGTERM handler");
+                let _ = tokio::signal::ctrl_c().await;
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = tokio::signal::ctrl_c().await;
 }
 
 fn arm_force_quit() {

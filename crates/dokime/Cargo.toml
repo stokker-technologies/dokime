@@ -63,6 +63,8 @@ time = { workspace = true }
 uuid = { workspace = true, optional = true }
 
 # Serialization
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
 base64 = { workspace = true, optional = true }
 prost = { workspace = true }
 serde = { workspace = true }
@@ -90,7 +92,6 @@ libc = { workspace = true }
 harmos = { workspace = true, features = ["plugin-sidecar"] }
 
 # Serialization
-arrow-schema = { workspace = true }
 serde_json = { workspace = true }
 
 # Filesystem

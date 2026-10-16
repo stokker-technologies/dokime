@@ -64,14 +64,14 @@ pub(crate) async fn report_publication_reopens() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let storage = Manager::new(
         StorageBackends {
             primary,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
-        Default::default(),
+        super::sqlite::storage::storage_settings(),
     )
     .unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -127,6 +127,7 @@ pub(crate) async fn report_publication_reopens() {
             dependencies_saved: &saved,
             executions: &[],
             inputs: &[],
+            materialized_inputs: &[],
             file: &file,
         },
     )
@@ -142,14 +143,14 @@ pub(crate) async fn report_publication_reopens() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.recovery(Default::default()));
+    let recovery = Arc::new(primary.state(Default::default()));
     let storage = Manager::new(
         StorageBackends {
             primary,
-            recovery,
+            state: recovery,
             replicas: vec![],
         },
-        Default::default(),
+        super::sqlite::storage::storage_settings(),
     )
     .unwrap();
     let runtime = Runtime::<Reader>::builder((), ())

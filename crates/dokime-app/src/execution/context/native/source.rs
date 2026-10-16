@@ -27,7 +27,7 @@ use super::{context::Context, records::Contracts as RecordContracts, telemetry::
 use crate::execution::context::{ExecutionContext, source::CapturedSource};
 use crate::{Error, Result};
 use dokime::core::{Identifier, NodeId, Timestamp};
-use dokime::execution::saved::{EXECUTION_CONTEXT_SCHEMA_VERSION, ExecutionRevision};
+use dokime::execution::saved::EXECUTION_CONTEXT_SCHEMA_VERSION;
 use dokime::records::RecordContract;
 use dokime::storage::objects::presentation as native;
 use dokime::telemetry::contract::TelemetryContract;
@@ -46,6 +46,9 @@ pub(crate) struct Source {
     schema_version: u32,
     owner_node_id: String,
     execution: Option<native::ExecutionRevision>,
+    execution_id: String,
+    lifecycle_id: String,
+    lifecycle: Option<dokime::storage::objects::execution::Execution>,
     evidence_through: Option<StorageCursor>,
     telemetry_contracts: Option<Contracts>,
     context: Option<Context>,
@@ -64,11 +67,15 @@ impl Source {
             .saturating_add(value.owner_node_id.as_str().len())
             .saturating_add(value.validation_memory())
             .saturating_add(value.captured_at.as_str().len());
-        bytes = excess(
-            bytes,
-            native::ExecutionRevision::encoding_memory(&value.execution)?,
-            std::mem::size_of::<native::ExecutionRevision>(),
-        );
+        bytes = bytes
+            .saturating_add(value.execution_id.as_str().len())
+            .saturating_add(value.lifecycle_id.len())
+            .saturating_add(
+                dokime::storage::objects::execution::Execution::encoding_memory(&value.lifecycle)?,
+            );
+        if let Some(anchor) = &value.execution {
+            bytes = bytes.saturating_add(native::ExecutionRevision::encoding_memory(anchor)?);
+        }
         bytes = excess(
             bytes,
             value.evidence_through.memory_size(),
@@ -95,7 +102,7 @@ impl Source {
         if self.schema_version != SCHEMA_VERSION {
             return Err(invalid("unsupported native captured report schema"));
         }
-        let execution = required(&self.execution)?;
+        let lifecycle = required(&self.lifecycle)?;
         let evidence = required(&self.evidence_through)?;
         let contracts = required(&self.telemetry_contracts)?;
         let records = required(&self.record_contracts)?;
@@ -103,11 +110,13 @@ impl Source {
         let mut bytes = std::mem::size_of::<CapturedSource>()
             .saturating_add(self.owner_node_id.capacity())
             .saturating_add(self.captured_at.capacity());
-        bytes = excess(
-            bytes,
-            execution.projection_memory()?,
-            std::mem::size_of::<ExecutionRevision>(),
-        );
+        bytes = bytes
+            .saturating_add(self.execution_id.capacity())
+            .saturating_add(self.lifecycle_id.capacity())
+            .saturating_add(lifecycle.projection_memory()?);
+        if let Some(anchor) = &self.execution {
+            bytes = bytes.saturating_add(anchor.projection_memory()?);
+        }
         bytes = excess(
             bytes,
             evidence.memory_size(),
@@ -147,7 +156,11 @@ impl Source {
         let value = CapturedSource {
             owner_node_id: NodeId::from_uuid(self.owner_node_id)
                 .map_err(dokime::storage::Error::from)?,
-            execution: take(self.execution)?.try_into()?,
+            execution: self.execution.map(TryInto::try_into).transpose()?,
+            execution_id: dokime::core::TestExecutionId::from_uuid(self.execution_id)
+                .map_err(dokime::storage::Error::from)?,
+            lifecycle_id: self.lifecycle_id,
+            lifecycle: take(self.lifecycle)?.try_into()?,
             evidence_through: take(self.evidence_through)?,
             telemetry_contracts: take(self.telemetry_contracts)?.try_into()?,
             record_contracts: take(self.record_contracts)?.try_into()?,
@@ -170,7 +183,16 @@ impl TryFrom<&CapturedSource> for Source {
         Ok(Self {
             schema_version: SCHEMA_VERSION,
             owner_node_id: text(value.owner_node_id.as_str())?,
-            execution: Some(native::ExecutionRevision::try_from(&value.execution)?),
+            execution: value
+                .execution
+                .as_ref()
+                .map(native::ExecutionRevision::try_from)
+                .transpose()?,
+            execution_id: text(value.execution_id.as_str())?,
+            lifecycle_id: text(&value.lifecycle_id)?,
+            lifecycle: Some(dokime::storage::objects::execution::Execution::try_from(
+                &value.lifecycle,
+            )?),
             evidence_through: Some(value.evidence_through.clone()),
             telemetry_contracts: Some(Contracts::try_from(&value.telemetry_contracts)?),
             record_contracts: Some(RecordContracts::try_from(&value.record_contracts)?),

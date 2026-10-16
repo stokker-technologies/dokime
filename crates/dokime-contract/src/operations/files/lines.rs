@@ -54,6 +54,7 @@ pub struct LineMatchers {
 
 #[derive(Clone, Debug)]
 struct CompiledRow {
+    storage_schema: harmos::schema::graph::Schema,
     pattern: Regex,
     stream: String,
     fields: Vec<(String, LineFieldKind)>,
@@ -70,6 +71,7 @@ pub struct LineBuffer {
 #[derive(Clone, Debug, PartialEq)]
 pub enum LineMatch {
     Row {
+        storage_schema: harmos::schema::graph::Schema,
         stream: String,
         values: BTreeMap<String, Value>,
     },
@@ -88,6 +90,8 @@ pub enum InvalidLineMatcher {
     Shape { index: usize },
     #[error("pattern {index} is invalid: {reason}")]
     Pattern { index: usize, reason: String },
+    #[error("matcher {index} schema is incompatible with its finite scalar captures")]
+    Schema { index: usize },
     #[error("matcher {index} names no stream or no field")]
     Target { index: usize },
     #[error("matcher {index} field {field:?} has no named capture group or no kind")]
@@ -102,8 +106,16 @@ pub enum InvalidLineMatcher {
 impl LineMatcher {
     // Publishes one row of `S` per matching line, each column read from the
     // named group of the same name.
-    pub fn publishing<S: TelemetryStream>(pattern: impl Into<String>) -> Self {
+    pub fn publishing<S: TelemetryStream>(pattern: impl Into<String>) -> Self
+    where
+        S::Row: harmos::Message + harmos::schema::Described,
+    {
         Self {
+            storage_schema: harmos::schema::graph::Schema::from_declaration(
+                <S::Row as harmos::schema::Described>::DEFINITION,
+                &harmos::config::SchemaSettings::default(),
+            )
+            .expect("a matcher row declares a valid finite schema"),
             pattern: pattern.into(),
             stream: S::ID.to_owned(),
             fields: <S::Row as TelemetryRow>::columns()
@@ -149,7 +161,38 @@ impl LineMatchers {
             if matcher.stream.is_empty() || matcher.fields.is_empty() {
                 return Err(InvalidLineMatcher::Target { index });
             }
+            use harmos::schema::{Cardinality, graph::Kind};
+            matcher
+                .storage_schema
+                .preparation(&harmos::config::SchemaSettings::default())
+                .map_err(|_| InvalidLineMatcher::Schema { index })?;
+            let declaration = &matcher.storage_schema.definitions[matcher.storage_schema.root];
+            if declaration.len() != matcher.fields.len()
+                || declaration.iter().any(|field| {
+                    let expected = match field.kind {
+                        Kind::Bool => LineFieldKind::Boolean,
+                        Kind::I32 | Kind::I64 | Kind::U32 | Kind::U64 => LineFieldKind::Integer,
+                        Kind::F32 | Kind::F64 => LineFieldKind::Number,
+                        Kind::String => LineFieldKind::Text,
+                        _ => return true,
+                    };
+                    matches!(
+                        field.cardinality,
+                        Cardinality::Repeated | Cardinality::Variant
+                    ) || !matcher
+                        .fields
+                        .iter()
+                        .any(|capture| capture.name == field.name && capture.kind == expected)
+                })
+            {
+                return Err(InvalidLineMatcher::Schema { index });
+            }
             let named = pattern.capture_names().flatten().collect::<Vec<_>>();
+            if declaration.iter().any(|field| {
+                field.cardinality == Cardinality::Required && !named.contains(&field.name.as_ref())
+            }) {
+                return Err(InvalidLineMatcher::Schema { index });
+            }
             let mut fields = Vec::with_capacity(matcher.fields.len());
             for field in &matcher.fields {
                 if field.kind == LineFieldKind::Unspecified {
@@ -167,6 +210,7 @@ impl LineMatchers {
                 return Err(InvalidLineMatcher::Target { index });
             }
             compiled.rows.push(CompiledRow {
+                storage_schema: matcher.storage_schema.clone(),
                 pattern,
                 stream: matcher.stream.clone(),
                 fields,
@@ -210,6 +254,7 @@ impl LineMatchers {
             }
             if readable && !values.is_empty() {
                 found.push(LineMatch::Row {
+                    storage_schema: row.storage_schema.clone(),
                     stream: row.stream.clone(),
                     values,
                 });
@@ -291,7 +336,11 @@ fn read(text: &str, kind: LineFieldKind) -> Option<Value> {
     let text = text.trim();
     match kind {
         LineFieldKind::Text => Some(Value::Text(text.to_owned())),
-        LineFieldKind::Integer => text.parse().ok().map(Value::Integer),
+        LineFieldKind::Integer => text
+            .parse::<i64>()
+            .ok()
+            .map(Value::Integer)
+            .or_else(|| text.parse::<u64>().ok().map(Value::Unsigned)),
         LineFieldKind::Number => text
             .parse::<f64>()
             .ok()
@@ -311,10 +360,24 @@ fn read(text: &str, kind: LineFieldKind) -> Option<Value> {
 mod tests {
     use super::*;
 
+    fn row_schema() -> harmos::schema::graph::Schema {
+        #[harmos::message]
+        struct Log {
+            temperature_c: f64,
+            state: String,
+        }
+        harmos::schema::graph::Schema::from_declaration(
+            <Log as harmos::schema::Described>::DEFINITION,
+            &harmos::config::SchemaSettings::default(),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn lines_become_rows_and_markers() {
         let matchers = LineMatchers::compile(
             &[LineMatcher {
+                storage_schema: row_schema(),
                 pattern: r"temperature=(?P<temperature_c>[-\d.]+) state=(?P<state>\w+)".into(),
                 stream: "bench.charger.log".into(),
                 fields: vec![
@@ -341,6 +404,7 @@ mod tests {
         assert_eq!(
             matchers.matches(&lines[0]),
             vec![LineMatch::Row {
+                storage_schema: row_schema(),
                 stream: "bench.charger.log".into(),
                 values: BTreeMap::from([
                     ("state".to_owned(), Value::Text("charging".into())),
@@ -369,6 +433,7 @@ mod tests {
         ));
         let unnamed = LineMatchers::compile(
             &[LineMatcher {
+                storage_schema: row_schema(),
                 pattern: r"(\d+)".into(),
                 stream: "s".into(),
                 fields: vec![LineField {
@@ -379,6 +444,6 @@ mod tests {
             &[],
         )
         .unwrap_err();
-        assert_eq!(unnamed, InvalidLineMatcher::Target { index: 0 });
+        assert_eq!(unnamed, InvalidLineMatcher::Schema { index: 0 });
     }
 }

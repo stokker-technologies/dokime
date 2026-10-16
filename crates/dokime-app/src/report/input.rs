@@ -51,9 +51,6 @@ pub struct CycleReportInput {
     #[serde(default)]
     pub appearance: Option<Value>,
     pub generated_at: Timestamp,
-    /// What this report left out or cut to fit its budget, and why.
-    #[serde(default)]
-    pub omissions: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -137,10 +134,6 @@ impl harmos::MemorySize for CycleReportInput {
             (
                 harmos::MemorySize::memory_size(&self.generated_at),
                 std::mem::size_of_val(&self.generated_at),
-            ),
-            (
-                harmos::MemorySize::memory_size(&self.omissions),
-                std::mem::size_of_val(&self.omissions),
             ),
         ];
         fields

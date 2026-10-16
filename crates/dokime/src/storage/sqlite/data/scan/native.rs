@@ -30,7 +30,7 @@ use harmos::{
 use crate::storage::sqlite::{Error, memory, query};
 use crate::{
     core::{EvidenceOrigin, RecordScope, Value},
-    storage::{records, telemetry},
+    storage::records,
 };
 
 /* === Constants === */
@@ -49,11 +49,9 @@ pub(super) struct Row {
 #[derive(Clone, Copy)]
 pub(in crate::storage::sqlite::data) enum Kind {
     Record,
-    Telemetry,
 }
 enum Data {
     Record(crate::records::RecordEntry),
-    Telemetry(telemetry::TelemetryEntry),
 }
 
 /* === Traits === */
@@ -63,8 +61,6 @@ impl Kind {
     pub(super) fn for_schema(key: &SchemaKey) -> Option<Self> {
         if *key == records::schema() {
             Some(Self::Record)
-        } else if *key == telemetry::schema() {
-            Some(Self::Telemetry)
         } else {
             None
         }
@@ -72,7 +68,6 @@ impl Kind {
     pub(super) fn schema(self) -> Result<Schema, Error> {
         let declaration = match self {
             Self::Record => records::RecordRow::DEFINITION,
-            Self::Telemetry => telemetry::TelemetryRow::DEFINITION,
         };
         Schema::from_declaration(declaration, &harmos::config::SchemaSettings::default()).map_err(
             |error| {
@@ -114,7 +109,6 @@ impl Kind {
         let first = path[0].as_str();
         let dynamic = match self {
             Self::Record => first == "details",
-            Self::Telemetry => matches!(first, "values" | "summary" | "metadata"),
         };
         if dynamic && path.len() >= 2 {
             return Ok(());
@@ -150,19 +144,6 @@ impl Kind {
                 let record = row.into_entry(bound(bytes)?).map_err(codec)?;
                 Ok(Row {
                     value: Data::Record(record),
-                    _memory: admission,
-                })
-            }
-            Self::Telemetry => {
-                let bytes = telemetry::TelemetryRow::decoding_memory(payload).map_err(codec)?;
-                let _decoded = memory.reserve_owned(bytes, usize::MAX)?;
-                let row =
-                    telemetry::TelemetryRow::from_bytes(payload, maximum.get()).map_err(codec)?;
-                let bytes = row.projection_memory().map_err(codec)?;
-                let admission = memory.reserve_owned(bytes, usize::MAX)?;
-                let entry = row.into_entry(bound(bytes)?).map_err(codec)?;
-                Ok(Row {
-                    value: Data::Telemetry(entry),
                     _memory: admission,
                 })
             }
@@ -217,25 +198,6 @@ impl Row {
                         allowance,
                     ),
                     _ => Err(Error::Data("unsupported native record field")),
-                }
-            }
-            Data::Telemetry(entry) => {
-                let sample = &entry.sample;
-                match path[0].as_str() {
-                    "values" => cell(&sample.values, &path[1..], kind, allowance),
-                    "summary" => cell(&sample.summary, &path[1..], kind, allowance),
-                    "metadata" => cell(&sample.metadata, &path[1..], kind, allowance),
-                    "scope" => scope(sample.scope.as_ref(), &path[1..], allowance),
-                    "epoch" => text(entry.epoch.as_str(), allowance),
-                    "ordinal" => Ok(ScalarValue::Unsigned(entry.ordinal)),
-                    "sequence" => Ok(ScalarValue::Unsigned(sample.sequence)),
-                    "schema_version" => Ok(ScalarValue::Unsigned(u64::from(sample.schema_version))),
-                    "timestamp" => timestamp(&sample.timestamp, kind, allowance),
-                    "received_at" => timestamp(&sample.received_at, kind, allowance),
-                    "sample_id" => text(sample.sample_id.as_str(), allowance),
-                    "stream" => text(sample.stream.as_str(), allowance),
-                    "source" => text(&sample.source, allowance),
-                    _ => Err(Error::Data("unsupported native telemetry field")),
                 }
             }
         }

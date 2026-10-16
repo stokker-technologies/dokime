@@ -52,7 +52,7 @@ use dokime::{
 #[derive(Clone)]
 pub struct ExecutionView {
     view: StorageView,
-    execution: SharedQueryValue<ObjectRevision<TestExecution>>,
+    execution: Option<SharedQueryValue<ObjectRevision<TestExecution>>>,
     captured: Option<SharedQueryValue<CapturedSource>>,
 }
 
@@ -92,7 +92,7 @@ impl ExecutionView {
         drop(validation);
         Ok(Some(Self {
             view,
-            execution,
+            execution: Some(execution),
             captured: None,
         }))
     }
@@ -127,9 +127,9 @@ impl ExecutionView {
             return Ok(None);
         };
         let validation = inspection.view.begin_computation()?;
-        if inspection.execution.position != checkpoint.position
-            || inspection.execution.version != checkpoint.version
-            || inspection.execution.value.test_execution_id != checkpoint.execution_id
+        if inspection.revision()?.position != checkpoint.position
+            || inspection.revision()?.version != checkpoint.version
+            || inspection.revision()?.value.test_execution_id != checkpoint.execution_id
             || inspection.source()?.evidence_through != checkpoint.evidence_through
         {
             return Err(Error::Storage(dokime::storage::Error::Invalid(
@@ -143,7 +143,7 @@ impl ExecutionView {
 
     pub fn checkpoint(&self, limit: NonZeroUsize) -> Result<QueryValue<ExecutionCheckpoint>> {
         // A Snapshot Of A Sealed Revision Keeps Its Seal; Only Pre-Report Captures Lack One.
-        if self.captured.is_some() && self.execution.value.saved.is_none() {
+        if self.captured.is_some() && self.execution().saved.is_none() {
             return Err(Error::Storage(dokime::storage::Error::Invalid(
                 "captured pre-report execution has no sealed checkpoint",
             )));
@@ -151,7 +151,7 @@ impl ExecutionView {
         let source = self.source()?;
         let checkpoint =
             self.view
-                .project_shared(&self.execution, limit, |revision, allowance| {
+                .project_shared(self.revision()?, limit, |revision, allowance| {
                     let fields = [
                         (
                             revision.value.test_execution_id.memory_size(),
@@ -228,20 +228,19 @@ impl ExecutionView {
             .into());
         }
         let saved = view.saved()?;
-        if captured.execution.position.sequence == 0
-            || !saved.covers(&captured.evidence_through)?
-            || !captured
-                .evidence_through
-                .covers(&captured.execution.position)?
-        {
-            return Err(Error::Storage(dokime::storage::Error::Invalid(
-                "captured execution input exceeds the original saved view",
-            )));
+        if !saved.covers(&captured.evidence_through)? {
+            return Err(Error::InvalidReportInputs(
+                "captured evidence exceeds saved view".into(),
+            ));
         }
-        captured
-            .execution
-            .version
-            .check_position(&captured.execution.position)?;
+        captured.validate_header()?;
+        if let Some(anchor) = &captured.execution
+            && !saved.covers(&anchor.position)?
+        {
+            return Err(Error::InvalidReportInputs(
+                "captured anchor exceeds saved view".into(),
+            ));
+        }
         let scratch = output_validation_memory(&captured.outputs)
             .checked_add(captured.context.validation_memory())
             .and_then(NonZeroUsize::new)
@@ -252,52 +251,41 @@ impl ExecutionView {
             })?;
         let _validation = storage.prepare_production(scratch)?;
         validate_outputs(
-            &captured.execution.execution_id,
+            &captured.execution_id,
             &captured.evidence_through,
             &captured.outputs,
         )
         .map_err(dokime::storage::Error::from)?;
 
-        // Retain Exact Selector Copies Through Original Query Admission
-        let selection = captured
-            .execution
-            .version
-            .memory_size()
-            .checked_add(std::mem::size_of::<ObjectVersion>())
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| {
-                Error::Storage(dokime::storage::Error::Invalid(
-                    "captured execution selector memory overflow",
-                ))
-            })?;
-        let _selection = storage.prepare_production(selection)?;
-        let version = ObjectVersion::Exact(captured.execution.version.clone());
         validation.check()?;
         drop(validation);
-        let execution = dokime::storage::objects::execution::read_in(
-            storage,
-            &view,
-            &captured.execution.execution_id,
-            version,
-            limit,
-        )
-        .await?
-        .ok_or_else(|| {
-            Error::Storage(dokime::storage::Error::Invalid(
-                "captured execution revision is missing",
-            ))
-        })?;
+        let execution = if let Some(anchor) = &captured.execution {
+            let revision = dokime::storage::objects::execution::read_in(
+                storage,
+                &view,
+                &captured.execution_id,
+                ObjectVersion::Exact(anchor.version.clone()),
+                limit,
+            )
+            .await?
+            .ok_or_else(|| {
+                Error::InvalidReportInputs("captured primary anchor is missing".into())
+            })?;
+            if revision.position != anchor.position
+                || revision.version != anchor.version
+                || revision.value.test_execution_id != captured.execution_id
+                || revision.value.saved.is_some()
+            {
+                return Err(Error::InvalidReportInputs(
+                    "captured primary anchor differs from stored revision".into(),
+                ));
+            }
+            Some(revision.try_into_shared()?)
+        } else {
+            None
+        };
         let validation = view.begin_computation()?;
-        if execution.position != captured.execution.position
-            || execution.version != captured.execution.version
-            || execution.value.test_execution_id != captured.execution.execution_id
-            || execution.value.saved.is_some()
-        {
-            return Err(Error::Storage(dokime::storage::Error::Invalid(
-                "captured input differs from its pre-report execution revision",
-            )));
-        }
-        captured.context.validate(&execution.value)?;
+        captured.context.validate(&captured.lifecycle)?;
         // Bind Pre-Report Artifact Attribution To The Exact Unsealed Owner.
         for output in &captured.outputs {
             let ExecutionOutputContent::Artifact { record, .. } = &output.content else {
@@ -307,19 +295,18 @@ impl ExecutionView {
                 .scope
                 .test_cycle_id
                 .as_ref()
-                .is_some_and(|id| id != &execution.value.test_cycle_id)
+                .is_some_and(|id| id != &captured.lifecycle.test_cycle_id)
                 || record
                     .scope
                     .test_case_id
                     .as_ref()
-                    .is_some_and(|id| id != &execution.value.test_case_id)
+                    .is_some_and(|id| id != &captured.lifecycle.test_case_id)
             {
                 return Err(Error::Storage(dokime::storage::Error::Invalid(
                     "captured artifact scope differs from its pre-report execution owner",
                 )));
             }
         }
-        let execution = execution.try_into_shared()?;
         validation.check()?;
         drop(validation);
         let inspection = Self {
@@ -339,7 +326,9 @@ impl ExecutionView {
     }
 
     pub async fn snapshot(&self, storage: &Manager) -> Result<Self> {
-        self.execution.check_origin(storage)?;
+        if let Some(execution) = &self.execution {
+            execution.check_origin(storage)?;
+        }
         if let Some(source) = &self.captured {
             source.check_origin(storage)?;
             return Ok(self.clone());
@@ -410,28 +399,37 @@ impl ExecutionView {
         &self.view
     }
 
-    pub fn revision(&self) -> &SharedQueryValue<ObjectRevision<TestExecution>> {
-        &self.execution
+    pub fn revision(&self) -> Result<&SharedQueryValue<ObjectRevision<TestExecution>>> {
+        self.execution.as_ref().ok_or_else(|| {
+            Error::InvalidReportInputs("execution has no persisted primary anchor".into())
+        })
     }
 
     pub fn execution(&self) -> &TestExecution {
-        &self.execution.value
+        if let Some(execution) = &self.execution
+            && (execution.value.saved.is_some() || self.captured.is_none())
+        {
+            return &execution.value;
+        }
+        &self
+            .captured
+            .as_ref()
+            .expect("captured view has lifecycle metadata")
+            .lifecycle
     }
 
     pub(crate) async fn read_source(&self) -> Result<QueryValue<CapturedSource>> {
-        crate::execution::context::read::read_execution(&self.view, &self.execution).await
+        crate::execution::context::read::read_execution(&self.view, self.revision()?).await
     }
 
     pub(crate) fn source(&self) -> Result<&ExecutionSource> {
-        self.execution
+        self.revision()?
             .value
             .saved
             .as_ref()
             .map(|seal| &seal.source)
             .ok_or_else(|| {
-                Error::Storage(dokime::storage::Error::Invalid(
-                    "execution has no captured source dependencies",
-                ))
+                Error::InvalidReportInputs("execution has no captured source dependencies".into())
             })
     }
 
@@ -466,7 +464,7 @@ impl ExecutionView {
                 }),
             None => self
                 .view
-                .project_shared(&self.execution, limit, |revision, allowance| {
+                .project_shared(self.revision()?, limit, |revision, allowance| {
                     let seal = revision.value.saved.as_ref().ok_or_else(|| {
                         harmos::Error::backend(
                             "project inspected execution outputs",
@@ -502,34 +500,16 @@ impl ExecutionView {
         super::telemetry::TelemetryReader::open(storage, self, page, projection, true)
     }
 
-    /// This execution's own telemetry, one page at a time, under this view's
-    /// limits.
-    pub(crate) fn telemetry(
-        &self,
-        storage: &Manager,
-        page: ReadLimits,
-        projection: NonZeroUsize,
-    ) -> Result<super::telemetry::TelemetryReader> {
-        self.check_projection(projection)?;
-        super::telemetry::TelemetryReader::open(storage, self, page, projection, false)
-    }
-
     pub async fn read_file(&self, file: &FileReference) -> Result<StorageFileReader> {
-        let owned = if let Some(source) = &self.captured {
-            source.outputs.iter().any(|output| &output.file == file)
-                || self
-                    .execution
-                    .value
-                    .saved
-                    .as_ref()
-                    .is_some_and(|seal| seal.files().any(|owned| owned == file))
-        } else {
-            self.execution
-                .value
+        let owned = self
+            .captured
+            .as_ref()
+            .is_some_and(|source| source.outputs.iter().any(|output| &output.file == file))
+            || self
+                .execution()
                 .saved
                 .as_ref()
-                .is_some_and(|seal| seal.files().any(|owned| owned == file))
-        };
+                .is_some_and(|seal| seal.files().any(|owned| owned == file));
         if !owned {
             return Err(Error::Storage(dokime::storage::Error::Invalid(
                 "file is not an exact captured dependency of this execution",

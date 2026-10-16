@@ -205,12 +205,18 @@ impl<T: crate::execution::SidecarTemplate> ExecutionSampleSink<T> {
 impl Pending {
     // Stamp the row with its production instant, never earlier than the
     // stream's previous row, and report how many rows the stream now holds.
-    fn push(&mut self, stream: &Identifier, values: BTreeMap<String, Value>) -> usize {
+    fn push(
+        &mut self,
+        stream: &Identifier,
+        values: BTreeMap<String, Value>,
+        storage_payload: Option<Vec<u8>>,
+    ) -> usize {
         let buffered = self.streams.entry(stream.clone()).or_default();
         let stamp = unix_micros().max(buffered.latest);
         buffered.latest = stamp;
         buffered.rows.push(crate::execution::StampedRow {
             values,
+            storage_payload,
             published_unix_micros: stamp,
         });
         buffered.rows.len()
@@ -263,6 +269,7 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
         &'a self,
         stream: &'a Identifier,
         values: BTreeMap<String, Value>,
+        storage_payload: Option<Vec<u8>>,
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
         Box::pin(async move {
             if lock(&self.executions)
@@ -274,14 +281,19 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
             if let Some(output) = self.host_output() {
                 let (host, publish) = output?;
                 let mut pending = self.pending.lock().await;
-                if pending.push(stream, values) < BATCH_ROWS {
+                if pending.push(stream, values, storage_payload) < BATCH_ROWS {
                     return Ok(());
                 }
                 let rows = pending.take(stream);
                 return publish(host, &self.token, stream, &rows).await;
             }
             if let Some(crate::execution::SampleOutput::Embedded(publisher)) = &self.host {
-                return publisher.publish(&self.token, stream, values);
+                return publisher.publish(
+                    &self.token,
+                    stream,
+                    values,
+                    storage_payload.ok_or("typed publication requires original row bytes")?,
+                );
             }
 
             let mut executions = lock(&self.executions);
@@ -295,6 +307,7 @@ impl<T: crate::execution::SidecarTemplate> SampleSink for ExecutionSampleSink<T>
                 self.source.clone(),
             );
             sample.values = values;
+            sample.storage_payload = storage_payload;
             state.local_sample(sample)?;
             Ok(())
         })

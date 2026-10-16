@@ -938,12 +938,8 @@ export function usableCartesianFrame(
   }
   const selected = indices.map((index) => cartesian.series[index]);
   return {
-    mode: cartesian.mode,
+    ...cartesian,
     series: selected,
-    point_count: selected.reduce(
-      (total, series) => total + series.y.filter((value) => value !== null).length,
-      0,
-    ),
     signature: `${cartesian.signature}:${indices.join(",")}`,
   };
 }

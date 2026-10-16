@@ -22,7 +22,7 @@ use std::time::Instant;
 // Local Imports
 use crate::support::plugins::fixture_bundle;
 use crate::support::prelude::*;
-use dokime_app::config::StorageReadSettings;
+use dokime_app::config::StorageSettings;
 use dokime_app::domains::execution::requests::RunPhase;
 use dokime_app::runtime::query::{PlotPayloadRequest, RuntimePlotQueryMode};
 
@@ -72,7 +72,6 @@ struct WatchOutcome {
 struct ReportOutcome {
     rendered: usize,
     failures: Vec<String>,
-    omissions: Vec<String>,
 }
 
 /* === Enums === */
@@ -101,8 +100,13 @@ pub(crate) async fn contended_reads_stay_interactive() {
                 }),
             )
             .unwrap()]);
-    config.storage_reads.memory_bytes = INCIDENT_READ_MEMORY;
-    let interactive = StorageReadSettings::default().interactive.timeout;
+    config.storage.budget.read_memory_bytes = INCIDENT_READ_MEMORY;
+    config.storage.interactive.memory_bytes = INCIDENT_READ_MEMORY;
+    config.storage.ceiling.memory_bytes = INCIDENT_READ_MEMORY;
+    config.storage.page_bytes = std::num::NonZeroUsize::new(64 * 1024).unwrap();
+    config.storage.page_bytes_ceiling = INCIDENT_READ_MEMORY;
+    config.storage.decoded_bytes_ceiling = INCIDENT_READ_MEMORY;
+    let interactive = StorageSettings::default().interactive.timeout;
     let (mut runtime, handle) = started(config).await;
     let suite = handle
         .test_suites()
@@ -222,12 +226,6 @@ pub(crate) async fn contended_reads_stay_interactive() {
         report.failures
     );
     assert!(report.rendered > 0, "the open report rendered");
-    assert!(
-        report.omissions.is_empty(),
-        "the open report left evidence out: {:?}",
-        report.omissions
-    );
-
     // Both Cycles Settle Once The Held Steps Are Released.
     std::fs::write(&release, b"").unwrap();
     assert_eq!(settle(&handle, &held.command_id).await, RunPhase::Completed);
@@ -337,34 +335,12 @@ async fn report_loop(
         match handle.open_execution_report(&execution).await {
             Ok(opened) => {
                 outcome.rendered += 1;
-                let payload =
-                    crate::support::reports::parse(std::str::from_utf8(&opened.html).unwrap());
-                outcome.omissions.extend(omissions(&payload));
+                assert!(!opened.html.is_empty());
             }
             Err(error) => outcome.failures.push(error.to_string()),
         }
     }
     outcome
-}
-
-// What a rendered report says it left out, as warnings and as plots it
-// replaced with a placeholder.
-fn omissions(payload: &serde_json::Value) -> Vec<String> {
-    let warnings = payload["warnings"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|warning| warning.as_str())
-        .filter(|warning| warning.starts_with("report.omitted: "))
-        .map(str::to_owned);
-    let plots = payload["case_runs"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|run| run["plots"].as_object())
-        .flatten()
-        .filter_map(|(id, plot)| plot["omitted"].as_str().map(|why| format!("{id}: {why}")));
-    warnings.chain(plots).collect()
 }
 
 /* === Tests === */

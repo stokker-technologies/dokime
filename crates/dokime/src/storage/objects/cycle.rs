@@ -166,7 +166,7 @@ impl Identified for Cycle {
 }
 impl StoredObject for Cycle {
     type Key = str;
-    const RETENTION: ObjectRetention = ObjectRetention::Latest;
+    const RETENTION: ObjectRetention = ObjectRetention::UntilReleased;
     fn key(&self) -> &str {
         &self.cycle_id
     }

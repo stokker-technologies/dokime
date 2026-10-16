@@ -53,8 +53,8 @@ const STEADY_CASES: usize = 9;
 pub(crate) async fn tight_budget_seals() {
     let root = tempdir().unwrap();
     let mut tight = config(root.path()).with_plugins([fixture_bundle(root.path(), "mini-sidecar")]);
-    tight.storage_reads.interactive.timeout = TIGHT_QUERY_BUDGET;
-    tight.storage_reads.report.timeout = TIGHT_QUERY_BUDGET;
+    tight.storage.interactive.timeout = TIGHT_QUERY_BUDGET;
+    tight.storage.interactive.timeout = TIGHT_QUERY_BUDGET;
     let (mut owner, runtime) = started(tight).await;
     let registration = runtime
         .test_suites()

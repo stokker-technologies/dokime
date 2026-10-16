@@ -11,10 +11,10 @@
 //
 // A sealed subject answers with the bytes its finalization published. A
 // subject still in live state, running or left unsealed by a runtime that
-// stopped before finalization, answers with a report rendered from its
-// current evidence. A sealed subject whose published file can no longer be
-// read answers with a report rendered again from its sealed evidence. The
-// last two are never written back: the seal stays the stable boundary.
+// stopped before finalization, materializes at its pending frozen boundary,
+// or the current persisted cursor when no finalization is pending.
+// An unreadable sealed report returns an error: finalized
+// evidence may already have been pruned, and its published bytes are authoritative.
 
 /* === Modules === */
 
@@ -22,31 +22,15 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{future::Future, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{
-        FileReference, ObjectVersion, QueryValue, SharedQueryValue, StorageFileReader, StorageView,
-    },
-};
+use harmos::storage::{FileReference, ObjectVersion, QueryValue, StorageFileReader};
 // Local Imports
-use super::{cycle::CycleSnapshot, cycle_finalization, execution::ExecutionView};
-use crate::{Error, Result, RuntimeHandle, execution::CycleView, runtime::progress::Operation};
-use dokime::{
-    core::{Metadata, TestCycleId, TestExecutionId, Timestamp},
-    execution::{ExecutionStatus, TestCycle},
-};
+use super::execution::ExecutionView;
+use crate::{Error, Result, RuntimeHandle, runtime::progress::Operation};
+use dokime::core::{Metadata, TestCycleId, TestExecutionId, Timestamp};
 
 /* === Constants === */
-/// The largest report Open Report delivers, sealed or rendered.
-pub const MAX_OPENED_REPORT_BYTES: usize = 16 * 1024 * 1024;
-const READ_CHUNK_BYTES: usize = 64 * 1024;
-/// How long Open Report waits out other readers holding the storage memory.
-const CONTENTION_PATIENCE: std::time::Duration = std::time::Duration::from_secs(30);
-const CONTENTION_FIRST_DELAY: std::time::Duration = std::time::Duration::from_millis(50);
-const CONTENTION_LAST_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
-
 /* === Macros === */
 
 /* === Type Aliases === */
@@ -70,10 +54,7 @@ pub struct OpenedReport {
 pub enum ReportOrigin {
     /// The report finalization sealed, read back unchanged.
     Sealed,
-    /// The sealed report could not be read, so it was rendered again from the
-    /// sealed evidence.
-    Regenerated,
-    /// The subject is not sealed: rendered from its current evidence.
+    /// The subject is not sealed: materialized at its selected persisted boundary.
     Current,
 }
 
@@ -84,7 +65,7 @@ impl RuntimeHandle {
     /// The report a cycle has right now. See the module comment for which.
     pub async fn open_cycle_report(&self, id: &TestCycleId) -> Result<OpenedReport> {
         let operation = self.operation_progress().begin("Opening Cycle Report");
-        let opened = contended(&operation, || self.open_cycle_report_once(id, &operation)).await;
+        let opened = self.open_cycle_report_once(id, &operation).await;
         operation.track(opened)
     }
 
@@ -92,10 +73,7 @@ impl RuntimeHandle {
     /// which.
     pub async fn open_execution_report(&self, id: &TestExecutionId) -> Result<OpenedReport> {
         let operation = self.operation_progress().begin("Opening Execution Report");
-        let opened = contended(&operation, || {
-            self.open_execution_report_once(id, &operation)
-        })
-        .await;
+        let opened = self.open_execution_report_once(id, &operation).await;
         operation.track(opened)
     }
 
@@ -131,9 +109,25 @@ impl RuntimeHandle {
             .map(|execution| (execution.saved.is_none(), execution.test_cycle_id.clone()));
         if let Some((true, cycle)) = live {
             operation.phase("Capturing Evidence");
-            let view = self.execution_snapshot(id).await?;
-            let html = crate::report::rendered::execution(self, &view, false, maximum(), operation)
+            let at = self
+                .state_read()
+                .report_finalizations
+                .get(id)
+                .map(|intent| intent.evidence_at.clone())
+                .unwrap_or_else(|| self.storage().cursor_saved());
+            let materialized = self
+                .operations()
+                .call_as::<dokime::operations::reports::MaterializeReport>(
+                    dokime::operations::reports::MaterializeReportRequest {
+                        subject: dokime::operations::reports::ReportSubject::Execution(
+                            id.to_string(),
+                        ),
+                        at,
+                    },
+                )
                 .await?;
+            let reader = self.storage().read_file(&materialized.report).await?;
+            let html = read_whole(self, reader, &materialized.report).await?;
             return Ok(OpenedReport {
                 test_cycle_id: cycle,
                 test_execution_id: Some(id.clone()),
@@ -144,7 +138,7 @@ impl RuntimeHandle {
             });
         }
         operation.phase("Reading Sealed Report");
-        let reads = self.config().storage_reads.report;
+        let reads = self.config().storage.interactive;
         let view = super::record_capture::view_when_admitted(self.storage(), reads).await?;
         let limit = view.decoded_bytes()?;
         let inspection =
@@ -156,31 +150,14 @@ impl RuntimeHandle {
         let seal = execution.saved.as_ref().expect("filtered sealed execution");
         let (generated_at, test_cycle_id) =
             (seal.sealed_at.clone(), execution.test_cycle_id.clone());
-        let read = match inspection.read_file(&seal.report).await {
-            Ok(reader) => read_whole(self, reader, &seal.report).await,
-            Err(error) => Err(error),
-        };
-        let (origin, html) = match read {
-            Ok(html) => (ReportOrigin::Sealed, html),
-            Err(error) => {
-                tracing::warn!(%error, execution_id = %id, "sealed execution report is unreadable; rendering it again");
-                let html = crate::report::rendered::execution(
-                    self,
-                    &inspection,
-                    true,
-                    maximum(),
-                    operation,
-                )
-                .await?;
-                (ReportOrigin::Regenerated, html)
-            }
-        };
+        let reader = inspection.read_file(&seal.report).await?;
+        let html = read_whole(self, reader, &seal.report).await?;
         Ok(OpenedReport {
             test_cycle_id,
             test_execution_id: Some(id.clone()),
             metadata: None,
             generated_at,
-            origin,
+            origin: ReportOrigin::Sealed,
             html,
         })
     }
@@ -190,44 +167,29 @@ impl RuntimeHandle {
         id: &TestCycleId,
         operation: &Operation,
     ) -> Result<OpenedReport> {
-        operation.phase("Capturing Evidence");
-        let runtime = self.clone();
-        let cycle = id.clone();
-        let capturing = operation.clone();
-        // Hold The Save Order So Finalization Cannot Seal A Member Mid-Capture.
-        let snapshot = tokio::spawn(async move {
-            let _order = runtime.execution_storage.cycle_save.lock().await;
-            let source = runtime.current_cycle_source(&cycle)?;
-            if source.saved.is_some() {
-                return Err(invalid("cycle sealed while its report was being captured"));
-            }
-            let mut members = Vec::new();
-            members
-                .try_reserve_exact(source.test_executions.len())
-                .map_err(|_| exhausted())?;
-            // An Attempt That Never Started Has No Evidence To Report Yet.
-            let started = source
-                .test_executions
-                .iter()
-                .filter(|execution| execution.status != ExecutionStatus::Pending);
-            let total = started.clone().count() as u64;
-            for (captured, execution) in started.enumerate() {
-                capturing.progress(captured as u64, total);
-                members.push(runtime.snapshot_member(&source, execution).await?);
-            }
-            let view = super::record_capture::view_when_admitted(
-                runtime.storage(),
-                runtime.config().storage_reads.report,
+        operation.phase("Materializing Report");
+        let metadata = self
+            .state_read()
+            .cycle_view(id)
+            .ok_or_else(|| not_found("cycle_not_found", "cycle not found"))?
+            .metadata
+            .clone();
+        let at = self
+            .execution_storage
+            .cycle_materialization_cursor(id)
+            .await?
+            .unwrap_or_else(|| self.storage().cursor_saved());
+        let materialized = self
+            .operations()
+            .call_as::<dokime::operations::reports::MaterializeReport>(
+                dokime::operations::reports::MaterializeReportRequest {
+                    subject: dokime::operations::reports::ReportSubject::Cycle(id.to_string()),
+                    at,
+                },
             )
             .await?;
-            let header = runtime.current_header(&source)?;
-            let appearance = runtime.member_appearance(&members, &view).await?;
-            let node = runtime.state_read().identity.node.node_id.clone();
-            CycleSnapshot::current(runtime.storage(), view, header, members, appearance, &node)
-        })
-        .await??;
-        let metadata = snapshot.source().metadata.clone();
-        let html = crate::report::rendered::cycle(self, snapshot, maximum(), operation).await?;
+        let reader = self.storage().read_file(&materialized.report).await?;
+        let html = read_whole(self, reader, &materialized.report).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,
@@ -268,174 +230,34 @@ impl RuntimeHandle {
             .as_ref()
             .ok_or_else(|| not_found("cycle_report_missing", "cycle has no sealed report"))?;
         seal.validate(cycle).map_err(dokime::storage::Error::from)?;
-        let read = match view.read_file(&seal.report).await {
-            Ok(reader) => read_whole(self, reader, &seal.report).await,
-            Err(error) => Err(error.into()),
-        };
-        let (origin, html) = match read {
-            Ok(html) => (ReportOrigin::Sealed, html),
-            Err(error) => {
-                tracing::warn!(%error, cycle_id = %id, "sealed cycle report is unreadable; rendering it again");
-                operation.phase("Capturing Evidence");
-                let snapshot = self.sealed_snapshot(cycle).await?;
-                let html =
-                    crate::report::rendered::cycle(self, snapshot, maximum(), operation).await?;
-                (ReportOrigin::Regenerated, html)
-            }
-        };
+        let reader = view.read_file(&seal.report).await?;
+        let html = read_whole(self, reader, &seal.report).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,
             metadata: Some(cycle.metadata.clone()),
             generated_at: seal.sealed_at.clone(),
-            origin,
+            origin: ReportOrigin::Sealed,
             html,
         })
-    }
-
-    /// The snapshot the seal was cut from: the same header and the same exact
-    /// member revisions, so the rendering reads the sealed evidence only.
-    async fn sealed_snapshot(&self, cycle: &TestCycle) -> Result<CycleSnapshot> {
-        let seal = cycle.saved.as_ref().expect("sealed cycle");
-        let storage = self.storage();
-        let view =
-            super::record_capture::view_when_admitted(storage, self.config().storage_reads.report)
-                .await?;
-        let limit = view.decoded_bytes()?;
-        let source = storage
-            .produce(bound(cycle.memory_size())?, |_| {
-                let mut source = cycle.clone();
-                source.saved = None;
-                Ok(source)
-            })?
-            .try_into_value()?
-            .try_into_shared()?;
-        let revisions = storage
-            .produce(bound(seal.executions.memory_size())?, |_| {
-                Ok(seal.executions.clone())
-            })?
-            .try_into_value()?
-            .try_into_shared()?;
-        let mut members = Vec::new();
-        if let Some(first) = seal.executions.first() {
-            let member = ExecutionView::open(
-                storage,
-                view.clone(),
-                &first.execution_id,
-                ObjectVersion::Exact(first.version.clone()),
-                limit,
-            )
-            .await?
-            .ok_or_else(|| invalid("sealed cycle member is missing"))?;
-            members.push(member.snapshot(storage).await?);
-        }
-        let appearance = self.member_appearance(&members, &view).await?;
-        CycleSnapshot::capture(
-            storage,
-            view,
-            source,
-            revisions,
-            appearance,
-            &seal.owner_node_id,
-        )
-    }
-
-    fn current_cycle_source(&self, id: &TestCycleId) -> Result<CycleView> {
-        let state = self.state_read();
-        state
-            .cycle_view(id)
-            .ok_or_else(|| not_found("cycle_not_found", "cycle not found"))
-    }
-
-    fn current_header(&self, source: &CycleView) -> Result<SharedQueryValue<TestCycle>> {
-        let session = match &source.session_id {
-            Some(session) => session.clone(),
-            None => self.watch_state().latest().state().session_id.clone(),
-        };
-        Ok(self
-            .storage()
-            .produce(
-                bound(
-                    cycle_finalization::header_memory(source).saturating_add(session.memory_size()),
-                )?,
-                |_| {
-                    let mut header = cycle_finalization::header(source, None);
-                    header.session_id = Some(session.clone());
-                    Ok(header)
-                },
-            )?
-            .try_into_value()?
-            .try_into_shared()?)
-    }
-
-    /// The appearance the first member captured, as finalization takes it, or
-    /// the runtime's own when no member has run.
-    async fn member_appearance(
-        &self,
-        members: &[ExecutionView],
-        view: &StorageView,
-    ) -> Result<SharedQueryValue<crate::installed_plugins::RuntimeAppearanceFrame>> {
-        if let Some(member) = members.first() {
-            let appearance = &member.context()?.appearance;
-            return Ok(self
-                .storage()
-                .produce(bound(appearance.memory_size())?, |_| Ok(appearance.clone()))?
-                .try_into_value()?
-                .try_into_shared()?);
-        }
-        Ok(self
-            .report_appearance(view, view.decoded_bytes()?)
-            .await?
-            .try_into_shared()?)
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Runs `open` again while the storage memory it reads under is held by other
-/// readers. A report that does not fit its own budget degrades instead; this
-/// waits out the moments the shared pool is full rather than refusing.
-/// A cycle report's members degrade one by one; its assembled HTML is not
-/// degraded further, so a cycle whose degraded members together outgrow the
-/// opened-report limit is still refused.
-async fn contended<F: Future<Output = Result<OpenedReport>>>(
-    operation: &Operation,
-    open: impl Fn() -> F,
-) -> Result<OpenedReport> {
-    let mut delay = CONTENTION_FIRST_DELAY;
-    let deadline = tokio::time::Instant::now() + CONTENTION_PATIENCE;
-    loop {
-        match open().await {
-            Err(error)
-                if crate::report::contended(&error)
-                    && tokio::time::Instant::now() + delay < deadline =>
-            {
-                tracing::debug!(%error, "report storage memory is contended; opening again");
-                operation.phase("Waiting for Storage Memory");
-                tokio::time::sleep(delay).await;
-                delay = (delay * 2).min(CONTENTION_LAST_DELAY);
-            }
-            outcome => return outcome,
-        }
-    }
-}
-
-/// Reads a sealed report whole, so a missing or damaged file is known before
-/// a single byte is delivered and the caller can render it again instead.
+/// Reads a sealed report whole so missing or truncated content fails before
+/// any bytes are delivered.
 async fn read_whole(
     runtime: &RuntimeHandle,
     mut reader: StorageFileReader,
     file: &FileReference,
 ) -> Result<QueryValue<Vec<u8>>> {
-    let length = usize::try_from(file.length)
-        .ok()
-        .filter(|length| *length <= MAX_OPENED_REPORT_BYTES)
-        .ok_or_else(|| {
-            Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "sealed report size",
-            })
-        })?;
+    let length = usize::try_from(file.length).ok().ok_or_else(|| {
+        Error::Harmos(harmos::Error::ResourceExhausted {
+            resource: "sealed report size",
+        })
+    })?;
     let mut html = runtime
         .storage()
         .produce(
@@ -447,9 +269,9 @@ async fn read_whole(
             },
         )?
         .try_into_value()?;
-    let chunk = NonZeroUsize::new(READ_CHUNK_BYTES).expect("nonzero report chunk");
+    let batch_bytes = runtime.config().storage.response.batch_bytes;
     let capacity = bound(length.saturating_add(std::mem::size_of::<Vec<u8>>()))?;
-    while let Some(read) = reader.next_chunk(chunk).await? {
+    while let Some(read) = reader.next_chunk(batch_bytes).await? {
         html = html.try_map(capacity, |mut bytes, _| {
             if bytes.len().saturating_add(read.as_bytes().len()) > length {
                 return Err(exhausted());
@@ -462,10 +284,6 @@ async fn read_whole(
         return Err(invalid("sealed report ended before its length"));
     }
     Ok(html)
-}
-
-fn maximum() -> NonZeroUsize {
-    NonZeroUsize::new(MAX_OPENED_REPORT_BYTES).expect("nonzero report limit")
 }
 
 fn bound(bytes: usize) -> Result<NonZeroUsize> {

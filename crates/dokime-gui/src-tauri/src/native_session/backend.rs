@@ -35,9 +35,6 @@ use dokime_contract::{DEV_PROTOCOL, READINESS_PROTOCOL};
 const READINESS_LIMIT: u64 = 16 * 1024;
 
 const READY_TIMEOUT: Duration = Duration::from_secs(60);
-const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
-
-const REAP_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[cfg(any(windows, target_os = "macos"))]
 const PRODUCT: &str = "Dokime";
@@ -168,22 +165,13 @@ impl Process {
 
     pub async fn shutdown(&mut self) -> Result<ExitStatus, String> {
         drop(self.control.take());
-        match tokio::time::timeout(DRAIN_TIMEOUT, self.child.wait()).await {
-            Ok(status) => status.map_err(|error| Self::failure(error, "stop")),
-            Err(_) => {
-                // A backend that ignores its closed control pipe still holds the
-                // execution store, and the desktop cannot exit until it stops.
-                self.child
-                    .start_kill()
-                    .map_err(|error| Self::failure(error, "terminate"))?;
-
-                match tokio::time::timeout(REAP_TIMEOUT, self.child.wait()).await {
-                    Ok(status) => status.map_err(|error| Self::failure(error, "stop")),
-                    Err(_) => Err("The Dokime backend did not stop after being                                    terminated; the desktop is exiting without it."
-                        .to_owned()),
-                }
-            }
-        }
+        // Final Reports May Outlive An Ordinary Transfer Deadline.
+        // The owner retains this process until shutdown finishes or the user
+        // explicitly chooses to exit after a failure.
+        self.child
+            .wait()
+            .await
+            .map_err(|error| Self::failure(error, "stop"))
     }
 
     fn failure(error: std::io::Error, action: &str) -> String {

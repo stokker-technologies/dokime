@@ -92,7 +92,24 @@ pub struct ProviderRecordOutcome {
 pub struct ProviderTelemetryOutcome {
     pub stream: String,
     pub label: String,
-    pub samples: Vec<BTreeMap<String, Value>>,
+    pub samples: Vec<ProviderTelemetryRow>,
+}
+
+/// A producer-declared row and its untouched canonical Postcard representation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderTelemetryRow {
+    pub values: BTreeMap<String, Value>,
+    pub payload: Vec<u8>,
+}
+
+impl ProviderTelemetryRow {
+    pub fn typed<T: harmos::Message + crate::telemetry::TelemetryRow>(row: T) -> Self {
+        let payload = row.encode_to_vec();
+        Self {
+            values: row.into_row(),
+            payload,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

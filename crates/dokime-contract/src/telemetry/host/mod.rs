@@ -12,7 +12,7 @@ pub mod contracts;
 pub mod table;
 
 /* === Re-Exports === */
-pub use contracts::{host_telemetry_contract, host_telemetry_contracts};
+pub use contracts::{host_telemetry_contract, host_telemetry_contracts, host_telemetry_payload};
 
 /* === Imports === */
 // Standard Library Imports
