@@ -23,7 +23,7 @@ import type {
   ExecutionBrowsePage,
   ExecutionCheckpoint,
 } from "@/lib/types/view-contracts";
-import type { Row19 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
+import type { Row18 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import type {
   Row14 as GeneratedExecutionAvailability,
   Row15 as GeneratedExecutionBrowseLifecycle,

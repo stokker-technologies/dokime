@@ -49,10 +49,7 @@ pub use lifecycle::{
 pub use notes::{AddOperatorNote, CreateOperatorNote, EditOperatorNote};
 pub use outputs::FinalizeExecutionOutputs;
 pub use parameters::UpsertScopedParameter;
-pub use planning::{
-    AppendCycle, AppendCycleSource, CopyCycle, CreateCycle, CreateCycleMode, CycleDefinition,
-    RegisterCases,
-};
+pub use planning::{AppendCycle, CopyCycle, CreateCycle, CycleDefinition, RegisterCases};
 pub use plugins::{InstallHostPlugin, ReconcileProviders, ReloadProviderCatalog};
 pub use prompts::{RequestPrompt, SubmitPromptResponse};
 pub use provider::RunProvider;

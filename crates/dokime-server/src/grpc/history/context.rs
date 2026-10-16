@@ -183,7 +183,6 @@ fn cycle(
 
 fn cycle_status(value: CycleStatus) -> execution_wire::CycleStatus {
     match value {
-        CycleStatus::Previewed => execution_wire::CycleStatus::Previewed,
         CycleStatus::Ready => execution_wire::CycleStatus::Ready,
         CycleStatus::Running => execution_wire::CycleStatus::Running,
         CycleStatus::Paused => execution_wire::CycleStatus::Paused,

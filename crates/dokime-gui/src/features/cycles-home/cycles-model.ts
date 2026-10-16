@@ -34,7 +34,6 @@ export type CycleRow = {
   status: NonNullable<NonNullable<CycleSummary["status"]>["HarmosVariant"]["case"]>;
   statusLabel: string;
   statusTone: "neutral" | "good" | "warn" | "bad";
-  suiteLabel: string | null;
   updatedAtIso: string | null;
   updatedAtMs: number | null;
 };
@@ -63,7 +62,6 @@ const SEALED_STATUSES = ["Completed", "Failed", "Stopped"];
 
 const STATUS_LABELS: Record<CycleRow["status"], string> = {
   Unspecified: "Unknown",
-  Previewed: "Previewed",
   Ready: "Ready",
   Running: "Running",
   Paused: "Paused",
@@ -91,7 +89,6 @@ export function cycleRows(
     status: cycle.status?.HarmosVariant.case ?? "Unspecified",
     statusLabel: STATUS_LABELS[cycle.status?.HarmosVariant.case ?? "Unspecified"] ?? "Unknown",
     statusTone: statusTone(cycle.status),
-    suiteLabel: cycle.suite?.label || null,
     updatedAtIso: isoOrNull(timestampMs(cycle)),
     updatedAtMs: timestampMs(cycle),
   }));

@@ -392,7 +392,6 @@ fn step_status(status: &StepStatus) -> &'static str {
 }
 fn cycle_status(status: CycleStatus) -> &'static str {
     match status {
-        CycleStatus::Previewed => "previewed",
         CycleStatus::Ready => "ready",
         CycleStatus::Running => "running",
         CycleStatus::Paused => "paused",

@@ -140,10 +140,7 @@ pub(super) async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String
         )
         .await
         .unwrap();
-    let cycle_id = runtime
-        .start_registered_cycle("rpc.artifact", metadata(), false, Default::default())
-        .await
-        .unwrap();
+    let cycle_id = registered_cycle(runtime, "rpc.artifact", metadata()).await;
     let receipt = runtime.run_cycle_cases(cycle_id, Default::default()).await;
     assert_eq!(
         receipt.status,
@@ -159,6 +156,58 @@ pub(super) async fn seed(runtime: &RuntimeHandle, provider: &Provider) -> String
     })
     .await
     .unwrap()
+}
+
+/// Creates an empty cycle and appends every case of the registered suite.
+pub(super) async fn registered_cycle(
+    runtime: &RuntimeHandle,
+    suite_id: &str,
+    metadata: Metadata,
+) -> dokime_app::core::TestCycleId {
+    let suite = runtime
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|entry| entry.suite_id == suite_id)
+        .expect("fixture suite is registered")
+        .suite;
+    let options = dokime::definition::CaseMaterializationOptions {
+        force: true,
+        ..Default::default()
+    };
+    let cases = suite
+        .test_case_templates
+        .iter()
+        .flat_map(|template| {
+            dokime::definition::materialize_template_cases(
+                suite_id,
+                template,
+                Default::default(),
+                options.clone(),
+            )
+            .unwrap()
+            .test_cases
+        })
+        .map(|mut case| {
+            case.suite = Some(suite.metadata.clone());
+            case
+        })
+        .collect();
+    let cycle_id = runtime
+        .create_cycle(
+            dokime_app::transactions::CycleDefinition {
+                metadata,
+                continue_on_failure: false,
+            },
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    runtime
+        .append_cycle_cases(cycle_id.clone(), cases, Default::default())
+        .await
+        .unwrap();
+    cycle_id
 }
 
 /* === Private Functions === */

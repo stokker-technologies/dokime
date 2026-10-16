@@ -40,7 +40,7 @@ use dokime_app::runtime::query::{
     case_projection, case_tally, cycle_page, historical_case_projection, select_cycles,
 };
 use dokime_app::{Error, RuntimeHandle};
-use dokime_contract::operations::{common, cursor::Cursor, execution as wire};
+use dokime_contract::operations::{cursor::Cursor, execution as wire};
 
 /* === Constants === */
 
@@ -519,13 +519,11 @@ pub(super) fn summary(
     bounds.text(&cursor.epoch)?;
     bounds.text(&cursor.stream)?;
     bounds.bytes(canonical::metadata_memory(&cycle.metadata)?)?;
-    let suite = cycle_suite(state, cycle, bounds)?;
     let tally = case_tally(state, cycle);
     Ok(wire::CycleSummary {
         cycle_id: cycle.test_cycle_id.to_string(),
         metadata: Some(canonical::metadata(&cycle.metadata)?),
         status: match cycle.lifecycle {
-            CycleStatus::Previewed => wire::CycleStatus::Previewed,
             CycleStatus::Ready => wire::CycleStatus::Ready,
             CycleStatus::Running => wire::CycleStatus::Running,
             CycleStatus::Paused => wire::CycleStatus::Paused,
@@ -549,7 +547,6 @@ pub(super) fn summary(
             .transpose()?,
         updated_at: Some(canonical::timestamp(&cycle.updated_at)?),
         result: cycle.result.as_ref().map(detail::result),
-        suite,
         running_count: tally.running,
         queued_count: tally.queued,
     })
@@ -667,10 +664,6 @@ fn cycle_filter(filter: Option<&wire::CycleFilter>) -> Result<CycleFilter, Statu
     };
     value::text(&filter.text)?;
     value::collection(filter.statuses.len())?;
-    value::collection(filter.suite_ids.len())?;
-    for suite_id in &filter.suite_ids {
-        value::text(suite_id)?;
-    }
     Ok(CycleFilter {
         text: filter.text.clone(),
         statuses: filter
@@ -679,7 +672,6 @@ fn cycle_filter(filter: Option<&wire::CycleFilter>) -> Result<CycleFilter, Statu
             .copied()
             .map(cycle_status)
             .collect::<Result<_, Status>>()?,
-        suite_ids: filter.suite_ids.clone(),
         created_after: filter
             .created_after
             .map(canonical::decoded_timestamp)
@@ -724,7 +716,6 @@ pub(super) fn archive_scope(
 fn cycle_status(status: wire::CycleStatus) -> Result<CycleStatus, Status> {
     match status {
         wire::CycleStatus::Unspecified => Err(Status::invalid_argument("unspecified cycle status")),
-        wire::CycleStatus::Previewed => Ok(CycleStatus::Previewed),
         wire::CycleStatus::Ready => Ok(CycleStatus::Ready),
         wire::CycleStatus::Running => Ok(CycleStatus::Running),
         wire::CycleStatus::Paused => Ok(CycleStatus::Paused),
@@ -772,29 +763,6 @@ fn rejection(
             )
             .collect(),
     }
-}
-
-fn cycle_suite(
-    state: &RuntimeState,
-    cycle: &dokime_app::execution::TestCycle,
-    bounds: &mut detail::Bounds,
-) -> Result<Option<common::Metadata>, Status> {
-    let mut suites = state
-        .cases_for_cycle(cycle)
-        .filter_map(|case| case.suite.as_ref())
-        .chain(
-            state
-                .executions_for_cycle(cycle)
-                .filter_map(|execution| execution.suite.as_ref()),
-        );
-    let Some(first) = suites.next() else {
-        return Ok(None);
-    };
-    if !suites.all(|suite| suite.identifier == first.identifier) {
-        return Ok(None);
-    }
-    bounds.bytes(canonical::metadata_memory(first)?)?;
-    Ok(Some(canonical::metadata(first)?))
 }
 
 fn case_page(

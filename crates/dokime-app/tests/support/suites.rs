@@ -22,7 +22,7 @@ use super::contracts::{
     tracking_warning_contract,
 };
 use super::{metadata, value};
-use dokime::core::{ParameterId, TemplateId, TestCycleId, Value, ValueType};
+use dokime::core::{Metadata, ParameterId, TemplateId, TestCycleId, Value, ValueType};
 use dokime::definition::{
     CriterionDefinition, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, SuiteSet,
     TestCase, TestCaseTemplate, TestSuite,
@@ -279,40 +279,57 @@ pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
         .collect()
 }
 
+/// Starts a cycle holding every case of an installed suite; an empty suite
+/// yields an empty Ready cycle.
 pub async fn start_cycle(
     runtime: &RuntimeHandle,
     suite: TestSuite,
     continue_on_failure: bool,
 ) -> TestCycleId {
-    if suite.test_case_templates.is_empty() {
-        return runtime
-            .start_cycle(
-                CycleDefinition {
-                    suite,
-                    metadata: metadata("cycle.start", "Start Cycle"),
-                    cases: Vec::new(),
-                    continue_on_failure,
-                },
-                CommandContext::default(),
-            )
+    let cases = if suite.test_case_templates.is_empty() {
+        Vec::new()
+    } else {
+        let registration = runtime
+            .test_suites()
             .await
-            .unwrap();
-    }
-    let registration = runtime
-        .test_suites()
-        .await
-        .into_iter()
-        .find(|entry| entry.suite == suite)
-        .expect("fixture suite is installed");
-    runtime
-        .start_registered_cycle(
-            &registration.suite_id,
-            metadata("cycle.start", "Start Cycle"),
-            continue_on_failure,
+            .into_iter()
+            .find(|entry| entry.suite == suite)
+            .expect("fixture suite is installed");
+        materialize_cases(&registration.suite_id, &registration.suite)
+    };
+    start_cases(
+        runtime,
+        metadata("cycle.start", "Start Cycle"),
+        cases,
+        continue_on_failure,
+    )
+    .await
+}
+
+/// Creates an empty cycle and appends the given materialized cases to it.
+pub async fn start_cases(
+    runtime: &RuntimeHandle,
+    metadata: Metadata,
+    cases: Vec<TestCase>,
+    continue_on_failure: bool,
+) -> TestCycleId {
+    let cycle_id = runtime
+        .create_cycle(
+            CycleDefinition {
+                metadata,
+                continue_on_failure,
+            },
             CommandContext::default(),
         )
         .await
-        .unwrap()
+        .unwrap();
+    if !cases.is_empty() {
+        runtime
+            .append_cycle_cases(cycle_id.clone(), cases, CommandContext::default())
+            .await
+            .unwrap();
+    }
+    cycle_id
 }
 
 pub fn custom_suite() -> TestSuite {

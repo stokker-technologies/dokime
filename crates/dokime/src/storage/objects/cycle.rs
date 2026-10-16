@@ -350,7 +350,6 @@ impl TryFrom<Cycle> for TestCycle {
         drop(membership);
 
         let lifecycle = match row.lifecycle.as_str() {
-            "previewed" => CycleStatus::Previewed,
             "ready" => CycleStatus::Ready,
             "running" => CycleStatus::Running,
             "paused" => CycleStatus::Paused,
@@ -647,7 +646,6 @@ pub async fn read(
 /* === Private Functions === */
 fn lifecycle_text(value: &CycleStatus) -> &'static str {
     match value {
-        CycleStatus::Previewed => "previewed",
         CycleStatus::Ready => "ready",
         CycleStatus::Running => "running",
         CycleStatus::Paused => "paused",

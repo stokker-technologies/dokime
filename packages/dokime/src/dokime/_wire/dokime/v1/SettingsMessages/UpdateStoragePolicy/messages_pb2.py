@@ -45,7 +45,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 
 
-DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nJdokime/_wire/dokime/v1/SettingsMessages/UpdateStoragePolicy/messages.proto\x12.dokime.v1.SettingsMessages.UpdateStoragePolicy\"\x88\x01\n\x04Row1\x12/\n\x11\x65xpected_revision\x18\xea\x82\x92\x91\x01 \x01(\x04R\x10\x65xpectedRevision\x12O\n\x06policy\x18\xde\xab\x84v \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row3R\x06policy\"\x86\x02\n\x04Row2\x12\x1e\n\x08revision\x18\x8e\xcb\xd8\xbc\x01 \x01(\x04R\x08revision\x12W\n\nconfigured\x18\xf3\xa2\xdf\x42 \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row3R\nconfigured\x12V\n\teffective\x18\xe8\xf8\xe4\x8f\x01 \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row3R\teffective\x12-\n\x10restart_required\x18\x81\xb9\xa8\xff\x01 \x01(\x08R\x0frestartRequired\"\xc1\x01\n\x04Row3\x12,\n\x10save_interval_ms\x18\xa9\xb0\xc3\xa6\x01 \x01(\x04R\x0esaveIntervalMs\x12\x37\n\x16\x63ompaction_interval_ms\x18\xb3\xc8\xdf\x1d \x01(\x04R\x14\x63ompactionIntervalMs\x12\x34\n\x12local_retention_ms\x18\xba\xd4\xbf\x41 \x01(\x04H\x00R\x10localRetentionMs\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_137357882\"\xa8\x01\n\x04Row0\x12N\n\x07request\x18\x01 \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row1R\x07request\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row2R\x08responseb\x06proto3')
+DESCRIPTOR = _pool.POOL.AddSerializedFile(b'\nJdokime/_wire/dokime/v1/SettingsMessages/UpdateStoragePolicy/messages.proto\x12.dokime.v1.SettingsMessages.UpdateStoragePolicy\"\x88\x01\n\x04Row1\x12/\n\x11\x65xpected_revision\x18\xea\x82\x92\x91\x01 \x01(\x04R\x10\x65xpectedRevision\x12O\n\x06policy\x18\xde\xab\x84v \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row3R\x06policy\"\x86\x02\n\x04Row2\x12\x1e\n\x08revision\x18\x8e\xcb\xd8\xbc\x01 \x01(\x04R\x08revision\x12W\n\nconfigured\x18\xf3\xa2\xdf\x42 \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row3R\nconfigured\x12V\n\teffective\x18\xe8\xf8\xe4\x8f\x01 \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row3R\teffective\x12-\n\x10restart_required\x18\x81\xb9\xa8\xff\x01 \x01(\x08R\x0frestartRequired\"\x93\x01\n\x04Row3\x12\x37\n\x16\x63ompaction_interval_ms\x18\xb3\xc8\xdf\x1d \x01(\x04R\x14\x63ompactionIntervalMs\x12\x34\n\x12local_retention_ms\x18\xba\xd4\xbf\x41 \x01(\x04H\x00R\x10localRetentionMs\x88\x01\x01\x42\x1c\n\x1a_harmos_presence_137357882\"\xa8\x01\n\x04Row0\x12N\n\x07request\x18\x01 \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row1R\x07request\x12P\n\x08response\x18\x02 \x01(\x0b\x32\x34.dokime.v1.SettingsMessages.UpdateStoragePolicy.Row2R\x08responseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -57,9 +57,9 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ROW2']._serialized_start=266
   _globals['_ROW2']._serialized_end=528
   _globals['_ROW3']._serialized_start=531
-  _globals['_ROW3']._serialized_end=724
-  _globals['_ROW0']._serialized_start=727
-  _globals['_ROW0']._serialized_end=895
+  _globals['_ROW3']._serialized_end=678
+  _globals['_ROW0']._serialized_start=681
+  _globals['_ROW0']._serialized_end=849
 # @@protoc_insertion_point(module_scope)
 
 # === Types === #

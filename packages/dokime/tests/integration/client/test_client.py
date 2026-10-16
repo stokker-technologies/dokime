@@ -84,7 +84,8 @@ class BackendFixture:
         self.descriptor = bytes(32)
         self.key: str | None = None
         self.created = 0
-        self.registration_calls = 0
+        self.append_calls = 0
+        self.cycle_request: Any = None
         self.restart_during: str | None = None
         self.execution_control_calls: list[str] = []
         self.stop_calls = 0
@@ -156,9 +157,9 @@ class BackendFixture:
         self.methods = {
             "Backend": ["GetIdentity", "GetHealth", "GetAvailability"],
             "Catalog": ["ListSuites", "GetSuite"],
-            "Planning": ["RegisterSelection"],
             "Execution": [
                 "CreateCycle",
+                "AppendPlannedCases",
                 "RunCycle",
                 "RunExecution",
                 "GetRunRequest",
@@ -315,33 +316,19 @@ class BackendFixture:
             ],
         )
 
-    async def RegisterSelection(self, request: Any, context: Any) -> Any:
-        self.registration_calls += 1
-        if self.restart_during == "RegisterSelection":
+    async def CreateCycle(self, request: Any, context: Any) -> Any:
+        self.created += 1
+        if self.restart_during == "CreateCycle":
             self.epoch = "epoch-2"
-        assert request.idempotency_key
-        assert request.plan.max_cases == 1
-        assert len(request.plan.selections) == 1
-        assert not request.plan.case_ids
-        self.overrides = {
-            entry.key: entry.value for entry in request.plan.selections[0].parameters
-        }
+        assert request.metadata.label.strip()
+        assert not request.metadata.identifier
+        self.cycle_request = request
         return _message(
-            "Planning",
-            "PreviewSelection",
+            "Execution",
+            "CreateCycle",
             direction="response",
             path="",
-            cases=[
-                _message(
-                    "Planning",
-                    "PreviewSelection",
-                    direction="response",
-                    path="cases",
-                    case_id=CASE_ID,
-                    suite_id=SUITE_ID,
-                    template_id=TEMPLATE_ID,
-                )
-            ],
+            cycle_id=CYCLE_ID,
             observed_cursor=_message(
                 "Evidence",
                 "ListRecords",
@@ -351,19 +338,21 @@ class BackendFixture:
             ),
         )
 
-    async def CreateCycle(self, request: Any, context: Any) -> Any:
-        self.created += 1
-        if self.restart_during == "CreateCycle":
+    async def AppendPlannedCases(self, request: Any, context: Any) -> Any:
+        self.append_calls += 1
+        if self.restart_during == "AppendPlannedCases":
             self.epoch = "epoch-2"
-        assert list(request.plan.case_ids) == [CASE_ID]
-        assert not request.plan.selections
-        assert request.metadata.identifier and request.metadata.label
+        assert request.cycle_id == CYCLE_ID == request.plan.cycle_id
+        assert len(request.plan.selections) == 1
+        assert not request.plan.case_ids
+        self.overrides = {
+            entry.key: entry.value for entry in request.plan.selections[0].parameters
+        }
         return _message(
             "Execution",
-            "CreateCycle",
+            "AppendPlannedCases",
             direction="response",
             path="",
-            cycle_id=CYCLE_ID,
             observed_cursor=_message(
                 "Evidence",
                 "ListRecords",
@@ -1193,21 +1182,45 @@ def case_restart_receipts() -> None:
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("method", ["RegisterSelection", "CreateCycle", "GetCycle"])
+def case_explicit_cycle() -> None:
+    async def scenario() -> None:
+        async with fixture() as (server, client):
+            cycle_id = await client.create_cycle(
+                label="Bench Run", description="Line 2", continue_on_failure=True
+            )
+            assert cycle_id == CYCLE_ID
+            assert server.created == 1 and server.append_calls == 0
+            request = server.cycle_request
+            assert request.metadata.label == "Bench Run"
+            assert request.metadata.description == "Line 2"
+            assert request.continue_on_failure
+            await client.append_cases(
+                cycle_id, suite=SUITE_ID, template=TEMPLATE, parameters={"flag": True}
+            )
+            assert server.created == server.append_calls == 1
+            assert _wire.decode(server.overrides["flag"].values[0]) is True
+            with pytest.raises(ValueError):
+                await client.create_cycle(label=" ")
+            assert server.created == 1 and server.run_calls == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("method", ["CreateCycle", "AppendPlannedCases", "GetCycle"])
 def test_cycle_replay(method: str) -> None:
     async def scenario() -> None:
         async with fixture() as (server, client):
             if method == "GetCycle":
-                cycle_id = await client.create_cycle(suite=SUITE_ID, template=TEMPLATE)
+                cycle_id = await client.create_cycle(label="Replay")
                 server.restart_during = method
                 with pytest.raises(BackendChanged):
                     await client.cycle(cycle_id)
             else:
                 server.restart_during = method
                 with pytest.raises(BackendChanged):
-                    await client.create_cycle(suite=SUITE_ID, template=TEMPLATE)
-            assert server.registration_calls == 1
-            assert server.created == (0 if method == "RegisterSelection" else 1)
+                    await client.new_cycle(suite=SUITE_ID, template=TEMPLATE)
+            assert server.created == 1
+            assert server.append_calls == (1 if method == "AppendPlannedCases" else 0)
             assert server.run_calls == 0
 
     asyncio.run(scenario())
@@ -1276,7 +1289,7 @@ def case_protocol_validation() -> None:
                     suite=SUITE_ID, template=TEMPLATE, parameters={"voltage": 2**64}
                 )
             assert server.created == 1
-            assert server.registration_calls == 1
+            assert server.append_calls == 1
             assert server.run_calls == 0
 
     asyncio.run(scenario())
@@ -1334,8 +1347,8 @@ def case_readable_catalog() -> None:
             assert (await client.suite(SUITE_ID)).templates[0].id == TEMPLATE
             # The registered UUID is wire identity, never a template reference.
             with pytest.raises(ValueError):
-                await client.create_cycle(suite=SUITE_ID, template=TEMPLATE_ID)
-            assert server.registration_calls == 0
+                await client.new_cycle(suite=SUITE_ID, template=TEMPLATE_ID)
+            assert server.append_calls == 0
             assert server.created == server.run_calls == 0
 
     asyncio.run(scenario())
@@ -1591,7 +1604,7 @@ def case_expected_backend_identity() -> None:
             )
             try:
                 with pytest.raises(BackendChanged, match="selected profile identity"):
-                    await mismatched.create_cycle(suite=SUITE_ID, template=TEMPLATE)
+                    await mismatched.create_cycle(label="Mismatched")
                 assert server.created == 0
                 assert mismatched._transport.backend is None
                 assert mismatched._transport._channel is None
@@ -1639,6 +1652,7 @@ def case_execution_observation() -> None:
         pytest.param(case_rerun_admission, id="rerun_admission"),
         pytest.param(case_wait_run, id="wait_run"),
         pytest.param(case_ambiguous_cycle, id="ambiguous_cycle"),
+        pytest.param(case_explicit_cycle, id="explicit_cycle"),
         pytest.param(case_rejections_explicit, id="rejections_explicit"),
         pytest.param(case_restart_receipts, id="restart_receipts"),
         pytest.param(case_command_replay, id="command_replay"),

@@ -37,6 +37,7 @@ import {
   useCyclesQuery,
   usePendingPromptsQuery,
 } from "@/features/cycles-home/cycles-queries";
+import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { compactAgeLabel } from "@/lib/time-format";
 import { usePageChrome } from "@/shell/page-chrome";
@@ -52,6 +53,7 @@ export function CyclesHome() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [creating, setCreating] = useState(false);
   const session = useNativeSession();
   const queryClient = useQueryClient();
   const unarchive = useMutation({
@@ -79,15 +81,11 @@ export function CyclesHome() {
 
   const actions = useMemo(
     () => (
-      <Button
-        className="h-[var(--control-height)]"
-        onClick={() => void navigate({ to: "/library" })}
-        type="button"
-      >
+      <Button className="h-[var(--control-height)]" onClick={() => setCreating(true)} type="button">
         New Cycle
       </Button>
     ),
-    [navigate],
+    [],
   );
   usePageChrome({ actions, title: "Cycles" });
 
@@ -187,6 +185,12 @@ export function CyclesHome() {
           }
         />
       ))}
+
+      <NewCycleDialog
+        onCreated={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
+        onOpenChange={setCreating}
+        open={creating}
+      />
     </div>
   );
 }
@@ -256,19 +260,10 @@ function CycleGroupSection({
   );
 }
 
-/** One line: the title, then the suite it came from when that adds
-    information. When the cycle was created lives on the Updated tooltip. */
+/** One line: the cycle's own label. When it was created lives on the Updated
+    tooltip. */
 function CycleTitle({ row }: { row: CycleRow }) {
-  const suite = row.suiteLabel && row.suiteLabel !== row.label ? row.suiteLabel : null;
-
-  return (
-    <span className="flex min-w-0 items-baseline gap-2">
-      <span className="truncate">{row.label}</span>
-      {suite ? (
-        <span className="min-w-0 truncate text-xs text-muted-foreground">{suite}</span>
-      ) : null}
-    </span>
-  );
+  return <span className="block truncate">{row.label}</span>;
 }
 
 /* === Private Functions === */

@@ -193,18 +193,6 @@ export type TestCycleSelection = {
   template_label?: string | null;
 };
 
-export type StartTestCycleRequest = {
-  suite_id?: string | null;
-  template_id?: string | null;
-  parameters: Record<string, unknown[]>;
-  files?: Record<string, string | null>;
-  selections?: TestCycleSelection[];
-  title?: string | null;
-  continue_on_failure?: boolean;
-  max_cases?: number | null;
-  force?: boolean;
-};
-
 export type StartTestCycleResponse = {
   plan: TestCyclePlan;
 };
@@ -235,8 +223,6 @@ export type PreviewTestCycleResponse = {
 export type TestCycle = {
   test_cycle_id: string;
   title: string;
-  suite_id?: string | null;
-  suite_name?: string | null;
   status:
     | "planned"
     | "running"

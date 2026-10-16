@@ -613,21 +613,13 @@ pub(crate) async fn capture_failure_provider() {
         )
         .await
         .unwrap();
-    let cycle = handle
-        .start_cycle(
-            dokime_app::transactions::CycleDefinition {
-                suite: suite.clone(),
-                metadata,
-                cases: crate::support::suites::materialize_cases(
-                    "provider:testdb:shutdown",
-                    &suite,
-                ),
-                continue_on_failure: false,
-            },
-            dokime_app::runtime::command::CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = crate::support::suites::start_cases(
+        &handle,
+        metadata,
+        crate::support::suites::materialize_cases("provider:testdb:shutdown", &suite),
+        false,
+    )
+    .await;
     handle
         .run_cycle_cases(
             cycle,

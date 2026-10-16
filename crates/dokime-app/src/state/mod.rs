@@ -247,11 +247,7 @@ impl RuntimeState {
                 existing.saved.is_some()
                     && existing.saved != view.saved
                     && (view.saved.is_some()
-                        || !matches!(
-                            view.lifecycle,
-                            dokime::execution::CycleStatus::Ready
-                                | dokime::execution::CycleStatus::Previewed
-                        ))
+                        || view.lifecycle != dokime::execution::CycleStatus::Ready)
             })
         {
             return Err("saved cycle closure cannot be changed".into());

@@ -12,10 +12,10 @@
 
 # Standard Library Imports
 from collections.abc import AsyncIterator, Mapping
+from datetime import datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
-from uuid import uuid4
 
 # Third Party Imports
 from google.protobuf.message import Message
@@ -231,17 +231,87 @@ class DokimeClient:
     async def create_cycle(
         self,
         *,
+        label: str,
+        description: str | None = None,
+        identifier: str | None = None,
+        continue_on_failure: bool = False,
+    ) -> str:
+        """Create an empty Ready cycle and return its ID.
+
+        Cases join it only through ``append_cases``. This RPC has no
+        idempotency key: an ambiguous failure must not be blindly retried. An
+        omitted identifier is derived by the backend.
+        """
+        if not label.strip():
+            raise ValueError("cycle label is required")
+        backend = await self.connect()
+        metadata: dict[str, str] = {"label": label}
+        if description is not None:
+            metadata["description"] = description
+        if identifier is not None:
+            metadata["identifier"] = identifier
+        await self._transport.verify(backend, live=True)
+        created = await self._transport.unary(
+            "Execution",
+            "CreateCycle",
+            _wire.request(
+                "Execution",
+                "CreateCycle",
+                metadata=metadata,
+                continue_on_failure=continue_on_failure,
+            ),
+        )
+        _cursor(backend, created)
+        try:
+            _identity(created.cycle_id)
+        except ValueError as error:
+            raise ProtocolError("created cycle identity is invalid") from error
+        return created.cycle_id
+
+    async def append_cases(
+        self,
+        cycle_id: str,
+        *,
+        suite: str,
+        template: str,
+        parameters: Mapping[str, Value] | None = None,
+    ) -> None:
+        """Append the cases a suite template generates to an existing cycle.
+
+        Suite and template are named by their IDs; omitted parameters use the
+        registered defaults. Case labels continue the cycle's numbering.
+        """
+        _identity(cycle_id)
+        plan = await self._selection(suite, template, parameters)
+        await self._append(cycle_id, plan)
+
+    async def new_cycle(
+        self,
+        *,
         suite: str,
         template: str,
         parameters: Mapping[str, Value] | None = None,
         label: str | None = None,
-    ) -> str:
-        """Create one planned case for a suite and template named by their IDs.
+    ) -> Cycle:
+        """Create a cycle and append one template's cases without running them.
 
-        This RPC has no idempotency key. An ambiguous failure must not be
-        blindly retried. Omitted parameters use the registered defaults.
+        Composes ``create_cycle`` and ``append_cases`` after validating the
+        selection; not idempotent. An omitted label names the cycle after the
+        moment it was created.
         """
-        backend = await self.connect()
+        plan = await self._selection(suite, template, parameters)
+        identifier = await self.create_cycle(
+            label=label if label is not None else _default_cycle_label()
+        )
+        await self._append(identifier, plan)
+        return await self.cycle(identifier)
+
+    async def _selection(
+        self,
+        suite: str,
+        template: str,
+        parameters: Mapping[str, Value] | None,
+    ) -> dict[str, Any]:
         definition = await self._suite_definition(suite)
         # A template is named by its readable ID; the registered UUID stays on
         # the wire between this client and the backend.
@@ -254,9 +324,7 @@ class DokimeClient:
             raise ValueError("template must identify exactly one registered template")
         selected = matches[0]
         _identity(selected.template_id)
-        key = str(uuid4())
-        plan = {
-            "max_cases": 1,
+        return {
             "selections": [
                 {
                     "suite_id": definition.identity.suite_id,
@@ -268,60 +336,21 @@ class DokimeClient:
                 }
             ],
         }
+
+    async def _append(self, cycle_id: str, plan: dict[str, Any]) -> None:
+        backend = await self.connect()
         await self._transport.verify(backend, live=True)
-        registered = await self._transport.unary(
-            "Planning",
-            "RegisterSelection",
-            _wire.request(
-                "Planning", "RegisterSelection", plan=plan, idempotency_key=key
-            ),
-        )
-        _cursor(backend, registered)
-        if len(registered.cases) != 1:
-            raise ProtocolError("single-case registration returned another case count")
-        case = registered.cases[0]
-        if (
-            case.suite_id != definition.identity.suite_id
-            or case.template_id != selected.template_id
-            or case.ordinal != 0
-            or case.selection_index != 0
-            or not case.case_id
-        ):
-            raise ProtocolError("registered case differs from selected template")
-        await self._transport.verify(backend, live=True)
-        created = await self._transport.unary(
+        appended = await self._transport.unary(
             "Execution",
-            "CreateCycle",
+            "AppendPlannedCases",
             _wire.request(
                 "Execution",
-                "CreateCycle",
-                plan={"case_ids": [case.case_id]},
-                metadata={
-                    "identifier": f"client.{key}",
-                    "label": label if label is not None else selected.metadata.label,
-                },
+                "AppendPlannedCases",
+                cycle_id=cycle_id,
+                plan={**plan, "cycle_id": cycle_id},
             ),
         )
-        _cursor(backend, created)
-        try:
-            _identity(created.cycle_id)
-        except ValueError as error:
-            raise ProtocolError("created cycle identity is invalid") from error
-        return created.cycle_id
-
-    async def new_cycle(
-        self,
-        *,
-        suite: str,
-        template: str,
-        parameters: Mapping[str, Value] | None = None,
-        label: str | None = None,
-    ) -> Cycle:
-        """Create a fresh cycle without submitting device work. Not idempotent."""
-        identifier = await self.create_cycle(
-            suite=suite, template=template, parameters=parameters, label=label
-        )
-        return await self.cycle(identifier)
+        _cursor(backend, appended)
 
     async def cycle(self, cycle_id: str) -> Cycle:
         """Resolve a live cycle on the current backend."""
@@ -341,7 +370,13 @@ class DokimeClient:
 
 # === Public Functions === #
 
+
 # === Private Functions === #
+
+
+def _default_cycle_label() -> str:
+    # Named after the local moment it is created, as the desktop names it.
+    return f"Test Cycle - {datetime.now().astimezone():%Y-%m-%d %H:%M}"
 
 
 def _readable(value: str) -> bool:

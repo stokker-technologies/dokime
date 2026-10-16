@@ -25,6 +25,7 @@ use std::{
 // Third Party Imports
 use tempfile::tempdir;
 use tokio::time::{Instant, sleep};
+use tonic::{Extensions, Request, Status};
 // Local Imports
 use dokime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
 use dokime_app::core::{
@@ -40,13 +41,16 @@ use dokime_app::domains::execution::provider::{
 };
 use dokime_app::execution::ExecutionStatus;
 use dokime_app::execution::{CycleStatus, CycleView};
+use dokime_app::runtime::command::CommandContext;
 use dokime_app::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+use dokime_app::transactions::CycleDefinition;
 use dokime_app::transport::{
     ProviderCriterionOutcome, ProviderCycleOutcome, ProviderDependencyProbe,
     ProviderExecutionFailure, ProviderExecutionOutcome, ProviderPhaseOutcome,
     ProviderStatusOutcome, ProviderTelemetryOutcome,
 };
 use dokime_app::{InstalledPlugin, Runtime, RuntimeCredentialConfig, RuntimeHandle};
+use dokime_client::contracts;
 
 /* === Constants === */
 
@@ -167,6 +171,57 @@ impl ExecutionFixture for FixtureProgressExecutor {
 }
 
 /* === Public Functions === */
+/// Creates an empty cycle, then appends the planned cases under the same
+/// request metadata, and returns the cycle ID.
+pub(crate) async fn planned_cycle(
+    client: &crate::WireClient,
+    create: Request<contracts::execution::CreateCycleRequest>,
+    plan: contracts::planning::SelectionPlan,
+) -> Result<String, Status> {
+    let metadata = create.metadata().clone();
+    let cycle_id = client
+        .unary::<contracts::execution::CreateCycle>(create)
+        .await?
+        .into_inner()
+        .cycle_id;
+    let append = contracts::execution::AppendPlannedCasesRequest {
+        cycle_id: cycle_id.clone(),
+        plan: Some(plan),
+        context: None,
+    };
+    client
+        .unary::<contracts::execution::AppendPlannedCases>(Request::from_parts(
+            metadata,
+            Extensions::default(),
+            append,
+        ))
+        .await?;
+    Ok(cycle_id)
+}
+
+/// Creates an empty cycle on the runtime, then appends the materialized cases.
+pub async fn cycle_with_cases(
+    runtime: &RuntimeHandle,
+    metadata: Metadata,
+    cases: Vec<TestCase>,
+) -> TestCycleId {
+    let cycle_id = runtime
+        .create_cycle(
+            CycleDefinition {
+                metadata,
+                continue_on_failure: false,
+            },
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    runtime
+        .append_cycle_cases(cycle_id.clone(), cases, CommandContext::default())
+        .await
+        .unwrap();
+    cycle_id
+}
+
 pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
     let options = dokime_app::definition::CaseMaterializationOptions {
         force: true,

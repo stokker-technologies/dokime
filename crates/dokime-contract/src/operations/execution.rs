@@ -126,13 +126,17 @@ pub struct CopyCycleRequest {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreateCycleRequest {
-    pub plan: Option<SelectionPlan>,
+    // The label is required and nonblank; an empty identifier is derived by the
+    // backend. Description, tags and attributes are optional.
+    #[row(
+        description = "The label is required and nonblank; an empty identifier is derived by the backend. Description, tags and attributes are optional."
+    )]
     pub metadata: Option<Metadata>,
     pub continue_on_failure: bool,
     pub context: Option<MutationContext>,
 }
 
-// Creation plans from the registered suite. It does not run any case.
+// Creates an empty Ready cycle. Cases join it only through AppendPlannedCases.
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreateCycleReply {
@@ -159,7 +163,7 @@ pub struct GetCycleRequest {
 
 // Server-side selection and ordering for the live cycle list.
 //
-// `text` matches a cycle's label, its identifier and its admitted suite label
+// `text` matches a cycle's label, description and identifier
 // case-insensitively; an empty string selects everything. Repeated fields are
 // disjunctive within themselves and conjunctive with the other fields, and an
 // empty repeated field is no constraint. The timestamp range is inclusive and
@@ -169,7 +173,6 @@ pub struct GetCycleRequest {
 pub struct CycleFilter {
     pub text: String,
     pub statuses: Vec<CycleStatus>,
-    pub suite_ids: Vec<String>,
     pub created_after: Option<Timestamp>,
     pub created_before: Option<Timestamp>,
     // Absent lists only unarchived cycles.
@@ -480,12 +483,6 @@ pub struct CycleSummary {
     // The cycle report is sealed: its label no longer changes.
     #[row(description = "The cycle report is sealed: its label no longer changes.")]
     pub sealed: bool,
-    // The admitted suite identity is retained in the bounded summary so shell
-    // consumers need not embed every case/execution just to render its title.
-    #[row(
-        description = "The admitted suite identity is retained in the bounded summary so shell consumers need not embed every case/execution just to render its title."
-    )]
-    pub suite: Option<Metadata>,
     // Planned cases by their latest attempt: running counts cases whose attempt
     // is running; queued counts cases still waiting to run (no attempt yet, an
     // undispatched attempt, or one admitted but not started).
@@ -897,7 +894,6 @@ pub enum RunRequestPhase {
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CycleStatus {
     Unspecified,
-    Previewed,
     Ready,
     Running,
     Paused,

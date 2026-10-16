@@ -7,12 +7,13 @@
  * ***
  */
 
-/* What the materialization dialog's summary has to say.
+/* Where the materialization dialog's cases go, and what its summary says.
  *
- * The summary earns its step only when it tells the operator something the
- * parameters step did not: an expansion into several cases, or values that
- * differ from what the template registered. One case at its defaults goes
- * straight to Finish And Add. */
+ * Cases join the active cycle and nothing else: without one the dialog refuses
+ * to add and offers New Cycle instead. The summary earns its step only when it
+ * tells the operator something the parameters step did not: an expansion into
+ * several cases, or values that differ from what the template registered. One
+ * case at its defaults goes straight to Finish And Add. */
 
 /* === External Imports === */
 
@@ -20,9 +21,30 @@
 
 import { type EditorParameterRow, parameterValueType } from "@/components/parameter-editor/model";
 import { formatPreview, titleCaseIdentifier } from "@/components/start-cycle-form-model";
-import type { ParameterDefinition, PreviewTestCycleResponse } from "@/lib/types";
+import type {
+  ParameterDefinition,
+  PreviewTestCycleResponse,
+  TestCycleSelection,
+} from "@/lib/types";
+
+/* === Types === */
+
+export type CaseAppend = { cycleId: string; selections: TestCycleSelection[] };
+
+/* === Constants === */
+
+export const NO_ACTIVE_CYCLE = "Cases join the active cycle. Open a cycle or create one first.";
 
 /* === Public Functions === */
+
+/** The append the dialog performs: into the active cycle, or `null` without one. */
+export function caseAppend(
+  activeCycleId: string | null | undefined,
+  selections: TestCycleSelection[],
+): CaseAppend | null {
+  const cycleId = activeCycleId?.trim();
+  return cycleId ? { cycleId, selections } : null;
+}
 
 /** Whether the preview has anything to review before the cases are added. */
 export function summaryNeeded(

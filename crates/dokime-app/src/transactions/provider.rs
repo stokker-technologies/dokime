@@ -132,7 +132,7 @@ pub(crate) fn planned_attempt<'a>(
 }
 
 pub(crate) fn cycle_admits_run(lifecycle: CycleStatus) -> bool {
-    matches!(lifecycle, CycleStatus::Previewed | CycleStatus::Ready)
+    lifecycle == CycleStatus::Ready
 }
 
 pub fn apply_run_provider(
@@ -146,12 +146,12 @@ pub(super) fn materialize_execution(
     state: &RuntimeState,
     cycle: &CycleView,
     case: &TestCase,
-    suite: Option<&crate::definition::TestSuite>,
     execution_id: TestExecutionId,
     plugin_identity: Option<crate::execution::ExecutionPluginIdentity>,
     settings: BTreeMap<String, Value>,
 ) -> Result<TestExecution, Error> {
-    let suite = suite.or_else(|| state.suites.suite_for_case(case).map(|entry| &entry.suite));
+    // The authored definition is the registry's suite at the case's revision.
+    let suite = state.suites.suite_for_case(case).map(|entry| &entry.suite);
     let template = suite.and_then(|suite| {
         suite
             .test_case_templates
@@ -256,6 +256,12 @@ fn prepare_run_provider(
         .ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
     if !cycle_admits_run(cycle_view.lifecycle) {
         return Err(Error::conflict("conflict", CYCLE_NOT_READY));
+    }
+    if cycle_view.execution_ids.is_empty() {
+        return Err(Error::conflict(
+            "empty_cycle",
+            "cycle has no test cases; append cases before running it",
+        ));
     }
     let members = cycle_view
         .execution_ids

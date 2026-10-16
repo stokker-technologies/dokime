@@ -51,6 +51,9 @@ pub struct TestCycleHandle {
 
 /* === Implementations === */
 impl Client {
+    /// Creates an empty cycle, then appends one case planned from a suite
+    /// template named by its readable ID. Not idempotent: a retry after an
+    /// ambiguous failure may leave an extra cycle.
     pub async fn plan_cycle(
         &self,
         suite: &str,
@@ -60,52 +63,23 @@ impl Client {
     ) -> Result<TestCycleHandle> {
         let definition = self.suite(suite).await?;
         let (plan, default_label) = single_plan(&definition, template, parameters)?;
-        let suite_id = plan.selections[0].suite_id.clone();
-        let template_id = plan.selections[0].template_id.clone();
-        let key = CommandId::new().to_string();
-        let registered = self
-            .register_selection(planning::RegisterSelectionRequest {
-                plan: Some(plan),
-                idempotency_key: key.clone(),
+        let cycle = self
+            .create_cycle(contract::CreateCycleRequest {
+                metadata: Some(Metadata {
+                    identifier: String::new(),
+                    label: label.unwrap_or(default_label),
+                    description: None,
+                    tags: Vec::new(),
+                    attributes: Vec::new(),
+                    created_at: None,
+                    updated_at: None,
+                }),
+                continue_on_failure: false,
+                context: None,
             })
             .await?;
-        if registered.cases.len() != 1 {
-            return Err(invalid(
-                "single-case registration did not return exactly one case",
-            ));
-        }
-        let registered_case = &registered.cases[0];
-        if registered_case.suite_id != suite_id
-            || registered_case.template_id != template_id
-            || registered_case.ordinal != 0
-            || registered_case.selection_index != 0
-        {
-            return Err(invalid(
-                "registered case differs from the selected template",
-            ));
-        }
-        let case = CaseId::from_wire(&registered.cases[0].case_id)
-            .map_err(|_| invalid("registered case has an invalid identity"))?;
-        self.create_cycle(contract::CreateCycleRequest {
-            plan: Some(planning::SelectionPlan {
-                selections: Vec::new(),
-                max_cases: 0,
-                case_ids: vec![case.to_string()],
-                cycle_id: String::new(),
-            }),
-            metadata: Some(Metadata {
-                identifier: format!("client.{key}"),
-                label: label.unwrap_or(default_label),
-                description: None,
-                tags: Vec::new(),
-                attributes: Vec::new(),
-                created_at: None,
-                updated_at: None,
-            }),
-            continue_on_failure: false,
-            context: None,
-        })
-        .await
+        cycle.append_cases(plan).await?;
+        Ok(cycle)
     }
 
     pub fn cycle(&self, id: TestCycleId) -> TestCycleHandle {
@@ -422,7 +396,12 @@ impl TestCycleHandle {
             .await?
     }
 
-    pub async fn append(&self, plan: planning::SelectionPlan) -> Result<contract::ControlReply> {
+    /// Appends the planned cases to this cycle; template selections continue
+    /// the cycle's case numbering.
+    pub async fn append_cases(
+        &self,
+        plan: planning::SelectionPlan,
+    ) -> Result<contract::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
             .client

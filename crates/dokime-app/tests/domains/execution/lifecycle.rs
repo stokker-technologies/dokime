@@ -603,18 +603,13 @@ pub(crate) async fn pause_refuses_states() {
         )
         .await
         .unwrap();
-    let start = runtime
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("cycle.start", "Start Cycle"),
-                cases: materialize_cases("fixture.registration", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await;
-    let test_cycle_id = start.expect("cycle starts");
+    let test_cycle_id = start_cases(
+        &runtime,
+        metadata("cycle.start", "Start Cycle"),
+        materialize_cases("fixture.registration", &suite),
+        false,
+    )
+    .await;
 
     let pause_ready = runtime
         .pause_cycle(test_cycle_id.clone(), CommandContext::default())

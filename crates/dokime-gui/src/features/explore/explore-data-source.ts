@@ -149,8 +149,6 @@ export function groupExecutions(pages: ExecutionBrowsePage[]): ExploreEntry[] {
            be worse than the identifier. */
         title: suiteTitle(entries, target.id),
         session_id: null,
-        suite_id: null,
-        suite_name: null,
         lifecycle: totals.lifecycle,
         result_status: totals.result_status,
         case_count: totals.case_count,

@@ -190,7 +190,6 @@ pub struct ExecutionInvalidation {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CycleStatus {
-    Previewed,
     #[default]
     Ready,
     Running,
@@ -671,19 +670,17 @@ impl CycleView {
 
 impl CycleStatus {
     fn allows(self, target: CycleStatus) -> bool {
-        use CycleStatus::{
-            Blocked, Completed, Failed, Paused, Previewed, Ready, Running, Stopped, Stopping,
-        };
+        use CycleStatus::{Blocked, Completed, Failed, Paused, Ready, Running, Stopped, Stopping};
         if self == target {
             return true;
         }
         matches!(
             (self, target),
-            (Previewed | Completed | Failed | Blocked | Stopped, Ready)
+            (Completed | Failed | Blocked | Stopped, Ready)
                 | (Ready | Paused, Running)
                 | (Running, Paused)
                 | (Running | Paused, Stopping)
-                | (Previewed | Ready | Running | Stopping, Stopped)
+                | (Ready | Running | Stopping, Stopped)
                 | (Running | Stopping, Completed | Failed | Blocked)
         )
     }

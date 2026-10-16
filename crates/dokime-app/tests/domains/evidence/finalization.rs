@@ -64,18 +64,13 @@ pub(crate) async fn tight_budget_seals() {
         .expect("Mini's steady suite is registered");
     let cases = materialize_cases(&registration.suite_id, &registration.suite);
     assert_eq!(cases.len(), STEADY_CASES);
-    let test_cycle_id = runtime
-        .start_cycle(
-            CycleDefinition {
-                metadata: metadata("fixture.finalization", "Finalization Budget"),
-                suite: registration.suite,
-                cases,
-                continue_on_failure: true,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let test_cycle_id = start_cases(
+        &runtime,
+        metadata("fixture.finalization", "Finalization Budget"),
+        cases,
+        true,
+    )
+    .await;
     let receipt = runtime
         .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
         .await;

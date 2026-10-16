@@ -25,6 +25,7 @@ import { useCycleLabelQuery, useTestSuitesQuery } from "@/components/suite-picke
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import {
   CatalogIdentifier,
   pluginSearchText,
@@ -40,7 +41,7 @@ import { usePageChrome } from "@/shell/page-chrome";
 /* === Types === */
 
 type LibrarySurfaceProps = {
-  /** When set, materialized cases join that cycle instead of a new one. */
+  /** The active cycle materialized cases join; without one nothing is added. */
   appendTo?: string;
 };
 
@@ -70,9 +71,10 @@ const SUITE_IDENTIFIER_INSET = "pl-6";
 /* === Components === */
 
 /**
- * Suite and template selection. Cases enter a cycle through the template
- * dialog and nowhere else (concept 11), so this surface only has to make the
- * catalog scannable and hand one template to that dialog.
+ * Suite and template selection. Cases enter the active cycle through the
+ * template dialog and nowhere else (concept 11), so this surface only has to
+ * make the catalog scannable, hand one template to that dialog, and offer New
+ * Cycle when there is no cycle to add to.
  */
 export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const brand = useBrand();
@@ -89,6 +91,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const [suiteSearch, setSuiteSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [openTemplate, setOpenTemplate] = useState<OpenTemplate | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const actions = useMemo(
     () =>
@@ -101,7 +104,15 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         >
           Open Cycle
         </Button>
-      ) : null,
+      ) : (
+        <Button
+          className="h-[var(--control-height)]"
+          onClick={() => setCreating(true)}
+          type="button"
+        >
+          New Cycle
+        </Button>
+      ),
     [appendTo, navigate],
   );
 
@@ -123,7 +134,11 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
           Cases materialized here are added to{" "}
           <span className="text-foreground">{cycleLabelQuery.data ?? appendTo}</span>.
         </p>
-      ) : null}
+      ) : (
+        <p className="text-muted-foreground">
+          No cycle is active. Create one, or add cases from a cycle, to materialize templates.
+        </p>
+      )}
 
       <section aria-labelledby="library-suites" className="grid gap-2">
         <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)] border-b">
@@ -261,7 +276,8 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
 
       {openTemplate ? (
         <TemplateDialog
-          appendTo={appendTo}
+          cycleId={appendTo}
+          cycleLabel={cycleLabelQuery.data}
           key={selectionDraftKey(
             openTemplate.suite.suite_id,
             templateSelectionId(openTemplate.template),
@@ -270,11 +286,19 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
             if (!next) setOpenTemplate(null);
           }}
           open
+          onNewCycle={() => setCreating(true)}
           suite={openTemplate.suite}
-          targetCycleLabel={cycleLabelQuery.data}
           template={openTemplate.template}
         />
       ) : null}
+
+      {/* A cycle created here becomes the active one: the Library stays put,
+          and an open template dialog can add to it at once. */}
+      <NewCycleDialog
+        onCreated={(cycleId) => void navigate({ search: { appendTo: cycleId }, to: "/library" })}
+        onOpenChange={setCreating}
+        open={creating}
+      />
     </div>
   );
 }

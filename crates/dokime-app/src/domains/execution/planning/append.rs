@@ -10,14 +10,14 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub(crate) use crate::transactions::{AppendCycle as Append, AppendCycleSource as Source};
+pub(crate) use crate::transactions::AppendCycle as Append;
 
 /* === Imports === */
 // Standard Library Imports
 // Third Party Imports
 
 // Local Imports
-use crate::definition::{TestCase, TestSuite};
+use crate::definition::TestCase;
 use crate::{CommandContext, Error, RuntimeHandle};
 use dokime::core::{TestCycleId, Timestamp};
 
@@ -35,45 +35,16 @@ use dokime::core::{TestCycleId, Timestamp};
 
 /* === Implementations === */
 impl RuntimeHandle {
+    /// Appends materialized cases to an existing mutable cycle. Each case's
+    /// authored definition is read from the registry at its suite revision.
     pub async fn append_cycle_cases(
         &self,
         test_cycle_id: TestCycleId,
         cases: Vec<TestCase>,
         context: CommandContext,
     ) -> Result<(), Error> {
-        self.append_cycle(test_cycle_id, Source::Cases { cases }, context)
-            .await
-    }
-
-    pub async fn append_cycle_templates(
-        &self,
-        test_cycle_id: TestCycleId,
-        suite: TestSuite,
-        cases: Vec<TestCase>,
-        context: CommandContext,
-    ) -> Result<(), Error> {
-        self.append_cycle(
-            test_cycle_id,
-            Source::Templates {
-                suite: Box::new(suite),
-                cases,
-            },
-            context,
-        )
-        .await
-    }
-
-    async fn append_cycle(
-        &self,
-        test_cycle_id: TestCycleId,
-        source: Source,
-        context: CommandContext,
-    ) -> Result<(), Error> {
         let sources = {
             let state = self.state_read();
-            let cases = match &source {
-                Source::Cases { cases } | Source::Templates { cases, .. } => cases,
-            };
             cases
                 .iter()
                 .filter_map(|case| state.suites.suite_for_case(case))
@@ -94,7 +65,7 @@ impl RuntimeHandle {
             admission_identifier,
             settings: super::settings(self, sources)?,
             test_cycle_id: test_cycle_id.clone(),
-            source,
+            cases,
             occurred_at: Timestamp::now_utc(),
         };
         self.commit_with_key(context.idempotency_key, transaction)

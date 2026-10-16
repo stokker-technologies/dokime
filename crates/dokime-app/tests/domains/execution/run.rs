@@ -487,9 +487,8 @@ pub(crate) async fn cycle_spanning_group() {
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
     let test_cycle_id = start_cycle(&runtime, first, false).await;
     runtime
-        .append_cycle_templates(
+        .append_cycle_cases(
             test_cycle_id.clone(),
-            second.clone(),
             materialize_cases("provider:testdb:plt400.diagnostics", &second),
             CommandContext::default(),
         )
@@ -541,9 +540,8 @@ pub(crate) async fn fail_fast_failure() {
     register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
     let test_cycle_id = start_cycle(&runtime, first, false).await;
     runtime
-        .append_cycle_templates(
+        .append_cycle_cases(
             test_cycle_id.clone(),
-            second.clone(),
             materialize_cases("provider:testdb:plt400.diagnostics", &second),
             CommandContext::default(),
         )

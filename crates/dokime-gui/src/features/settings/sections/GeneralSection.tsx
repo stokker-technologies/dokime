@@ -210,10 +210,6 @@ function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
     pending.current = operation;
     return operation;
   };
-  const interval = useAutosave<number>(
-    (saveIntervalMs) => save({ saveIntervalMs }),
-    applicationSettingsError,
-  );
   const compaction = useAutosave<number>(
     (hours) => save({ compactionIntervalMs: hours * 3_600_000 }),
     applicationSettingsError,
@@ -256,25 +252,6 @@ function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
       ) : null}
       {view ? (
         <fieldset className="divide-y" disabled={!canEdit}>
-          <IntervalRow
-            autosave={interval}
-            description="How often running execution data is saved."
-            label="Save Interval (Seconds)"
-            max={86_400}
-            min={0.001}
-            parse={(text) => {
-              const seconds = Number(text);
-              const value = Math.round(seconds * 1000);
-              return Number.isSafeInteger(value) &&
-                value >= 1 &&
-                value <= 86_400_000 &&
-                seconds === value / 1000
-                ? value
-                : null;
-            }}
-            step="any"
-            value={String(view.configured.saveIntervalMs / 1000)}
-          />
           <IntervalRow
             autosave={compaction}
             description="Combines small storage files in the background; saves wait while it runs."

@@ -101,8 +101,9 @@ flowchart LR
 Each execution identifies exactly one case and one cycle. Repeating a case
 creates another execution; retrying a step is recorded as a step attempt within
 that execution. A cycle can bring together cases from different templates and
-suites—it is not a copy of one suite. Empty collections are possible before
-cases are materialized or executions are created.
+suites—it is not a copy of one suite. A cycle is created explicitly, starts
+empty and grows only as cases are appended to it; running an empty cycle is
+refused.
 
 For a charger campaign, one template might measure steady-state charging while
 another checks overcurrent protection. Cartesian expansion turns the operating
@@ -137,9 +138,10 @@ This starts the desktop application with its local backend. The
 [Mini plugin](plugins/mini/) supplies a simulated charger; no physical charger
 is required. The task builds Mini and a suite fixture into
 `target/debug/plugins/` and points `DOKIME_PLUGINS_DIR` at that directory, so
-the backend loads both for the session without installing them. Use Mini's
-charging templates to assemble a cycle, choose operating points, and inspect
-live measurements and results.
+the backend loads both for the session without installing them. Create a cycle
+with **New Cycle** (its title defaults to the current date and time), then add
+Mini's charging templates to it from the library, choose operating points, and
+inspect live measurements and results.
 
 To install Mini into a regular application instead, build its bundle and add
 it through the application's plugin settings, then restart:
@@ -305,11 +307,16 @@ show` lists it:
 
 ```sh
 dokime plan preview --template mini.charger.steady.measurement --backend lab --json
-dokime plan register --template mini.charger.steady.measurement --request-key campaign-1 --backend lab --json
-dokime cycle create --case-id CASE_ID --identifier campaign.1 --label "Campaign 1" --backend lab --json
+dokime cycle create --label "Campaign 1" --backend lab --json
+dokime cycle append CYCLE_ID --template mini.charger.steady.measurement --backend lab --json
 ```
 
-Preview leaves registration unchanged. Registration returns case IDs; retain its
+A cycle is always created explicitly and empty; `cycle append` adds the cases a
+plan generates to an existing cycle and never creates one. An omitted
+`--identifier` is derived by the backend.
+
+Preview leaves registration unchanged. `plan register` materializes cases
+without a cycle; append them by ID with `cycle append CYCLE_ID --case-id CASE_ID`. Registration returns case IDs; retain its
 key and repeat the same request to recover registration after an uncertain
 response. Repeated selections and `--case-id` arguments preserve order and
 create distinct attempts. Omitted parameters and files use registered backend
@@ -336,11 +343,12 @@ selection or metadata flag overrides. For example, `plan register` accepts:
 }
 ```
 
-`plan preview` uses the same `plan` without `idempotency_key`. The backend
+`plan preview` uses the same `plan` without `idempotency_key`, and `cycle
+append` takes it with the target `cycle_id`. The backend
 validates expansion and materializes cases; zero `max_cases` selects its limit
 of 1000. A plan selects templates or registered case IDs. Each materialized
 case is labelled `<Template Label> #<n>`, numbered per template from `#1`; a
-`cycle_id` continues that cycle's numbering for cases that will join it, and
+cycle being appended to continues its own numbering, and
 the case's parameter values stay on the case rather than in its label.
 Until a cycle or execution seals, operators can rename it with the pencil
 beside its title in the desktop app or with `Execution/RenameCycle` and
@@ -353,7 +361,6 @@ canonical request as `cycle.json`:
 
 ```json
 {
-  "plan": {"selections": [], "max_cases": 0, "case_ids": ["CASE_ID"], "cycle_id": ""},
   "metadata": {
     "identifier": "campaign.1",
     "label": "Campaign 1",
@@ -369,10 +376,12 @@ canonical request as `cycle.json`:
 ```
 
 ```sh
-dokime cycle create --input-file cycle.json --request-key run-1 --wait-seconds 60 --backend lab --json
+dokime cycle create --input-file cycle.json --case-id CASE_ID --request-key run-1 --wait-seconds 60 --backend lab --json
 ```
 
-Creation prints and flushes the cycle ID before submitting work. Retain the
+For scripts, `--case-id` appends registered cases right after creation and
+`--request-key` then runs the cycle. Creation prints and flushes the cycle ID
+before appending or submitting work. Retain the
 cycle ID and run key to recover an uncertain admission. Creation, admission and
 an optional terminal receipt are separate JSON lines; a later failure leaves
 already emitted recovery identities available. Creating a cycle does not

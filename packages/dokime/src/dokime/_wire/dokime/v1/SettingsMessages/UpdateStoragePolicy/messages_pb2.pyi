@@ -26,14 +26,12 @@ class Row2(_message.Message):
     def __init__(self, revision: _Optional[int] = ..., configured: _Optional[_Union[Row3, _Mapping]] = ..., effective: _Optional[_Union[Row3, _Mapping]] = ..., restart_required: _Optional[bool] = ...) -> None: ...
 
 class Row3(_message.Message):
-    __slots__ = ("save_interval_ms", "compaction_interval_ms", "local_retention_ms")
-    SAVE_INTERVAL_MS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("compaction_interval_ms", "local_retention_ms")
     COMPACTION_INTERVAL_MS_FIELD_NUMBER: _ClassVar[int]
     LOCAL_RETENTION_MS_FIELD_NUMBER: _ClassVar[int]
-    save_interval_ms: int
     compaction_interval_ms: int
     local_retention_ms: int
-    def __init__(self, save_interval_ms: _Optional[int] = ..., compaction_interval_ms: _Optional[int] = ..., local_retention_ms: _Optional[int] = ...) -> None: ...
+    def __init__(self, compaction_interval_ms: _Optional[int] = ..., local_retention_ms: _Optional[int] = ...) -> None: ...
 
 class Row0(_message.Message):
     __slots__ = ("request", "response")

@@ -125,18 +125,13 @@ async fn begin(handle: &RuntimeHandle) -> TestCycleId {
         .test_case_templates
         .retain(|template| template.metadata.identifier.as_str() == "fixture.sidecar.capture");
     assert_eq!(suite.test_case_templates.len(), 1);
-    let id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("native.capture", "Native Capture"),
-                cases: materialize_cases("fixture.sidecar", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let id = start_cases(
+        handle,
+        metadata("native.capture", "Native Capture"),
+        materialize_cases("fixture.sidecar", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(id.clone(), CommandContext::default())
         .await;

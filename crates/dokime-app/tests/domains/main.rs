@@ -761,8 +761,12 @@ fn execution_contract() {
         );
     }
     {
-        eprintln!("Scenario: execution::planning::preview_start_plans");
-        run_scenario(execution::planning::preview_start_plans, false, None, false);
+        eprintln!("Scenario: execution::planning::empty_cycle_grows");
+        run_scenario(execution::planning::empty_cycle_grows, false, None, false);
+    }
+    {
+        eprintln!("Scenario: execution::planning::empty_cycle_stops");
+        run_scenario(execution::planning::empty_cycle_stops, false, None, false);
     }
 }
 

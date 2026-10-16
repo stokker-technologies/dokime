@@ -17,6 +17,7 @@
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
@@ -37,6 +38,7 @@ import {
   MenubarSeparator,
   MenubarTrigger,
 } from "@/components/ui/menubar";
+import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { useAppearance } from "@/lib/appearance";
 import {
   applicationSettingsError,
@@ -91,13 +93,16 @@ function LiveMenus() {
   const consoleOpen = useUiStore((state) => state.console.open);
   const setConsoleState = useUiStore((state) => state.setConsoleState);
   const desktop = isTauriDesktop();
+  const [creating, setCreating] = useState(false);
 
   return (
     <>
       <MenubarMenu>
         <MenuTrigger>File</MenuTrigger>
         <MenubarContent>
-          <MenubarItem onSelect={() => void navigate({ to: "/library" })}>New Cycle</MenubarItem>
+          <MenubarItem disabled={!session} onSelect={() => setCreating(true)}>
+            New Cycle
+          </MenubarItem>
           <MenubarSeparator />
           <MenubarItem onSelect={() => void navigate({ to: "/settings" })}>Settings…</MenubarItem>
           {session || desktop ? <MenubarSeparator /> : null}
@@ -157,6 +162,16 @@ function LiveMenus() {
           </MenubarItem>
         </MenubarContent>
       </MenubarMenu>
+
+      {/* Outside every menu: the menu closing on select must not take the
+          dialog with it. */}
+      {session ? (
+        <NewCycleDialog
+          onCreated={(cycleId) => void navigate({ params: { cycleId }, to: "/cycles/$cycleId" })}
+          onOpenChange={setCreating}
+          open={creating}
+        />
+      ) : null}
     </>
   );
 }

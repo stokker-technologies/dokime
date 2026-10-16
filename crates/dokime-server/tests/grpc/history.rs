@@ -17,10 +17,7 @@ use std::{sync::Arc, time::Duration};
 // Third Party Imports
 // Local Imports
 use super::*;
-use dokime_app::{
-    core::TestCycleId, execution::CycleStatus, runtime::command::CommandContext,
-    transactions::CycleDefinition,
-};
+use dokime_app::{core::TestCycleId, execution::CycleStatus, runtime::command::CommandContext};
 use dokime_client::contracts::history::BrowseExecutionsRequest;
 use dokime_client::contracts::history::DeleteExecutionRequest;
 
@@ -112,18 +109,12 @@ pub(crate) async fn deletion_validates_unsupported() {
     let handle = owner.handle();
     let suite = common::fixture_suite(&["passed"]);
     common::register_fixture_execution(&handle, suite.clone()).await;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: common::metadata("history.fixture", "History fixture"),
-                cases: common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = common::cycle_with_cases(
+        &handle,
+        common::metadata("history.fixture", "History fixture"),
+        common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+    )
+    .await;
     handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;

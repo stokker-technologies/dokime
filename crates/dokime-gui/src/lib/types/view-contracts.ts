@@ -49,8 +49,6 @@ export type CycleHistorySummary = {
   test_cycle_id: TestCycleId;
   session_id: string | null;
   title: string;
-  suite_id: string | null;
-  suite_name: string | null;
   lifecycle: string;
   result_status: string | null;
   case_count: number;

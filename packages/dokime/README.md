@@ -41,6 +41,28 @@ CA and expected backend identity for that connection; later default edits have
 no effect. An unexpected identity fails negotiation before workflow mutations.
 Profiles marked `keyring` require the Python caller to supply a token.
 
+## Creating Cycles
+
+A cycle is created explicitly and starts empty; cases join it only by being
+appended. Suites and templates are named by their readable IDs, and appended
+cases continue the cycle's numbering:
+
+```python
+async with DokimeClient(endpoint, token=token) as client:
+    cycle_id = await client.create_cycle(label="Campaign 1", description="Bench A")
+    await client.append_cases(
+        cycle_id,
+        suite="mini.charger.steady",
+        template="mini.charger.steady.measurement",
+        parameters={"ac_voltage_v": 230.0},
+    )
+    cycle = await client.cycle(cycle_id)
+```
+
+`new_cycle(suite=..., template=..., label=...)` composes both for scripts and
+validates the selection before creating anything. Neither call is idempotent:
+after an ambiguous failure, inspect the backend instead of retrying.
+
 ## Remote Control And Listening
 
 Use the backend's HTTPS origin, a bearer token issued for that backend, and its

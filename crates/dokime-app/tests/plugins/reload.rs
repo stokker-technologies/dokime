@@ -20,10 +20,10 @@ use tempfile::tempdir;
 use super::*;
 use dokime::execution::{ExecutionStatus, ResultStatus};
 use dokime::{Identifier, Metadata, TestCycleId};
+use dokime_app::execution::CycleView;
 use dokime_app::plugins::PluginBundle;
 use dokime_app::runtime::command::CommandContext;
 use dokime_app::{Runtime, RuntimeHandle};
-use dokime_app::{execution::CycleView, transactions::CycleDefinition};
 
 /* === Constants === */
 // These assert lifecycle correctness across native processes and durable storage
@@ -135,22 +135,17 @@ async fn run_suite(
         })
         .expect("suite has a registered provider")
         .suite_id;
-    let id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(
-                    Identifier::new("reload.cycle").unwrap(),
-                    "Reload cycle",
-                    None,
-                ),
-                cases: materialize_cases(&suite_id, &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let id = start_cases(
+        handle,
+        Metadata::new(
+            Identifier::new("reload.cycle").unwrap(),
+            "Reload cycle",
+            None,
+        ),
+        materialize_cases(&suite_id, &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(id.clone(), CommandContext::default())
         .await;

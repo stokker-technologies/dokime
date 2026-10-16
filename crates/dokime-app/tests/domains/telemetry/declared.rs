@@ -302,18 +302,13 @@ pub(crate) async fn template_declarations_register() {
 
     // Both Templates Publish What They Declared
     let suite = Checks::definition().suite;
-    let cycle = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("fixture.declaring.cycle", "Declaring Cycle"),
-                cases: materialize_cases(SUITE, &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = start_cases(
+        &handle,
+        metadata("fixture.declaring.cycle", "Declaring Cycle"),
+        materialize_cases(SUITE, &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle.clone(), CommandContext::default())
         .await;

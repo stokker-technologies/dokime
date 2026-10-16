@@ -30,8 +30,8 @@ use dokime::execution::{
 };
 use dokime_app::state::RuntimeState;
 use dokime_app::transactions::{
-    AppendCycle, AppendCycleSource, InvalidateExecutions, MarkRuntimeStarted,
-    RecoverInterruptedCycles, RunProvider, UpsertScopedParameter,
+    AppendCycle, InvalidateExecutions, MarkRuntimeStarted, RecoverInterruptedCycles, RunProvider,
+    UpsertScopedParameter,
 };
 
 /* === Constants === */
@@ -76,20 +76,6 @@ fn parameter(value: i64, source: ParameterSource) -> MaterializedParameter {
 }
 
 // Exercise the same case materialization used by authored edits, before dispatch.
-fn materialize_plan(
-    state: &mut RuntimeState,
-    cycle_id: &TestCycleId,
-    settings: BTreeMap<String, Value>,
-) -> Result<(), String> {
-    let cases = state
-        .cycle_view(cycle_id)
-        .unwrap()
-        .cases()
-        .cloned()
-        .collect();
-    materialize_cases(state, cycle_id, cases, settings)
-}
-
 fn materialize_cases(
     state: &mut RuntimeState,
     cycle_id: &TestCycleId,
@@ -104,7 +90,7 @@ fn materialize_cases(
     let append = AppendCycle {
         test_cycle_id: cycle_id.clone(),
         admission_identifier: CommandId::new(),
-        source: AppendCycleSource::Cases { cases },
+        cases,
         settings: BTreeMap::from([("fixture.plugin".into(), settings)]),
         occurred_at: Timestamp::now_utc(),
     };
@@ -145,21 +131,7 @@ fn admitted() -> (RuntimeState, TestCycleId) {
         .unwrap();
     let now = Timestamp::now_utc();
     let id = TestCycleId::from_seed("snapshot.cycle");
-    let suite = state.suites.suites().next().unwrap().suite.clone();
-    let create = dokime_app::transactions::CreateCycle {
-        mode: dokime_app::transactions::CreateCycleMode::Start,
-        definition: dokime_app::transactions::CycleDefinition {
-            suite,
-            metadata: metadata("snapshot.cycle"),
-            cases: vec![case],
-            continue_on_failure: false,
-        },
-        test_cycle_id: id.clone(),
-        occurred_at: now.clone(),
-        settings: Default::default(),
-    };
-    create.check(&state).unwrap();
-    create.apply(&mut state);
+    create_cycle(&mut state, &id, "snapshot.cycle");
     state.plugin_owners.insert(
         "fixture.plugin".into(),
         dokime_app::state::PluginOwner::Bundle {
@@ -177,9 +149,10 @@ fn admitted() -> (RuntimeState, TestCycleId) {
             ..Default::default()
         },
     );
-    materialize_plan(
+    materialize_cases(
         &mut state,
         &id,
+        vec![case],
         BTreeMap::from([("station".into(), Value::from("A"))]),
     )
     .unwrap();
@@ -200,26 +173,36 @@ fn admitted() -> (RuntimeState, TestCycleId) {
 
 fn planned() -> (RuntimeState, TestCycleId) {
     let (mut state, existing) = admitted();
+    let id = TestCycleId::new();
+    create_cycle(&mut state, &id, "queued.cycle");
+    let append = AppendCycle {
+        admission_identifier: CommandId::new(),
+        test_cycle_id: id.clone(),
+        cases: state
+            .cycle_view(&existing)
+            .unwrap()
+            .cases()
+            .cloned()
+            .collect(),
+        settings: BTreeMap::new(),
+        occurred_at: Timestamp::now_utc(),
+    };
+    append.check(&state).unwrap();
+    append.apply(&mut state);
+    (state, id)
+}
+
+fn create_cycle(state: &mut RuntimeState, id: &TestCycleId, identifier: &str) {
     let create = dokime_app::transactions::CreateCycle {
-        mode: dokime_app::transactions::CreateCycleMode::Start,
         definition: dokime_app::transactions::CycleDefinition {
-            suite: state.suites.suites().next().unwrap().suite.clone(),
-            metadata: metadata("queued.cycle"),
-            cases: state
-                .cycle_view(&existing)
-                .unwrap()
-                .cases()
-                .cloned()
-                .collect(),
+            metadata: metadata(identifier),
             continue_on_failure: false,
         },
-        test_cycle_id: TestCycleId::new(),
+        test_cycle_id: id.clone(),
         occurred_at: Timestamp::now_utc(),
-        settings: Default::default(),
     };
-    create.check(&state).unwrap();
-    create.apply(&mut state);
-    (state, create.test_cycle_id)
+    create.check(state).unwrap();
+    create.apply(state);
 }
 
 fn queued() -> (RuntimeState, TestCycleId, CommandId) {
@@ -613,9 +596,7 @@ pub(crate) fn append_checks_execution() {
         admission_identifier: dokime::core::CommandId::new(),
         settings: Default::default(),
         test_cycle_id: cycle_id.clone(),
-        source: AppendCycleSource::Cases {
-            cases: vec![original.clone()],
-        },
+        cases: vec![original.clone()],
         occurred_at: Timestamp::now_utc(),
     };
     for lifecycle in [
@@ -672,9 +653,7 @@ pub(crate) fn append_admissions_identity() {
         admission_identifier: dokime::core::CommandId::new(),
         settings: Default::default(),
         test_cycle_id: cycle_id.clone(),
-        source: AppendCycleSource::Cases {
-            cases: vec![original],
-        },
+        cases: vec![original],
         occurred_at: Timestamp::now_utc(),
     };
     append.check(&state).unwrap();
@@ -712,9 +691,7 @@ pub(crate) fn repeated_case_order() {
         admission_identifier: CommandId::from_seed("repeated-case-admission"),
         settings: BTreeMap::new(),
         test_cycle_id: cycle_id.clone(),
-        source: AppendCycleSource::Cases {
-            cases: vec![case.clone(), case.clone()],
-        },
+        cases: vec![case.clone(), case.clone()],
         occurred_at: Timestamp::now_utc(),
     };
     append.check(&state).unwrap();
@@ -741,9 +718,7 @@ pub(crate) fn repeated_case_order() {
         .insert("voltage".into(), Value::Integer(240));
     let conflict = AppendCycle {
         admission_identifier: CommandId::from_seed("conflicting-case-admission"),
-        source: AppendCycleSource::Cases {
-            cases: vec![changed],
-        },
+        cases: vec![changed],
         ..append
     };
     assert!(conflict.check(&state).is_err());
@@ -862,11 +837,7 @@ pub(crate) fn admission_freezes_them() {
     for id in removed {
         state.executions.remove(&id);
     }
-    assert!(
-        run.check(&state)
-            .unwrap_err()
-            .contains("unstarted execution")
-    );
+    assert!(run.check(&state).unwrap_err().contains("no test cases"));
 }
 
 pub(crate) fn settlement_replay_timestamp() {
@@ -1626,50 +1597,25 @@ pub(crate) fn copied_cycle_membership() {
     }
 }
 
-// An explicit empty selection stays empty even when its suite has templates.
+// A created cycle starts empty even when installed suites have templates.
 
 pub(crate) fn cycle_admission_plans() {
     let (mut state, existing) = admitted();
-    let suite = state.suites.suites().next().unwrap().suite.clone();
-    let definition = dokime_app::transactions::CycleDefinition {
-        suite: suite.clone(),
-        metadata: metadata("explicit.empty"),
-        cases: Vec::new(),
-        continue_on_failure: false,
-    };
-    let mut stored = serde_json::to_value(&definition).unwrap();
-    stored.as_object_mut().unwrap().remove("cases");
-    assert!(serde_json::from_value::<dokime_app::transactions::CycleDefinition>(stored).is_err());
-    let mut stored = serde_json::to_value(&definition).unwrap();
-    stored["cases"] = serde_json::Value::Null;
-    assert!(serde_json::from_value::<dokime_app::transactions::CycleDefinition>(stored).is_err());
-
-    let create = dokime_app::transactions::CreateCycle {
-        mode: dokime_app::transactions::CreateCycleMode::Preview,
-        definition,
-        test_cycle_id: TestCycleId::new(),
-        occurred_at: Timestamp::now_utc(),
-        settings: Default::default(),
-    };
-    create.check(&state).unwrap();
-    create.apply(&mut state);
-    assert!(
-        state
-            .cycle_view(&create.test_cycle_id)
-            .unwrap()
-            .test_executions
-            .is_empty()
-    );
+    let id = TestCycleId::new();
+    create_cycle(&mut state, &id, "explicit.empty");
+    let created = state.cycle_view(&id).unwrap();
+    assert_eq!(created.lifecycle, CycleStatus::Ready);
+    assert!(created.test_executions.is_empty());
     assert_eq!(
         state.cycle_view(&existing).unwrap().test_executions.len(),
         1
     );
 }
 
-// Missing case provenance is an error; a cycle's authored parent cannot fill it.
+// Missing case provenance is an error; a cycle cannot fill it.
 
 pub(crate) fn cycle_admission_provenance() {
-    let (state, existing) = admitted();
+    let (mut state, existing) = admitted();
     let case = state
         .cycle_view(&existing)
         .unwrap()
@@ -1677,21 +1623,18 @@ pub(crate) fn cycle_admission_provenance() {
         .next()
         .unwrap()
         .clone();
-    let mut create = dokime_app::transactions::CreateCycle {
-        mode: dokime_app::transactions::CreateCycleMode::Preview,
-        definition: dokime_app::transactions::CycleDefinition {
-            suite: state.suites.suites().next().unwrap().suite.clone(),
-            metadata: metadata("explicit.provenance"),
-            cases: vec![case.clone()],
-            continue_on_failure: false,
-        },
-        test_cycle_id: TestCycleId::new(),
+    let id = TestCycleId::new();
+    create_cycle(&mut state, &id, "explicit.provenance");
+    let mut append = AppendCycle {
+        admission_identifier: CommandId::new(),
+        test_cycle_id: id,
+        cases: vec![case.clone()],
+        settings: BTreeMap::new(),
         occurred_at: Timestamp::now_utc(),
-        settings: Default::default(),
     };
-    create.check(&state).unwrap();
-    create.definition.cases[0].suite = None;
-    assert!(create.check(&state).unwrap_err().contains("owning suite"));
+    append.check(&state).unwrap();
+    append.cases[0].suite = None;
+    assert!(append.check(&state).unwrap_err().contains("owning suite"));
     assert_eq!(state.suites.case(&case.test_case_id), Some(&case));
 }
 

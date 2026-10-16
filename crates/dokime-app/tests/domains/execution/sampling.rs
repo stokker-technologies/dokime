@@ -29,7 +29,6 @@ use dokime_app::execution::CriterionStatus;
 use dokime_app::runtime::command::{CommandContext, CommandStatus};
 use dokime_app::runtime::progress::{LiveOperation, OperationOutcome};
 use dokime_app::runtime::query::RuntimeChange;
-use dokime_app::transactions::CycleDefinition;
 
 /* === Constants === */
 /// Rows each case pushes onto its own stream: many storage pages per case.
@@ -128,18 +127,13 @@ async fn run_case_execution(
         .find(|suite| suite.source == "fixture-suites")
         .unwrap()
         .suite;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(Identifier::new(label).unwrap(), label, None),
-                cases: materialize_cases("fixture.checks", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        handle,
+        Metadata::new(Identifier::new(label).unwrap(), label, None),
+        materialize_cases("fixture.checks", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -230,18 +224,13 @@ pub(crate) async fn logged_cycle_terminal() {
         .unwrap()
         .suite;
     let case = materialize_cases("fixture.checks", &suite).remove(0);
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite,
-                metadata: Metadata::new(Identifier::new("logged.cycle").unwrap(), "Logged", None),
-                cases: vec![case; LOGGED_CASES],
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(Identifier::new("logged.cycle").unwrap(), "Logged", None),
+        vec![case; LOGGED_CASES],
+        false,
+    )
+    .await;
     let mut watch = handle.watch_state();
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
@@ -399,18 +388,13 @@ pub(crate) async fn running_report_follows_live_plot() {
         .find(|suite| suite.source == "fixture-suites")
         .unwrap()
         .suite;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(Identifier::new("pulse.live").unwrap(), "Live", None),
-                cases: materialize_cases("fixture.checks", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(Identifier::new("pulse.live").unwrap(), "Live", None),
+        materialize_cases("fixture.checks", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -511,22 +495,13 @@ pub(crate) async fn report_open_shows_progress() {
         .find(|suite| suite.source == "fixture-suites")
         .unwrap()
         .suite;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(
-                    Identifier::new("pulse.progress").unwrap(),
-                    "Progress",
-                    None,
-                ),
-                cases: materialize_cases("fixture.checks", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(Identifier::new("pulse.progress").unwrap(), "Progress", None),
+        materialize_cases("fixture.checks", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -723,22 +698,17 @@ pub(crate) async fn oversized_report_remains_unsealed() {
         .find(|suite| suite.source == "fixture-suites")
         .unwrap()
         .suite;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(
-                    Identifier::new("spectrum.oversized").unwrap(),
-                    "Oversized",
-                    None,
-                ),
-                cases: materialize_cases("fixture.checks", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(
+            Identifier::new("spectrum.oversized").unwrap(),
+            "Oversized",
+            None,
+        ),
+        materialize_cases("fixture.checks", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -803,22 +773,17 @@ pub(crate) async fn pool_refusal_settles() {
         .find(|suite| suite.source == "fixture-suites")
         .unwrap()
         .suite;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(
-                    Identifier::new("spectrum.refused").unwrap(),
-                    "Refused",
-                    None,
-                ),
-                cases: vec![materialize_cases("fixture.checks", &suite).remove(0); POOLED_MEMBERS],
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(
+            Identifier::new("spectrum.refused").unwrap(),
+            "Refused",
+            None,
+        ),
+        vec![materialize_cases("fixture.checks", &suite).remove(0); POOLED_MEMBERS],
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -874,18 +839,13 @@ pub(crate) async fn slow_output_read_uses_shared_deadline() {
         .unwrap()
         .suite;
     let case = materialize_cases("fixture.checks", &suite).remove(0);
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite,
-                metadata: Metadata::new(Identifier::new("logged.slow").unwrap(), "Slow", None),
-                cases: vec![case],
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(Identifier::new("logged.slow").unwrap(), "Slow", None),
+        vec![case],
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;

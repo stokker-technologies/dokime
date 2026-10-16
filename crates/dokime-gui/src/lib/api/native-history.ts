@@ -57,11 +57,6 @@ function mapCycleHistorySummary(cycle: CycleSummary): CycleHistorySummary {
     test_cycle_id: cycle.cycleId,
     session_id: null,
     title: cycle.metadata?.label || cycle.cycleId,
-    // The current execution index carries no suite identity. The selector
-    // falls back to the cycle id until the history checkpoint descriptor is
-    // available, preserving the native value instead of guessing a suite.
-    suite_id: null,
-    suite_name: null,
     lifecycle: cycleLifecycle(cycle.status),
     result_status: resultStatus(result?.status),
     case_count: caseCount,
@@ -81,8 +76,6 @@ function mapCycleHistorySummary(cycle: CycleSummary): CycleHistorySummary {
 
 function cycleLifecycle(status: CycleStatus): string {
   switch (status?.HarmosVariant.case) {
-    case "Previewed":
-      return "previewed";
     case "Ready":
       return "ready";
     case "Running":

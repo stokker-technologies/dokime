@@ -20,6 +20,9 @@ use std::{io::Write, path::PathBuf, time::Duration};
 
 // Local Imports
 use dokime_contract::core::Identifier;
+use dokime_contract::operations::{
+    common::Metadata, execution::CreateCycleRequest, planning::SelectionPlan,
+};
 
 /* === Constants === */
 
@@ -30,20 +33,21 @@ use dokime_contract::core::Identifier;
 /* === Structs === */
 #[derive(Debug, clap::Args)]
 pub(crate) struct Args {
-    #[arg(long, conflicts_with_all = ["case_ids", "identifier", "label", "continue_on_failure"], help = "Read The Canonical CreateCycleRequest JSON Without Flag Overrides.")]
+    #[arg(long, conflicts_with_all = ["identifier", "label", "description", "continue_on_failure"], help = "Read The Canonical CreateCycleRequest JSON Without Flag Overrides.")]
     input_file: Option<PathBuf>,
-    #[arg(
-        long = "case-id",
-        required_unless_present = "input_file",
-        help = "Registered Case ID; Repeat To Preserve Order And Repeated Attempts."
-    )]
-    case_ids: Vec<String>,
-    #[arg(long, required_unless_present = "input_file")]
-    identifier: Option<String>,
-    #[arg(long, required_unless_present = "input_file")]
+    #[arg(long, required_unless_present = "input_file", help = "Cycle Title.")]
     label: Option<String>,
+    #[arg(long, help = "Cycle Identifier; Omitted Lets The Backend Derive One.")]
+    identifier: Option<String>,
+    #[arg(long)]
+    description: Option<String>,
     #[arg(long)]
     continue_on_failure: bool,
+    #[arg(
+        long = "case-id",
+        help = "Registered Case ID To Append After Creation; Repeat To Preserve Order."
+    )]
+    case_ids: Vec<String>,
     #[command(flatten)]
     connection: crate::connection::Args,
     #[arg(
@@ -68,29 +72,19 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let mut request = match args.input_file {
+    let request = match args.input_file {
         Some(path) => {
             let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
-            serde_json::from_slice::<dokime_contract::operations::execution::CreateCycleRequest>(
-                &bytes,
-            )
-            .map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
+            serde_json::from_slice::<CreateCycleRequest>(&bytes)
+                .map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
         }
-        None => dokime_contract::operations::execution::CreateCycleRequest {
-            plan: Some(dokime_contract::operations::planning::SelectionPlan {
-                selections: Vec::new(),
-                max_cases: 0,
-                case_ids: args.case_ids,
-                cycle_id: String::new(),
-            }),
-            metadata: Some(dokime_contract::operations::common::Metadata {
-                identifier: args
-                    .identifier
-                    .ok_or_else(|| crate::Error::Input("identifier is required".into()))?,
+        None => CreateCycleRequest {
+            metadata: Some(Metadata {
+                identifier: args.identifier.unwrap_or_default(),
                 label: args
                     .label
                     .ok_or_else(|| crate::Error::Input("label is required".into()))?,
-                description: None,
+                description: args.description,
                 tags: Vec::new(),
                 attributes: Vec::new(),
                 created_at: None,
@@ -100,10 +94,14 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             context: None,
         },
     };
-    // Selections name templates by their readable ID, as `plan` does.
-    let planned = crate::commands::plan::input::Planned::canonical(request.plan.take())?;
-    if let Some(metadata) = &request.metadata {
+    if let Some(metadata) = &request.metadata
+        && !metadata.identifier.is_empty()
+    {
         Identifier::new(metadata.identifier.clone())
+            .map_err(|error| crate::Error::Input(error.to_string()))?;
+    }
+    for id in &args.case_ids {
+        dokime_contract::core::CaseId::from_wire(id)
             .map_err(|error| crate::Error::Input(error.to_string()))?;
     }
     if let Some(key) = &args.request_key {
@@ -112,7 +110,6 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     }
     let client = args.connection.connect().await?;
     let result = async {
-        request.plan = planned.resolve(&client).await?;
         let cycle = client.create_cycle(request).await?;
         // Expose Recovery Identity Before Starting Work.
         created(
@@ -121,6 +118,16 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
             args.request_key.as_deref(),
             args.json,
         )?;
+        if !args.case_ids.is_empty() {
+            cycle
+                .append_cases(SelectionPlan {
+                    selections: Vec::new(),
+                    max_cases: 0,
+                    case_ids: args.case_ids,
+                    cycle_id: String::new(),
+                })
+                .await?;
+        }
         if let Some(key) = args.request_key {
             let admission = cycle.run(&key).await?;
             {

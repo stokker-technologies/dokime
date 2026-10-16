@@ -23,7 +23,6 @@ use dokime_app::core::{RecordScope, TestCycleId};
 use dokime_app::domains::evidence::OperatorNoteRequest;
 use dokime_app::execution::HealthSeverity;
 use dokime_app::runtime::command::CommandContext;
-use dokime_app::transactions::CycleDefinition;
 
 /* === Constants === */
 
@@ -45,18 +44,12 @@ use dokime_app::transactions::CycleDefinition;
 async fn cycle(runtime: &dokime_app::RuntimeHandle) -> TestCycleId {
     let suite = common::fixture_suite(&["passed"]);
     common::register_fixture_execution(runtime, suite.clone()).await;
-    runtime
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: common::metadata("notes.fixture", "Notes"),
-                cases: common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap()
+    common::cycle_with_cases(
+        runtime,
+        common::metadata("notes.fixture", "Notes"),
+        common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+    )
+    .await
 }
 
 fn selection(cycle: &TestCycleId, context: bool) -> Option<contracts::notes::AnnotationSelection> {

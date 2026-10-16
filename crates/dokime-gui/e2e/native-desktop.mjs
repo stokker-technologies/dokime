@@ -1133,13 +1133,52 @@ async function startupJourney(session, notes) {
 /**
  * Library: the only route by which cases enter a cycle.
  *
- * One suite expanded, one template configured, the editor exercised on a number
- * and on a list, the summary read, and the cases materialized twice into the
- * same cycle -- which is what `appendTo` in the URL is for.
+ * The cycle comes first, through New Cycle, and becomes the active cycle that
+ * `appendTo` in the URL names. Then one suite expanded, one template
+ * configured, the editor exercised on a number and on a list, the summary
+ * read, and the cases materialized twice into that same cycle.
  */
 async function libraryJourney(session) {
   await session.goto("/library");
   await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
+  assert.ok(
+    hasText(await session.text(), "No cycle is active"),
+    "Without an active cycle the Library must say so",
+  );
+
+  /* New Cycle opens a dialog titled by the moment it opened. */
+  await session.clickNamed("button", "New Cycle");
+  await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
+  const title = await session.execute("return document.querySelector('#new-cycle-title').value");
+  assert.ok(title.trim().length > 0, "New Cycle must prefill its title");
+  assert.ok(
+    hasText(await session.text(), "Continue after a failed case"),
+    "New Cycle must state its failure policy",
+  );
+  await session.clickNamed("button", "Create Cycle");
+  const appendTo = await until(
+    "appendTo in the URL",
+    async () => {
+      const location = await session.location();
+      const id = location.searchParams.get("appendTo");
+      return location.pathname === "/library" && id ? id : null;
+    },
+    60000,
+  );
+  await until(
+    "new cycle dialog closed",
+    async () =>
+      (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
+    30000,
+  );
+  assert.ok(
+    hasText(await session.text(), "Cases materialized here are added to"),
+    "With an active cycle the Library must name it",
+  );
+  assert.ok(
+    await session.exists("button", "Open Cycle"),
+    "With an active cycle the page bar action must become Open Cycle",
+  );
 
   await session.clickNamed("button", PROTECTION_SUITE);
   await until("expanded suite", async () => hasText(await session.text(), "Configure"), 30000);
@@ -1239,13 +1278,10 @@ async function libraryJourney(session) {
   await session.clickNamed("button", "Next");
   await until("summary step", async () => hasText(await session.text(), "Finish And Add"), 60000);
   const summary = await session.text();
+  assert.ok(hasText(summary, "Target Cycle"), "The summary must name the active cycle");
   assert.ok(
-    hasText(summary, "New Cycle"),
-    "Without appendTo the summary must name the cycle it will create",
-  );
-  assert.ok(
-    hasText(summary, "Created On Add"),
-    'The target must read "New Cycle -- Created On Add"',
+    hasText(summary, title.trim()) || hasText(summary, appendTo),
+    "The summary target must be the cycle New Cycle created",
   );
   assert.ok(/\d+ Cases?/.test(normalize(summary)), "The summary must state the case count");
   const deltas = await session.execute(`
@@ -1258,27 +1294,16 @@ async function libraryJourney(session) {
   );
 
   await session.clickNamed("button", "Finish And Add");
-  const appendTo = await until(
-    "appendTo in the URL",
-    async () => {
-      const location = await session.location();
-      const id = location.searchParams.get("appendTo");
-      return location.pathname === "/library" && id ? id : null;
-    },
+  await until(
+    "first add finished",
+    async () =>
+      (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     60000,
   );
   assert.equal(
-    await session.execute("return document.querySelectorAll('[role=dialog]').length"),
-    0,
-    "Finish And Add must close the dialog",
-  );
-  assert.ok(
-    hasText(await session.text(), "Cases materialized here are added to"),
-    "With a target cycle the Library must name it",
-  );
-  assert.ok(
-    await session.exists("button", "Open Cycle"),
-    "With a target cycle the page bar action must become Open Cycle",
+    (await session.location()).searchParams.get("appendTo"),
+    appendTo,
+    "Adding cases must keep the active cycle",
   );
 
   /* A second template joins the same cycle, so the run has a prompt in it. */
@@ -1294,8 +1319,8 @@ async function libraryJourney(session) {
   await session.clickNamed("button", "Next");
   await until("second summary", async () => hasText(await session.text(), "Finish And Add"), 60000);
   assert.ok(
-    !hasText(await session.text(), "Created On Add"),
-    "With appendTo the summary must name the target cycle, not a new one",
+    hasText(await session.text(), "Target Cycle"),
+    "The second summary must name the same active cycle",
   );
   await session.clickNamed("button", "Finish And Add");
   await until(
@@ -2114,17 +2139,17 @@ async function settingsJourney(session, notes, work) {
   /* The attached desktop saves policy in the backend's execution root. */
   const interval = await until("backend policy input", () =>
     session.execute(
-      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Save Interval (Seconds)');
+      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Compaction Interval (Hours)');
      return label?.control ?? null;`,
     ),
   );
-  await session.type(interval, "1.234");
+  await session.type(interval, "2");
   await until(
     "backend policy saved",
     async () => {
       try {
         const saved = JSON.parse(await readFile(join(work, "data/backend-policy.json"), "utf8"));
-        return saved.revision > 0 && saved.policy.saveIntervalMs === 1234;
+        return saved.revision > 0 && saved.policy.compactionIntervalMs === 7200000;
       } catch {
         return false;
       }
@@ -2140,8 +2165,8 @@ async function settingsJourney(session, notes, work) {
   await session.goto("/settings/general");
   await until("saved backend policy reread", () =>
     session.execute(
-      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Save Interval (Seconds)');
-     return label?.control?.value === '1.234';`,
+      `const label = [...document.querySelectorAll('label')].find(label => label.textContent.trim() === 'Compaction Interval (Hours)');
+     return label?.control?.value === '2';`,
     ),
   );
 

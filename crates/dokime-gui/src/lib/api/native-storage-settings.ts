@@ -34,7 +34,6 @@ import { safeNumber } from "./native-values";
 
 /* === Types === */
 export type StoragePolicy = {
-  saveIntervalMs: number;
   compactionIntervalMs: number;
   localRetentionMs: number | null;
 };
@@ -81,7 +80,6 @@ export async function updateStoragePolicy(
     await rpc.settingsUpdateStoragePolicy(session, {
       expectedRevision: revision,
       policy: {
-        saveIntervalMs: BigInt(policy.saveIntervalMs),
         compactionIntervalMs: BigInt(policy.compactionIntervalMs),
         localRetentionMs:
           policy.localRetentionMs === null ? undefined : BigInt(policy.localRetentionMs),
@@ -95,7 +93,6 @@ function policyView(view: WirePolicyView): StoragePolicyView {
   const policy = (value: WirePolicyView["configured"]): StoragePolicy => {
     if (!value) throw new Error("Backend omitted storage policy");
     return {
-      saveIntervalMs: safeNumber(value.saveIntervalMs, "save interval"),
       compactionIntervalMs: safeNumber(value.compactionIntervalMs, "compaction interval"),
       localRetentionMs:
         value.localRetentionMs === undefined

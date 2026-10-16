@@ -300,18 +300,25 @@ async fn admitted_execution(handle: &RuntimeHandle, index: usize) -> TestExecuti
     suite
         .test_case_templates
         .retain(|candidate| candidate.metadata.identifier.as_str() == template);
-    let id = handle
-        .start_cycle(
-            CycleDefinition {
-                cases: materialize_cases("fixture.registration", &suite),
-                suite,
-                metadata: metadata("lease.owner", "Lease Owner"),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
+    let suite_id = format!("fixture.registration.{index}");
+    handle
+        .set_suites(
+            &format!("fixture.{index}"),
+            dokime_app::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition::new(
+                &suite_id,
+                suite.clone(),
+            )
+            .unwrap()]),
         )
         .await
         .unwrap();
+    let id = start_cases(
+        handle,
+        metadata("lease.owner", "Lease Owner"),
+        materialize_cases(&suite_id, &suite),
+        false,
+    )
+    .await;
     cycle_snapshot(handle, &id).await.test_executions[0]
         .test_execution_id
         .clone()
@@ -655,7 +662,6 @@ pub(crate) async fn foreign_stream_refuses() {
 
 pub(crate) async fn template_record_on() {
     use dokime_app::domains::evidence::RecordSelection;
-    use dokime_app::transactions::CycleDefinition;
 
     let root = tempdir().unwrap();
     let marker = root.path().join("record-observer");
@@ -696,22 +702,17 @@ pub(crate) async fn template_record_on() {
         .find(|suite| suite.source == "validation-telemetry")
         .expect("the fixture exports its record subscription template")
         .suite;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(
-                    Identifier::new("record-demand.cycle").unwrap(),
-                    "Record Demand Cycle",
-                    None,
-                ),
-                cases: materialize_cases("validation-telemetry.records", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(
+            Identifier::new("record-demand.cycle").unwrap(),
+            "Record Demand Cycle",
+            None,
+        ),
+        materialize_cases("validation-telemetry.records", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;

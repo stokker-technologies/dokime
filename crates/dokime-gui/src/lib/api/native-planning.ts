@@ -16,20 +16,18 @@
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import { defaultCycleLabel } from "@/lib/time-format";
 import type {
   CaseActions,
   ExecutionQueueItem,
   PreviewTestCycleRequest,
   PreviewTestCycleResponse,
-  StartTestCycleRequest,
   StartTestCycleResponse,
   StepExecutionRecord,
   SuiteTemplateEntry,
   TestCase,
   TestCyclePlan,
+  TestCycleSelection,
   TestExecution,
-  TestSuiteEntry,
   TestTemplateMetadata,
 } from "@/lib/types";
 import type { Row19 as GeneratedValue } from "../../../.generated/dokime/v1/CatalogMessages/GetSuite/messages_pb";
@@ -82,12 +80,6 @@ type ExecutionStatus = Wire<GeneratedExecutionStatus>;
 type StepStatus = Wire<GeneratedStepStatus>;
 type CriterionStatus = Wire<GeneratedCriterionStatus>;
 
-/* === Constants === */
-
-/** Match the original bounded activity observation after a run admission. */
-const NATIVE_RUN_ACTIVITY_ATTEMPTS = 80;
-const NATIVE_RUN_ACTIVITY_DELAY_MS = 125;
-
 /* === Planning and execution === */
 
 export async function previewNativeTestCycle(
@@ -114,58 +106,45 @@ export async function previewNativeTestCycle(
   };
 }
 
+/** What the operator states about a new cycle; the backend derives its identifier. */
+export type NewCycleRequest = {
+  label: string;
+  description?: string;
+  continueOnFailure: boolean;
+};
+
 /**
- * Create the cycle and stop there.
+ * Create an empty Ready cycle.
  *
- * Execution.CreateCycle only: the cycle lands Ready and waits for the operator
- * to admit its run, so nothing here observes run activity.
+ * Execution.CreateCycle carries no plan: cases join later through
+ * Planning and AppendPlannedCases, and running a cycle without cases is
+ * refused, so nothing here observes run activity.
  */
 export async function createNativeTestCycle(
   session: SessionIdentity,
-  request: StartTestCycleRequest,
+  request: NewCycleRequest,
 ): Promise<{ cycleId: string }> {
-  const plan = await nativeSelectionPlan(session, request);
-  const firstSuite = await firstSelectedSuite(session, request);
-  const registered = await rpc.planningRegisterSelection(session, {
-    plan,
-    idempotencyKey: crypto.randomUUID(),
-  });
   const created = await rpc.executionCreateCycle(session, {
-    plan: { caseIds: registered.cases.map((item) => item.caseId) },
     metadata: {
-      identifier: `cycle.${firstSuite.suite_id.replaceAll(".", "_")}`,
-      label: request.title ?? defaultCycleLabel(),
-      description: firstSuite.description ?? undefined,
+      identifier: "",
+      label: request.label,
+      description: request.description,
+      tags: [],
+      attributes: [],
     },
-    continueOnFailure: request.continue_on_failure ?? firstSuite.continue_on_failure,
+    continueOnFailure: request.continueOnFailure,
+    context: { correlationId: crypto.randomUUID() },
   });
   return { cycleId: created.cycleId };
-}
-
-export async function startNativeTestCycle(
-  session: SessionIdentity,
-  request: StartTestCycleRequest,
-): Promise<StartTestCycleResponse> {
-  const { cycleId } = await createNativeTestCycle(session, request);
-  await ensureNativeRunAccepted(
-    await rpc.executionRunCycle(session, {
-      cycleId,
-      idempotencyKey: crypto.randomUUID(),
-    }),
-  );
-  await waitForNativeCycleRunActivity(session, cycleId);
-  const result = await fetchNativeTestCyclePlan(session, cycleId);
-  if (!result) throw new Error("Native CreateCycle did not produce a cycle.");
-  return { plan: result };
 }
 
 export async function appendNativeTestCycle(
   session: SessionIdentity,
   cycleId: string,
-  request: StartTestCycleRequest,
+  selections: TestCycleSelection[],
 ): Promise<StartTestCycleResponse> {
   /* The cycle continues each template's case numbering. */
-  const plan = await nativeSelectionPlan(session, request, cycleId);
+  const plan = await nativeSelectionPlan(session, { parameters: {}, selections }, cycleId);
   const registered = await rpc.planningRegisterSelection(session, {
     plan,
     idempotencyKey: crypto.randomUUID(),
@@ -222,9 +201,10 @@ async function assembleNativeCyclePlan(
     const parameters = await listNativeCaseParameters(session, summary.cycleId, item.caseId);
     return { item, detail, parameters };
   });
-  const suiteId = caseDetails.find((item) => item.detail.suite?.identifier)?.detail.suite
-    ?.identifier;
-  const suite = suiteId ? await getNativeSuiteById(session, suiteId) : null;
+  /* A cycle has no suite of its own: its cases may come from any number of
+     them, and each case's template is read from the suite it came from. */
+  const suiteIds = [...new Set(caseDetails.flatMap((item) => item.detail.suite?.identifier || []))];
+  const suites = await mapBounded(suiteIds, (suiteId) => fetchNativeSuite(session, suiteId));
   const mappedCases = caseDetails.map((entry) =>
     mapNativeCase(entry.item, entry.detail, entry.parameters),
   );
@@ -234,15 +214,15 @@ async function assembleNativeCyclePlan(
   /* The case the cycle is on, as the case projection states it: exactly one
      case can be RUNNING, and its own latest attempt is the live one. */
   const active = queue.find((item) => item.status === "running") ?? null;
-  const templates = suite?.members.map((template) => mapTemplateMetadata(template)) ?? [];
+  const templates = suites.flatMap(
+    (suite) => suite?.members.map((template) => mapTemplateMetadata(template)) ?? [],
+  );
   const generatedAt =
     timestampIso(summary.createdAt) ?? timestampIso(summary.updatedAt) ?? nowIso();
   return {
     test_cycle: {
       test_cycle_id: summary.cycleId,
       title: summary.metadata?.label || summary.cycleId,
-      suite_id: suiteId ?? null,
-      suite_name: suite?.name ?? null,
       status: mapCycleStatus(summary.status),
       case_count: mappedCases.length,
       queue_count: mappedCases.length,
@@ -377,20 +357,9 @@ function mapCaseActions(actions: NativeCaseActions | undefined): CaseActions | n
   };
 }
 
-async function firstSelectedSuite(
-  session: SessionIdentity,
-  request: StartTestCycleRequest,
-): Promise<TestSuiteEntry> {
-  const suites = await fetchNativeSuites(session);
-  const suiteId = request.selections?.[0]?.suite_id ?? request.suite_id;
-  const suite = suites.find((item) => item.suite_id === suiteId) ?? suites[0];
-  if (!suite) throw new Error("No registered suite is available.");
-  return suite;
-}
-
 async function nativeSelectionPlan(
   session: SessionIdentity,
-  request: PreviewTestCycleRequest | StartTestCycleRequest,
+  request: PreviewTestCycleRequest,
   cycleId = "",
 ): Promise<Wire<NonNullable<Parameters<typeof rpc.planningPreviewSelection>[1]["plan"]>>> {
   const selections =
@@ -481,44 +450,11 @@ export function ensureNativeRunAccepted(
   throw new Error("The native backend returned no run admission outcome.");
 }
 
-async function waitForNativeCycleRunActivity(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<CycleSummary> {
-  let latest: CycleSummary | undefined;
-  for (let attempt = 0; attempt < NATIVE_RUN_ACTIVITY_ATTEMPTS; attempt++) {
-    latest = await rpc.executionGetCycle(session, { cycleId });
-    if (hasNativeCycleRunActivity(latest)) return latest;
-    if (attempt + 1 < NATIVE_RUN_ACTIVITY_ATTEMPTS)
-      await new Promise((resolve) => setTimeout(resolve, NATIVE_RUN_ACTIVITY_DELAY_MS));
-  }
-  // Match the original route behavior: return the latest authoritative cycle
-  // snapshot after the bounded wait so the caller can render its current plan.
-  if (!latest) throw new Error("Native CreateCycle did not produce a cycle.");
-  return latest;
-}
-
-function hasNativeCycleRunActivity(cycle: CycleSummary): boolean {
-  return (
-    cycle.executionCount > 0n ||
-    ["Running", "Paused", "Stopping", "Completed", "Failed", "Stopped", "Blocked"].includes(
-      cycle.status?.HarmosVariant.case ?? "",
-    )
-  );
-}
-
-async function getNativeSuiteById(
-  session: SessionIdentity,
-  suiteId: string,
-): Promise<TestSuiteEntry | null> {
-  return fetchNativeSuite(session, suiteId);
-}
-
 /**
  * Server-side selection and ordering for the live cycle list.
  *
- * `text` matches a cycle's label, its identifier and its admitted suite label;
- * an empty string selects everything. `statuses` is disjunctive and an empty
+ * `text` matches a cycle's label and its identifier; an empty string selects
+ * everything. `statuses` is disjunctive and an empty
  * list is no constraint, so hiding one lifecycle means naming the others.
  * `descending` is what makes UPDATED_AT newest-first: the server's own default
  * is ascending.
@@ -539,7 +475,7 @@ export async function listNativeCycles(
   /* The contract rejects a continuation whose selection or order changed
      rather than silently restarting it, so both are built once and repeated
      by reference on every page of this read. */
-  const filter = selection.filter ?? { text: "", statuses: [], suiteIds: [] };
+  const filter = selection.filter ?? { text: "", statuses: [] };
   const order = selection.order ?? {
     key: { HarmosVariant: { case: "UpdatedAt", value: {} } },
     descending: true,

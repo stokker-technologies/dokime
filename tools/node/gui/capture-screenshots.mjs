@@ -495,13 +495,33 @@ async function runUntil(session, description, check, timeout) {
 /* Materialization */
 
 /**
+ * Create an empty cycle through New Cycle and return its id.
+ *
+ * Creation is always this explicit step; the Library then appends to the
+ * cycle it made active.
+ */
+async function createCycle(session) {
+  await session.goto("/library");
+  await until("library", async () => (await session.text()).includes("New Cycle"), 120000);
+  await session.clickNamed("button", "New Cycle");
+  await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
+  await session.clickNamed("button", "Create Cycle");
+  return until(
+    "the created cycle",
+    async () => (await session.location()).searchParams.get("appendTo"),
+    120000,
+  );
+}
+
+/**
  * Compose one cycle from a suite through the template dialog.
  *
  * The dialog is the only route by which cases enter a cycle, so the capture
  * takes the same one an operator does, and shoots step 1 on the way through.
  */
-async function materialize(session, { appendTo, capture, duration, suite }) {
-  await session.goto(appendTo ? `/library?appendTo=${appendTo}` : "/library");
+async function materialize(session, { capture, duration, suite }) {
+  const appendTo = await createCycle(session);
+  await session.goto(`/library?appendTo=${appendTo}`);
   await until("suite rows", async () => (await session.text()).includes(suite), 120000);
   await session.clickNamed("button", suite);
   await until("expanded suite", async () => (await session.text()).includes("Configure"), 30000);
@@ -529,11 +549,13 @@ async function materialize(session, { appendTo, capture, duration, suite }) {
     120000,
   );
   await session.clickNamed("button", "Finish And Add");
-  return until(
-    "the materialized cycle",
-    async () => (await session.location()).searchParams.get("appendTo"),
+  await until(
+    "cases added",
+    async () =>
+      (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     120000,
   );
+  return appendTo;
 }
 
 /* The Capture Itself */

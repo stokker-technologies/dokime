@@ -25,7 +25,6 @@ use crate::support::prelude::*;
 use dokime::core::{Identifier, Metadata};
 use dokime::execution::ExecutionStatus;
 use dokime_app::runtime::command::{CommandContext, CommandStatus};
-use dokime_app::transactions::CycleDefinition;
 
 /* === Constants === */
 const ARTIFACT_EVIDENCE_HEADER: &str = "sample,value\n";
@@ -98,22 +97,17 @@ pub(crate) async fn steps_streamed_media() {
         .find(|suite| suite.source == "fixture-suites")
         .unwrap()
         .suite;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(
-                    Identifier::new("artifact.cycle").unwrap(),
-                    "Artifact Cycle",
-                    None,
-                ),
-                cases: materialize_cases("fixture.checks", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(
+            Identifier::new("artifact.cycle").unwrap(),
+            "Artifact Cycle",
+            None,
+        ),
+        materialize_cases("fixture.checks", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -231,22 +225,17 @@ pub(crate) async fn abandoned_artifacts_execution() {
         .find(|suite| suite.source == "fixture-suites")
         .unwrap()
         .suite;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(
-                    Identifier::new("abandoned.cycle").unwrap(),
-                    "Abandoned Artifact Cycle",
-                    None,
-                ),
-                cases: materialize_cases("fixture.checks", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        Metadata::new(
+            Identifier::new("abandoned.cycle").unwrap(),
+            "Abandoned Artifact Cycle",
+            None,
+        ),
+        materialize_cases("fixture.checks", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;

@@ -207,23 +207,21 @@ async fn artifact_transfer_budget(message_bytes: usize) {
         .await
         .unwrap();
     let execution = WireClient::new(stream.clone());
-    let cycle_id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(
-            contracts::execution::CreateCycleRequest {
-                plan: Some(super::workflow::selection_plan(&owner)),
-                metadata: Some(contracts::common::Metadata {
-                    identifier: "content.cycle".into(),
-                    label: "Content".into(),
-                    description: None,
-                    ..Default::default()
-                }),
+    let cycle_id = common::planned_cycle(
+        &execution,
+        authenticated(contracts::execution::CreateCycleRequest {
+            metadata: Some(contracts::common::Metadata {
+                identifier: "content.cycle".into(),
+                label: "Content".into(),
+                description: None,
                 ..Default::default()
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+            }),
+            ..Default::default()
+        }),
+        super::workflow::selection_plan(&owner),
+    )
+    .await
+    .unwrap();
     let reply = execution
         .unary::<contracts::execution::RunCycle>(authenticated(
             contracts::execution::RunCycleRequest {
@@ -609,23 +607,21 @@ pub(crate) async fn artifact_upload_owned() {
         .await
         .unwrap();
     let execution = WireClient::new(stream.clone());
-    let cycle_id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(
-            contracts::execution::CreateCycleRequest {
-                plan: Some(super::workflow::selection_plan(&owner)),
-                metadata: Some(contracts::common::Metadata {
-                    identifier: "content.upload".into(),
-                    label: "Upload".into(),
-                    description: None,
-                    ..Default::default()
-                }),
+    let cycle_id = common::planned_cycle(
+        &execution,
+        authenticated(contracts::execution::CreateCycleRequest {
+            metadata: Some(contracts::common::Metadata {
+                identifier: "content.upload".into(),
+                label: "Upload".into(),
+                description: None,
                 ..Default::default()
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+            }),
+            ..Default::default()
+        }),
+        super::workflow::selection_plan(&owner),
+    )
+    .await
+    .unwrap();
     execution
         .unary::<contracts::execution::RunCycle>(authenticated(
             contracts::execution::RunCycleRequest {
@@ -968,23 +964,21 @@ async fn completion_harness() -> (
         .await
         .unwrap();
     let execution = WireClient::new(stream.clone());
-    let cycle_id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(
-            contracts::execution::CreateCycleRequest {
-                plan: Some(super::workflow::selection_plan(&owner)),
-                metadata: Some(contracts::common::Metadata {
-                    identifier: "content.completion".into(),
-                    label: "Completion".into(),
-                    description: None,
-                    ..Default::default()
-                }),
+    let cycle_id = common::planned_cycle(
+        &execution,
+        authenticated(contracts::execution::CreateCycleRequest {
+            metadata: Some(contracts::common::Metadata {
+                identifier: "content.completion".into(),
+                label: "Completion".into(),
+                description: None,
                 ..Default::default()
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+            }),
+            ..Default::default()
+        }),
+        super::workflow::selection_plan(&owner),
+    )
+    .await
+    .unwrap();
     execution
         .unary::<contracts::execution::RunCycle>(authenticated(
             contracts::execution::RunCycleRequest {
@@ -1371,23 +1365,21 @@ pub(crate) async fn large_artifact_buffering() {
         .await
         .unwrap();
     let execution = WireClient::new(stream.clone());
-    let cycle_id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(
-            contracts::execution::CreateCycleRequest {
-                plan: Some(super::workflow::selection_plan(&owner)),
-                metadata: Some(contracts::common::Metadata {
-                    identifier: "content.bundle".into(),
-                    label: "Bundle".into(),
-                    description: None,
-                    ..Default::default()
-                }),
+    let cycle_id = common::planned_cycle(
+        &execution,
+        authenticated(contracts::execution::CreateCycleRequest {
+            metadata: Some(contracts::common::Metadata {
+                identifier: "content.bundle".into(),
+                label: "Bundle".into(),
+                description: None,
                 ..Default::default()
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+            }),
+            ..Default::default()
+        }),
+        super::workflow::selection_plan(&owner),
+    )
+    .await
+    .unwrap();
     execution
         .unary::<contracts::execution::RunCycle>(authenticated(
             contracts::execution::RunCycleRequest {
