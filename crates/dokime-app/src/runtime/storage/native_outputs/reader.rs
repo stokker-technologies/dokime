@@ -149,7 +149,6 @@ impl Reader {
             }
             let computation = self.source.computation()?;
             let deadline = computation.deadline();
-            let scratch = computation.scratch_bytes();
             let source = self.source.clone();
             let offset = self.offset;
             let length = (source.metadata.size_bytes - offset).min(maximum.get() as u64) as usize;
@@ -194,10 +193,13 @@ impl Reader {
                 .checked_add(std::mem::size_of::<Self>())
                 .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Pending>()))
                 .ok_or_else(exhausted)?;
-            if working > scratch {
-                return Err(exhausted());
-            }
-            let task = tokio::task::spawn_blocking(read);
+            let memory = self
+                .source
+                .reserve_work(NonZeroUsize::new(working).unwrap())?;
+            let task = tokio::task::spawn_blocking(move || {
+                let _memory = memory;
+                read()
+            });
             self.pending = Some(Pending {
                 maximum,
                 deadline,

@@ -77,7 +77,6 @@ pub(in crate::runtime::storage) async fn capture_logo(
     let preparation = storage.prepare_read_production_in(view, bytes)?;
     let computation = preparation.computation()?;
     let deadline = computation.deadline();
-    let scratch = computation.scratch_bytes();
     let path = asset.path.clone();
     let mut mime_type = String::new();
     mime_type
@@ -94,6 +93,7 @@ pub(in crate::runtime::storage) async fn capture_logo(
         .try_into_value()?
         .try_into_shared()?;
     computation.check()?;
+    let work_owner = source.clone();
     let read = move || {
         let result = (|| -> harmos::Result<QueryValue<String>> {
             computation.check()?;
@@ -164,10 +164,11 @@ pub(in crate::runtime::storage) async fn capture_logo(
         .and_then(|bytes| bytes.checked_add(std::mem::size_of::<std::fs::File>()))
         .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<std::fs::Metadata>()))
         .ok_or_else(memory_error)?;
-    if working > scratch {
-        return Err(memory_error().into());
-    }
-    let task = tokio::task::spawn_blocking(read);
+    let memory = work_owner.reserve_work(NonZeroUsize::new(working).unwrap())?;
+    let task = tokio::task::spawn_blocking(move || {
+        let _memory = memory;
+        read()
+    });
     let result = tokio::time::timeout_at(deadline, task)
         .await
         .map_err(|_| harmos::Error::ResourceExhausted {

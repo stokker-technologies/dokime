@@ -250,7 +250,6 @@ impl ExecutionStorage {
         let preparation = source.prepare_work()?;
         let read = async move {
             let computation = source.computation()?;
-            let scratch = computation.scratch_bytes();
             computation.check()?;
             let owner = source.storage.acquisition(&source.execution).await;
             computation.check()?;
@@ -284,6 +283,7 @@ impl ExecutionStorage {
             }
             let allowance = NonZeroUsize::new(bytes)
                 .ok_or_else(|| error("empty native inventory allowance"))?;
+            let work_owner = source.clone();
             let physical = move || {
                 computation
                     .project_shared(&source, allowance, |source, _| {
@@ -362,13 +362,12 @@ impl ExecutionStorage {
                     })
                     .map_err(Error::from)
             };
-            if std::mem::size_of_val(&physical) > scratch {
-                return Err(harmos::Error::ResourceExhausted {
-                    resource: "native inventory working memory",
-                }
-                .into());
-            }
-            let task = tokio::task::spawn_blocking(physical);
+            let memory = work_owner
+                .reserve_work(NonZeroUsize::new(std::mem::size_of_val(&physical)).unwrap())?;
+            let task = tokio::task::spawn_blocking(move || {
+                let _memory = memory;
+                physical()
+            });
             tokio::time::timeout_at(deadline, task)
                 .await
                 .map_err(|_| harmos::Error::ResourceExhausted {
@@ -451,7 +450,6 @@ impl ExecutionStorage {
         let preparation = source.prepare_work()?;
         let read = async move {
             let computation = source.computation()?;
-            let scratch = computation.scratch_bytes();
             computation.check()?;
             let owner = source.storage.acquisition(&source.execution).await;
             computation.check()?;
@@ -479,6 +477,7 @@ impl ExecutionStorage {
             computation.check()?;
             let (offset, length) = source.selection.extent(size_bytes)?;
             let allowance = content_memory(&source.path, length)?;
+            let work_owner = source.clone();
             let physical = move || {
                 // Cancellation Releases The Waiter; Accepted Physical Work Keeps Its Owners
 
@@ -508,13 +507,12 @@ impl ExecutionStorage {
                     })
                     .map_err(Error::from)
             };
-            if std::mem::size_of_val(&physical) > scratch {
-                return Err(harmos::Error::ResourceExhausted {
-                    resource: "native prefix working memory",
-                }
-                .into());
-            }
-            let task = tokio::task::spawn_blocking(physical);
+            let memory = work_owner
+                .reserve_work(NonZeroUsize::new(std::mem::size_of_val(&physical)).unwrap())?;
+            let task = tokio::task::spawn_blocking(move || {
+                let _memory = memory;
+                physical()
+            });
             tokio::time::timeout_at(deadline, task)
                 .await
                 .map_err(|_| harmos::Error::ResourceExhausted {
@@ -554,7 +552,6 @@ impl ExecutionStorage {
         let preparation = reader::Reader::prepare(&self.storage, path)?;
         let computation = preparation.computation()?;
         let deadline = computation.deadline();
-        let scratch = computation.scratch_bytes();
         let headers = std::mem::size_of::<reader::Reader>();
         let working =
             input_bytes
@@ -562,12 +559,7 @@ impl ExecutionStorage {
                 .ok_or_else(|| harmos::Error::ResourceExhausted {
                     resource: "native stream working memory",
                 })?;
-        if working > scratch {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "native stream working memory",
-            }
-            .into());
-        }
+        let input_memory = self.storage.reserve_arrow_memory(working)?;
         let mut owned_path = String::new();
         owned_path
             .try_reserve_exact(path.len())
@@ -584,6 +576,7 @@ impl ExecutionStorage {
         let execution = execution.clone();
         let storage = self.clone();
         let open = async move {
+            let _input_memory = input_memory;
             computation.check()?;
             let owner = storage.acquisition(&execution).await;
             computation.check()?;
@@ -622,19 +615,12 @@ impl ExecutionStorage {
             )
             .map(Some)
         };
-        let working = std::mem::size_of_val(&open)
-            .checked_add(input_bytes)
-            .and_then(|bytes| bytes.checked_add(headers))
-            .ok_or_else(|| harmos::Error::ResourceExhausted {
-                resource: "native stream working memory",
-            })?;
-        if working > scratch {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "native stream working memory",
-            }
-            .into());
-        }
-        let task = tokio::spawn(open);
+        let working = std::mem::size_of_val(&open);
+        let memory = self.storage.reserve_arrow_memory(working)?;
+        let task = tokio::spawn(async move {
+            let _memory = memory;
+            open.await
+        });
         tokio::time::timeout_at(deadline, task)
             .await
             .map_err(|_| harmos::Error::ResourceExhausted {
