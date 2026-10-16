@@ -22,6 +22,7 @@ import {
   summaryInFlight,
   toggleTrace,
 } from "@/lib/statistics";
+import type { PlotPayload, PlotPayloadStreamMessage } from "@/lib/types";
 import {
   HISTOGRAM_COUNT_LABEL,
   type HistogramColumn,
@@ -30,20 +31,14 @@ import {
   histogramAxisTitle,
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
+import { applyPlotMessages, emptyLivePlotState, type LivePlotState } from "@/plots/live-frames";
 import {
   NO_NUMERIC_SAMPLES,
   plotPlaceholderText,
   plotUnavailableText,
   WAITING_FOR_SAMPLES,
 } from "@/plots/plot-placeholder";
-import {
-  DEFAULT_PLOT_MAX_POINTS,
-  lttbIndices,
-  minMaxIndices,
-  RAW_RING_FACTOR,
-  reduceIndices,
-  retainedStart,
-} from "@/plots/reduce";
+import { lttbIndices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices } from "@/plots/reduce";
 import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
 /* === Fixture === */
@@ -94,6 +89,68 @@ function pulse(count: number, startS = 0) {
   return { x, y };
 }
 
+/* A host frame of aligned series on one x axis, as the stream decodes it. */
+function hostFrame(
+  x: number[],
+  ys: (number | null)[][],
+  fields: { maxPoints?: number; windowS?: number | null; keys?: string[] } = {},
+): PlotPayload {
+  return {
+    stream: "pulse",
+    x_key: "timestamp",
+    generated_at: "2026-10-16T00:00:00Z",
+    max_points: fields.maxPoints ?? 100,
+    window_s: fields.windowS ?? null,
+    series: ys.map((y, index) => ({
+      key: fields.keys?.[index] ?? `trace-${index}`,
+      label: `Trace ${index}`,
+      points: x.map((value, at) => ({ x: value, y: y[at] })),
+      raw_points: x.length,
+      downsampled: false,
+    })),
+    cartesian: {
+      mode: "aligned",
+      series: ys.map((y) => ({ x: [...x], y: [...y] })),
+      point_count: ys.reduce((count, y) => count + y.filter((value) => value !== null).length, 0),
+      signature: "host",
+    },
+  } as unknown as PlotPayload;
+}
+
+function streamMessage(
+  kind: PlotPayloadStreamMessage["kind"],
+  revision: number,
+  payload: PlotPayload,
+): PlotPayloadStreamMessage {
+  return {
+    kind,
+    revision,
+    plot_id: "pulse",
+    payload,
+    cursor: null,
+    warnings: [],
+  } as unknown as PlotPayloadStreamMessage;
+}
+
+/* Streams `chunks` appends of `size` pulse samples after `state`, 10 Hz from `startS`. */
+function appendPulses(
+  state: LivePlotState,
+  chunks: number,
+  size: number,
+  fields: { maxPoints?: number; windowS?: number | null; startS?: number; traces?: number },
+  onFrame?: (state: LivePlotState) => void,
+): LivePlotState {
+  let next = state;
+  for (let chunk = 0; chunk < chunks; chunk += 1) {
+    const { x, y } = pulse(size, (fields.startS ?? 0) + (chunk * size * PULSE_PERIOD_MS) / 1000);
+    const ys = Array.from({ length: fields.traces ?? 1 }, (_, trace) => y.map((v) => v + trace));
+    const update = hostFrame(x, ys, fields);
+    next = applyPlotMessages(next, [streamMessage("append", next.revision + 1, update)], "auto");
+    onFrame?.(next);
+  }
+  return next;
+}
+
 function assertAscending(indices: readonly number[]) {
   for (let index = 1; index < indices.length; index += 1) {
     assert.ok(indices[index] > indices[index - 1], `indices must ascend at ${index}`);
@@ -142,6 +199,7 @@ test("LTTB Reduction", () => {
   const gapX = [...first.x, ...second.x];
   const gapY = [...first.y, ...second.y];
   const gapKept = lttbIndices(gapX, gapY, 60);
+  /* Buckets are equal spans of time, so the silence holds no picks. */
   const keptX = gapKept.map((index) => gapX[index]);
   assert.ok(
     keptX.some((value) => value < 30),
@@ -151,7 +209,8 @@ test("LTTB Reduction", () => {
     keptX.some((value) => value >= 600),
     "keeps samples after the gap",
   );
-  assert.equal(gapKept.length, 60);
+  assert.ok(gapKept.length <= 60);
+  assertAscending(gapKept);
 
   // LTTB Never Picks A Sample Without A Finite Y
   const sparse = pulse(400);
@@ -161,17 +220,24 @@ test("LTTB Reduction", () => {
   }
 
   // Min/Max Keeps Each Bucket's Extrema In Index Order
-  /* count 4 is two buckets of four samples. */
-  assert.deepEqual(minMaxIndices([1, 5, 3, 0, 2, 9, 4, 4], 4), [1, 3, 4, 5]);
+  /* count 4 is two equal spans of x holding four samples each. */
+  const ramp = [0, 1, 2, 3, 4, 5, 6, 7];
+  assert.deepEqual(minMaxIndices(ramp, [1, 5, 3, 0, 2, 9, 4, 4], 4), [1, 3, 4, 5]);
 
-  // Reduce Indices Honours The Technique And The Raw Escape Hatch
+  // Reduce Indices Honours The Technique Within The Budget
   const { x, y } = pulse(500);
-  assert.equal(reduceIndices(x, y, { budget: null, technique: "lttb" }), null);
-  assert.equal(reduceIndices(x, y, { budget: 100, technique: "raw" }), null);
-  assert.equal(reduceIndices(x, y, { budget: 500, technique: "lttb" }), null);
-  assert.equal(reduceIndices(x, y, { budget: 100, technique: "lttb" })?.length, 100);
-  const envelope = reduceIndices(x, y, { budget: 100, technique: "min_max" });
+  assert.equal(reduceIndices(x, [y], 500, "lttb"), null);
+  assert.equal(reduceIndices(x, [y], 100, "lttb")?.length, 100);
+  const stride = reduceIndices(x, [y], 100, "raw");
+  assert.ok(stride && stride.length <= 100 && stride[0] === 0 && stride.at(-1) === 499);
+  const envelope = reduceIndices(x, [y], 100, "min_max");
   assert.ok(envelope && envelope.length <= 100);
+
+  // Aligned Series Share One Union Of Picks
+  const inverted = y.map((value) => -value);
+  const shared = reduceIndices(x, [y, inverted], 100, "lttb");
+  assert.ok(shared && shared.length >= 100 && shared.length <= 200);
+  assertAscending(shared);
 
   // Auto Switches To An Envelope Only Above Four Times The Display Budget
   const autoX = Array.from({ length: 41 }, (_, index) => index);
@@ -180,45 +246,102 @@ test("LTTB Reduction", () => {
   const moderateX = autoX.slice(0, 40);
   const moderateY = autoY.slice(0, 40);
   assert.deepEqual(
-    reduceIndices(moderateX, moderateY, { budget, technique: "auto" }),
-    reduceIndices(moderateX, moderateY, { budget, technique: "lttb" }),
+    reduceIndices(moderateX, [moderateY], budget, "auto"),
+    reduceIndices(moderateX, [moderateY], budget, "lttb"),
   );
   assert.deepEqual(
-    reduceIndices(autoX, autoY, { budget, technique: "auto" }),
-    reduceIndices(autoX, autoY, { budget, technique: "min_max" }),
+    reduceIndices(autoX, [autoY], budget, "auto"),
+    reduceIndices(autoX, [autoY], budget, "min_max"),
   );
-
-  // Auto Preserves Raw Points For An Unlimited Display
-  const raw = [0, 1, 2];
-  assert.equal(reduceIndices(raw, raw, { budget: null, technique: "auto" }), null);
 });
 
 test("Retention Window", () => {
-  // The Window Applies Before The Raw Cap, So The Visible Span Does Not Drift
-  /* 120 s at 10 Hz is 1,200 samples; an 800-point count-first cut would
-     leave 80 s on screen. The raw cap is sized by the budget and only guards
-     memory, so the window decides what stays. */
-  const budget = 800;
-  const { x, y } = pulse(1_200);
-  const start = retainedStart(x, 120, budget * RAW_RING_FACTOR);
-  assert.equal(start, 0, "every sample of the last 120 s is retained");
+  // A Windowed Plot Keeps Exactly Its Trailing Window While Appends Run
+  /* 300 s at 10 Hz into a 60 s window: the front is evicted as the run moves. */
+  const opening = pulse(10);
+  const snapshot = hostFrame(opening.x, [opening.y], { windowS: 60 });
+  let state = applyPlotMessages(
+    emptyLivePlotState(),
+    [streamMessage("snapshot", 1, snapshot)],
+    "auto",
+  );
+  state = appendPulses(state, 300, 10, { windowS: 60, startS: 1 });
+  const x = state.payload?.cartesian?.series[0].x ?? [];
+  const span = x[x.length - 1] - x[0];
+  assert.ok(span <= 60 && span >= 59.8, `the window decides the span, got ${span.toFixed(1)} s`);
+  assert.equal(state.payload?.cartesian?.point_count, x.length);
+});
 
-  const kept = reduceIndices(x.slice(start), y.slice(start), { budget, technique: "lttb" });
-  assert.ok(kept);
-  assert.equal(kept.length, budget);
-  const span = x[kept[kept.length - 1]] - x[kept[0]];
-  assert.ok(span >= 119.9, `visible span stays the window, got ${span.toFixed(1)} s`);
+test("Frame Retention", () => {
+  // A Snapshot Keeps One Representation: The Cartesian Frame
+  const start = pulse(50);
+  const snapshot = hostFrame(start.x, [start.y, start.y], { maxPoints: 100 });
+  let state = applyPlotMessages(
+    emptyLivePlotState(),
+    [streamMessage("snapshot", 1, snapshot)],
+    "auto",
+  );
+  assert.equal(state.payload?.cartesian?.signature, "host");
+  assert.ok(state.payload?.series.every((series) => series.points.length === 0));
 
-  // The Window Evicts Samples Older Than The Cutoff
+  // A Long Run Under The "All" Window Stays Within Twice Its Capacity
+  /* 20,000 samples per trace; two aligned traces at a budget of 100 never
+     hold more than 2 x 100 x 2 samples on their shared axis. */
+  let largest = 0;
+  const signatures = new Set<string>();
+  state = appendPulses(state, 2_000, 10, { startS: 5, traces: 2 }, (frame) => {
+    const cartesian = frame.payload?.cartesian;
+    assert.ok(cartesian);
+    largest = Math.max(largest, cartesian.series[0].x.length);
+    assert.deepEqual(cartesian.series[1].x, cartesian.series[0].x, "aligned traces share x");
+    assert.equal(cartesian.series[1].y.length, cartesian.series[0].y.length);
+    signatures.add(cartesian.signature);
+  });
+  assert.ok(largest <= 400, `retained ${largest} samples on one axis`);
+  assert.equal(signatures.size, 2_000, "every append changes the signature");
+
+  // Compaction Keeps The Whole Run At An Even Density
+  const x = state.payload?.cartesian?.series[0].x ?? [];
+  const first = x[0];
   const last = x[x.length - 1];
-  const cutoff = retainedStart(x, 60, DEFAULT_PLOT_MAX_POINTS * RAW_RING_FACTOR);
-  assert.ok(x[cutoff] >= last - 60);
-  assert.ok(cutoff === 0 || x[cutoff - 1] < last - 60);
+  assert.equal(first, 0, "the All window keeps the first sample");
+  assert.ok(Math.abs(last - 2_004.9) < 1e-9, `the latest sample is drawn, got ${last}`);
+  const early = x.filter((value) => value < (first + last) / 2).length;
+  /* Between compactions the newest raw samples crowd the recent half; what
+     matters is that the older half is not thinned again by every compaction,
+     which an index-bucketed reduction would leave with a handful of samples. */
+  assert.ok(early >= 20, `the older half keeps ${early} of ${x.length} samples`);
 
-  // The Raw Cap Bounds An Unbounded Window From The End
-  assert.equal(retainedStart(x, null, 100), 1_100);
-  assert.equal(retainedStart(x, null, 0), 0, "a zero cap keeps everything");
-  assert.equal(retainedStart([], 10, 10), 0);
+  // A Stale Frame Is Counted As Dropped And Changes Nothing
+  const before = state.payload;
+  state = applyPlotMessages(state, [streamMessage("append", 1, snapshot)], "auto");
+  assert.equal(state.droppedBatches, 1);
+  assert.equal(state.payload, before);
+
+  // A Replace Frame Is Authoritative
+  const replaced = pulse(5, 3_000);
+  const replace = hostFrame(replaced.x, [replaced.y, replaced.y], { maxPoints: 100 });
+  state = applyPlotMessages(state, [streamMessage("replace", state.revision + 1, replace)], "auto");
+  assert.deepEqual(state.payload?.cartesian?.series[0].x, replaced.x);
+  assert.equal(state.payload?.cartesian?.point_count, 10);
+  assert.equal(state.payload?.cartesian?.signature, "host");
+
+  // A Plot That Keeps Every Sample Is Still Bounded By The Host Ceiling
+  const raw = hostFrame([0], [[0]], { maxPoints: 0 });
+  let unbudgeted = applyPlotMessages(
+    emptyLivePlotState(),
+    [streamMessage("snapshot", 1, raw)],
+    "auto",
+  );
+  unbudgeted = appendPulses(unbudgeted, 130, 1_000, { maxPoints: 0, startS: 1 });
+  const kept = unbudgeted.payload?.cartesian?.series[0].x.length ?? 0;
+  assert.equal(unbudgeted.status, "live");
+  assert.ok(kept <= NATIVE_PLOT_MAX_POINTS && kept > NATIVE_PLOT_MAX_POINTS / 4);
+
+  // A Changed Series Set Starts The Frame Over From The Update
+  const renamed = hostFrame([9_000], [[1]], { keys: ["other"] });
+  state = applyPlotMessages(state, [streamMessage("append", state.revision + 1, renamed)], "auto");
+  assert.deepEqual(state.payload?.cartesian?.series[0].x, [9_000]);
 });
 
 test("Drag Viewport", () => {

@@ -52,6 +52,7 @@ export function documentPlotSpec({
         stream: plot.stream,
         plotType: plot.plot_type,
         series,
+        cartesian: payload?.cartesian ?? null,
         telemetry,
       });
 
@@ -354,17 +355,20 @@ function plotState({
   stream,
   plotType,
   series,
+  cartesian,
   telemetry,
 }: {
   stream: string;
   plotType: DocumentViewPlot["plot_type"];
   series: PlotPayload["series"];
+  /** A cartesian frame is the plot's only copy of its samples when present. */
+  cartesian: PlotPayload["cartesian"];
   telemetry?: Record<string, TelemetryStream> | null;
 }): { label?: string; detail?: string } {
   const valueField = plotType === "xy_value_heatmap" || plotType === "heatmap" ? "z" : "y";
-  const hasFinitePoint = series.some((item) =>
-    item.points.some((point) => Number.isFinite(point[valueField])),
-  );
+  const hasFinitePoint = cartesian
+    ? cartesian.point_count > 0
+    : series.some((item) => item.points.some((point) => Number.isFinite(point[valueField])));
   if (hasFinitePoint) {
     return {};
   }

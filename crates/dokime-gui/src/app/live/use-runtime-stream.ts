@@ -16,6 +16,7 @@ import { useEffect } from "react";
 
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import {
+  invalidateRuntimeDocuments,
   invalidateRuntimeProjectionQueries,
   workflowQueryKeys,
 } from "@/features/cycle/server-state";
@@ -25,8 +26,14 @@ import { operationsFromFrame } from "@/shell/status-bar-operations";
 import { type BackendOperationsPatch, useHubStore } from "@/stores/hub-store";
 import {
   createRuntimeProjectionRefreshCoordinator,
+  createThrottledRefresh,
   type RuntimeProjectionRefreshCoordinator,
 } from "./runtime-refresh";
+
+/* === Constants === */
+
+/** The most often a running cycle re-reads its open documents. */
+const DOCUMENT_REFRESH_MS = 5_000;
 
 /* === Runtime stream ===
    The single live subscription. Native frames carry an observed cursor and
@@ -47,6 +54,12 @@ export function useRuntimeStream(): void {
     let active = true;
     let stream: Awaited<ReturnType<typeof openNativeRuntimeStream>> | undefined;
     let retry: number | undefined;
+    const documentRefresh = createThrottledRefresh(() => {
+      invalidateRuntimeDocuments(queryClient).catch((error: unknown) => {
+        if (!active || !session.identity.isCurrent()) return;
+        setHubState({ error: error instanceof Error ? error.message : String(error) });
+      });
+    }, DOCUMENT_REFRESH_MS);
     const refreshCoordinator = createRuntimeProjectionRefreshCoordinator(async () => {
       await Promise.all([
         invalidateRuntimeProjectionQueries(queryClient),
@@ -55,6 +68,7 @@ export function useRuntimeStream(): void {
           { cancelRefetch: false },
         ),
       ]);
+      documentRefresh.request();
     });
 
     const connect = async () => {
@@ -102,6 +116,7 @@ export function useRuntimeStream(): void {
       active = false;
       if (retry !== undefined) window.clearTimeout(retry);
       refreshCoordinator.dispose();
+      documentRefresh.dispose();
       void stream?.cancel();
     };
   }, [queryClient, session, setHubState]);

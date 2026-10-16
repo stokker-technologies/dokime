@@ -15,7 +15,6 @@ import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "rea
 
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import {
-  NATIVE_PLOT_MAX_POINTS,
   type NativePlotStream,
   openNativePlotStream,
   type PlotPayloadRequestInput,
@@ -25,52 +24,26 @@ import { summaryInFlight } from "@/lib/statistics";
 import type {
   DocumentDownsampleTechnique,
   DocumentViewPlot,
-  PlotCartesianFrame,
-  PlotMarker,
-  PlotPayload,
-  PlotPayloadCursor,
-  PlotPayloadDiagnostics,
   PlotPayloadStreamMessage,
-  PlotPoint,
   RecordScope,
 } from "@/lib/types";
-import { xValue } from "@/plots/axis";
+import { applyPlotMessages, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 import {
   DEFAULT_PLOT_MAX_POINTS,
-  RAW_RING_FACTOR,
+  NATIVE_PLOT_MAX_POINTS,
   type ReduceTechnique,
-  reduceIndices,
-  retainedStart,
 } from "@/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Constants === */
 
 const HIDDEN_PLOT_STREAM_FLUSH_MS = 1_000;
-const MAX_RETAINED_MARKERS = 500;
+/** How long a plot may wait for its first frame before the wait is reported. */
+const FIRST_FRAME_TIMEOUT_MS = 15_000;
 const RECONNECT_INITIAL_MS = 1_000;
 const RECONNECT_MAX_MS = 10_000;
 
 /* === Types === */
-
-export type LivePlotStatus = "idle" | "loading" | "live" | "stale" | "reconnecting" | "error";
-
-export type LivePlotState = {
-  /** The reduced frame the renderer draws. */
-  payload: PlotPayload | null;
-  /** Every retained sample behind `payload`: windowed, raw-capped, not reduced. */
-  buffer: PlotPayload | null;
-  cursor: PlotPayloadCursor | null;
-  diagnostics: PlotPayloadDiagnostics | null;
-  revision: number;
-  status: LivePlotStatus;
-  error: string | null;
-  droppedBatches: number;
-  /** A window, zoom or plot change asked for summaries not yet delivered. */
-  summaryInFlight: boolean;
-};
-
-export type LivePlotStateMap = Record<string, LivePlotState>;
 
 type TechniqueByPlot = Record<string, ReduceTechnique>;
 
@@ -96,6 +69,9 @@ export function useLivePlotPayloads({
   }
   const streamEnabled = enabled && pageVisible;
   const [state, setState] = useState<LivePlotStateMap>({});
+  // The retained frames live here and are committed to React state whole, so
+  // a frame is applied exactly once and its arrays can grow in place.
+  const modelRef = useRef<LivePlotStateMap>({});
   const plotRequestKey = useMemo(() => plots.map(documentPlotRequestKey).join(";"), [plots]);
   // A zoom changes which rows a plot's statistics cover, not the rows it
   // draws: the stream reopens for it while the drawn frame stays on screen.
@@ -154,7 +130,6 @@ export function useLivePlotPayloads({
   const plotsRef = useRef(plots);
   plotsRef.current = plots;
   const dataKeyRef = useRef<string | null>(null);
-  const latestRevisionRef = useRef<Record<string, number>>({});
   const pendingMessagesRef = useRef<PlotPayloadStreamMessage[]>([]);
   const flushFrameRef = useRef<number | null>(null);
   const flushTimerRef = useRef<number | null>(null);
@@ -165,7 +140,10 @@ export function useLivePlotPayloads({
   }, [renderActive]);
 
   useEffect(() => {
-    latestRevisionRef.current = {};
+    const commit = (update: (current: LivePlotStateMap) => LivePlotStateMap) => {
+      modelRef.current = update(modelRef.current);
+      setState(modelRef.current);
+    };
     pendingMessagesRef.current = [];
     clearScheduledFlush(flushFrameRef, flushTimerRef);
     const activePlots = plotsRef.current;
@@ -174,7 +152,7 @@ export function useLivePlotPayloads({
 
     const testCycleId = requestScope?.test_cycle_id;
     if (!enabled || !testCycleId || activePlots.length === 0) {
-      setState((current) => {
+      commit((current) => {
         if (!testCycleId || activePlots.length === 0) {
           return {};
         }
@@ -191,7 +169,7 @@ export function useLivePlotPayloads({
       return;
     }
     if (!pageVisible) {
-      setState((current) =>
+      commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => {
             const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
@@ -225,8 +203,10 @@ export function useLivePlotPayloads({
     let releaseStream: (() => void) | undefined;
     let reopenTimer: number | null = null;
     let reopenDelayMs = RECONNECT_INITIAL_MS;
+    let firstFrameTimer: number | null = null;
 
-    setState((current) =>
+    // A new watch numbers its frames from its own origin.
+    commit((current) =>
       Object.fromEntries(
         activePlots.map((plot) => {
           const currentPlot = dataChanged
@@ -236,6 +216,7 @@ export function useLivePlotPayloads({
             plot.plot_id,
             {
               ...currentPlot,
+              revision: 0,
               error: null,
               status: currentPlot.payload ? "stale" : "loading",
               summaryInFlight: summaryInFlight("requested"),
@@ -253,9 +234,7 @@ export function useLivePlotPayloads({
       if (!messages.length || !active) {
         return;
       }
-      setState((current) =>
-        applyPlotStreamMessagesById(current, messages, latestRevisionRef, techniques),
-      );
+      commit((current) => applyMessagesById(current, messages, techniques));
     };
 
     const enqueue = (message: PlotPayloadStreamMessage) => {
@@ -264,19 +243,6 @@ export function useLivePlotPayloads({
       }
       // A frame of any kind proves the watch is healthy again.
       reopenDelayMs = RECONNECT_INITIAL_MS;
-      // An error frame reports one plot's failure and carries no revision of
-      // its own; it is applied as-is rather than compacted away.
-      const latestRevision = latestRevisionRef.current[message.plot_id] ?? 0;
-      if (message.kind !== "error" && message.revision < latestRevision) {
-        setState((current) => ({
-          ...current,
-          [message.plot_id]: {
-            ...(current[message.plot_id] ?? emptyLivePlotState()),
-            droppedBatches: (current[message.plot_id]?.droppedBatches ?? 0) + 1,
-          },
-        }));
-        return;
-      }
       pendingMessagesRef.current.push(message);
       if (flushFrameRef.current !== null || flushTimerRef.current !== null) {
         return;
@@ -296,7 +262,7 @@ export function useLivePlotPayloads({
       if (!active || !nativeSession.identity.isCurrent()) {
         return;
       }
-      setState((current) =>
+      commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => {
             const plotState = current[plot.plot_id] ?? emptyLivePlotState();
@@ -325,7 +291,7 @@ export function useLivePlotPayloads({
       console.error(
         `Plot stream failed (${grpcStatusCode(error) ?? "no status"}): ${errorMessage(error)}`,
       );
-      setState((current) =>
+      commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => [
             plot.plot_id,
@@ -347,7 +313,11 @@ export function useLivePlotPayloads({
       reopenTimer = window.setTimeout(() => {
         reopenTimer = null;
         // The reopened watch resends snapshots from its own revision origin.
-        latestRevisionRef.current = {};
+        commit((current) =>
+          Object.fromEntries(
+            Object.entries(current).map(([plotId, plot]) => [plotId, { ...plot, revision: 0 }]),
+          ),
+        );
         void consumeStream();
       }, reopenDelayMs);
       reopenDelayMs = Math.min(reopenDelayMs * 2, RECONNECT_MAX_MS);
@@ -388,11 +358,40 @@ export function useLivePlotPayloads({
       }
     };
 
+    /**
+     * A plot still without a frame after the deadline reports why: the stream
+     * error when there is one, the silence otherwise. A later frame recovers it.
+     */
+    firstFrameTimer = window.setTimeout(() => {
+      firstFrameTimer = null;
+      if (!active) return;
+      commit((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([plotId, plot]) => [
+            plotId,
+            plot.payload || (plot.status !== "loading" && plot.status !== "reconnecting")
+              ? plot
+              : {
+                  ...plot,
+                  status: "error" as const,
+                  error:
+                    plot.error ??
+                    `No plot frame arrived within ${FIRST_FRAME_TIMEOUT_MS / 1_000} s.`,
+                },
+          ]),
+        ),
+      );
+    }, FIRST_FRAME_TIMEOUT_MS);
+
     void consumeStream();
 
     return () => {
       active = false;
       controller.abort();
+      if (firstFrameTimer !== null) {
+        window.clearTimeout(firstFrameTimer);
+        firstFrameTimer = null;
+      }
       if (reopenTimer !== null) {
         window.clearTimeout(reopenTimer);
         reopenTimer = null;
@@ -467,158 +466,11 @@ export function displayPointBudget(displayPoints: number | null | undefined): nu
   return Math.min(Math.max(0, Math.trunc(displayPoints)), NATIVE_PLOT_MAX_POINTS);
 }
 
-export function emptyLivePlotState(): LivePlotState {
-  return {
-    payload: null,
-    buffer: null,
-    cursor: null,
-    diagnostics: null,
-    revision: 0,
-    status: "idle",
-    error: null,
-    droppedBatches: 0,
-    summaryInFlight: false,
-  };
-}
-
-/**
- * Grow the retained buffer with one append frame: the trailing window applies
- * first, then the raw cap. Nothing is reduced here; `reducePlotPayload` draws
- * the display frame from the result.
- */
-export function appendPlotPayload(current: PlotPayload, update: PlotPayload): PlotPayload {
-  const incoming = new Map(update.series.map((series) => [series.key, series]));
-  const maxPoints = plotPointBudget(update.max_points, current.max_points);
-  const rawCap = rawRingCap(maxPoints);
-  const windowS = update.window_s ?? current.window_s ?? null;
-  const series = current.series.map((existing) => {
-    const appended = incoming.get(existing.key);
-    if (!appended) {
-      return existing;
-    }
-    incoming.delete(existing.key);
-    return {
-      ...existing,
-      points: retainPlotPoints([...existing.points, ...appended.points], windowS, rawCap),
-      raw_points: existing.raw_points + appended.raw_points,
-      downsampled: existing.downsampled || appended.downsampled,
-    };
-  });
-  incoming.forEach((appended) => {
-    series.push({
-      ...appended,
-      points: retainPlotPoints(appended.points, windowS, rawCap),
-    });
-  });
-
-  return {
-    ...current,
-    generated_at: update.generated_at,
-    analysis: update.analysis ?? current.analysis,
-    // An append frame's summaries already cover the whole window.
-    summaries: update.summaries ?? current.summaries,
-    context: { ...(current.context ?? {}), ...(update.context ?? {}) },
-    markers: trimPlotMarkers([...(current.markers ?? []), ...(update.markers ?? [])], windowS),
-    max_points: maxPoints ?? 0,
-    window_s: windowS,
-    series,
-    cartesian: appendCartesianFrame(current.cartesian, update.cartesian, windowS, rawCap),
-  };
-}
-
-/**
- * The display frame of a retained buffer: each series over its budget is
- * reduced with the plot's technique on its time axis. A buffer within budget
- * is returned as-is, so the common case allocates nothing.
- */
-export function reducePlotPayload(buffer: PlotPayload, technique: ReduceTechnique): PlotPayload {
-  const budget = plotPointBudget(buffer.max_points);
-  const options = { budget, technique };
-  const cartesian = buffer.cartesian;
-  const aligned =
-    cartesian != null &&
-    cartesian.series.length === buffer.series.length &&
-    cartesian.series.every((frame, index) => frame.x.length === buffer.series[index].points.length);
-  const selections = buffer.series.map((series, index) =>
-    aligned
-      ? reduceIndices(cartesian.series[index].x, cartesian.series[index].y, options)
-      : reduceIndices(
-          series.points.map((point, at) => xValue(point.x, at)),
-          series.points.map((point) => point.y),
-          options,
-        ),
-  );
-  if (selections.every((selection) => selection === null)) {
-    return buffer;
-  }
-
-  const series = buffer.series.map((item, index) => {
-    const selection = selections[index];
-    return selection ? { ...item, points: pick(item.points, selection), downsampled: true } : item;
-  });
-  const reducedCartesian =
-    cartesian && aligned
-      ? rebuildCartesianFrame(
-          cartesian,
-          cartesian.series.map((frame, index) => {
-            const selection = selections[index];
-            return selection ? { x: pick(frame.x, selection), y: pick(frame.y, selection) } : frame;
-          }),
-        )
-      : cartesian;
-  return { ...buffer, series, cartesian: reducedCartesian };
-}
-
 /* === Private Functions === */
 
-function applyPlotStreamMessages(
-  current: LivePlotState,
-  messages: PlotPayloadStreamMessage[],
-  latestRevisionRef: MutableRefObject<number>,
-  technique: ReduceTechnique,
-): LivePlotState {
-  let next = current;
-  for (const message of messages) {
-    if (message.kind === "error") {
-      next = {
-        ...next,
-        error: message.warnings[0] ?? "Plot stream returned an error.",
-        status: "error",
-        summaryInFlight: summaryInFlight("failed"),
-      };
-      continue;
-    }
-    if (message.revision <= latestRevisionRef.current) {
-      next = {
-        ...next,
-        droppedBatches: next.droppedBatches + 1,
-      };
-      continue;
-    }
-    latestRevisionRef.current = message.revision;
-    const buffer =
-      message.kind === "append" && next.buffer
-        ? appendPlotPayload(next.buffer, message.payload)
-        : retainPlotPayload(message.payload);
-    next = {
-      payload: reducePlotPayload(buffer, technique),
-      buffer,
-      cursor: message.cursor,
-      diagnostics: message.diagnostics ?? next.diagnostics,
-      revision: message.revision,
-      status: "live",
-      error: null,
-      droppedBatches: next.droppedBatches,
-      summaryInFlight: summaryInFlight("delivered"),
-    };
-  }
-  return next;
-}
-
-function applyPlotStreamMessagesById(
+function applyMessagesById(
   current: LivePlotStateMap,
   messages: PlotPayloadStreamMessage[],
-  latestRevisionRef: MutableRefObject<Record<string, number>>,
   techniques: TechniqueByPlot,
 ): LivePlotStateMap {
   const messagesByPlot = new Map<string, PlotPayloadStreamMessage[]>();
@@ -630,171 +482,21 @@ function applyPlotStreamMessagesById(
       messagesByPlot.set(message.plot_id, [message]);
     }
   }
-  if (messagesByPlot.size === 0) {
-    return current;
-  }
+
   const next = { ...current };
   messagesByPlot.forEach((plotMessages, plotId) => {
-    const latestForPlot = {
-      get current() {
-        return latestRevisionRef.current[plotId] ?? 0;
-      },
-      set current(value: number) {
-        latestRevisionRef.current[plotId] = value;
-      },
-    } as MutableRefObject<number>;
     const previous = next[plotId] ?? emptyLivePlotState();
     try {
-      next[plotId] = applyPlotStreamMessages(
-        previous,
-        plotMessages,
-        latestForPlot,
-        techniques[plotId] ?? "auto",
-      );
+      next[plotId] = applyPlotMessages(previous, plotMessages, techniques[plotId] ?? "auto");
     } catch (failure) {
       next[plotId] = { ...previous, status: "error", error: errorMessage(failure) };
     }
   });
-
   return next;
-}
-
-/** A snapshot or replace frame becomes the whole buffer, bounded like an append. */
-function retainPlotPayload(payload: PlotPayload): PlotPayload {
-  const windowS = payload.window_s ?? null;
-  const rawCap = rawRingCap(plotPointBudget(payload.max_points));
-  return {
-    ...payload,
-    series: payload.series.map((series) => ({
-      ...series,
-      points: retainPlotPoints(series.points, windowS, rawCap),
-    })),
-    markers: trimPlotMarkers(payload.markers ?? [], windowS),
-    cartesian: payload.cartesian
-      ? rebuildCartesianFrame(
-          payload.cartesian,
-          payload.cartesian.series.map((frame) => retainCartesianSeries(frame, windowS, rawCap)),
-        )
-      : payload.cartesian,
-  };
-}
-
-function appendCartesianFrame(
-  current: PlotCartesianFrame | null | undefined,
-  update: PlotCartesianFrame | null | undefined,
-  windowS: number | null,
-  rawCap: number,
-): PlotCartesianFrame | null | undefined {
-  if (!current || !update) {
-    return update ?? current;
-  }
-  if (current.mode !== update.mode || current.series.length !== update.series.length) {
-    return update;
-  }
-
-  const series = current.series.map((existing, index) =>
-    retainCartesianSeries(
-      {
-        x: [...existing.x, ...update.series[index].x],
-        y: [...existing.y, ...update.series[index].y],
-      },
-      windowS,
-      rawCap,
-    ),
-  );
-  return rebuildCartesianFrame(update, series);
-}
-
-/**
- * A frame holding `series` in place of its own. Domains and point count stay
- * the backend's: every frame carries them for its whole window.
- */
-function rebuildCartesianFrame(
-  frame: PlotCartesianFrame,
-  series: PlotCartesianFrame["series"],
-): PlotCartesianFrame {
-  return { ...frame, series, signature: cartesianSignature(series) };
-}
-
-function retainCartesianSeries(
-  series: PlotCartesianFrame["series"][number],
-  windowS: number | null,
-  rawCap: number,
-): PlotCartesianFrame["series"][number] {
-  const start = retainedStart(series.x, windowS, rawCap);
-  if (series.x.length - start > NATIVE_PLOT_MAX_POINTS) {
-    throw new Error(
-      "Raw plot exceeds the retained point limit; select a display budget or shorter window.",
-    );
-  }
-  return start === 0 ? series : { x: series.x.slice(start), y: series.y.slice(start) };
-}
-
-function retainPlotPoints(
-  points: PlotPoint[],
-  windowS: number | null,
-  rawCap: number,
-): PlotPoint[] {
-  const start = retainedStart(
-    points.map((point, index) => xValue(point.x, index)),
-    windowS,
-    rawCap,
-  );
-  if (points.length - start > NATIVE_PLOT_MAX_POINTS) {
-    throw new Error(
-      "Raw plot exceeds the retained point limit; select a display budget or shorter window.",
-    );
-  }
-  return start === 0 ? points : points.slice(start);
-}
-
-function pick<T>(values: readonly T[], indices: readonly number[]): T[] {
-  return indices.map((index) => values[index]);
-}
-
-function cartesianSignature(series: PlotCartesianFrame["series"]): string {
-  return JSON.stringify(series.map(({ x, y }) => [x, y]));
-}
-
-/** The request budget a payload carries; `null` is the raw escape hatch. */
-function plotPointBudget(...candidates: Array<number | null | undefined>): number | null {
-  for (const candidate of candidates) {
-    if (typeof candidate !== "number") {
-      continue;
-    }
-    if (candidate <= 0) {
-      return null;
-    }
-    if (Number.isFinite(candidate)) {
-      return Math.max(1, candidate);
-    }
-  }
-  return DEFAULT_PLOT_MAX_POINTS;
-}
-
-/** Raw samples kept behind a budget; an unbudgeted plot keeps the host's own cap. */
-function rawRingCap(budget: number | null): number {
-  return budget === null ? 0 : Math.min(NATIVE_PLOT_MAX_POINTS, budget * RAW_RING_FACTOR);
 }
 
 function reduceTechnique(value: DocumentDownsampleTechnique | null | undefined): ReduceTechnique {
   return value ?? "auto";
-}
-
-function trimPlotMarkers(markers: PlotMarker[], windowS: number | null): PlotMarker[] {
-  const byBudget =
-    markers.length > MAX_RETAINED_MARKERS ? markers.slice(-MAX_RETAINED_MARKERS) : markers;
-  if (!windowS || byBudget.length < 2) {
-    return byBudget;
-  }
-  const latest = Math.max(
-    ...byBudget.map((marker, index) => xValue(marker.x, index)).filter(Number.isFinite),
-  );
-  if (!Number.isFinite(latest)) {
-    return byBudget;
-  }
-  const cutoff = latest - windowS;
-  return byBudget.filter((marker, index) => xValue(marker.x, index) >= cutoff);
 }
 
 function documentPlotRequestKey(plot: DocumentViewPlot): string {

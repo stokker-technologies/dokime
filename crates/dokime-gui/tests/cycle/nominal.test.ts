@@ -30,6 +30,14 @@ import {
   selectedCycleRow,
 } from "@/features/cycle/cycle-workspace-model";
 import {
+  BUSY_RETRY_MAX_MS,
+  DOCUMENT_FAILED_FALLBACK,
+  documentRetry,
+  documentRetryDelay,
+  evidencePaneState,
+  isBusyRefusal,
+} from "@/features/cycle/document-query-model";
+import {
   CLOSED_LABEL_DRAFT,
   EMPTY_LABEL_ERROR,
   labelEditorKey,
@@ -323,4 +331,66 @@ test("Focus Keeps Controls", () => {
 
   // Only A Frozen Report Has No Actions
   assert.equal(focusPresentation(false, true).actions, false);
+});
+
+test("Evidence Pane", () => {
+  const busy = Object.assign(new Error("document resolver is busy"), {
+    kind: "grpc",
+    detail: { code: 8, message: "document resolver is busy", details: [] },
+  });
+  const failed = Object.assign(new Error("document scope is unknown"), {
+    kind: "grpc",
+    detail: { code: 5, message: "document scope is unknown", details: [] },
+  });
+  const budget = Object.assign(new Error("document artifact source budget exhausted"), {
+    kind: "grpc",
+    detail: { code: 8, message: "document artifact source budget exhausted", details: [] },
+  });
+
+  // Busy Refusals Are Recognized By Wording Or Bridge Kind, Not By Status Alone
+  assert.ok(isBusyRefusal(busy));
+  assert.ok(isBusyRefusal({ kind: "busy" }));
+  assert.ok(!isBusyRefusal(failed));
+  assert.ok(!isBusyRefusal(budget), "an exhausted budget is a real failure");
+  assert.ok(!documentRetry(1, budget));
+  assert.ok(!isBusyRefusal(null));
+
+  // A Busy Read Retries With Capped Backoff; A Failure Retries Once
+  assert.ok(documentRetry(50, busy), "busy reads keep retrying");
+  assert.ok(documentRetry(0, failed));
+  assert.ok(!documentRetry(1, failed));
+  assert.equal(documentRetryDelay(0, busy), 1_000);
+  assert.equal(documentRetryDelay(2, busy), 4_000);
+  assert.equal(documentRetryDelay(20, busy), BUSY_RETRY_MAX_MS);
+
+  // A Read Document Stays On Screen Whatever Later Reads Do
+  const pane = (fields: Partial<Parameters<typeof evidencePaneState>[0]>) =>
+    evidencePaneState({
+      hasDocument: false,
+      error: null,
+      failureReason: null,
+      pending: false,
+      ...fields,
+    });
+  assert.deepEqual(pane({ hasDocument: true, failureReason: busy }), {
+    kind: "document",
+    staleReason: null,
+  });
+  assert.deepEqual(pane({ hasDocument: true, error: failed }), {
+    kind: "document",
+    staleReason: "document scope is unknown",
+  });
+
+  // Without A Document, Busy Is Pending And Only A Real Failure Is A Notice
+  assert.deepEqual(pane({ pending: true, failureReason: busy }), { kind: "busy" });
+  assert.deepEqual(pane({ error: busy }), { kind: "busy" });
+  assert.deepEqual(pane({ pending: true }), { kind: "loading" });
+  assert.deepEqual(pane({ error: failed }), {
+    kind: "failed",
+    message: "document scope is unknown",
+  });
+  assert.deepEqual(pane({ error: new Error(" ") }), {
+    kind: "failed",
+    message: DOCUMENT_FAILED_FALLBACK,
+  });
 });

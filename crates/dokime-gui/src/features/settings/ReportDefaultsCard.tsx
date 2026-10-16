@@ -33,7 +33,6 @@ import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useAutosave } from "@/features/settings/settings-autosave";
-import { NATIVE_PLOT_MAX_POINTS } from "@/lib/api/native-plots";
 import {
   applicationSettingsError,
   type ReportDefaults,
@@ -42,6 +41,7 @@ import {
 } from "@/lib/application-settings";
 import type { DocumentDownsampleTechnique } from "@/lib/types";
 import { TECHNIQUE_OPTIONS } from "@/plots/PlotSettingsDialog";
+import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 
 /* === Components === */
 

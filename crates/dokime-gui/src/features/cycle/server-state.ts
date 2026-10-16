@@ -31,7 +31,13 @@ import { fetchNativeCycleHistory } from "@/lib/api/native-history";
 import { fetchNativeDiagnostics, fetchNativeTraceability } from "@/lib/api/native-observation";
 import { fetchNativePendingPrompts, respondNativePrompt } from "@/lib/api/native-prompts";
 import type { RecordScope } from "@/lib/types";
+import { documentRetry, documentRetryDelay } from "./document-query-model";
 import { frozenQuery, useCycleSnapshotSource } from "./snapshot-source";
+
+/* === Constants === */
+
+/** How long an unobserved evidence read stays cached; records and documents are large. */
+const EVIDENCE_GC_MS = 30_000;
 
 /* === Types === */
 
@@ -126,6 +132,7 @@ export function useRecordsQuery(enabled: boolean, scope: RecordScope | null) {
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeRecords(identityOf(session), { scope }),
     queryKey: [...workflowQueryKeys.records(), generationOf(session), scope],
+    gcTime: EVIDENCE_GC_MS,
     staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.records) : query;
@@ -184,6 +191,7 @@ export function useTraceabilityQuery(enabled: boolean, scope: RecordScope | null
     enabled: enabled && session !== null,
     queryFn: () => fetchNativeTraceability(identityOf(session), scope),
     queryKey: [...workflowQueryKeys.traceability(scope), generationOf(session)],
+    gcTime: EVIDENCE_GC_MS,
     staleTime: 1_000,
   });
   return snapshot ? frozenQuery(snapshot.traceability(scope?.test_execution_id ?? null)) : query;
@@ -220,6 +228,7 @@ export function useCycleRecordsQuery(cycleId: string | null, enabled = true) {
     enabled: Boolean(cycleId) && enabled,
     queryFn: () => fetchNativeCycleRecords(session.identity, cycleId ?? ""),
     queryKey: [...workflowQueryKeys.cycleRecords(cycleId), session.identity.generation],
+    gcTime: EVIDENCE_GC_MS,
     staleTime: 30_000,
   });
 }
@@ -266,6 +275,9 @@ export function useExecutionDocumentQuery({
       ...workflowQueryKeys.executionDocument({ cycleId, executionId }),
       generationOf(session),
     ],
+    gcTime: EVIDENCE_GC_MS,
+    retry: documentRetry,
+    retryDelay: documentRetryDelay,
     staleTime: 1_000,
   });
   return snapshot && executionId ? frozenQuery(snapshot.document(executionId) ?? undefined) : query;
@@ -296,6 +308,9 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
       ...workflowQueryKeys.executionDocument({ cycleId, executionId: null }),
       generationOf(session),
     ],
+    gcTime: EVIDENCE_GC_MS,
+    retry: documentRetry,
+    retryDelay: documentRetryDelay,
     staleTime: 1_000,
   });
   return snapshot && enabled ? frozenQuery(snapshot.document(null) ?? undefined) : query;
@@ -337,11 +352,19 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
       { queryKey: workflowQueryKeys.traceability() },
       keepActiveRefetch,
     ),
-    queryClient.invalidateQueries(
-      { queryKey: [...workflowQueryKeys.all, "documents"] },
-      keepActiveRefetch,
-    ),
   ]);
+}
+
+/**
+ * Re-read the open documents. Each read pages every record of its scope and
+ * reassembles the document, so a running cycle refreshes them on a throttle
+ * rather than on every runtime cursor.
+ */
+export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
+  await queryClient.invalidateQueries(
+    { queryKey: [...workflowQueryKeys.all, "documents"] },
+    { cancelRefetch: false },
+  );
 }
 
 export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
