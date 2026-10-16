@@ -553,8 +553,10 @@ running cycle's report is materialized at a fixed persisted-data boundary. Final
 reports retain their original HTML and frozen execution context. A cycle report
 queries each member's retained evidence at its original persisted boundary. Missing or damaged report artifacts
 produce an explicit error. Stopping a test preserves the last persisted evidence
-boundary for report finalization. If publication fails, retry uses the same
-frozen inputs and preserves the recorded test verdicts, including after restart.
+boundary for report finalization. If publication fails, the recorded test
+verdicts stand and no partial report is kept; stopping the cycle again publishes
+from the same persisted boundary, including after a restart. Stopping a cycle no
+run will finish, even an empty one, seals it with its report.
 
 ## Cargo Features
 
@@ -568,10 +570,10 @@ and authoring macros.
 | `derive` | Yes | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
 
-The application stores state checkpoints and their journal through Harmos's shared
-JSON/JSONL backend; SQLite holds the data catalog and evidence. Existing roots
-with SQLite-persisted application state require a fresh storage root for this
-development format. Existing data is never silently reset.
+The application stores state checkpoints and their journal through Harmos's file
+state backend; SQLite holds the data catalog and evidence. A root written by an
+earlier storage layout is refused as incompatible with this build and needs a
+fresh storage root. Existing data is never silently reset.
 
 For remote automation, depend on the reusable client crate:
 
