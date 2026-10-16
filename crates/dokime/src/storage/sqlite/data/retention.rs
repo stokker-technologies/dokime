@@ -43,16 +43,7 @@ impl State {
         limits: ReadLimits,
         execution: Option<std::sync::Arc<super::super::query::Budget>>,
     ) -> Result<ObjectReleasePage, Error> {
-        let reservation = self.reserve_memory(
-            limits
-                .bytes
-                .get()
-                .checked_mul(4)
-                .and_then(|bytes| bytes.checked_add(16 * 1024))
-                .ok_or(Error::Data("object release page allocation overflow"))?,
-        )?;
         self.call_read(execution, move |connection| Ok((|| {
-            let _reservation = reservation;
             let mut statement = connection.prepare(
                 "SELECT r.schema_key,r.item,r.through FROM storage_object_releases AS r
                  WHERE r.generation<=?1 AND r.through<=?2
@@ -66,7 +57,7 @@ impl State {
                 after.as_ref().map_or(0, |after| after.schema.version.get()),
                 after.as_ref().map_or(0, |after| after.schema.payload_encoding as u8),
                 after.as_ref().map_or("", |after| after.item.as_str()),
-                limits.rows.get().min(64) as i64 + 1])?;
+                limits.rows.get().min((i64::MAX - 1) as usize) as i64 + 1])?;
             let mut entries = Vec::new();
             let mut bytes = 0usize;
             let mut more = false;
@@ -83,7 +74,7 @@ impl State {
                     through: StorageCursor { history: cut.history.clone(), sequence: sequence(&row.get::<_,String>(2)?)? },
                 };
                 let length = super::entry::check_size(&release, limits.bytes.get())?;
-                if entries.len() == limits.rows.get().min(64) || bytes + length > limits.bytes.get() {
+                if entries.len() == limits.rows.get() || bytes + length > limits.bytes.get() {
                     if entries.is_empty() { return Err(Error::Data("object release exceeds page byte bound")); }
                     more = true;
                     break;
@@ -138,14 +129,6 @@ impl State {
         oldest_pin_generation: Option<u64>,
         maximum: NonZeroUsize,
     ) -> Result<(bool, bool), Error> {
-        // The Backend Validates Its Immutable Catalog At Initialization.
-        // Validated catalog identities are at most 1024 bytes; each descriptor
-        // callback's temporary identity coexists with the retained policy vector.
-        let allocation = C::definition_count()
-            .checked_mul(std::mem::size_of::<(String, i64, bool)>() + 1024)
-            .and_then(|bytes| bytes.checked_add(1024 + 128 * (std::mem::size_of::<String>() + 16)))
-            .ok_or(Error::Data("retention policy allocation size overflow"))?;
-        let reservation = self.reserve_memory(allocation)?;
         let mut policies = Vec::with_capacity(C::definition_count());
         C::definitions().try_for_each(|definition| {
             let schema = definition.schema()?;
@@ -160,9 +143,9 @@ impl State {
             policies.push((schema.id.to_string(), keep, released));
             Ok::<(), Error>(())
         })?;
-        let maximum = maximum.get().min(64);
+        let maximum = maximum.get();
+        i64::try_from(maximum).map_err(|_| Error::Data("retention count exceeds SQLite range"))?;
         self.call(move |connection| Ok((|| {
-            let _reservation = reservation;
             let transaction = connection.transaction()?;
             super::bootstrap::check_writes(&transaction)?;
             let mut head = saved(&transaction)?;

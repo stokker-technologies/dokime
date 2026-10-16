@@ -162,7 +162,6 @@ impl State {
         root: PathBuf,
         limits: ReadLimits,
     ) -> Result<Vec<FileCheckpoint>, Error> {
-        let memory = self.clone();
         self.call(move |connection| {
             Ok((|| {
                 let count: i64 = connection.query_row(
@@ -173,15 +172,6 @@ impl State {
                 if count < 0 || count as u64 > limits.rows.get() as u64 {
                     return Err(Error::Data("production recovery exceeds count bound"));
                 }
-                let allocation = (count as usize)
-                    .checked_mul(
-                        std::mem::size_of::<FileCheckpoint>()
-                            + std::mem::size_of::<super::super::memory::Reservation>(),
-                    )
-                    .and_then(|value| value.checked_add(8 * METADATA_BYTES))
-                    .ok_or(Error::Data("production recovery size overflow"))?;
-                let _reservation = memory.reserve_memory(allocation)?;
-                let mut _charges = Vec::with_capacity(count as usize);
                 let mut statement = connection
                     .prepare("SELECT id FROM storage_productions WHERE phase=0 ORDER BY id")?;
                 let mut rows = statement.query([])?;
@@ -200,13 +190,6 @@ impl State {
                         .checked_add(value.memory_size())
                         .filter(|bytes| *bytes <= limits.bytes.get())
                         .ok_or(Error::Data("production recovery exceeds byte bound"))?;
-                    _charges.push(
-                        memory.reserve_memory(
-                            value
-                                .memory_size()
-                                .saturating_sub(std::mem::size_of::<FileCheckpoint>()),
-                        )?,
-                    );
                     value.session.generation = generation;
                     checkpoints.push(value);
                 }

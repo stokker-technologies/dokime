@@ -158,17 +158,13 @@ impl State {
         &self,
         limits: ReadLimits,
     ) -> Result<Vec<MutationReceipt>, Error> {
-        let memory = self.clone();
         self.call(move |connection| Ok((|| {
             let now = expiry(SystemTime::now())?;
             let count: i64 = connection.query_row("SELECT count(*) FROM storage_mutations WHERE expires>?1",[&now],|row| row.get(0))?;
             if count<0 || count as u64>limits.rows.get() as u64 { return Err(Error::Data("mutation recovery exceeds count bound")); }
-            let allocation = (count as usize).checked_mul(std::mem::size_of::<MutationReceipt>() + std::mem::size_of::<super::super::memory::Reservation>()).and_then(|value|value.checked_add(4 * RECEIPT_BYTES)).ok_or(Error::Data("receipt recovery allocation overflow"))?;
-            let _reservation = memory.reserve_memory(allocation)?;
             let mut statement = connection.prepare("SELECT window,key,expires,body FROM storage_mutations WHERE expires>?1 ORDER BY window,key")?;
             let mut rows = statement.query([now])?;
             let mut receipts = Vec::with_capacity(count as usize);
-            let mut _charges = Vec::with_capacity(count as usize);
             let mut bytes = 0usize;
             while let Some(row) = rows.next()? {
                 let body = super::blob(row,3)?;
@@ -178,7 +174,6 @@ impl State {
                     return Err(Error::Corrupt("receipt identity index differs"));
                 }
                 bytes=bytes.checked_add(receipt.memory_size()).filter(|bytes|*bytes<=limits.bytes.get()).ok_or(Error::Data("mutation recovery exceeds memory bound"))?;
-                _charges.push(memory.reserve_memory(receipt.memory_size().saturating_sub(std::mem::size_of::<MutationReceipt>()))?);
                 receipts.push(receipt);
             }
             Ok(receipts)
