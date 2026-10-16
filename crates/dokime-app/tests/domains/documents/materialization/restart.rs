@@ -16,19 +16,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{
-    num::NonZeroUsize,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::{
-    operations::{Context, Operation, OperationDeclaration, StreamOutput},
-    storage::{
-        StorageBackend,
-        query::{Query, QueryCompletion, QueryOutput},
-    },
-};
+use harmos::storage::{ReadLimits, ReadView, StorageBackend};
 
 // Local Imports
 use crate::support::prelude::*;
@@ -41,46 +32,11 @@ use dokime::operations::reports::{MaterializeReport, MaterializeReportRequest, R
 /* === Type Aliases === */
 
 /* === Structs === */
-struct RejectRawQuery {
-    calls: Arc<AtomicUsize>,
-}
-struct Open;
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::operations::Lane for Open {
-    fn name(&self) -> &'static str {
-        "Open"
-    }
-    fn capacity(&self) -> harmos::operations::Capacity {
-        harmos::operations::Capacity::unbounded()
-    }
-}
-impl Operation for RejectRawQuery {
-    type Declaration = harmos::storage::operations::Query;
-    type Resources = AtomicUsize;
-    type Error = harmos::Error;
-    type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<QueryOutput>;
-    async fn initialize<'a>(calls: Arc<AtomicUsize>, _: Self::Context<'a>) -> harmos::Result<Self> {
-        Ok(Self { calls })
-    }
-    async fn run<'a>(
-        &mut self,
-        _: Self::Context<'a>,
-        _: &mut Query,
-        _: &mut Self::Endpoints,
-    ) -> harmos::Result<harmos::operations::Response<QueryCompletion>> {
-        self.calls.fetch_add(1, Ordering::SeqCst);
-        Err(harmos::Error::InvalidInput {
-            field: "sealed member",
-            reason: "raw queries forbidden by restart story",
-        })
-    }
-}
 
 /* === Public Functions === */
 pub(crate) async fn persisted_cycle_restart() {
@@ -106,18 +62,8 @@ pub(crate) async fn persisted_cycle_restart() {
     );
     assert_eq!(before.test_executions[1].status, ExecutionStatus::Pending);
     let seal = before.test_executions[0].saved.as_ref().unwrap().clone();
-    let input_bytes =
-        crate::support::reports::bytes(runtime.storage(), &seal.materialized_input).await;
-    let calls = Arc::new(AtomicUsize::new(0));
-    runtime
-        .operations()
-        .unregister_from("dokime.storage", harmos::storage::operations::Query::ID)
-        .await
-        .unwrap();
-    runtime
-        .operations()
-        .register_wire_operation::<RejectRawQuery>("fixture.reject.raw", Open, calls.clone())
-        .unwrap();
+    let sealed_html = crate::support::reports::bytes(runtime.storage(), &seal.report).await;
+    let input_bytes = crate::support::reports::bytes(runtime.storage(), &seal.source.context).await;
     let boundary = runtime.storage().cursor_saved();
     let report = runtime
         .operations()
@@ -129,11 +75,6 @@ pub(crate) async fn persisted_cycle_restart() {
         .unwrap();
     let html = crate::support::reports::bytes(runtime.storage(), &report.report).await;
     assert!(!html.is_empty());
-    assert_eq!(
-        calls.load(Ordering::SeqCst),
-        0,
-        "sealed members must load persisted materialized inputs"
-    );
     assert_eq!(
         cycle_snapshot(&runtime, &cycle_id).await.test_executions[0]
             .saved
@@ -152,7 +93,7 @@ pub(crate) async fn persisted_cycle_restart() {
     drop((checkpoint, runtime));
     owner.shutdown().await.unwrap();
 
-    // Exercise Supported Stale Object History Reclamation; Raw Evidence Is Preserved.
+    // Active Parent History Must Survive Reclamation Before Restart.
     let backend = dokime::storage::Backend::primary(
         root.path().to_owned(),
         dokime::storage::sqlite::Limits::default(),
@@ -160,6 +101,30 @@ pub(crate) async fn persisted_cycle_restart() {
     .await
     .unwrap();
     let at = backend.open().await.unwrap();
+    let snapshot = backend.read_view(&at).await.unwrap();
+    let view = ReadView::new(
+        Identifier::new("active-cycle-releases").unwrap(),
+        at.clone(),
+        at.clone(),
+        snapshot,
+    )
+    .unwrap();
+    let releases = backend
+        .read_object_releases(
+            &view,
+            None,
+            ReadLimits {
+                rows: NonZeroUsize::new(128).unwrap(),
+                bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(
+        releases.entries.is_empty(),
+        "active parent must retain member history"
+    );
+    drop(view);
     while !backend
         .prune_objects(&at, NonZeroUsize::new(128).unwrap())
         .await
@@ -173,26 +138,21 @@ pub(crate) async fn persisted_cycle_restart() {
     assert!(recovered.saved.is_none());
     assert_eq!(recovered.test_executions[0].saved.as_ref(), Some(&seal));
     assert_eq!(
-        crate::support::reports::bytes(runtime.storage(), &seal.materialized_input).await,
+        crate::support::reports::bytes(runtime.storage(), &seal.source.context).await,
         input_bytes
     );
-    let view = runtime
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().finalization())
-        .await
-        .unwrap();
-    let input = dokime_app::report::Renderer
-        .load_execution(runtime.storage(), &view, &seal)
-        .await
-        .unwrap();
-    assert_eq!(input.execution_id, first);
-    assert_eq!(input.evidence_through, seal.source.evidence_through);
+    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    assert!(!report.html.is_empty());
+    assert_eq!(
+        crate::support::reports::bytes(runtime.storage(), &seal.report).await,
+        sealed_html,
+        "cycle composition must not replace the sealed execution report"
+    );
     assert_eq!(
         recovered.test_executions[1].status,
         ExecutionStatus::Interrupted
     );
     // The Recovered Sibling Requires Its Own New Report; It Is Not A Sealed Member.
-    drop((input, view));
     drop(runtime);
     owner.shutdown().await.unwrap();
 }

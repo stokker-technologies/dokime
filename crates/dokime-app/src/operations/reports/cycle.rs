@@ -27,11 +27,7 @@ use crate::{
     runtime::storage::{cycle::CycleSnapshot, cycle_finalization},
 };
 use dokime::{
-    core::TestCycleId,
-    execution::ExecutionStatus,
-    operations::reports::{
-        MaterializeReport, MaterializeReportRequest, MaterializedReport, ReportSubject,
-    },
+    core::TestCycleId, execution::ExecutionStatus, operations::reports::MaterializedReport,
 };
 use harmos::{MemorySize, operations::Context, storage::StorageCursor};
 use std::num::NonZeroUsize;
@@ -61,7 +57,7 @@ pub(super) async fn materialize(
     let settings = &ctx.scope().resources::<Dokime>().storage_settings;
     let _gate = resources.execution_storage.cycle_save.lock().await;
     let collecting = resources.progress.begin("Collecting Cycle Report Members");
-    if let Some((snapshot, executions, published)) = resources
+    if let Some((snapshot, executions, published, prepared)) = resources
         .execution_storage
         .cycle_materialization(id, at, settings.finalization(), &collecting)
         .await?
@@ -70,47 +66,50 @@ pub(super) async fn materialize(
         if let Some(report) = published {
             return Ok(MaterializedReport {
                 report: (*report).clone(),
-                materialized_input: None,
             });
         }
-        let _memory = storage.prepare_production(bound(executions.len().saturating_mul(
-            std::mem::size_of::<
-                harmos::storage::QueryValue<crate::report::CapturedExecutionReportInput>,
-            >(),
-        ))?)?;
-        let mut members = Vec::with_capacity(executions.len());
-        for execution in executions.iter() {
-            if !at.covers(&execution.source.evidence_through)? {
-                return Err(invalid(
-                    "sealed member evidence exceeds cycle report boundary",
-                ));
+        let mut prepared = prepared.lock().await;
+        if prepared.is_none() {
+            let _memory = storage.prepare_production(bound(executions.len().saturating_mul(
+                std::mem::size_of::<
+                    harmos::storage::QueryValue<crate::report::CapturedExecutionReportInput>,
+                >(),
+            ))?)?;
+            let mut members = Vec::with_capacity(executions.len());
+            for execution in executions.iter() {
+                if !at.covers(&execution.source.evidence_through)? {
+                    return Err(invalid(
+                        "sealed member evidence exceeds cycle report boundary",
+                    ));
+                }
+                members.push(
+                    crate::report::materialize::sealed_member(
+                        ctx,
+                        storage,
+                        settings,
+                        snapshot.view(),
+                        execution,
+                    )
+                    .await?,
+                );
             }
-            members.push(
-                ctx.scope()
-                    .resources::<Dokime>()
-                    .renderer
-                    .load_execution(storage, snapshot.view(), execution)
+            *prepared = Some(
+                crate::report::cycle::CycleReport::prepare(storage, snapshot, members, None)
                     .await?,
             );
         }
-        let mut report = crate::report::cycle::CycleReport::prepare(
-            storage,
-            snapshot,
-            members,
-            settings.response.batch_bytes,
-            None,
-        )
-        .await?;
-        let report = report.finish().await?;
+        let report = prepared
+            .as_mut()
+            .expect("retained cycle artifact")
+            .finish(ctx)
+            .await?;
         storage.flush_until(&report.position).await?;
         resources
             .execution_storage
             .retain_cycle_report(id, at, report.clone())
             .await?;
-        return Ok(MaterializedReport {
-            report,
-            materialized_input: None,
-        });
+        prepared.take();
+        return Ok(MaterializedReport { report });
     }
     collecting.finish();
     let state = ctx.scope().state::<Dokime>();
@@ -227,11 +226,7 @@ pub(super) async fn materialize(
                 ));
             }
             let view = storage.view_with_limits(settings.finalization()).await?;
-            ctx.scope()
-                .resources::<Dokime>()
-                .renderer
-                .load_execution(storage, &view, seal)
-                .await?
+            crate::report::materialize::sealed_member(ctx, storage, settings, &view, seal).await?
         } else {
             let boundary = intents.get(&execution.test_execution_id).unwrap_or(at);
             if !at.covers(boundary)? {
@@ -239,25 +234,42 @@ pub(super) async fn materialize(
                     "pending member evidence exceeds cycle report boundary",
                 ));
             }
-            let response = ctx
-                .call_as::<MaterializeReport>(MaterializeReportRequest {
-                    subject: ReportSubject::Execution(execution.test_execution_id.to_string()),
-                    at: boundary.clone(),
-                })
+            resources
+                .execution_storage
+                .acquire(&source, execution)
                 .await?;
-            let input = response
-                .materialized_input
-                .as_ref()
-                .ok_or_else(|| invalid("execution report omitted its materialized input"))?;
-            let view = storage.view_with_limits(settings.finalization()).await?;
-            crate::report::persisted::load_current(
-                storage,
-                &view,
-                input,
-                &execution.test_execution_id,
-                boundary,
-            )
-            .await?
+            let gate = resources
+                .execution_storage
+                .materialization_gate(&execution.test_execution_id)
+                .await?;
+            let _guard = gate.lock().await;
+            let inspection = match resources
+                .execution_storage
+                .retained_report_view(&execution.test_execution_id)
+                .await
+            {
+                Some(inspection) => inspection,
+                None => {
+                    let inputs = resources
+                        .execution_storage
+                        .prepare_capture(&source, execution, boundary, false)
+                        .await?;
+                    resources
+                        .execution_storage
+                        .capture_execution_view(
+                            &source,
+                            &inputs,
+                            resources.settings.read(|settings| settings.report),
+                            settings,
+                        )
+                        .await?
+                }
+            };
+            if inspection.evidence_through()? != boundary || inspection.execution() != execution {
+                return Err(invalid("cycle member differs from its frozen source"));
+            }
+            crate::report::materialize::execution(ctx, storage, settings, &inspection, false, None)
+                .await?
         };
         members.push(member);
     }
@@ -277,20 +289,11 @@ pub(super) async fn materialize(
             .try_into_shared()?
     };
     let snapshot = CycleSnapshot::current(storage, view, header, appearance, &owner)?;
-    let mut report = crate::report::cycle::CycleReport::prepare(
-        storage,
-        snapshot,
-        members,
-        settings.response.batch_bytes,
-        None,
-    )
-    .await?;
-    let report = report.finish().await?;
+    let mut report =
+        crate::report::cycle::CycleReport::prepare(storage, snapshot, members, None).await?;
+    let report = report.finish(ctx).await?;
     storage.flush_until(&report.position).await?;
-    Ok(MaterializedReport {
-        report,
-        materialized_input: None,
-    })
+    Ok(MaterializedReport { report })
 }
 
 /* === Private Functions === */

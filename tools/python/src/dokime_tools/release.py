@@ -24,7 +24,6 @@ from functools import cache
 from pathlib import Path
 
 # Third Party Imports
-
 # Local Imports
 # isort: split
 from . import _policy, evidence, release_registry, version
@@ -318,6 +317,7 @@ def prepare(directory: Path, settings: dict) -> None:
 
 
 def stage(directory: Path, settings: dict, folder: Path) -> None:
+    release_registry.require_tag(directory, settings)
     selected = assets(directory, settings)
     if _policy.policy(directory, "version").get("value") != tag_version(
         settings["tag"]
@@ -534,6 +534,9 @@ def run(directory: Path, verb: str) -> None:
         prepare(directory, settings)
         return
     tag_version(settings["tag"])
+    if verb == "guard":
+        release_registry.require_tag(directory, settings)
+        return
     if verb == "route":
         release_registry.check_route(directory, settings)
         return
@@ -612,6 +615,7 @@ if __name__ == "__main__":
         _policy.main(
             "release",
             [
+                "guard",
                 "prepare",
                 "stage",
                 "validate",

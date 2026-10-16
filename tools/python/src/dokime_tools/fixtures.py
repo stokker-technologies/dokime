@@ -60,9 +60,16 @@ FIXTURES = (
 def prepare(
     *, tool: Path | None = None, output: Path = Path("target/fixtures")
 ) -> None:
-    tool = tool or Path(os.environ["DOKIME_TEST_TOOL"])
+    profile = os.environ.get("STKR_TEST_PROFILE", "dev")
+    if profile not in {"dev", "release"}:
+        raise ValueError("fixture profile must be dev or release")
+    directory = "debug" if profile == "dev" else "release"
+    binary_name = "cargo-dokime.exe" if os.name == "nt" else "cargo-dokime"
+    tool = tool or Path(
+        os.environ.get("DOKIME_TEST_TOOL", ROOT / "target" / directory / binary_name)
+    )
     if not tool.is_file():
-        raise ValueError("run mise run build:release before preparing fixtures")
+        raise ValueError(f"run mise run build:cli:{profile} before preparing fixtures")
     for name, package, binary in FIXTURES:
         bundle = output / name / f"{name}.dokime"
         command = [
@@ -72,7 +79,7 @@ def prepare(
             "--package",
             package,
             "--profile",
-            "release",
+            profile,
             "--output",
             str(bundle),
         ]

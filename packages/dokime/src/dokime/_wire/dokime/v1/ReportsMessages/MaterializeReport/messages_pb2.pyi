@@ -14,12 +14,10 @@ class Row1(_message.Message):
     def __init__(self, subject: _Optional[_Union[Row3, _Mapping]] = ..., at: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
 
 class Row2(_message.Message):
-    __slots__ = ("report", "materialized_input")
+    __slots__ = ("report",)
     REPORT_FIELD_NUMBER: _ClassVar[int]
-    MATERIALIZED_INPUT_FIELD_NUMBER: _ClassVar[int]
     report: Row5
-    materialized_input: Row5
-    def __init__(self, report: _Optional[_Union[Row5, _Mapping]] = ..., materialized_input: _Optional[_Union[Row5, _Mapping]] = ...) -> None: ...
+    def __init__(self, report: _Optional[_Union[Row5, _Mapping]] = ...) -> None: ...
 
 class Row3(_message.Message):
     __slots__ = ("Execution", "Cycle")

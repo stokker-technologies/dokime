@@ -149,7 +149,10 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
                             elapsed += latency;
                             latencies.push(latency);
                             assert!(report.report.length > 0);
-                            assert!(report.materialized_input.is_none(), "inspection must remain unsealed");
+                            assert!(
+                                runtime.state_read().executions.get(&execution).unwrap().saved.is_none(),
+                                "inspection must remain unsealed"
+                            );
                             // Validate The Published Payload Outside The Timed Region.
                             let mut reader = runtime.storage().read_file(&report.report).await.unwrap();
                             let mut bytes = Vec::new();

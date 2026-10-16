@@ -20,7 +20,7 @@ use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::MemorySize;
-use harmos::storage::StorageBackends;
+use harmos::storage::{ReadLimits, ReadView, StorageBackend, StorageBackends};
 
 // Local Imports
 use crate::support::prelude::*;
@@ -68,15 +68,85 @@ pub(crate) async fn dependency_publication_retry() {
         .await;
     let cycle = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
     let source_seal = cycle.test_executions[0].saved.as_ref().unwrap();
-    let bytes =
-        crate::support::reports::bytes(runtime.storage(), &source_seal.materialized_input).await;
-    let envelope: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let template: CapturedExecutionReportInput =
-        serde_json::from_value(envelope["captured"].clone()).unwrap();
+    let inspection = runtime
+        .execution_snapshot(&cycle.test_executions[0].test_execution_id)
+        .await
+        .unwrap();
+    let context = inspection.context().unwrap().clone();
+    let mut lifecycle = inspection.execution().clone();
+    lifecycle.saved = None;
+    let mut member_cycle = context.cycle.cycle.clone();
+    member_cycle.test_executions = vec![lifecycle];
+    // This Story Exercises Dependency Publication, Not Plot Materialization.
+    let template = CapturedExecutionReportInput {
+        final_report: true,
+        owner_node_id: source_seal.source.owner_node_id.clone(),
+        execution_id: source_seal.source.execution.execution_id.clone(),
+        execution: None,
+        lifecycle_id: uuid::Uuid::now_v7().to_string(),
+        evidence_through: source_seal.source.evidence_through.clone(),
+        telemetry_contracts: Default::default(),
+        record_contracts: Default::default(),
+        input: dokime_app::report::CycleReportInput {
+            session_id: context.session_id.clone(),
+            cycle: member_cycle,
+            documents: Default::default(),
+            plots: Default::default(),
+            case_documents: Vec::new(),
+            records: Vec::new(),
+            telemetry: Vec::new(),
+            traceability: context.traceability.clone(),
+            artifact_links: Vec::new(),
+            appearance: None,
+            generated_at: source_seal.sealed_at.clone(),
+        },
+        context,
+    };
+    drop(inspection);
     drop(runtime);
     source_owner.shutdown().await.unwrap();
 
-    for suffix in [".context", ".materialized-input", ".report"] {
+    // A Durable Parent Seal Releases History For Both The Cycle And Its Member.
+    let backend = Backend::primary(source_root.path().to_owned(), Limits::default())
+        .await
+        .unwrap();
+    let saved = backend.open().await.unwrap();
+    let snapshot = backend.read_view(&saved).await.unwrap();
+    let view = ReadView::new(
+        Identifier::new("sealed-cycle-releases").unwrap(),
+        saved.clone(),
+        saved.clone(),
+        snapshot,
+    )
+    .unwrap();
+    let releases = backend
+        .read_object_releases(
+            &view,
+            None,
+            ReadLimits {
+                rows: NonZeroUsize::new(128).unwrap(),
+                bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(
+        releases
+            .entries
+            .iter()
+            .any(|release| release.item.as_str() == cycle_id.as_str())
+    );
+    assert!(
+        releases
+            .entries
+            .iter()
+            .any(|release| release.item.as_str() == template.execution_id.as_str())
+    );
+    drop(view);
+    backend.close().await.unwrap();
+    drop(backend);
+
+    for suffix in [".context", ".report"] {
         let root = tempdir().unwrap();
         let primary = Arc::new(
             Backend::primary(root.path().to_owned(), Limits::default())
@@ -104,6 +174,7 @@ pub(crate) async fn dependency_publication_retry() {
             .runtime_with_storage(&manager)
             .await
             .unwrap();
+        crate::support::reports::register_storage(&owner.operations, &manager);
         let mut input = template.clone();
         let execution = input.input.cycle.test_executions[0].clone();
         assert!(execution.saved.is_none());
@@ -146,7 +217,7 @@ pub(crate) async fn dependency_publication_retry() {
         let sealed_at = execution.finished_at.as_ref().unwrap();
         assert!(
             report
-                .save_dependencies(sealed_at, &revision)
+                .save_dependencies(&owner.operations, sealed_at, &revision)
                 .await
                 .is_err(),
             "{suffix} must interrupt dependency publication"
@@ -156,7 +227,7 @@ pub(crate) async fn dependency_publication_retry() {
             "the selected dependency must reach the real backend"
         );
         let partial = fault.finished();
-        assert!(partial.len() < 3);
+        assert!(partial.len() < 2);
         assert_eq!(
             fault.releases(),
             0,
@@ -180,7 +251,7 @@ pub(crate) async fn dependency_publication_retry() {
         fault.disarm();
         manager.retry_transient_persistence();
         let seal = report
-            .save_dependencies(sealed_at, &revision)
+            .save_dependencies(&owner.operations, sealed_at, &revision)
             .await
             .unwrap();
         assert_eq!(
@@ -188,7 +259,7 @@ pub(crate) async fn dependency_publication_retry() {
             "retry keeps the original evidence cursor"
         );
         assert_eq!(&seal.sealed_at, sealed_at);
-        for reference in [&seal.source.context, &seal.materialized_input, &seal.report] {
+        for reference in [&seal.source.context, &seal.report] {
             assert!(seal.dependencies_saved.covers(&reference.position).unwrap());
             assert!(
                 !crate::support::reports::bytes(&manager, reference)

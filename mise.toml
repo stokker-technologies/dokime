@@ -85,7 +85,7 @@ description = "Check / Rust"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 depends = ["prepare:report"]
 run = [
-  "cargo check --locked --release --workspace --all-targets",
+  "cargo check --locked --workspace --all-targets",
   # The updater-disabled compilation path is distinct; runtime behavior is shared.
   { task = "check:rust:plain" },
 ]
@@ -94,14 +94,14 @@ run = [
 description = "Check The Desktop Without The Updater"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 depends = ["prepare:report"]
-run = "cargo check --locked --release -p dokime-gui --lib --no-default-features"
+run = "cargo check --locked -p dokime-gui --lib --no-default-features"
 
 [tasks."check:wasm"]
 description = "Check / Wasm"
 # The contract crate is what every party compiles, including a wasm guest. A
 # gate, a host-only dependency, or a stray `std` assumption fails here rather
 # than in a plugin author's build.
-run = "cargo check --locked --release -p dokime-contract --target wasm32-unknown-unknown"
+run = "cargo check --locked -p dokime-contract --target wasm32-unknown-unknown"
 
 [tasks.check]
 description = "Run Read-Only Repository Checks"
@@ -136,7 +136,7 @@ description = "Lint Rust, Python, And JavaScript Without Changes"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 depends = ["prepare:tools", "prepare:report"]
 run = [
-  "cargo clippy --locked --release --workspace --all-targets -- -D warnings",
+  "cargo clippy --locked --workspace --all-targets -- -D warnings",
   { task = "lint:source" },
 ]
 
@@ -265,12 +265,15 @@ run = "uv run --no-sync python -m dokime_tools.frontend report"
 
 [tasks."build:cli:dev"]
 description = "Build The Connection CLI"
-run = "cargo build --timings -p dokime-cli --bin dokime"
+run = [
+  "cargo build --timings --locked -p dokime-cli --bin dokime",
+  "cargo build --timings --locked -p cargo-dokime",
+]
 
 [tasks."fixtures:prepare"]
 description = "Compile Complete Native Test Bundles With The Packaged Tool"
 depends = ["prepare:tools"]
-run = "uv run --no-sync python -m dokime_tools.fixtures --tool target/release/cargo-dokime{% if os() == 'windows' %}.exe{% endif %}"
+run = "uv run --no-sync python -m dokime_tools.fixtures"
 
 [tasks."build:server:dev"]
 description = "Build The Development Server"
@@ -355,7 +358,7 @@ env.STKR_TEST_ARCHIVES = "{{config_root}}/target/test-archives"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 description = "Test Rust Runtime And Persistence Workflows"
 # Rust integration scenarios never load the installed wheel; only the
-# acceptance lanes verify exact release artifacts before running.
+# acceptance lanes verify exact development artifacts before running.
 depends = ["prepare:tools"]
 run = "uv run --no-sync --project tools/python python -m dokime_tools.evidence run integration rust"
 

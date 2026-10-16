@@ -265,6 +265,7 @@ def prepare_harmos(
         source_identity = harmos_pin(root)
     identity = {
         **source_identity,
+        "profile": "dev",
         "platform": platform.system(),
         "architecture": platform.machine(),
         "rustc": subprocess.check_output(
@@ -331,6 +332,7 @@ def prepare_harmos(
                     "--",
                     "cargo",
                     "install",
+                    "--debug",
                     *source_arguments,
                     "--locked",
                     "--root",

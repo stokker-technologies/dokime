@@ -141,7 +141,7 @@ async fn execution(
     }
     if let Some(report) = resources
         .execution_storage
-        .retry_materialized_report(id, at)
+        .retry_materialized_report(ctx, id, at)
         .await?
     {
         return Ok(report);
@@ -206,14 +206,14 @@ async fn execution(
     let result = if final_report {
         resources
             .execution_storage
-            .materialize_final_report(inspection, prepared, Timestamp::now_utc())
+            .materialize_final_report(ctx, inspection, prepared, Timestamp::now_utc())
             .await
     } else {
         let revision = resources
             .execution_storage
             .publication_revision(inspection.execution())
             .await?;
-        prepared.publish_current(&revision).await
+        prepared.publish_current(ctx, &revision).await
     };
     progress.track(result)
 }

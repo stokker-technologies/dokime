@@ -41,16 +41,6 @@ pub struct Renderer;
 
 /* === Implementations === */
 impl Renderer {
-    /// Read The Persisted Materialized Input Of A Sealed Execution.
-    pub async fn load_execution(
-        &self,
-        storage: &Manager,
-        view: &harmos::storage::StorageView,
-        seal: &dokime::execution::saved::ExecutionSeal,
-    ) -> crate::Result<QueryValue<CapturedExecutionReportInput>> {
-        super::persisted::load(storage, view, seal).await
-    }
-
     pub fn execution(
         &self,
         manager: Manager,

@@ -356,18 +356,12 @@ impl RuntimeHandle {
         }
         let gate = self.execution_storage.materialization_gate(id).await?;
         self.capture_report_lifecycle(execution).await?;
-        let completed = self
-            .operations
+        self.operations
             .call_as::<MaterializeReport>(MaterializeReportRequest {
                 subject: ReportSubject::Execution(id.to_string()),
                 at: at.clone(),
             })
             .await?;
-        if completed.materialized_input.is_none() {
-            return Err(invalid(
-                "execution materialization returned no frozen input",
-            ));
-        }
         let _guard = gate.lock().await;
         // Only Finalization Seals The Subject, After The Full Publication Is Durable.
         self.execution_storage.retry_final_report(id).await?;

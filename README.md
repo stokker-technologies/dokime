@@ -541,8 +541,8 @@ freezes the table with its plot.
 Open or download a cycle's or an execution's **self-contained report** to share
 the plots, verdicts, and context without requiring access to the testbench. A
 running cycle's report is materialized at a fixed persisted-data boundary. Final
-reports retain their original HTML and materialized inputs, so a cycle can reuse
-its sealed members' plots and statistics. Missing or damaged report artifacts
+reports retain their original HTML and frozen execution context. A cycle report
+queries each member's retained evidence at its original persisted boundary. Missing or damaged report artifacts
 produce an explicit error. Stopping a test preserves the last persisted evidence
 boundary for report finalization. If publication fails, retry uses the same
 frozen inputs and preserves the recorded test verdicts, including after restart.

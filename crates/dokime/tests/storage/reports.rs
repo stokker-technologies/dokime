@@ -127,7 +127,6 @@ pub(crate) async fn report_publication_reopens() {
             dependencies_saved: &saved,
             executions: &[],
             inputs: &[],
-            materialized_inputs: &[],
             file: &file,
         },
     )

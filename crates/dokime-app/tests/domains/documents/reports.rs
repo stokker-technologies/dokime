@@ -93,6 +93,7 @@ pub(crate) async fn report_save_receipt() {
         .runtime_with_storage(&manager)
         .await
         .unwrap();
+    crate::support::reports::register_storage(&runtime.operations, &manager);
 
     // Use An Actual Admitted Execution Revision
     let finished_at = Timestamp::new("2026-10-06T06:00:00Z");
@@ -254,19 +255,23 @@ pub(crate) async fn report_save_receipt() {
     assert_eq!(manager.status().accepted, before);
     let sealed_at = finished_at;
     let original = prepared
-        .save_dependencies(&sealed_at, &revision)
+        .save_dependencies(&runtime.operations, &sealed_at, &revision)
         .await
         .unwrap();
     let saved = manager.status().saved;
     let repeated = prepared
-        .save_dependencies(&sealed_at, &revision)
+        .save_dependencies(&runtime.operations, &sealed_at, &revision)
         .await
         .unwrap();
     assert_eq!(*original, *repeated);
     assert_eq!(manager.status().saved, saved);
     assert!(
         prepared
-            .save_dependencies(&Timestamp::new("2030-01-01T00:00:00Z"), &revision)
+            .save_dependencies(
+                &runtime.operations,
+                &Timestamp::new("2030-01-01T00:00:00Z"),
+                &revision
+            )
             .await
             .is_err()
     );

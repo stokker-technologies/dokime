@@ -17,12 +17,11 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 // Third Party Imports
 use crate::execution::context::native::Encode;
-use futures_util::future::BoxFuture;
-use harmos::MemorySize;
+use harmos::{MemorySize, operations::Host};
 
 use harmos::storage::{
-    FileMetadata, FileReference, QueryValue, SharedQueryValue, StorageCursor, StorageFile,
-    StorageProductionPreparation,
+    FileMetadata, FileProducer, FileReference, MutationId, QueryValue, SharedQueryValue,
+    StorageCursor, StorageProductionPreparation,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -73,16 +72,16 @@ pub struct PreparedExecutionReport {
     captured: SharedQueryValue<CapturedExecutionReportInput>,
     outputs: QueryValue<Vec<ExecutionOutput>>,
     context: ReportFile,
-    materialized: ReportFile,
     report: ReportFile,
     sealed_at: Option<QueryValue<Timestamp>>,
 }
 
-struct ReportFile {
+pub(super) struct ReportFile {
     data: SharedQueryValue<ReportFileData>,
-    creating: tokio::sync::Mutex<Option<BoxFuture<'static, harmos::Result<StorageFile>>>>,
-    producer: Option<StorageFile>,
-    written: bool,
+    window: Option<Identifier>,
+    producer: Option<FileProducer>,
+    written: usize,
+    finished: Option<FileReference>,
     operation_memory: Option<StorageProductionPreparation>,
 }
 
@@ -382,10 +381,9 @@ impl PreparedExecutionReport {
         captured.validate()?;
         validate_outputs(&captured.execution_id, &captured.evidence_through, &outputs)
             .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
-        let (context, materialized, report) = ReportFile::capture(&manager, &html)?;
+        let (context, report) = ReportFile::capture(&manager, &html)?;
         if outputs.iter().any(|output| {
             output.file.metadata.id == context.data.metadata.id
-                || output.file.metadata.id == materialized.data.metadata.id
                 || output.file.metadata.id == report.data.metadata.id
         }) {
             return Err(Error::InvalidReportInputs(
@@ -397,7 +395,6 @@ impl PreparedExecutionReport {
             captured,
             outputs,
             context,
-            materialized,
             report,
             sealed_at: None,
         })
@@ -405,25 +402,20 @@ impl PreparedExecutionReport {
 
     pub(crate) async fn publish_current(
         &mut self,
+        operations: &impl Host<Error = harmos::Error>,
         revision: &ExecutionRevision,
     ) -> Result<dokime::operations::reports::MaterializedReport> {
         self.captured.validate()?;
         tokio::try_join!(
-            self.context.write(&self.manager),
-            self.materialized.write(&self.manager),
-            self.report.write(&self.manager)
+            self.context.write(&self.manager, operations),
+            self.report.write(&self.manager, operations)
         )?;
-        let context = self.context.finish(&self.manager).await?;
-        let materialized_input = self.materialized.finish(&self.manager).await?;
-        let report = self.report.finish(&self.manager).await?;
-        let last = [
-            &context.position,
-            &materialized_input.position,
-            &report.position,
-        ]
-        .into_iter()
-        .max_by_key(|cursor| cursor.sequence)
-        .unwrap();
+        let context = self.context.finish(&self.manager, operations).await?;
+        let report = self.report.finish(&self.manager, operations).await?;
+        let last = [&context.position, &report.position]
+            .into_iter()
+            .max_by_key(|cursor| cursor.sequence)
+            .unwrap();
         let dependencies_saved = self.manager.flush_until(last).await?;
         let mut publication = dokime::storage::reports::Prepared::new(
             &self.manager,
@@ -438,18 +430,15 @@ impl PreparedExecutionReport {
                 file: &report,
                 cycle: None,
                 execution: None,
-                materialized_inputs: std::slice::from_ref(&materialized_input),
             },
         )?;
         publication.finish().await?;
-        Ok(dokime::operations::reports::MaterializedReport {
-            report,
-            materialized_input: Some(materialized_input),
-        })
+        Ok(dokime::operations::reports::MaterializedReport { report })
     }
 
     pub async fn save_dependencies(
         &mut self,
+        operations: &impl Host<Error = harmos::Error>,
         sealed_at: &Timestamp,
         revision: &ExecutionRevision,
     ) -> Result<QueryValue<ExecutionSeal>> {
@@ -484,34 +473,27 @@ impl PreparedExecutionReport {
             )
             .saturating_add(self.outputs.memory_size())
             .saturating_add(self.context.data.metadata.memory_size())
-            .saturating_add(self.materialized.data.metadata.memory_size())
             .saturating_add(self.report.data.metadata.memory_size())
-            .saturating_add(3 * std::mem::size_of::<FileReference>())
+            .saturating_add(2 * std::mem::size_of::<FileReference>())
             .saturating_add(sealed_at.memory_size())
             .saturating_add(output_validation_memory(&self.outputs));
         let production = self.manager.prepare_production(allowance(bytes)?)?;
         self.manager
             .flush_until(&self.captured.evidence_through)
             .await?;
-        // Stage Frozen Context, Analytical Input And HTML Before Publication.
+        // Stage Frozen Context And HTML Before Publication.
         tokio::try_join!(
-            self.context.write(&self.manager),
-            self.materialized.write(&self.manager),
-            self.report.write(&self.manager),
+            self.context.write(&self.manager, operations),
+            self.report.write(&self.manager, operations),
         )?;
-        let context = self.context.finish(&self.manager).await?;
-        let materialized_input = self.materialized.finish(&self.manager).await?;
-        let report = self.report.finish(&self.manager).await?;
-        let last = [
-            &context.position,
-            &materialized_input.position,
-            &report.position,
-        ]
-        .into_iter()
-        .max_by_key(|cursor| cursor.sequence)
-        .unwrap();
+        let context = self.context.finish(&self.manager, operations).await?;
+        let report = self.report.finish(&self.manager, operations).await?;
+        let last = [&context.position, &report.position]
+            .into_iter()
+            .max_by_key(|cursor| cursor.sequence)
+            .unwrap();
         let dependencies_saved = self.manager.flush_until(last).await?;
-        for file in [&context, &materialized_input, &report] {
+        for file in [&context, &report] {
             if !dependencies_saved.covers(&file.position)? {
                 return Err(Error::InvalidReportInputs(
                     "report dependency is not durable".into(),
@@ -537,7 +519,6 @@ impl PreparedExecutionReport {
                 outputs,
             },
             report,
-            materialized_input,
             dependencies_saved,
             sealed_at: (**self.sealed_at.as_ref().expect("retained seal time")).clone(),
         };
@@ -551,11 +532,35 @@ impl ReportFile {
     fn new(data: SharedQueryValue<ReportFileData>) -> Self {
         Self {
             data,
-            creating: tokio::sync::Mutex::new(None),
+            window: None,
             producer: None,
-            written: false,
+            written: 0,
+            finished: None,
             operation_memory: None,
         }
+    }
+
+    pub(super) fn render(
+        manager: &Manager,
+        html: &HtmlReport,
+        metadata: QueryValue<FileMetadata>,
+    ) -> Result<Self> {
+        metadata.check_origin(manager)?;
+        let length = html.length(NonZeroUsize::new(usize::MAX).unwrap())?;
+        let bytes = length
+            .saturating_add(metadata.memory_size())
+            .saturating_add(std::mem::size_of::<ReportFileData>());
+        let data = manager
+            .produce(allowance(bytes)?, |_| {
+                let bytes = html.bytes(length).map_err(native_projection_error)?;
+                let mut metadata = (*metadata).clone();
+                metadata.expected_length = Some(bytes.len() as u64);
+                metadata.expected_sha256 = Some(Sha256::digest(&bytes).into());
+                Ok(ReportFileData { metadata, bytes })
+            })?
+            .try_into_value()?
+            .try_into_shared()?;
+        Ok(Self::new(data))
     }
 
     fn context(
@@ -598,44 +603,11 @@ impl ReportFile {
         Ok(Self::new(data))
     }
 
-    fn materialized(
-        _manager: &Manager,
-        captured: &SharedQueryValue<CapturedExecutionReportInput>,
-        stem: &str,
-    ) -> Result<Self> {
-        let length = super::persisted::encoded_length(captured)?;
-        let bytes = std::mem::size_of::<ReportFileData>()
-            .saturating_add(length)
-            .saturating_add(stem.len().saturating_mul(2))
-            .saturating_add(1024);
-        let data = captured
-            .try_project(allowance(bytes)?, |captured, _| {
-                let bytes =
-                    super::persisted::encode(captured, length).map_err(native_projection_error)?;
-                let metadata = file_metadata(
-                    report_file_id(stem, ".materialized-input").map_err(native_projection_error)?,
-                    Identifier::new(captured.execution_id.as_str()).map_err(|_| {
-                        harmos::Error::InvalidInput {
-                            field: "report scope",
-                            reason: "invalid execution id",
-                        }
-                    })?,
-                    super::persisted::MEDIA_TYPE,
-                    &bytes,
-                )
-                .map_err(native_projection_error)?;
-                Ok(ReportFileData { metadata, bytes })
-            })?
-            .try_into_shared()?;
-        Ok(Self::new(data))
-    }
-
-    fn capture(manager: &Manager, html: &HtmlReport) -> Result<(Self, Self, Self)> {
+    fn capture(manager: &Manager, html: &HtmlReport) -> Result<(Self, Self)> {
         let captured = html.captured_input()?;
         let _identity_memory = manager.prepare_production(allowance(256)?)?;
         let stem = format!("{}.{}", captured.execution_id, uuid::Uuid::new_v4());
         let context = Self::context(manager, html.captured_source()?, &stem)?;
-        let materialized = Self::materialized(manager, captured, &stem)?;
         let maximum = NonZeroUsize::new(usize::MAX).expect("nonzero address-space limit");
         let length = html.length(maximum)?;
         let execution_id = &captured.execution_id;
@@ -664,56 +636,108 @@ impl ReportFile {
                 .map_err(native_projection_error)
             })?
             .try_into_shared()?;
-        Ok((context, materialized, Self::new(data)))
+        Ok((context, Self::new(data)))
     }
 
-    async fn finish(&mut self, manager_reference: &Manager) -> Result<FileReference> {
-        self.write(manager_reference).await?;
-        self.producer
-            .as_mut()
-            .expect("written file producer")
-            .finish()
-            .await
-            .map_err(Into::into)
+    pub(super) async fn finish(
+        &mut self,
+        manager: &Manager,
+        operations: &impl Host<Error = harmos::Error>,
+    ) -> Result<FileReference> {
+        if let Some(reference) = &self.finished {
+            return Ok(reference.clone());
+        }
+        self.write(manager, operations).await?;
+        let reference = operations
+            .call_as::<harmos::storage::operations::FinishFile>(
+                harmos::storage::operations::FileMutation {
+                    mutation: self.mutation("finish")?,
+                    session: self
+                        .producer
+                        .as_ref()
+                        .expect("created report file")
+                        .session
+                        .clone(),
+                },
+            )
+            .await?
+            .into_owned();
+        self.finished = Some(reference.clone());
+        Ok(reference)
     }
 
-    async fn write(&mut self, manager_reference: &Manager) -> Result<()> {
-        if !self.written {
-            // Reconcile A Previous Partial Write
-            if let Some(producer) = self.producer.as_mut() {
-                producer.abort().await?;
-                self.producer = None;
-            }
-            // Retain The Original Creation Across Cancelled Waits
-            if self.creating.get_mut().is_none() {
-                let manager = manager_reference.clone();
-                let data = self.data.clone();
-                let metadata_bytes = data.metadata.memory_size();
-                let future = async move { manager.create_file(data.metadata.clone()).await };
-                if self.operation_memory.is_none() {
-                    let bytes = std::mem::size_of_val(&future)
-                        .saturating_add(metadata_bytes)
-                        .saturating_add(std::mem::size_of::<StorageFile>());
-                    self.operation_memory = Some(
-                        // Native Create/Finish Retains Its Own Destination Admission.
-                        // This Charge Covers Our Boxed Wait And Metadata Copy.
-                        manager_reference.prepare_production(allowance(bytes)?)?,
-                    );
-                }
-                *self.creating.get_mut() = Some(Box::pin(future));
-            }
-            let outcome = self
-                .creating
-                .get_mut()
-                .as_mut()
-                .expect("retained file creation")
-                .await;
-            self.creating.get_mut().take();
-            self.producer = Some(outcome?);
+    fn mutation(&self, action: &str) -> Result<MutationId> {
+        Ok(MutationId {
+            window: self
+                .window
+                .as_ref()
+                .expect("retained mutation window")
+                .clone(),
+            key: Identifier::new(format!("{}.{}", self.data.metadata.id, action))
+                .map_err(|error| Error::InvalidReportInputs(error.to_string()))?,
+        })
+    }
 
-            let producer = self.producer.as_mut().expect("retained file producer");
-            producer.write_all(&self.data.bytes).await?;
-            self.written = true;
+    async fn write(
+        &mut self,
+        manager: &Manager,
+        operations: &impl Host<Error = harmos::Error>,
+    ) -> Result<()> {
+        use harmos::storage::operations::{
+            AppendFile, AppendFileRequest, CreateFile, CreateFileRequest,
+        };
+
+        if self.finished.is_some() {
+            return Ok(());
+        }
+        let batch_bytes = usize::try_from(manager.info()?.file_chunk_bytes)
+            .map_err(|_| Error::InvalidReportInputs("file batch size overflows".into()))?;
+        if self.operation_memory.is_none() {
+            let bytes = batch_bytes
+                .saturating_add(self.data.metadata.memory_size())
+                .saturating_add(4096);
+            self.operation_memory = Some(manager.prepare_production(allowance(bytes)?)?);
+        }
+        if self.window.is_none() {
+            self.window = Some(manager.mutation_window()?.id);
+        }
+        if self.producer.is_none() {
+            self.producer = Some(
+                operations
+                    .call_as::<CreateFile>(CreateFileRequest {
+                        mutation: self.mutation("create")?,
+                        metadata: self.data.metadata.clone(),
+                    })
+                    .await?
+                    .into_owned(),
+            );
+        }
+        while self.written < self.data.bytes.len() {
+            let end = self
+                .written
+                .saturating_add(batch_bytes)
+                .min(self.data.bytes.len());
+            let producer = operations
+                .call_as::<AppendFile>(AppendFileRequest {
+                    mutation: self.mutation(&format!("append.{}", self.written))?,
+                    session: self
+                        .producer
+                        .as_ref()
+                        .expect("created report file")
+                        .session
+                        .clone(),
+                    offset: self.written as u64,
+                    bytes: self.data.bytes[self.written..end].to_vec(),
+                })
+                .await?
+                .into_owned();
+            if producer.length != end as u64 {
+                return Err(Error::InvalidReportInputs(
+                    "report append returned a different offset".into(),
+                ));
+            }
+            self.producer = Some(producer);
+            self.written = end;
         }
         Ok(())
     }

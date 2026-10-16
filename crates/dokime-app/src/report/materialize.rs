@@ -52,6 +52,45 @@ const ACTIVE_PLOT_PLANS: usize = 4;
 /* === Implementations === */
 
 /* === Public Functions === */
+/// Compose A Cycle Member From Its Frozen Source And Persisted Evidence.
+pub(crate) async fn sealed_member(
+    ctx: &Context<'_>,
+    storage: &Manager,
+    settings: &crate::config::StorageSettings,
+    view: &harmos::storage::StorageView,
+    seal: &dokime::execution::saved::ExecutionSeal,
+) -> Result<QueryValue<CapturedExecutionReportInput>> {
+    let source = crate::execution::context::read::read_file(view, &seal.source.context).await?;
+    source.validate_header()?;
+    if source.owner_node_id != seal.source.owner_node_id
+        || source.execution_id != seal.source.execution.execution_id
+        || source.evidence_through != seal.source.evidence_through
+        || source.outputs != seal.source.outputs
+    {
+        return Err(invalid(
+            "cycle member source differs from its execution seal",
+        ));
+    }
+    if let Some(anchor) = &source.execution
+        && !seal.source.execution.position.covers(&anchor.position)?
+    {
+        return Err(invalid(
+            "cycle member source follows its published revision",
+        ));
+    }
+    let source = source.try_into_shared()?;
+    let inspection = ExecutionView::captured(
+        storage,
+        view.clone(),
+        source,
+        &seal.source.owner_node_id,
+        view.decoded_bytes()?,
+        std::time::Duration::ZERO,
+    )
+    .await?;
+    execution(ctx, storage, settings, &inspection, true, None).await
+}
+
 pub(crate) async fn execution(
     ctx: &Context<'_>,
     storage: &Manager,

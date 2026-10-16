@@ -412,7 +412,7 @@ impl ExecutionStorage {
         )))
     }
 
-    pub(super) async fn retained_report_view(
+    pub(crate) async fn retained_report_view(
         &self,
         id: &TestExecutionId,
     ) -> Option<super::execution::ExecutionView> {
@@ -646,6 +646,7 @@ impl ExecutionStorage {
 
     pub(crate) async fn materialize_final_report(
         self: &Arc<Self>,
+        ctx: &harmos::operations::Context<'_>,
         inspection: super::execution::ExecutionView,
         prepared: PreparedExecutionReport,
         sealed_at: Timestamp,
@@ -695,12 +696,10 @@ impl ExecutionStorage {
                 publication: None,
                 _admission: memory,
             });
-            publish_materialized_final(&mut acquisition).await
+            publish_materialized_final(ctx, &mut acquisition).await
         };
-        let work = preparation.boxed(work)?;
-        tokio::spawn(work)
-            .await
-            .map_err(|source| Error::Join { source })?
+        let _preparation = preparation;
+        work.await
     }
 
     pub(super) async fn has_final_report(&self, execution: &TestExecutionId) -> bool {
@@ -713,6 +712,7 @@ impl ExecutionStorage {
 
     pub(crate) async fn retry_materialized_report(
         &self,
+        ctx: &harmos::operations::Context<'_>,
         execution: &TestExecutionId,
         at: &StorageCursor,
     ) -> Result<Option<dokime::operations::reports::MaterializedReport>> {
@@ -728,7 +728,9 @@ impl ExecutionStorage {
         if report.prepared.captured_input().evidence_through != *at {
             return Err(invalid("report retry changes the frozen evidence cursor"));
         }
-        publish_materialized_final(&mut acquisition).await.map(Some)
+        publish_materialized_final(ctx, &mut acquisition)
+            .await
+            .map(Some)
     }
 
     pub(crate) async fn retry_final_report(
@@ -1021,12 +1023,12 @@ fn validate_report(
 }
 
 async fn publish_materialized_final(
+    ctx: &harmos::operations::Context<'_>,
     acquisition: &mut Acquisition,
 ) -> Result<dokime::operations::reports::MaterializedReport> {
     if let Some(seal) = &acquisition.execution.saved {
         return Ok(dokime::operations::reports::MaterializedReport {
             report: seal.report.clone(),
-            materialized_input: Some(seal.materialized_input.clone()),
         });
     }
     if acquisition
@@ -1044,7 +1046,7 @@ async fn publish_materialized_final(
             .ok_or_else(|| invalid("publication has no real native revision"))?;
         let seal = report
             .prepared
-            .save_dependencies(&report.sealed_at, revision)
+            .save_dependencies(ctx, &report.sealed_at, revision)
             .await?;
         seal.check_origin(&acquisition.storage)?;
         let computation = report.inspection.view().begin_computation()?;
@@ -1082,7 +1084,6 @@ async fn publish_materialized_final(
                 executions: std::slice::from_ref(&seal.source.execution),
                 inputs: std::slice::from_ref(&seal.source.context),
                 file: &seal.report,
-                materialized_inputs: std::slice::from_ref(&seal.materialized_input),
             },
         )?);
     }
@@ -1100,7 +1101,6 @@ async fn publish_materialized_final(
         .ok_or_else(|| invalid("published report has no retained dependencies"))?;
     Ok(dokime::operations::reports::MaterializedReport {
         report: seal.report.clone(),
-        materialized_input: Some(seal.materialized_input.clone()),
     })
 }
 
@@ -1110,7 +1110,19 @@ async fn settle_final_report(
     if acquisition.execution.saved.is_some() {
         return complete_final_report(acquisition);
     }
-    publish_materialized_final(acquisition).await?;
+    let report = acquisition
+        .report
+        .as_mut()
+        .ok_or_else(|| invalid("finalization has no retained report"))?;
+    if report.seal.is_none() {
+        return Err(invalid("materialize report dependencies before sealing"));
+    }
+    report
+        .publication
+        .as_mut()
+        .ok_or_else(|| invalid("materialize report publication before sealing"))?
+        .finish()
+        .await?;
     if acquisition.pending.is_none() {
         let report = acquisition
             .report

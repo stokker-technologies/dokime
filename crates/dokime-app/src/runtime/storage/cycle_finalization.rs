@@ -46,6 +46,7 @@ pub(super) struct PendingCycle {
     snapshot: CycleSnapshot,
     executions: SharedQueryValue<Vec<ExecutionSeal>>,
     report: Option<SharedQueryValue<FileReference>>,
+    prepared: Arc<Mutex<Option<crate::report::cycle::CycleReport>>>,
     seal: Option<SharedQueryValue<CycleSeal>>,
     native: Option<QueryValue<Cycle>>,
     publication: Option<reports::Prepared>,
@@ -134,6 +135,7 @@ impl super::executions::ExecutionStorage {
             CycleSnapshot,
             SharedQueryValue<Vec<ExecutionSeal>>,
             Option<SharedQueryValue<FileReference>>,
+            Arc<Mutex<Option<crate::report::cycle::CycleReport>>>,
         )>,
     > {
         let owner = self.cycle_reports.lock().await.get(id).cloned();
@@ -174,6 +176,7 @@ impl super::executions::ExecutionStorage {
             pending.snapshot.clone(),
             pending.executions.clone(),
             pending.report.clone(),
+            pending.prepared.clone(),
         )))
     }
 
@@ -223,6 +226,42 @@ impl super::executions::ExecutionStorage {
 }
 
 impl RuntimeHandle {
+    async fn release_cycle_history(
+        &self,
+        cycle: &TestCycle,
+        through: &StorageCursor,
+    ) -> Result<()> {
+        use dokime::storage::objects::execution::Execution;
+        use harmos::catalog::Member;
+        use harmos::storage::{ObjectDefinitions, ObjectKey};
+
+        if cycle.saved.is_none() {
+            return Err(invalid("unsealed cycle cannot release member history"));
+        }
+        let key_bytes = cycle
+            .execution_ids
+            .iter()
+            .fold(cycle.test_cycle_id.as_str().len(), |maximum, id| {
+                maximum.max(id.as_str().len())
+            });
+        let _memory = self
+            .storage()
+            .prepare_production(bound(key_bytes.saturating_add(4096))?)?;
+        let execution_schema = <ObjectDefinitions as Member<Execution>>::ENTRY.schema()?;
+        let cycle_schema = <ObjectDefinitions as Member<Cycle>>::ENTRY.schema()?;
+        for id in &cycle.execution_ids {
+            let key = ObjectKey::new(id.as_str(), bound(key_bytes)?)?;
+            self.storage()
+                .release_object_history(&execution_schema, &key, through)
+                .await?;
+        }
+        let key = ObjectKey::new(cycle.test_cycle_id.as_str(), bound(key_bytes)?)?;
+        self.storage()
+            .release_object_history(&cycle_schema, &key, through)
+            .await?;
+        Ok(())
+    }
+
     async fn recover_saved_cycle(
         &self,
         intent: &crate::transactions::CycleReportFinalization,
@@ -288,6 +327,8 @@ impl RuntimeHandle {
                 Ok(executions)
             })?;
         }
+        self.release_cycle_history(&revision.value, &revision.position)
+            .await?;
         let bytes = std::mem::size_of::<CompletedCycle>()
             .saturating_add(revision.value.memory_size())
             .saturating_add(executions.memory_size());
@@ -514,22 +555,6 @@ impl RuntimeHandle {
                         Ok(inputs)
                     })?
                     .try_into_value()?;
-                let bytes = pending.executions.iter().fold(
-                    std::mem::size_of::<Vec<FileReference>>(),
-                    |bytes, execution| {
-                        bytes.saturating_add(execution.materialized_input.memory_size())
-                    },
-                );
-                let materialized_inputs = runtime
-                    .storage()
-                    .produce(bound(bytes)?, |_| {
-                        Ok(pending
-                            .executions
-                            .iter()
-                            .map(|execution| execution.materialized_input.clone())
-                            .collect::<Vec<_>>())
-                    })?
-                    .try_into_value()?;
                 let publication = reports::Prepared::new(
                     runtime.storage(),
                     &reports::Input {
@@ -542,7 +567,6 @@ impl RuntimeHandle {
                         dependencies_saved: &seal.dependencies_saved,
                         executions: &seal.executions,
                         inputs: &inputs,
-                        materialized_inputs: &materialized_inputs,
                         file: &seal.report,
                     },
                 )?;
@@ -612,6 +636,9 @@ impl RuntimeHandle {
                 })?
                 .try_into_value()?
                 .try_into_shared()?;
+            runtime
+                .release_cycle_history(&completed.header, &saved)
+                .await?;
             pending.completed = Some(completed.clone());
             Ok(completed)
         })
@@ -787,7 +814,8 @@ impl super::executions::ExecutionStorage {
                 .value,
         )?;
         let bytes = std::mem::size_of::<Mutex<PendingCycle>>()
-            + 2 * std::mem::size_of::<usize>()
+            + 4 * std::mem::size_of::<usize>()
+            + std::mem::size_of::<Mutex<Option<crate::report::cycle::CycleReport>>>()
             + harmos::btree_map_memory::<TestCycleId, Arc<Mutex<PendingCycle>>>(1)
             + source.test_cycle_id.memory_size();
         let registry = self.storage.prepare_production(bound(bytes)?)?;
@@ -795,6 +823,7 @@ impl super::executions::ExecutionStorage {
             snapshot,
             executions: executions.try_into_shared()?,
             report: published,
+            prepared: Arc::new(Mutex::new(None)),
             seal: None,
             native: None,
             publication: None,

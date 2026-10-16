@@ -87,6 +87,7 @@ Thumbs.db
 # Private Agent Artifacts
 /.stkr/state/
 /.stkr/task/
+/.stkr/specifications/
 
 # Hub Machine State
 /.stkr/generated/

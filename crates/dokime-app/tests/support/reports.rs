@@ -52,7 +52,26 @@ impl harmos::Application for ReportOwner {
     type Resources = ();
 }
 
+impl harmos::operations::Lane for ReportOwner {
+    fn name(&self) -> &'static str {
+        "Report Storage"
+    }
+    fn capacity(&self) -> harmos::operations::Capacity {
+        harmos::operations::Capacity::unbounded()
+    }
+}
+
 /* === Public Functions === */
+pub fn register_storage(operations: &harmos::operations::OperationManager, manager: &Manager) {
+    harmos::storage::operations::Operations::register(
+        operations,
+        "fixture.storage",
+        ReportOwner,
+        Arc::new(manager.clone()),
+    )
+    .unwrap();
+}
+
 pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
     let view = manager
         .view_with_limits(crate::support::budgets::story_settings().finalization())
@@ -135,6 +154,7 @@ pub async fn render_annotated(
         .runtime_with_storage(&manager)
         .await
         .unwrap();
+    register_storage(&owner.operations, &manager);
 
     // Settle The Execution Like A Final Capture
     let mut input = input.clone();
@@ -233,7 +253,11 @@ pub async fn render_annotated(
         .execution(manager.clone(), captured, outputs)
         .unwrap();
     let seal = prepared
-        .save_dependencies(&execution.finished_at.clone().unwrap(), &revision)
+        .save_dependencies(
+            &owner.operations,
+            &execution.finished_at.clone().unwrap(),
+            &revision,
+        )
         .await
         .unwrap();
     let mut reader = manager.read_file(&seal.report).await.unwrap();

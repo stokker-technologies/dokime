@@ -9,7 +9,6 @@
 
 /* === Modules === */
 pub(crate) mod cancellation;
-pub(crate) mod persisted;
 pub(crate) mod publication;
 pub(crate) mod restart;
 

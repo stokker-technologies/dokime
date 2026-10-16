@@ -323,12 +323,6 @@ fn documents_contract() {
 #[test]
 fn report_materialization_contract() {
     run_scenario(
-        documents::materialization::persisted::persisted_input_refusals,
-        false,
-        None,
-        false,
-    );
-    run_scenario(
         documents::materialization::cancellation::stopped_report_boundary,
         false,
         None,

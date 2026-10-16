@@ -253,21 +253,21 @@ pub(crate) async fn stopped_report_boundary() {
     );
     assert!(
         seal.dependencies_saved
-            .covers(&seal.materialized_input.position)
+            .covers(&seal.source.context.position)
             .unwrap()
     );
-    let view = runtime
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().finalization())
+    let captured = crate::support::native::open(&runtime, &checkpoint)
+        .await
+        .snapshot(runtime.storage())
         .await
         .unwrap();
-    let captured = dokime_app::report::Renderer
-        .load_execution(runtime.storage(), &view, seal)
-        .await
-        .unwrap();
-    assert_eq!(captured.evidence_through, seal.source.evidence_through);
-    assert_eq!(captured.execution_id, execution_id);
-    assert!(captured.final_report);
+    let samples = crate::support::native::samples(&runtime, &checkpoint).await;
+    assert_eq!(
+        captured.evidence_through().unwrap(),
+        &seal.source.evidence_through
+    );
+    assert_eq!(captured.execution().test_execution_id, execution_id);
+    assert!(captured.execution().saved.is_some());
     assert_eq!(executor.dropped.load(Ordering::SeqCst), 1);
     assert_eq!(
         sampler.state.delivered.load(Ordering::SeqCst),
@@ -283,9 +283,7 @@ pub(crate) async fn stopped_report_boundary() {
     .await
     .expect("stopped sampler demand must retire after its collection is accounted");
     assert!(executor.queue.lock().unwrap().is_none());
-    let tracking = captured
-        .input
-        .telemetry
+    let tracking = samples
         .iter()
         .filter(|sample| sample.stream.as_str() == "tracking")
         .collect::<Vec<_>>();
@@ -299,21 +297,20 @@ pub(crate) async fn stopped_report_boundary() {
         Some(&Value::Number(1.0))
     );
     assert!(
-        captured
-            .input
-            .telemetry
+        samples
             .iter()
             .all(|sample| sample.sequence != 999 && sample.sequence != 2000)
     );
     assert!(
         captured
-            .context
+            .context()
+            .unwrap()
             .health
             .iter()
             .all(|item| !format!("{item:?}").contains("Telemetry capture destination failed")),
         "discarded sampler debt must not become a destination failure"
     );
-    let lifecycle = &captured.input.cycle.test_executions[0];
+    let lifecycle = captured.execution();
     assert!(
         lifecycle
             .steps
@@ -322,16 +319,13 @@ pub(crate) async fn stopped_report_boundary() {
                 && step.status == StepStatus::Passed),
         "stopping evidence collection must preserve a recorded phase outcome"
     );
-    assert_eq!(
-        captured.input.cycle.test_executions[0].status,
-        ExecutionStatus::Cancelled
-    );
+    assert_eq!(captured.execution().status, ExecutionStatus::Cancelled);
     let original_html = crate::support::reports::bytes(runtime.storage(), &seal.report).await;
     assert_eq!(
         crate::support::reports::bytes(runtime.storage(), &seal.report).await,
         original_html
     );
-    drop((captured, view, checkpoint, runtime));
+    drop((captured, checkpoint, runtime));
     owner.shutdown().await.unwrap();
 }
 

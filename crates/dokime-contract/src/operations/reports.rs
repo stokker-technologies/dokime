@@ -48,7 +48,6 @@ pub struct MaterializeReportRequest {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MaterializedReport {
     pub report: harmos::storage::FileReference,
-    pub materialized_input: Option<harmos::storage::FileReference>,
 }
 
 #[harmos::message]
