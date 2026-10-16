@@ -15,7 +15,6 @@
 // Standard Library Imports
 use std::{collections::BTreeSet, sync::Arc};
 // Third Party Imports
-use harmos::{MemorySize, storage::QueryValue};
 
 // Local Imports
 use crate::execution::{HealthItem, OperatorNote};
@@ -67,7 +66,7 @@ impl RuntimeHandle {
             state.health_items(),
             crate::evidence::state::traceability_snapshots(state),
             state.notes(),
-            self.artifact_records_now().await?.to_vec(),
+            self.artifact_records_now().await?,
             state.record_contracts(),
             state.telemetry_contracts(),
         );
@@ -179,7 +178,7 @@ impl RuntimeHandle {
     ) -> crate::Result<crate::evidence::EvidenceCounts> {
         Ok(crate::runtime_state::evidence_counts(
             snapshot.state(),
-            self.execution_storage.artifact_count(None).await?,
+            self.execution_storage.artifact_count().await?,
         ))
     }
 }
@@ -320,30 +319,15 @@ impl RuntimeHandle {
         crate::queries::plots::query_plot_stream_batches(self, requests).await
     }
 
-    pub async fn artifacts(&self) -> crate::Result<QueryValue<Vec<ArtifactRecord>>> {
+    pub async fn artifacts(&self) -> crate::Result<Vec<ArtifactRecord>> {
         self.artifact_records_now().await
     }
 
-    pub async fn artifacts_limited(
-        &self,
-        scan_limit: usize,
-    ) -> crate::Result<QueryValue<Vec<ArtifactRecord>>> {
+    pub async fn artifacts_limited(&self, scan_limit: usize) -> crate::Result<Vec<ArtifactRecord>> {
         self.execution_storage.artifact_records(scan_limit).await
     }
 
-    pub async fn project_artifacts<T: MemorySize>(
-        &self,
-        scan_limit: usize,
-        map: impl FnOnce(&[ArtifactRecord], std::num::NonZeroUsize) -> harmos::Result<T>,
-    ) -> crate::Result<QueryValue<T>> {
-        self.execution_storage
-            .project_artifacts(scan_limit, map)
-            .await
-    }
-
-    pub(crate) async fn artifact_records_now(
-        &self,
-    ) -> crate::Result<QueryValue<Vec<ArtifactRecord>>> {
+    pub(crate) async fn artifact_records_now(&self) -> crate::Result<Vec<ArtifactRecord>> {
         self.execution_storage.artifact_records(usize::MAX).await
     }
 

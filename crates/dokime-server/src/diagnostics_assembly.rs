@@ -136,14 +136,10 @@ impl StartupDoctorSnapshot {
         storage_root: &Path,
         checked_at: Timestamp,
     ) -> Self {
-        let checks = [
-            Some(storage_root_check(storage_root)),
-            storage_baseline_check(storage_root),
-            Some(shutdown_state_check(snapshot.shutting_down)),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+        let checks = vec![
+            storage_root_check(storage_root),
+            shutdown_state_check(snapshot.shutting_down),
+        ];
         let status = aggregate_status(&checks);
 
         Self {
@@ -184,47 +180,6 @@ fn storage_root_check(storage_root: &Path) -> StartupDoctorCheck {
         message: "storage root parent does not exist".to_owned(),
         detail,
     }
-}
-
-// The Contract Has No Dedicated Baseline Key Yet, So The Row Shares The Root's.
-fn storage_baseline_check(storage_root: &Path) -> Option<StartupDoctorCheck> {
-    if !storage_root.is_dir() {
-        return None;
-    }
-    let (status, message, detail) = match dokime::storage::sqlite::inspect(storage_root) {
-        Ok(None) => (
-            DiagnosticCheckStatus::Ok,
-            "storage baseline will be created on first open".to_owned(),
-            None,
-        ),
-        Ok(Some(baseline)) => match baseline.mismatch() {
-            None => (
-                DiagnosticCheckStatus::Ok,
-                "storage baseline is compatible".to_owned(),
-                Some(format!(
-                    "schema version {}; data format {}",
-                    baseline.schema_version,
-                    baseline.data_format.as_deref().unwrap_or("not yet written")
-                )),
-            ),
-            Some(reason) => (
-                DiagnosticCheckStatus::Failed,
-                "storage baseline is incompatible with this build".to_owned(),
-                Some(reason),
-            ),
-        },
-        Err(error) => (
-            DiagnosticCheckStatus::Warning,
-            "storage baseline could not be read".to_owned(),
-            Some(error.to_string()),
-        ),
-    };
-    Some(StartupDoctorCheck {
-        key: StartupDoctorCheckKey::StorageRoot,
-        status,
-        message,
-        detail,
-    })
 }
 
 fn shutdown_state_check(shutting_down: bool) -> StartupDoctorCheck {

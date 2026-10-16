@@ -222,29 +222,9 @@ async fn get(
         })?
         .ok_or_else(|| Status::not_found("run request not found"))?;
     authorize(principal, &receipt)?;
-    let bytes = std::mem::size_of::<wire::RunRequestReceipt>()
-        .saturating_add(receipt.summary.request_id.as_str().len())
-        .saturating_add(receipt.node_id.as_str().len())
-        .saturating_add(receipt.summary.cycle_id.as_str().len())
-        .saturating_add(receipt.last_claim.as_ref().map_or(0, |claim| {
-            claim
-                .case_id
-                .as_str()
-                .len()
-                .saturating_add(claim.execution_id.as_str().len())
-        }))
-        .saturating_add(receipt.submitted_by.as_ref().map_or(0, String::len))
-        .saturating_add(receipt.interruption.as_ref().map_or(0, String::len));
-    let preparation = loan::reserve(runtime, bytes)?;
     let output = project(&receipt)?;
     loan::response_limit(&output, resources.max_message_bytes)?;
-    preparation
-        .finish(output)
-        .map_err(loan::memory_error)?
-        .try_into_value()
-        .map_err(loan::memory_error)?
-        .try_into_response()
-        .map_err(loan::memory_error)
+    Ok(output.into())
 }
 
 pub(super) fn authorize(principal: &Principal, receipt: &RunReceipt) -> Result<(), Status> {

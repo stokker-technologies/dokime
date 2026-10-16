@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 
 // Third Party Imports
 use harmos::{
@@ -85,31 +85,22 @@ impl Operation for List {
         };
         self.resources
             .runtime
-            .execution_checkpoint_telemetry_projected(
-                checkpoint,
-                &stream,
-                query,
-                |page, allowance| project(page, allowance, self.resources.maximum),
-            )
+            .execution_checkpoint_telemetry(checkpoint, &stream, query)
             .await
-            .map_err(wire::query_failure)?
-            .try_into_response()
-            .map_err(|source| wire::query_failure(source.into()))
+            .map_err(wire::query_failure)
+            .and_then(|page| {
+                project(&page, self.resources.maximum)
+                    .map(Into::into)
+                    .map_err(|source| wire::query_failure(source.into()))
+            })
     }
 }
 
 /* === Public Functions === */
 fn project(
     page: &ExecutionTelemetryPage,
-    allowance: NonZeroUsize,
     maximum: usize,
 ) -> harmos::Result<contract::CheckpointTelemetryPage> {
-    // The Original Native Page Remains Charged Separately. These Bounds Admit
-    // Every Wire Slot And Copied Field Before Constructing The Target Graph.
-    let graph = graph_memory(page)?;
-    if graph > allowance.get() {
-        return Err(exhausted());
-    }
     let mut records = projection::slots(page.rows.len())?;
     for row in &page.rows {
         records.push(contract::SavedTelemetrySample {
@@ -155,48 +146,6 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
-fn graph_memory(page: &ExecutionTelemetryPage) -> harmos::Result<usize> {
-    let checkpoint = &page.checkpoint;
-    let mut bytes = std::mem::size_of::<contract::CheckpointTelemetryPage>();
-    for value in [
-        page.rows
-            .len()
-            .checked_mul(std::mem::size_of::<contract::SavedTelemetrySample>())
-            .ok_or_else(exhausted)?,
-        page.issues
-            .len()
-            .checked_mul(std::mem::size_of::<contract::HistoryIssue>())
-            .ok_or_else(exhausted)?,
-        page.table.len(),
-        checkpoint.execution_id.as_str().len(),
-        harmos::Message::encoded_len(&checkpoint.version),
-        checkpoint.position.history.store.as_str().len(),
-        checkpoint.position.history.epoch.as_str().len(),
-        checkpoint.evidence_through.history.store.as_str().len(),
-        checkpoint.evidence_through.history.epoch.as_str().len(),
-        page.next.as_ref().map_or(0, String::len),
-    ] {
-        bytes = bytes.checked_add(value).ok_or_else(exhausted)?;
-    }
-    for row in &page.rows {
-        let row_memory = row
-            .epoch
-            .as_str()
-            .len()
-            .saturating_add(samples::memory(&row.sample).map_err(original_error)?);
-        bytes = bytes.checked_add(row_memory).ok_or_else(exhausted)?;
-    }
-    for issue in &page.issues {
-        for length in [
-            issue.message.len(),
-            issue.source.as_ref().map_or(0, String::len),
-            issue.dataset.as_ref().map_or(0, String::len),
-        ] {
-            bytes = bytes.checked_add(length).ok_or_else(exhausted)?;
-        }
-    }
-    Ok(bytes)
-}
 fn original_error(source: Status) -> harmos::Error {
     if source.code() == Code::ResourceExhausted {
         return exhausted();

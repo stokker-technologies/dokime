@@ -23,7 +23,7 @@ use arrow_array::{
     Array, StringArray, StructArray, TimestampNanosecondArray, UInt32Array, UInt64Array,
 };
 use harmos::{
-    MemorySize, Message,
+    Message,
     message::postcard::{Reader, Value as PostcardValue},
     schema::{
         Cardinality, Described, Event, PathElement, Scalar, Validator,
@@ -314,26 +314,11 @@ pub fn codec(contract: &TelemetryContract) -> Result<TypedCodec> {
     )
 }
 
-// The Caller Retains Reservations For Encoded Scratch And Decoded Output Until Consumption.
-pub fn decode_batch(
-    codec: &TypedCodec,
-    batch: &ArrowBatch,
-    allowance: NonZeroUsize,
-) -> Result<Vec<TelemetryEntry>> {
-    let encoded = encode_batch(codec, batch, allowance)?;
-    let bound = decoding_memory_rows(codec, &encoded)?;
-    if bound
-        .checked_add(encoded.memory_size())
-        .is_none_or(|bytes| bytes > allowance.get())
-    {
-        return Err(harmos::Error::ResourceExhausted {
-            resource: "typed telemetry decoding memory",
-        }
-        .into());
-    }
+pub fn decode_batch(codec: &TypedCodec, batch: &ArrowBatch) -> Result<Vec<TelemetryEntry>> {
+    let encoded = encode_batch(codec, batch)?;
     let entries = encoded
         .iter()
-        .map(|row| codec.decode(row, allowance.get()))
+        .map(|row| codec.decode(row, usize::MAX))
         .collect::<Result<Vec<_>>>()?;
     let storage = batch
         .as_record_batch()
@@ -348,11 +333,7 @@ pub fn decode_batch(
     Ok(entries)
 }
 
-pub fn encode_batch(
-    codec: &TypedCodec,
-    batch: &ArrowBatch,
-    allowance: NonZeroUsize,
-) -> Result<Vec<Vec<u8>>> {
+pub fn encode_batch(codec: &TypedCodec, batch: &ArrowBatch) -> Result<Vec<Vec<u8>>> {
     let payload = batch
         .as_record_batch()
         .column_by_name("payload")
@@ -366,20 +347,8 @@ pub fn encode_batch(
         codec.graph(),
         payload,
         PayloadEncoding::PostcardV1,
-        allowance,
+        NonZeroUsize::MAX,
     )?)
-}
-
-pub fn decoding_memory_rows(codec: &TypedCodec, encoded: &[Vec<u8>]) -> Result<usize> {
-    encoded
-        .iter()
-        .try_fold(std::mem::size_of::<Vec<TelemetryEntry>>(), |bytes, row| {
-            codec
-                .decoding_memory(row)?
-                .checked_add(std::mem::size_of::<TelemetryEntry>())
-                .and_then(|bound| bytes.checked_add(bound))
-                .ok_or(Error::Invalid("typed telemetry decoding memory overflows"))
-        })
 }
 
 pub fn decode_stream_values(

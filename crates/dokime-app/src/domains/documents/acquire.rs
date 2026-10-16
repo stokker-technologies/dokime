@@ -15,7 +15,6 @@
 // Standard Library Imports
 use std::{collections::BTreeSet, io::Write, mem::size_of};
 // Third Party Imports
-use harmos::storage::QueryValue;
 use harmos::{MemorySize, streams::PageLimits, streams::ReadCut, streams::ReadLimits};
 use sha2::{Digest, Sha256};
 // Local Imports
@@ -35,7 +34,7 @@ pub(super) const SOURCE_ROWS: usize = 100_000;
 pub(super) struct Acquired {
     pub data: DocumentDataInput,
     pub records: Vec<crate::runtime::CapturedRecord>,
-    pub artifacts: Option<QueryValue<Vec<crate::artifacts::ArtifactRecord>>>,
+    pub artifacts: Option<Vec<crate::artifacts::ArtifactRecord>>,
     pub telemetry_cut: Option<ReadCut>,
     pub artifacts_sha256: Option<String>,
 }
@@ -232,53 +231,55 @@ pub(super) async fn acquire(
             }
         }
         let mut digest = Hasher(Sha256::new());
+        let records = runtime
+            .execution_storage
+            .artifact_records(SOURCE_ROWS)
+            .await
+            .map_err(native_error)?;
         captured.artifacts = Some(
-            runtime
-                .execution_storage
-                .project_artifact_records(SOURCE_ROWS, |mut records, _| {
-                    validate_cycle_artifacts(selection, snapshot, &records)?;
-                    if records
+            (|mut records: Vec<crate::artifacts::ArtifactRecord>| -> harmos::Result<_> {
+                validate_cycle_artifacts(selection, snapshot, &records)?;
+                if records
+                    .iter()
+                    .any(|record| selection.foreign_execution_scope(Some(&record.scope)))
+                {
+                    return Err(harmos::Error::InvalidInput {
+                        field: "document artifact scope",
+                        reason: "artifact descriptor belongs to another cycle or case",
+                    });
+                }
+                // Keep The Original Admitted Buffer And Its Charged Query Owner.
+                records.retain(|record| selection.matches_scope(Some(&record.scope)));
+                charge(records.memory_size()).map_err(artifact_limit)?;
+                for record in &records {
+                    document_size(record, SOURCE_BYTES, 32).map_err(artifact_limit)?;
+                    serde_json::to_writer(&mut digest, record).map_err(|error| {
+                        harmos::Error::backend(
+                            "encode document artifact fingerprint",
+                            harmos::BackendFailure::Corrupt,
+                            error,
+                        )
+                    })?;
+                    digest.write_all(b"\n").map_err(|error| {
+                        harmos::Error::backend(
+                            "write document artifact fingerprint",
+                            harmos::BackendFailure::Corrupt,
+                            error,
+                        )
+                    })?;
+                }
+                charge(size_of::<String>() + 64).map_err(artifact_limit)?;
+                captured.artifacts_sha256 = Some(
+                    digest
+                        .0
+                        .finalize()
                         .iter()
-                        .any(|record| selection.foreign_execution_scope(Some(&record.scope)))
-                    {
-                        return Err(harmos::Error::InvalidInput {
-                            field: "document artifact scope",
-                            reason: "artifact descriptor belongs to another cycle or case",
-                        });
-                    }
-                    // Keep The Original Admitted Buffer And Its Charged Query Owner.
-                    records.retain(|record| selection.matches_scope(Some(&record.scope)));
-                    charge(records.memory_size()).map_err(artifact_limit)?;
-                    for record in &records {
-                        document_size(record, SOURCE_BYTES, 32).map_err(artifact_limit)?;
-                        serde_json::to_writer(&mut digest, record).map_err(|error| {
-                            harmos::Error::backend(
-                                "encode document artifact fingerprint",
-                                harmos::BackendFailure::Corrupt,
-                                error,
-                            )
-                        })?;
-                        digest.write_all(b"\n").map_err(|error| {
-                            harmos::Error::backend(
-                                "write document artifact fingerprint",
-                                harmos::BackendFailure::Corrupt,
-                                error,
-                            )
-                        })?;
-                    }
-                    charge(size_of::<String>() + 64).map_err(artifact_limit)?;
-                    captured.artifacts_sha256 = Some(
-                        digest
-                            .0
-                            .finalize()
-                            .iter()
-                            .map(|byte| format!("{byte:02x}"))
-                            .collect(),
-                    );
-                    Ok(records)
-                })
-                .await
-                .map_err(native_error)?,
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect(),
+                );
+                Ok(records)
+            })(records)
+            .map_err(|error| native_error(error.into()))?,
         );
     }
     Ok(captured)

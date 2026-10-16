@@ -12,11 +12,11 @@ mod selection;
 mod wire;
 
 /* === Re-Exports === */
-pub(in crate::grpc) use wire::{health, health_memory, note, note_memory};
+pub(in crate::grpc) use wire::{health, note};
 
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 // Third Party Imports
 use harmos::{
     MemorySize, Protobuf,
@@ -102,19 +102,7 @@ impl Operation for ListNotes {
         items.sort_by(|a, b| a.note_id.cmp(&b.note_id));
         let more = items.len() > page.limit;
         items.truncate(page.limit);
-        let bytes = items.iter().try_fold(
-            page_memory::<contract::ListNotesResponse>(&page),
-            |bytes, item| {
-                Ok::<_, Status>(
-                    bytes.saturating_add(
-                        wire::note_memory(item)
-                            .map_err(memory_failure)?
-                            .saturating_add(3 * std::mem::size_of::<contract::OperatorNote>()),
-                    ),
-                )
-            },
-        )?;
-        self.resources.produce(bytes, || {
+        self.resources.produce(|| {
             let next_after_id = if more {
                 items.last().unwrap().note_id.to_string()
             } else {
@@ -168,19 +156,7 @@ impl Operation for ListHealth {
         items.sort_by(|a, b| a.health_item_id.cmp(&b.health_item_id));
         let more = items.len() > page.limit;
         items.truncate(page.limit);
-        let bytes = items.iter().try_fold(
-            page_memory::<contract::ListHealthResponse>(&page),
-            |bytes, item| {
-                Ok::<_, Status>(
-                    bytes.saturating_add(
-                        wire::health_memory(item)
-                            .map_err(memory_failure)?
-                            .saturating_add(3 * std::mem::size_of::<contract::HealthItem>()),
-                    ),
-                )
-            },
-        )?;
-        self.resources.produce(bytes, || {
+        self.resources.produce(|| {
             let next_after_id = if more {
                 items.last().unwrap().health_item_id.to_string()
             } else {
@@ -238,8 +214,7 @@ impl Operation for CreateNote {
             })
             .await
             .map_err(status)?;
-        self.resources
-            .produce(wire::receipt_memory(&result)?, || wire::receipt(&result))
+        self.resources.produce(|| wire::receipt(&result))
     }
 }
 
@@ -282,10 +257,7 @@ impl Operation for EditNote {
             })
             .await
             .map_err(status)?;
-        let bytes = wire::note_memory(&note)
-            .map_err(memory_failure)?
-            .saturating_add(std::mem::size_of::<contract::EditNoteResponse>());
-        self.resources.produce(bytes, || {
+        self.resources.produce(|| {
             Ok(contract::EditNoteResponse {
                 note: Some(wire::note(&note)?),
             })
@@ -296,34 +268,15 @@ impl Operation for EditNote {
 impl Resources {
     fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
         &self,
-        required: usize,
         build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
-        if required > self.maximum {
-            return Err(Status::resource_exhausted(
-                "annotation page exceeds byte budget",
-            ));
-        }
-        let bytes = NonZeroUsize::new(required)
-            .ok_or_else(|| Status::resource_exhausted("invalid annotation allowance"))?;
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(bytes)
-            .map_err(memory_failure)?;
         let output = build()?;
         if output.encoded_len() > self.maximum {
             return Err(Status::resource_exhausted(
                 "annotation response exceeds byte budget",
             ));
         }
-        preparation
-            .finish(output)
-            .map_err(memory_failure)?
-            .try_into_value()
-            .map_err(memory_failure)?
-            .try_into_response()
-            .map_err(memory_failure)
+        Ok(output.into())
     }
 }
 
@@ -357,20 +310,6 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
-fn page_memory<T>(page: &selection::Page) -> usize {
-    std::mem::size_of::<T>()
-        .saturating_add(page.cursor.epoch.capacity())
-        .saturating_add(page.cursor.stream.capacity())
-        .saturating_add(36)
-}
-fn memory_failure(source: harmos::Error) -> Status {
-    let status = if matches!(source, harmos::Error::ResourceExhausted { .. }) {
-        Status::resource_exhausted("annotation admission failed")
-    } else {
-        Status::internal("annotation admission failed")
-    };
-    super::error::detailed(status, &source.into())
-}
 fn status(error: NoteError) -> Status {
     match error {
         NoteError::Invalid(message) => Status::invalid_argument(message),

@@ -223,7 +223,7 @@ pub(crate) async fn compacted_snapshots_receipts() {
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             data.history().clone(),
-            &policy(),
+            dokime::storage::state_settings(&policy()),
         ));
         let storage = StorageManager::new(
             StorageBackends {
@@ -355,7 +355,7 @@ pub(crate) fn cancelled_backend_instance() {
             let recovery = harmos::storage::state::file::FileBackend::new(
                 root.path().to_owned(),
                 data.history().clone(),
-                &policy(),
+                dokime::storage::state_settings(&policy()),
             );
             let (release, blocked) = std::sync::mpsc::channel::<()>();
             let (started, ready) = tokio::sync::oneshot::channel();
@@ -391,7 +391,7 @@ pub(crate) async fn manager_queries_evidence() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         data.history().clone(),
-        &policy(),
+        dokime::storage::state_settings(&policy()),
     ));
     let storage = StorageManager::new(
         StorageBackends {
@@ -551,7 +551,7 @@ pub(crate) async fn manager_queries_evidence() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         data.history().clone(),
-        &policy(),
+        dokime::storage::state_settings(&policy()),
     ));
     let storage = StorageManager::new(
         StorageBackends {
@@ -613,7 +613,7 @@ pub(crate) async fn managed_journal_backends() {
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             data.history().clone(),
-            &policy(),
+            dokime::storage::state_settings(&policy()),
         ));
         let storage = StorageManager::new(
             StorageBackends {
@@ -671,7 +671,7 @@ pub(crate) async fn captured_records_duplicates() {
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             data.history().clone(),
-            &policy(),
+            dokime::storage::state_settings(&policy()),
         ));
         let storage = StorageManager::new(
             StorageBackends {
@@ -804,7 +804,7 @@ pub(crate) async fn cancelled_boot_storage() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         data.history().clone(),
-        &policy(),
+        dokime::storage::state_settings(&policy()),
     ));
     let storage = StorageManager::new(
         StorageBackends {
@@ -832,7 +832,7 @@ pub(crate) async fn cancelled_boot_storage() {
     let recovery = harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         data.history().clone(),
-        &policy(),
+        dokime::storage::state_settings(&policy()),
     );
     recovery.open().await.unwrap();
     recovery.close().await.unwrap();
@@ -864,7 +864,7 @@ pub(crate) async fn oversized_admission_order() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         primary.history().clone(),
-        &policy(),
+        dokime::storage::state_settings(&policy()),
     ));
     let storage = StorageManager::new(
         StorageBackends {
@@ -967,7 +967,7 @@ pub(crate) async fn follower_bridges_admissions() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         data.history().clone(),
-        &policy(),
+        dokime::storage::state_settings(&policy()),
     ));
     let storage = StorageManager::new(
         StorageBackends {
@@ -1049,7 +1049,7 @@ pub(crate) async fn replay_tail_saving() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         data.history().clone(),
-        &policy(),
+        dokime::storage::state_settings(&policy()),
     ));
     let storage = StorageManager::new(
         StorageBackends {
@@ -1147,7 +1147,7 @@ pub(crate) async fn managed_producer_restart() {
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             data.history().clone(),
-            &policy(),
+            dokime::storage::state_settings(&policy()),
         ));
         let storage = StorageManager::new(
             StorageBackends {
@@ -1263,7 +1263,7 @@ pub(crate) async fn replays_dense_journal_pages() {
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             data.history().clone(),
-            &policy(),
+            dokime::storage::state_settings(&policy()),
         ));
         let storage = StorageManager::new(
             StorageBackends {

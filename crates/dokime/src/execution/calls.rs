@@ -30,6 +30,8 @@ use harmos::sidecar::{CallError, Supervisor};
 use super::builtins::{Binding, served};
 use super::instances::{LocalRun, StepInstance, refused as step_refusal};
 
+use super::instances::refusal_failure;
+
 /* === Constants === */
 // The JSON-RPC server error code of a refusal raised on the step side of the call.
 const STEP_REFUSAL: i64 = -32_000;
@@ -210,12 +212,12 @@ impl Host for StepHost {
             Road::Local(operations) => {
                 let answer = operations.get(O::ID).ok_or_else(|| CallError::Refused {
                     code: STEP_REFUSAL,
-                    message: "the harness registered no answer for this operation".into(),
+                    failure: refusal_failure("the harness registered no answer for this operation"),
                 })?;
                 let bytes = answer(request.encode_to_vec()).await.map_err(|message| {
                     CallError::Refused {
                         code: STEP_REFUSAL,
-                        message,
+                        failure: refusal_failure(message),
                     }
                 })?;
                 let response = O::Response::decode(bytes.as_slice()).map_err(|error| {
@@ -261,7 +263,7 @@ fn routed(host: &Supervisor, stage: &str, operation: &str) -> Result<Supervisor,
 fn refusal(error: ContextError) -> CallError {
     CallError::Refused {
         code: STEP_REFUSAL,
-        message: error.to_string(),
+        failure: refusal_failure(error.to_string()),
     }
 }
 

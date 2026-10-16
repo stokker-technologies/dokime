@@ -216,13 +216,6 @@ impl RuntimeHandle {
         #[cfg(test)] decorate: Option<BackendDecorator>,
     ) -> Result<(HarmosRuntime, Self)> {
         let boot_started = std::time::Instant::now();
-        if config.save_interval.is_zero()
-            || boot_started.checked_add(config.save_interval).is_none()
-        {
-            return Err(Error::Operation(
-                "save interval must be positive and representable".into(),
-            ));
-        }
         if config.compaction_interval.is_zero()
             || boot_started
                 .checked_add(config.compaction_interval)
@@ -253,11 +246,9 @@ impl RuntimeHandle {
         }
         config.storage.validate()?;
         dokime_filesystem::publication::create_dir_all(&config.storage_root)?;
-        let backend_limits = dokime::storage::sqlite::Limits::default();
-        let backend = Arc::new(
-            dokime::storage::Backend::primary(config.storage_root.clone(), backend_limits).await?,
-        );
-        let local_state = backend.control().await?;
+        let backend =
+            Arc::new(dokime::storage::Backend::primary(config.storage_root.clone()).await?);
+        let local_state = backend.local_state();
         let (config, application_settings, storage_policy) =
             tokio::task::spawn_blocking(move || {
                 let mut config = config;
@@ -281,14 +272,11 @@ impl RuntimeHandle {
 
         let sampling = Sampling::default();
         let providers = ProviderExecutorRegistry::new(providers);
-        dokime_filesystem::publication::create_dir_all(&config.storage_root)?;
-        let settings = config
-            .storage
-            .harmos(config.save_interval, backend_limits.batch_bytes);
+        let settings = config.storage.clone();
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             config.storage_root.clone(),
             harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
-            &settings,
+            dokime::storage::state_settings(&settings),
         ));
         tracing::info!(
             read_pool_bytes = settings.budget.read_memory_bytes.get(),
@@ -297,7 +285,6 @@ impl RuntimeHandle {
         let backends = harmos::storage::StorageBackends {
             primary: backend.clone(),
             state: recovery,
-            replicas: vec![],
         };
         #[cfg(test)]
         let backends = match decorate {
@@ -308,7 +295,6 @@ impl RuntimeHandle {
         let record_source = Arc::new(crate::runtime::storage::record_capture::Source::new(
             state.process_epoch(),
             storage.clone(),
-            config.storage.clone(),
         )?);
         let resources = crate::app::Resources::new(config.storage.clone());
         *resources
@@ -396,7 +382,6 @@ impl RuntimeHandle {
             let request_storage = crate::runtime::storage::requests::RequestStorage::new(
                 storage.clone(),
                 node_identity.node_id.clone(),
-                config.storage.interactive.timeout,
             );
             request_storage
                 .recover(|id| {

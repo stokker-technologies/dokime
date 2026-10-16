@@ -16,13 +16,10 @@
 // Standard Library Imports
 use super::executions::{CaptureInputs, ExecutionStorage};
 use crate::execution::context::source::CapturedSource;
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::{collections::BTreeMap, sync::Arc};
 
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{ObjectVersion, QueryValue, StorageProductionPreparation},
-};
+use harmos::storage::ObjectVersion;
 
 // Local Imports
 use super::execution::ExecutionView;
@@ -49,36 +46,23 @@ impl RuntimeHandle {
         &self,
         execution: &dokime::core::TestExecutionId,
     ) -> Result<ExecutionView> {
-        let identity = self
-            .storage()
-            .produce(bound(execution.memory_size())?, |_| Ok(execution.clone()))?
-            .try_into_value()?;
+        let identity = execution.clone();
         let runtime = self.clone();
-        let operation = async move {
+        tokio::spawn(async move {
             let _order = runtime.execution_storage.cycle_save.lock().await;
             let source = runtime.snapshot_source(&identity).await?;
             let execution = source
                 .test_executions
                 .iter()
-                .find(|member| member.test_execution_id == *identity)
+                .find(|member| member.test_execution_id == identity)
                 .ok_or_else(|| invalid("snapshot execution is outside its cycle"))?;
             runtime.snapshot_member(&source, execution).await
-        };
-        let bytes = std::mem::size_of_val(&operation)
-            .checked_add(std::mem::size_of::<StorageProductionPreparation>())
-            .ok_or_else(|| invalid("report capture task memory overflows"))?;
-        let memory = self.storage().prepare_production(bound(bytes)?)?;
-        tokio::spawn(async move {
-            let _memory = memory;
-            operation.await
         })
         .await?
     }
 
-    async fn snapshot_source(&self, execution: &TestExecutionId) -> Result<QueryValue<CycleView>> {
-        self.execution_storage
-            .report_source(execution, &self.config().storage)
-            .await
+    async fn snapshot_source(&self, execution: &TestExecutionId) -> Result<CycleView> {
+        self.execution_storage.report_source(execution).await
     }
 
     pub(super) async fn snapshot_member(
@@ -86,18 +70,10 @@ impl RuntimeHandle {
         cycle: &CycleView,
         execution: &TestExecution,
     ) -> Result<ExecutionView> {
-        // Finalization Captures Meet A Full Ledger With Their Own Back-Pressure.
-        let view = self
-            .storage()
-            .view_with_limits(self.config().storage.interactive)
-            .await?;
-        let limit = view.decoded_bytes()?;
         if let Some(inspection) = ExecutionView::open(
             self.storage(),
-            view,
             &execution.test_execution_id,
             ObjectVersion::Latest,
-            limit,
         )
         .await?
             && inspection.execution().saved.is_some()
@@ -106,20 +82,13 @@ impl RuntimeHandle {
                 return Err(invalid("saved report member differs from frozen cycle"));
             }
             if execution.saved.is_none() {
-                let expected = inspection.view().project_shared(
-                    inspection.revision()?,
-                    bound(inspection.execution().memory_size())?,
-                    |revision, _| {
-                        let mut execution = revision.value.clone();
-                        execution.saved = None;
-                        Ok(execution)
-                    },
-                )?;
-                if &*expected != execution {
+                let mut expected = inspection.revision()?.value.clone();
+                expected.saved = None;
+                if &expected != execution {
                     return Err(invalid("saved snapshot differs from working execution"));
                 }
             }
-            return inspection.snapshot(self.storage()).await;
+            return inspection.snapshot().await;
         }
         if execution.saved.is_some() {
             return Err(invalid("sealed cycle member has no saved execution"));
@@ -143,7 +112,6 @@ impl RuntimeHandle {
                 cycle,
                 &inputs,
                 self.settings().read(|document| document.report),
-                &self.config().storage,
             )
             .await
     }
@@ -152,10 +120,7 @@ impl RuntimeHandle {
 impl ExecutionStorage {
     pub(crate) async fn report_appearance(
         &self,
-        view: &harmos::storage::StorageView,
-        limit: NonZeroUsize,
-    ) -> Result<QueryValue<crate::installed_plugins::RuntimeAppearanceFrame>> {
-        let memory = self.storage.prepare_production(limit)?;
+    ) -> Result<crate::installed_plugins::RuntimeAppearanceFrame> {
         let appearance = self
             .state_manager
             .state()
@@ -164,7 +129,7 @@ impl ExecutionStorage {
                 crate::installed_plugins::appearance::capture_appearance_state(
                     state,
                     brand.as_ref(),
-                    limit.get(),
+                    usize::MAX,
                 )
                 .map_err(|_| invalid("report appearance exceeds its source budget"))
             })
@@ -172,20 +137,15 @@ impl ExecutionStorage {
             .value?;
         let mut frame = appearance.frame;
         if let Some(asset) = appearance.logo {
-            let url = super::presentation::capture_logo(&self.storage, view, &asset).await?;
-            drop(asset);
-            bounded(frame.memory_size().saturating_add(url.memory_size()), limit)?;
+            let url = super::presentation::capture_logo(&asset).await?;
             if let Some(logo) = &mut frame.logo {
-                logo.url = (*url).clone();
+                logo.url = url;
             }
         }
-        Ok(memory.finish(frame)?.try_into_value()?)
+        Ok(frame)
     }
-    pub(crate) async fn report_source(
-        &self,
-        execution: &TestExecutionId,
-        settings: &crate::config::StorageSettings,
-    ) -> Result<QueryValue<CycleView>> {
+
+    pub(crate) async fn report_source(&self, execution: &TestExecutionId) -> Result<CycleView> {
         let source = self
             .state_manager
             .state()
@@ -195,31 +155,9 @@ impl ExecutionStorage {
                     .get(execution)
                     .ok_or_else(|| invalid("report execution is not active"))?
                     .test_cycle_id;
-                let header = state
-                    .cycles
-                    .get(id)
-                    .ok_or_else(|| invalid("report cycle is not active"))?;
-                let bytes = header.execution_ids.iter().try_fold(
-                    header
-                        .memory_size()
-                        .saturating_add(std::mem::size_of::<CycleView>()),
-                    |bytes, id| {
-                        state
-                            .executions
-                            .get(id)
-                            .and_then(|member| bytes.checked_add(member.memory_size()))
-                            .ok_or_else(|| invalid("report cycle membership memory overflows"))
-                    },
-                )?;
-                self.storage
-                    .produce(bounded(bytes, settings.decoded_bytes)?, |_| {
-                        state.cycle_view(id).ok_or(harmos::Error::InvalidInput {
-                            field: "report cycle",
-                            reason: "cycle disappeared",
-                        })
-                    })?
-                    .try_into_value()
-                    .map_err(Error::from)
+                state
+                    .cycle_view(id)
+                    .ok_or_else(|| invalid("report cycle is not active"))
             })
             .await?
             .value?;
@@ -237,24 +175,14 @@ impl ExecutionStorage {
         let Some(lifecycle) = lifecycle else {
             return Ok(source);
         };
-        let bytes = source
-            .memory_size()
-            .saturating_add(lifecycle.execution.memory_size());
-        Ok(
-            source.try_project(bounded(bytes, settings.decoded_bytes)?, |source, _| {
-                let mut source = source.clone();
-                let member = source
-                    .test_executions
-                    .iter_mut()
-                    .find(|member| member.test_execution_id == *execution)
-                    .ok_or(harmos::Error::InvalidInput {
-                        field: "report source",
-                        reason: "execution is absent from cycle",
-                    })?;
-                *member = lifecycle.execution;
-                Ok(source)
-            })?,
-        )
+        let mut source = source;
+        let member = source
+            .test_executions
+            .iter_mut()
+            .find(|member| member.test_execution_id == *execution)
+            .ok_or_else(|| invalid("execution is absent from cycle"))?;
+        *member = lifecycle.execution;
+        Ok(source)
     }
 
     pub(crate) async fn capture_execution_view(
@@ -262,9 +190,8 @@ impl ExecutionStorage {
         source: &CycleView,
         inputs: &CaptureInputs,
         defaults: crate::config::ReportDefaults,
-        settings: &crate::config::StorageSettings,
     ) -> Result<ExecutionView> {
-        let through = &*inputs.through;
+        let through = &inputs.through;
         if !self.storage.cursor_saved().covers(through)? {
             return Err(invalid("report evidence is not durable"));
         }
@@ -274,17 +201,10 @@ impl ExecutionStorage {
                 return Err(invalid("captured report output is not durable"));
             }
         }
-        let view = self
-            .storage
-            .view_with_limits(settings.finalization())
-            .await?;
-        let limit = view.decoded_bytes()?;
         let anchor = ExecutionView::open(
             &self.storage,
-            view.clone(),
             &inputs.execution.test_execution_id,
             ObjectVersion::Latest,
-            limit,
         )
         .await?;
         let revision = anchor
@@ -300,8 +220,6 @@ impl ExecutionStorage {
             })
             .transpose()?;
         let captured_at = dokime::core::Timestamp::now_utc();
-        let capture_work = view.begin_computation()?;
-        let preparation = self.storage.prepare_production(limit)?;
         let (mut context, logo, owner_node_id, record_contracts, telemetry_contracts) = self
             .state_manager
             .state()
@@ -316,33 +234,6 @@ impl ExecutionStorage {
                 )?;
                 let records = state.historical_record_contracts();
                 let telemetry = &state.telemetry_definitions;
-                let telemetry_bytes = telemetry.values().fold(
-                    harmos::btree_map_memory::<
-                        dokime::core::Identifier,
-                        BTreeMap<u32, dokime::telemetry::TelemetryContract>,
-                    >(telemetry.len()),
-                    |bytes, contract| {
-                        bytes
-                            .saturating_add(contract.memory_size())
-                            .saturating_add(contract.stream.memory_size())
-                            .saturating_add(harmos::btree_map_memory::<
-                                u32,
-                                dokime::telemetry::TelemetryContract,
-                            >(1))
-                    },
-                );
-                check(
-                    records
-                        .memory_size()
-                        .saturating_add(telemetry_bytes)
-                        .saturating_add(captured.context.memory_size())
-                        .saturating_add(revision.memory_size())
-                        .saturating_add(inputs.execution.memory_size())
-                        .saturating_add(inputs.lifecycle_id.memory_size())
-                        .saturating_add(inputs.outputs.memory_size())
-                        .saturating_add(captured_at.memory_size()),
-                    limit,
-                )?;
                 let telemetry = telemetry
                     .values()
                     .map(|contract| {
@@ -383,76 +274,37 @@ impl ExecutionStorage {
                 observed_at: captured_at.clone(),
             });
         }
-        check(context.memory_size(), limit)?;
         // A plot nobody configured draws with the application defaults, frozen
         // here so a report rendered again from this capture draws the same.
         for document in context.execution_documents.values_mut() {
             defaults.apply(document);
         }
         if let Some(asset) = logo {
-            let captured = super::presentation::capture_logo(&self.storage, &view, &asset).await?;
+            let captured = super::presentation::capture_logo(&asset).await?;
             if let Some(logo) = &mut context.appearance.logo {
-                logo.url = (*captured).clone();
+                logo.url = captured;
             }
         }
-        let captured = preparation
-            .finish(CapturedSource {
-                captured_at,
-                owner_node_id: owner_node_id.clone(),
-                execution_id: inputs.execution.test_execution_id.clone(),
-                execution: revision,
-                lifecycle_id: inputs.lifecycle_id.clone(),
-                lifecycle: (*inputs.execution).clone(),
-                evidence_through: through.clone(),
-                outputs: (*inputs.outputs).clone(),
-                context,
-                record_contracts,
-                telemetry_contracts,
-            })?
-            .try_into_value()?
-            .try_into_shared()?;
-        drop(capture_work);
-        let inspection = ExecutionView::captured(
-            &self.storage,
-            view.clone(),
-            captured.clone(),
-            &owner_node_id,
-            limit,
-            settings.finalization_read_stall,
-        )
-        .await?;
-        Ok(inspection)
+        let captured = Arc::new(CapturedSource {
+            captured_at,
+            owner_node_id: owner_node_id.clone(),
+            execution_id: inputs.execution.test_execution_id.clone(),
+            execution: revision,
+            lifecycle_id: inputs.lifecycle_id.clone(),
+            lifecycle: (*inputs.execution).clone(),
+            evidence_through: through.clone(),
+            outputs: (*inputs.outputs).clone(),
+            context,
+            record_contracts,
+            telemetry_contracts,
+        });
+        ExecutionView::captured(&self.storage, captured, &owner_node_id).await
     }
 }
 
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn bound(bytes: usize) -> Result<NonZeroUsize> {
-    NonZeroUsize::new(bytes)
-        .filter(|bytes| bytes.get() != usize::MAX)
-        .ok_or_else(|| invalid("report capture memory overflows"))
-}
-fn check(bytes: usize, allowance: NonZeroUsize) -> harmos::Result<()> {
-    if bytes == usize::MAX || bytes > allowance.get() {
-        return Err(harmos::Error::ResourceExhausted {
-            resource: "report capture memory",
-        });
-    }
-    Ok(())
-}
-fn bounded(bytes: usize, limit: NonZeroUsize) -> Result<NonZeroUsize> {
-    let bytes = bound(bytes)?;
-    if bytes > limit {
-        return Err(exhausted().into());
-    }
-    Ok(bytes)
-}
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "cycle report capture",
-    }
-}
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }

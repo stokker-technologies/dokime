@@ -218,14 +218,11 @@ async fn save(
         return Ok(());
     }
     let at = Timestamp::now_utc();
-    let growth = harmos::MemorySize::memory_size(&at)
-        .saturating_add(harmos::MemorySize::memory_size(&attempt_id))
-        .saturating_add(harmos::MemorySize::memory_size(&detail));
     let mut decision = None;
     context
         .runtime
         .request_storage
-        .update(request_id, growth, |receipt| {
+        .update(request_id, |receipt| {
             decision = Some(receipt.reconcile_step_command(
                 &command.command_id,
                 phase,

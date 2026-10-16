@@ -46,23 +46,10 @@ pub(super) struct Download<F> {
 
 /* === Enums === */
 pub(super) enum Source {
-    Bytes { data: CapturedBytes, read: usize },
+    Bytes { data: Vec<u8>, read: usize },
     Artifact(Box<ArtifactReader>),
 }
 
-pub(super) enum CapturedBytes {
-    Plain(Vec<u8>),
-    Owned(harmos::storage::QueryValue<Vec<u8>>),
-}
-impl std::ops::Deref for CapturedBytes {
-    type Target = [u8];
-    fn deref(&self) -> &[u8] {
-        match self {
-            Self::Plain(data) => data,
-            Self::Owned(data) => data,
-        }
-    }
-}
 /* === Traits === */
 pub(super) trait Frames: Send + 'static {
     type Frame: Protobuf + MemorySize + Send + Sync + 'static;
@@ -109,18 +96,9 @@ impl Frames for ArtifactFrames {
 
 impl Source {
     pub(super) fn bytes(data: Vec<u8>) -> Self {
-        Self::Bytes {
-            data: CapturedBytes::Plain(data),
-            read: 0,
-        }
+        Self::Bytes { data, read: 0 }
     }
 
-    pub(super) fn owned_bytes(data: harmos::storage::QueryValue<Vec<u8>>) -> Self {
-        Self::Bytes {
-            data: CapturedBytes::Owned(data),
-            read: 0,
-        }
-    }
     pub(super) fn artifact(reader: ArtifactReader) -> Self {
         Self::Artifact(Box::new(reader))
     }
@@ -128,7 +106,7 @@ impl Source {
     async fn next_chunk(
         &mut self,
         maximum: NonZeroUsize,
-    ) -> Result<Option<harmos::storage::FileChunk>, dokime_app::Error> {
+    ) -> Result<Option<Vec<u8>>, dokime_app::Error> {
         match self {
             Self::Artifact(reader) => reader.next_chunk(maximum).await,
             Self::Bytes { .. } => unreachable!("captured byte sources use direct bounded slices"),
@@ -200,22 +178,17 @@ impl<F: Frames> Download<F> {
                     else {
                         break;
                     };
-                    let count = chunk.as_bytes().len();
+                    let count = chunk.len();
                     let next = checked_offset(offset, count, self.size_bytes, self.noun)?;
                     if self.sha256.is_none() {
-                        digest.update(chunk.as_bytes());
+                        digest.update(&chunk);
                     }
-                    let query = chunk.into_query_value();
-                    let bytes = std::mem::size_of::<F::Frame>()
-                        .checked_add(query.capacity())
-                        .and_then(NonZeroUsize::new)
-                        .ok_or_else(|| Status::resource_exhausted("file frame memory overflow"))?;
-                    let frame = query
-                        .try_map(bytes, |data, _| Ok(self.frames.chunk(offset, data)))
-                        .map_err(stream_failure)?;
+                    let frame = self.frames.chunk(offset, chunk);
                     self.check(&frame)?;
-                    let owner = frame.try_into_response().map_err(stream_failure)?;
-                    output.send_owned(owner).await.map_err(stream_failure)?;
+                    output
+                        .send_owned(frame.into())
+                        .await
+                        .map_err(stream_failure)?;
                     offset = next;
                 }
             }

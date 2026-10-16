@@ -13,7 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeMap, io::Write, num::NonZeroUsize};
+use std::{collections::BTreeMap, io::Write};
 // Third Party Imports
 use serde::{
     Serialize, Serializer,
@@ -22,7 +22,6 @@ use serde::{
 // Local Imports
 use super::*;
 use crate::report::cycle::{AnnotationKind, Index};
-use dokime::storage::Manager;
 
 /* === Constants === */
 
@@ -37,8 +36,6 @@ pub(in crate::report) struct Report<'a> {
     pub index: &'a Index,
     pub appearance: &'a crate::installed_plugins::RuntimeAppearanceFrame,
     pub read: &'a ReadMember<'a>,
-    pub manager: &'a Manager,
-    pub computation: &'a dyn Fn() -> Result<crate::report::html::Computation>,
 }
 struct Rows<'a, 'r>(&'a Report<'r>, Section);
 struct DocumentWarningText<'a>(&'a str, &'a str);
@@ -128,7 +125,6 @@ impl Serialize for Rows<'_, '_> {
                 if matches!(self.1, Section::Templates) && !case.first_template {
                     continue;
                 }
-                let computation = (report.computation)().map_err(serde::ser::Error::custom)?;
                 match self.1 {
                     Section::Templates => rows.serialize_element(&plan::Template {
                         template_id: case.template.as_str(),
@@ -170,12 +166,10 @@ impl Serialize for Rows<'_, '_> {
                     })?,
                     _ => unreachable!(),
                 }
-                computation.check().map_err(serde::ser::Error::custom)?;
             }
             return rows.end();
         }
         if matches!(self.1, Section::Executions) {
-            let computation = (report.computation)().map_err(serde::ser::Error::custom)?;
             for (ordinal, member) in report.index.executions.iter().enumerate() {
                 rows.serialize_element(&ExecutionRow {
                     test_execution_id: member.id.as_str(),
@@ -195,7 +189,6 @@ impl Serialize for Rows<'_, '_> {
                     steps: Steps(report, member),
                 })?;
             }
-            computation.check().map_err(serde::ser::Error::custom)?;
             return rows.end();
         }
         for member in 0..report.index.members {
@@ -207,15 +200,10 @@ impl Serialize for Rows<'_, '_> {
                 continue;
             }
             let captured = (report.read)(member).map_err(serde::ser::Error::custom)?;
-            let computation = (report.computation)().map_err(serde::ser::Error::custom)?;
             let input = &*captured;
             match self.1 {
                 Section::Cases => {
                     let execution = &input.cycle.test_executions[0];
-                    let _scratch = report
-                        .manager
-                        .prepare_production(NonZeroUsize::new(rendering_memory(input)).unwrap())
-                        .map_err(serde::ser::Error::custom)?;
                     let row = case_session(input, execution.snapshot.case());
                     rows.serialize_element(&row)?;
                 }
@@ -239,7 +227,6 @@ impl Serialize for Rows<'_, '_> {
                 }
                 _ => unreachable!(),
             }
-            computation.check().map_err(serde::ser::Error::custom)?;
         }
         rows.end()
     }
@@ -385,7 +372,6 @@ impl Serialize for Annotations<'_, '_> {
                     (report.read)(annotation.member).map_err(serde::ser::Error::custom)?,
                 ));
             }
-            let computation = (report.computation)().map_err(serde::ser::Error::custom)?;
             let crate::report::html::Member::Captured(captured) = &loaded.as_ref().unwrap().1;
             let context = &captured.context;
             match kind {
@@ -412,7 +398,6 @@ impl Serialize for Annotations<'_, '_> {
                     })?;
                 }
             }
-            computation.check().map_err(serde::ser::Error::custom)?;
         }
         rows.end()
     }
@@ -434,10 +419,8 @@ impl Serialize for Samples<'_, '_> {
                     (self.0.read)(location.member).map_err(serde::ser::Error::custom)?,
                 ));
             }
-            let computation = (self.0.computation)().map_err(serde::ser::Error::custom)?;
             let sample = &loaded.as_ref().unwrap().1.telemetry[location.sample];
             rows.serialize_element(&telemetry::SampleValues(sample))?;
-            computation.check().map_err(serde::ser::Error::custom)?;
         }
         rows.end()
     }

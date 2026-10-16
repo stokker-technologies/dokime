@@ -8,10 +8,8 @@
  */
 
 /* === Modules === */
-mod memory;
 
 /* === Re-Exports === */
-pub(in crate::grpc) use memory::memory as construction_memory;
 
 /* === Imports === */
 // Standard Library Imports
@@ -51,7 +49,7 @@ pub(in crate::grpc) fn wire(
         frontiers: None,
     };
     let mut layout_nodes =
-        projection::slots(memory::layout_count(&value.layout.nodes)).map_err(projection_failure)?;
+        projection::slots(layout_count(&value.layout.nodes)).map_err(projection_failure)?;
     let mut ordinal = 0;
     for node in &value.layout.nodes {
         layout_nodes_for_node(node, None, &mut ordinal, &mut layout_nodes)?;
@@ -89,6 +87,15 @@ pub(in crate::grpc) fn wire(
 }
 
 /* === Private Functions === */
+fn layout_count(nodes: &[dokime_app::document::DocumentNode]) -> usize {
+    nodes.iter().fold(0usize, |count, node| {
+        let children = match node {
+            dokime_app::document::DocumentNode::Section(section) => layout_count(&section.children),
+            dokime_app::document::DocumentNode::Card(_) => 0,
+        };
+        count.saturating_add(1).saturating_add(children)
+    })
+}
 fn projection_failure(error: harmos::Error) -> Status {
     match error {
         harmos::Error::ResourceExhausted { .. } => {

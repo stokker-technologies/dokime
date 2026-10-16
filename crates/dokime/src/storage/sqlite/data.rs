@@ -163,11 +163,7 @@ impl Scan {
         }
     }
 
-    pub(super) fn filter(
-        mut self,
-        column: &'static str,
-        value: Option<String>,
-    ) -> Self {
+    pub(super) fn filter(mut self, column: &'static str, value: Option<String>) -> Self {
         if let Some(value) = value {
             self.filters.push((column, Value::Text(value)));
         }
@@ -333,8 +329,9 @@ fn retried(
     entry: &Encoded,
     saved: u64,
 ) -> Result<bool, Error> {
-    let mut statement = connection
-        .prepare("SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1")?;
+    let mut statement = connection.prepare(
+        "SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1",
+    )?;
     let mut rows = statement.query([position(entry.position)])?;
     let Some(row) = rows.next()? else {
         return Ok(false);

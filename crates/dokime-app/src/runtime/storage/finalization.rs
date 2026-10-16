@@ -19,7 +19,6 @@ use dokime::core::{TestExecutionId, Timestamp};
 use dokime::execution::ExecutionStatus;
 use dokime::operations::reports::{MaterializeReport, MaterializeReportRequest, ReportSubject};
 use futures_util::{StreamExt, stream::FuturesUnordered};
-use harmos::MemorySize;
 /* === Constants === */
 /* === Macros === */
 /* === Type Aliases === */
@@ -28,13 +27,6 @@ struct PendingRun {
     request_id: dokime::core::CommandId,
     at: Timestamp,
 }
-impl MemorySize for PendingRun {
-    fn memory_size(&self) -> usize {
-        self.request_id
-            .memory_size()
-            .saturating_add(self.at.memory_size())
-    }
-}
 /* === Enums === */
 /* === Traits === */
 /* === Implementations === */
@@ -42,48 +34,34 @@ impl RuntimeHandle {
     /// Resume Publication Without Dispatching Providers Or Changing Frozen Outcomes.
     pub(crate) async fn retry_pending_reports(&self) -> Result<()> {
         let state = self.state_read();
-        let bytes = state.run_requests.iter().fold(
-            harmos::btree_map_memory::<dokime::core::TestCycleId, PendingRun>(
-                state.run_requests.len(),
-            ),
-            |bytes, (id, request)| {
-                bytes
-                    .saturating_add(id.memory_size())
-                    .saturating_add(request.summary.cycle_id.memory_size())
-                    .saturating_add(request.completion_at.memory_size())
-            },
-        );
-        let selected = self
-            .storage()
-            .produce(bound(bytes)?, |_| {
-                let mut selected = std::collections::BTreeMap::new();
-                for (id, request) in &state.run_requests {
-                    let Some(at) = &request.completion_at else {
-                        continue;
-                    };
-                    // A Recorded Permanent Publication Failure Waits For An Explicit Rerun.
-                    if request.publication_failure.is_some() {
-                        continue;
-                    }
-                    if !state.cycles.contains_key(&request.summary.cycle_id) {
-                        continue;
-                    }
-                    let newer = selected
-                        .get(&request.summary.cycle_id)
-                        .is_none_or(|previous: &PendingRun| previous.at.as_str() < at.as_str());
-                    if newer {
-                        selected.insert(
-                            request.summary.cycle_id.clone(),
-                            PendingRun {
-                                request_id: id.clone(),
-                                at: at.clone(),
-                            },
-                        );
-                    }
+        let selected = {
+            let mut selected = std::collections::BTreeMap::new();
+            for (id, request) in &state.run_requests {
+                let Some(at) = &request.completion_at else {
+                    continue;
+                };
+                // A Recorded Permanent Publication Failure Waits For An Explicit Rerun.
+                if request.publication_failure.is_some() {
+                    continue;
                 }
-                Ok(selected)
-            })?
-            .try_into_value()?;
+                if !state.cycles.contains_key(&request.summary.cycle_id) {
+                    continue;
+                }
+                let newer = selected
+                    .get(&request.summary.cycle_id)
+                    .is_none_or(|previous: &PendingRun| previous.at.as_str() < at.as_str());
+                if newer {
+                    selected.insert(
+                        request.summary.cycle_id.clone(),
+                        PendingRun {
+                            request_id: id.clone(),
+                            at: at.clone(),
+                        },
+                    );
+                }
+            }
+            selected
+        };
         drop(state);
         for (cycle_id, pending) in selected.iter() {
             let PendingRun { request_id, at } = pending;
@@ -115,41 +93,6 @@ impl RuntimeHandle {
                     .cycles
                     .get(cycle_id)
                     .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
-                let members = header.execution_ids.iter().try_fold(0usize, |bytes, id| {
-                    let member = state
-                        .executions
-                        .get(id)
-                        .ok_or_else(|| Error::Operation("report member disappeared".into()))?;
-                    bytes
-                        .checked_add(id.memory_size())
-                        .and_then(|bytes| bytes.checked_add(member.memory_size()))
-                        .ok_or_else(|| Error::Operation("report preview memory overflows".into()))
-                })?;
-                // Cover The Focused State, Its Lifecycle Mutations And The Extracted Cycle Together.
-                let bytes = std::mem::size_of::<crate::state::RuntimeState>()
-                    .saturating_add(uuid::fmt::Hyphenated::LENGTH)
-                    .saturating_add("1970-01-01T00:00:00Z".len())
-                    .saturating_add(state.session_id.memory_size().saturating_mul(2))
-                    .saturating_add(harmos::btree_map_memory::<
-                        dokime::core::CommandId,
-                        crate::transactions::provider::request::RunRequest,
-                    >(1))
-                    .saturating_add(request.memory_size())
-                    .saturating_add(request_id.memory_size())
-                    .saturating_add(harmos::btree_map_memory::<
-                        dokime::core::TestCycleId,
-                        dokime::execution::TestCycle,
-                    >(1))
-                    .saturating_add(harmos::btree_map_memory::<
-                        dokime::core::TestExecutionId,
-                        crate::execution::TestExecution,
-                    >(header.execution_ids.len()))
-                    .saturating_add(header.memory_size().saturating_mul(3))
-                    .saturating_add(members.saturating_mul(3));
-                let limit = std::num::NonZeroUsize::new(bytes)
-                    .filter(|bytes| bytes.get() != usize::MAX)
-                    .ok_or_else(|| Error::Operation("report preview memory overflows".into()))?;
-                let memory = self.storage().prepare_production(limit)?;
                 let mut preview = crate::state::RuntimeState::new(state.session_id.clone());
                 preview
                     .run_requests
@@ -166,7 +109,7 @@ impl RuntimeHandle {
                     .cycle_view(cycle_id)
                     .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
                 drop(preview);
-                memory.finish(cycle)?.try_into_value()?
+                cycle
             };
             if !matches!(
                 cycle.lifecycle,
@@ -217,11 +160,8 @@ impl RuntimeHandle {
                 .ok_or_else(|| invalid("retried run request disappeared"))?;
             (request.summary.clone(), request.interruption())
         };
-        let bytes = summary
-            .memory_size()
-            .saturating_add(interruption.memory_size());
         self.request_storage
-            .update(request_id, bytes, |receipt| {
+            .update(request_id, |receipt| {
                 receipt.summary = summary.clone();
                 receipt.interruption = interruption.clone();
             })
@@ -292,19 +232,8 @@ impl RuntimeHandle {
     }
 
     async fn saved_seal(&self, id: &TestExecutionId) -> Result<bool> {
-        let view = self
-            .storage()
-            .view_with_limits(self.config().storage.finalization())
-            .await?;
-        let limit = view.decoded_bytes()?;
-        let latest = ExecutionView::open(
-            self.storage(),
-            view,
-            id,
-            harmos::storage::ObjectVersion::Latest,
-            limit,
-        )
-        .await?;
+        let latest =
+            ExecutionView::open(self.storage(), id, harmos::storage::ObjectVersion::Latest).await?;
         Ok(latest.is_some_and(|latest| latest.execution().saved.is_some()))
     }
 
@@ -374,11 +303,6 @@ impl RuntimeHandle {
 }
 /* === Public Functions === */
 /* === Private Functions === */
-fn bound(bytes: usize) -> Result<std::num::NonZeroUsize> {
-    std::num::NonZeroUsize::new(bytes)
-        .filter(|bytes| bytes.get() != usize::MAX)
-        .ok_or_else(|| invalid("report retry selection memory overflows"))
-}
 fn invalid(reason: &str) -> Error {
     Error::InvalidReportInputs(reason.into())
 }

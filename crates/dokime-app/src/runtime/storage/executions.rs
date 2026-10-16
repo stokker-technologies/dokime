@@ -16,18 +16,13 @@
 // Standard Library Imports
 use std::{
     collections::BTreeMap,
-    num::NonZeroUsize,
     sync::{Arc, RwLock},
 };
 
 // Third Party Imports
 use harmos::{
-    MemorySize,
     state::Position,
-    storage::{
-        FileReference, ObjectReceipt, ObjectVersionToken, QueryValue, SharedQueryValue,
-        StorageCursor, StorageProductionPreparation,
-    },
+    storage::{FileReference, ObjectReceipt, StorageCursor},
 };
 use tokio::sync::Mutex;
 
@@ -40,10 +35,7 @@ use dokime::{
     core::{ArtifactId, SessionId, TestExecutionId, Timestamp},
     execution::{
         ExecutionStatus, TestExecution,
-        saved::{
-            ExecutionOutput, ExecutionRevision, ExecutionSeal, output_validation_memory,
-            validate_outputs,
-        },
+        saved::{ExecutionOutput, ExecutionRevision, ExecutionSeal, validate_outputs},
     },
     storage::{Manager, objects::execution::Execution, reports},
 };
@@ -57,12 +49,10 @@ const MAX_ACTIVE_OWNERS: usize = 10_000;
 /* === Structs === */
 pub(crate) struct TailStop {
     pub(crate) lease: Mutex<Option<crate::services::Lease>>,
-    _admission: StorageProductionPreparation,
 }
 
 pub(crate) struct TailStopPreparation {
     name: String,
-    admission: StorageProductionPreparation,
 }
 
 pub(crate) struct ExecutionStorage {
@@ -82,7 +72,7 @@ pub(crate) struct ExecutionStorage {
 pub(crate) struct Acquisition {
     pub(super) storage: Manager,
     pub(super) execution_id: TestExecutionId,
-    pub(super) execution: SharedQueryValue<TestExecution>,
+    pub(super) execution: Arc<TestExecution>,
     pub(super) gate: Arc<Mutex<()>>,
     materialization_gate: Arc<Mutex<()>>,
     pub(super) finish_requested: bool,
@@ -91,13 +81,12 @@ pub(crate) struct Acquisition {
     pub(super) artifacts: BTreeMap<ArtifactId, super::artifacts::Upload>,
     pub(super) native_outputs: BTreeMap<String, super::native_outputs::NativeOutput>,
     observed_at: Option<Position>,
-    settled_outputs: Option<SharedQueryValue<Vec<ExecutionOutput>>>,
-    working: Option<SharedQueryValue<ExecutionRevision>>,
+    settled_outputs: Option<Arc<Vec<ExecutionOutput>>>,
+    working: Option<Arc<ExecutionRevision>>,
     pending: Option<PendingRevision>,
-    finalizing: Option<SharedQueryValue<TestExecution>>,
+    finalizing: Option<Arc<TestExecution>>,
     report: Option<PendingReport>,
-    pub(super) cycle_context: Option<SharedQueryValue<CycleMemberContext>>,
-    _registry: StorageProductionPreparation,
+    pub(super) cycle_context: Option<Arc<CycleMemberContext>>,
 }
 
 pub(super) struct CycleMemberContext {
@@ -106,27 +95,24 @@ pub(super) struct CycleMemberContext {
 }
 
 pub(crate) struct CaptureInputs {
-    pub execution: SharedQueryValue<TestExecution>,
+    pub execution: Arc<TestExecution>,
     pub lifecycle_id: String,
-    pub outputs: SharedQueryValue<Vec<ExecutionOutput>>,
-    pub unavailable_outputs: QueryValue<Vec<String>>,
-    pub through: QueryValue<StorageCursor>,
-    _memory: StorageProductionPreparation,
+    pub outputs: Arc<Vec<ExecutionOutput>>,
+    pub unavailable_outputs: Vec<String>,
+    pub through: StorageCursor,
 }
 
 struct PendingRevision {
-    execution: SharedQueryValue<TestExecution>,
+    execution: Arc<TestExecution>,
     receipt: Option<ObjectReceipt>,
-    _admission: StorageProductionPreparation,
 }
 
 struct PendingReport {
     prepared: PreparedExecutionReport,
     inspection: super::execution::ExecutionView,
-    sealed_at: QueryValue<Timestamp>,
-    seal: Option<SharedQueryValue<ExecutionSeal>>,
+    sealed_at: Timestamp,
+    seal: Option<Arc<ExecutionSeal>>,
     publication: Option<reports::Prepared>,
-    _admission: StorageProductionPreparation,
 }
 
 /* === Enums === */
@@ -134,36 +120,17 @@ struct PendingReport {
 /* === Traits === */
 
 /* === Implementations === */
-impl MemorySize for CycleMemberContext {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(
-                self.context
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<FileReference>()),
-            )
-            .saturating_add(
-                self.appearance
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<RuntimeAppearanceFrame>()),
-            )
-    }
-}
-
 impl TailStopPreparation {
     pub(crate) fn into_entry(self, lease: crate::services::Lease) -> (String, Arc<TailStop>) {
         let stop = TailStop {
             lease: Mutex::new(Some(lease)),
-            _admission: self.admission,
         };
         (self.name, Arc::new(stop))
     }
 }
 
 impl Acquisition {
-    pub(super) async fn settle_outputs(
-        &mut self,
-    ) -> Result<SharedQueryValue<Vec<ExecutionOutput>>> {
+    pub(super) async fn settle_outputs(&mut self) -> Result<Arc<Vec<ExecutionOutput>>> {
         if !self.finish_requested || !self.outputs_sealed || !self.outputs_quiescent {
             return Err(invalid(
                 "execution output settlement requires closed producer admission",
@@ -193,81 +160,30 @@ impl Acquisition {
         Ok(outputs)
     }
 
-    pub(super) async fn snapshot_outputs(
-        &mut self,
-    ) -> Result<SharedQueryValue<Vec<ExecutionOutput>>> {
+    pub(super) async fn snapshot_outputs(&mut self) -> Result<Arc<Vec<ExecutionOutput>>> {
         super::artifacts::checkpoint(self).await?;
         super::native_outputs::snapshot(self, false).await?;
         self.capture_outputs().await
     }
 
-    async fn capture_outputs(&self) -> Result<SharedQueryValue<Vec<ExecutionOutput>>> {
-        let count = self
-            .native_outputs
-            .len()
-            .checked_add(self.artifacts.len())
-            .ok_or_else(|| invalid("execution output source count overflows"))?;
-        let descriptors = || {
-            self.native_outputs
-                .values()
-                .map(|source| source.descriptor())
-                .chain(
-                    self.artifacts
-                        .values()
-                        .filter_map(|source| source.descriptor())
-                        .map(Some),
-                )
-        };
-        let mut bytes = std::mem::size_of::<Vec<ExecutionOutput>>()
-            .checked_add(
-                count
-                    .checked_mul(std::mem::size_of::<ExecutionOutput>())
-                    .ok_or_else(|| invalid("captured output slots overflow"))?,
-            )
-            .ok_or_else(|| invalid("captured output memory overflows"))?;
-        for output in descriptors() {
-            let output = output.ok_or_else(|| invalid("captured output descriptor is missing"))?;
-            let memory = output.memory_size();
-            if memory == usize::MAX {
-                return Err(invalid("captured output descriptor memory overflows"));
-            }
-            bytes = bytes
-                .checked_add(memory.saturating_sub(std::mem::size_of::<ExecutionOutput>()))
-                .ok_or_else(|| invalid("captured output memory overflows"))?;
-        }
-        // Include Every Validation Set Before Building Or Cloning The Bundle
-        let scratch = harmos::btree_map_memory::<&String, ()>(count)
-            .saturating_add(harmos::btree_map_memory::<&str, ()>(count))
-            .saturating_add(harmos::btree_map_memory::<&ArtifactId, ()>(
-                self.artifacts.len(),
-            ));
-        let claim = self.storage.prepare_production(allowance(
-            bytes
-                .checked_add(scratch)
-                .ok_or_else(|| invalid("captured output validation memory overflows"))?,
-        )?)?;
+    async fn capture_outputs(&self) -> Result<Arc<Vec<ExecutionOutput>>> {
         let mut captured = Vec::new();
-        captured.try_reserve_exact(count).map_err(|_| {
-            Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "captured output slots",
-            })
-        })?;
-        if captured.capacity() > count {
-            return Err(Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "captured output slot capacity",
-            }));
-        }
-        for output in descriptors() {
+        let descriptors = self
+            .native_outputs
+            .values()
+            .map(|source| source.descriptor())
+            .chain(
+                self.artifacts
+                    .values()
+                    .filter_map(|source| source.descriptor())
+                    .map(Some),
+            );
+        for output in descriptors {
             captured.push(
                 output
-                    .expect("all descriptors checked before cloning")
+                    .ok_or_else(|| invalid("captured output descriptor is missing"))?
                     .clone(),
             );
-        }
-        if output_validation_memory(&captured) > scratch {
-            return Err(invalid(
-                "captured output validation exceeds its original claim",
-            ));
         }
         let through = self.storage.status().accepted;
         let saved = self.storage.flush_until(&through).await?;
@@ -278,69 +194,33 @@ impl Acquisition {
         }
         validate_outputs(&self.execution_id, &through, &captured)
             .map_err(dokime::storage::Error::from)?;
-        let outputs = claim
-            .finish(captured)?
-            .try_into_value()?
-            .try_into_shared()?;
-        Ok(outputs)
+        Ok(Arc::new(captured))
     }
 }
 
 impl ExecutionStorage {
     pub(crate) fn prepare_tail_stop(&self, name: &str) -> Result<TailStopPreparation> {
-        let node = harmos::btree_map_memory::<String, Arc<TailStop>>(1);
-        let bytes = node
-            .checked_add(std::mem::size_of::<TailStop>())
-            .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<usize>()))
-            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<TailStopPreparation>()))
-            .and_then(|bytes| bytes.checked_add(name.len()))
-            .ok_or_else(|| invalid("log tail registry memory overflows"))?;
-        let admission = self.storage.prepare_production(allowance(bytes)?)?;
-        let name = copy_tail_name(name)?;
-        Ok(TailStopPreparation { name, admission })
+        Ok(TailStopPreparation {
+            name: name.to_owned(),
+        })
     }
 
     pub(crate) async fn tail_names(
         &self,
         execution: Option<&TestExecutionId>,
-    ) -> Result<QueryValue<Vec<String>>> {
+    ) -> Result<Vec<String>> {
         let stops = self.tail_stops.lock().await;
-        let selected = || {
-            stops.keys().filter(|name| {
+        Ok(stops
+            .keys()
+            .filter(|name| {
                 execution.is_none_or(|id| {
                     name.strip_prefix("execution-log:")
                         .and_then(|name| name.strip_prefix(id.as_str()))
                         .is_some_and(|suffix| suffix.starts_with(':'))
                 })
             })
-        };
-        let mut count = 0usize;
-        let mut bytes = std::mem::size_of::<Vec<String>>();
-        for name in selected() {
-            count = count
-                .checked_add(1)
-                .ok_or_else(|| invalid("log tail stop count overflows"))?;
-            bytes = bytes
-                .checked_add(std::mem::size_of::<String>())
-                .and_then(|bytes| bytes.checked_add(name.len()))
-                .ok_or_else(|| invalid("log tail stop batch memory overflows"))?;
-        }
-        let claim = self.storage.prepare_production(allowance(bytes)?)?;
-        let mut names = Vec::new();
-        names.try_reserve_exact(count).map_err(|_| {
-            Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "log tail stop slots",
-            })
-        })?;
-        if names.capacity() > count {
-            return Err(Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "log tail stop slot capacity",
-            }));
-        }
-        for name in selected() {
-            names.push(copy_tail_name(name)?);
-        }
-        Ok(claim.finish(names)?.try_into_value()?)
+            .cloned()
+            .collect())
     }
 
     pub(crate) async fn new(
@@ -372,12 +252,12 @@ impl ExecutionStorage {
     pub(super) async fn original_cycle_member(
         &self,
         id: &TestExecutionId,
-        view: &harmos::storage::StorageView,
+        saved: &StorageCursor,
     ) -> Result<
         Option<(
-            SharedQueryValue<CycleMemberContext>,
-            SharedQueryValue<ExecutionRevision>,
-            SharedQueryValue<TestExecution>,
+            Arc<CycleMemberContext>,
+            Arc<ExecutionRevision>,
+            Arc<TestExecution>,
         )>,
     > {
         let Some(owner) = self.acquisition(id).await else {
@@ -388,8 +268,7 @@ impl ExecutionStorage {
             return Ok(None);
         };
         let revision = final_revision(&acquisition)?;
-        context.check_origin(&self.storage)?;
-        if !view.saved()?.covers(&revision.position)?
+        if !saved.covers(&revision.position)?
             || &revision.execution_id != id
             || Some(&context.context)
                 != acquisition
@@ -474,14 +353,7 @@ impl ExecutionStorage {
             Some(owner) => owner,
             None => self.acquire(cycle, execution).await?,
         };
-        let frozen = self
-            .storage
-            .produce(allowance(execution.memory_size())?, |_| {
-                Ok(execution.clone())
-            })?
-            .try_into_value()?
-            .try_into_shared()?;
-        let storage = self.storage.clone();
+        let frozen = Arc::new(execution.clone());
         if !self.storage.cursor_saved().covers(at)? {
             return Err(invalid("report cursor is not durable"));
         }
@@ -558,56 +430,27 @@ impl ExecutionStorage {
             let pending = |output: &ExecutionOutput| -> harmos::Result<bool> {
                 Ok(!final_report && !report_boundary.covers(&output.file.position)?)
             };
-            let unavailable_outputs = storage
-                .produce(allowance(outputs.memory_size())?, |_| {
-                    let mut unavailable = Vec::new();
-                    for output in outputs.iter() {
-                        if pending(output)? {
-                            unavailable.push(output.relative_path.clone());
-                        }
-                    }
-                    Ok(unavailable)
-                })?
-                .try_into_value()?;
-            let outputs = outputs
-                .try_project(allowance(outputs.memory_size())?, |outputs, _| {
-                    let mut included = Vec::with_capacity(outputs.len());
-                    for output in outputs {
-                        if !pending(output)? {
-                            included.push(output.clone());
-                        }
-                    }
-                    Ok(included)
-                })?
-                .try_into_shared()?;
+            let mut unavailable_outputs = Vec::new();
+            let mut included = Vec::with_capacity(outputs.len());
+            for output in outputs.iter() {
+                if pending(output)? {
+                    unavailable_outputs.push(output.relative_path.clone());
+                } else {
+                    included.push(output.clone());
+                }
+            }
             // Freeze Evidence While This Owner Still Excludes New Admissions.
-            let through = storage
-                .produce(allowance(report_boundary.memory_size())?, |_| {
-                    Ok(report_boundary)
-                })?
-                .try_into_value()?;
-            let memory = storage.prepare_production(allowance(
-                std::mem::size_of::<CaptureInputs>().saturating_add(lifecycle_id.capacity()),
-            )?)?;
             Ok::<_, Error>(CaptureInputs {
                 execution: frozen,
                 lifecycle_id,
-                outputs,
+                outputs: Arc::new(included),
                 unavailable_outputs,
-                through,
-                _memory: memory,
+                through: report_boundary,
             })
         };
-        let bytes = std::mem::size_of_val(&operation)
-            .checked_add(std::mem::size_of::<StorageProductionPreparation>())
-            .ok_or_else(|| invalid("capture operation memory overflows"))?;
-        let memory = self.storage.prepare_production(allowance(bytes)?)?;
-        tokio::spawn(async move {
-            let _memory = memory;
-            operation.await
-        })
-        .await
-        .map_err(|source| Error::Join { source })?
+        tokio::spawn(operation)
+            .await
+            .map_err(|source| Error::Join { source })?
     }
 
     pub(crate) async fn has_report_lifecycle(&self, id: &TestExecutionId) -> Result<bool> {
@@ -627,7 +470,7 @@ impl ExecutionStorage {
     pub(crate) async fn publication_revision(
         &self,
         execution: &TestExecution,
-    ) -> Result<SharedQueryValue<ExecutionRevision>> {
+    ) -> Result<Arc<ExecutionRevision>> {
         let owner = self
             .acquisition(&execution.test_execution_id)
             .await
@@ -652,16 +495,9 @@ impl ExecutionStorage {
         prepared: PreparedExecutionReport,
         sealed_at: Timestamp,
     ) -> Result<dokime::operations::reports::MaterializedReport> {
-        prepared.captured_input().check_origin(&self.storage)?;
-        prepared.settled_outputs().check_origin(&self.storage)?;
-        if let Ok(revision) = inspection.revision() {
-            revision.check_origin(&self.storage)?;
-        }
         inspection
             .captured_source()
-            .ok_or_else(|| invalid("report requires an original captured source"))?
-            .check_origin(&self.storage)?;
-        let preparation = inspection.view().prepare_work()?;
+            .ok_or_else(|| invalid("report requires an original captured source"))?;
         let storage = self.clone();
         let work = async move {
             let owner = storage
@@ -673,33 +509,20 @@ impl ExecutionStorage {
             let mut acquisition = owner.lock().await;
             bind_publication_revision(&mut acquisition, prepared.captured_input().execution()?)
                 .await?;
-            let computation = inspection.view().begin_computation()?;
             validate_report(&acquisition, &inspection, &prepared)?;
             if acquisition.report.is_some() {
                 return Err(invalid("report already retained; retry its original save"));
             }
-            let memory = acquisition.storage.prepare_production(allowance(
-                std::mem::size_of::<PendingReport>()
-                    .checked_add(sealed_at.memory_size())
-                    .ok_or_else(|| invalid("retained report memory overflows"))?,
-            )?)?;
-            let sealed_at = acquisition
-                .storage
-                .produce(allowance(sealed_at.memory_size())?, |_| Ok(sealed_at))?
-                .try_into_value()?;
-            computation.check()?;
-            drop(computation);
             acquisition.report = Some(PendingReport {
                 prepared,
                 inspection,
                 sealed_at,
                 seal: None,
                 publication: None,
-                _admission: memory,
             });
             publish_materialized_final(ctx, &mut acquisition).await
         };
-        preparation.boxed(work)?.await
+        work.await
     }
 
     pub(super) async fn has_final_report(&self, execution: &TestExecutionId) -> bool {
@@ -736,29 +559,26 @@ impl ExecutionStorage {
     pub(crate) async fn retry_final_report(
         &self,
         execution: &TestExecutionId,
-    ) -> Result<SharedQueryValue<ExecutionRevision>> {
+    ) -> Result<Arc<ExecutionRevision>> {
         let owner = self
             .acquisition(execution)
             .await
             .ok_or_else(|| invalid("report retry has no original acquisition owner"))?;
-        let preparation = {
+        {
             let mut acquisition = owner.lock().await;
             if acquisition.execution.saved.is_some() && acquisition.pending.is_none() {
                 return complete_final_report(&mut acquisition);
             }
-            let report = acquisition
-                .report
-                .as_ref()
-                .ok_or_else(|| invalid("report retry has no retained prepared input"))?;
-            report.inspection.view().prepare_work()?
-        };
+            if acquisition.report.is_none() {
+                return Err(invalid("report retry has no retained prepared input"));
+            }
+        }
         let work = async move {
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
             let mut acquisition = owner.lock().await;
             settle_final_report(&mut acquisition).await
         };
-        let work = preparation.boxed(work)?;
         tokio::spawn(work)
             .await
             .map_err(|source| Error::Join { source })?
@@ -774,10 +594,6 @@ impl ExecutionStorage {
                 "execution checkpoint fanout exceeds its source bound",
             ));
         }
-        let slots = harmos::btree_map_memory::<&TestExecutionId, &TestExecution>(
-            cycle.test_executions.len(),
-        );
-        let _index = self.storage.prepare_production(allowance(slots)?)?;
         let mut members = BTreeMap::new();
         for execution in &cycle.test_executions {
             if execution.test_cycle_id != cycle.test_cycle_id
@@ -827,12 +643,7 @@ impl ExecutionStorage {
                                 "execution checkpoint changed its frozen ownership",
                             ));
                         }
-                        storage
-                            .storage
-                            .produce(allowance(current.memory_size())?, |_| Ok(current.clone()))?
-                            .try_into_value()?
-                            .try_into_shared()
-                            .map_err(Error::from)
+                        Ok(Arc::new(current.clone()))
                     })
                     .await
                     .map_err(Error::Harmos)?;
@@ -850,51 +661,13 @@ impl ExecutionStorage {
         Ok(())
     }
 
-    pub(crate) fn active_ids(
-        &self,
-        projection: NonZeroUsize,
-    ) -> Result<QueryValue<Vec<TestExecutionId>>> {
+    pub(crate) fn active_ids(&self) -> Result<Vec<TestExecutionId>> {
         let active = self.active.try_lock().map_err(|_| {
             Error::Harmos(harmos::Error::ResourceExhausted {
                 resource: "active execution inventory registry busy",
             })
         })?;
-        if active.len() > MAX_ACTIVE_OWNERS {
-            return Err(invalid(
-                "active execution inventory exceeds its source bound",
-            ));
-        }
-        let slots = active
-            .len()
-            .checked_mul(std::mem::size_of::<TestExecutionId>())
-            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Vec<TestExecutionId>>()))
-            .ok_or_else(|| invalid("active execution inventory memory overflows"))?;
-        let bytes = active.keys().try_fold(slots, |bytes, id| {
-            bytes
-                .checked_add(id.as_str().len())
-                .ok_or_else(|| invalid("active execution inventory memory overflows"))
-        })?;
-        if bytes > projection.get() {
-            return Err(Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "active execution inventory projection",
-            }));
-        }
-        // Keep This Same Claim Through Slot Allocation And Every ID Copy
-        let claim = self.storage.prepare_production(allowance(bytes)?)?;
-        let mut ids = Vec::new();
-        ids.try_reserve_exact(active.len()).map_err(|_| {
-            Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "active execution inventory slots",
-            })
-        })?;
-        if ids.capacity() > active.len() {
-            return Err(Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "active execution inventory slot capacity",
-            }));
-        }
-        ids.extend(active.keys().cloned());
-        drop(active);
-        Ok(claim.finish(ids)?.try_into_value()?)
+        Ok(active.keys().cloned().collect())
     }
 
     pub(crate) async fn acquire(
@@ -910,26 +683,7 @@ impl ExecutionStorage {
             validate_existing(&*owner.lock().await, execution)?;
             return Ok(owner);
         }
-        // Claim The Frozen Graph Before Cloning Any Nested Field
-        let frozen = self
-            .storage
-            .produce(allowance(execution.memory_size())?, |_| {
-                Ok(execution.clone())
-            })?
-            .try_into_value()?
-            .try_into_shared()?;
-        let registry_bytes =
-            harmos::btree_map_memory::<TestExecutionId, Arc<Mutex<Acquisition>>>(1)
-                .checked_add(std::mem::size_of::<Mutex<Acquisition>>())
-                .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<usize>()))
-                .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<Mutex<()>>()))
-                .and_then(|bytes| bytes.checked_add(4 * std::mem::size_of::<usize>()))
-                .and_then(|bytes| bytes.checked_add(execution.test_execution_id.as_str().len()))
-                .and_then(|bytes| bytes.checked_add(execution.test_execution_id.as_str().len()))
-                .ok_or_else(|| invalid("acquisition registry memory overflows"))?;
-        let registry = self
-            .storage
-            .prepare_production(allowance(registry_bytes)?)?;
+        let frozen = Arc::new(execution.clone());
         let id = execution.test_execution_id.clone();
         let owner = Arc::new(Mutex::new(Acquisition {
             storage: self.storage.clone(),
@@ -949,7 +703,6 @@ impl ExecutionStorage {
             finalizing: None,
             report: None,
             cycle_context: None,
-            _registry: registry,
         }));
         let existing = {
             let mut active = self.active.lock().await;
@@ -1046,10 +799,8 @@ async fn publish_materialized_final(
             .ok_or_else(|| invalid("publication has no real native revision"))?;
         let seal = report
             .prepared
-            .save_dependencies(ctx, &report.sealed_at, revision)
+            .save_dependencies(&acquisition.storage, ctx, &report.sealed_at, revision)
             .await?;
-        seal.check_origin(&acquisition.storage)?;
-        let computation = report.inspection.view().begin_computation()?;
         if seal.source.execution.execution_id != report.prepared.captured_input().execution_id
             || seal.source.owner_node_id != report.prepared.captured_input().owner_node_id
             || seal.source.evidence_through != report.prepared.captured_input().evidence_through
@@ -1059,8 +810,7 @@ async fn publish_materialized_final(
                 "saved report dependencies differ from retained input",
             ));
         }
-        report.seal = Some(seal.try_into_shared()?);
-        computation.check()?;
+        report.seal = Some(Arc::new(seal));
     }
     let report = acquisition
         .report
@@ -1104,9 +854,7 @@ async fn publish_materialized_final(
     })
 }
 
-async fn settle_final_report(
-    acquisition: &mut Acquisition,
-) -> Result<SharedQueryValue<ExecutionRevision>> {
+async fn settle_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {
     if acquisition.execution.saved.is_some() {
         return complete_final_report(acquisition);
     }
@@ -1136,29 +884,19 @@ async fn settle_final_report(
             .finalizing
             .as_ref()
             .expect("original terminal retained");
-        let bytes = terminal
-            .memory_size()
-            .checked_add(seal.memory_size())
-            .ok_or_else(|| invalid("final execution construction memory overflows"))?;
-        let sealed = report
-            .inspection
-            .view()
-            .project_shared(terminal, allowance(bytes)?, |terminal, _| {
-                let mut execution = terminal.clone();
-                execution.saved = Some((**seal).clone());
-                Ok(execution)
-            })?
-            .try_into_shared()?;
+        let mut sealed = (**terminal).clone();
+        sealed.saved = Some((**seal).clone());
         // Keep The Mutable Head Unsealed Until This Exact Pending Admission Is Saved
-        acquisition.pending = Some(pending_revision(&acquisition.storage, sealed)?);
+        acquisition.pending = Some(PendingRevision {
+            execution: Arc::new(sealed),
+            receipt: None,
+        });
     }
     save_working_revision(acquisition).await?;
     complete_final_report(acquisition)
 }
 
-fn complete_final_report(
-    acquisition: &mut Acquisition,
-) -> Result<SharedQueryValue<ExecutionRevision>> {
+fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {
     if acquisition.pending.is_some() {
         return Err(invalid("sealed owner still has an unresolved admission"));
     }
@@ -1168,7 +906,6 @@ fn complete_final_report(
             .report
             .as_ref()
             .ok_or_else(|| invalid("sealed member has no original report input"))?;
-        let computation = report.inspection.view().begin_computation()?;
         let captured = report.prepared.captured_input();
         let file = &acquisition
             .execution
@@ -1177,23 +914,10 @@ fn complete_final_report(
             .expect("saved original seal")
             .source
             .context;
-        let bytes = file
-            .memory_size()
-            .saturating_add(captured.context.appearance.memory_size())
-            .saturating_add(std::mem::size_of::<CycleMemberContext>());
-        acquisition.cycle_context = Some(
-            acquisition
-                .storage
-                .produce(allowance(bytes)?, |_| {
-                    Ok(CycleMemberContext {
-                        context: file.clone(),
-                        appearance: captured.context.appearance.clone(),
-                    })
-                })?
-                .try_into_value()?
-                .try_into_shared()?,
-        );
-        computation.check()?;
+        acquisition.cycle_context = Some(Arc::new(CycleMemberContext {
+            context: file.clone(),
+            appearance: captured.context.appearance.clone(),
+        }));
     }
     acquisition.report = None;
     acquisition.finalizing = None;
@@ -1201,7 +925,7 @@ fn complete_final_report(
     Ok(revision)
 }
 
-fn final_revision(acquisition: &Acquisition) -> Result<SharedQueryValue<ExecutionRevision>> {
+fn final_revision(acquisition: &Acquisition) -> Result<Arc<ExecutionRevision>> {
     let revision = acquisition
         .working
         .as_ref()
@@ -1226,22 +950,6 @@ fn final_revision(acquisition: &Acquisition) -> Result<SharedQueryValue<Executio
     Ok(revision.clone())
 }
 
-fn copy_tail_name(source: &str) -> Result<String> {
-    let mut name = String::new();
-    name.try_reserve_exact(source.len()).map_err(|_| {
-        Error::Harmos(harmos::Error::ResourceExhausted {
-            resource: "log tail name",
-        })
-    })?;
-    if name.capacity() > source.len() {
-        return Err(Error::Harmos(harmos::Error::ResourceExhausted {
-            resource: "log tail name capacity",
-        }));
-    }
-    name.push_str(source);
-    Ok(name)
-}
-
 async fn bind_publication_revision(
     acquisition: &mut Acquisition,
     execution: &TestExecution,
@@ -1253,13 +961,7 @@ async fn bind_publication_revision(
         return Err(invalid("cannot replace a sealed execution"));
     }
     if *acquisition.execution != *execution || acquisition.working.is_none() {
-        acquisition.execution = acquisition
-            .storage
-            .produce(allowance(execution.memory_size())?, |_| {
-                Ok(execution.clone())
-            })?
-            .try_into_value()?
-            .try_into_shared()?;
+        acquisition.execution = Arc::new(execution.clone());
         save_working_revision(acquisition).await?;
     }
     Ok(())
@@ -1267,10 +969,10 @@ async fn bind_publication_revision(
 
 async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
     if acquisition.pending.is_none() {
-        acquisition.pending = Some(pending_revision(
-            &acquisition.storage,
-            acquisition.execution.clone(),
-        )?);
+        acquisition.pending = Some(PendingRevision {
+            execution: acquisition.execution.clone(),
+            receipt: None,
+        });
     }
     let pending = acquisition
         .pending
@@ -1280,48 +982,20 @@ async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
         if acquisition.storage.status().failure.is_some() {
             acquisition.storage.flush().await?;
         }
-        let bytes = Execution::encoding_memory(&pending.execution)?;
-        let encode = |execution: &TestExecution| {
-            Execution::try_from(execution).map_err(|source| {
-                harmos::Error::backend(
-                    "encode native execution",
-                    harmos::BackendFailure::Permanent,
-                    source,
-                )
-            })
-        };
-        let native = match &acquisition.report {
-            Some(report) => report.inspection.view().project_shared(
-                &pending.execution,
-                allowance(bytes)?,
-                |execution, _| encode(execution),
-            )?,
-            None => acquisition
-                .storage
-                .produce(allowance(bytes)?, |_| encode(&pending.execution))?
-                .try_into_value()?,
-        };
-        // Preserve Admission Before Any Fallible Flush Or Receipt Projection
-        // Bound This One Revision Instead Of Reserving A Maximum-Sized Group.
-        // The Original Capture Allowance Also Covers Descriptor And Receipt Work.
-        let admission = bytes
-            .checked_add(4 * 1024 * 1024)
-            .ok_or_else(|| invalid("execution admission memory overflows"))?;
-        let receipts = acquisition
+        let native = Execution::try_from(&*pending.execution)?;
+        let receipt = acquisition
             .storage
-            .write_object_group(allowance(admission)?, NonZeroUsize::MIN, |group| {
-                group.write(&*native)
-            })
+            .write_object(&native)
             .await
             .inspect_err(|error| {
                 tracing::error!(
                     ?error,
                     execution_id = %pending.execution.test_execution_id,
-                    encoding_memory = bytes,
                     sealed = pending.execution.saved.is_some(),
                     "execution revision admission failed"
                 );
             })?;
+        let receipts = [receipt];
         pending.receipt = receipts.into_iter().next();
     }
     let receipt = pending
@@ -1335,60 +1009,15 @@ async fn save_working_revision(acquisition: &mut Acquisition) -> Result<()> {
             "execution save does not cover its original admission",
         ));
     }
-    let bytes = std::mem::size_of::<ExecutionRevision>()
-        .checked_add(pending.execution.test_execution_id.as_str().len())
-        .and_then(|bytes| {
-            bytes.checked_add(
-                receipt
-                    .position
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<StorageCursor>()),
-            )
-        })
-        .and_then(|bytes| {
-            bytes.checked_add(
-                receipt
-                    .version
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<ObjectVersionToken>()),
-            )
-        })
-        .ok_or_else(|| invalid("execution revision memory overflows"))?;
-    let revision = acquisition
-        .storage
-        .produce(allowance(bytes)?, |_| {
-            Ok(ExecutionRevision {
-                execution_id: pending.execution.test_execution_id.clone(),
-                position: receipt.position.clone(),
-                version: receipt.version.clone(),
-            })
-        })?
-        .try_into_value()?
-        .try_into_shared()?;
+    let revision = Arc::new(ExecutionRevision {
+        execution_id: pending.execution.test_execution_id.clone(),
+        position: receipt.position.clone(),
+        version: receipt.version.clone(),
+    });
     acquisition.execution = pending.execution.clone();
     acquisition.working = Some(revision);
     acquisition.pending = None;
     Ok(())
-}
-
-fn pending_revision(
-    storage: &Manager,
-    execution: SharedQueryValue<TestExecution>,
-) -> Result<PendingRevision> {
-    let cursor = storage.status().accepted;
-    let history = cursor
-        .memory_size()
-        .checked_sub(std::mem::size_of::<StorageCursor>())
-        .ok_or_else(|| invalid("execution receipt history memory overflows"))?;
-    let bytes = std::mem::size_of::<PendingRevision>()
-        .checked_add(history)
-        .and_then(|bytes| bytes.checked_add(history))
-        .ok_or_else(|| invalid("execution receipt memory overflows"))?;
-    Ok(PendingRevision {
-        execution,
-        receipt: None,
-        _admission: storage.prepare_production(allowance(bytes)?)?,
-    })
 }
 
 fn validate_owner(cycle: &CycleView, execution: &TestExecution) -> Result<()> {
@@ -1449,13 +1078,6 @@ fn validate_existing(owner: &Acquisition, execution: &TestExecution) -> Result<(
         return Err(invalid("execution no longer accepts mutable producers"));
     }
     Ok(())
-}
-
-fn allowance(bytes: usize) -> Result<NonZeroUsize> {
-    if bytes == usize::MAX {
-        return Err(invalid("execution acquisition memory overflows"));
-    }
-    NonZeroUsize::new(bytes).ok_or_else(|| invalid("empty execution acquisition allowance"))
 }
 
 fn invalid(reason: &'static str) -> Error {

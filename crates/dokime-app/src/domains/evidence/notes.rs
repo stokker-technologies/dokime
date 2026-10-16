@@ -190,7 +190,7 @@ impl RuntimeHandle {
                         message: request.message,
                         created_at: Timestamp::now_utc(),
                     },
-                    checkpoint_targets: targets.to_vec(),
+                    checkpoint_targets: targets,
                 };
                 if !admission_fits(&state, &admission) {
                     return Err(NoteError::Overloaded);
@@ -326,13 +326,11 @@ impl RuntimeHandle {
         if admission.checkpoint_targets.is_empty() {
             return NotePublication::NoExistingDatasets;
         }
-        let config = self.config();
-        let limits = config.storage.interactive;
         let mut targets = Vec::new();
         for id in &admission.checkpoint_targets {
             match self
                 .execution_storage
-                .note_is_published(id, &admission.note, limits)
+                .note_is_published(id, &admission.note)
                 .await
             {
                 Ok(true) => {}

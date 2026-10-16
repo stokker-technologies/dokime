@@ -51,16 +51,10 @@ const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 /// How long a cancelled run may take to answer before the host settles the
 /// execution as stopped without it. Stop stays cooperative inside this budget.
 const STOP_SETTLEMENT: Duration = Duration::from_secs(30);
-/// Rows and bytes one replayed page may read; each page is its own query.
-const REPLAY_PAGE_ROWS: std::num::NonZeroUsize = std::num::NonZeroUsize::new(128).unwrap();
-const REPLAY_PAGE_BYTES: std::num::NonZeroUsize =
-    std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap();
+/// Rows one replayed page reads; each page is its own query.
+const REPLAY_PAGE_ROWS: usize = 128;
 /// Encoded sample bytes one replay signal carries before the next begins.
 const REPLAY_SIGNAL_BYTES: usize = dokime::transport::MAX_ARTIFACT_CHUNK_BYTES;
-/// Times one replay page is read again after the storage backend refused it
-/// transiently, such as at its I/O deadline, and the wait before the first.
-const REPLAY_READ_RETRIES: u32 = 4;
-const REPLAY_READ_BACKOFF: Duration = Duration::from_millis(200);
 
 /* === Macros === */
 
@@ -155,16 +149,6 @@ enum DropReason {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for ReplayedSample {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>().saturating_add(
-            self.entry
-                .memory_size()
-                .saturating_sub(std::mem::size_of_val(&self.entry)),
-        )
-    }
-}
-
 impl ExecutionFixture for TemplateRunExecutor {
     fn run_cycle<'a>(
         &'a self,
@@ -1720,9 +1704,7 @@ async fn replay_sample_inputs(
 ) -> Result<(), ProviderExecutionFailure> {
     // The run's own evidence is fixed once its publications are flushed. Each
     // page is its own bounded query against that cut, resumed by storage
-    // position, so a long capture is many small reads rather than one read
-    // whose computation budget the whole history must fit. The position
-    // outlives this call: a settling page the run sends again after its call
+    // position. The position outlives this call: a settling page the run sends again after its call
     // ran out of time resumes the replay instead of starting it over, so a
     // capture longer than one call still settles.
     let cut = context
@@ -1733,35 +1715,10 @@ async fn replay_sample_inputs(
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
     let scope = harmos::Identifier::new(execution.test_execution_id.as_str())
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-    let mut forced = context.runtime.config().storage.replay_read_deadlines;
     loop {
-        // Shared read capacity can be held by other captures; each page waits
-        // for it on its own, so a long replay is not failed by its length.
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
-        let mut retries = 0;
-        let page = loop {
-            let read = if forced > 0 {
-                forced -= 1;
-                Err(backend_deadline())
-            } else {
-                replay_page(context, execution, &scope, cut.sequence, *replayed).await
-            };
-            match read {
-                Err(error) if replay_can_wait(&error, deadline) => {
-                    tokio::time::sleep(WATCH_INTERVAL).await;
-                }
-                // A transient backend refusal reads the same page again from
-                // the kept position, backing off, a bounded number of times.
-                Err(error) if transient(&error) && retries < REPLAY_READ_RETRIES => {
-                    tracing::warn!(%error, after = *replayed, "replay page read will retry");
-                    tokio::time::sleep(REPLAY_READ_BACKOFF * (1 << retries)).await;
-                    retries += 1;
-                }
-                result => {
-                    break result.map_err(|error| failure("sidecar_samples", error.to_string()))?;
-                }
-            }
-        };
+        let page = replay_page(context, execution, &scope, cut.sequence, *replayed)
+            .await
+            .map_err(|error| failure("sidecar_samples", error.to_string()))?;
         let Some(page) = page.filter(|page| !page.is_empty()) else {
             return Ok(());
         };
@@ -1802,34 +1759,6 @@ async fn replay_sample_inputs(
     }
 }
 
-fn replay_can_wait(error: &harmos::Error, deadline: tokio::time::Instant) -> bool {
-    matches!(
-        error,
-        harmos::Error::ResourceExhausted {
-            resource: "storage read memory" | "storage views"
-        }
-    ) && tokio::time::Instant::now() < deadline
-}
-
-fn transient(error: &harmos::Error) -> bool {
-    matches!(
-        error,
-        harmos::Error::Backend {
-            kind: harmos::BackendFailure::Transient,
-            ..
-        }
-    )
-}
-
-// The storage backend's own deadline refusal, as a forced replay read fails.
-fn backend_deadline() -> harmos::Error {
-    harmos::Error::backend(
-        "storage I/O",
-        harmos::BackendFailure::Transient,
-        std::io::Error::new(std::io::ErrorKind::TimedOut, "backend deadline exceeded"),
-    )
-}
-
 // One page of the execution's captured samples after `after`, read through
 // `through`, decoded and checked against its storage envelope. The reader and
 // its view are released before the page is delivered.
@@ -1839,22 +1768,17 @@ async fn replay_page(
     scope: &harmos::Identifier,
     through: u64,
     after: u64,
-) -> harmos::Result<Option<harmos::storage::QueryValue<Vec<ReplayedSample>>>> {
+) -> harmos::Result<Option<Vec<ReplayedSample>>> {
     use harmos::storage::query::transform::{
         FieldPath, Transform,
         filter::{Clause, Compare, Condition, Filter, Term},
     };
-    use harmos::{
-        MemorySize,
-        storage::query::{Query, QueryOutput, RowSlice, Source, StreamSelection},
-    };
+    use harmos::storage::query::{Query, QueryOutput, RowSlice, Source, StreamSelection};
     let storage = context.runtime.storage();
     let mut at = storage.cursor_saved();
     at.sequence = through;
     let contracts = context.runtime.state_read().telemetry_contracts();
-    let claim = storage.prepare_production(REPLAY_PAGE_BYTES)?;
     let mut selected = Vec::new();
-    let mut retained = std::mem::size_of::<Vec<ReplayedSample>>();
     for contract in contracts.iter().filter(|contract| !contract.foreign) {
         let codec = dokime::storage::telemetry::codec(contract).map_err(replay_codec_error)?;
         let mut reader = storage
@@ -1874,7 +1798,7 @@ async fn replay_page(
                             field: FieldPath::from("_storage.position"),
                             condition: Condition::Compare {
                                 op: Compare::Gt,
-                                value: harmos::storage::reduce::ScalarValue::Unsigned(after),
+                                value: harmos::storage::query::scalar::ScalarValue::Unsigned(after),
                             },
                             negate: false,
                         }],
@@ -1882,7 +1806,7 @@ async fn replay_page(
                 })],
                 slice: RowSlice {
                     offset: 0,
-                    limit: Some(REPLAY_PAGE_ROWS.get() as u64),
+                    limit: Some(REPLAY_PAGE_ROWS as u64),
                 },
             })
             .await?;
@@ -1900,10 +1824,8 @@ async fn replay_page(
                     field: "sample replay",
                     reason: "storage positions are missing",
                 })?;
-            let _decoding = storage.prepare_production(REPLAY_PAGE_BYTES)?;
-            let entries =
-                dokime::storage::telemetry::decode_batch(&codec, &batch, REPLAY_PAGE_BYTES)
-                    .map_err(replay_codec_error)?;
+            let entries = dokime::storage::telemetry::decode_batch(&codec, &batch)
+                .map_err(replay_codec_error)?;
             for (index, entry) in entries.into_iter().enumerate() {
                 if entry
                     .sample
@@ -1918,33 +1840,17 @@ async fn replay_page(
                     });
                 }
                 let position = positions.value(index);
-                if selected.len() == REPLAY_PAGE_ROWS.get()
+                if selected.len() == REPLAY_PAGE_ROWS
                     && selected
                         .last()
                         .is_some_and(|row: &ReplayedSample| row.position < position)
                 {
                     continue;
                 }
-                let row = ReplayedSample { position, entry };
-                let bytes = row.memory_size();
-                if bytes
-                    > REPLAY_PAGE_BYTES
-                        .get()
-                        .saturating_sub(std::mem::size_of::<Vec<ReplayedSample>>())
-                {
-                    return Err(replay_exhausted());
-                }
-                retained = retained.checked_add(bytes).ok_or_else(replay_exhausted)?;
                 let index = selected
                     .partition_point(|previous: &ReplayedSample| previous.position < position);
-                selected.insert(index, row);
-                while selected.len() > REPLAY_PAGE_ROWS.get() || retained > REPLAY_PAGE_BYTES.get()
-                {
-                    let removed = selected
-                        .pop()
-                        .expect("nonempty replay page exceeds its bound");
-                    retained -= removed.memory_size();
-                }
+                selected.insert(index, ReplayedSample { position, entry });
+                selected.truncate(REPLAY_PAGE_ROWS);
             }
         }
         reader.completion()?;
@@ -1952,7 +1858,7 @@ async fn replay_page(
     if selected.is_empty() {
         return Ok(None);
     }
-    Ok(Some(claim.finish(selected)?.try_into_value()?))
+    Ok(Some(selected))
 }
 
 fn replay_codec_error(source: dokime::storage::Error) -> harmos::Error {
@@ -1963,12 +1869,6 @@ fn replay_codec_error(source: dokime::storage::Error) -> harmos::Error {
             harmos::BackendFailure::Corrupt,
             source,
         ),
-    }
-}
-
-fn replay_exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "sample replay projection",
     }
 }
 

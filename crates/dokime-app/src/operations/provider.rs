@@ -470,11 +470,7 @@ async fn run_provider_cycle(
         .clone();
     runtime
         .request_storage
-        .update(
-            &request_id,
-            harmos::MemorySize::memory_size(&summary),
-            |receipt| receipt.summary = summary,
-        )
+        .update(&request_id, |receipt| receipt.summary = summary)
         .await
         .map_err(|error| ProviderExecutionFailure::new("request_checkpoint", error.to_string()))?;
     let cycle = runtime
@@ -547,15 +543,9 @@ async fn prepare_attempts(
             return Ok(());
         };
         let ordinal = summary.prepared;
-        let growth = harmos::MemorySize::memory_size(&summary)
-            .saturating_add(harmos::MemorySize::memory_size(&case_id))
-            .saturating_add(harmos::MemorySize::memory_size(&execution_id))
-            .saturating_add(std::mem::size_of::<
-                crate::runtime::storage::requests::AttemptClaim,
-            >());
         runtime
             .request_storage
-            .update(request_id, growth, |receipt| {
+            .update(request_id, |receipt| {
                 receipt.summary = summary.clone();
                 receipt.claimed = ordinal + 1;
                 receipt.last_claim = Some(crate::runtime::storage::requests::AttemptClaim {
@@ -608,11 +598,7 @@ async fn prepare_attempts(
             .clone();
         runtime
             .request_storage
-            .update(
-                request_id,
-                harmos::MemorySize::memory_size(&summary),
-                |receipt| receipt.summary = summary,
-            )
+            .update(request_id, |receipt| receipt.summary = summary)
             .await
             .map_err(|error| {
                 ProviderExecutionFailure::new("request_checkpoint", error.to_string())

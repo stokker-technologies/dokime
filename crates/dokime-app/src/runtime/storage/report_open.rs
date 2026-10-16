@@ -22,9 +22,8 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 // Third Party Imports
-use harmos::storage::{FileReference, ObjectVersion, QueryValue, StorageFileReader};
+use harmos::storage::ObjectVersion;
 // Local Imports
 use super::execution::ExecutionView;
 use crate::{Error, Result, RuntimeHandle, runtime::progress::Operation};
@@ -45,7 +44,7 @@ pub struct OpenedReport {
     pub metadata: Option<Metadata>,
     pub generated_at: Timestamp,
     pub origin: ReportOrigin,
-    pub html: QueryValue<Vec<u8>>,
+    pub html: Vec<u8>,
 }
 
 /* === Enums === */
@@ -126,8 +125,8 @@ impl RuntimeHandle {
                     },
                 )
                 .await?;
-            let reader = self.storage().read_file(&materialized.report).await?;
-            let html = read_whole(self, reader, &materialized.report).await?;
+            let html =
+                dokime::storage::read_file_bytes(self.storage(), &materialized.report).await?;
             return Ok(OpenedReport {
                 test_cycle_id: cycle,
                 test_execution_id: Some(id.clone()),
@@ -138,20 +137,15 @@ impl RuntimeHandle {
             });
         }
         operation.phase("Reading Sealed Report");
-        let reads = self.config().storage.interactive;
-        let view = self.storage().view_with_limits(reads).await?;
-        let limit = view.decoded_bytes()?;
-        let inspection =
-            ExecutionView::open(self.storage(), view, id, ObjectVersion::Latest, limit)
-                .await?
-                .filter(|inspection| inspection.execution().saved.is_some())
-                .ok_or_else(|| not_found("execution_report_missing", "execution has no report"))?;
+        let inspection = ExecutionView::open(self.storage(), id, ObjectVersion::Latest)
+            .await?
+            .filter(|inspection| inspection.execution().saved.is_some())
+            .ok_or_else(|| not_found("execution_report_missing", "execution has no report"))?;
         let execution = inspection.execution();
         let seal = execution.saved.as_ref().expect("filtered sealed execution");
         let (generated_at, test_cycle_id) =
             (seal.sealed_at.clone(), execution.test_cycle_id.clone());
-        let reader = inspection.read_file(&seal.report).await?;
-        let html = read_whole(self, reader, &seal.report).await?;
+        let html = dokime::storage::read_file_bytes(self.storage(), &seal.report).await?;
         Ok(OpenedReport {
             test_cycle_id,
             test_execution_id: Some(id.clone()),
@@ -188,8 +182,7 @@ impl RuntimeHandle {
                 },
             )
             .await?;
-        let reader = self.storage().read_file(&materialized.report).await?;
-        let html = read_whole(self, reader, &materialized.report).await?;
+        let html = dokime::storage::read_file_bytes(self.storage(), &materialized.report).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,
@@ -207,31 +200,16 @@ impl RuntimeHandle {
     ) -> Result<OpenedReport> {
         operation.phase("Reading Sealed Report");
         let storage = self.storage();
-        let mut query =
-            harmos::storage::ObjectQuery::<dokime::storage::objects::cycle::Cycle>::new();
-        query.item = Some(id.as_str());
-        let selection = storage.query(query).await?;
-        let view = selection
-            .view()
-            .ok_or_else(|| invalid("cycle query has no saved view"))?
-            .clone();
-        let selected = dokime::storage::objects::cycle::read_in(
-            storage,
-            &view,
-            id,
-            ObjectVersion::Latest,
-            selection.decoded_bytes(),
-        )
-        .await?
-        .ok_or_else(|| not_found("cycle_not_found", "cycle not found"))?;
+        let selected = dokime::storage::objects::cycle::read(storage, id, ObjectVersion::Latest)
+            .await?
+            .ok_or_else(|| not_found("cycle_not_found", "cycle not found"))?;
         let cycle = &selected.value;
         let seal = cycle
             .saved
             .as_ref()
             .ok_or_else(|| not_found("cycle_report_missing", "cycle has no sealed report"))?;
         seal.validate(cycle).map_err(dokime::storage::Error::from)?;
-        let reader = view.read_file(&seal.report).await?;
-        let html = read_whole(self, reader, &seal.report).await?;
+        let html = dokime::storage::read_file_bytes(storage, &seal.report).await?;
         Ok(OpenedReport {
             test_cycle_id: id.clone(),
             test_execution_id: None,
@@ -246,62 +224,6 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-/// Reads a sealed report whole so missing or truncated content fails before
-/// any bytes are delivered.
-async fn read_whole(
-    runtime: &RuntimeHandle,
-    mut reader: StorageFileReader,
-    file: &FileReference,
-) -> Result<QueryValue<Vec<u8>>> {
-    let length = usize::try_from(file.length).ok().ok_or_else(|| {
-        Error::Harmos(harmos::Error::ResourceExhausted {
-            resource: "sealed report size",
-        })
-    })?;
-    let mut html = runtime
-        .storage()
-        .produce(
-            bound(length.saturating_add(std::mem::size_of::<Vec<u8>>()))?,
-            |_| {
-                let mut bytes = Vec::new();
-                bytes.try_reserve_exact(length).map_err(|_| exhausted())?;
-                Ok(bytes)
-            },
-        )?
-        .try_into_value()?;
-    let batch_bytes = runtime.config().storage.response.batch_bytes;
-    let capacity = bound(length.saturating_add(std::mem::size_of::<Vec<u8>>()))?;
-    while let Some(read) = reader.next_chunk(batch_bytes).await? {
-        html = html.try_map(capacity, |mut bytes, _| {
-            if bytes.len().saturating_add(read.as_bytes().len()) > length {
-                return Err(exhausted());
-            }
-            bytes.extend_from_slice(read.as_bytes());
-            Ok(bytes)
-        })?;
-    }
-    if html.len() != length {
-        return Err(invalid("sealed report ended before its length"));
-    }
-    Ok(html)
-}
-
-fn bound(bytes: usize) -> Result<NonZeroUsize> {
-    NonZeroUsize::new(bytes)
-        .filter(|_| bytes != usize::MAX)
-        .ok_or_else(|| invalid("opened report memory overflows"))
-}
-
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "opened report memory",
-    }
-}
-
-fn invalid(reason: &'static str) -> Error {
-    Error::Storage(dokime::storage::Error::Invalid(reason))
-}
-
 fn not_found(code: &str, message: &str) -> Error {
     Error::NotFound {
         code: code.into(),

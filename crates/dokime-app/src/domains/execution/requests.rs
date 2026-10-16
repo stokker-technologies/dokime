@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use crate::runtime::storage::requests::{AttemptClaim, ReceiptLoan, RunReceipt};
+pub use crate::runtime::storage::requests::{AttemptClaim, RunReceipt};
 pub use crate::transactions::provider::request::{RunPhase, RunSummary};
 pub use dokime::execution::request::{StepCommand, StepCommandPhase, StepCommandReceipt};
 
@@ -18,7 +18,6 @@ pub use dokime::execution::request::{StepCommand, StepCommandPhase, StepCommandR
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::{MemorySize, storage::QueryValue};
 
 // Local Imports
 
@@ -42,7 +41,7 @@ impl crate::RuntimeHandle {
         command_id: dokime::core::CommandId,
         execution_id: dokime::core::TestExecutionId,
         action: dokime::execution::request::StepCommand,
-    ) -> crate::Result<QueryValue<dokime::execution::request::StepCommandReceipt>> {
+    ) -> crate::Result<dokime::execution::request::StepCommandReceipt> {
         let at = dokime::core::Timestamp::now_utc();
         let saved = self
             .run_request(request_id)
@@ -52,14 +51,7 @@ impl crate::RuntimeHandle {
             .known_step_command(&command_id, &execution_id, &action)
             .map_err(command_refused)?;
         if let Some(known) = known {
-            let bytes = std::num::NonZeroUsize::new(known.memory_size()).ok_or_else(|| {
-                crate::Error::Operation("empty command projection allowance".into())
-            })?;
-            return saved
-                .try_project(bytes, |receipt, _allowance| {
-                    Ok(receipt.commands[&command_id].clone())
-                })
-                .map_err(|error| crate::Error::RequestReceipt(Box::new(error)));
+            return Ok(known.clone());
         }
         if self.is_shutting_down() {
             return Err(command_refused("runtime is shutting down"));
@@ -79,18 +71,10 @@ impl crate::RuntimeHandle {
                 return Err(command_refused("step is absent from the frozen execution"));
             }
         }
-        let growth = harmos::btree_map_memory::<
-            dokime::core::CommandId,
-            dokime::execution::request::StepCommandReceipt,
-        >(1)
-        .saturating_add(command_id.memory_size().saturating_mul(2))
-        .saturating_add(execution_id.memory_size())
-        .saturating_add(action.memory_size())
-        .saturating_add(at.memory_size().saturating_mul(2));
         let selected = command_id.clone();
         let mut decision = None;
         self.request_storage
-            .update(request_id, growth, |receipt| {
+            .update(request_id, |receipt| {
                 decision = Some(
                     receipt
                         .admit_step_command(command_id, execution_id, action, at)
@@ -110,7 +94,7 @@ impl crate::RuntimeHandle {
     pub async fn run_request(
         &self,
         id: &dokime::core::CommandId,
-    ) -> crate::Result<Option<ReceiptLoan>> {
+    ) -> crate::Result<Option<std::sync::Arc<RunReceipt>>> {
         self.request_storage.get(id).await
     }
 }

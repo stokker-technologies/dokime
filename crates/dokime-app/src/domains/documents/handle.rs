@@ -16,14 +16,10 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{QueryOptions, QueryValue},
-};
 
 // Local Imports
 use super::ExecutionFileStream;
-use super::saved::{SavedOutputFile, SavedOutputs};
+use super::saved::SavedOutputs;
 use crate::document::{DocumentPayload, DocumentSelection};
 use crate::execution::ExecutionStatus;
 use crate::handle::RuntimeHandle;
@@ -46,13 +42,6 @@ use dokime::core::{TestCycleId, TestExecutionId};
 /* === Structs === */
 
 /* === Enums === */
-enum ExecutionWindow {
-    Live(QueryValue<ExecutionFileContent>),
-    Saved {
-        file: Box<SavedOutputFile>,
-        content: QueryValue<ExecutionFileContent>,
-    },
-}
 
 /* === Traits === */
 
@@ -105,7 +94,7 @@ impl RuntimeHandle {
             .await;
         let snapshot = self.capture_state().await?;
         let records = self.records_at(&snapshot).await?;
-        let artifacts = self.artifact_records_now().await?.to_vec();
+        let artifacts = self.artifact_records_now().await?;
         let state = snapshot.state();
         let data = crate::documents::RuntimeDocumentData {
             records,
@@ -131,100 +120,23 @@ impl RuntimeHandle {
     pub async fn execution_files(
         &self,
         test_execution_id: &TestExecutionId,
-    ) -> Result<QueryValue<Vec<ExecutionFileEntry>>> {
-        if let Some(mut saved) = SavedOutputs::open(
-            self.storage(),
-            test_execution_id,
-            None,
-            QueryOptions::default(),
-            self.config().storage.decoded_bytes,
-        )
-        .await?
-        {
-            return saved.entries(self.config().storage.decoded_bytes);
+    ) -> Result<Vec<ExecutionFileEntry>> {
+        if let Some(saved) = SavedOutputs::open(self.storage(), test_execution_id, None).await? {
+            return saved.entries();
         }
         self.execution_storage
             .native_entries(test_execution_id)
             .await
     }
 
-    pub async fn execution_files_projected<U: MemorySize>(
-        &self,
-        test_execution_id: &TestExecutionId,
-        map: impl FnOnce(&Vec<ExecutionFileEntry>, NonZeroUsize) -> harmos::Result<U>,
-    ) -> Result<QueryValue<U>> {
-        let maximum = self.config().storage.decoded_bytes;
-        if let Some(mut saved) = SavedOutputs::open(
-            self.storage(),
-            test_execution_id,
-            None,
-            QueryOptions::default(),
-            maximum,
-        )
-        .await?
-        {
-            let entries = saved.entries(maximum)?;
-            return saved.project(&entries, map);
-        }
-        let entries = self
-            .execution_storage
-            .native_entries(test_execution_id)
-            .await?;
-        let computation = entries.computation()?;
-        Ok(computation.project(&entries, maximum, map)?)
-    }
-
     pub async fn execution_file_content(
         &self,
-        test_execution_id: &TestExecutionId,
-        relative_path: String,
-        offset: u64,
-        max_bytes: usize,
-    ) -> Result<Option<QueryValue<ExecutionFileContent>>> {
-        let window = self
-            .execution_window(test_execution_id, &relative_path, offset, max_bytes)
-            .await?;
-        Ok(window.map(|window| match window {
-            ExecutionWindow::Live(content) | ExecutionWindow::Saved { content, .. } => content,
-        }))
-    }
-
-    pub async fn execution_file_content_projected<U: MemorySize>(
-        &self,
-        test_execution_id: &TestExecutionId,
-        relative_path: String,
-        offset: u64,
-        max_bytes: usize,
-        projection: impl FnOnce(&ExecutionFileContent) -> harmos::Result<NonZeroUsize>,
-        map: impl FnOnce(&ExecutionFileContent, NonZeroUsize) -> harmos::Result<U>,
-    ) -> Result<Option<QueryValue<U>>> {
-        let Some(window) = self
-            .execution_window(test_execution_id, &relative_path, offset, max_bytes)
-            .await?
-        else {
-            return Ok(None);
-        };
-        let output = match window {
-            ExecutionWindow::Live(content) => {
-                let computation = content.computation()?;
-                let maximum = projection(&content)?;
-                computation.project(&content, maximum, map)?
-            }
-            ExecutionWindow::Saved { mut file, content } => {
-                file.project(&content, projection(&content)?, map)?
-            }
-        };
-        Ok(Some(output))
-    }
-
-    async fn execution_window(
-        &self,
         id: &TestExecutionId,
-        path: &str,
+        path: String,
         offset: u64,
         max_bytes: usize,
-    ) -> Result<Option<ExecutionWindow>> {
-        if validate_relative_path(path).is_err() {
+    ) -> Result<Option<ExecutionFileContent>> {
+        if validate_relative_path(&path).is_err() {
             return Ok(None);
         }
         let maximum = NonZeroUsize::new(max_bytes.clamp(
@@ -234,38 +146,25 @@ impl RuntimeHandle {
         .unwrap();
         if let Some(content) = self
             .execution_storage
-            .native_read(id, path, offset, maximum.get())
+            .native_read(id, &path, offset, maximum.get())
             .await?
         {
-            return Ok(Some(ExecutionWindow::Live(content)));
+            return Ok(Some(content));
         }
-        let Some(saved) = SavedOutputs::open(
-            self.storage(),
-            id,
-            None,
-            QueryOptions::default(),
-            self.config().storage.decoded_bytes,
-        )
-        .await?
-        else {
+        let Some(saved) = SavedOutputs::open(self.storage(), id, None).await? else {
             return Ok(None);
         };
-        let Some(mut file) = saved.file(path).await? else {
+        let Some(file) = saved.file(&path)? else {
             return Ok(None);
         };
-        let projection = file.window_memory(offset, maximum)?;
-        let content = file.window(offset, maximum, projection).await?;
-        Ok(Some(ExecutionWindow::Saved {
-            file: Box::new(file),
-            content,
-        }))
+        Ok(Some(file.window(offset, maximum).await?))
     }
 
     pub async fn execution_file_snapshot(
         &self,
         test_execution_id: &TestExecutionId,
         relative_path: String,
-    ) -> Result<Option<QueryValue<ExecutionFileContent>>> {
+    ) -> Result<Option<ExecutionFileContent>> {
         if validate_relative_path(&relative_path).is_err() {
             return Ok(None);
         }
@@ -276,18 +175,10 @@ impl RuntimeHandle {
         {
             return Ok(Some(content));
         }
-        let Some(saved) = SavedOutputs::open(
-            self.storage(),
-            test_execution_id,
-            None,
-            QueryOptions::default(),
-            self.config().storage.decoded_bytes,
-        )
-        .await?
-        else {
+        let Some(saved) = SavedOutputs::open(self.storage(), test_execution_id, None).await? else {
             return Ok(None);
         };
-        let Some(mut file) = saved.file(&relative_path).await? else {
+        let Some(file) = saved.file(&relative_path)? else {
             return Ok(None);
         };
         let maximum =
@@ -304,18 +195,9 @@ impl RuntimeHandle {
         if validate_relative_path(&relative_path).is_err() {
             return Ok(None);
         }
-        if let Some(saved) = SavedOutputs::open(
-            self.storage(),
-            test_execution_id,
-            None,
-            QueryOptions::default(),
-            self.config().storage.decoded_bytes,
-        )
-        .await?
-        {
+        if let Some(saved) = SavedOutputs::open(self.storage(), test_execution_id, None).await? {
             return saved
-                .file(&relative_path)
-                .await?
+                .file(&relative_path)?
                 .map(ExecutionFileStream::saved)
                 .transpose();
         }
@@ -392,7 +274,7 @@ impl RuntimeHandle {
         test_execution_id: &TestExecutionId,
         relative_path: String,
         limit: usize,
-    ) -> Result<Option<QueryValue<ExecutionFileContent>>> {
+    ) -> Result<Option<ExecutionFileContent>> {
         if validate_relative_path(&relative_path).is_err() {
             return Ok(None);
         }
@@ -406,18 +288,10 @@ impl RuntimeHandle {
         {
             return Ok(Some(content));
         }
-        let Some(saved) = SavedOutputs::open(
-            self.storage(),
-            test_execution_id,
-            None,
-            QueryOptions::default(),
-            self.config().storage.decoded_bytes,
-        )
-        .await?
-        else {
+        let Some(saved) = SavedOutputs::open(self.storage(), test_execution_id, None).await? else {
             return Ok(None);
         };
-        let Some(mut file) = saved.file(&relative_path).await? else {
+        let Some(file) = saved.file(&relative_path)? else {
             return Ok(None);
         };
         Ok(Some(file.snapshot(maximum, false).await?))

@@ -13,10 +13,10 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 // Third Party Imports
 use harmos::{
-    MemorySize, Protobuf,
+    Protobuf,
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
@@ -107,45 +107,25 @@ impl Operation for Read {
             .find(|output| output.relative_path == request.relative_path)
             .ok_or_else(|| Status::not_found("checkpoint output not found"))?;
         value::text(&output.file.metadata.media_type)?;
-        let _computation = view
-            .view()
-            .begin_computation()
-            .map_err(|error| wire::checkpoint_failure(error.into()))?;
-        let bytes = limit
-            .saturating_add(request.relative_path.len())
-            .saturating_add(output.file.metadata.media_type.len())
-            .saturating_add(std::mem::size_of::<dokime_app::ExecutionFileContent>())
-            .saturating_mul(2)
-            .saturating_add(std::mem::size_of::<history::CheckpointFileWindow>());
-        let preparation = self
-            .resources
-            .runtime
-            .storage()
-            .prepare_production(std::num::NonZeroUsize::new(bytes).unwrap())
-            .map_err(|error| wire::checkpoint_failure(error.into()))?;
         let content_type = Some(output.file.metadata.media_type.clone());
+        let offset = request.offset.min(output.file.length);
         let mut reader = view
-            .read_file(&output.file)
+            .read_file(
+                &output.file,
+                harmos::storage::ByteRange {
+                    offset,
+                    limit: Some(limit as u64),
+                },
+            )
             .await
             .map_err(wire::checkpoint_failure)?;
         let mut data = Vec::with_capacity(limit);
-        while let Some(chunk) = reader
-            .next_chunk(std::num::NonZeroUsize::new(64 * 1024).unwrap())
+        while let Some(batch) = reader
+            .next()
             .await
             .map_err(|error| wire::checkpoint_failure(error.into()))?
         {
-            let end = reader.offset();
-            let start = end - chunk.as_bytes().len() as u64;
-            if end <= request.offset {
-                continue;
-            }
-            let begin = request.offset.saturating_sub(start) as usize;
-            let available = &chunk.as_bytes()[begin..];
-            let count = available.len().min(limit - data.len());
-            data.extend_from_slice(&available[..count]);
-            if data.len() == limit {
-                break;
-            }
+            data.extend_from_slice(&batch.bytes);
         }
         let state = match output.stream_state {
             Some(dokime::execution::saved::SavedStreamState::Interrupted) => {
@@ -153,37 +133,20 @@ impl Operation for Read {
             }
             _ => dokime_app::ExecutionFileStreamState::Finalized,
         };
-        let content = preparation
-            .finish(dokime_app::ExecutionFileContent {
-                relative_path: request.relative_path.clone(),
-                content_kind: dokime_app::ExecutionFileContentKind::from_metadata(
-                    &request.relative_path,
-                    content_type.as_deref(),
-                ),
-                content_type,
-                stream_state: state,
-                offset: request.offset.min(output.file.length),
-                size_bytes: output.file.length,
-                bytes: data,
-            })
-            .map_err(|error| wire::checkpoint_failure(error.into()))?;
-        let content = content
-            .try_into_value()
-            .map_err(|error| wire::checkpoint_failure(error.into()))?;
-        let response = view
-            .view()
-            .project_owned(
-                content,
-                view.view()
-                    .decoded_bytes()
-                    .map_err(|error| wire::checkpoint_failure(error.into()))?,
-                |content, allowance| {
-                    project(&checkpoint, content, allowance, self.resources.maximum)
-                },
-            )
-            .map_err(|error| wire::checkpoint_failure(error.into()))?;
-        response
-            .try_into_response()
+        let content = dokime_app::ExecutionFileContent {
+            relative_path: request.relative_path.clone(),
+            content_kind: dokime_app::ExecutionFileContentKind::from_metadata(
+                &request.relative_path,
+                content_type.as_deref(),
+            ),
+            content_type,
+            stream_state: state,
+            offset,
+            size_bytes: output.file.length,
+            bytes: data,
+        };
+        project(&checkpoint, content, self.resources.maximum)
+            .map(Into::into)
             .map_err(|source| wire::checkpoint_failure(source.into()))
     }
 }
@@ -205,18 +168,10 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 fn project(
     checkpoint: &ExecutionCheckpoint,
     content: ExecutionFileContent,
-    allowance: NonZeroUsize,
     maximum: usize,
 ) -> harmos::Result<history::CheckpointFileWindow> {
-    let required = std::mem::size_of::<history::CheckpointFileWindow>()
-        .saturating_add(content.memory_size())
-        .saturating_add(checkpoint.memory_size())
-        .saturating_add(harmos::Message::encoded_len(&checkpoint.version));
-    if required > allowance.get() {
-        return Err(exhausted());
-    }
-    let checkpoint = inspection::project(checkpoint, allowance, maximum)?;
-    let content = window::owned(content, allowance, maximum)?;
+    let checkpoint = inspection::project(checkpoint, maximum)?;
+    let content = window::owned(content, maximum)?;
     let response = history::CheckpointFileWindow {
         checkpoint: Some(checkpoint),
         content: Some(content),

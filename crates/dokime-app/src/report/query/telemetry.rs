@@ -15,24 +15,18 @@
 // Standard Library Imports
 // Third Party Imports
 use harmos::{
-    MemorySize,
     operations::Context,
     storage::{
-        QueryValue, StorageCursor,
+        StorageCursor,
         query::{Query, RowSlice, Source, StreamSelection, transform::Transform},
     },
 };
 // Local Imports
-use super::{exhausted, invalid, nonzero};
+use super::invalid;
 use crate::Result;
 use dokime::{
     core::Identifier,
-    storage::{
-        Manager,
-        telemetry::{
-            TypedCodec, codec, decoding_memory_rows as decoding_memory, encode_batch as encoded,
-        },
-    },
+    storage::telemetry::{TypedCodec, codec, encode_batch},
     telemetry::{TelemetryContract, TelemetrySample},
 };
 
@@ -80,72 +74,26 @@ pub(super) fn plan(
 
 pub(in crate::report) async fn read(
     ctx: &Context<'_>,
-    storage: &Manager,
     settings: &crate::config::StorageSettings,
     at: &StorageCursor,
     scope: &str,
     contract: &TelemetryContract,
     transforms: Vec<Transform>,
-) -> Result<QueryValue<Vec<TelemetrySample>>> {
+) -> Result<Vec<TelemetrySample>> {
     let codec = codec(contract)?;
     let query = plan(at, scope, &codec, transforms)?;
-    let batches = super::batches(ctx, storage, settings, query).await?;
-    let mut samples = super::empty(storage)?;
-    for batch in batches.iter() {
-        let rows = batch.as_record_batch().num_rows();
-        let encoding_bytes = settings
-            .response
-            .batch_bytes
-            .get()
-            .checked_add(
-                rows.checked_mul(std::mem::size_of::<Vec<u8>>())
-                    .ok_or_else(exhausted)?,
-            )
-            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Vec<Vec<u8>>>()))
-            .ok_or_else(exhausted)?;
-        let _encoding = storage.prepare_production(nonzero(encoding_bytes)?)?;
-        let encoded = encoded(&codec, batch, nonzero(encoding_bytes)?)?;
-        let bound = decoding_memory(&codec, &encoded)?;
-        let decoded = storage
-            .produce(nonzero(bound)?, |allowance| {
-                encoded
-                    .iter()
-                    .map(|row| {
-                        codec
-                            .decode(row, allowance.get())
-                            .map(|entry| entry.sample)
-                            .map_err(codec_error)
-                    })
-                    .collect::<harmos::Result<Vec<_>>>()
-            })?
-            .try_into_value()?;
-        let bound = samples
-            .memory_size()
-            .checked_add(decoded.memory_size())
-            .ok_or_else(exhausted)?;
-        samples = samples.try_map(nonzero(bound)?, |mut samples, _| {
-            samples
-                .try_reserve_exact(decoded.len())
-                .map_err(|_| exhausted())?;
-            samples.extend(decoded.iter().cloned());
-            Ok(samples)
-        })?;
+    let mut samples = Vec::new();
+    for batch in super::batches(ctx, settings, query).await? {
+        for row in encode_batch(&codec, &batch)? {
+            samples.push(codec.decode(&row, usize::MAX)?.sample);
+        }
     }
-    let bound = samples.memory_size();
-    samples = samples.try_map(nonzero(bound)?, |mut samples, _| {
-        samples.sort_by(|left, right| {
-            left.timestamp
-                .cmp(&right.timestamp)
-                .then(left.sequence.cmp(&right.sequence))
-        });
-        Ok(samples)
-    })?;
+    sort(&mut samples);
     Ok(samples)
 }
 
 pub(super) async fn streams(
     ctx: &Context<'_>,
-    storage: &Manager,
     settings: &crate::config::StorageSettings,
     at: &StorageCursor,
     scope: &str,
@@ -154,8 +102,8 @@ pub(super) async fn streams(
         std::collections::BTreeMap<u32, TelemetryContract>,
     >,
     selected: &[String],
-) -> Result<QueryValue<Vec<TelemetrySample>>> {
-    let mut samples = super::empty(storage)?;
+) -> Result<Vec<TelemetrySample>> {
+    let mut samples = Vec::new();
     for (stream, versions) in contracts {
         if !selected
             .iter()
@@ -164,42 +112,20 @@ pub(super) async fn streams(
             continue;
         }
         for contract in versions.values() {
-            let values = read(ctx, storage, settings, at, scope, contract, Vec::new()).await?;
-            let bound = samples
-                .memory_size()
-                .checked_add(values.memory_size())
-                .ok_or_else(exhausted)?;
-            samples = samples.try_map(nonzero(bound)?, |mut samples, _| {
-                samples
-                    .try_reserve_exact(values.len())
-                    .map_err(|_| exhausted())?;
-                samples.extend(values.iter().cloned());
-                Ok(samples)
-            })?;
+            samples.extend(read(ctx, settings, at, scope, contract, Vec::new()).await?);
         }
     }
-    let bound = samples.memory_size();
-    samples = samples.try_map(nonzero(bound)?, |mut samples, _| {
-        samples.sort_by(|left, right| {
-            left.timestamp
-                .cmp(&right.timestamp)
-                .then(left.sequence.cmp(&right.sequence))
-        });
-        Ok(samples)
-    })?;
+    sort(&mut samples);
     Ok(samples)
 }
 
 /* === Private Functions === */
-fn codec_error(source: dokime::storage::Error) -> harmos::Error {
-    match source {
-        dokime::storage::Error::Runtime(source) => source,
-        source => harmos::Error::backend(
-            "report telemetry projection",
-            harmos::BackendFailure::Corrupt,
-            source,
-        ),
-    }
+fn sort(samples: &mut [TelemetrySample]) {
+    samples.sort_by(|left, right| {
+        left.timestamp
+            .cmp(&right.timestamp)
+            .then(left.sequence.cmp(&right.sequence))
+    });
 }
 
 /* === Tests === */

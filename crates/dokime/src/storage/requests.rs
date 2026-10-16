@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{
@@ -198,13 +197,7 @@ impl Request {
         Ok(bytes.saturating_add(commands))
     }
 
-    pub fn into_receipt(self, allowance: NonZeroUsize) -> Result<RunReceipt> {
-        let bound = self.projection_memory()?;
-        if bound == usize::MAX || bound > allowance.get() {
-            return Err(Error::Invalid(
-                "request projection exceeds memory allowance",
-            ));
-        }
+    pub fn into_receipt(self) -> Result<RunReceipt> {
         self.try_into()
     }
 
@@ -307,17 +300,7 @@ impl Command {
         bytes
     }
 
-    pub fn into_receipt(
-        self,
-        request_id: &CommandId,
-        allowance: NonZeroUsize,
-    ) -> Result<StepCommandReceipt> {
-        let bound = self.projection_memory();
-        if bound == usize::MAX || bound > allowance.get() {
-            return Err(Error::Invalid(
-                "command projection exceeds memory allowance",
-            ));
-        }
+    pub fn into_receipt(self, request_id: &CommandId) -> Result<StepCommandReceipt> {
         self.validate_owner(request_id)?;
         self.try_into()
     }

@@ -13,18 +13,14 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use harmos::{
-    MemorySize,
     operations::Context,
-    storage::{
-        QueryValue, ReadLimits,
-        query::transform::{
-            Transform,
-            downsample::{Algorithm, Downsample},
-        },
+    storage::query::transform::{
+        Transform,
+        downsample::{Algorithm, Downsample},
     },
 };
 // Local Imports
@@ -32,6 +28,7 @@ use super::{CapturedExecutionReportInput, CycleReportInput, ReportArtifactLink};
 use crate::{
     Error, Result,
     document::capture::CardBindingResult,
+    execution::context::source::CapturedSource,
     runtime::{progress::Operation, storage::execution::ExecutionView},
 };
 use dokime::{core::DocumentId, execution::saved::ExecutionOutputContent, storage::Manager};
@@ -57,10 +54,10 @@ pub(crate) async fn sealed_member(
     ctx: &Context<'_>,
     storage: &Manager,
     settings: &crate::config::StorageSettings,
-    view: &harmos::storage::StorageView,
     seal: &dokime::execution::saved::ExecutionSeal,
-) -> Result<QueryValue<CapturedExecutionReportInput>> {
-    let source = crate::execution::context::read::read_file(view, &seal.source.context).await?;
+) -> Result<CapturedExecutionReportInput> {
+    let mut source =
+        crate::execution::context::read::read_file(storage, &seal.source.context).await?;
     source.validate_header()?;
     if source.owner_node_id != seal.source.owner_node_id
         || source.execution_id != seal.source.execution.execution_id
@@ -77,46 +74,26 @@ pub(crate) async fn sealed_member(
             "cycle member source follows its published revision",
         ));
     }
-    let maximum = view.decoded_bytes()?;
-    let memory = source
-        .memory_size()
-        .checked_add(seal.source.outputs.memory_size())
-        .and_then(NonZeroUsize::new)
-        .filter(|bytes| *bytes <= maximum)
-        .ok_or_else(|| invalid("cycle member output projection exceeds its allowance"))?;
-    let source = view
-        .project_owned(source, memory, |mut source, _| {
-            source.outputs = seal.source.outputs.clone();
-            Ok(source)
-        })?
-        .try_into_shared()?;
-    let inspection = ExecutionView::captured(
-        storage,
-        view.clone(),
-        source,
-        &seal.source.owner_node_id,
-        view.decoded_bytes()?,
-        std::time::Duration::ZERO,
-    )
-    .await?;
-    execution(ctx, storage, settings, &inspection, true, None).await
+    source.outputs = seal.source.outputs.clone();
+    let inspection =
+        ExecutionView::captured(storage, Arc::new(source), &seal.source.owner_node_id).await?;
+    execution(ctx, settings, &inspection, true, None).await
 }
 
+/// Materialize one execution's report input from its frozen capture and evidence.
 pub(crate) async fn execution(
     ctx: &Context<'_>,
-    storage: &Manager,
     settings: &crate::config::StorageSettings,
     inspection: &ExecutionView,
     final_report: bool,
     operation: Option<&Operation>,
-) -> Result<QueryValue<CapturedExecutionReportInput>> {
+) -> Result<CapturedExecutionReportInput> {
     if let Some(operation) = operation {
         operation.phase("Materializing Evidence");
     }
     let captured = inspection
         .captured_source()
-        .ok_or_else(|| invalid("report has no captured execution context"))?
-        .clone();
+        .ok_or_else(|| invalid("report has no captured execution context"))?;
     captured.validate_header()?;
     if captured.evidence_through != *inspection.evidence_through()? {
         return Err(invalid(
@@ -124,45 +101,7 @@ pub(crate) async fn execution(
         ));
     }
     let execution = inspection.execution();
-    let page = ReadLimits {
-        rows: settings.page_rows,
-        bytes: settings.page_bytes,
-    };
-    let limit = settings.budget.read_memory_bytes;
-    let page_projection = settings
-        .decoded_bytes
-        .min(inspection.view().decoded_bytes()?);
-    let mut records = super::query::empty(storage)?;
-    let mut reader = inspection.context_records(storage, page, page_projection)?;
-    while let Some(rows) = reader.next().await? {
-        let bytes = rows.iter().try_fold(
-            std::mem::size_of::<Vec<dokime::records::RecordEntry>>(),
-            |bytes, row| {
-                bytes
-                    .checked_add(row.record.memory_size())
-                    .ok_or_else(exhausted)
-            },
-        )?;
-        let selected = rows.try_project(bound(bytes)?, |rows, _| {
-            Ok(rows
-                .iter()
-                .map(|row| row.record.clone())
-                .collect::<Vec<_>>())
-        })?;
-        let bytes = records
-            .memory_size()
-            .checked_add(selected.memory_size())
-            .ok_or_else(exhausted)?;
-        records = records.try_map(bound(bytes)?, |mut records, _| {
-            records
-                .try_reserve_exact(selected.len())
-                .map_err(|_| exhausted())?;
-            records.extend(selected.iter().cloned());
-            Ok(records)
-        })?;
-    }
-    drop(reader);
-
+    let records = context_records(inspection).await?;
     let selection = crate::document::DocumentSelection {
         scope: execution.scope.clone(),
     };
@@ -173,7 +112,71 @@ pub(crate) async fn execution(
         .execution_documents
         .values()
         .any(|definition| crate::document::binding::telemetry_needed(definition, context));
-    let mut telemetry = super::query::empty(storage)?;
+    let telemetry = context_telemetry(ctx, settings, captured, execution, needs_rows).await?;
+    let preview = super::render::cycle::selection(telemetry.len())
+        .into_iter()
+        .map(|index| telemetry[index].clone())
+        .collect::<Vec<_>>();
+    let limit = settings.budget.read_memory_bytes.get();
+    let mut documents = BTreeMap::<DocumentId, crate::document::capture::Capture>::new();
+    for (id, definition) in &captured.context.execution_documents {
+        let input = crate::document::input::BorrowedInput {
+            definition,
+            selection: &selection,
+            data: crate::document::input::BorrowedData {
+                context,
+                records: crate::document::input::Records::Native(&records),
+                telemetry: if needs_rows { &telemetry } else { &[] },
+                artifacts: crate::document::input::Artifacts::Outputs(&captured.outputs),
+            },
+        };
+        let document = crate::document::bounded::capture_document_borrowed(
+            input,
+            crate::document::bounded::DocumentLimits {
+                source_bytes: limit,
+                materialized_bytes: limit,
+                ..Default::default()
+            },
+        )?;
+        documents.insert(id.clone(), document);
+    }
+    if let Some(operation) = operation {
+        operation.phase("Querying Report Plots");
+    }
+    let plots = plots(ctx, settings, captured, execution, &records, &documents).await?;
+    if let Some(operation) = operation {
+        operation.phase("Assembling Report");
+    }
+    Ok(assemble(
+        final_report,
+        captured,
+        execution,
+        documents,
+        plots,
+        records,
+        preview,
+    )?)
+}
+
+/* === Private Functions === */
+async fn context_records(inspection: &ExecutionView) -> Result<Vec<dokime::records::RecordEntry>> {
+    let mut records = Vec::new();
+    let mut reader = inspection.context_records().await?;
+    while let Some(rows) = reader.next().await? {
+        records.extend(rows.into_iter().map(|row| row.record));
+    }
+    Ok(records)
+}
+
+// Display Telemetry: Every Row When A Document Binds Them, Else A Downsampled Preview.
+async fn context_telemetry(
+    ctx: &Context<'_>,
+    settings: &crate::config::StorageSettings,
+    captured: &CapturedSource,
+    execution: &crate::execution::TestExecution,
+    needs_rows: bool,
+) -> Result<Vec<dokime::telemetry::TelemetrySample>> {
+    let mut telemetry = Vec::new();
     for versions in captured.telemetry_contracts.values() {
         for contract in versions.values() {
             let transforms = if needs_rows {
@@ -186,100 +189,36 @@ pub(crate) async fn execution(
                     axis: None,
                 })]
             };
-            let samples = super::query::telemetry::read(
-                ctx,
-                storage,
-                settings,
-                &captured.evidence_through,
-                execution.test_execution_id.as_str(),
-                contract,
-                transforms,
-            )
-            .await?;
-            let bytes = telemetry
-                .memory_size()
-                .checked_add(samples.memory_size())
-                .ok_or_else(exhausted)?;
-            telemetry = telemetry.try_map(bound(bytes)?, |mut telemetry, _| {
-                telemetry
-                    .try_reserve_exact(samples.len())
-                    .map_err(|_| exhausted())?;
-                telemetry.extend(samples.iter().cloned());
-                Ok(telemetry)
-            })?;
+            telemetry.extend(
+                super::query::telemetry::read(
+                    ctx,
+                    settings,
+                    &captured.evidence_through,
+                    execution.test_execution_id.as_str(),
+                    contract,
+                    transforms,
+                )
+                .await?,
+            );
         }
     }
-    let bytes = telemetry.memory_size();
-    telemetry = telemetry.try_map(bound(bytes)?, |mut telemetry, _| {
-        telemetry.sort_by(|left, right| {
-            left.timestamp
-                .cmp(&right.timestamp)
-                .then(left.sequence.cmp(&right.sequence))
-        });
-        Ok(telemetry)
-    })?;
-    let indices = super::render::cycle::selection(telemetry.len());
-    let preview_bytes = indices.iter().try_fold(
-        std::mem::size_of::<Vec<dokime::telemetry::TelemetrySample>>(),
-        |bytes, index| {
-            bytes
-                .checked_add(telemetry[*index].memory_size())
-                .ok_or_else(exhausted)
-        },
-    )?;
-    let preview = telemetry.try_project(bound(preview_bytes)?, |telemetry, _| {
-        Ok(indices
-            .iter()
-            .map(|index| telemetry[*index].clone())
-            .collect::<Vec<_>>())
-    })?;
+    telemetry.sort_by(|left, right| {
+        left.timestamp
+            .cmp(&right.timestamp)
+            .then(left.sequence.cmp(&right.sequence))
+    });
+    Ok(telemetry)
+}
 
-    let planning_bytes = captured
-        .context
-        .execution_documents
-        .memory_size()
-        .checked_mul(2)
-        .and_then(|bytes| bytes.checked_add(4096))
-        .ok_or_else(exhausted)?;
-    let _planning = storage.prepare_production(bound(planning_bytes)?)?;
-    let mut documents =
-        BTreeMap::<DocumentId, QueryValue<crate::document::capture::Capture>>::new();
-    for (id, definition) in &captured.context.execution_documents {
-        let input = crate::document::input::BorrowedInput {
-            definition,
-            selection: &selection,
-            data: crate::document::input::BorrowedData {
-                context,
-                records: crate::document::input::Records::Native(&records),
-                telemetry: if needs_rows { &telemetry } else { &[] },
-                artifacts: crate::document::input::Artifacts::Outputs(&captured.outputs),
-            },
-        };
-        let limits = crate::document::bounded::DocumentLimits {
-            source_bytes: limit.get(),
-            materialized_bytes: limit.get(),
-            ..Default::default()
-        };
-        let bytes = crate::document::bounded::capture_memory(&input, limits)?;
-        let document = storage
-            .produce(bound(bytes)?, |allowance| {
-                crate::document::bounded::capture_document_borrowed(
-                    input,
-                    crate::document::bounded::DocumentLimits {
-                        materialized_bytes: allowance.get(),
-                        ..limits
-                    },
-                )
-                .map_err(|error| codec(error.into()))
-            })?
-            .try_into_value()?;
-        documents.insert(id.clone(), document);
-    }
-    if let Some(operation) = operation {
-        operation.phase("Querying Report Plots");
-    }
-    let captured_source = &*captured;
-    let record_rows = &*records;
+// At Most `ACTIVE_PLOT_PLANS` Plot Queries Run At Once; Results Keep Card Order.
+async fn plots(
+    ctx: &Context<'_>,
+    settings: &crate::config::StorageSettings,
+    captured: &CapturedSource,
+    execution: &crate::execution::TestExecution,
+    records: &[dokime::records::RecordEntry],
+    documents: &BTreeMap<DocumentId, crate::document::capture::Capture>,
+) -> Result<BTreeMap<String, super::value::Value>> {
     let mut pending = FuturesUnordered::new();
     let mut completed = Vec::new();
     let mut index = 0;
@@ -298,16 +237,9 @@ pub(crate) async fn execution(
             let current = index;
             index += 1;
             pending.push(async move {
-                let payload = super::query::materialize(
-                    ctx,
-                    storage,
-                    settings,
-                    captured_source,
-                    execution,
-                    record_rows,
-                    request,
-                )
-                .await?;
+                let payload =
+                    super::query::materialize(ctx, settings, captured, execution, records, request)
+                        .await?;
                 Ok::<_, Error>((current, descriptor.plot_id.to_string(), payload))
             });
             if pending.len() == ACTIVE_PLOT_PLANS
@@ -323,119 +255,81 @@ pub(crate) async fn execution(
     drop(pending);
     completed.sort_by_key(|(index, _, _)| *index);
     let mut plots = BTreeMap::new();
-    for (_, id, plot) in &completed {
-        if plots.insert(id.clone(), plot).is_some() {
+    for (_, id, plot) in completed {
+        if plots.insert(id, plot).is_some() {
             return Err(invalid("report contains duplicate plot identifiers"));
         }
     }
-    if let Some(operation) = operation {
-        operation.phase("Assembling Report");
-    }
-    let document_bytes = documents.values().fold(0usize, |bytes, document| {
-        bytes.saturating_add(document.memory_size())
-    });
-    let plot_bytes = completed.iter().fold(0usize, |bytes, (_, _, plot)| {
-        bytes.saturating_add(plot.memory_size())
-    });
-    let bytes = captured
-        .memory_size()
-        .checked_mul(3)
-        .and_then(|bytes| bytes.checked_add(execution.memory_size().saturating_mul(2)))
-        .and_then(|bytes| bytes.checked_add(records.memory_size()))
-        .and_then(|bytes| bytes.checked_add(preview.memory_size()))
-        .and_then(|bytes| bytes.checked_add(document_bytes.saturating_mul(2)))
-        .and_then(|bytes| bytes.checked_add(plot_bytes.saturating_mul(2)))
-        .and_then(|bytes| bytes.checked_add(4096))
-        .ok_or_else(exhausted)?;
-    Ok(storage
-        .produce(bound(bytes)?, |allowance| {
-            let mut cycle = captured.context.cycle.cycle.clone();
-            let mut captured_execution = execution.clone();
-            captured_execution.saved = None;
-            cycle.test_executions = vec![captured_execution];
-            let artifact_links = captured
-                .outputs
-                .iter()
-                .filter_map(|output| match &output.content {
-                    ExecutionOutputContent::Artifact { record, .. } => Some(ReportArtifactLink {
-                        artifact_id: record.artifact_id.to_string(),
-                        label: record.filename.clone(),
-                        href: format!("outputs/{}", output.relative_path),
-                        path: output.relative_path.clone(),
-                        media_type: record.content_type.clone(),
-                        description: None,
-                        size_bytes: Some(output.file.length),
-                        group_id: None,
-                        group_label: None,
-                        scope: Some(record.scope.clone()),
-                    }),
-                    _ => None,
-                })
-                .collect();
-            let appearance =
-                super::value::Value::from_serializable(&captured.context.appearance, allowance)
-                    .map_err(codec)?;
-            Ok(CapturedExecutionReportInput {
-                final_report,
-                owner_node_id: captured.owner_node_id.clone(),
-                execution_id: captured.execution_id.clone(),
-                execution: captured.execution.clone(),
-                lifecycle_id: captured.lifecycle_id.clone(),
-                evidence_through: captured.evidence_through.clone(),
-                record_contracts: captured.record_contracts.clone(),
-                telemetry_contracts: captured.telemetry_contracts.clone(),
-                context: captured.context.clone(),
-                input: CycleReportInput {
-                    session_id: captured.context.session_id.clone(),
-                    cycle,
-                    documents: BTreeMap::new(),
-                    plots: BTreeMap::new(),
-                    case_documents: vec![super::ReportCaseDocument {
-                        test_case_id: execution.test_case_id.clone(),
-                        test_execution_id: Some(execution.test_execution_id.clone()),
-                        documents: documents
-                            .iter()
-                            .map(|(id, document)| (id.clone(), (**document).clone()))
-                            .collect(),
-                        plots: plots
-                            .iter()
-                            .map(|(id, plot)| (id.clone(), (***plot).clone()))
-                            .collect(),
-                    }],
-                    records: records.to_vec(),
-                    telemetry: preview.to_vec(),
-                    traceability: captured.context.traceability.clone(),
-                    artifact_links,
-                    appearance: Some(appearance),
-                    generated_at: captured.captured_at.clone(),
-                },
-            })
-        })?
-        .try_into_value()?)
+    Ok(plots)
+}
+
+fn assemble(
+    final_report: bool,
+    captured: &CapturedSource,
+    execution: &crate::execution::TestExecution,
+    documents: BTreeMap<DocumentId, crate::document::capture::Capture>,
+    plots: BTreeMap<String, super::value::Value>,
+    records: Vec<dokime::records::RecordEntry>,
+    preview: Vec<dokime::telemetry::TelemetrySample>,
+) -> Result<CapturedExecutionReportInput> {
+    let mut cycle = captured.context.cycle.cycle.clone();
+    let mut captured_execution = execution.clone();
+    captured_execution.saved = None;
+    cycle.test_executions = vec![captured_execution];
+    let artifact_links = captured
+        .outputs
+        .iter()
+        .filter_map(|output| match &output.content {
+            ExecutionOutputContent::Artifact { record, .. } => Some(ReportArtifactLink {
+                artifact_id: record.artifact_id.to_string(),
+                label: record.filename.clone(),
+                href: format!("outputs/{}", output.relative_path),
+                path: output.relative_path.clone(),
+                media_type: record.content_type.clone(),
+                description: None,
+                size_bytes: Some(output.file.length),
+                group_id: None,
+                group_label: None,
+                scope: Some(record.scope.clone()),
+            }),
+            _ => None,
+        })
+        .collect();
+    let appearance = super::value::Value::from_serializable(&captured.context.appearance)?;
+    Ok(CapturedExecutionReportInput {
+        final_report,
+        owner_node_id: captured.owner_node_id.clone(),
+        execution_id: captured.execution_id.clone(),
+        execution: captured.execution.clone(),
+        lifecycle_id: captured.lifecycle_id.clone(),
+        evidence_through: captured.evidence_through.clone(),
+        record_contracts: captured.record_contracts.clone(),
+        telemetry_contracts: captured.telemetry_contracts.clone(),
+        context: captured.context.clone(),
+        input: CycleReportInput {
+            session_id: captured.context.session_id.clone(),
+            cycle,
+            documents: BTreeMap::new(),
+            plots: BTreeMap::new(),
+            case_documents: vec![super::ReportCaseDocument {
+                test_case_id: execution.test_case_id.clone(),
+                test_execution_id: Some(execution.test_execution_id.clone()),
+                documents: documents.into_iter().collect(),
+                plots: plots.into_iter().collect(),
+            }],
+            records,
+            telemetry: preview,
+            traceability: captured.context.traceability.clone(),
+            artifact_links,
+            appearance: Some(appearance),
+            generated_at: captured.captured_at.clone(),
+        },
+    })
 }
 
 /* === Private Functions === */
-fn bound(bytes: usize) -> Result<NonZeroUsize> {
-    NonZeroUsize::new(bytes).ok_or_else(|| invalid("report memory bound is empty"))
-}
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "report materialization memory",
-    }
-}
 fn invalid(reason: &'static str) -> Error {
     Error::Storage(dokime::storage::Error::Invalid(reason))
-}
-pub(crate) fn codec(source: Error) -> harmos::Error {
-    if let Error::Harmos(source) | Error::Storage(dokime::storage::Error::Runtime(source)) = source
-    {
-        return source;
-    }
-    harmos::Error::backend(
-        "materialize report",
-        harmos::BackendFailure::Permanent,
-        source,
-    )
 }
 
 /* === Tests === */

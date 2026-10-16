@@ -146,19 +146,7 @@ async fn sources(resources: &Resources) -> Result<Response<wire::StorageSources>
         .storage_sources()
         .await
         .map_err(super::super::execution::status)?;
-    let required = sources.iter().fold(
-        std::mem::size_of::<wire::StorageSources>().saturating_add(
-            sources
-                .len()
-                .saturating_mul(std::mem::size_of::<wire::StorageSource>()),
-        ),
-        |bytes, source| {
-            bytes
-                .saturating_add(source.identifier.capacity())
-                .saturating_add(source.adapter.capacity())
-        },
-    );
-    resources.produce(required, || {
+    resources.produce(|| {
         let mut output = Vec::with_capacity(sources.len());
         for source in sources {
             output.push(wire::StorageSource {

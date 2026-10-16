@@ -109,7 +109,7 @@ impl Operation for Follow {
             .ok_or_else(|| Status::not_found("registered execution output not found"))?;
         let started = Instant::now();
         tracing::debug!(execution_id = %execution, offset = request.offset, "execution file follow admitted");
-        let metadata = follower.metadata_frame().map_err(failure)?;
+        let metadata = follower.metadata_frame();
         send(output, metadata, self.resources.maximum).await?;
         while let Some(frame) = follower.next_frame(maximum).await.map_err(failure)? {
             let terminal = matches!(
@@ -142,7 +142,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 async fn send(
     output: &mut StreamOutput<wire::ExecutionFileFollowFrame>,
-    frame: harmos::storage::QueryValue<wire::ExecutionFileFollowFrame>,
+    frame: wire::ExecutionFileFollowFrame,
     maximum: usize,
 ) -> Result<(), Status> {
     if frame.encoded_len() > maximum {
@@ -150,11 +150,8 @@ async fn send(
             "follow frame exceeds listener message limit",
         ));
     }
-    let owner = frame
-        .try_into_response()
-        .map_err(|error| failure(error.into()))?;
     output
-        .send_owned(owner)
+        .send_owned(frame.into())
         .await
         .map_err(|error| failure(error.into()))
 }

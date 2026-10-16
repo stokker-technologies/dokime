@@ -134,47 +134,8 @@ impl MemorySize for Member {
             })
     }
 }
-impl Annotation {
-    fn construction_memory(id: &str, at: &Timestamp) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(id.len())
-            .saturating_add(
-                at.memory_size()
-                    .saturating_sub(std::mem::size_of::<Timestamp>()),
-            )
-    }
-}
+impl Annotation {}
 impl Member {
-    fn construction_memory(execution: &TestExecution) -> usize {
-        let input = execution.snapshot.parameters();
-        let output = &execution.output_parameters;
-        let count = input.len().saturating_add(output.len());
-        let values = input
-            .iter()
-            .filter(|(key, _)| !output.contains_key(*key))
-            .chain(output.iter())
-            .fold(0usize, |bytes, (key, value)| {
-                bytes
-                    .saturating_add(key.len())
-                    .saturating_add(value.value.memory_size())
-            });
-        std::mem::size_of::<Self>()
-            .saturating_add(execution.test_execution_id.memory_size())
-            .saturating_add(execution.test_case_id.memory_size())
-            .saturating_add(
-                execution
-                    .snapshot
-                    .case()
-                    .test_case_template_id
-                    .memory_size(),
-            )
-            .saturating_add(execution.started_at.memory_size())
-            .saturating_add(execution.finished_at.memory_size())
-            .saturating_add(execution.scope.memory_size())
-            .saturating_add(execution.steps.memory_size())
-            .saturating_add(harmos::btree_map_memory::<String, Value>(count))
-            .saturating_add(values)
-    }
     fn new(execution: &TestExecution) -> Self {
         let input = execution.snapshot.parameters();
         let output = &execution.output_parameters;
@@ -348,43 +309,6 @@ impl Index {
             seen: BTreeMap::new(),
             templates: BTreeSet::new(),
         }
-    }
-    pub(crate) fn capture_growth(&self, captured: &CapturedExecutionReportInput) -> usize {
-        let input = &captured.input;
-        let execution = &input.cycle.test_executions[0];
-        let case = execution.snapshot.case();
-        let keys = harmos::btree_map_memory::<CaseId, usize>(1)
-            .saturating_add(case.test_case_id.memory_size())
-            .saturating_add(harmos::btree_map_memory::<TemplateId, ()>(1))
-            .saturating_add(case.test_case_template_id.memory_size())
-            .saturating_add(std::mem::size_of::<Case>())
-            .saturating_add(case.test_case_id.memory_size())
-            .saturating_add(case.test_case_template_id.memory_size())
-            .saturating_add(case.metadata.memory_size())
-            .saturating_add(case.parameters.memory_size())
-            .saturating_add(execution.test_execution_id.memory_size());
-        let samples = input.telemetry.iter().fold(0usize, |bytes, sample| {
-            bytes
-                .saturating_add(std::mem::size_of::<Sample>())
-                .saturating_add(sample.stream.memory_size())
-                .saturating_add(sample.timestamp.memory_size())
-                .saturating_add(sample.received_at.memory_size())
-                .saturating_add(sample.sample_id.as_str().len())
-        });
-        let notes =
-            captured.context.notes.iter().map(|note| {
-                Annotation::construction_memory(note.note_id.as_str(), &note.created_at)
-            });
-        let health = captured.context.health.iter().map(|item| {
-            Annotation::construction_memory(item.health_item_id.as_str(), &item.observed_at)
-        });
-        let annotations = notes.chain(health).fold(0usize, usize::saturating_add);
-        self.memory_size()
-            .saturating_add(annotations)
-            .saturating_add(Member::construction_memory(execution))
-            .saturating_add(std::mem::size_of::<[usize; 3]>())
-            .saturating_add(keys)
-            .saturating_add(samples)
     }
     pub(crate) fn push_capture(&mut self, captured: &CapturedExecutionReportInput) -> Result<()> {
         let input = &captured.input;

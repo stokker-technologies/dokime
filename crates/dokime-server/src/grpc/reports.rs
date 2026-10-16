@@ -214,7 +214,7 @@ async fn deliver(
     let size_bytes = html.len() as u64;
     chunked::Download {
         frames: HtmlFrames(frame.into()),
-        source: chunked::Source::owned_bytes(html),
+        source: chunked::Source::bytes(html),
         size_bytes,
         sha256: None,
         noun: "report HTML",

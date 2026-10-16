@@ -82,7 +82,7 @@ pub(crate) async fn report_save_receipt() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &settings,
+        dokime::storage::state_settings(&settings),
     ));
     let manager = Manager::new(
         StorageBackends {

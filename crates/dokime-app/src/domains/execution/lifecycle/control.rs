@@ -182,7 +182,7 @@ impl RuntimeHandle {
 
         let summary = self.state_read().run_requests[&request_id].summary.clone();
         self.request_storage
-            .update(&request_id, 0, |receipt| {
+            .update(&request_id, |receipt| {
                 if !receipt.summary.phase.terminal() {
                     receipt.summary.paused = summary.paused;
                     receipt.summary.stop_requested = summary.stop_requested;
@@ -337,7 +337,7 @@ impl RuntimeHandle {
         if let Some(summary) = request {
             let id = summary.request_id.clone();
             self.request_storage
-                .update(&id, 0, |receipt| {
+                .update(&id, |receipt| {
                     receipt.summary.paused = summary.paused;
                     receipt.summary.stop_requested = summary.stop_requested;
                 })

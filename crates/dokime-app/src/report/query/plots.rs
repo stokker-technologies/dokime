@@ -16,19 +16,15 @@
 use std::collections::BTreeMap;
 // Third Party Imports
 use harmos::{
-    MemorySize,
     operations::Context,
-    storage::{
-        QueryValue,
-        query::transform::{
-            FieldPath, Transform,
-            downsample::{Algorithm, Downsample},
-            sort::{Sort, SortKey},
-        },
+    storage::query::transform::{
+        FieldPath, Transform,
+        downsample::{Algorithm, Downsample},
+        sort::{Sort, SortKey},
     },
 };
 // Local Imports
-use super::{invalid, nonzero, statistics, telemetry};
+use super::{invalid, statistics, telemetry};
 use crate::{
     Result,
     document::PlotType,
@@ -39,8 +35,7 @@ use crate::{
     },
 };
 use dokime::{
-    core::Identifier, expressions::DataSource, records::RecordEntry, storage::Manager,
-    telemetry::TelemetryContract,
+    core::Identifier, expressions::DataSource, records::RecordEntry, telemetry::TelemetryContract,
 };
 
 /* === Constants === */
@@ -60,13 +55,12 @@ use dokime::{
 /* === Public Functions === */
 pub(in crate::report) async fn materialize(
     ctx: &Context<'_>,
-    storage: &Manager,
     settings: &crate::config::StorageSettings,
     source: &CapturedSource,
     execution: &TestExecution,
     records: &[RecordEntry],
     request: PlotPayloadRequest,
-) -> Result<QueryValue<crate::report::value::Value>> {
+) -> Result<crate::report::value::Value> {
     let context = PlotPayloadContext {
         x_format: request.x_format.clone(),
         series_format: request.y_format.clone(),
@@ -79,43 +73,10 @@ pub(in crate::report) async fn materialize(
             .as_ref()
             .map(ToString::to_string),
     };
-    let points = request
-        .max_points
-        .unwrap_or(dokime::document::DEFAULT_PLOT_MAX_POINTS);
-    let series = request.y_keys.len().max(request.y_expressions.len()).max(1);
-    let request_bytes = crate::report::value::Value::serialization_memory(&request)?;
-    let record_bytes = records
-        .iter()
-        .fold(std::mem::size_of::<Vec<RecordEntry>>(), |bytes, record| {
-            bytes.saturating_add(record.memory_size())
-        });
-    let construction = points
-        .checked_mul(series)
-        .and_then(|points| {
-            points.checked_mul(std::mem::size_of::<crate::plot::PlotPoint>() * 4 + 128)
-        })
-        .and_then(|bytes| {
-            bytes.checked_add(
-                request
-                    .histogram
-                    .bins
-                    .saturating_mul(std::mem::size_of::<crate::plot::HistogramBin>() * 4),
-            )
-        })
-        .and_then(|bytes| bytes.checked_add(record_bytes.saturating_mul(2)))
-        .and_then(|bytes| bytes.checked_add(request_bytes.saturating_mul(4)))
-        .and_then(|bytes| bytes.checked_add(4096))
-        .ok_or_else(super::exhausted)?;
-    let _construction = storage.prepare_production(nonzero(construction)?)?;
-    let mut raw_working = None;
     let payload = match direct(&request, &source.telemetry_contracts) {
         Some((request, contract)) => {
             optimized(
-                super::ReadContext {
-                    ctx,
-                    storage,
-                    settings,
-                },
+                super::ReadContext { ctx, settings },
                 source,
                 execution,
                 records,
@@ -129,7 +90,6 @@ pub(in crate::report) async fn materialize(
             let streams = crate::plot::plot_streams(&request);
             let samples = telemetry::streams(
                 ctx,
-                storage,
                 settings,
                 &source.evidence_through,
                 execution.test_execution_id.as_str(),
@@ -137,13 +97,6 @@ pub(in crate::report) async fn materialize(
                 &streams,
             )
             .await?;
-            let working = samples
-                .memory_size()
-                .checked_mul(4)
-                .and_then(|bytes| bytes.checked_add(record_bytes.saturating_mul(2)))
-                .and_then(|bytes| bytes.checked_add(4096))
-                .ok_or_else(super::exhausted)?;
-            raw_working = Some(storage.prepare_production(nonzero(working)?)?);
             if request.analysis.is_some() {
                 let projected = crate::plot::project_plot_payload(
                     &samples,
@@ -172,14 +125,7 @@ pub(in crate::report) async fn materialize(
             }
         }
     };
-    let _raw_working = raw_working;
-    let bound = crate::report::value::Value::serialization_memory(&payload)?;
-    Ok(storage
-        .produce(nonzero(bound)?, |allowance| {
-            crate::report::value::Value::from_serializable(&payload, allowance)
-                .map_err(super::super::materialize::codec)
-        })?
-        .try_into_value()?)
+    crate::report::value::Value::from_serializable(&payload)
 }
 
 /* === Private Functions === */
@@ -260,11 +206,7 @@ async fn optimized(
     contract: &TelemetryContract,
     context: &PlotPayloadContext,
 ) -> Result<PlotPayload> {
-    let super::ReadContext {
-        ctx,
-        storage,
-        settings,
-    } = read;
+    let super::ReadContext { ctx, settings } = read;
     let at = &source.evidence_through;
     let scope = execution.test_execution_id.as_str();
     let time_axis = request
@@ -293,8 +235,7 @@ async fn optimized(
         let statistics = statistics::collect(read, at, scope, contract, key, x.clone()).await?;
         // Missing Values Preserve Existing Gap Semantics Through The Raw Path.
         if statistics.count != statistics.rows && request.plot_type != Some(PlotType::Histogram) {
-            let samples =
-                telemetry::read(ctx, storage, settings, at, scope, contract, vec![]).await?;
+            let samples = telemetry::read(ctx, settings, at, scope, contract, vec![]).await?;
             return Ok(crate::plot::build_plot_payload(
                 &samples,
                 records,
@@ -342,8 +283,7 @@ async fn optimized(
                 axis: Some(x.clone()),
             }));
         }
-        let samples =
-            telemetry::read(ctx, storage, settings, at, scope, contract, transforms).await?;
+        let samples = telemetry::read(ctx, settings, at, scope, contract, transforms).await?;
         let mut single = request.clone();
         single.y_keys = vec![key.clone()];
         let one = crate::plot::build_plot_payload(

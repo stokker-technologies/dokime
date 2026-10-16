@@ -376,7 +376,7 @@ async fn nominal() {
             state: std::sync::Arc::new(harmos::storage::state::file::FileBackend::new(
                 root.path().to_owned(),
                 backend.history().clone(),
-                &super::sqlite::storage::storage_settings(),
+                dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
             )),
             replicas: vec![],
         },
@@ -713,7 +713,7 @@ async fn nominal() {
             state: std::sync::Arc::new(harmos::storage::state::file::FileBackend::new(
                 root.path().to_owned(),
                 backend.history().clone(),
-                &manager_settings,
+                dokime::storage::state_settings(&manager_settings),
             )),
             replicas: vec![ReplicaTarget {
                 id: id("replica"),

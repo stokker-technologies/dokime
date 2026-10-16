@@ -243,26 +243,6 @@ pub(crate) fn construction_memory(
     Some(bytes)
 }
 
-pub(crate) fn cycle_memory(label: &str) -> usize {
-    size_of::<DocumentDefinition>()
-        .saturating_add(DEFAULT_DOCUMENT_ID.len().saturating_mul(2))
-        .saturating_add(label.len())
-        .saturating_add(
-            CYCLE_SECTIONS
-                .len()
-                .saturating_mul(size_of::<DocumentSection>()),
-        )
-        .saturating_add(growth_memory::<DocumentCardDefinition>(
-            0,
-            CYCLE_SECTIONS
-                .iter()
-                .map(|section| section.cards.len())
-                .sum(),
-        ))
-        .saturating_add(growth_memory::<DocumentNode>(0, CYCLE_SECTIONS.len()))
-        .saturating_add(CYCLE_SECTIONS.iter().map(section_memory).sum::<usize>())
-}
-
 pub(super) fn sections(descriptors: &[Section]) -> Vec<DocumentSection> {
     descriptors
         .iter()

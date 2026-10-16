@@ -26,7 +26,7 @@ use crate::{
 };
 use dokime::{
     core::{DocumentId, Metadata, SessionId, TestCycleId, Timestamp},
-    execution::{CycleStatus, ResultSummary},
+    execution::{CycleStatus, ExecutionStatus, ResultStatus, ResultSummary},
 };
 
 /* === Constants === */
@@ -43,7 +43,6 @@ pub(in crate::report) struct Header<'a> {
     pub documents: &'a BTreeMap<DocumentId, Capture>,
     pub plots: Option<&'a BTreeMap<String, Value>>,
     pub generated_at: &'a Timestamp,
-    pub legacy: Option<&'a CycleReportInput>,
 }
 
 #[derive(Clone, Copy)]
@@ -80,7 +79,6 @@ impl<'a> Header<'a> {
             documents,
             plots: None,
             generated_at: snapshot.captured_at(),
-            legacy: None,
         }
     }
 }
@@ -92,7 +90,7 @@ impl<'a> From<&'a CycleReportInput> for Header<'a> {
             cycle: Cycle {
                 test_cycle_id: &input.cycle.test_cycle_id,
                 metadata: &input.cycle.metadata,
-                lifecycle: input.cycle.lifecycle,
+                lifecycle: captured_status(input),
                 created_at: &input.cycle.created_at,
                 result: input.cycle.result.as_ref(),
                 continue_on_failure: input.cycle.continue_on_failure,
@@ -100,7 +98,6 @@ impl<'a> From<&'a CycleReportInput> for Header<'a> {
             documents: &input.documents,
             plots: Some(&input.plots),
             generated_at: &input.generated_at,
-            legacy: Some(input),
         }
     }
 }
@@ -108,5 +105,22 @@ impl<'a> From<&'a CycleReportInput> for Header<'a> {
 /* === Public Functions === */
 
 /* === Private Functions === */
+// A Captured Report States Its Cycle By Its Members: Running, Else Its Result.
+fn captured_status(input: &CycleReportInput) -> CycleStatus {
+    if input
+        .cycle
+        .test_executions
+        .iter()
+        .any(|execution| matches!(execution.status, ExecutionStatus::Running))
+    {
+        return CycleStatus::Running;
+    }
+    match input.cycle.result.as_ref().map(|result| &result.status) {
+        Some(ResultStatus::Passed) => CycleStatus::Completed,
+        Some(ResultStatus::Failed | ResultStatus::Blocked) => CycleStatus::Failed,
+        Some(ResultStatus::Cancelled) => CycleStatus::Stopped,
+        Some(ResultStatus::Pending) | None => CycleStatus::Ready,
+    }
+}
 
 /* === Tests === */

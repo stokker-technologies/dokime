@@ -89,7 +89,7 @@ impl Fixture {
                 state: Arc::new(harmos::storage::state::file::FileBackend::new(
                     root.path().to_owned(),
                     harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
-                    &settings,
+                    dokime::storage::state_settings(&settings),
                 )),
                 primary: backend.clone(),
                 replicas: vec![],

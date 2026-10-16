@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 // Third Party Imports
@@ -23,7 +22,7 @@ use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
-use super::{metadata, metadata_memory};
+use super::metadata;
 use crate::grpc::{error::detailed, value};
 use dokime_app::{RuntimeHandle, artifacts::ArtifactRecord};
 use dokime_contract::operations::content as wire;
@@ -99,58 +98,16 @@ impl Operation for List {
         };
         let count = records.len().saturating_sub(start).min(limit);
         let more = records.len().saturating_sub(start) > count;
-        let mut required = std::mem::size_of::<wire::ListArtifactsReply>()
-            .saturating_add(epoch.len())
-            .saturating_add(32)
-            .saturating_add(count.saturating_mul(std::mem::size_of::<wire::ArtifactMetadata>()));
-        let mut scratch = 0usize;
-        for (index, record) in records.iter().enumerate() {
-            let bytes = metadata_memory(record)?;
-            scratch = scratch.max(bytes.saturating_mul(2).saturating_add(16));
-            if (start..start + count).contains(&index) {
-                required = required.saturating_add(
-                    bytes.saturating_sub(std::mem::size_of::<wire::ArtifactMetadata>()),
-                );
-            }
-        }
-        if more {
-            required =
-                required.saturating_add(records[start + count - 1].artifact_id.as_str().len());
-        }
-        required = required.saturating_add(scratch);
-        if required > self.resources.maximum {
-            return Err(Status::resource_exhausted(
-                "artifact inventory projection exceeds budget",
-            ));
-        }
-        let allowance = NonZeroUsize::new(required)
-            .ok_or_else(|| Status::resource_exhausted("invalid artifact page allowance"))?;
-        let mut refusal = None;
-        let projected = records.try_project(allowance, |records, _| {
-            match project(
-                records,
-                request,
-                &epoch,
-                start,
-                count,
-                more,
-                self.resources.maximum,
-            ) {
-                Ok(page) => Ok(page),
-                Err(source) => {
-                    refusal = Some(source);
-                    Err(harmos::Error::InvalidInput {
-                        field: "artifact listing",
-                        reason: "canonical projection refused",
-                    })
-                }
-            }
-        });
-        if let Some(source) = refusal {
-            return Err(source);
-        }
-        let projected = projected.map_err(memory_failure)?;
-        projected.try_into_response().map_err(memory_failure)
+        project(
+            &records,
+            request,
+            &epoch,
+            start,
+            count,
+            more,
+            self.resources.maximum,
+        )
+        .map(Into::into)
     }
 }
 
@@ -243,13 +200,6 @@ fn project(
         ));
     }
     Ok(reply)
-}
-fn memory_failure(source: harmos::Error) -> Status {
-    let source = dokime_app::Error::from(source);
-    detailed(
-        Status::resource_exhausted("artifact page exceeds original storage budget"),
-        &source,
-    )
 }
 
 /* === Tests === */

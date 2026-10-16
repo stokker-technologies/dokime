@@ -99,20 +99,10 @@ impl RuntimeHandle {
     }
 
     pub(crate) async fn stored_cycle_exists(&self, id: &TestCycleId) -> Result<bool, Error> {
-        let storage = self.storage();
-        let mut query =
-            harmos::storage::ObjectQuery::<dokime::storage::objects::cycle::Cycle>::new();
-        query.item = Some(id.as_str());
-        let selection = storage.query(query).await?;
-        let Some(view) = selection.view() else {
-            return Ok(false);
-        };
-        Ok(dokime::storage::objects::cycle::read_in(
-            storage,
-            view,
+        Ok(dokime::storage::objects::cycle::read(
+            self.storage(),
             id,
             harmos::storage::ObjectVersion::Latest,
-            selection.decoded_bytes(),
         )
         .await?
         .is_some())
@@ -122,18 +112,11 @@ impl RuntimeHandle {
         &self,
         id: &TestExecutionId,
     ) -> Result<bool, Error> {
-        let reads = self.config().storage.interactive;
-        let view = self.storage().view_with_limits(reads).await?;
-        let limit = view.decoded_bytes()?;
-        Ok(ExecutionView::open(
-            self.storage(),
-            view,
-            id,
-            harmos::storage::ObjectVersion::Latest,
-            limit,
+        Ok(
+            ExecutionView::open(self.storage(), id, harmos::storage::ObjectVersion::Latest)
+                .await?
+                .is_some_and(|inspection| inspection.execution().saved.is_some()),
         )
-        .await?
-        .is_some_and(|inspection| inspection.execution().saved.is_some()))
     }
 }
 

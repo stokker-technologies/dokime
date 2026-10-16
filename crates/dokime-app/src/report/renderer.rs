@@ -16,14 +16,13 @@
 /* === Imports === */
 
 // Standard Library Imports
+use std::sync::Arc;
 
 // Third Party Imports
 
 // Local Imports
 use super::{CapturedExecutionReportInput, PreparedExecutionReport, html::HtmlReport};
-use dokime::{execution::saved::ExecutionOutput, storage::Manager};
-use harmos::storage::{QueryValue, SharedQueryValue};
-use std::num::NonZeroUsize;
+use dokime::execution::saved::ExecutionOutput;
 
 /* === Constants === */
 
@@ -43,23 +42,13 @@ pub struct Renderer;
 impl Renderer {
     pub fn execution(
         &self,
-        manager: Manager,
-        captured: SharedQueryValue<CapturedExecutionReportInput>,
-        outputs: QueryValue<Vec<ExecutionOutput>>,
+        captured: Arc<CapturedExecutionReportInput>,
+        outputs: Vec<ExecutionOutput>,
+        saved: &harmos::storage::StorageCursor,
     ) -> crate::Result<PreparedExecutionReport> {
-        captured.check_origin(&manager)?;
-        outputs.check_origin(&manager)?;
-        let bytes = captured.source_memory(&outputs);
-        let allowance = NonZeroUsize::new(bytes)
-            .filter(|_| bytes != usize::MAX)
-            .ok_or_else(|| {
-                crate::Error::InvalidReportInputs("report source memory overflows".into())
-            })?;
-        let source = captured
-            .try_project(allowance, |captured, _| Ok(captured.source(&outputs)))?
-            .try_into_shared()?;
-        let html = HtmlReport::from_capture(&manager, &captured, &source)?;
-        PreparedExecutionReport::prepare_html(html, outputs)
+        let source = Arc::new(captured.source(&outputs));
+        let html = HtmlReport::from_capture(captured, source)?;
+        PreparedExecutionReport::prepare_html(html, outputs, saved)
     }
 }
 

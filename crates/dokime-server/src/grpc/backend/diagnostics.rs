@@ -11,7 +11,7 @@
 /* === Re-Exports === */
 /* === Imports === */
 // Standard Library Imports
-use std::{mem::size_of, sync::Arc};
+use std::sync::Arc;
 // Third Party Imports
 use harmos::operations::{Context, Operation, Response};
 use sysinfo::{Pid, System};
@@ -70,21 +70,15 @@ impl Operation for Read {
             &self.resources.runtime.storage_root(),
             &self.resources.runtime.application_root(),
         );
-        let required = memory(&diagnostics)?;
-        super::status::produce_result(
-            &self.resources.runtime,
-            self.resources.maximum,
-            required,
-            || {
-                Ok(wire::DiagnosticsResponse {
-                    server: Some(wire::BackendDiagnostics {
-                        version: env!("CARGO_PKG_VERSION").into(),
-                        process: Some(process_diagnostics()),
-                    }),
-                    runtime: Some(runtime_diagnostics(&diagnostics)?),
-                })
-            },
-        )
+        super::status::produce_result(self.resources.maximum, || {
+            Ok(wire::DiagnosticsResponse {
+                server: Some(wire::BackendDiagnostics {
+                    version: env!("CARGO_PKG_VERSION").into(),
+                    process: Some(process_diagnostics()),
+                }),
+                runtime: Some(runtime_diagnostics(&diagnostics)?),
+            })
+        })
     }
 }
 /* === Public Functions === */
@@ -336,85 +330,4 @@ fn diagnostic_level(
     }
 }
 
-fn memory(d: &DiagnosticsSnapshot) -> Result<usize, Status> {
-    let mut bytes = size_of::<wire::DiagnosticsResponse>()
-        .saturating_add(env!("CARGO_PKG_VERSION").len())
-        .saturating_add(36)
-        .saturating_add(text(&d.storage_root)?)
-        .saturating_add(36)
-        .saturating_add(optional(&d.identity.node.hostname_label)?)
-        .saturating_add(canonical::metadata_memory(&d.hub_metadata)?);
-    if let Some(actor) = &d.identity.actor {
-        bytes = bytes
-            .saturating_add(36)
-            .saturating_add(text(&actor.display_name)?);
-    }
-    bytes = bytes
-        .saturating_add(slots::<wire::StartupDoctorCheck>(
-            d.startup_doctor.checks.len(),
-        )?)
-        .saturating_add(slots::<wire::DiagnosticPathConvention>(
-            d.path_conventions.len(),
-        )?)
-        .saturating_add(slots::<wire::InstalledPluginErrorRecord>(
-            d.installed_plugin_errors.len(),
-        )?);
-    for check in &d.startup_doctor.checks {
-        bytes = bytes
-            .saturating_add(text(&check.message)?)
-            .saturating_add(optional(&check.detail)?);
-    }
-    for path in &d.path_conventions {
-        bytes = bytes
-            .saturating_add(text(&path.relative_path)?)
-            .saturating_add(optional(&path.absolute_path)?);
-    }
-    for error in &d.installed_plugin_errors {
-        bytes = bytes
-            .saturating_add(text(error.plugin_id.as_str())?)
-            .saturating_add(text(&error.message)?)
-            .saturating_add(optional(&error.code)?)
-            .saturating_add(optional(&error.source)?)
-            .saturating_add(slots::<wire::ErrorCause>(error.cause_chain.len())?);
-        for cause in &error.cause_chain {
-            bytes = bytes
-                .saturating_add(text(&cause.message)?)
-                .saturating_add(optional(&cause.code)?)
-                .saturating_add(optional(&cause.source)?);
-        }
-        for id in [
-            error.contribution_id.as_ref().map(|id| id.as_str()),
-            error.stacktrace_attachment.as_ref().map(|id| id.as_str()),
-            error.trace_id.as_ref().map(|id| id.as_str()),
-            error.session_id.as_ref().map(|id| id.as_str()),
-            error.test_cycle_id.as_ref().map(|id| id.as_str()),
-            error.test_execution_id.as_ref().map(|id| id.as_str()),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            bytes = bytes.saturating_add(text(id)?);
-        }
-        if let Some(scope) = &error.scope {
-            bytes = bytes.saturating_add(canonical::scope_memory(scope)?);
-        }
-    }
-    if bytes == usize::MAX {
-        return Err(Status::resource_exhausted(
-            "diagnostics response memory overflows",
-        ));
-    }
-    Ok(bytes)
-}
-fn text(s: &str) -> Result<usize, Status> {
-    value::text(s)?;
-    Ok(s.len())
-}
-fn optional(s: &Option<String>) -> Result<usize, Status> {
-    s.as_deref().map(text).transpose().map(|n| n.unwrap_or(0))
-}
-fn slots<T>(len: usize) -> Result<usize, Status> {
-    value::collection(len)?;
-    Ok(len.saturating_mul(4).saturating_mul(size_of::<T>()))
-}
 /* === Tests === */

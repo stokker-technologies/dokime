@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-mod snapshot;
 
 /* === Re-Exports === */
 
@@ -18,23 +17,16 @@ mod snapshot;
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{
-        ObjectQuery, ObjectQueryResult, ObjectRevision, ObjectVersions, QueryOptions, QueryValue,
-        ReadLimits, StorageFileReader,
-    },
-};
+use harmos::storage::{ByteRange, ObjectRevision, ObjectVersion, ReadFile};
 
 // Local Imports
-use self::snapshot::PendingSnapshot;
 use crate::execution_runtime::outputs::{
     ExecutionFileContent, ExecutionFileContentKind, ExecutionFileEntry, ExecutionFileStreamState,
     MAX_ARTIFACT_READ_BYTES,
 };
 use crate::{Error, Result};
 use dokime::{
-    core::{TestExecutionId, Timestamp},
+    core::TestExecutionId,
     execution::{
         TestExecution,
         saved::{
@@ -42,7 +34,7 @@ use dokime::{
             validate_relative_output_path,
         },
     },
-    storage::{Manager, objects::execution::Execution},
+    storage::Manager,
 };
 
 /* === Constants === */
@@ -52,23 +44,16 @@ use dokime::{
 /* === Type Aliases === */
 
 /* === Structs === */
+/// The sealed outputs of one stored execution revision.
 pub(crate) struct SavedOutputs {
-    original: ObjectQueryResult<Execution>,
-    revision: QueryValue<ObjectRevision<TestExecution>>,
+    storage: Manager,
+    revision: ObjectRevision<TestExecution>,
 }
 
+/// One sealed output file, read by byte range.
 pub(crate) struct SavedOutputFile {
     outputs: SavedOutputs,
     index: usize,
-    reader: StorageFileReader,
-    window: Option<PendingWindow>,
-    snapshot: Option<PendingSnapshot>,
-}
-
-struct PendingWindow {
-    offset: u64,
-    maximum: NonZeroUsize,
-    bytes: Option<QueryValue<Vec<u8>>>,
 }
 
 /* === Enums === */
@@ -77,401 +62,184 @@ struct PendingWindow {
 
 /* === Implementations === */
 impl SavedOutputs {
+    /// The latest sealed revision, or the exact checkpointed one.
     pub(crate) async fn open(
         storage: &Manager,
         id: &TestExecutionId,
         checkpoint: Option<&ExecutionCheckpoint>,
-        mut options: QueryOptions,
-        projection: NonZeroUsize,
     ) -> Result<Option<Self>> {
-        options.page.get_or_insert(ReadLimits {
-            rows: NonZeroUsize::new(1).unwrap(),
-            bytes: projection,
-        });
-        if let Some(point) = checkpoint {
-            point.validate().map_err(dokime::storage::Error::from)?;
-            if &point.execution_id != id {
-                return Err(invalid("saved output checkpoint execution differs"));
+        let version = match checkpoint {
+            Some(point) => {
+                point.validate().map_err(dokime::storage::Error::from)?;
+                if &point.execution_id != id {
+                    return Err(invalid("saved output checkpoint execution differs"));
+                }
+                ObjectVersion::Exact(point.version.clone())
             }
-            options.after = point
-                .position
-                .sequence
-                .checked_sub(1)
-                .ok_or_else(|| invalid("saved output checkpoint has no admission position"))?;
-            options.through = Some(point.position.sequence);
-        }
-        let mut query = ObjectQuery::<Execution>::new();
-        query.item = Some(id.as_str());
-        query.options = options;
-        query.versions = if checkpoint.is_some() {
-            ObjectVersions::Revisions
-        } else {
-            ObjectVersions::Latest
+            None => ObjectVersion::Latest,
         };
-        let mut original = storage.query(query).await?;
-        original.retain_view()?;
-        let Some(revision) = original
-            .next_page_projected(projection, |rows, allowance| {
-                let [row] = rows else {
-                    return Err(refused(
-                        "saved output query did not select one original revision",
-                    ));
-                };
-                let bound = row
-                    .memory_size()
-                    .checked_add(row.value.projection_memory().map_err(codec_error)?)
-                    .ok_or_else(|| refused("saved output revision projection overflows"))?;
-                if bound > allowance.get() {
-                    return Err(refused(
-                        "saved output revision exceeds projection admission",
-                    ));
-                }
-                let value = row
-                    .value
-                    .clone()
-                    .into_execution(allowance)
-                    .map_err(codec_error)?;
-                if &value.test_execution_id != id {
-                    return Err(refused(
-                        "saved output revision belongs to another execution",
-                    ));
-                }
-                row.version.check_position(&row.position)?;
-                if let Some(point) = checkpoint
-                    && (row.position != point.position || row.version != point.version)
-                {
-                    return Err(refused("saved output checkpoint revision differs"));
-                }
-                if let Some(seal) = &value.saved {
-                    seal.validate(&value).map_err(|source| {
-                        harmos::Error::backend(
-                            "validate saved output seal",
-                            harmos::BackendFailure::Corrupt,
-                            source,
-                        )
-                    })?;
-                    if row.position.history != seal.dependencies_saved.history
-                        || row.position.sequence <= seal.dependencies_saved.sequence
-                        || checkpoint.is_some_and(|point| {
-                            point.evidence_through != seal.source.evidence_through
-                        })
-                    {
-                        return Err(refused(
-                            "saved output seal admission or evidence cut differs",
-                        ));
-                    }
-                } else if checkpoint.is_some() {
-                    return Err(refused("saved output checkpoint is unsealed"));
-                }
-                Ok(ObjectRevision {
-                    value,
-                    position: row.position.clone(),
-                    version: row.version.clone(),
-                })
-            })
-            .await?
+        let Some(revision) =
+            dokime::storage::objects::execution::read(storage, id, version).await?
         else {
             return Ok(None);
         };
-        if revision.value.saved.is_none() {
-            return Ok(None);
+        if let Some(point) = checkpoint
+            && (revision.position != point.position || revision.version != point.version)
+        {
+            return Err(invalid("saved output checkpoint revision differs"));
         }
-        Ok(Some(Self { original, revision }))
-    }
-
-    pub(crate) fn entries(
-        &mut self,
-        projection: NonZeroUsize,
-    ) -> Result<QueryValue<Vec<ExecutionFileEntry>>> {
-        let entries =
-            self.original
-                .project(&self.revision, projection, |revision, allowance| {
-                    let outputs = &source(revision)?.outputs;
-                    let id = &revision.value.test_execution_id;
-                    let mut bytes = std::mem::size_of::<Vec<ExecutionFileEntry>>();
-                    for output in outputs {
-                        bytes = bytes
-                            .checked_add(entry_memory(id, output))
-                            .ok_or_else(|| exhausted("saved output inventory memory overflows"))?;
-                    }
-                    if bytes > allowance.get() {
-                        return Err(refused(
-                            "saved output inventory exceeds projection admission",
-                        ));
-                    }
-                    let mut entries = slots(outputs.len())?;
-                    for output in outputs {
-                        entries.push(entry(id, output)?);
-                    }
-                    entries.sort_unstable_by(|left, right| {
-                        left.relative_path.cmp(&right.relative_path)
-                    });
-                    Ok(entries)
-                })?;
-        Ok(entries)
-    }
-
-    pub(crate) fn project<T: MemorySize, U: MemorySize>(
-        &mut self,
-        input: &QueryValue<T>,
-        map: impl FnOnce(&T, NonZeroUsize) -> harmos::Result<U>,
-    ) -> Result<QueryValue<U>> {
-        let maximum = self.original.decoded_bytes();
-        Ok(self.original.project(input, maximum, map)?)
-    }
-
-    pub(crate) async fn file(self, path: &str) -> Result<Option<SavedOutputFile>> {
-        validate_relative_output_path(path).map_err(dokime::storage::Error::from)?;
-        let outputs = &source(&self.revision)?.outputs;
-        let Some(index) = outputs
-            .iter()
-            .position(|output| output.relative_path == path)
-        else {
+        let Some(seal) = &revision.value.saved else {
+            if checkpoint.is_some() {
+                return Err(invalid("saved output checkpoint is unsealed"));
+            }
             return Ok(None);
         };
-        let reference = &outputs[index].file;
-        let view = self
-            .original
-            .view()
-            .ok_or_else(|| invalid("saved output query lost its original view"))?;
-        if !view.saved()?.covers(&reference.position)? {
-            return Err(invalid("saved output file exceeds its original view"));
+        seal.validate(&revision.value)
+            .map_err(dokime::storage::Error::from)?;
+        if revision.position.history != seal.dependencies_saved.history
+            || revision.position.sequence <= seal.dependencies_saved.sequence
+            || checkpoint
+                .is_some_and(|point| point.evidence_through != seal.source.evidence_through)
+        {
+            return Err(invalid(
+                "saved output seal admission or evidence cut differs",
+            ));
         }
-        let reader = view.read_file(reference).await?;
-        Ok(Some(SavedOutputFile {
-            outputs: self,
-            index,
-            reader,
-            window: None,
-            snapshot: None,
+        Ok(Some(Self {
+            storage: storage.clone(),
+            revision,
         }))
     }
-}
 
-impl SavedOutputFile {
-    pub(crate) fn project_descriptor<U: MemorySize>(
-        &mut self,
-        maximum: NonZeroUsize,
-        map: impl FnOnce(&ExecutionOutput, NonZeroUsize) -> harmos::Result<U>,
-    ) -> Result<QueryValue<U>> {
-        let index = self.index;
-        Ok(self.outputs.original.project(
-            &self.outputs.revision,
-            maximum,
-            |revision, allowance| map(&source(revision)?.outputs[index], allowance),
-        )?)
-    }
-
-    pub(crate) fn descriptor(&self) -> &ExecutionOutput {
+    fn outputs(&self) -> &[ExecutionOutput] {
         &self
-            .outputs
             .revision
             .value
             .saved
             .as_ref()
             .expect("sealed output selection")
             .source
-            .outputs[self.index]
+            .outputs
     }
 
-    pub(crate) fn metadata(&mut self) -> Result<QueryValue<ExecutionFileContent>> {
-        let output = self.descriptor();
-        let memory = std::mem::size_of::<ExecutionFileContent>()
-            .checked_add(output.relative_path.len())
-            .and_then(|bytes| bytes.checked_add(output.file.metadata.media_type.len()))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| invalid("saved metadata memory overflows"))?;
-        let index = self.index;
-        Ok(self.outputs.original.project(
-            &self.outputs.revision,
-            memory,
-            |revision, allowance| window(&source(revision)?.outputs[index], 0, &[], allowance),
-        )?)
+    pub(crate) fn entries(&self) -> Result<Vec<ExecutionFileEntry>> {
+        let id = &self.revision.value.test_execution_id;
+        let mut entries = self
+            .outputs()
+            .iter()
+            .map(|output| entry(id, output))
+            .collect::<harmos::Result<Vec<_>>>()?;
+        entries.sort_unstable_by(|left, right| left.relative_path.cmp(&right.relative_path));
+        Ok(entries)
     }
 
-    pub(crate) fn window_memory(&self, offset: u64, maximum: NonZeroUsize) -> Result<NonZeroUsize> {
-        let output = self.descriptor();
-        let offset = offset.min(output.file.length);
-        let remaining = usize::try_from((output.file.length - offset).min(maximum.get() as u64))
-            .map_err(|_| invalid("saved output window length overflows"))?;
-        std::mem::size_of::<ExecutionFileContent>()
-            .checked_add(output.relative_path.len())
-            .and_then(|bytes| bytes.checked_add(output.file.metadata.media_type.len()))
-            .and_then(|bytes| bytes.checked_add(remaining))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| invalid("saved output window memory overflows"))
+    pub(crate) fn file(self, path: &str) -> Result<Option<SavedOutputFile>> {
+        validate_relative_output_path(path).map_err(dokime::storage::Error::from)?;
+        let Some(index) = self
+            .outputs()
+            .iter()
+            .position(|output| output.relative_path == path)
+        else {
+            return Ok(None);
+        };
+        Ok(Some(SavedOutputFile {
+            outputs: self,
+            index,
+        }))
+    }
+}
+
+impl SavedOutputFile {
+    pub(crate) fn descriptor(&self) -> &ExecutionOutput {
+        &self.outputs.outputs()[self.index]
     }
 
-    pub(crate) fn project<T: MemorySize, U: MemorySize>(
-        &mut self,
-        input: &QueryValue<T>,
-        maximum: NonZeroUsize,
-        map: impl FnOnce(&T, NonZeroUsize) -> harmos::Result<U>,
-    ) -> Result<QueryValue<U>> {
-        Ok(self.outputs.original.project(input, maximum, map)?)
+    pub(crate) fn metadata(&self) -> ExecutionFileContent {
+        window(self.descriptor(), 0, Vec::new())
     }
 
+    /// Up to `maximum` verified bytes from `offset`.
     pub(crate) async fn window(
-        &mut self,
+        &self,
         offset: u64,
         maximum: NonZeroUsize,
-        projection: NonZeroUsize,
-    ) -> Result<QueryValue<ExecutionFileContent>> {
-        if self.snapshot.is_some() {
-            return Err(invalid("saved output has an unsettled snapshot projection"));
+    ) -> Result<ExecutionFileContent> {
+        let maximum = maximum.get().min(MAX_ARTIFACT_READ_BYTES);
+        let output = self.descriptor();
+        let offset = offset.min(output.file.length);
+        let bytes = self.read(offset, maximum as u64).await?;
+        Ok(window(output, offset, bytes))
+    }
+
+    /// The whole file, or its first `maximum` bytes unless it must be complete.
+    pub(crate) async fn snapshot(
+        &self,
+        maximum: NonZeroUsize,
+        require_complete: bool,
+    ) -> Result<ExecutionFileContent> {
+        let output = self.descriptor();
+        if require_complete && output.file.length > maximum.get() as u64 {
+            return Err(crate::Error::ExecutionFileTooLarge);
         }
-        let maximum = NonZeroUsize::new(maximum.get().min(MAX_ARTIFACT_READ_BYTES)).unwrap();
-        let offset = offset.min(self.descriptor().file.length);
-        if let Some(pending) = &self.window {
-            if pending.offset != offset || pending.maximum != maximum {
-                return Err(invalid("saved output retry changed its original window"));
-            }
-        } else {
-            if offset < self.reader.offset() {
-                return Err(invalid(
-                    "saved output window precedes the native reader position",
-                ));
-            }
-            self.window = Some(PendingWindow {
-                offset,
-                maximum,
-                bytes: None,
-            });
-        }
-        while self.reader.offset() < offset {
-            let remaining = usize::try_from(
-                (offset - self.reader.offset()).min(MAX_ARTIFACT_READ_BYTES as u64),
-            )
-            .map_err(|_| invalid("saved output prefix length overflows"))?;
-            if self
-                .reader
-                .next_chunk(NonZeroUsize::new(remaining).unwrap())
-                .await?
-                .is_none()
-            {
-                return Err(invalid("saved output ended before selected prefix"));
-            }
-        }
-        if self
-            .window
-            .as_ref()
-            .expect("selected window")
-            .bytes
-            .is_none()
-            && let Some(chunk) = self.reader.next_chunk(maximum).await?
-        {
-            self.window.as_mut().expect("selected window").bytes = Some(chunk.into_query_value());
-        }
-        let index = self.index;
-        let content = if let Some(bytes) = &self.window.as_ref().expect("selected window").bytes {
-            let output = &source(&self.outputs.revision)?.outputs[index];
-            self.outputs
-                .original
-                .project(bytes, projection, |bytes, allowance| {
-                    window(output, offset, bytes, allowance)
-                })?
-        } else {
-            self.outputs.original.project(
-                &self.outputs.revision,
-                projection,
-                |revision, allowance| {
-                    window(&source(revision)?.outputs[index], offset, &[], allowance)
+        let bytes = self.read(0, maximum.get() as u64).await?;
+        Ok(window(output, 0, bytes))
+    }
+
+    async fn read(&self, offset: u64, limit: u64) -> Result<Vec<u8>> {
+        let mut reader = self
+            .outputs
+            .storage
+            .read_file(ReadFile {
+                file: self.descriptor().file.clone(),
+                range: ByteRange {
+                    offset,
+                    limit: Some(limit),
                 },
-            )?
-        };
-        self.window = None;
-        Ok(content)
+            })
+            .await?;
+        let mut bytes = Vec::new();
+        while let Some(batch) = reader.next().await? {
+            bytes.extend_from_slice(&batch.bytes);
+        }
+        Ok(bytes)
     }
 }
 
 /* === Public Functions === */
-
-/* === Private Functions === */
-fn source(
-    revision: &ObjectRevision<TestExecution>,
-) -> harmos::Result<&dokime::execution::saved::ExecutionSource> {
-    revision
-        .value
-        .saved
-        .as_ref()
-        .map(|seal| &seal.source)
-        .ok_or_else(|| refused("saved output selection is unsealed"))
-}
-fn state(output: &ExecutionOutput) -> ExecutionFileStreamState {
-    match output.stream_state {
-        Some(SavedStreamState::Interrupted) => ExecutionFileStreamState::Interrupted,
-        Some(SavedStreamState::Finalized) | None => ExecutionFileStreamState::Finalized,
-    }
-}
-fn entry_memory(id: &TestExecutionId, output: &ExecutionOutput) -> usize {
-    let identity = match &output.content {
-        ExecutionOutputContent::File => id
-            .as_str()
-            .len()
-            .saturating_add(1)
-            .saturating_add(output.relative_path.len()),
-        ExecutionOutputContent::Artifact { record, .. } => record.artifact_id.as_str().len(),
-    };
-    std::mem::size_of::<ExecutionFileEntry>()
-        .saturating_add(identity)
-        .saturating_add(output.relative_path.len())
-        .saturating_add(output.file.metadata.media_type.len())
-        .saturating_add(output.created_at.as_str().len())
-}
 pub(crate) fn entry(
     id: &TestExecutionId,
     output: &ExecutionOutput,
 ) -> harmos::Result<ExecutionFileEntry> {
     let artifact_id = match &output.content {
-        ExecutionOutputContent::Artifact { record, .. } => text(record.artifact_id.as_str())?,
-        ExecutionOutputContent::File => {
-            let length = id
-                .as_str()
-                .len()
-                .checked_add(1)
-                .and_then(|length| length.checked_add(output.relative_path.len()))
-                .ok_or_else(|| refused("saved output identity length overflows"))?;
-            let mut value = text_buffer(length)?;
-            value.push_str(id.as_str());
-            value.push(':');
-            value.push_str(&output.relative_path);
-            value
-        }
+        ExecutionOutputContent::Artifact { record, .. } => record.artifact_id.as_str().to_owned(),
+        ExecutionOutputContent::File => format!("{}:{}", id.as_str(), output.relative_path),
     };
     Ok(ExecutionFileEntry {
         artifact_id,
-        relative_path: text(&output.relative_path)?,
-        content_type: Some(text(&output.file.metadata.media_type)?),
+        relative_path: output.relative_path.clone(),
+        content_type: Some(output.file.metadata.media_type.clone()),
         content_kind: ExecutionFileContentKind::from_metadata(
             &output.relative_path,
             Some(&output.file.metadata.media_type),
         ),
         stream_state: state(output),
         size_bytes: output.file.length,
-        updated_at: Timestamp::new(text(output.created_at.as_str())?),
+        updated_at: output.created_at.clone(),
     })
 }
-fn window(
-    output: &ExecutionOutput,
-    offset: u64,
-    bytes: &[u8],
-    allowance: NonZeroUsize,
-) -> harmos::Result<ExecutionFileContent> {
-    let bound = std::mem::size_of::<ExecutionFileContent>()
-        .checked_add(output.relative_path.len())
-        .and_then(|bound| bound.checked_add(output.file.metadata.media_type.len()))
-        .and_then(|bound| bound.checked_add(bytes.len()))
-        .ok_or_else(|| exhausted("saved output window memory overflows"))?;
-    if bound > allowance.get() {
-        return Err(exhausted(
-            "saved output window exceeds projection admission",
-        ));
+
+/* === Private Functions === */
+fn state(output: &ExecutionOutput) -> ExecutionFileStreamState {
+    match output.stream_state {
+        Some(SavedStreamState::Interrupted) => ExecutionFileStreamState::Interrupted,
+        Some(SavedStreamState::Finalized) | None => ExecutionFileStreamState::Finalized,
     }
-    let mut selected = slots(bytes.len())?;
-    selected.extend_from_slice(bytes);
-    Ok(ExecutionFileContent {
-        relative_path: text(&output.relative_path)?,
-        content_type: Some(text(&output.file.metadata.media_type)?),
+}
+
+fn window(output: &ExecutionOutput, offset: u64, bytes: Vec<u8>) -> ExecutionFileContent {
+    ExecutionFileContent {
+        relative_path: output.relative_path.clone(),
+        content_type: Some(output.file.metadata.media_type.clone()),
         content_kind: ExecutionFileContentKind::from_metadata(
             &output.relative_path,
             Some(&output.file.metadata.media_type),
@@ -479,52 +247,12 @@ fn window(
         stream_state: state(output),
         offset,
         size_bytes: output.file.length,
-        bytes: selected,
-    })
-}
-fn text(value: &str) -> harmos::Result<String> {
-    let mut target = text_buffer(value.len())?;
-    target.push_str(value);
-    Ok(target)
-}
-fn text_buffer(length: usize) -> harmos::Result<String> {
-    let mut value = String::new();
-    value
-        .try_reserve_exact(length)
-        .map_err(|_| exhausted("saved output text allocation failed"))?;
-    if value.capacity() > length {
-        return Err(exhausted("saved output text capacity exceeds admission"));
+        bytes,
     }
-    Ok(value)
 }
-fn slots<T>(length: usize) -> harmos::Result<Vec<T>> {
-    let mut value = Vec::new();
-    value
-        .try_reserve_exact(length)
-        .map_err(|_| exhausted("saved output slot allocation failed"))?;
-    if value.capacity() > length {
-        return Err(exhausted("saved output slot capacity exceeds admission"));
-    }
-    Ok(value)
-}
+
 fn invalid(message: &'static str) -> Error {
     Error::Storage(dokime::storage::Error::Invalid(message))
-}
-fn refused(reason: &'static str) -> harmos::Error {
-    harmos::Error::InvalidInput {
-        field: "saved execution output",
-        reason,
-    }
-}
-fn exhausted(resource: &'static str) -> harmos::Error {
-    harmos::Error::ResourceExhausted { resource }
-}
-fn codec_error(source: dokime::storage::Error) -> harmos::Error {
-    harmos::Error::backend(
-        "project saved execution output",
-        harmos::BackendFailure::Corrupt,
-        source,
-    )
 }
 
 /* === Tests === */

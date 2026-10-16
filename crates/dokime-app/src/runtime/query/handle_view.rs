@@ -56,7 +56,7 @@ impl RuntimeHandle {
         let resolution = &query.resolution;
         let payload = if let Some(mut payload) = state_payload(query, snapshot) {
             if let RuntimeViewPayload::Overview { frame } = &mut payload {
-                frame.artifacts = self.execution_storage.artifact_count(None).await?;
+                frame.artifacts = self.execution_storage.artifact_count().await?;
                 if matches!(resolution, RuntimeResolution::Raw) {
                     frame.shell = Some(self.runtime_overview().await?);
                 }
@@ -69,14 +69,12 @@ impl RuntimeHandle {
                 RuntimeViewTopic::ExecutionFiles => {
                     let frame = match scope.and_then(|scope| scope.test_execution_id.as_ref()) {
                         Some(id) => {
-                            let frame = self
-                                .execution_files_projected(id, |files, allowance| {
-                                    crate::queries::artifacts::execution_file_frame(
-                                        id, files, window, resolution, allowance,
-                                    )
-                                })
-                                .await?;
-                            crate::queries::RuntimeExecutionFileRead::from_query(frame)?
+                            let files = self.execution_files(id).await?;
+                            crate::queries::RuntimeExecutionFileRead::from_frame(
+                                crate::queries::artifacts::execution_file_frame(
+                                    id, &files, window, resolution,
+                                ),
+                            )
                         }
                         None => crate::queries::RuntimeExecutionFileRead::unselected(),
                     };
@@ -88,27 +86,20 @@ impl RuntimeHandle {
                         scope.and_then(|scope| scope.test_execution_id.as_ref()),
                     );
                     let filter = crate::queries::records::view_filter(snapshot, scope, captured)?;
-                    let frame = self
+                    let records = self
                         .record_source
-                        .saved_filtered_records(
-                            &self.state_manager,
-                            snapshot.revision(),
-                            filter,
-                            |pages, allowance| {
-                                crate::queries::records::record_frame(
-                                    pages.iter().flat_map(|page| page.iter()),
-                                    window,
-                                    resolution,
-                                    |record| {
-                                        captured.and_then(|captures| {
-                                            captures.subscribed_records().get(&record.record_id)
-                                        })
-                                    },
-                                    allowance,
-                                )
-                            },
-                        )
+                        .saved_filtered_records(&self.state_manager, snapshot.revision(), filter)
                         .await?;
+                    let frame = crate::queries::records::record_frame(
+                        records.iter(),
+                        window,
+                        resolution,
+                        |record| {
+                            captured.and_then(|captures| {
+                                captures.subscribed_records().get(&record.record_id)
+                            })
+                        },
+                    );
                     RuntimeViewPayload::Records {
                         frame: Box::new(frame),
                     }

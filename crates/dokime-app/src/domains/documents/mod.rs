@@ -19,7 +19,7 @@ mod stream;
 
 /* === Re-Exports === */
 pub(crate) use crate::transactions::documents::AddExecutionDocumentParts;
-pub(crate) use construction::{construction_memory, cycle_memory};
+pub(crate) use construction::construction_memory;
 pub use current::{CurrentDocumentCapture, CurrentDocumentTelemetryCut, PreparedCurrentDocument};
 pub use follow::ExecutionFileFollower;
 pub use stream::ExecutionFileStream;

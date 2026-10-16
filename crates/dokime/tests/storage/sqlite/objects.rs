@@ -106,7 +106,7 @@ pub(crate) async fn scalar_failure_cursor() {
         let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             backend.history().clone(),
-            &crate::sqlite::storage::storage_settings(),
+            dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
         ));
         let storage = StorageManager::new(
             StorageBackends {
@@ -278,7 +278,7 @@ pub(crate) async fn query_page_drop() {
                 state: Arc::new(harmos::storage::state::file::FileBackend::new(
                     root.path().to_owned(),
                     backend.history().clone(),
-                    &crate::sqlite::storage::storage_settings(),
+                    dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
                 )),
                 replicas: vec![],
             },
@@ -381,7 +381,7 @@ pub(crate) async fn stream_frames_charge() {
                 state: Arc::new(harmos::storage::state::file::FileBackend::new(
                     root.path().to_owned(),
                     backend.history().clone(),
-                    &crate::sqlite::storage::storage_settings(),
+                    dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
                 )),
                 replicas: vec![],
             },
@@ -535,7 +535,7 @@ pub(crate) async fn file_query_offset() {
                 state: Arc::new(harmos::storage::state::file::FileBackend::new(
                     root.path().to_owned(),
                     backend.history().clone(),
-                    &crate::sqlite::storage::storage_settings(),
+                    dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
                 )),
                 replicas: vec![],
             },
@@ -664,7 +664,7 @@ pub(crate) async fn pinned_page_waiting() {
                 state: Arc::new(harmos::storage::state::file::FileBackend::new(
                     root.path().to_owned(),
                     backend.history().clone(),
-                    &crate::sqlite::storage::storage_settings(),
+                    dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
                 )),
                 replicas: vec![],
             },
@@ -748,7 +748,7 @@ pub(crate) async fn private_object_version() {
                 state: Arc::new(harmos::storage::state::file::FileBackend::new(
                     root.path().to_owned(),
                     source.history().clone(),
-                    &crate::sqlite::storage::storage_settings(),
+                    dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
                 )),
                 replicas: vec![],
             },

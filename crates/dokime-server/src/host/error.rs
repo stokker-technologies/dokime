@@ -98,17 +98,9 @@ impl Error {
     /// `IncompatibleStorage`; lease contention, I/O and replay failures stay
     /// runtime failures so the remedy never suggests discarding usable data.
     pub fn launch(error: dokime_app::Error, root: PathBuf) -> Self {
-        // Prefer The Baseline The Root Declares, Then A Typed Storage Refusal
-        let declared = dokime::storage::sqlite::inspect(&root)
-            .ok()
-            .flatten()
-            .and_then(|baseline| baseline.mismatch());
-        let reason = match declared {
-            Some(reason) => reason,
-            None => match storage_refusal(&error) {
-                Some(refusal) => refusal.to_string(),
-                None => return Self::Runtime(error),
-            },
+        let reason = match storage_refusal(&error) {
+            Some(refusal) => refusal.to_string(),
+            None => return Self::Runtime(error),
         };
         Self::IncompatibleStorage { root, reason }
     }
@@ -154,7 +146,7 @@ fn storage_refusal(error: &dokime_app::Error) -> Option<&dokime::storage::sqlite
 fn incompatible(error: &dokime::storage::sqlite::Error) -> bool {
     use dokime::storage::sqlite::{Error, rusqlite::ErrorCode};
     match error {
-        Error::Schema(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
+        Error::Incompatible(_) | Error::Conflict(_) | Error::Corrupt(_) => true,
         Error::Sqlite(error) => matches!(
             error.sqlite_error_code(),
             Some(ErrorCode::NotADatabase | ErrorCode::DatabaseCorrupt)

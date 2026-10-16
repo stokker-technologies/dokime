@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-mod memory;
 mod plugins;
 mod preferences;
 mod sources;

@@ -16,12 +16,12 @@
 // Third Party Imports
 use harmos::storage::{
     StorageCursor,
+    query::scalar::ScalarValue,
     query::transform::{
         FieldPath, Transform,
         aggregate::{Aggregate, Measure},
         histogram::Histogram,
     },
-    reduce::ScalarValue,
 };
 // Local Imports
 use super::{invalid, telemetry};
@@ -86,11 +86,7 @@ pub(super) async fn collect(
     key: &str,
     x: FieldPath,
 ) -> Result<Statistics> {
-    let super::ReadContext {
-        ctx,
-        storage,
-        settings,
-    } = read;
+    let super::ReadContext { ctx, settings } = read;
     let codec = dokime::storage::telemetry::codec(contract)?;
     let mut measures = vec![];
     for (name, statistic) in [
@@ -136,7 +132,7 @@ pub(super) async fn collect(
             measures,
         })],
     )?;
-    let batches = super::batches(ctx, storage, settings, query).await?;
+    let batches = super::batches(ctx, settings, query).await?;
     let batch = batches
         .first()
         .ok_or_else(|| invalid("aggregate query returned no identity row"))?
@@ -178,11 +174,7 @@ pub(super) async fn histogram(
     bins: usize,
     statistics: &Statistics,
 ) -> Result<HistogramSeries> {
-    let super::ReadContext {
-        ctx,
-        storage,
-        settings,
-    } = read;
+    let super::ReadContext { ctx, settings } = read;
     let count = bins.max(1);
     if count >= 65_536 {
         return Err(invalid(
@@ -214,7 +206,7 @@ pub(super) async fn histogram(
             edges,
         })],
     )?;
-    let batches = super::batches(ctx, storage, settings, query).await?;
+    let batches = super::batches(ctx, settings, query).await?;
     let mut output = Vec::with_capacity(count);
     let mut actual = 0usize;
     for batch in batches.iter() {

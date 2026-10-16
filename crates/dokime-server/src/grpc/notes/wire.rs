@@ -111,50 +111,6 @@ pub(super) fn health_size(item: &HealthItem) -> Result<usize, Status> {
         .saturating_add(item.detail.as_ref().map_or(0, String::len)))
 }
 
-pub(crate) fn note_memory(note: &OperatorNote) -> harmos::Result<usize> {
-    bounded_text(&note.message, dokime_app::execution::notes::NOTE_TEXT_BYTES)
-        .map_err(|_| construction_limit())?;
-    if let Some(author) = &note.author {
-        bounded_text(author, dokime_app::execution::notes::NOTE_ACTOR_BYTES)
-            .map_err(|_| construction_limit())?;
-    }
-    let scope = canonical::scope_memory(&note.scope).map_err(|_| construction_limit())?;
-    if scope == usize::MAX {
-        return Err(construction_limit());
-    }
-    let bytes = std::mem::size_of::<contract::OperatorNote>()
-        .saturating_add(note.note_id.as_str().len())
-        .saturating_add(scope - std::mem::size_of::<common::EvidenceScope>())
-        .saturating_add(note.message.len())
-        .saturating_add(note.author.as_ref().map_or(0, String::len));
-    if bytes == usize::MAX {
-        return Err(construction_limit());
-    }
-    Ok(bytes)
-}
-
-pub(crate) fn health_memory(item: &HealthItem) -> harmos::Result<usize> {
-    bounded_text(&item.message, dokime_app::execution::notes::NOTE_TEXT_BYTES)
-        .map_err(|_| construction_limit())?;
-    if let Some(detail) = &item.detail {
-        bounded_text(detail, dokime_app::execution::notes::NOTE_TEXT_BYTES)
-            .map_err(|_| construction_limit())?;
-    }
-    let scope = canonical::scope_memory(&item.scope).map_err(|_| construction_limit())?;
-    if scope == usize::MAX {
-        return Err(construction_limit());
-    }
-    let bytes = std::mem::size_of::<contract::HealthItem>()
-        .saturating_add(item.health_item_id.as_str().len())
-        .saturating_add(scope - std::mem::size_of::<common::EvidenceScope>())
-        .saturating_add(item.message.len())
-        .saturating_add(item.detail.as_ref().map_or(0, String::len));
-    if bytes == usize::MAX {
-        return Err(construction_limit());
-    }
-    Ok(bytes)
-}
-
 pub(crate) fn note(note: &OperatorNote) -> Result<contract::OperatorNote, Status> {
     note_size(note)?;
     Ok(contract::OperatorNote {
@@ -216,46 +172,7 @@ pub(super) fn receipt(value: &NoteCreation) -> Result<contract::NoteReceipt, Sta
     })
 }
 
-pub(super) fn receipt_memory(value: &NoteCreation) -> Result<usize, Status> {
-    let admission = &value.admission;
-    let owner = match &admission.owner {
-        NoteOwner::Cycle { cycle_id } => cycle_id.as_str().len(),
-        NoteOwner::Case { cycle_id, case_id } => {
-            value::text(case_id.as_str())?;
-            cycle_id
-                .as_str()
-                .len()
-                .saturating_add(case_id.as_str().len())
-        }
-        NoteOwner::Execution {
-            cycle_id,
-            execution_id,
-        } => cycle_id
-            .as_str()
-            .len()
-            .saturating_add(execution_id.as_str().len()),
-    };
-    let targets = admission
-        .checkpoint_targets
-        .len()
-        .saturating_add(match &value.publication {
-            NotePublication::Unconfirmed { targets } => targets.len(),
-            _ => 0,
-        });
-    Ok(std::mem::size_of::<contract::NoteReceipt>()
-        .saturating_add(value.epoch.as_str().len())
-        .saturating_add(admission.mutation_id.as_str().len())
-        .saturating_add(owner)
-        .saturating_add(note_memory(&admission.note).map_err(super::memory_failure)?)
-        .saturating_add(targets.saturating_mul(4 * std::mem::size_of::<String>() + 36)))
-}
-
 /* === Private Functions === */
-fn construction_limit() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "canonical annotation construction",
-    }
-}
 
 // Check borrowed strings and total payload before conversion. UUID scope fields
 // are fixed-size native identities; timestamp parsing never copies its text.

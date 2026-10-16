@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 // Third Party Imports
@@ -81,9 +80,7 @@ impl Operation for Inspect {
         let response = self
             .resources
             .runtime
-            .execution_saved_checkpoint(id, |checkpoint, allowance| {
-                project(checkpoint, allowance, self.resources.max_message_bytes)
-            })
+            .execution_saved_checkpoint(id)
             .await
             .map_err(|source| match source {
                 dokime_app::Error::NotFound { .. } => {
@@ -91,8 +88,8 @@ impl Operation for Inspect {
                 }
                 source => wire::query_failure(source),
             })?;
-        response
-            .try_into_response()
+        project(&response, self.resources.max_message_bytes)
+            .map(Into::into)
             .map_err(|source| wire::query_failure(source.into()))
     }
 }
@@ -162,25 +159,8 @@ pub(in crate::grpc) fn register(
 /* === Private Functions === */
 pub(super) fn project(
     source: &ExecutionCheckpoint,
-    allowance: NonZeroUsize,
     maximum: usize,
 ) -> harmos::Result<checkpoint::ExecutionCheckpoint> {
-    let graph = [
-        source.execution_id.as_str().len(),
-        harmos::Message::encoded_len(&source.version),
-        source.position.history.store.as_str().len(),
-        source.position.history.epoch.as_str().len(),
-        source.evidence_through.history.store.as_str().len(),
-        source.evidence_through.history.epoch.as_str().len(),
-    ]
-    .into_iter()
-    .try_fold(
-        std::mem::size_of::<checkpoint::ExecutionCheckpoint>(),
-        |bytes, field| bytes.checked_add(field).ok_or_else(exhausted),
-    )?;
-    if graph > allowance.get() {
-        return Err(exhausted());
-    }
     let value = wire::checkpoint_wire_ref(source).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
             return exhausted();

@@ -14,13 +14,10 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{SharedQueryValue, StorageProductionPreparation, StorageView},
-};
+use harmos::storage::StorageCursor;
 
 // Local Imports
 use crate::{Error, Result, installed_plugins::RuntimeAppearanceFrame};
@@ -30,7 +27,6 @@ use dokime::{
         TestCycle,
         saved::{ExecutionRevision, validate_cycle_revisions},
     },
-    storage::Manager,
 };
 
 /* === Constants === */
@@ -40,17 +36,17 @@ use dokime::{
 /* === Type Aliases === */
 
 /* === Structs === */
+/// A cycle frozen for its report: header, member revisions and presentation.
 #[derive(Clone)]
 pub(crate) struct CycleSnapshot(Arc<State>);
 
 struct State {
-    view: StorageView,
-    source: SharedQueryValue<TestCycle>,
-    revisions: SharedQueryValue<Vec<ExecutionRevision>>,
-    appearance: SharedQueryValue<RuntimeAppearanceFrame>,
-    captured_at: SharedQueryValue<Timestamp>,
-    owner_node_id: SharedQueryValue<NodeId>,
-    _memory: StorageProductionPreparation,
+    saved: StorageCursor,
+    source: Arc<TestCycle>,
+    revisions: Arc<Vec<ExecutionRevision>>,
+    appearance: Arc<RuntimeAppearanceFrame>,
+    captured_at: Timestamp,
+    owner_node_id: NodeId,
 }
 
 /* === Enums === */
@@ -60,115 +56,63 @@ struct State {
 /* === Implementations === */
 impl CycleSnapshot {
     pub(crate) fn capture(
-        storage: &Manager,
-        view: StorageView,
-        source: SharedQueryValue<TestCycle>,
-        revisions: SharedQueryValue<Vec<ExecutionRevision>>,
-        appearance: SharedQueryValue<RuntimeAppearanceFrame>,
+        saved: StorageCursor,
+        source: Arc<TestCycle>,
+        revisions: Arc<Vec<ExecutionRevision>>,
+        appearance: Arc<RuntimeAppearanceFrame>,
         owner_node_id: &NodeId,
     ) -> Result<Self> {
-        source.check_origin(storage)?;
-        revisions.check_origin(storage)?;
-        appearance.check_origin(storage)?;
-        let unit = NonZeroUsize::new(1).unwrap();
-        // Verify Actual View Ownership Without Replacing Its Pin Or Read Ledger.
-        view.project_shared(&source, unit, |_, _| Ok(()))?;
-        view.project_shared(&revisions, unit, |_, _| Ok(()))?;
-        view.project_shared(&appearance, unit, |_, _| Ok(()))?;
-        // Projections Charge Their Own View Computation, So Validation Releases Its Guard First.
-        let work = view.begin_computation()?;
         if source.saved.is_some() || source.session_id.is_none() {
             return Err(invalid(
                 "final cycle snapshot requires an unsealed source and frozen session",
             ));
         }
-        validate_cycle_revisions(&source, &view.saved()?, &revisions)
+        validate_cycle_revisions(&source, &saved, &revisions)
             .map_err(dokime::storage::Error::from)?;
-        work.check()?;
-        drop(work);
         // A Final Report Is Generated At Its Frozen Cycle's Last Update; The
         // Durable Publication Check Refuses Any Other Header Time.
-        let captured_at = view
-            .project_shared(
-                &source,
-                bound(source.updated_at.memory_size().saturating_add(64))?,
-                |source, _| Ok(source.updated_at.clone()),
-            )?
-            .try_into_shared()?;
-        let owner_node_id = view
-            .project_shared(&source, bound(owner_node_id.memory_size())?, |_, _| {
-                Ok(owner_node_id.clone())
-            })?
-            .try_into_shared()?;
-        let memory = storage.prepare_production(bound(
-            std::mem::size_of::<State>() + 2 * std::mem::size_of::<usize>(),
-        )?)?;
+        let captured_at = source.updated_at.clone();
         Ok(Self(Arc::new(State {
-            view,
+            saved,
             source,
             revisions,
             appearance,
             captured_at,
-            owner_node_id,
-            _memory: memory,
+            owner_node_id: owner_node_id.clone(),
         })))
     }
 
     /// Frozen Presentation Metadata For An Unsealed Cycle Report.
     /// The Operation Supplies Its Separately Materialized Member Inputs.
     pub(crate) fn current(
-        storage: &Manager,
-        view: StorageView,
-        source: SharedQueryValue<TestCycle>,
-        appearance: SharedQueryValue<RuntimeAppearanceFrame>,
+        saved: StorageCursor,
+        source: Arc<TestCycle>,
+        appearance: Arc<RuntimeAppearanceFrame>,
         owner_node_id: &NodeId,
     ) -> Result<Self> {
-        source.check_origin(storage)?;
-        appearance.check_origin(storage)?;
         if source.saved.is_some() || source.session_id.is_none() {
             return Err(invalid(
                 "current cycle snapshot requires an unsealed source and its session",
             ));
         }
-        let revisions = storage
-            .produce(
-                bound(std::mem::size_of::<Vec<ExecutionRevision>>())?,
-                |_| Ok(Vec::new()),
-            )?
-            .try_into_value()?
-            .try_into_shared()?;
-        let now = Timestamp::now_utc();
-        let captured_at = storage
-            .produce(bound(now.memory_size().saturating_add(64))?, |_| Ok(now))?
-            .try_into_value()?
-            .try_into_shared()?;
-        let owner_node_id = storage
-            .produce(bound(owner_node_id.memory_size())?, |_| {
-                Ok(owner_node_id.clone())
-            })?
-            .try_into_value()?
-            .try_into_shared()?;
-        let memory = storage.prepare_production(bound(
-            std::mem::size_of::<State>().saturating_add(2 * std::mem::size_of::<usize>()),
-        )?)?;
         Ok(Self(Arc::new(State {
-            view,
+            saved,
             source,
-            revisions,
+            revisions: Arc::new(Vec::new()),
             appearance,
-            captured_at,
-            owner_node_id,
-            _memory: memory,
+            captured_at: Timestamp::now_utc(),
+            owner_node_id: owner_node_id.clone(),
         })))
     }
 
-    pub(crate) fn view(&self) -> &StorageView {
-        &self.0.view
+    /// The saved cut the snapshot was frozen at.
+    pub(crate) fn saved(&self) -> &StorageCursor {
+        &self.0.saved
     }
-    pub(crate) fn source(&self) -> &SharedQueryValue<TestCycle> {
+    pub(crate) fn source(&self) -> &Arc<TestCycle> {
         &self.0.source
     }
-    pub(crate) fn revisions(&self) -> &SharedQueryValue<Vec<ExecutionRevision>> {
+    pub(crate) fn revisions(&self) -> &Arc<Vec<ExecutionRevision>> {
         &self.0.revisions
     }
     pub(crate) fn appearance(&self) -> &RuntimeAppearanceFrame {
@@ -192,12 +136,6 @@ impl CycleSnapshot {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn bound(bytes: usize) -> Result<NonZeroUsize> {
-    NonZeroUsize::new(bytes)
-        .filter(|_| bytes != usize::MAX)
-        .ok_or_else(|| invalid("cycle snapshot memory overflows"))
-}
-
 fn invalid(message: &'static str) -> Error {
     Error::Storage(dokime::storage::Error::Invalid(message))
 }

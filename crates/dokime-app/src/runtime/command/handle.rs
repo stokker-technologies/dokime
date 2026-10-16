@@ -425,14 +425,9 @@ impl RuntimeHandle {
             Err(error) => {
                 let problem = error.to_string();
                 let at = Timestamp::now_utc();
-                let growth = problem
-                    .len()
-                    .saturating_add("request did not enter runtime state: ".len())
-                    .saturating_mul(2)
-                    .saturating_add(harmos::MemorySize::memory_size(&at));
                 if let Err(storage_error) = self
                     .request_storage
-                    .update(&command_id, growth, |receipt| {
+                    .update(&command_id, |receipt| {
                         receipt.summary.phase =
                             crate::transactions::provider::request::RunPhase::Interrupted;
                         receipt.summary.finished_at = Some(at);

@@ -125,7 +125,6 @@ pub struct UpdateStoragePolicyRequest {
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoragePolicy {
-    pub save_interval_ms: u64,
     pub compaction_interval_ms: u64,
     pub local_retention_ms: Option<u64>,
 }

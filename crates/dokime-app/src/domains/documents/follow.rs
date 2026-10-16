@@ -16,11 +16,10 @@
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 // Third Party Imports
 use harmos::{
-    MemorySize,
     services::Fault,
     services::Resident,
     services::Service,
-    storage::{FileFollower, FilePhase, FileReference, QueryOptions, QueryValue, StagedFile},
+    storage::{FileBatch, FileFollower, FilePhase, FileReference, StagedFile},
 };
 // Local Imports
 use super::saved::{SavedOutputFile, SavedOutputs};
@@ -35,7 +34,6 @@ use dokime::{
 use dokime_contract::operations::{checkpoint, content as wire};
 
 /* === Constants === */
-const FRAME_MEMORY: usize = 64 * 1024 + 4096;
 const SOURCE_POLL: Duration = Duration::from_millis(250);
 
 /* === Macros === */
@@ -46,7 +44,7 @@ const SOURCE_POLL: Duration = Duration::from_millis(250);
 pub struct ExecutionFileFollower {
     reader: FileFollower,
     source: Source,
-    metadata: QueryValue<wire::ExecutionFileFollowMetadata>,
+    metadata: wire::ExecutionFileFollowMetadata,
     finished: bool,
 }
 
@@ -65,7 +63,7 @@ struct Position {
 enum Source {
     Live(LiveOutput),
     Saved(Box<SavedOutputFile>),
-    Captured(Box<QueryValue<FileReference>>, bool),
+    Captured(Box<FileReference>, bool),
 }
 
 /* === Traits === */
@@ -107,17 +105,8 @@ impl RuntimeHandle {
                 })
             })
             .transpose()?;
-        let maximum = allowance()?;
-        if let Some(saved) = SavedOutputs::open(
-            self.storage(),
-            execution,
-            None,
-            QueryOptions::default(),
-            self.config().storage.decoded_bytes,
-        )
-        .await?
-        {
-            let Some(mut file) = saved.file(path).await? else {
+        if let Some(saved) = SavedOutputs::open(self.storage(), execution, None).await? {
+            let Some(file) = saved.file(path)? else {
                 return Ok(None);
             };
             let reference = &file.descriptor().file;
@@ -135,25 +124,23 @@ impl RuntimeHandle {
                 return Err(invalid("resume offset exceeds original saved length"));
             }
             let reader = self.storage().follow_file(&staged, offset).await?;
-            let metadata = file.project_descriptor(maximum, |output, allowance| {
-                let phase = if output.stream_state == Some(SavedStreamState::Interrupted) {
-                    wire::ExecutionFilePhase::Abandoned
-                } else {
-                    wire::ExecutionFilePhase::Finished
-                };
-                metadata(
-                    &staged,
-                    execution,
-                    path,
-                    &output.file.metadata.media_type,
-                    Position {
-                        phase,
-                        length: output.file.length,
-                        offset,
-                    },
-                    allowance,
-                )
-            })?;
+            let output = file.descriptor();
+            let phase = if output.stream_state == Some(SavedStreamState::Interrupted) {
+                wire::ExecutionFilePhase::Abandoned
+            } else {
+                wire::ExecutionFilePhase::Finished
+            };
+            let metadata = metadata(
+                &staged,
+                execution,
+                path,
+                &output.file.metadata.media_type,
+                Position {
+                    phase,
+                    length: output.file.length,
+                    offset,
+                },
+            );
             return Ok(Some(ExecutionFileFollower {
                 reader,
                 source: Source::Saved(Box::new(file)),
@@ -190,25 +177,22 @@ impl RuntimeHandle {
                     return Err(invalid("resume offset exceeds captured output length"));
                 }
                 let reader = self.storage().follow_file(&staged, offset).await?;
-                let metadata = reference.try_project(maximum, |reference, allowance| {
-                    let phase = if interrupted {
-                        wire::ExecutionFilePhase::Abandoned
-                    } else {
-                        wire::ExecutionFilePhase::Finished
-                    };
-                    metadata(
-                        &staged,
-                        execution,
-                        path,
-                        &reference.metadata.media_type,
-                        Position {
-                            phase,
-                            length: reference.length,
-                            offset,
-                        },
-                        allowance,
-                    )
-                })?;
+                let phase = if interrupted {
+                    wire::ExecutionFilePhase::Abandoned
+                } else {
+                    wire::ExecutionFilePhase::Finished
+                };
+                let metadata = metadata(
+                    &staged,
+                    execution,
+                    path,
+                    &reference.metadata.media_type,
+                    Position {
+                        phase,
+                        length: reference.length,
+                        offset,
+                    },
+                );
                 return Ok(Some(ExecutionFileFollower {
                     reader,
                     source: Source::Captured(Box::new(reference), interrupted),
@@ -221,26 +205,23 @@ impl RuntimeHandle {
         let progress = reader.progress();
         let media = crate::execution_runtime::outputs::media_type_for_path(path)
             .unwrap_or("application/octet-stream");
-        let metadata = live.identity.try_project(maximum, |staged, allowance| {
-            metadata(
-                staged,
-                execution,
-                path,
-                media,
-                Position {
-                    // A Live Admission Precedes Capture; The Sealed Harmos Phase Cannot
-                    // Distinguish An Abandoned Production From A Finished One.
-                    phase: if abandoned {
-                        wire::ExecutionFilePhase::Abandoned
-                    } else {
-                        wire::ExecutionFilePhase::Producing
-                    },
-                    length: progress.length,
-                    offset,
+        let metadata = metadata(
+            &live.identity,
+            execution,
+            path,
+            media,
+            Position {
+                // A Live Admission Precedes Capture; The Sealed Harmos Phase Cannot
+                // Distinguish An Abandoned Production From A Finished One.
+                phase: if abandoned {
+                    wire::ExecutionFilePhase::Abandoned
+                } else {
+                    wire::ExecutionFilePhase::Producing
                 },
-                allowance,
-            )
-        })?;
+                length: progress.length,
+                offset,
+            },
+        );
         Ok(Some(ExecutionFileFollower {
             reader,
             source: Source::Live(live),
@@ -258,18 +239,8 @@ impl RuntimeHandle {
     ) -> Result<()> {
         let runtime = self.clone();
         let source = source.clone();
-        let bytes = std::mem::size_of::<String>()
-            + std::mem::size_of::<LiveOutput>()
-            + execution.as_str().len()
-            + source.file_id().len()
-            + "execution-log::native-".len();
-        let admission = runtime.storage().prepare_production(
-            NonZeroUsize::new(bytes)
-                .ok_or_else(|| invalid("capture registration memory overflows"))?,
-        )?;
         let name = format!("execution-log:{execution}:native-{}", source.file_id());
         tokio::spawn(async move {
-            let _admission = admission;
             let mut stops = runtime.execution_storage.tail_stops.lock().await;
             if stops.contains_key(&name) {
                 return Ok(());
@@ -343,24 +314,18 @@ impl ExecutionFileFollower {
         &self.metadata
     }
 
-    pub fn metadata_frame(&self) -> Result<QueryValue<wire::ExecutionFileFollowFrame>> {
-        Ok(self
-            .metadata
-            .try_project(allowance()?, |metadata, allowance| {
-                let frame = wire::ExecutionFileFollowFrame {
-                    payload: Some(wire::ExecutionFileFollowFramePayload::Metadata(
-                        metadata.clone(),
-                    )),
-                };
-                admit(&frame, allowance)?;
-                Ok(frame)
-            })?)
+    pub fn metadata_frame(&self) -> wire::ExecutionFileFollowFrame {
+        wire::ExecutionFileFollowFrame {
+            payload: Some(wire::ExecutionFileFollowFramePayload::Metadata(
+                self.metadata.clone(),
+            )),
+        }
     }
 
     pub async fn next_frame(
         &mut self,
         maximum: NonZeroUsize,
-    ) -> Result<Option<QueryValue<wire::ExecutionFileFollowFrame>>> {
+    ) -> Result<Option<wire::ExecutionFileFollowFrame>> {
         if maximum.get() > 64 * 1024 {
             return Err(invalid("follow chunk exceeds 64 KiB"));
         }
@@ -378,13 +343,13 @@ impl ExecutionFileFollower {
                 let progress = self.reader.progress();
                 if progress.phase == FilePhase::Producing && offset == progress.length {
                     tokio::select! {
-                        result = self.reader.next_chunk(maximum) => {
+                        result = self.reader.next_batch(maximum) => {
                             let chunk = result?;
                             if let Some(chunk) = chunk { return self.chunk(offset, chunk).map(Some); }
                         }
                         _ = tokio::time::sleep(SOURCE_POLL) => continue,
                     }
-                } else if let Some(chunk) = self.reader.next_chunk(maximum).await? {
+                } else if let Some(chunk) = self.reader.next_batch(maximum).await? {
                     return self.chunk(offset, chunk).map(Some);
                 }
                 return match live.settlement().await? {
@@ -406,87 +371,96 @@ impl ExecutionFileFollower {
                 }
                 .map(Some);
             }
-            if let Some(chunk) = self.reader.next_chunk(maximum).await? {
+            if let Some(chunk) = self.reader.next_batch(maximum).await? {
                 return self.chunk(offset, chunk).map(Some);
             }
             if let Source::Captured(reference, interrupted) = &self.source {
                 let interrupted = *interrupted;
-                let reference = reference.try_project(allowance()?, |reference, allowance| {
-                    admit(reference, allowance)?;
-                    Ok(reference.clone())
-                })?;
+                let reference = (**reference).clone();
                 let phase = if interrupted {
                     wire::ExecutionFilePhase::Abandoned
                 } else {
                     wire::ExecutionFilePhase::Finished
                 };
                 return self
-                    .terminal((!interrupted).then_some(&*reference), phase)
+                    .terminal((!interrupted).then_some(&reference), phase)
                     .map(Some);
             }
             let Source::Saved(file) = &mut self.source else {
                 unreachable!()
             };
             let interrupted = file.descriptor().stream_state == Some(SavedStreamState::Interrupted);
-            let reference = file.project_descriptor(allowance()?, |output, allowance| {
-                admit(&output.file, allowance)?;
-                Ok(output.file.clone())
-            })?;
+            let reference = file.descriptor().file.clone();
             let phase = if interrupted {
                 wire::ExecutionFilePhase::Abandoned
             } else {
                 wire::ExecutionFilePhase::Finished
             };
             return self
-                .terminal((!interrupted).then_some(&*reference), phase)
+                .terminal((!interrupted).then_some(&reference), phase)
                 .map(Some);
         }
     }
 
-    fn chunk(
-        &self,
-        offset: u64,
-        chunk: harmos::storage::FileChunk,
-    ) -> Result<QueryValue<wire::ExecutionFileFollowFrame>> {
-        Ok(chunk
-            .into_query_value()
-            .try_map(allowance()?, |bytes, allowance| {
-                let frame = wire::ExecutionFileFollowFrame {
-                    payload: Some(wire::ExecutionFileFollowFramePayload::Chunk(
-                        wire::ArtifactChunk {
-                            offset,
-                            data: bytes,
-                        },
-                    )),
-                };
-                admit(&frame, allowance)?;
-                Ok(frame)
-            })?)
+    fn chunk(&self, offset: u64, chunk: FileBatch) -> Result<wire::ExecutionFileFollowFrame> {
+        Ok(wire::ExecutionFileFollowFrame {
+            payload: Some(wire::ExecutionFileFollowFramePayload::Chunk(
+                wire::ArtifactChunk {
+                    offset,
+                    data: chunk.bytes,
+                },
+            )),
+        })
     }
 
     fn terminal(
         &mut self,
         reference: Option<&FileReference>,
         phase: wire::ExecutionFilePhase,
-    ) -> Result<QueryValue<wire::ExecutionFileFollowFrame>> {
+    ) -> Result<wire::ExecutionFileFollowFrame> {
         let length = self.reader.offset();
-        let frame = self.metadata.try_project(allowance()?, |metadata, allowance| {
-            let sealed = reference.map(|reference| {
-                let identity = metadata.identity.as_ref().ok_or_else(|| refused("follow metadata has no original identity"))?;
-                if phase != wire::ExecutionFilePhase::Finished || reference.length != length
-                    || reference.metadata.id.as_str() != identity.file_id
-                    || history(&reference.position.history) != identity.history.clone().ok_or_else(|| refused("follow identity has no history"))? {
-                    return Err(refused("original sealed reference differs from followed identity or length"));
-                }
-                Ok(wire::ExecutionFileSeal {
-                    identity: Some(identity.clone()), position: Some(checkpoint::StorageCursor { history: Some(history(&reference.position.history)), sequence: reference.position.sequence }),
-                    length: reference.length, sha256: hex(&reference.sha256),
+        let metadata = &self.metadata;
+        let frame = {
+            let sealed = reference
+                .map(|reference| {
+                    let identity = metadata
+                        .identity
+                        .as_ref()
+                        .ok_or_else(|| refused("follow metadata has no original identity"))?;
+                    if phase != wire::ExecutionFilePhase::Finished
+                        || reference.length != length
+                        || reference.metadata.id.as_str() != identity.file_id
+                        || history(&reference.position.history)
+                            != identity
+                                .history
+                                .clone()
+                                .ok_or_else(|| refused("follow identity has no history"))?
+                    {
+                        return Err(refused(
+                            "original sealed reference differs from followed identity or length",
+                        ));
+                    }
+                    Ok(wire::ExecutionFileSeal {
+                        identity: Some(identity.clone()),
+                        position: Some(checkpoint::StorageCursor {
+                            history: Some(history(&reference.position.history)),
+                            sequence: reference.position.sequence,
+                        }),
+                        length: reference.length,
+                        sha256: hex(&reference.sha256),
+                    })
                 })
-            }).transpose()?;
-            let frame = wire::ExecutionFileFollowFrame { payload: Some(wire::ExecutionFileFollowFramePayload::Terminal(wire::ExecutionFileFollowTerminal { phase, length, sealed })) };
-            admit(&frame, allowance)?;
-            Ok(frame)
-        })?;
+                .transpose()?;
+            wire::ExecutionFileFollowFrame {
+                payload: Some(wire::ExecutionFileFollowFramePayload::Terminal(
+                    wire::ExecutionFileFollowTerminal {
+                        phase,
+                        length,
+                        sealed,
+                    },
+                )),
+            }
+        };
         self.finished = true;
         Ok(frame)
     }
@@ -501,24 +475,13 @@ fn metadata(
     path: &str,
     media: &str,
     position: Position,
-    allowance: NonZeroUsize,
-) -> harmos::Result<wire::ExecutionFileFollowMetadata> {
+) -> wire::ExecutionFileFollowMetadata {
     let Position {
         phase,
         length,
         offset,
     } = position;
-    let required = std::mem::size_of::<wire::ExecutionFileFollowMetadata>()
-        + staged.history.store.as_str().len()
-        + staged.history.epoch.as_str().len()
-        + staged.id.as_str().len()
-        + execution.as_str().len()
-        + path.len()
-        + media.len();
-    if required > allowance.get() {
-        return Err(refused("follow metadata exceeds original admission"));
-    }
-    let value = wire::ExecutionFileFollowMetadata {
+    wire::ExecutionFileFollowMetadata {
         identity: Some(wire::ExecutionFileIdentity {
             history: Some(history(&staged.history)),
             file_id: staged.id.as_str().to_owned(),
@@ -530,9 +493,7 @@ fn metadata(
         phase,
         available_length: length,
         offset,
-    };
-    admit(&value, allowance)?;
-    Ok(value)
+    }
 }
 fn kind(path: &str, media: &str) -> wire::ExecutionFileKind {
     use crate::ExecutionFileContentKind as Kind;
@@ -557,15 +518,6 @@ fn hex(value: &[u8; 32]) -> String {
         text.push(ALPHABET[(byte & 15) as usize] as char);
     }
     text
-}
-fn allowance() -> Result<NonZeroUsize> {
-    NonZeroUsize::new(FRAME_MEMORY).ok_or_else(|| invalid("empty follow frame allowance"))
-}
-fn admit(value: &impl MemorySize, allowance: NonZeroUsize) -> harmos::Result<()> {
-    if value.memory_size() > allowance.get() {
-        return Err(refused("follow frame exceeds original storage admission"));
-    }
-    Ok(())
 }
 fn refused(reason: &'static str) -> harmos::Error {
     harmos::Error::InvalidInput {

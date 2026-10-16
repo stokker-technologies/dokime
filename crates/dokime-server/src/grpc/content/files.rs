@@ -87,18 +87,17 @@ impl Operation for Read {
             ));
         }
         let page = runtime
-            .execution_file_content_projected(
+            .execution_file_content(
                 &id,
                 std::mem::take(&mut request.relative_path),
                 request.offset,
                 limit,
-                super::window::projection,
-                |content, allowance| super::window::project(content, allowance, message_limit),
             )
             .await
             .map_err(read_failure)?
             .ok_or_else(|| Status::not_found("registered execution output not found"))?;
-        page.try_into_response()
+        super::window::project(&page, message_limit)
+            .map(Into::into)
             .map_err(|source| read_failure(source.into()))
     }
 }

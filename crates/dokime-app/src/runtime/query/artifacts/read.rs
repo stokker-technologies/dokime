@@ -14,13 +14,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, ops::Deref};
+use std::{ops::Deref, sync::Arc};
 
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{QueryValue, SharedQueryValue},
-};
 use serde::{Serialize, Serializer};
 
 // Local Imports
@@ -29,7 +25,7 @@ use crate::{
     execution_runtime::outputs::ExecutionFileEntry,
     queries::{RuntimeResolution, RuntimeWindow},
 };
-use dokime::core::{RecordScope, TestExecutionId, Timestamp};
+use dokime::core::{RecordScope, TestExecutionId};
 
 /* === Constants === */
 static EMPTY: RuntimeExecutionFileFrame = RuntimeExecutionFileFrame {
@@ -47,7 +43,7 @@ static EMPTY: RuntimeExecutionFileFrame = RuntimeExecutionFileFrame {
 /* === Structs === */
 #[derive(Clone, Debug)]
 pub struct RuntimeExecutionFileRead {
-    value: Option<SharedQueryValue<RuntimeExecutionFileFrame>>,
+    value: Option<Arc<RuntimeExecutionFileFrame>>,
 }
 
 /* === Enums === */
@@ -60,10 +56,10 @@ impl RuntimeExecutionFileRead {
         Self { value: None }
     }
 
-    pub(crate) fn from_query(value: QueryValue<RuntimeExecutionFileFrame>) -> harmos::Result<Self> {
-        Ok(Self {
-            value: Some(value.try_into_shared()?),
-        })
+    pub(crate) fn from_frame(value: RuntimeExecutionFileFrame) -> Self {
+        Self {
+            value: Some(Arc::new(value)),
+        }
     }
 }
 
@@ -87,45 +83,13 @@ impl Serialize for RuntimeExecutionFileRead {
     }
 }
 
-impl MemorySize for RuntimeExecutionFileRecord {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(self.artifact_id.capacity())
-            .saturating_add(self.filename.capacity())
-            .saturating_add(self.content_type.as_ref().map_or(0, String::capacity))
-            .saturating_add(
-                self.scope
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of_val(&self.scope)),
-            )
-            .saturating_add(
-                self.updated_at
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of_val(&self.updated_at)),
-            )
-    }
-}
-
-impl MemorySize for RuntimeExecutionFileFrame {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(
-                self.files
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of_val(&self.files)),
-            )
-            .saturating_add(self.error.as_ref().map_or(0, String::capacity))
-    }
-}
-
 /* === Public Functions === */
 pub(crate) fn execution_file_frame(
     execution: &TestExecutionId,
     files: &[ExecutionFileEntry],
     window: &RuntimeWindow,
     resolution: &RuntimeResolution,
-    allowance: NonZeroUsize,
-) -> harmos::Result<RuntimeExecutionFileFrame> {
+) -> RuntimeExecutionFileFrame {
     let total = windowed(files, window).count();
     let count = match resolution {
         RuntimeResolution::Raw => total,
@@ -140,56 +104,26 @@ pub(crate) fn execution_file_frame(
         _ => harmos::signal::decimate(total, count),
     };
     let returned = indices.len();
-    let selected = || selected(files, window, &indices);
-    let mut bytes = std::mem::size_of::<RuntimeExecutionFileFrame>();
-    for file in selected() {
-        for field in [
-            std::mem::size_of::<RuntimeExecutionFileRecord>(),
-            execution.as_str().len(),
-            file.artifact_id.len(),
-            file.relative_path.len(),
-            file.content_type.as_ref().map_or(0, String::len),
-            file.updated_at.as_str().len(),
-        ] {
-            bytes = bytes.checked_add(field).ok_or_else(exhausted)?;
-        }
-    }
-    if bytes > allowance.get() {
-        return Err(exhausted());
-    }
-
-    let mut records = Vec::new();
-    records
-        .try_reserve_exact(returned)
-        .map_err(|_| exhausted())?;
-    if records.capacity() > returned {
-        return Err(exhausted());
-    }
-    for file in selected() {
-        let id = TestExecutionId::from_uuid(text(execution.as_str())?).map_err(|_| {
-            harmos::Error::InvalidInput {
-                field: "execution files frame",
-                reason: "invalid original execution identity",
-            }
-        })?;
+    let mut records = Vec::with_capacity(returned);
+    for file in selected(files, window, &indices) {
         records.push(RuntimeExecutionFileRecord {
-            artifact_id: text(&file.artifact_id)?,
-            scope: RecordScope::default().with_test_execution(id),
-            filename: text(&file.relative_path)?,
-            content_type: file.content_type.as_deref().map(text).transpose()?,
+            artifact_id: file.artifact_id.clone(),
+            scope: RecordScope::default().with_test_execution(execution.clone()),
+            filename: file.relative_path.clone(),
+            content_type: file.content_type.clone(),
             content_kind: file.content_kind,
             stream_state: file.stream_state,
             size_bytes: file.size_bytes,
-            updated_at: Timestamp::new(text(file.updated_at.as_str())?),
+            updated_at: file.updated_at.clone(),
         });
     }
-    Ok(RuntimeExecutionFileFrame {
+    RuntimeExecutionFileFrame {
         files: records,
         total_files: total,
         returned_files: returned,
         truncated: returned < total,
         error: None,
-    })
+    }
 }
 
 /* === Private Functions === */
@@ -232,23 +166,6 @@ fn selected<'a>(
             true
         })
         .map(|(_, file)| file)
-}
-
-fn text(source: &str) -> harmos::Result<String> {
-    let mut value = String::new();
-    value
-        .try_reserve_exact(source.len())
-        .map_err(|_| exhausted())?;
-    if value.capacity() > source.len() {
-        return Err(exhausted());
-    }
-    value.push_str(source);
-    Ok(value)
-}
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "execution files frame projection",
-    }
 }
 
 /* === Tests === */

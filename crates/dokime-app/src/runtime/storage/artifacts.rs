@@ -14,18 +14,12 @@ pub use super::artifact_reads::ArtifactReader;
 
 /* === Imports === */
 // Standard Library Imports
-use std::{
-    num::NonZeroUsize,
-    sync::{
-        Arc, Weak,
-        atomic::{AtomicU64, Ordering},
-    },
+use std::sync::{
+    Arc, Weak,
+    atomic::{AtomicU64, Ordering},
 };
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{FileMetadata, QueryValue},
-};
+use harmos::storage::FileMetadata;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 // Local Imports
@@ -46,8 +40,6 @@ use dokime::{
 
 /* === Constants === */
 const CHUNK_BYTES: usize = 1024 * 1024;
-const EXECUTION_BYTES: usize = 4 * 1024 * 1024;
-const DESCRIPTOR_BYTES: usize = 64 * 1024;
 const UPLOAD_PREFIX: &str = "artifacts/uploads/";
 
 /* === Macros === */
@@ -80,7 +72,7 @@ pub(super) struct Upload {
     file: tokio::fs::File,
     closing: Option<ArtifactStatus>,
     pending: Option<FrozenFile>,
-    descriptor: Option<QueryValue<ExecutionOutput>>,
+    descriptor: Option<ExecutionOutput>,
     metadata: Metadata,
     record: ArtifactRecord,
     expected_size: u64,
@@ -96,26 +88,7 @@ pub(super) struct Upload {
 /* === Implementations === */
 impl Upload {
     pub(super) fn descriptor(&self) -> Option<&ExecutionOutput> {
-        self.descriptor.as_deref()
-    }
-}
-
-impl MemorySize for Chunk {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(
-                self.upload
-                    .execution
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<TestExecutionId>()),
-            )
-            .saturating_add(
-                self.upload
-                    .id
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<ArtifactId>()),
-            )
-            .saturating_add(self.bytes.capacity())
+        self.descriptor.as_ref()
     }
 }
 
@@ -130,26 +103,13 @@ impl ArtifactUpload {
         }
         let storage = self.storage.upgrade().ok_or(Error::ShuttingDown)?;
 
-        // Preclaim Owned Ingress Before Copying
-        let allowance = std::mem::size_of::<Chunk>()
-            .checked_add(self.execution.as_str().len())
-            .and_then(|value| value.checked_add(self.id.as_str().len()))
-            .and_then(|value| value.checked_add(bytes.len()))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| error("artifact ingress size overflow"))?;
-        let chunk = storage
-            .storage
-            .produce(allowance, |_allowance| {
-                Ok(Chunk {
-                    upload: self.clone(),
-                    bytes: bytes.to_vec(),
-                })
-            })
-            .map_err(Error::from)?;
-
+        let chunk = Chunk {
+            upload: self.clone(),
+            bytes: bytes.to_vec(),
+        };
         let appended = tokio::spawn(async move {
-            // Retain The Original Charge And Producer Token Through Admission
-            let ingress = chunk.value();
+            // Retain The Producer Token Through Admission
+            let ingress = &chunk;
             let upload = &ingress.upload;
             let owner = storage
                 .acquisition(&upload.execution)
@@ -230,7 +190,7 @@ impl ArtifactUpload {
                 .find_artifact(&upload.id)
                 .await?
                 .ok_or_else(|| error("artifact upload is missing"))?;
-            outcome((*stored).clone(), complete)
+            outcome(stored, complete)
         })
         .await
         .map_err(error)?
@@ -367,24 +327,11 @@ impl RuntimeHandle {
         checkpoint
             .validate()
             .map_err(dokime::storage::Error::from)?;
-        let storage = &self.execution_storage.storage;
-        let view = storage
-            .view_with_limits(self.config().storage.interactive)
-            .await?;
-        let inspection = ExecutionView::open_checkpoint(
-            storage,
-            view,
-            &checkpoint,
-            NonZeroUsize::new(EXECUTION_BYTES).unwrap(),
-        )
-        .await?
-        .ok_or_else(|| error("artifact checkpoint is missing from its saved view"))?;
-        ArtifactReader::open(
-            &inspection,
-            id,
-            NonZeroUsize::new(DESCRIPTOR_BYTES).unwrap(),
-        )
-        .await
+        let inspection =
+            ExecutionView::open_checkpoint(&self.execution_storage.storage, &checkpoint)
+                .await?
+                .ok_or_else(|| error("artifact checkpoint is missing from its saved view"))?;
+        ArtifactReader::open(&inspection, id).await
     }
 }
 
@@ -465,44 +412,20 @@ impl ExecutionStorage {
         })
     }
 
-    pub(crate) async fn artifact_records(
-        &self,
-        scan_limit: usize,
-    ) -> Result<QueryValue<Vec<ArtifactRecord>>> {
-        super::artifact_inventory::project_records(self, scan_limit, |records, _| Ok(records)).await
+    pub(crate) async fn artifact_records(&self, scan_limit: usize) -> Result<Vec<ArtifactRecord>> {
+        super::artifact_inventory::records(self, scan_limit).await
     }
 
-    pub(crate) async fn project_artifact_records<T: MemorySize>(
-        &self,
-        scan_limit: usize,
-        map: impl FnOnce(Vec<ArtifactRecord>, NonZeroUsize) -> harmos::Result<T>,
-    ) -> Result<QueryValue<T>> {
-        super::artifact_inventory::project_records(self, scan_limit, map).await
-    }
-
-    pub(crate) async fn project_artifacts<T: MemorySize>(
-        &self,
-        scan_limit: usize,
-        map: impl FnOnce(&[ArtifactRecord], NonZeroUsize) -> harmos::Result<T>,
-    ) -> Result<QueryValue<T>> {
-        self.project_artifact_records(scan_limit, |records, allowance| map(&records, allowance))
-            .await
-    }
-
-    /// Counts every artifact under `budget`, or the interactive default.
-    pub(crate) async fn artifact_count(
-        &self,
-        budget: Option<harmos::storage::QueryLimits>,
-    ) -> Result<usize> {
-        super::artifact_inventory::count(self, budget).await
+    /// Counts every artifact of sealed and live executions.
+    pub(crate) async fn artifact_count(&self) -> Result<usize> {
+        super::artifact_inventory::count(self).await
     }
 
     pub(crate) async fn artifact_reader(&self, id: &ArtifactId) -> Result<Option<ArtifactReader>> {
         let mut found = None;
         super::artifact_inventory::inspect(self, |_, output| {
             if matches!(&output.content, ExecutionOutputContent::Artifact { record, .. } if &record.artifact_id == id) {
-                let bytes = NonZeroUsize::new(output.memory_size()).ok_or(harmos::Error::ResourceExhausted { resource: "artifact descriptor memory" })?;
-                found = Some(self.storage.produce(bytes, |_| Ok(output.clone()))?.try_into_value()?);
+                found = Some(output.clone());
             }
             Ok(())
         }).await?;
@@ -514,26 +437,14 @@ impl ExecutionStorage {
         }
     }
 
-    async fn find_artifact(&self, id: &ArtifactId) -> Result<Option<QueryValue<ArtifactRecord>>> {
+    async fn find_artifact(&self, id: &ArtifactId) -> Result<Option<ArtifactRecord>> {
         let mut found = None;
         super::artifact_inventory::inspect(self, |_, output| {
             let ExecutionOutputContent::Artifact { record, .. } = &output.content else {
                 unreachable!("inventory visits only artifact descriptors");
             };
             if &record.artifact_id == id {
-                let limit = NonZeroUsize::new(DESCRIPTOR_BYTES).unwrap();
-                found = Some(
-                    self.storage
-                        .produce(limit, |allowance| {
-                            if record.memory_size() > allowance.get() {
-                                return Err(harmos::Error::ResourceExhausted {
-                                    resource: "artifact record projection",
-                                });
-                            }
-                            Ok(record.as_ref().clone())
-                        })?
-                        .try_into_value()?,
-                );
+                found = Some(record.as_ref().clone());
             }
             Ok(())
         })
@@ -663,51 +574,20 @@ async fn stage(storage: &dokime::storage::Manager, upload: &mut Upload) -> Resul
             .content_type
             .as_deref()
             .unwrap_or("application/octet-stream");
-        let bytes = std::mem::size_of::<FileMetadata>()
-            .checked_add(upload.record.artifact_id.as_str().len())
-            .and_then(|bytes| {
-                bytes.checked_add(
-                    upload
-                        .record
-                        .scope
-                        .test_execution_id
-                        .as_ref()
-                        .map_or(0, |id| id.as_str().len()),
-                )
-            })
-            .and_then(|bytes| bytes.checked_add(media_type.len()))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| error("artifact file metadata memory overflows"))?;
-        let metadata = storage
-            .produce(bytes, |_| {
-                Ok(FileMetadata {
-                    id: Identifier::new(upload.record.artifact_id.as_str()).map_err(|source| {
-                        harmos::Error::backend(
-                            "artifact file identity",
-                            harmos::BackendFailure::Permanent,
-                            source,
-                        )
-                    })?,
-                    scope: upload
-                        .record
-                        .scope
-                        .test_execution_id
-                        .as_ref()
-                        .map(|id| Identifier::new(id.as_str()))
-                        .transpose()
-                        .map_err(|source| {
-                            harmos::Error::backend(
-                                "artifact file scope",
-                                harmos::BackendFailure::Permanent,
-                                source,
-                            )
-                        })?,
-                    media_type: media_type.to_owned(),
-                    expected_length: Some(upload.record.size_bytes),
-                    expected_sha256: Some(upload.digest.clone().finalize().into()),
-                })
-            })?
-            .try_into_value()?;
+        let metadata = FileMetadata {
+            id: Identifier::new(upload.record.artifact_id.as_str()).map_err(error)?,
+            scope: upload
+                .record
+                .scope
+                .test_execution_id
+                .as_ref()
+                .map(|id| Identifier::new(id.as_str()))
+                .transpose()
+                .map_err(error)?,
+            media_type: media_type.to_owned(),
+            expected_length: Some(upload.record.size_bytes),
+            expected_sha256: Some(upload.digest.clone().finalize().into()),
+        };
         upload.pending = Some(FrozenFile::new(file, metadata));
     }
     let reference = upload
@@ -716,82 +596,27 @@ async fn stage(storage: &dokime::storage::Manager, upload: &mut Upload) -> Resul
         .expect("original artifact producer retained")
         .finish(storage)
         .await?;
-    let bytes = std::mem::size_of::<ExecutionOutput>()
-        .checked_add(UPLOAD_PREFIX.len())
-        .and_then(|bytes| bytes.checked_add(upload.record.artifact_id.as_str().len()))
-        .and_then(|bytes| bytes.checked_add(1))
-        .and_then(|bytes| bytes.checked_add(upload.record.filename.len()))
-        .and_then(|bytes| {
-            bytes.checked_add(
-                upload
-                    .record
-                    .created_at
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<Timestamp>()),
-            )
-        })
-        .and_then(|bytes| {
-            bytes.checked_add(
-                reference
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of_val(&reference)),
-            )
-        })
-        .and_then(|bytes| {
-            bytes.checked_add(
-                upload
-                    .record
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<Box<ArtifactRecord>>()),
-            )
-        })
-        .and_then(|bytes| {
-            bytes.checked_add(
-                upload
-                    .metadata
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<Metadata>()),
-            )
-        })
-        .and_then(NonZeroUsize::new)
-        .ok_or_else(|| error("artifact descriptor memory overflows"))?;
-    let descriptor = storage
-        .produce(bytes, |_| {
-            let mut record = upload.record.clone();
-            record.status = status.clone();
-            let length =
-                UPLOAD_PREFIX.len() + record.artifact_id.as_str().len() + 1 + record.filename.len();
-            let mut relative_path = String::new();
-            relative_path.try_reserve_exact(length).map_err(|_| {
-                harmos::Error::ResourceExhausted {
-                    resource: "artifact output path",
-                }
-            })?;
-            if relative_path.capacity() > length {
-                return Err(harmos::Error::ResourceExhausted {
-                    resource: "artifact output path capacity",
-                });
-            }
-            relative_path.push_str(UPLOAD_PREFIX);
-            relative_path.push_str(record.artifact_id.as_str());
-            relative_path.push('/');
-            relative_path.push_str(&record.filename);
-            Ok(ExecutionOutput {
-                relative_path,
-                created_at: record.created_at.clone(),
-                file: reference.clone(),
-                stream_state: Some(if *status == ArtifactStatus::Complete {
-                    SavedStreamState::Finalized
-                } else {
-                    SavedStreamState::Interrupted
-                }),
-                content: ExecutionOutputContent::Artifact {
-                    record: Box::new(record),
-                    metadata: upload.metadata.clone(),
-                },
-            })
-        })?
-        .try_into_value()?;
+    let mut record = upload.record.clone();
+    record.status = status.clone();
+    let relative_path = format!(
+        "{UPLOAD_PREFIX}{}/{}",
+        record.artifact_id.as_str(),
+        record.filename
+    );
+    let descriptor = ExecutionOutput {
+        relative_path,
+        created_at: record.created_at.clone(),
+        file: reference,
+        stream_state: Some(if *status == ArtifactStatus::Complete {
+            SavedStreamState::Finalized
+        } else {
+            SavedStreamState::Interrupted
+        }),
+        content: ExecutionOutputContent::Artifact {
+            record: Box::new(record),
+            metadata: upload.metadata.clone(),
+        },
+    };
     // A Refused Descriptor Retains The Original Finished Handle For Retry
     upload.record.status = status.clone();
     upload.descriptor = Some(descriptor);

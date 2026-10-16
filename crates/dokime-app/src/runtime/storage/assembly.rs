@@ -61,7 +61,7 @@ pub(crate) async fn build(
                 version: 1.try_into().unwrap(),
             },
             every: 1024.try_into().unwrap(),
-            max_bytes: super::config::STATE_SNAPSHOT_BYTES.try_into().unwrap(),
+            max_bytes: dokime::storage::STATE_SNAPSHOT_BYTES.try_into().unwrap(),
         })
         .reconcile(move |state_manager, _storage| async move {
             // Validate Replayed Ownership Without Copying The Runtime Graph

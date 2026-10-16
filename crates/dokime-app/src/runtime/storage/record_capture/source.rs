@@ -28,8 +28,8 @@ use std::{
 // Third Party Imports
 use futures_util::StreamExt;
 use harmos::{
-    Identifier, MemorySize, Message,
-    storage::{QueryOptions, ReadLimits, RecordWrite, SchemaKey, SchemaQuery},
+    Identifier, Message,
+    storage::{ReadLimits, RecordWrite, SchemaKey},
 };
 use tokio::sync::watch;
 use tracing::Instrument;
@@ -50,7 +50,6 @@ const MAX_GROUP_ROWS: usize = 256;
 /* === Structs === */
 pub(crate) struct Source {
     storage: dokime::storage::Manager,
-    reads: crate::config::StorageSettings,
     schema: SchemaKey,
     epoch: Identifier,
     closed: watch::Sender<bool>,
@@ -59,18 +58,11 @@ pub(crate) struct Source {
 
 pub(crate) struct Projection(pub(crate) Arc<Source>);
 
-struct ProjectedRecord {
-    item: Identifier,
-    payload: Vec<u8>,
-}
-
 #[derive(serde::Deserialize)]
 struct PersistedRecord {
     dokime_encoding: u32,
     payload: crate::records::Record,
 }
-
-struct NumberBytes(usize);
 
 #[derive(Default)]
 pub(crate) struct Process {
@@ -87,47 +79,18 @@ pub(crate) struct Process {
 /* === Traits === */
 
 /* === Implementations === */
-impl std::fmt::Write for NumberBytes {
-    fn write_str(&mut self, value: &str) -> std::fmt::Result {
-        self.0 = self.0.checked_add(value.len()).ok_or(std::fmt::Error)?;
-        Ok(())
-    }
-}
-
-impl MemorySize for ProjectedRecord {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(
-                self.item
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<Identifier>()),
-            )
-            .saturating_add(self.payload.capacity())
-    }
-}
-
 impl Source {
     pub(crate) fn new(
         epoch: &dokime::core::SessionId,
         storage: dokime::storage::Manager,
-        reads: crate::config::StorageSettings,
     ) -> Result<Self> {
-        reads.validate()?;
         Ok(Self {
             storage,
-            reads,
             schema: records::schema(),
             epoch: Identifier::new(epoch.to_string()).map_err(error)?,
             closed: watch::channel(false).0,
             origin: AtomicU64::new(0),
         })
-    }
-
-    pub(crate) fn page_limits(&self) -> ReadLimits {
-        ReadLimits {
-            rows: self.reads.page_rows,
-            bytes: self.reads.page_bytes,
-        }
     }
 
     pub(crate) async fn initialize(&self) -> Result<()> {
@@ -137,41 +100,15 @@ impl Source {
             &harmos::config::SchemaSettings::default(),
         )
         .map_err(projection_error)?;
-        let mut query = SchemaQuery::new();
-        query.schema = Some(self.schema.clone());
-        query.options = QueryOptions {
-            page: Some(self.page_limits()),
-            execution: Some(self.reads.interactive),
-            decoded_bytes: Some(self.reads.decoded_bytes),
-            ..QueryOptions::default()
-        };
-        let mut schemas = self.storage.query(query).await.map_err(Error::from)?;
-        let marker_memory = NonZeroUsize::new(std::mem::size_of::<bool>()).unwrap();
-        let mut found = false;
-        while let Some(validated) = schemas
-            .next_page_projected(marker_memory, |rows, _| {
-                if found || rows.len() != 1 || rows[0].schema != schema {
-                    return Err(projection_error("stored capture schema differs"));
-                }
-                Ok(true)
-            })
+        let declared = self
+            .storage
+            .write_schema(&self.schema, &schema)
             .await
-            .map_err(Error::from)?
-        {
-            found = *validated;
-        }
-        drop(schemas);
-        if !found {
-            let declared = self
-                .storage
-                .write_schema(&self.schema, &schema)
-                .await
-                .map_err(Error::from)?;
-            self.storage
-                .flush_until(&declared)
-                .await
-                .map_err(Error::from)?;
-        }
+            .map_err(Error::from)?;
+        self.storage
+            .flush_until(&declared)
+            .await
+            .map_err(Error::from)?;
         Ok(())
     }
 
@@ -261,132 +198,17 @@ impl harmos::storage::RecordProjection for Projection {
         );
         Box::pin(
             async move {
-                let bytes = projection_memory(envelope.payload, envelope.id.as_str().len())?;
-                let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
-                let preparation = loop {
-                    match self.0.storage.prepare_production(bytes) {
-                        Err(harmos::Error::ResourceExhausted {
-                            resource: "storage read memory",
-                        }) if tokio::time::Instant::now() < deadline => {
-                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                        }
-                        result => break result?,
-                    }
-                };
-                let produced = preparation.finish(
-                    (|allowance: std::num::NonZeroUsize| -> harmos::Result<_> {
-                        let record = if let Some(fact) = harmos::state::SystemFact::restore(
-                            &envelope.id,
-                            envelope.version,
-                            envelope.payload,
-                        )
-                        .map_err(projection_error)?
-                        {
-                            let harmos::state::FactSource::Sidecar(owner) = fact.source else {
-                                return Ok(None);
-                            };
-                            let persisted: PersistedRecord =
-                                serde_json::from_slice(&fact.payload).map_err(projection_error)?;
-                            if persisted.dokime_encoding != 2 {
-                                return Err(projection_error(
-                                    "unsupported Dokime persistence encoding",
-                                ));
-                            }
-                            let record = persisted.payload;
-                            if record.source != owner
-                                || record.record_type.as_str() != fact.name
-                                || record.schema_version != fact.version
-                            {
-                                return Err(projection_error(
-                                    "native fact identity differs from its envelope",
-                                ));
-                            }
-                            record
-                        } else {
-                            let Some(crate::records::Records::Record(record)) =
-                                crate::records::Records::restore(
-                                    &envelope.id,
-                                    envelope.version,
-                                    envelope.payload,
-                                )
-                                .map_err(projection_error)?
-                            else {
-                                return Err(projection_error("unknown product record"));
-                            };
-                            record
-                        };
-                        let record = RecordEntry::from_record(envelope.position.0, record);
-                        let native = records::RecordRow::encoding_memory(&record)
-                            .map_err(projection_error)?;
-                        let construction = record
-                            .memory_size()
-                            .checked_add(native)
-                            .and_then(|bytes| {
-                                bytes.checked_add(std::mem::size_of::<ProjectedRecord>())
-                            })
-                            .and_then(|bytes| bytes.checked_add(record.record_id.as_str().len()))
-                            .filter(|bytes| *bytes < usize::MAX && *bytes <= allowance.get())
-                            .ok_or_else(|| {
-                                projection_error("record construction exceeds original admission")
-                            })?;
-                        let row =
-                            records::RecordRow::from_entry(&record).map_err(projection_error)?;
-                        let length = row.encoded_len();
-                        if length > FRAME_BYTES {
-                            return Err(projection_error(
-                                "record capture frame exceeds byte limit",
-                            ));
-                        }
-                        if construction
-                            .checked_add(length)
-                            .is_none_or(|bytes| bytes > allowance.get())
-                        {
-                            return Err(projection_error(
-                                "record encoding exceeds original admission",
-                            ));
-                        }
-                        // Final Buffers Stay Within The Already-Admitted Construction Peak
-                        let mut payload = Vec::new();
-                        payload
-                            .try_reserve_exact(length)
-                            .map_err(projection_error)?;
-                        if payload.capacity() > length {
-                            return Err(projection_error(
-                                "record encoding capacity exceeds original admission",
-                            ));
-                        }
-                        row.encode_into(&mut payload);
-                        if payload.len() != length || payload.capacity() > length {
-                            return Err(projection_error(
-                                "record encoding differs from its admitted length",
-                            ));
-                        }
-
-                        let identity = record.record_id.as_str();
-                        let mut item = String::new();
-                        item.try_reserve_exact(identity.len())
-                            .map_err(projection_error)?;
-                        if item.capacity() > identity.len() {
-                            return Err(projection_error(
-                                "record identity capacity exceeds original admission",
-                            ));
-                        }
-                        item.push_str(identity);
-                        let item = Identifier::new(item).map_err(projection_error)?;
-                        Ok(Some(ProjectedRecord { item, payload }))
-                    })(bytes)?,
-                )?;
-                let Some(record) = produced.value() else {
+                let Some((item, payload)) = project(envelope)? else {
                     return Ok(());
                 };
                 output
                     .push(RecordWrite {
                         schema: &self.0.schema,
                         scope: Some(&self.0.epoch),
-                        item: &record.item,
+                        item: &item,
                         source: None,
                         source_time: None,
-                        payload: &record.payload,
+                        payload: &payload,
                     })
                     .await
             }
@@ -488,91 +310,49 @@ fn projection_error(source: impl Into<Box<dyn std::error::Error + Send + Sync>>)
     }
 }
 
-fn projection_memory(
-    input: &serde_json::Value,
-    identity_bytes: usize,
-) -> harmos::Result<NonZeroUsize> {
-    // The Existing Conservative Bound Remains Until Typed Restore Admission
-    // Accounts For Each Record Field And Its Deserializer Capacity Policy.
-    let input = match input {
-        serde_json::Value::Array(bytes)
-            if bytes
-                .iter()
-                .all(|byte| byte.as_u64().is_some_and(|byte| byte <= u8::MAX.into())) =>
+// Restore One Journal Envelope As The Record Row It Captures, If Any.
+fn project(
+    envelope: &harmos::state::Envelope<&serde_json::Value>,
+) -> harmos::Result<Option<(Identifier, Vec<u8>)>> {
+    let record = if let Some(fact) =
+        harmos::state::SystemFact::restore(&envelope.id, envelope.version, envelope.payload)
+            .map_err(projection_error)?
+    {
+        let harmos::state::FactSource::Sidecar(owner) = fact.source else {
+            return Ok(None);
+        };
+        let persisted: PersistedRecord =
+            serde_json::from_slice(&fact.payload).map_err(projection_error)?;
+        if persisted.dokime_encoding != 2 {
+            return Err(projection_error("unsupported Dokime persistence encoding"));
+        }
+        let record = persisted.payload;
+        if record.source != owner
+            || record.record_type.as_str() != fact.name
+            || record.schema_version != fact.version
         {
-            bytes
-                .len()
-                .checked_mul(std::mem::size_of::<serde_json::Value>())
-                .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Vec<u8>>()))
-                .ok_or_else(|| projection_error("record projection memory overflow"))?
+            return Err(projection_error(
+                "native fact identity differs from its envelope",
+            ));
         }
-        input => json_memory(input, 0)?,
+        record
+    } else {
+        let Some(crate::records::Records::Record(record)) =
+            crate::records::Records::restore(&envelope.id, envelope.version, envelope.payload)
+                .map_err(projection_error)?
+        else {
+            return Err(projection_error("unknown product record"));
+        };
+        record
     };
-    let bytes = input
-        .checked_add(identity_bytes)
-        .and_then(|bytes| bytes.checked_mul(8))
-        .and_then(|bytes| bytes.checked_add(4 * FRAME_BYTES))
-        .and_then(|bytes| bytes.checked_add(std::mem::size_of::<RecordEntry>() + 4096))
-        .and_then(NonZeroUsize::new)
-        .ok_or_else(|| projection_error("record projection memory overflow"))?;
-    Ok(bytes)
-}
-
-fn json_memory(value: &serde_json::Value, depth: usize) -> harmos::Result<usize> {
-    if depth > 64 {
-        return Err(projection_error(
-            "record projection input exceeds nesting bound",
-        ));
+    let record = RecordEntry::from_record(envelope.position.0, record);
+    let row = records::RecordRow::from_entry(&record).map_err(projection_error)?;
+    let payload = row.encode_to_vec();
+    if payload.len() > FRAME_BYTES {
+        return Err(projection_error("record capture frame exceeds byte limit"));
     }
-    let mut bytes = std::mem::size_of::<serde_json::Value>();
-    match value {
-        serde_json::Value::String(value) => {
-            bytes = bytes
-                .checked_add(value.len())
-                .ok_or_else(|| projection_error("record projection memory overflow"))?;
-        }
-        serde_json::Value::Number(value) => {
-            // Covers Arbitrary-Precision Number Buffers Without Formatting A String
-            let mut number = NumberBytes(0);
-            std::fmt::write(&mut number, format_args!("{value}"))
-                .map_err(|_| projection_error("record number memory overflow"))?;
-            bytes = bytes
-                .checked_add(number.0)
-                .ok_or_else(|| projection_error("record projection memory overflow"))?;
-        }
-        serde_json::Value::Array(values) => {
-            let slots = values
-                .capacity()
-                .checked_mul(std::mem::size_of::<serde_json::Value>())
-                .ok_or_else(|| projection_error("record projection memory overflow"))?;
-            bytes = bytes
-                .checked_add(slots)
-                .ok_or_else(|| projection_error("record projection memory overflow"))?;
-            for value in values {
-                let owned = json_memory(value, depth + 1)?
-                    .saturating_sub(std::mem::size_of::<serde_json::Value>());
-                bytes = bytes
-                    .checked_add(owned)
-                    .ok_or_else(|| projection_error("record projection memory overflow"))?;
-            }
-        }
-        serde_json::Value::Object(values) => {
-            let nodes = harmos::btree_map_memory::<String, serde_json::Value>(values.len());
-            bytes = bytes
-                .checked_add(nodes)
-                .ok_or_else(|| projection_error("record projection memory overflow"))?;
-            for (key, value) in values {
-                let owned = json_memory(value, depth + 1)?
-                    .saturating_sub(std::mem::size_of::<serde_json::Value>());
-                bytes = bytes
-                    .checked_add(key.len())
-                    .and_then(|bytes| bytes.checked_add(owned))
-                    .ok_or_else(|| projection_error("record projection memory overflow"))?;
-            }
-        }
-        _ => {}
-    }
-    Ok(bytes)
+    let item = Identifier::new(record.record_id.as_str()).map_err(projection_error)?;
+    Ok(Some((item, payload)))
 }
 
 pub(crate) fn group_limits() -> ReadLimits {

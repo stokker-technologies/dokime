@@ -452,10 +452,7 @@ impl RuntimeHandle {
             && self.execution_storage.acquisition(id).await.is_none()
         {
             // A Lease Can Precede Provider Dispatch; Its Durable Capture Owner Must Exist.
-            let cycle = self
-                .execution_storage
-                .report_source(id, &self.config().storage)
-                .await?;
+            let cycle = self.execution_storage.report_source(id).await?;
             let execution = cycle
                 .test_executions
                 .iter()

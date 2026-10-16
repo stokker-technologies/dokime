@@ -83,7 +83,7 @@ pub(crate) async fn refuses_retired_evidence() {
     let recovery = harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         backend.history().clone(),
-        &crate::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
     );
     recovery.open().await.unwrap();
     recovery
@@ -158,7 +158,7 @@ pub(crate) async fn refuses_retired_evidence() {
     let recovery = harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         backend.history().clone(),
-        &crate::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
     );
     assert_eq!(recovery.open().await.unwrap().sequence, 1);
     recovery.close().await.unwrap();

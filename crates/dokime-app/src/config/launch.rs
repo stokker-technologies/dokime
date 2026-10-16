@@ -36,7 +36,6 @@ pub struct Config {
     pub title: String,
     pub label: Option<String>,
     pub output_root: PathBuf,
-    pub save_interval: std::time::Duration,
     pub compaction_interval: std::time::Duration,
     pub local_retention: Option<std::time::Duration>,
     pub application_root: Option<PathBuf>,
@@ -76,9 +75,6 @@ impl Config {
             title: "Dokime".to_owned(),
             label: None,
             output_root: output_root.into(),
-            save_interval: std::time::Duration::from_millis(
-                super::policy::DEFAULT_SAVE_INTERVAL_MS,
-            ),
             compaction_interval: std::time::Duration::from_secs(24 * 60 * 60),
             local_retention: None,
             application_root: None,
@@ -108,7 +104,6 @@ impl Config {
         );
         let mut config = RuntimeConfig::new(&self.output_root, metadata)
             .with_credential_backend(self.credential_backend);
-        config.save_interval = self.save_interval;
         config.compaction_interval = self.compaction_interval;
         config.local_retention = self.local_retention;
         if let Some(root) = self.application_root {

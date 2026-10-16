@@ -15,12 +15,9 @@ pub use dokime::execution::request::{AttemptClaim, RunReceipt};
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeMap, ops::Deref};
+use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{SharedQueryValue, StorageCursor},
-};
+use harmos::storage::StorageCursor;
 use tokio::sync::Mutex;
 // Local Imports
 use crate::{Error, Result};
@@ -37,15 +34,12 @@ const TERMINAL_INTERRUPTION: &str = "Run settled before command completion was r
 /* === Macros === */
 
 /* === Type Aliases === */
-pub type ReceiptLoan = SharedQueryValue<RunReceipt>;
 
 /* === Structs === */
-struct Active<S: ReceiptStore> {
-    receipt: S::Receipt,
-    pending: Option<Pending<S::Receipt>>,
+struct Active {
+    receipt: Arc<RunReceipt>,
+    pending: Option<Pending<Arc<RunReceipt>>>,
     admitted: bool,
-    // Keeps This Entry's Original Node And Key Preclaim Until Removal.
-    _registry: S::Registry,
 }
 
 pub(crate) struct Pending<R> {
@@ -54,51 +48,19 @@ pub(crate) struct Pending<R> {
     position: Option<StorageCursor>,
 }
 
-pub(crate) struct RequestStorage<S: ReceiptStore = native::Receipts> {
-    store: S,
+pub(crate) struct RequestStorage {
+    storage: dokime::storage::Manager,
     node: NodeId,
     now: fn() -> Timestamp,
-    /// How long a receipt read backs off while other readers fill the read
-    /// ledger: the interactive deadline.
-    patience: std::time::Duration,
-    active: Mutex<BTreeMap<CommandId, Active<S>>>,
+    active: Mutex<BTreeMap<CommandId, Active>>,
 }
 
 /* === Enums === */
 
 /* === Traits === */
-pub(crate) trait ReceiptStore: Send + Sync {
-    type Receipt: Clone + Deref<Target = RunReceipt> + Send + Sync;
-    type Keys: Deref<Target = Vec<CommandId>> + Send;
-    type Command: Deref<Target = StepCommandReceipt> + Send;
-    type Registry: Send + Sync;
-
-    fn retain(&self, receipt: RunReceipt) -> Result<Self::Receipt>;
-    fn reserve_entry(&self, id: &CommandId) -> Result<Self::Registry>;
-    fn revise(
-        &self,
-        receipt: &Self::Receipt,
-        growth: usize,
-        change: impl FnOnce(&mut RunReceipt) -> Result<()>,
-    ) -> Result<Self::Receipt>;
-    fn command(&self, receipt: &Self::Receipt, id: &CommandId) -> Result<Self::Command>;
-    fn read(
-        &self,
-        id: &CommandId,
-    ) -> impl std::future::Future<Output = Result<Option<Self::Receipt>>> + Send;
-    fn pending(
-        &self,
-        node: &NodeId,
-        after: Option<&CommandId>,
-    ) -> impl std::future::Future<Output = Result<Option<Self::Keys>>> + Send;
-    fn save(
-        &self,
-        pending: &mut Pending<Self::Receipt>,
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
-}
 
 /* === Implementations === */
-impl<R: Clone + Deref<Target = RunReceipt>> Pending<R> {
+impl<R: Clone + std::ops::Deref<Target = RunReceipt>> Pending<R> {
     fn new(receipt: R) -> Self {
         Self {
             receipt,
@@ -125,32 +87,11 @@ impl<R: Clone + Deref<Target = RunReceipt>> Pending<R> {
 }
 
 impl RequestStorage {
-    pub(crate) fn new(
-        storage: dokime::storage::Manager,
-        node: NodeId,
-        patience: std::time::Duration,
-    ) -> Self {
-        Self::with_clock(
-            native::Receipts::new(storage),
-            node,
-            Timestamp::now_utc,
-            patience,
-        )
-    }
-}
-
-impl<S: ReceiptStore> RequestStorage<S> {
-    fn with_clock(
-        store: S,
-        node: NodeId,
-        now: fn() -> Timestamp,
-        patience: std::time::Duration,
-    ) -> Self {
+    pub(crate) fn new(storage: dokime::storage::Manager, node: NodeId) -> Self {
         Self {
-            store,
+            storage,
             node,
-            now,
-            patience,
+            now: Timestamp::now_utc,
             active: Mutex::new(BTreeMap::new()),
         }
     }
@@ -159,26 +100,13 @@ impl<S: ReceiptStore> RequestStorage<S> {
         &self,
         completed: impl Fn(&CommandId) -> Option<&'a RunSummary>,
     ) -> Result<()> {
-        let mut previous: Option<S::Keys> = None;
-        loop {
-            let after = previous.as_ref().and_then(|page| page.last());
-            let Some(page) = self.store.pending(&self.node, after).await? else {
-                return Ok(());
-            };
-            if page.is_empty() {
-                return Ok(());
-            }
-            for id in page.iter() {
-                if after.is_some_and(|after| after >= id) {
-                    return Err(error("request recovery page did not advance"));
-                }
-                self.get_recovered(id, completed(id)).await?;
-            }
-            previous = Some(page);
+        for id in native::pending(&self.storage, &self.node).await? {
+            self.get_recovered(&id, completed(&id)).await?;
         }
+        Ok(())
     }
 
-    pub(crate) async fn get(&self, id: &CommandId) -> Result<Option<S::Receipt>> {
+    pub(crate) async fn get(&self, id: &CommandId) -> Result<Option<Arc<RunReceipt>>> {
         self.get_recovered(id, None).await
     }
 
@@ -186,7 +114,7 @@ impl<S: ReceiptStore> RequestStorage<S> {
         &self,
         id: &CommandId,
         completed: Option<&RunSummary>,
-    ) -> Result<Option<S::Receipt>> {
+    ) -> Result<Option<Arc<RunReceipt>>> {
         let (mut active, stored) = self.lock_read(id).await?;
         if let Some(stored) = stored {
             let Some(receipt) = stored else {
@@ -207,9 +135,7 @@ impl<S: ReceiptStore> RequestStorage<S> {
                     "saved completion differs from receipt identity or phase",
                 ));
             }
-            let growth = interruption_memory(&receipt, RECOVERY_INTERRUPTION, &now)?
-                .saturating_add(completed.map_or(0, MemorySize::memory_size));
-            let recovered = self.store.revise(&receipt, growth, |receipt| {
+            let recovered = revise(&receipt, |receipt| {
                 if let Some(summary) = completed {
                     receipt.summary = summary.clone();
                     receipt.interruption = None;
@@ -219,14 +145,12 @@ impl<S: ReceiptStore> RequestStorage<S> {
                 }
                 Ok(())
             })?;
-            let registry = self.store.reserve_entry(id)?;
             active.insert(
                 id.clone(),
                 Active {
                     pending: Some(Pending::changed(recovered, &receipt)),
                     receipt,
                     admitted: false,
-                    _registry: registry,
                 },
             );
         }
@@ -234,14 +158,10 @@ impl<S: ReceiptStore> RequestStorage<S> {
         self.publish(owner).await?;
         if !owner.admitted && !owner.receipt.summary.phase.terminal() {
             let now = (self.now)();
-            let interrupted = self.store.revise(
-                &owner.receipt,
-                interruption_memory(&owner.receipt, INITIAL_INTERRUPTION, &now)?,
-                |receipt| {
-                    interrupt(receipt, INITIAL_INTERRUPTION, now);
-                    Ok(())
-                },
-            )?;
+            let interrupted = revise(&owner.receipt, |receipt| {
+                interrupt(receipt, INITIAL_INTERRUPTION, now);
+                Ok(())
+            })?;
             owner.pending = Some(Pending::changed(interrupted, &owner.receipt));
             self.publish(owner).await?;
         }
@@ -252,7 +172,10 @@ impl<S: ReceiptStore> RequestStorage<S> {
         Ok(Some(receipt))
     }
 
-    pub(crate) async fn pending_command(&self, id: &CommandId) -> Result<Option<S::Command>> {
+    pub(crate) async fn pending_command(
+        &self,
+        id: &CommandId,
+    ) -> Result<Option<StepCommandReceipt>> {
         let mut active = self.active.lock().await;
         let owner = active
             .get_mut(id)
@@ -270,23 +193,18 @@ impl<S: ReceiptStore> RequestStorage<S> {
         if pending.next().is_some() {
             return Err(error("multiple unsettled commands"));
         }
-        first
-            .map(|command| self.store.command(&owner.receipt, &command.command_id))
-            .transpose()
+        Ok(first.cloned())
     }
 
     pub(crate) async fn command(
         &self,
         id: &CommandId,
         command: &CommandId,
-    ) -> Result<Option<S::Command>> {
+    ) -> Result<Option<StepCommandReceipt>> {
         let Some(receipt) = self.get(id).await? else {
             return Ok(None);
         };
-        if !receipt.commands.contains_key(command) {
-            return Ok(None);
-        }
-        self.store.command(&receipt, command).map(Some)
+        Ok(receipt.commands.get(command).cloned())
     }
 
     pub(crate) async fn begin(&self, receipt: RunReceipt) -> Result<()> {
@@ -295,20 +213,18 @@ impl<S: ReceiptStore> RequestStorage<S> {
                 "new request must belong to this node and be nonterminal",
             ));
         }
-        let receipt = self.store.retain(receipt)?;
+        let receipt = Arc::new(receipt);
         let id = &receipt.summary.request_id;
         let (mut active, stored) = self.lock_read(id).await?;
         if stored.is_none_or(|stored| stored.is_some()) {
             return Err(error("request identity already exists"));
         }
-        let registry = self.store.reserve_entry(id)?;
         active.insert(
             id.clone(),
             Active {
                 pending: Some(Pending::new(receipt.clone())),
                 receipt: receipt.clone(),
                 admitted: false,
-                _registry: registry,
             },
         );
         let owner = active.get_mut(id).expect("request owner inserted");
@@ -320,7 +236,6 @@ impl<S: ReceiptStore> RequestStorage<S> {
     pub(crate) async fn update(
         &self,
         id: &CommandId,
-        growth: usize,
         change: impl FnOnce(&mut RunReceipt),
     ) -> Result<()> {
         let mut active = self.active.lock().await;
@@ -340,11 +255,7 @@ impl<S: ReceiptStore> RequestStorage<S> {
         }
         if !owner.receipt.summary.phase.terminal() {
             let now = (self.now)();
-            let terminal_growth = interruption_memory(&owner.receipt, TERMINAL_INTERRUPTION, &now)?;
-            let growth = growth
-                .checked_add(terminal_growth)
-                .ok_or_else(|| error("receipt update size overflow"))?;
-            let receipt = self.store.revise(&owner.receipt, growth, |receipt| {
+            let receipt = revise(&owner.receipt, |receipt| {
                 change(receipt);
                 if receipt.summary.request_id != *id
                     || receipt.node_id != self.node
@@ -357,7 +268,7 @@ impl<S: ReceiptStore> RequestStorage<S> {
                 }
                 Ok(())
             })?;
-            if receipt.deref() == owner.receipt.deref() {
+            if *receipt == *owner.receipt {
                 return Ok(());
             }
             owner.pending = Some(Pending::changed(receipt, &owner.receipt));
@@ -374,17 +285,15 @@ impl<S: ReceiptStore> RequestStorage<S> {
         &self,
         id: &CommandId,
     ) -> Result<(
-        tokio::sync::MutexGuard<'_, BTreeMap<CommandId, Active<S>>>,
-        Option<Option<S::Receipt>>,
+        tokio::sync::MutexGuard<'_, BTreeMap<CommandId, Active>>,
+        Option<Option<Arc<RunReceipt>>>,
     )> {
         let active = self.active.lock().await;
         if active.contains_key(id) {
             return Ok((active, None));
         }
         drop(active);
-        let stored = tokio::time::timeout(self.patience, self.read(id))
-            .await
-            .map_err(|_| error("stored request read timed out"))?;
+        let stored = self.read(id).await;
         let active = self.active.lock().await;
         if active.contains_key(id) {
             return Ok((active, None));
@@ -392,8 +301,8 @@ impl<S: ReceiptStore> RequestStorage<S> {
         Ok((active, Some(stored?)))
     }
 
-    async fn read(&self, id: &CommandId) -> Result<Option<S::Receipt>> {
-        let receipt = self.store.read(id).await?;
+    async fn read(&self, id: &CommandId) -> Result<Option<Arc<RunReceipt>>> {
+        let receipt = native::read(&self.storage, id).await?.map(Arc::new);
         if let Some(receipt) = &receipt
             && (receipt.summary.request_id != *id || receipt.node_id != self.node)
         {
@@ -402,11 +311,11 @@ impl<S: ReceiptStore> RequestStorage<S> {
         Ok(receipt)
     }
 
-    async fn publish(&self, owner: &mut Active<S>) -> Result<()> {
+    async fn publish(&self, owner: &mut Active) -> Result<()> {
         let Some(pending) = owner.pending.as_mut() else {
             return Ok(());
         };
-        self.store.save(pending).await?;
+        native::save(&self.storage, pending).await?;
         owner.receipt = owner.pending.take().expect("saved receipt").receipt;
         Ok(())
     }
@@ -415,20 +324,13 @@ impl<S: ReceiptStore> RequestStorage<S> {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn interruption_memory(receipt: &RunReceipt, reason: &str, now: &Timestamp) -> Result<usize> {
-    let count = receipt
-        .commands
-        .values()
-        .filter(|command| !command.phase.terminal())
-        .count();
-    let per_command = reason
-        .len()
-        .checked_add(now.memory_size())
-        .ok_or_else(|| error("interruption size overflow"))?;
-    count
-        .checked_mul(per_command)
-        .and_then(|bytes| bytes.checked_add(per_command))
-        .ok_or_else(|| error("interruption size overflow"))
+fn revise(
+    receipt: &Arc<RunReceipt>,
+    change: impl FnOnce(&mut RunReceipt) -> Result<()>,
+) -> Result<Arc<RunReceipt>> {
+    let mut revised = (**receipt).clone();
+    change(&mut revised)?;
+    Ok(Arc::new(revised))
 }
 
 fn interrupt(receipt: &mut RunReceipt, reason: &str, now: Timestamp) {

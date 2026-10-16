@@ -101,30 +101,6 @@ pub(crate) fn instance_memory(source: &prompts::PromptInstance) -> Result<usize,
     bounded(bytes)
 }
 
-pub(super) fn definition_memory(source: &prompts::PromptDefinition) -> Result<usize, Status> {
-    bounded(
-        std::mem::size_of::<contract::PromptDefinition>()
-            .saturating_add(definition_heap(source, &mut Budget::new())?),
-    )
-}
-pub(super) fn response_memory(source: &prompts::PromptResponse) -> Result<usize, Status> {
-    timestamp(&source.submitted_at)?;
-    for text in [
-        source.prompt_id.as_str(),
-        source.action.as_str(),
-        source.responder.as_str(),
-    ] {
-        value::text(text)?;
-    }
-    bounded(
-        std::mem::size_of::<contract::PromptResponse>()
-            .saturating_add(source.prompt_id.as_str().len())
-            .saturating_add(source.action.len())
-            .saturating_add(source.responder.len())
-            .saturating_add(object_heap(&source.values, &mut Budget::new(), 0)?),
-    )
-}
-
 /* === Private Functions === */
 fn definition_with_budget(
     value: &prompts::PromptDefinition,

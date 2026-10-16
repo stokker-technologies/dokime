@@ -11,7 +11,7 @@
 /* === Re-Exports === */
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 // Third Party Imports
 use harmos::{
     MemorySize, Protobuf,
@@ -148,14 +148,6 @@ impl Watch {
             let advanced = page.next > after;
             after = page.next;
             if initial || advanced || page.missed > 0 {
-                let allowance = NonZeroUsize::new(bytes)
-                    .ok_or_else(|| Status::resource_exhausted("invalid trace allowance"))?;
-                let preparation = self
-                    .resources
-                    .runtime
-                    .storage()
-                    .prepare_production(allowance)
-                    .map_err(failure)?;
                 let batch = wire::TraceBatch {
                     epoch: epoch.clone(),
                     events: page
@@ -171,13 +163,7 @@ impl Watch {
                         "trace batch exceeds configured budget",
                     ));
                 }
-                let response = preparation
-                    .finish(batch)
-                    .map_err(failure)?
-                    .try_into_value()
-                    .map_err(failure)?
-                    .try_into_response()
-                    .map_err(failure)?;
+                let response = batch.into();
                 output.send_owned(response).await.map_err(failure)?;
                 initial = false;
             }

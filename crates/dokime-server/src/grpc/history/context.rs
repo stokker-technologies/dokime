@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-mod memory;
 
 /* === Re-Exports === */
 
@@ -17,7 +16,7 @@ mod memory;
 use std::sync::Arc;
 // Third Party Imports
 use harmos::{
-    MemorySize, Protobuf,
+    Protobuf,
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
@@ -76,24 +75,18 @@ impl Operation for Get {
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         self.resources
             .runtime
-            .execution_checkpoint_context(checkpoint, |context, allowance| {
-                let required = context
-                    .memory_size()
-                    .saturating_add(memory::count(&context)?);
-                if required > allowance.get() {
-                    return Err(exhausted());
-                }
-                let response =
-                    checkpoint_context(context, self.resources.maximum).map_err(original_error)?;
-                if response.encoded_len() > self.resources.maximum {
-                    return Err(exhausted());
-                }
-                Ok(response)
-            })
+            .execution_checkpoint_context(checkpoint)
             .await
-            .map_err(wire::checkpoint_failure)?
-            .try_into_response()
-            .map_err(|source| wire::checkpoint_failure(source.into()))
+            .map_err(wire::checkpoint_failure)
+            .and_then(|context| {
+                match checkpoint_context(context, self.resources.maximum).map_err(original_error) {
+                    Ok(response) if response.encoded_len() <= self.resources.maximum => {
+                        Ok(response.into())
+                    }
+                    Ok(_) => Err(wire::checkpoint_failure(exhausted().into())),
+                    Err(source) => Err(wire::checkpoint_failure(source.into())),
+                }
+            })
     }
 }
 

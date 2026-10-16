@@ -19,7 +19,6 @@ use std::{
 };
 // Third Party Imports
 use futures_util::{Stream, StreamExt};
-use harmos::MemorySize;
 // Local Imports
 use crate::evidence::{
     PublishReceipt, TelemetrySelection, retain_running_samples, validation_rejection,
@@ -54,7 +53,6 @@ pub(crate) struct SampleAdmission {
     )>,
     rows: Vec<TelemetryRow>,
     delivery: super::leases::LeasedRows,
-    _supplied_memory: harmos::storage::StorageProductionPreparation,
     // A Finishing Provider Writes Its Outcome Under Its Own Quiescence.
     observes_closure: bool,
 }
@@ -217,35 +215,6 @@ impl RuntimeHandle {
         // Fresh Data May Rearm A Transient Worker; Previously Accepted Batches Stay With Storage.
         self.storage().retry_transient_persistence();
         let order = self.telemetry_admission.clone().lock_owned().await;
-        let supplied_bytes = samples.iter().fold(
-            std::mem::size_of::<
-                Vec<(
-                    Option<dokime::core::TestExecutionId>,
-                    dokime::core::TelemetrySampleId,
-                )>,
-            >(),
-            |bytes, sample| {
-                bytes
-                    .saturating_add(std::mem::size_of::<PreparedSample>())
-                    .saturating_add(std::mem::size_of::<(
-                        Option<dokime::core::TestExecutionId>,
-                        dokime::core::TelemetrySampleId,
-                    )>())
-                    .saturating_add(sample.sample_id.memory_size())
-                    .saturating_add(
-                        sample
-                            .scope
-                            .as_ref()
-                            .and_then(|scope| scope.test_execution_id.as_ref())
-                            .map_or(0, harmos::MemorySize::memory_size),
-                    )
-            },
-        );
-        let supplied_memory = self.storage().prepare_production(
-            std::num::NonZeroUsize::new(supplied_bytes).ok_or_else(|| {
-                crate::Error::Operation("telemetry supplied input memory overflows".into())
-            })?,
-        )?;
         let supplied = samples
             .iter()
             .map(|sample| {
@@ -360,7 +329,6 @@ impl RuntimeHandle {
             _order: order,
             execution,
             supplied,
-            _supplied_memory: supplied_memory,
             accepted,
             rows,
             delivery,
@@ -390,40 +358,9 @@ impl RuntimeHandle {
             accepted,
             supplied,
             rows,
-            _supplied_memory,
             delivery,
             observes_closure,
         } = admission;
-        let fold_bytes = accepted
-            .iter()
-            .try_fold(
-                std::mem::size_of::<Vec<PreparedSample>>(),
-                |bytes, (sample, _, _)| {
-                    bytes
-                        .checked_add(std::mem::size_of::<PreparedSample>())
-                        .and_then(|bytes| {
-                            bytes.checked_add(std::mem::size_of::<(
-                                Option<dokime::core::TestExecutionId>,
-                                dokime::core::TelemetrySampleId,
-                            )>())
-                        })
-                        .and_then(|bytes| bytes.checked_add(sample.sample_id.memory_size()))
-                        .and_then(|bytes| {
-                            bytes.checked_add(
-                                sample
-                                    .scope
-                                    .as_ref()
-                                    .and_then(|scope| scope.test_execution_id.as_ref())
-                                    .map_or(0, harmos::MemorySize::memory_size),
-                            )
-                        })
-                },
-            )
-            .and_then(std::num::NonZeroUsize::new)
-            .ok_or_else(|| {
-                crate::Error::Operation("telemetry receipt fold memory overflows".into())
-            })?;
-        let _fold_memory = self.storage().prepare_production(fold_bytes)?;
         let sampling = self.sampling();
         let admitted = execution
             .commit(observes_closure.then_some(sampling.as_ref()))

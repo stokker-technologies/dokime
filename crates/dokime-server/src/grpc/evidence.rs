@@ -36,7 +36,7 @@ const PAGE_BYTES: usize = 512 * 1024;
 /* === Macros === */
 
 /* === Type Aliases === */
-type Page = harmos::storage::QueryValue<v1::RecordPage>;
+type Page = v1::RecordPage;
 
 /* === Structs === */
 struct Resources {
@@ -45,7 +45,6 @@ struct Resources {
 }
 
 struct Reader {
-    runtime: RuntimeHandle,
     source: CapturedRecords,
     selection: Selection,
     scanned: u64,
@@ -91,7 +90,6 @@ impl Reader {
             ));
         }
         Ok(Self {
-            runtime: runtime.clone(),
             source,
             selection,
             scanned,
@@ -107,24 +105,8 @@ impl Reader {
         }
     }
     async fn page(&mut self) -> Result<Page, Status> {
-        use harmos::MemorySize;
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(std::num::NonZeroUsize::new(PAGE_BYTES).unwrap())
-            .map_err(memory_error)?;
-        let allowance = preparation.allowance().get();
         let mut scanned = self.scanned;
-        let envelope_memory = std::mem::size_of::<v1::RecordPage>()
-            .saturating_add(RECORD_LIMIT.saturating_mul(std::mem::size_of::<v1::CapturedRecord>()))
-            .saturating_add(self.source.epoch().len().saturating_mul(3))
-            .saturating_add(self.selection.stream.len().saturating_mul(3));
-        if envelope_memory > allowance {
-            return Err(Status::resource_exhausted(
-                "record page envelope exceeds native memory allowance",
-            ));
-        }
-        let page = v1::RecordPage {
+        let mut page = v1::RecordPage {
             records: Vec::with_capacity(RECORD_LIMIT),
             scanned: Some(self.cursor(scanned)),
             through: Some(self.cursor(self.through)),
@@ -140,20 +122,6 @@ impl Reader {
             ));
         }
         let mut bytes = overhead;
-        let cursor_scratch = page
-            .scanned
-            .as_ref()
-            .unwrap()
-            .epoch
-            .capacity()
-            .saturating_add(page.scanned.as_ref().unwrap().stream.capacity());
-        let mut memory = page.memory_size().saturating_add(cursor_scratch);
-        let mut page = page;
-        if memory > allowance {
-            return Err(Status::resource_exhausted(
-                "record page envelope exceeds native memory allowance",
-            ));
-        }
         for _ in 0..SCAN_LIMIT {
             let next = self
                 .source
@@ -165,15 +133,6 @@ impl Reader {
                 break;
             };
             if self.selection.matches(&record) {
-                let candidate_memory = canonical::memory(&record)?;
-                if memory.saturating_add(candidate_memory) > allowance {
-                    if page.records.is_empty() {
-                        return Err(Status::resource_exhausted(
-                            "captured record exceeds native memory allowance; cursor has not advanced",
-                        ));
-                    }
-                    break;
-                }
                 let encoded = canonical::record(&record)?;
                 let size = encoded.encoded_len().saturating_add(10);
                 if bytes.saturating_add(size) > self.bytes {
@@ -185,7 +144,6 @@ impl Reader {
                     break;
                 }
                 bytes += size;
-                memory = memory.saturating_add(candidate_memory);
                 page.records.push(encoded);
             }
             scanned = record.sequence;
@@ -195,13 +153,8 @@ impl Reader {
         }
         page.scanned = Some(self.cursor(scanned));
         page.replay_complete = scanned == self.through;
-        let output = preparation
-            .finish(page)
-            .map_err(memory_error)?
-            .try_into_value()
-            .map_err(memory_error)?;
         self.scanned = scanned;
-        Ok(output)
+        Ok(page)
     }
 }
 
@@ -244,11 +197,7 @@ impl Operation for List {
             request.through.take(),
             self.resources.max_message_bytes,
         )?;
-        reader
-            .page()
-            .await?
-            .try_into_response()
-            .map_err(memory_error)
+        Ok(reader.page().await?.into())
     }
 }
 impl Operation for Watch {
@@ -290,13 +239,7 @@ impl Operation for Watch {
                 }
             }
             output
-                .send_owned(
-                    reader
-                        .page()
-                        .await?
-                        .try_into_response()
-                        .map_err(memory_error)?,
-                )
+                .send_owned(reader.page().await?.into())
                 .await
                 .map_err(memory_error)?;
             initial = false;
@@ -334,34 +277,13 @@ impl Operation for Schema {
             .state()
             .historical_record_contract(&kind, request.schema_version)
             .ok_or_else(|| Status::not_found("exact admitted record schema is unavailable"))?;
-        let required = super::catalog::schemas::record_memory(contract)?;
-        if required > self.resources.max_message_bytes {
-            return Err(Status::resource_exhausted(
-                "record schema exceeds original allowance",
-            ));
-        }
-        let preparation = self
-            .resources
-            .runtime
-            .storage()
-            .prepare_production(
-                std::num::NonZeroUsize::new(required)
-                    .ok_or_else(|| Status::resource_exhausted("invalid schema allowance"))?,
-            )
-            .map_err(memory_error)?;
         let schema = super::catalog::schemas::record(contract)?;
         if schema.encoded_len() > self.resources.max_message_bytes {
             return Err(Status::resource_exhausted(
                 "record schema exceeds transport response budget",
             ));
         }
-        preparation
-            .finish(schema)
-            .map_err(memory_error)?
-            .try_into_value()
-            .map_err(memory_error)?
-            .try_into_response()
-            .map_err(memory_error)
+        Ok(schema.into())
     }
 }
 

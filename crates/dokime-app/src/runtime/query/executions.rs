@@ -127,28 +127,6 @@ pub fn execution_controls(state: &RuntimeState, id: &TestExecutionId) -> Option<
     })
 }
 
-pub(crate) fn selection_memory(metadata: &ExecutionMetadata, filter: &ExecutionFilter) -> usize {
-    let candidate = [
-        Some(metadata.title.as_str()),
-        Some(metadata.execution_id.as_str()),
-        metadata.suite_label.as_deref(),
-    ]
-    .into_iter()
-    .flatten()
-    .map(lowercase_memory)
-    .max()
-    .unwrap_or(0);
-    lowercase_memory(filter.text.trim()).saturating_add(candidate)
-}
-
-pub(crate) fn ordering_memory(metadata: &ExecutionMetadata, order: ExecutionOrder) -> usize {
-    if order.key == ExecutionOrderKey::Title {
-        lowercase_memory(&metadata.title).saturating_mul(2)
-    } else {
-        0
-    }
-}
-
 pub fn matches(metadata: &ExecutionMetadata, filter: &ExecutionFilter) -> bool {
     if !filter.statuses.is_empty() && !filter.statuses.contains(&metadata.status) {
         return false;
@@ -198,20 +176,6 @@ pub fn compare(
 }
 
 /* === Private Functions === */
-fn lowercase_memory(text: &str) -> usize {
-    let mut capacity = text.len();
-    let mut length = 0usize;
-    let mut peak = capacity;
-    for character in text.chars().flat_map(char::to_lowercase) {
-        length = length.saturating_add(character.len_utf8());
-        if length > capacity {
-            let next = capacity.saturating_mul(2).max(length).max(8);
-            peak = peak.max(capacity.saturating_add(next));
-            capacity = next;
-        }
-    }
-    std::mem::size_of::<String>().saturating_add(peak)
-}
 
 fn matches_text(metadata: &ExecutionMetadata, text: &str) -> bool {
     let needle = text.trim().to_lowercase();

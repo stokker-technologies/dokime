@@ -425,7 +425,7 @@ pub(crate) async fn manager_replicates_collections() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         primary.history().clone(),
-        &crate::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
     ));
     let storage = StorageManager::new(
         StorageBackends {

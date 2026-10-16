@@ -13,9 +13,8 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 // Third Party Imports
-use harmos::MemorySize;
 // Local Imports
 use super::executions::ExecutionStorage;
 use crate::{Error, Result};
@@ -46,44 +45,18 @@ impl ExecutionStorage {
                     let Some(header) = state.cycles.get(&id) else {
                         return Ok::<_, Error>(None);
                     };
-                    let bytes = header.execution_ids.iter().try_fold(
-                        header
-                            .memory_size()
-                            .saturating_add(std::mem::size_of::<crate::execution::CycleView>()),
-                        |bytes, id| {
-                            state
-                                .executions
-                                .get(id)
-                                .and_then(|execution| bytes.checked_add(execution.memory_size()))
-                                .ok_or_else(invalid)
-                        },
-                    )?;
-                    let cycle = storage.storage.produce(allowance(bytes)?, |_| {
-                        state.cycle_view(&id).ok_or(harmos::Error::InvalidInput {
-                            field: "cycle membership",
-                            reason: "execution disappeared",
-                        })
+                    let cycle = state.cycle_view(&id).ok_or(harmos::Error::InvalidInput {
+                        field: "cycle membership",
+                        reason: "execution disappeared",
                     })?;
-                    let native = storage.storage.produce(
-                        allowance(Cycle::encoding_memory(header)?)?,
-                        |_| {
-                            Cycle::try_from(header).map_err(|source| {
-                                harmos::Error::backend(
-                                    "encode native cycle",
-                                    harmos::BackendFailure::Permanent,
-                                    source,
-                                )
-                            })
-                        },
-                    )?;
-                    Ok(Some((cycle, native)))
+                    Ok(Some((cycle, native_cycle(header)?)))
                 })
                 .await?
                 .value?;
             let Some((cycle, header)) = selected else {
                 return Ok(());
             };
-            for execution in &cycle.value().test_executions {
+            for execution in &cycle.test_executions {
                 if execution.saved.is_some() {
                     continue;
                 }
@@ -91,33 +64,18 @@ impl ExecutionStorage {
                     if owner.lock().await.execution.saved.is_none() {
                         storage
                             .checkpoint_targets(
-                                cycle.value(),
+                                &cycle,
                                 std::slice::from_ref(&execution.test_execution_id),
                             )
                             .await?;
                     }
                 } else {
-                    let native = storage.storage.produce(
-                        allowance(
-                            dokime::storage::objects::execution::Execution::encoding_memory(
-                                execution,
-                            )?,
-                        )?,
-                        |_| {
-                            dokime::storage::objects::execution::Execution::try_from(execution)
-                                .map_err(|source| {
-                                    harmos::Error::backend(
-                                        "encode working execution",
-                                        harmos::BackendFailure::Permanent,
-                                        source,
-                                    )
-                                })
-                        },
-                    )?;
-                    storage.storage.write_object(native.value()).await?;
+                    let native =
+                        dokime::storage::objects::execution::Execution::try_from(execution)?;
+                    storage.storage.write_object(&native).await?;
                 }
             }
-            let receipt = storage.storage.write_object(header.value()).await?;
+            let receipt = storage.storage.write_object(&header).await?;
             storage.storage.flush_until(&receipt.position).await?;
             Ok(())
         })
@@ -131,28 +89,11 @@ impl ExecutionStorage {
             let native = storage
                 .state_manager
                 .state()
-                .read(|state| {
-                    let Some(header) = state.cycles.get(&id) else {
-                        return Ok::<_, Error>(None);
-                    };
-                    storage
-                        .storage
-                        .produce(allowance(Cycle::encoding_memory(header)?)?, |_| {
-                            Cycle::try_from(header).map_err(|source| {
-                                harmos::Error::backend(
-                                    "encode native cycle",
-                                    harmos::BackendFailure::Permanent,
-                                    source,
-                                )
-                            })
-                        })
-                        .map(Some)
-                        .map_err(Error::from)
-                })
+                .read(|state| state.cycles.get(&id).map(native_cycle).transpose())
                 .await?
                 .value?;
             if let Some(native) = native {
-                let receipt = storage.storage.write_object(native.value()).await?;
+                let receipt = storage.storage.write_object(&native).await?;
                 storage.storage.flush_until(&receipt.position).await?;
             }
             Ok(())
@@ -164,24 +105,11 @@ impl ExecutionStorage {
         let ids = self
             .state_manager
             .state()
-            .read(|state| {
-                let bytes = state
-                    .cycles
-                    .keys()
-                    .try_fold(std::mem::size_of::<Vec<TestCycleId>>(), |bytes, id| {
-                        bytes.checked_add(id.memory_size()).ok_or_else(invalid)
-                    })?;
-                self.storage
-                    .produce(allowance(bytes)?, |_| {
-                        Ok(state.cycles.keys().cloned().collect::<Vec<_>>())
-                    })
-                    .and_then(|value| value.try_into_value())
-                    .map_err(Error::from)
-            })
+            .read(|state| state.cycles.keys().cloned().collect::<Vec<_>>())
             .await?
-            .value?;
-        for id in ids.iter() {
-            self.save_cycle(id.clone()).await?;
+            .value;
+        for id in ids {
+            self.save_cycle(id).await?;
         }
         self.storage.flush().await?;
         Ok(())
@@ -191,15 +119,8 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn invalid() -> Error {
-    Error::Storage(dokime::storage::Error::Invalid(
-        "cycle membership exceeds its source bound",
-    ))
-}
-fn allowance(bytes: usize) -> Result<NonZeroUsize> {
-    NonZeroUsize::new(bytes)
-        .filter(|bytes| bytes.get() != usize::MAX)
-        .ok_or_else(invalid)
+fn native_cycle(header: &crate::execution::TestCycle) -> Result<Cycle> {
+    Ok(Cycle::try_from(header)?)
 }
 
 /* === Tests === */

@@ -419,40 +419,6 @@ impl Serialize for ReportValue<'_> {
 }
 
 /* === Public Functions === */
-pub(super) fn header_memory(input: Header<'_>) -> usize {
-    if let Some(legacy) = input.legacy {
-        return rendering_memory(legacy);
-    }
-    std::mem::size_of::<cycle::Report<'_>>()
-        .saturating_add(std::mem::size_of::<RecordScope>())
-        .saturating_add(input.cycle.test_cycle_id.as_str().len())
-}
-
-pub(crate) fn rendering_memory(input: &CycleReportInput) -> usize {
-    let cases = harmos::btree_map_memory::<&CaseId, ()>(input.cycle.test_executions.len());
-    let scope = input
-        .cycle
-        .test_executions
-        .iter()
-        .map(|execution| harmos::MemorySize::memory_size(&execution.scope))
-        .max()
-        .unwrap_or(std::mem::size_of::<RecordScope>());
-    let fallback = input.cycle.test_cycle_id.as_str().len().saturating_add(
-        input
-            .cycle
-            .test_executions
-            .iter()
-            .map(|execution| execution.snapshot.case().test_case_id.as_str().len())
-            .max()
-            .unwrap_or(0),
-    );
-    std::mem::size_of::<cycle::Report<'_>>()
-        .saturating_add(TraceabilityGroups::construction_memory(input))
-        .saturating_add(cases)
-        .saturating_add(scope)
-        .saturating_add(fallback)
-}
-
 /* === Private Functions === */
 fn snapshot(input: Header<'_>) -> Snapshot<'_> {
     let template_id = input.cycle.metadata.identifier.as_str();
@@ -692,11 +658,6 @@ fn case_document_for_case<'a>(
 
 impl Serialize for Traceability<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        if TraceabilityGroups::construction_memory(self.input) == usize::MAX {
-            return Err(serde::ser::Error::custom(
-                "traceability index memory overflows",
-            ));
-        }
         let groups = traceability_groups(self.input, self.scope.as_ref());
         if groups.0.is_empty() {
             return serializer.serialize_unit();
@@ -714,22 +675,6 @@ impl Serialize for Traceability<'_> {
         fields.serialize_entry("updated_at", updated_at)?;
         fields.serialize_entry("scope", &scope)?;
         fields.end()
-    }
-}
-
-impl TraceabilityGroups<'_> {
-    fn construction_memory(input: &CycleReportInput) -> usize {
-        let entries = input.traceability.iter().fold(0usize, |count, item| {
-            count.saturating_add(item.entries.len())
-        });
-        let groups = harmos::btree_map_memory::<(TraceabilityGroupRank, &str), TraceabilityGroup<'_>>(
-            entries,
-        );
-        // Each Entry Can Create One Group With Both Of Its Nested Roots.
-        let items = harmos::btree_map_memory::<TraceabilityKey<'_>, TraceabilityItem<'_>>(1)
-            .saturating_mul(entries);
-        let sources = harmos::btree_map_memory::<&str, ()>(1).saturating_mul(entries);
-        groups.saturating_add(items).saturating_add(sources)
     }
 }
 
@@ -1078,22 +1023,6 @@ fn result_status(status: &ResultStatus) -> &'static str {
 }
 
 fn cycle_status(input: Header<'_>) -> &'static str {
-    if let Some(legacy) = input.legacy {
-        if legacy
-            .cycle
-            .test_executions
-            .iter()
-            .any(|execution| matches!(execution.status, ExecutionStatus::Running))
-        {
-            return "running";
-        }
-        return match legacy.cycle.result.as_ref().map(|result| &result.status) {
-            Some(ResultStatus::Passed) => "completed",
-            Some(ResultStatus::Failed | ResultStatus::Blocked) => "failed",
-            Some(ResultStatus::Cancelled) => "stopped",
-            Some(ResultStatus::Pending) | None => "planned",
-        };
-    }
     match input.cycle.lifecycle {
         crate::execution::CycleStatus::Running
         | crate::execution::CycleStatus::Paused

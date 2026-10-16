@@ -12,7 +12,6 @@ mod assets;
 mod convert;
 
 /* === Re-Exports === */
-pub(super) use convert::historical_memory;
 
 /* === Imports === */
 // Standard Library Imports

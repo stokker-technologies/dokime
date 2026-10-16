@@ -21,9 +21,7 @@ use std::collections::BTreeMap;
 // Local Imports
 use super::telemetry::{validation_mode, validation_mode_code, value_type, value_type_code};
 use crate::{Error, Result};
-use dokime::core::{
-    Identifier, MeasurementUnit, Metadata, SuiteId, TemplateId, Value, ValueFormat,
-};
+use dokime::core::{Identifier, MeasurementUnit, SuiteId, TemplateId, Value, ValueFormat};
 use dokime::records::{
     RecordContract, RecordDisplay, RecordField, RecordIconKey, RecordSeverity, RecordTone,
 };
@@ -82,66 +80,10 @@ struct Field {
 
 /* === Implementations === */
 
-impl Contracts {
-    pub(crate) fn encoding_memory(values: &Declarations) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>();
-        for (key, versions) in values {
-            if versions.is_empty() {
-                return Err(invalid("captured record type has no declaration"));
-            }
-            bytes = bytes
-                .saturating_add(std::mem::size_of::<Type>())
-                .saturating_add(key.as_str().len());
-            for (version, contract) in versions {
-                if key != &contract.record_type
-                    || *version == 0
-                    || *version != contract.schema_version
-                {
-                    return Err(invalid("captured record declaration identity differs"));
-                }
-                bytes = bytes.saturating_add(Contract::encoding_memory(contract)?);
-            }
-        }
-        Ok(bytes)
-    }
-
-    pub(crate) fn projection_memory(&self) -> Result<usize> {
-        let mut bytes =
-            harmos::btree_map_memory::<Identifier, BTreeMap<u32, RecordContract>>(self.types.len());
-        let mut previous: Option<&str> = None;
-        for kind in &self.types {
-            if previous.is_some_and(|key| key >= kind.key.as_str()) || kind.versions.is_empty() {
-                return Err(invalid("captured record keys are not canonical"));
-            }
-            previous = Some(&kind.key);
-            bytes = bytes.saturating_add(kind.key.capacity());
-            bytes = excess(
-                bytes,
-                harmos::btree_map_memory::<u32, RecordContract>(kind.versions.len()),
-                std::mem::size_of::<BTreeMap<u32, RecordContract>>(),
-            );
-            let mut previous_version = 0;
-            for contract in &kind.versions {
-                if contract.record_type != kind.key || contract.schema_version <= previous_version {
-                    return Err(invalid("captured record versions are not canonical"));
-                }
-                previous_version = contract.schema_version;
-                bytes = excess(
-                    bytes,
-                    contract.projection_memory()?,
-                    std::mem::size_of::<RecordContract>(),
-                );
-            }
-        }
-        Ok(bytes)
-    }
-}
+impl Contracts {}
 impl TryFrom<&Declarations> for Contracts {
     type Error = Error;
     fn try_from(values: &Declarations) -> Result<Self> {
-        if Self::encoding_memory(values)? == usize::MAX {
-            return Err(invalid("record declaration encoding memory overflows"));
-        }
         let mut types = slots(values.len())?;
         for (key, versions) in values {
             let mut contracts = slots(versions.len())?;
@@ -159,9 +101,6 @@ impl TryFrom<&Declarations> for Contracts {
 impl TryFrom<Contracts> for Declarations {
     type Error = Error;
     fn try_from(value: Contracts) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(invalid("record declaration projection memory overflows"));
-        }
         let mut types = BTreeMap::new();
         for kind in value.types {
             let key = Identifier::new(kind.key).map_err(dokime::storage::Error::from)?;
@@ -175,54 +114,10 @@ impl TryFrom<Contracts> for Declarations {
         Ok(types)
     }
 }
-impl Contract {
-    fn encoding_memory(value: &RecordContract) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(value.record_type.as_str().len())
-            .saturating_add(value.template_id.as_ref().map_or(0, |id| id.as_str().len()))
-            .saturating_add(value.owner.as_ref().map_or(0, |id| id.as_str().len()));
-        bytes = excess(
-            bytes,
-            native::Metadata::encoding_memory(&value.metadata)?,
-            std::mem::size_of::<native::Metadata>(),
-        );
-        for field in &value.fields {
-            bytes = bytes.saturating_add(Field::encoding_memory(field)?);
-        }
-        Ok(bytes)
-    }
-    fn projection_memory(&self) -> Result<usize> {
-        severity(self.default_severity)?;
-        icon(self.icon)?;
-        tone(self.tone)?;
-        if let Some(mode) = self.validation_mode {
-            validation_mode(mode)?;
-        }
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or_else(|| invalid("record declaration metadata is missing"))?;
-        let mut bytes = std::mem::size_of::<RecordContract>()
-            .saturating_add(self.record_type.capacity())
-            .saturating_add(self.template_id.as_ref().map_or(0, String::capacity))
-            .saturating_add(self.owner.as_ref().map_or(0, String::capacity));
-        bytes = excess(
-            bytes,
-            metadata.projection_memory()?,
-            std::mem::size_of::<Metadata>(),
-        );
-        for field in &self.fields {
-            bytes = bytes.saturating_add(field.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
+impl Contract {}
 impl TryFrom<&RecordContract> for Contract {
     type Error = Error;
     fn try_from(value: &RecordContract) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(invalid("record declaration encoding memory overflows"));
-        }
         let mut fields = slots(value.fields.len())?;
         for field in &value.fields {
             fields.push(field.try_into()?);
@@ -253,9 +148,6 @@ impl TryFrom<&RecordContract> for Contract {
 impl TryFrom<Contract> for RecordContract {
     type Error = Error;
     fn try_from(value: Contract) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(invalid("record declaration projection memory overflows"));
-        }
         let mut fields = slots(value.fields.len())?;
         for field in value.fields {
             fields.push(field.try_into()?);
@@ -289,79 +181,10 @@ impl TryFrom<Contract> for RecordContract {
         })
     }
 }
-impl Field {
-    fn encoding_memory(value: &RecordField) -> Result<usize> {
-        let mut bytes = excess(
-            std::mem::size_of::<Self>(),
-            native::Metadata::encoding_memory(&value.metadata)?,
-            std::mem::size_of::<native::Metadata>(),
-        );
-        if let Some(unit) = &value.unit {
-            bytes = excess(
-                bytes,
-                native::MeasurementUnit::encoding_memory(unit)?,
-                std::mem::size_of::<native::MeasurementUnit>(),
-            );
-        }
-        for choice in &value.choices {
-            bytes = bytes.saturating_add(native::Value::encoding_memory(choice)?);
-        }
-        if let Some(default) = &value.default {
-            bytes = excess(
-                bytes,
-                native::Value::encoding_memory(default)?,
-                std::mem::size_of::<native::Value>(),
-            );
-        }
-        if let Some(format) = &value.format {
-            bytes = excess(
-                bytes,
-                native::ValueFormat::encoding_memory(format),
-                std::mem::size_of::<native::ValueFormat>(),
-            );
-        }
-        Ok(bytes)
-    }
-    fn projection_memory(&self) -> Result<usize> {
-        value_type(self.value_type)?;
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or_else(|| invalid("record field metadata is missing"))?;
-        let mut bytes = excess(
-            std::mem::size_of::<RecordField>(),
-            metadata.projection_memory()?,
-            std::mem::size_of::<Metadata>(),
-        );
-        if let Some(unit) = &self.unit {
-            bytes = excess(
-                bytes,
-                unit.projection_memory()?,
-                std::mem::size_of::<MeasurementUnit>(),
-            );
-        }
-        for choice in &self.choices {
-            bytes = bytes.saturating_add(choice.projection_memory()?);
-        }
-        if let Some(default) = &self.default {
-            bytes = bytes.saturating_add(default.projection_memory()?);
-        }
-        if let Some(format) = &self.format {
-            bytes = excess(
-                bytes,
-                format.projection_memory()?,
-                std::mem::size_of::<ValueFormat>(),
-            );
-        }
-        Ok(bytes)
-    }
-}
+impl Field {}
 impl TryFrom<&RecordField> for Field {
     type Error = Error;
     fn try_from(value: &RecordField) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(invalid("record field encoding memory overflows"));
-        }
         let mut choices = slots(value.choices.len())?;
         for choice in &value.choices {
             choices.push(choice.try_into()?);
@@ -393,9 +216,6 @@ impl TryFrom<&RecordField> for Field {
 impl TryFrom<Field> for RecordField {
     type Error = Error;
     fn try_from(value: Field) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(invalid("record field projection memory overflows"));
-        }
         let mut choices = slots(value.choices.len())?;
         for choice in value.choices {
             choices.push(choice.try_into()?);
@@ -422,13 +242,6 @@ impl TryFrom<Field> for RecordField {
 
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
-}
-fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
-    if owned == usize::MAX {
-        usize::MAX
-    } else {
-        bytes.saturating_add(owned.saturating_sub(inline))
-    }
 }
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();

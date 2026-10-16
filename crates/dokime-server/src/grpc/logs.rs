@@ -14,20 +14,17 @@
 /* === Imports === */
 // Standard Library Imports
 use std::collections::VecDeque;
-use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::time::Duration;
 // Third Party Imports
 use harmos::{
     MemorySize, Protobuf,
     operations::{Response, StreamOutput},
-    storage::QueryValue,
 };
 use serde_json::Value;
 use tonic::Status;
 // Local Imports
 use super::redaction;
-use dokime_app::RuntimeHandle;
 use dokime_contract::operations::{backend as wire, common::Timestamp};
 
 /* === Constants === */
@@ -49,7 +46,6 @@ const MAX_LINE_BYTES: usize = 256 * 1024;
 
 /* === Structs === */
 pub(super) struct Watch {
-    pub(super) runtime: RuntimeHandle,
     pub(super) path: PathBuf,
     pub(super) min_level: wire::LogLevel,
     pub(super) replay_lines: u32,
@@ -57,7 +53,6 @@ pub(super) struct Watch {
 }
 
 struct Follow {
-    runtime: RuntimeHandle,
     pending_bytes: usize,
     path: PathBuf,
     min_level: wire::LogLevel,
@@ -66,7 +61,7 @@ struct Follow {
     offset: u64,
     carry: Vec<u8>,
     discarding_line: bool,
-    pending: VecDeque<QueryValue<wire::LogFrame>>,
+    pending: VecDeque<wire::LogFrame>,
     dropped: u64,
     replayed: bool,
 }
@@ -84,7 +79,6 @@ impl Watch {
             self.replay_lines.min(MAX_REPLAY_LINES)
         };
         let mut follow = Follow {
-            runtime: self.runtime,
             pending_bytes: 0,
             path: self.path,
             min_level: self.min_level,
@@ -112,22 +106,14 @@ impl Follow {
                 self.replayed = true;
                 continue;
             }
-            if let Some(frame) = self.pop() {
-                let required = NonZeroUsize::new(frame.memory_size())
-                    .ok_or_else(|| Status::resource_exhausted("invalid log frame allowance"))?;
-                let dropped = self.dropped;
-                let frame = frame
-                    .try_map(required, |mut frame, _| {
-                        frame.dropped = dropped;
-                        Ok(frame)
-                    })
-                    .map_err(memory_failure)?;
+            if let Some(mut frame) = self.pop() {
+                frame.dropped = self.dropped;
                 if frame.encoded_len() > self.message_limit {
                     return Err(Status::resource_exhausted(
                         "log frame exceeds the configured message budget",
                     ));
                 }
-                return Ok(Some(frame.try_into_response().map_err(memory_failure)?));
+                return Ok(Some(frame.into()));
             }
             if self.advance(None)? == 0 {
                 tokio::time::sleep(POLL_INTERVAL).await;
@@ -214,12 +200,12 @@ impl Follow {
         Ok(read as u64)
     }
 
-    fn pop(&mut self) -> Option<QueryValue<wire::LogFrame>> {
+    fn pop(&mut self) -> Option<wire::LogFrame> {
         let frame = self.pending.pop_front()?;
         self.pending_bytes = self.pending_bytes.saturating_sub(frame.memory_size());
         Some(frame)
     }
-    fn push(&mut self, frame: QueryValue<wire::LogFrame>) {
+    fn push(&mut self, frame: wire::LogFrame) {
         let bytes = frame.memory_size();
         let count = if self.replayed {
             MAX_PENDING_FRAMES
@@ -240,14 +226,7 @@ impl Follow {
         self.pending_bytes = self.pending_bytes.saturating_add(bytes);
         self.pending.push_back(frame);
     }
-    fn frame(&self, line: &[u8]) -> Result<Option<QueryValue<wire::LogFrame>>, Status> {
-        let allowance = NonZeroUsize::new(self.message_limit)
-            .ok_or_else(|| Status::resource_exhausted("invalid log frame allowance"))?;
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(allowance)
-            .map_err(memory_failure)?;
+    fn frame(&self, line: &[u8]) -> Result<Option<wire::LogFrame>, Status> {
         let Some(frame) = self.frame_wire(line) else {
             return Ok(None);
         };
@@ -256,12 +235,7 @@ impl Follow {
                 "log frame exceeds the configured message budget",
             ));
         }
-        preparation
-            .finish(frame)
-            .map_err(memory_failure)?
-            .try_into_value()
-            .map(Some)
-            .map_err(memory_failure)
+        Ok(Some(frame))
     }
     fn frame_wire(&self, line: &[u8]) -> Option<wire::LogFrame> {
         let line = std::str::from_utf8(line).ok()?.trim();

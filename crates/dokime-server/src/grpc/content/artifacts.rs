@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 // Third Party Imports
@@ -93,7 +92,6 @@ impl Operation for Download {
             self.resources.maximum,
             super::transfer_chunk_bytes(self.resources.maximum),
             output,
-            metadata_failure,
         )
         .await?;
         Ok(().into())
@@ -124,41 +122,23 @@ pub(in crate::grpc) async fn deliver(
     maximum: usize,
     chunk_bytes: usize,
     output: &mut StreamOutput<content_wire::ArtifactFrame>,
-    failure: fn(dokime_app::Error) -> Status,
 ) -> Result<(), Status> {
-    let required = std::mem::size_of::<content_wire::ArtifactFrame>()
-        .saturating_add(super::metadata_memory(reader.record())?);
-    if required > maximum {
+    let frame = content_wire::ArtifactFrame {
+        payload: Some(content_wire::ArtifactFramePayload::Metadata(
+            super::metadata(reader.record())?,
+        )),
+    };
+    if frame.encoded_len() > maximum {
         return Err(Status::resource_exhausted(
-            "artifact metadata exceeds projection budget",
+            "artifact metadata exceeds the message limit",
         ));
     }
-    let allowance = NonZeroUsize::new(required)
-        .ok_or_else(|| Status::resource_exhausted("invalid artifact metadata allowance"))?;
-    let projected = reader
-        .project_record(allowance, |record, _| {
-            let frame = content_wire::ArtifactFrame {
-                payload: Some(content_wire::ArtifactFramePayload::Metadata(
-                    super::metadata(record).map_err(projection_failure)?,
-                )),
-            };
-            if frame.encoded_len() > maximum {
-                return Err(harmos::Error::ResourceExhausted {
-                    resource: "artifact metadata encoding",
-                });
-            }
-            Ok(frame)
-        })
-        .map_err(failure)?;
-    let owner = projected
-        .try_into_response()
-        .map_err(|source| failure(source.into()))?;
     let size_bytes = reader.record().size_bytes;
     let sha256 = reader.record().sha256.clone();
     chunked::Download {
         size_bytes,
         sha256,
-        frames: ArtifactFrames(owner),
+        frames: ArtifactFrames(frame.into()),
         source: chunked::Source::artifact(reader),
         noun: "artifact",
         read_failure: "artifact content could not be verified",
@@ -170,28 +150,5 @@ pub(in crate::grpc) async fn deliver(
 }
 
 /* === Private Functions === */
-fn metadata_failure(source: dokime_app::Error) -> Status {
-    let status = if matches!(
-        &source,
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. })
-    ) {
-        Status::resource_exhausted("artifact metadata exceeds its budget")
-    } else {
-        Status::data_loss("invalid stored artifact metadata")
-    };
-    detailed(status, &source)
-}
-fn projection_failure(source: Status) -> harmos::Error {
-    if source.code() == tonic::Code::ResourceExhausted {
-        return harmos::Error::ResourceExhausted {
-            resource: "artifact metadata projection",
-        };
-    }
-    harmos::Error::backend(
-        "project captured artifact metadata",
-        harmos::BackendFailure::Corrupt,
-        source,
-    )
-}
 
 /* === Tests === */

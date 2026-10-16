@@ -52,14 +52,8 @@ pub enum Value {
 
 /* === Implementations === */
 impl Value {
-    pub fn serialization_memory<T: ?Sized + Serialize>(source: &T) -> Result<usize> {
-        serialization::memory(source)
-    }
-    pub fn from_serializable<T: ?Sized + Serialize>(
-        source: &T,
-        allowance: std::num::NonZeroUsize,
-    ) -> Result<Self> {
-        serialization::build(source, allowance)
+    pub fn from_serializable<T: ?Sized + Serialize>(source: &T) -> Result<Self> {
+        serialization::build(source, std::num::NonZeroUsize::MAX)
     }
 
     pub(super) fn memory_at(&self, depth: usize) -> usize {

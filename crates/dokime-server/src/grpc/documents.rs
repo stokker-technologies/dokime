@@ -14,13 +14,9 @@ mod wire;
 
 /* === Imports === */
 // Standard Library Imports
-use std::{borrow::Borrow, num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    operations::{Context, Operation, Response, StreamOutput},
-};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 // Local Imports
@@ -32,7 +28,6 @@ use dokime_app::{
 use dokime_contract::operations::documents as contract;
 
 /* === Constants === */
-const CAPTURE_BYTES: usize = 32 * 1024 * 1024;
 
 /* === Macros === */
 
@@ -42,7 +37,6 @@ const CAPTURE_BYTES: usize = 32 * 1024 * 1024;
 struct Resources {
     runtime: RuntimeHandle,
     maximum: usize,
-    admission: Arc<Semaphore>,
 }
 struct Capture {
     resources: Arc<Resources>,
@@ -50,40 +44,11 @@ struct Capture {
 struct UpdatePlotSettings {
     resources: Arc<Resources>,
 }
-struct FrameBuffer {
-    frames: Vec<contract::DocumentFrame>,
-    _permit: OwnedSemaphorePermit,
-}
-struct FrameView {
-    buffer: Response<FrameBuffer>,
-    index: usize,
-}
-
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl MemorySize for FrameBuffer {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(
-                self.frames
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of_val(&self.frames)),
-            )
-            .saturating_add(
-                self.frames
-                    .len()
-                    .saturating_mul(4 * std::mem::size_of::<FrameView>()),
-            )
-    }
-}
-impl Borrow<contract::DocumentFrame> for FrameView {
-    fn borrow(&self) -> &contract::DocumentFrame {
-        &self.buffer.frames[self.index]
-    }
-}
 impl Operation for Capture {
     type Declaration = contract::CaptureCurrentDocument;
     type Resources = Resources;
@@ -102,12 +67,6 @@ impl Operation for Capture {
         request: &mut contract::CaptureCurrentDocumentRequest,
         output: &mut Self::Endpoints,
     ) -> Result<Response<()>, Status> {
-        let permit = self
-            .resources
-            .admission
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| Status::resource_exhausted("document resolver is busy"))?;
         let (cycle, execution) = owner(request.scope.take())?;
         value::text(&request.document_id)?;
         let id = DocumentId::from_identifier(&request.document_id)
@@ -123,8 +82,7 @@ impl Operation for Capture {
         let _cancel_on_drop = cancel.clone().drop_guard();
         let handle = tokio::runtime::Handle::current();
         let maximum = self.resources.maximum;
-        let runtime = self.resources.runtime.clone();
-        let buffer = tokio::task::spawn_blocking(move || {
+        let frames = tokio::task::spawn_blocking(move || {
             let captured = handle.block_on(async {
                 tokio::select! { biased;
                     _ = cancel.cancelled() => Err(Status::cancelled("document request cancelled")),
@@ -134,32 +92,12 @@ impl Operation for Capture {
             if cancel.is_cancelled() {
                 return Err(Status::cancelled("document request cancelled"));
             }
-            let preparation = runtime
-                .storage()
-                .prepare_production(NonZeroUsize::new(CAPTURE_BYTES).unwrap())
-                .map_err(failure)?;
-            let frames = wire::frames(captured, maximum)?;
-            let buffer = FrameBuffer {
-                frames: frames.into_iter().collect(),
-                _permit: permit,
-            };
-            preparation
-                .finish(buffer)
-                .map_err(failure)?
-                .try_into_value()
-                .map_err(failure)?
-                .try_into_response()
-                .map_err(failure)
+            wire::frames(captured, maximum)
         })
         .await
         .map_err(|_| Status::internal("document worker failed"))??;
-        for index in 0..buffer.frames.len() {
-            // Each Projection Retains The Original Capture Loan And Native Resolver Permit.
-            let frame = Response::from_owner(Arc::new(FrameView {
-                buffer: buffer.clone(),
-                index,
-            }));
-            output.send_owned(frame).await.map_err(failure)?;
+        for frame in frames {
+            output.send_owned(frame.into()).await.map_err(failure)?;
         }
         Ok(().into())
     }
@@ -221,7 +159,6 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
     let resources = Arc::new(Resources {
         runtime: runtime.clone(),
         maximum,
-        admission: Arc::new(Semaphore::new(1)),
     });
     runtime.operations().register_wire_operation::<Capture>(
         "dokime",

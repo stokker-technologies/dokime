@@ -14,7 +14,7 @@ pub(super) mod projection;
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use harmos::{
     Protobuf,
@@ -103,7 +103,7 @@ impl Operation for List {
                 Status::unavailable(format!("telemetry query unavailable: {error}"))
             })?;
         let selected = samples.len();
-        let (through_stream_cursors, required) = fit_page(
+        let (through_stream_cursors, _) = fit_page(
             &mut samples,
             request.latest,
             after_stream_cursors,
@@ -112,15 +112,6 @@ impl Operation for List {
         // A clamped page is never complete: forward pages continue from the
         // returned cursors, a latest window asks again with a smaller limit.
         let clamped = samples.len() < selected;
-        let preparation = self
-            .resources
-            .runtime
-            .storage()
-            .prepare_production(
-                NonZeroUsize::new(required)
-                    .ok_or_else(|| Status::resource_exhausted("invalid telemetry allowance"))?,
-            )
-            .map_err(failure)?;
         let samples = samples
             .iter()
             .map(projection::sample)
@@ -143,13 +134,7 @@ impl Operation for List {
                 "telemetry sample response exceeds transport limit",
             ));
         }
-        preparation
-            .finish(reply)
-            .map_err(failure)?
-            .try_into_value()
-            .map_err(failure)?
-            .try_into_response()
-            .map_err(failure)
+        Ok(reply.into())
     }
 }
 
@@ -311,14 +296,6 @@ fn scope_selection(scope: Option<common::EvidenceScope>) -> Result<ScopeSelectio
 
 fn timestamp(value: Option<common::Timestamp>, _: &str) -> Result<Option<Timestamp>, Status> {
     value.map(canonical::decoded_timestamp).transpose()
-}
-fn failure(error: harmos::Error) -> Status {
-    let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
-        Status::resource_exhausted("telemetry admission failed")
-    } else {
-        Status::internal("telemetry admission failed")
-    };
-    super::error::detailed(status, &error.into())
 }
 
 fn request_is_complete(latest: bool, sample_count: usize, limit: usize) -> bool {

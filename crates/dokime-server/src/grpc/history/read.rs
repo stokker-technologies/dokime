@@ -79,7 +79,6 @@ impl Operation for Download {
             self.resources.maximum,
             (64 * 1024).min(self.resources.maximum.saturating_sub(1024)),
             output,
-            wire::checkpoint_failure,
         )
         .await?;
         Ok(().into())

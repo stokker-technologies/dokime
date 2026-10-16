@@ -265,6 +265,11 @@ impl RecordRow {
             .ok_or_else(|| error("record decoding memory overflows"))
     }
 
+    /// Decode one stored record payload into its entry.
+    pub fn decode_entry(bytes: &[u8]) -> Result<RecordEntry> {
+        decode(bytes, usize::MAX)
+    }
+
     pub fn from_bytes(bytes: &[u8], max_bytes: usize) -> Result<Self> {
         if bytes.len() > max_bytes {
             return Err(error("record capture frame exceeds byte limit"));

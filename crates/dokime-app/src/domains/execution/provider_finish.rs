@@ -16,7 +16,6 @@ pub(crate) use crate::transactions::FinishProvider as Finish;
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::MemorySize;
 
 // Local Imports
 use crate::transactions::provider_finish::prepare_finish_effects;
@@ -88,11 +87,7 @@ impl RuntimeHandle {
             loop {
                 match self
                     .request_storage
-                    .update(
-                        &request_id,
-                        harmos::MemorySize::memory_size(&summary),
-                        |receipt| receipt.summary = summary.clone(),
-                    )
+                    .update(&request_id, |receipt| receipt.summary = summary.clone())
                     .await
                 {
                     Ok(()) => break,
@@ -139,41 +134,6 @@ impl RuntimeHandle {
                 .cycles
                 .get(&cycle_id)
                 .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
-            let members = header.execution_ids.iter().try_fold(0usize, |bytes, id| {
-                let member = state
-                    .executions
-                    .get(id)
-                    .ok_or_else(|| Error::Operation("report member disappeared".into()))?;
-                bytes
-                    .checked_add(id.memory_size())
-                    .and_then(|bytes| bytes.checked_add(member.memory_size()))
-                    .ok_or_else(|| Error::Operation("report preview memory overflows".into()))
-            })?;
-            // Cover The Focused State, Its Lifecycle Mutations And The Extracted Cycle Together.
-            let bytes = std::mem::size_of::<crate::state::RuntimeState>()
-                .saturating_add(uuid::fmt::Hyphenated::LENGTH)
-                .saturating_add("1970-01-01T00:00:00Z".len())
-                .saturating_add(state.session_id.memory_size().saturating_mul(2))
-                .saturating_add(harmos::btree_map_memory::<
-                    dokime::core::CommandId,
-                    crate::transactions::provider::request::RunRequest,
-                >(1))
-                .saturating_add(request.memory_size())
-                .saturating_add(request_id.memory_size())
-                .saturating_add(harmos::btree_map_memory::<
-                    dokime::core::TestCycleId,
-                    dokime::execution::TestCycle,
-                >(1))
-                .saturating_add(harmos::btree_map_memory::<
-                    dokime::core::TestExecutionId,
-                    crate::execution::TestExecution,
-                >(header.execution_ids.len()))
-                .saturating_add(header.memory_size().saturating_mul(3))
-                .saturating_add(members.saturating_mul(3));
-            let limit = std::num::NonZeroUsize::new(bytes)
-                .filter(|bytes| bytes.get() != usize::MAX)
-                .ok_or_else(|| Error::Operation("report preview memory overflows".into()))?;
-            let memory = self.storage().prepare_production(limit)?;
             let mut preview = crate::state::RuntimeState::new(state.session_id.clone());
             preview
                 .run_requests
@@ -189,8 +149,7 @@ impl RuntimeHandle {
             let cycle = preview
                 .cycle_view(&cycle_id)
                 .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
-            drop(preview);
-            memory.finish(cycle)?.try_into_value()?
+            cycle
         };
         let mut pending = cycle
             .test_executions
@@ -299,12 +258,6 @@ impl RuntimeHandle {
             None
         };
         if let Some(sealed_cycle) = sealed_cycle {
-            let bytes = sealed_cycle
-                .memory_size()
-                .saturating_add(std::mem::size_of::<crate::transactions::CompleteRun>());
-            let _change = self
-                .storage()
-                .prepare_production(std::num::NonZeroUsize::new(bytes).unwrap())?;
             complete.sealed_cycle = Some(sealed_cycle.header.clone());
             complete.sealed_executions = sealed_cycle.executions.clone();
             self.commit(complete)
@@ -344,12 +297,10 @@ impl RuntimeHandle {
             let request = &state.run_requests[&request_id];
             (request.summary.clone(), request.interruption())
         };
-        let growth = harmos::MemorySize::memory_size(&summary)
-            .saturating_add(interruption.as_ref().map_or(0, String::len));
         loop {
             match self
                 .request_storage
-                .update(&request_id, growth, |receipt| {
+                .update(&request_id, |receipt| {
                     receipt.summary = summary.clone();
                     receipt.interruption = interruption.clone();
                 })
@@ -405,11 +356,7 @@ impl RuntimeHandle {
         loop {
             match self
                 .request_storage
-                .update(
-                    request_id,
-                    harmos::MemorySize::memory_size(&summary),
-                    |receipt| receipt.summary = summary.clone(),
-                )
+                .update(request_id, |receipt| receipt.summary = summary.clone())
                 .await
             {
                 Ok(()) => break,

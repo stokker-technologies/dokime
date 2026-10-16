@@ -13,14 +13,15 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeSet, num::NonZeroUsize};
+use std::collections::BTreeSet;
 
 // Third Party Imports
-use harmos::MemorySize;
-use harmos::storage::{
-    RecordClause, RecordFilter,
-    frame::{Compare, Expr, Predicate, ScalarField, ScalarPath},
-    reduce::{ScalarKind, ScalarValue},
+use harmos::storage::query::{
+    scalar::ScalarValue,
+    transform::{
+        FieldPath,
+        filter::{Clause, Compare, Condition, Filter, Term},
+    },
 };
 use serde::{Deserialize, Serialize};
 // Local Imports
@@ -48,48 +49,14 @@ pub struct RuntimeRecordFrame {
 /* === Traits === */
 
 /* === Implementations === */
-impl MemorySize for RuntimeRecordFrame {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>().saturating_add(
-            self.records
-                .memory_size()
-                .saturating_sub(std::mem::size_of::<Vec<RecordEntry>>()),
-        )
-    }
-}
-
 /* === Public Functions === */
 
 pub(crate) fn record_frame<'a, 'b>(
-    records: impl Iterator<Item = &'a RecordEntry> + Clone,
+    records: impl Iterator<Item = &'a RecordEntry>,
     window: &RuntimeWindow,
     resolution: &RuntimeResolution,
     captured: impl Fn(&RecordEntry) -> Option<&'b RecordScope>,
-    allowance: NonZeroUsize,
-) -> harmos::Result<RuntimeRecordFrame> {
-    let (count, memory) = records.clone().try_fold(
-        (0usize, std::mem::size_of::<RuntimeRecordFrame>()),
-        |(count, bytes), record| {
-            let count = count.checked_add(1).ok_or_else(filter_capacity)?;
-            let bytes = bytes
-                .checked_add(record.memory_size())
-                .and_then(|bytes| {
-                    bytes.checked_add(captured(record).map_or(0, MemorySize::memory_size))
-                })
-                .ok_or_else(filter_capacity)?;
-            Ok::<_, harmos::Error>((count, bytes))
-        },
-    )?;
-    // Projection And Reduction May Retain Both Input And Output Vectors.
-    if memory
-        .saturating_mul(2)
-        .saturating_add(count.saturating_mul(std::mem::size_of::<&RecordEntry>()))
-        > allowance.get()
-    {
-        return Err(harmos::Error::ResourceExhausted {
-            resource: "record view projection memory",
-        });
-    }
+) -> RuntimeRecordFrame {
     let mut records = records
         .map(|record| {
             let mut projected = record.clone();
@@ -115,12 +82,12 @@ pub(crate) fn record_frame<'a, 'b>(
     let mut returned = records.returned;
     returned.reverse();
 
-    Ok(RuntimeRecordFrame {
+    RuntimeRecordFrame {
         records: returned,
         total_records: records.total,
         returned_records,
         truncated: returned_records < records.total,
-    })
+    }
 }
 
 pub(crate) fn execution_capture<'a>(
@@ -137,9 +104,8 @@ pub(crate) fn view_filter(
     snapshot: &crate::queries::RuntimeStateSnapshot,
     scope: Option<&RecordScope>,
     captured: Option<&dokime::records::TestRecordSet>,
-) -> harmos::Result<RecordFilter> {
-    let mut visible = BTreeSet::new();
-    let ids = snapshot
+) -> harmos::Result<Filter> {
+    let visible = snapshot
         .state()
         .records
         .record_visibility
@@ -151,156 +117,138 @@ pub(crate) fn view_filter(
                 .executions
                 .values()
                 .flat_map(|execution| execution.records.subscribed_records().keys()),
-        );
-    for id in ids {
-        visible.insert(id);
-        if visible.len() > 4096 {
-            return Err(filter_capacity());
-        }
-    }
-    let mut columns = [
-        "session_id",
-        "test_cycle_id",
-        "test_case_id",
-        "test_execution_id",
-        "step_id",
-        "criterion_id",
-        "template_id",
-        "suite_id",
-    ]
-    .into_iter()
-    .map(|name| scalar(&["scope", name], ScalarKind::Text))
-    .collect::<Vec<_>>();
-    columns.push(scalar(&["scope", "origin", "phase"], ScalarKind::Unsigned));
-    columns.push(scalar(&["scope", "origin", "attempt_id"], ScalarKind::Text));
-    columns.push(ScalarField {
-        path: ScalarPath::Item,
-        kind: ScalarKind::Text,
-    });
-
+        )
+        .collect::<BTreeSet<_>>();
     let mut native = Vec::new();
     let selected = scope.filter(|scope| !scope.is_empty());
     if let Some(scope) = selected {
         let fields = [
-            scope.session_id.as_ref().map(|id| id.as_str()),
-            scope.test_cycle_id.as_ref().map(|id| id.as_str()),
-            scope.test_case_id.as_ref().map(|id| id.as_str()),
-            scope.test_execution_id.as_ref().map(|id| id.as_str()),
-            scope.step_id.as_ref().map(|id| id.as_str()),
-            scope.criterion_id.as_ref().map(|id| id.as_str()),
-            scope.template_id.as_ref().map(|id| id.as_str()),
-            scope.suite_id.as_ref().map(|id| id.as_str()),
+            (
+                "session_id",
+                scope.session_id.as_ref().map(|id| id.as_str()),
+            ),
+            (
+                "test_cycle_id",
+                scope.test_cycle_id.as_ref().map(|id| id.as_str()),
+            ),
+            (
+                "test_case_id",
+                scope.test_case_id.as_ref().map(|id| id.as_str()),
+            ),
+            (
+                "test_execution_id",
+                scope.test_execution_id.as_ref().map(|id| id.as_str()),
+            ),
+            ("step_id", scope.step_id.as_ref().map(|id| id.as_str())),
+            (
+                "criterion_id",
+                scope.criterion_id.as_ref().map(|id| id.as_str()),
+            ),
+            (
+                "template_id",
+                scope.template_id.as_ref().map(|id| id.as_str()),
+            ),
+            ("suite_id", scope.suite_id.as_ref().map(|id| id.as_str())),
         ];
-        for (index, value) in fields.into_iter().enumerate() {
+        for (name, value) in fields {
             if let Some(value) = value {
-                native.push(equal(index, ScalarValue::Text(value.to_owned())));
+                native.push(equal(
+                    &format!("payload.scope.{name}"),
+                    ScalarValue::Text(value.to_owned()),
+                ));
             }
         }
         let phase = match &scope.origin {
             EvidenceOrigin::Default => None,
             EvidenceOrigin::Initialization => Some(1),
             EvidenceOrigin::Step { attempt_id } => {
-                native.push(equal(9, ScalarValue::Text(attempt_id.as_str().to_owned())));
+                native.push(equal(
+                    "payload.scope.origin.attempt_id",
+                    ScalarValue::Text(attempt_id.as_str().to_owned()),
+                ));
                 Some(2)
             }
             EvidenceOrigin::Cleanup => Some(3),
         };
         if let Some(phase) = phase {
-            native.push(equal(8, ScalarValue::Unsigned(phase)));
+            native.push(equal(
+                "payload.scope.origin.phase",
+                ScalarValue::Unsigned(phase),
+            ));
         }
     }
     let mut overrides = Vec::new();
     if selected.is_some()
         && let Some(captured) = captured
     {
-        if captured.subscribed_records().len() > 64 {
-            return Err(filter_capacity());
+        let ids = captured.subscribed_records().keys().collect::<Vec<_>>();
+        if !ids.is_empty() {
+            // An Override Replaces Native Scope, Even When It Does Not Match.
+            native.push(Term {
+                field: FieldPath::from("_storage.item"),
+                condition: membership(&ids),
+                negate: true,
+            });
         }
         for (id, override_scope) in captured.subscribed_records() {
-            // An Override Replaces Native Scope, Even When It Does Not Match.
-            native.push(Predicate::Compare {
-                expr: Expr::Col(10),
-                compare: Compare::Ne,
-                value: ScalarValue::Text(id.as_str().to_owned()),
-            });
             if selected.is_none_or(|scope| scope_visible_in(Some(override_scope), scope)) {
                 overrides.push(id);
             }
         }
     }
-    if native.len() > 64 {
-        return Err(filter_capacity());
-    }
-    let mut filter = RecordFilter {
-        columns,
-        clauses: Vec::new(),
-    };
+    let mut clauses = Vec::new();
     let visible = visible.into_iter().collect::<Vec<_>>();
-    for ids in visible.chunks(64) {
-        let mut predicates = native.clone();
-        predicates.push(membership(ids));
-        filter.clauses.push(RecordClause { predicates });
+    if !visible.is_empty() {
+        let mut terms = native.clone();
+        terms.push(Term {
+            field: FieldPath::from("_storage.item"),
+            condition: membership(&visible),
+            negate: false,
+        });
+        clauses.push(Clause { terms });
     }
     let mut context = native;
-    context.push(Predicate::Exists {
-        expr: Expr::Col(1),
-        present: false,
-    });
-    context.push(Predicate::Exists {
-        expr: Expr::Col(3),
-        present: false,
-    });
-    filter.clauses.push(RecordClause {
-        predicates: context,
-    });
-    for ids in overrides.chunks(64) {
-        filter.clauses.push(RecordClause {
-            predicates: vec![membership(ids)],
+    context.push(absent("payload.scope.test_cycle_id"));
+    context.push(absent("payload.scope.test_execution_id"));
+    clauses.push(Clause { terms: context });
+    if !overrides.is_empty() {
+        clauses.push(Clause {
+            terms: vec![Term {
+                field: FieldPath::from("_storage.item"),
+                condition: membership(&overrides),
+                negate: false,
+            }],
         });
     }
-    if filter
-        .clauses
-        .iter()
-        .map(|clause| clause.predicates.len())
-        .sum::<usize>()
-        > 64
-    {
-        return Err(filter_capacity());
-    }
-    filter.check()?;
-    Ok(filter)
+    Ok(Filter { clauses })
 }
 
 /* === Private Functions === */
-fn scalar(path: &[&str], kind: ScalarKind) -> ScalarField {
-    ScalarField {
-        path: ScalarPath::Payload(
-            path.iter()
-                .map(|name| harmos::Identifier::new(*name).expect("constant record scalar"))
-                .collect(),
-        ),
-        kind,
+fn equal(path: &str, value: ScalarValue) -> Term {
+    Term {
+        field: FieldPath::from(path),
+        condition: Condition::Compare {
+            op: Compare::Eq,
+            value,
+        },
+        negate: false,
     }
 }
-fn equal(index: usize, value: ScalarValue) -> Predicate {
-    Predicate::Compare {
-        expr: Expr::Col(index),
-        compare: Compare::Eq,
-        value,
+
+fn absent(path: &str) -> Term {
+    Term {
+        field: FieldPath::from(path),
+        condition: Condition::IsNull,
+        negate: false,
     }
 }
-fn membership(ids: &[&RecordId]) -> Predicate {
-    Predicate::In {
-        expr: Expr::Col(10),
+
+fn membership(ids: &[&RecordId]) -> Condition {
+    Condition::In {
         values: ids
             .iter()
             .map(|id| ScalarValue::Text(id.as_str().to_owned()))
             .collect(),
-    }
-}
-fn filter_capacity() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "record view selection predicates",
     }
 }
 

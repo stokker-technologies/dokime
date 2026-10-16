@@ -350,7 +350,7 @@ impl Runtime {
                         .streams
                         .seal::<crate::telemetry_runtime::TelemetryRow>()
                         .await;
-                    self.handle.shutdown_overview().await
+                    self.handle.runtime_overview().await
                 };
                 let overview = tokio::select! {
                     overview = checkpoint => overview?,

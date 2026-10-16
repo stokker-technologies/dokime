@@ -70,13 +70,14 @@ impl Operation for Aggregate {
         let query = decode(request)?;
         self.resources
             .runtime
-            .aggregate_projected(query, |outcome, allowance| {
-                codec::project(outcome, allowance, self.resources.max_message_bytes)
-            })
+            .aggregate(query)
             .await
-            .map_err(status)?
-            .try_into_response()
-            .map_err(|error| status(error.into()))
+            .map_err(status)
+            .and_then(|outcome| {
+                codec::project(&outcome, self.resources.max_message_bytes)
+                    .map(Into::into)
+                    .map_err(|error| status(error.into()))
+            })
     }
 }
 

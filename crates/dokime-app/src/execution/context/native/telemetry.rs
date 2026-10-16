@@ -17,13 +17,12 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use harmos::MemorySize;
 
 // Local Imports
 use crate::{Error, Result};
 use dokime::core::{
-    DurationMillis, Identifier, MeasurementUnit, Metadata, SuiteId, TemplateId, ValidationMode,
-    Value, ValueFormat, ValueType,
+    DurationMillis, Identifier, MeasurementUnit, SuiteId, TemplateId, ValidationMode, Value,
+    ValueFormat, ValueType,
 };
 use dokime::storage::objects::presentation as native;
 use dokime::telemetry::contract::{TelemetryColumn, TelemetryContract, TelemetryRole};
@@ -85,77 +84,10 @@ struct Column {
 
 /* === Implementations === */
 
-impl Contracts {
-    pub(crate) fn encoding_memory(values: &Declarations) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>();
-        for (stream, versions) in values {
-            if versions.is_empty() {
-                return Err(invalid(
-                    "captured telemetry stream has no producer declaration",
-                ));
-            }
-            bytes = bytes
-                .saturating_add(std::mem::size_of::<Stream>())
-                .saturating_add(stream.as_str().len());
-            for (version, contract) in versions {
-                if stream != &contract.stream
-                    || *version == 0
-                    || *version != contract.schema_version
-                    || contract.foreign
-                {
-                    return Err(invalid(
-                        "captured telemetry declaration is not its producer contract",
-                    ));
-                }
-                bytes = bytes.saturating_add(Contract::encoding_memory(contract)?);
-            }
-        }
-        Ok(bytes)
-    }
-    pub(crate) fn projection_memory(&self) -> Result<usize> {
-        let mut bytes = harmos::btree_map_memory::<Identifier, BTreeMap<u32, TelemetryContract>>(
-            self.streams.len(),
-        );
-        let mut previous: Option<&str> = None;
-        for stream in &self.streams {
-            if previous.is_some_and(|key| key >= stream.key.as_str()) || stream.versions.is_empty()
-            {
-                return Err(invalid("captured telemetry stream keys are not canonical"));
-            }
-            previous = Some(&stream.key);
-            bytes = bytes.saturating_add(stream.key.capacity());
-            bytes = excess(
-                bytes,
-                harmos::btree_map_memory::<u32, TelemetryContract>(stream.versions.len()),
-                std::mem::size_of::<BTreeMap<u32, TelemetryContract>>(),
-            );
-            let mut previous_version = 0;
-            for contract in &stream.versions {
-                if contract.stream != stream.key
-                    || contract.schema_version <= previous_version
-                    || contract.foreign
-                {
-                    return Err(invalid(
-                        "captured telemetry producer versions are not canonical",
-                    ));
-                }
-                previous_version = contract.schema_version;
-                bytes = excess(
-                    bytes,
-                    contract.projection_memory()?,
-                    std::mem::size_of::<TelemetryContract>(),
-                );
-            }
-        }
-        Ok(bytes)
-    }
-}
+impl Contracts {}
 impl TryFrom<&Declarations> for Contracts {
     type Error = Error;
     fn try_from(values: &Declarations) -> Result<Self> {
-        if Self::encoding_memory(values)? == usize::MAX {
-            return Err(invalid("telemetry encoding memory overflows"));
-        }
         let mut streams = slots(values.len())?;
         for (key, versions) in values {
             let mut contracts = slots(versions.len())?;
@@ -173,9 +105,6 @@ impl TryFrom<&Declarations> for Contracts {
 impl TryFrom<Contracts> for Declarations {
     type Error = Error;
     fn try_from(value: Contracts) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(invalid("telemetry projection memory overflows"));
-        }
         let mut streams = BTreeMap::new();
         for stream in value.streams {
             let key = Identifier::new(stream.key).map_err(dokime::storage::Error::from)?;
@@ -189,55 +118,10 @@ impl TryFrom<Contracts> for Declarations {
         Ok(streams)
     }
 }
-impl Contract {
-    fn encoding_memory(value: &TelemetryContract) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(value.storage_schema.memory_size())
-            .saturating_add(value.stream.as_str().len())
-            .saturating_add(value.template_id.as_ref().map_or(0, |id| id.as_str().len()))
-            .saturating_add(value.owner.as_ref().map_or(0, |id| id.as_str().len()))
-            .saturating_add(value.default_x.as_ref().map_or(0, String::len));
-        bytes = excess(
-            bytes,
-            native::Metadata::encoding_memory(&value.metadata)?,
-            std::mem::size_of::<native::Metadata>(),
-        );
-        for column in &value.columns {
-            bytes = bytes.saturating_add(Column::encoding_memory(column)?);
-        }
-        Ok(bytes)
-    }
-    fn projection_memory(&self) -> Result<usize> {
-        if let Some(mode) = self.validation_mode {
-            validation_mode(mode)?;
-        }
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or_else(|| invalid("telemetry contract metadata is missing"))?;
-        let mut bytes = std::mem::size_of::<TelemetryContract>()
-            .saturating_add(self.storage_schema.memory_size())
-            .saturating_add(self.stream.capacity())
-            .saturating_add(self.template_id.as_ref().map_or(0, String::capacity))
-            .saturating_add(self.owner.as_ref().map_or(0, String::capacity))
-            .saturating_add(self.default_x.as_ref().map_or(0, String::capacity));
-        bytes = excess(
-            bytes,
-            metadata.projection_memory()?,
-            std::mem::size_of::<Metadata>(),
-        );
-        for column in &self.columns {
-            bytes = bytes.saturating_add(column.projection_memory()?);
-        }
-        Ok(bytes)
-    }
-}
+impl Contract {}
 impl TryFrom<&TelemetryContract> for Contract {
     type Error = Error;
     fn try_from(value: &TelemetryContract) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(invalid("telemetry contract encoding memory overflows"));
-        }
         let mut columns = slots(value.columns.len())?;
         for column in &value.columns {
             columns.push(Column::try_from(column)?);
@@ -263,9 +147,6 @@ impl TryFrom<&TelemetryContract> for Contract {
 impl TryFrom<Contract> for TelemetryContract {
     type Error = Error;
     fn try_from(value: Contract) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(invalid("telemetry contract projection memory overflows"));
-        }
         let mut columns = slots(value.columns.len())?;
         for column in value.columns {
             columns.push(column.try_into()?);
@@ -299,78 +180,10 @@ impl TryFrom<Contract> for TelemetryContract {
         })
     }
 }
-impl Column {
-    fn encoding_memory(value: &TelemetryColumn) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(value.display_unit.as_ref().map_or(0, String::len));
-        bytes = excess(
-            bytes,
-            native::Metadata::encoding_memory(&value.metadata)?,
-            std::mem::size_of::<native::Metadata>(),
-        );
-        if let Some(unit) = &value.unit {
-            bytes = excess(
-                bytes,
-                native::MeasurementUnit::encoding_memory(unit)?,
-                std::mem::size_of::<native::MeasurementUnit>(),
-            );
-        }
-        if let Some(default) = &value.default {
-            bytes = excess(
-                bytes,
-                native::Value::encoding_memory(default)?,
-                std::mem::size_of::<native::Value>(),
-            );
-        }
-        if let Some(format) = &value.format {
-            bytes = excess(
-                bytes,
-                native::ValueFormat::encoding_memory(format),
-                std::mem::size_of::<native::ValueFormat>(),
-            );
-        }
-        Ok(bytes)
-    }
-    fn projection_memory(&self) -> Result<usize> {
-        value_type(self.value_type)?;
-        role(self.role)?;
-        let metadata = self
-            .metadata
-            .as_ref()
-            .ok_or_else(|| invalid("telemetry column metadata is missing"))?;
-        let mut bytes = std::mem::size_of::<TelemetryColumn>()
-            .saturating_add(self.display_unit.as_ref().map_or(0, String::capacity));
-        bytes = excess(
-            bytes,
-            metadata.projection_memory()?,
-            std::mem::size_of::<Metadata>(),
-        );
-        if let Some(unit) = &self.unit {
-            bytes = excess(
-                bytes,
-                unit.projection_memory()?,
-                std::mem::size_of::<MeasurementUnit>(),
-            );
-        }
-        if let Some(default) = &self.default {
-            bytes = bytes.saturating_add(default.projection_memory()?);
-        }
-        if let Some(format) = &self.format {
-            bytes = excess(
-                bytes,
-                format.projection_memory()?,
-                std::mem::size_of::<ValueFormat>(),
-            );
-        }
-        Ok(bytes)
-    }
-}
+impl Column {}
 impl TryFrom<&TelemetryColumn> for Column {
     type Error = Error;
     fn try_from(value: &TelemetryColumn) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(invalid("telemetry column encoding memory overflows"));
-        }
         Ok(Self {
             metadata: Some((&value.metadata).try_into()?),
             value_type: value_type_code(&value.value_type),
@@ -399,9 +212,6 @@ impl TryFrom<&TelemetryColumn> for Column {
 impl TryFrom<Column> for TelemetryColumn {
     type Error = Error;
     fn try_from(value: Column) -> Result<Self> {
-        if value.projection_memory()? == usize::MAX {
-            return Err(invalid("telemetry column projection memory overflows"));
-        }
         Ok(Self {
             metadata: value
                 .metadata
@@ -425,13 +235,6 @@ impl TryFrom<Column> for TelemetryColumn {
 
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
-}
-fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
-    if owned == usize::MAX {
-        usize::MAX
-    } else {
-        bytes.saturating_add(owned.saturating_sub(inline))
-    }
 }
 fn slots<T>(count: usize) -> Result<Vec<T>> {
     let mut values = Vec::new();

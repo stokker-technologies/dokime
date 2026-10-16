@@ -16,7 +16,7 @@
 use std::sync::Arc;
 // Third Party Imports
 use harmos::{
-    MemorySize, Protobuf,
+    Protobuf,
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
@@ -30,9 +30,7 @@ use dokime_app::{
     RuntimeHandle,
     runtime::query::execution_history::{ExecutionCheckpoint, ExecutionCheckpointEvidence},
 };
-use dokime_contract::operations::{
-    content as content_wire, history as contract, schema as schema_wire,
-};
+use dokime_contract::operations::{content as content_wire, history as contract};
 
 /* === Constants === */
 
@@ -81,46 +79,24 @@ impl Operation for Get {
                 contract::EvidenceSection::Outputs | contract::EvidenceSection::Artifacts
             )
         });
+        let runtime = &self.resources.runtime;
         let response = if only_outputs {
-            self.resources
-                .runtime
-                .execution_checkpoint_outputs_projected(
-                    checkpoint,
-                    |checkpoint, outputs, allowance| {
-                        let graph = outputs_memory(checkpoint, outputs, &sections)?;
-                        if graph.saturating_add(checkpoint.memory_size()) > allowance.get() {
-                            return Err(exhausted());
-                        }
-                        let response = checkpoint_outputs(checkpoint, outputs, &sections)
-                            .map_err(original_error)?;
-                        if response.encoded_len() > maximum {
-                            return Err(exhausted());
-                        }
-                        Ok(response)
-                    },
-                )
+            let outputs = runtime
+                .execution_checkpoint_outputs(checkpoint.clone())
                 .await
+                .map_err(wire::checkpoint_failure)?;
+            checkpoint_outputs(&checkpoint, &outputs, &sections)?
         } else {
-            self.resources
-                .runtime
-                .execution_checkpoint_evidence(checkpoint, |evidence, allowance| {
-                    let graph = evidence_memory(&evidence, &sections)?;
-                    if graph.saturating_add(evidence.memory_size()) > allowance.get() {
-                        return Err(exhausted());
-                    }
-                    let response =
-                        checkpoint_evidence(evidence, &sections).map_err(original_error)?;
-                    if response.encoded_len() > maximum {
-                        return Err(exhausted());
-                    }
-                    Ok(response)
-                })
+            let evidence = runtime
+                .execution_checkpoint_evidence(checkpoint)
                 .await
+                .map_err(wire::checkpoint_failure)?;
+            checkpoint_evidence(evidence, &sections)?
+        };
+        if response.encoded_len() > maximum {
+            return Err(status_failure(exhausted()));
         }
-        .map_err(wire::checkpoint_failure)?;
-        response
-            .try_into_response()
-            .map_err(|source| wire::checkpoint_failure(source.into()))
+        Ok(response.into())
     }
 }
 
@@ -322,155 +298,12 @@ fn file(
     })
 }
 
-fn evidence_memory(
-    source: &dokime_app::runtime::query::execution_history::ExecutionCheckpointEvidence,
-    sections: &[contract::EvidenceSection],
-) -> harmos::Result<usize> {
-    let mut bytes = std::mem::size_of::<contract::CheckpointEvidence>()
-        .saturating_add(super::construction::checkpoint_heap(&source.checkpoint));
-    let failure = |source: tonic::Status| {
-        if source.code() == tonic::Code::ResourceExhausted {
-            harmos::Error::ResourceExhausted {
-                resource: "checkpoint evidence construction",
-            }
-        } else {
-            harmos::Error::backend(
-                "count checkpoint evidence",
-                harmos::BackendFailure::Corrupt,
-                source,
-            )
-        }
-    };
-    if sections.contains(&contract::EvidenceSection::Outputs) {
-        bytes = bytes.saturating_add(slots::<content_wire::ExecutionFileMetadata>(
-            source.outputs.len(),
-        ));
-        for output in &source.outputs {
-            bytes = bytes
-                .saturating_add(output.relative_path.len())
-                .saturating_add(output.content_type.as_ref().map_or(0, String::len));
-        }
-    }
-    if sections.contains(&contract::EvidenceSection::Artifacts) {
-        bytes = bytes.saturating_add(slots::<content_wire::ArtifactMetadata>(
-            source.artifacts.len(),
-        ));
-        for artifact in &source.artifacts {
-            bytes = bytes
-                .saturating_add(crate::grpc::content::metadata_memory(artifact).map_err(failure)?);
-        }
-    }
-    if sections.contains(&contract::EvidenceSection::RecordSchemas) {
-        bytes = bytes.saturating_add(slots::<schema_wire::RecordSchema>(
-            source.record_contracts.len(),
-        ));
-        for contract in &source.record_contracts {
-            bytes =
-                bytes.saturating_add(catalog::schemas::record_memory(contract).map_err(failure)?);
-        }
-    }
-    if sections.contains(&contract::EvidenceSection::TelemetryTables) {
-        bytes = bytes.saturating_add(slots::<contract::CheckpointTelemetryTable>(
-            source.telemetry.len(),
-        ));
-        for table in &source.telemetry {
-            bytes = bytes.saturating_add(table.table.len()).saturating_add(
-                catalog::schemas::telemetry_memory(&table.contract).map_err(failure)?,
-            );
-        }
-    }
-    bounded(bytes)
-}
-
-fn outputs_memory(
-    checkpoint: &ExecutionCheckpoint,
-    source: &[dokime_app::execution::saved::ExecutionOutput],
-    sections: &[contract::EvidenceSection],
-) -> harmos::Result<usize> {
-    if sections.is_empty()
-        || sections.iter().any(|section| {
-            !matches!(
-                section,
-                contract::EvidenceSection::Outputs | contract::EvidenceSection::Artifacts
-            )
-        })
-    {
-        return Err(harmos::Error::InvalidInput {
-            field: "checkpoint output sections",
-            reason: "only explicit output and artifact sections are supported",
-        });
-    }
-    let files = sections.contains(&contract::EvidenceSection::Outputs);
-    let artifacts = sections.contains(&contract::EvidenceSection::Artifacts);
-    let mut bytes = std::mem::size_of::<contract::CheckpointEvidence>()
-        .saturating_add(super::construction::checkpoint_heap(checkpoint));
-    if files {
-        bytes = bytes.saturating_add(slots::<content_wire::ExecutionFileMetadata>(source.len()));
-    }
-    for output in source {
-        if files {
-            value::text(&output.relative_path).map_err(|_| harmos::Error::ResourceExhausted {
-                resource: "checkpoint output path",
-            })?;
-            value::text(&output.file.metadata.media_type).map_err(|_| {
-                harmos::Error::ResourceExhausted {
-                    resource: "checkpoint output media type",
-                }
-            })?;
-            bytes = bytes
-                .saturating_add(output.relative_path.len())
-                .saturating_add(output.file.metadata.media_type.len());
-        }
-        if artifacts
-            && let dokime_app::execution::saved::ExecutionOutputContent::Artifact { record, .. } =
-                &output.content
-        {
-            let memory = crate::grpc::content::metadata_memory(record).map_err(|error| {
-                if error.code() == tonic::Code::ResourceExhausted {
-                    return harmos::Error::ResourceExhausted {
-                        resource: "checkpoint artifact metadata",
-                    };
-                }
-                harmos::Error::backend(
-                    "count captured artifact",
-                    harmos::BackendFailure::Corrupt,
-                    error,
-                )
-            })?;
-            bytes = bytes.saturating_add(memory);
-        }
-    }
-    bounded(bytes)
-}
-
 fn collect<T>(items: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {
     let mut values = value::projection::slots(items.len()).map_err(status_failure)?;
     for item in items {
         values.push(item?);
     }
     Ok(values)
-}
-fn slots<T>(length: usize) -> usize {
-    length
-        .saturating_mul(4)
-        .saturating_mul(std::mem::size_of::<T>())
-}
-fn bounded(bytes: usize) -> harmos::Result<usize> {
-    if bytes == usize::MAX {
-        Err(exhausted())
-    } else {
-        Ok(bytes)
-    }
-}
-fn original_error(source: Status) -> harmos::Error {
-    if source.code() == tonic::Code::ResourceExhausted {
-        return exhausted();
-    }
-    harmos::Error::backend(
-        "project original checkpoint evidence",
-        harmos::BackendFailure::Corrupt,
-        source,
-    )
 }
 fn status_failure(source: harmos::Error) -> Status {
     super::wire::checkpoint_failure(source.into())

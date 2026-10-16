@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 
@@ -264,29 +264,7 @@ impl Row<'_> {
 }
 
 impl Field<'_> {
-    pub(super) fn projection_memory(&self) -> Result<usize> {
-        let heap = match self {
-            Self::Text(value) => value.len(),
-            Self::Strings(values) => values.iter().fold(
-                values.len().saturating_mul(std::mem::size_of::<Value>()),
-                |bytes, value| bytes.saturating_add(value.len()),
-            ),
-            Self::Object(values) => object_memory(values, 0)?,
-            _ => 0,
-        };
-        let bytes = std::mem::size_of::<Value>().saturating_add(heap);
-        if bytes == usize::MAX {
-            return Err(invalid("native aggregate field memory overflows"));
-        }
-        Ok(bytes)
-    }
-
-    pub(super) fn project(&self, allowance: NonZeroUsize) -> Result<Value> {
-        if self.projection_memory()? > allowance.get() {
-            return Err(Error::Harmos(harmos::Error::ResourceExhausted {
-                resource: "native aggregate field projection",
-            }));
-        }
+    pub(super) fn project(&self) -> Result<Value> {
         Ok(match self {
             Self::Null => Value::Null,
             Self::Bool(value) => Value::Bool(*value),
@@ -294,15 +272,14 @@ impl Field<'_> {
             Self::Number(value) if value.is_finite() => Value::Number(*value),
             Self::Number(_) => return Err(invalid("aggregate number must be finite")),
             Self::Datetime(value) => Value::Datetime(*value),
-            Self::Text(value) => Value::Text(copy_text(value)?),
-            Self::Strings(values) => {
-                let mut selected = slots(values.len())?;
-                for value in *values {
-                    selected.push(Value::Text(copy_text(value)?));
-                }
-                Value::Array(selected)
-            }
-            Self::Object(values) => Value::Object(copy_object(values, 0)?),
+            Self::Text(value) => Value::Text((*value).to_owned()),
+            Self::Strings(values) => Value::Array(
+                values
+                    .iter()
+                    .map(|value| Value::Text(value.clone()))
+                    .collect(),
+            ),
+            Self::Object(values) => Value::Object((*values).clone()),
         })
     }
 }
@@ -425,92 +402,6 @@ fn cycle_status(status: CycleStatus) -> &'static str {
         CycleStatus::Blocked => "blocked",
         CycleStatus::Stopped => "stopped",
     }
-}
-fn object_memory(values: &BTreeMap<String, Value>, depth: usize) -> Result<usize> {
-    if depth > 128 {
-        return Err(invalid("aggregate value exceeds nesting bound"));
-    }
-    let mut bytes = harmos::btree_map_memory::<String, Value>(values.len())
-        .saturating_sub(std::mem::size_of::<BTreeMap<String, Value>>());
-    for (key, value) in values {
-        bytes = bytes.saturating_add(key.len()).saturating_add(
-            value_memory(value, depth + 1)?.saturating_sub(std::mem::size_of::<Value>()),
-        );
-    }
-    Ok(bytes)
-}
-pub(super) fn value_memory(value: &Value, depth: usize) -> Result<usize> {
-    if depth > 128 {
-        return Err(invalid("aggregate value exceeds nesting bound"));
-    }
-    let heap = match value {
-        Value::Text(value) => value.len(),
-        Value::Array(values) => {
-            let mut bytes = values.len().saturating_mul(std::mem::size_of::<Value>());
-            for value in values {
-                bytes = bytes.saturating_add(
-                    value_memory(value, depth + 1)?.saturating_sub(std::mem::size_of::<Value>()),
-                );
-            }
-            bytes
-        }
-        Value::Object(values) => object_memory(values, depth + 1)?,
-        Value::Number(value) if !value.is_finite() => {
-            return Err(invalid("aggregate number must be finite"));
-        }
-        _ => 0,
-    };
-    Ok(std::mem::size_of::<Value>().saturating_add(heap))
-}
-fn copy_object(values: &BTreeMap<String, Value>, depth: usize) -> Result<BTreeMap<String, Value>> {
-    if depth > 128 {
-        return Err(invalid("aggregate value exceeds nesting bound"));
-    }
-    let mut selected = BTreeMap::new();
-    for (key, value) in values {
-        selected.insert(copy_text(key)?, copy_value(value, depth + 1)?);
-    }
-    Ok(selected)
-}
-pub(super) fn copy_value(value: &Value, depth: usize) -> Result<Value> {
-    if depth > 128 {
-        return Err(invalid("aggregate value exceeds nesting bound"));
-    }
-    Ok(match value {
-        Value::Text(value) => Value::Text(copy_text(value)?),
-        Value::Array(values) => {
-            let mut selected = slots(values.len())?;
-            for value in values {
-                selected.push(copy_value(value, depth + 1)?);
-            }
-            Value::Array(selected)
-        }
-        Value::Object(values) => Value::Object(copy_object(values, depth + 1)?),
-        Value::Number(value) if !value.is_finite() => {
-            return Err(invalid("aggregate number must be finite"));
-        }
-        value => value.clone(),
-    })
-}
-fn slots<T>(count: usize) -> Result<Vec<T>> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|_| invalid("aggregate field allocation failed"))?;
-    if values.capacity() > count {
-        return Err(invalid("aggregate field capacity exceeds admission"));
-    }
-    Ok(values)
-}
-pub(super) fn copy_text(value: &str) -> Result<String> {
-    let mut text = String::new();
-    text.try_reserve_exact(value.len())
-        .map_err(|_| invalid("aggregate text allocation failed"))?;
-    if text.capacity() > value.len() {
-        return Err(invalid("aggregate text capacity exceeds admission"));
-    }
-    text.push_str(value);
-    Ok(text)
 }
 fn invalid(message: &'static str) -> Error {
     Error::validation("aggregate_query_invalid", message, Vec::new())

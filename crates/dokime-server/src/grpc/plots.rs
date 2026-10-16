@@ -17,7 +17,7 @@ pub(super) use wire::{data_expression_wire, document_plot_definition, plot_filte
 
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 // Third Party Imports
 use futures_util::{StreamExt, stream};
 use harmos::{
@@ -76,18 +76,7 @@ impl Resources {
     ) -> Result<Response<T>, Status> {
         let output = build()?;
         ensure_message_budget(&output, self.maximum, "plot response")?;
-        // The message limit bounds the response; its decoded form, larger
-        // than its encoding, is charged at its own size.
-        let bytes = NonZeroUsize::new(output.memory_size())
-            .ok_or_else(|| Status::internal("plot response has no size"))?;
-        self.runtime
-            .storage()
-            .produce(bytes, |_| Ok(output))
-            .map_err(failure)?
-            .try_into_value()
-            .map_err(failure)?
-            .try_into_response()
-            .map_err(failure)
+        Ok(output.into())
     }
 }
 impl Resources {

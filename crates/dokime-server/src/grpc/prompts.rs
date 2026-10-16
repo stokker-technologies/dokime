@@ -14,7 +14,7 @@ pub(in crate::grpc) mod canonical;
 
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 // Third Party Imports
 use harmos::{
     MemorySize, Protobuf,
@@ -104,21 +104,7 @@ impl Operation for ListDefinitions {
             .values()
             .filter(|d| d.prompt_type.as_str() > request.after_prompt_type.as_str());
         let selected: Vec<_> = entries.by_ref().take(limit).collect();
-        let required = selected.iter().try_fold(
-            std::mem::size_of::<wire::ListPromptDefinitionsReply>() + 256,
-            |bytes, item| {
-                value::text(item.prompt_type.as_str())?;
-                value::text(&item.title)?;
-                Ok::<_, Status>(
-                    bytes
-                        .saturating_add(4 * std::mem::size_of::<wire::PromptDefinitionIdentity>())
-                        .saturating_add(item.prompt_type.as_str().len())
-                        .saturating_add(item.title.len())
-                        .saturating_add(item.prompt_type.as_str().len()),
-                )
-            },
-        )?;
-        self.resources.produce(required, || {
+        self.resources.produce(|| {
             let definitions: Vec<_> = selected.into_iter().map(canonical::identity).collect();
             let next_after_prompt_type = entries
                 .next()
@@ -158,10 +144,7 @@ impl Operation for GetDefinition {
             .values()
             .find(|d| d.prompt_type.as_str() == request.prompt_type)
             .ok_or_else(|| Status::not_found("registered prompt definition not found"))?;
-        self.resources
-            .produce(canonical::definition_memory(definition)?, || {
-                canonical::definition(definition)
-            })
+        self.resources.produce(|| canonical::definition(definition))
     }
 }
 impl Operation for ListPending {
@@ -243,23 +226,7 @@ impl Operation for ListPending {
             .filter(selected)
             .filter(|p| p.prompt_id.as_str() > request.after_prompt_id.as_str());
         let selected: Vec<_> = entries.by_ref().take(limit).collect();
-        let required = selected.iter().try_fold(
-            std::mem::size_of::<wire::ListPendingPromptsReply>() + 256,
-            |bytes, prompt| {
-                value::text(prompt.prompt_id.as_str())?;
-                value::text(prompt.definition.prompt_type.as_str())?;
-                value::text(&prompt.definition.title)?;
-                Ok::<_, Status>(
-                    bytes
-                        .saturating_add(4 * std::mem::size_of::<wire::PendingPromptIdentity>())
-                        .saturating_add(2 * prompt.prompt_id.as_str().len())
-                        .saturating_add(prompt.definition.prompt_type.as_str().len())
-                        .saturating_add(prompt.definition.title.len())
-                        .saturating_add(values::scope_memory(&prompt.scope)?),
-                )
-            },
-        )?;
-        self.resources.produce(required, || {
+        self.resources.produce(|| {
             let prompts: Vec<_> = selected
                 .into_iter()
                 .map(|prompt| {
@@ -311,14 +278,7 @@ impl Operation for GetPrompt {
             .get(&id)
             .ok_or_else(|| Status::not_found("prompt not found"))?;
         let response = snapshot.state().prompt_responses.get(&id);
-        let required = std::mem::size_of::<wire::PromptView>()
-            + 256
-            + canonical::instance_memory(prompt)?
-            + response
-                .map(canonical::response_memory)
-                .transpose()?
-                .unwrap_or(0);
-        self.resources.produce(required, || {
+        self.resources.produce(|| {
             let response = response.map(canonical::response).transpose()?;
             Ok(wire::PromptView {
                 prompt: Some(canonical::instance(prompt)?),
@@ -378,53 +338,30 @@ impl Operation for Respond {
             .await
             .map_err(execution::status)?;
         let snapshot = self.resources.runtime.watch_state().latest();
-        self.resources.produce(
-            std::mem::size_of::<wire::PromptResponseReceipt>() + 512,
-            || {
-                Ok(wire::PromptResponseReceipt {
-                    command_id: receipt.command_id.to_string(),
-                    prompt_id: id.to_string(),
-                    committed_revision: receipt.runtime_revision,
-                    accepted_at: Some(values::timestamp(&receipt.accepted_at)?),
-                    observed_cursor: Some(values::cursor(&snapshot)),
-                })
-            },
-        )
+        self.resources.produce(|| {
+            Ok(wire::PromptResponseReceipt {
+                command_id: receipt.command_id.to_string(),
+                prompt_id: id.to_string(),
+                committed_revision: receipt.runtime_revision,
+                accepted_at: Some(values::timestamp(&receipt.accepted_at)?),
+                observed_cursor: Some(values::cursor(&snapshot)),
+            })
+        })
     }
 }
 
 impl Resources {
     fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
         &self,
-        required: usize,
         build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
-        if required > self.maximum {
-            return Err(Status::resource_exhausted(
-                "prompt response exceeds original budget",
-            ));
-        }
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(
-                NonZeroUsize::new(required)
-                    .ok_or_else(|| Status::resource_exhausted("invalid prompt budget"))?,
-            )
-            .map_err(failure)?;
         let output = build()?;
         if output.encoded_len() > self.maximum {
             return Err(Status::resource_exhausted(
                 "prompt response exceeds wire budget",
             ));
         }
-        preparation
-            .finish(output)
-            .map_err(failure)?
-            .try_into_value()
-            .map_err(failure)?
-            .try_into_response()
-            .map_err(failure)
+        Ok(output.into())
     }
 }
 
@@ -498,14 +435,6 @@ fn page(
 }
 fn prompt_id(id: &str) -> Result<PromptId, Status> {
     PromptId::from_uuid(id.to_owned()).map_err(|_| Status::invalid_argument("invalid prompt UUID"))
-}
-fn failure(error: harmos::Error) -> Status {
-    let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
-        Status::resource_exhausted("prompt admission failed")
-    } else {
-        Status::internal("prompt admission failed")
-    };
-    super::error::detailed(status, &error.into())
 }
 
 /* === Tests === */

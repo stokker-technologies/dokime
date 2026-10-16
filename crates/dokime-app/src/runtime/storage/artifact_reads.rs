@@ -17,10 +17,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{FileChunk, QueryValue, StorageFileReader},
-};
+use harmos::storage::{ByteRange, FileReader, ReadFile};
 
 // Local Imports
 use super::execution::ExecutionView;
@@ -32,16 +29,19 @@ use dokime::{
 };
 
 /* === Constants === */
-const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+/// One saved artifact's descriptor and its verified bytes.
 pub struct ArtifactReader {
-    descriptor: QueryValue<ExecutionOutput>,
-    reader: StorageFileReader,
+    descriptor: ExecutionOutput,
+    reader: FileReader,
+    // The Unconsumed Tail Of The Last Response Batch.
+    pending: Vec<u8>,
+    offset: usize,
 }
 
 /* === Enums === */
@@ -52,17 +52,21 @@ pub struct ArtifactReader {
 impl ArtifactReader {
     pub(super) async fn from_output(
         storage: &dokime::storage::Manager,
-        descriptor: QueryValue<ExecutionOutput>,
+        descriptor: ExecutionOutput,
     ) -> Result<Self> {
-        let reader = storage.read_file(&descriptor.file).await?;
-        Ok(Self { descriptor, reader })
+        let reader = storage
+            .read_file(ReadFile {
+                file: descriptor.file.clone(),
+                range: ByteRange {
+                    offset: 0,
+                    limit: None,
+                },
+            })
+            .await?;
+        Ok(Self::new(descriptor, reader))
     }
 
-    pub async fn open(
-        view: &ExecutionView,
-        id: &ArtifactId,
-        projection: NonZeroUsize,
-    ) -> Result<Self> {
+    pub async fn open(view: &ExecutionView, id: &ArtifactId) -> Result<Self> {
         let output = view
             .outputs()?
             .iter()
@@ -74,20 +78,27 @@ impl ArtifactReader {
                 Error::Storage(dokime::storage::Error::Invalid(
                     "artifact descriptor is missing from captured output",
                 ))
-            })?;
-        let descriptor =
-            view.view()
-                .project_shared(view.revision()?, projection, |_, allowance| {
-                    let bytes = output.memory_size();
-                    if bytes == usize::MAX || bytes > allowance.get() {
-                        return Err(harmos::Error::ResourceExhausted {
-                            resource: "saved artifact descriptor memory",
-                        });
-                    }
-                    Ok(output.clone())
-                })?;
-        let reader = view.read_file(&descriptor.file).await?;
-        Ok(Self { descriptor, reader })
+            })?
+            .clone();
+        let reader = view
+            .read_file(
+                &output.file,
+                harmos::storage::ByteRange {
+                    offset: 0,
+                    limit: None,
+                },
+            )
+            .await?;
+        Ok(Self::new(output, reader))
+    }
+
+    fn new(descriptor: ExecutionOutput, reader: FileReader) -> Self {
+        Self {
+            descriptor,
+            reader,
+            pending: Vec::new(),
+            offset: 0,
+        }
     }
 
     pub fn record(&self) -> &ArtifactRecord {
@@ -104,37 +115,30 @@ impl ArtifactReader {
         metadata
     }
 
-    pub fn project_record<T: MemorySize>(
-        &self,
-        maximum: NonZeroUsize,
-        project: impl FnOnce(&ArtifactRecord, NonZeroUsize) -> harmos::Result<T>,
-    ) -> Result<QueryValue<T>> {
-        self.descriptor
-            .try_project(maximum, |output, allowance| {
-                let ExecutionOutputContent::Artifact { record, .. } = &output.content else {
-                    unreachable!("reader construction selects only saved artifact descriptors");
-                };
-                project(record, allowance)
-            })
-            .map_err(Into::into)
-    }
-
-    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<FileChunk>> {
-        let maximum = NonZeroUsize::new(maximum.get().min(CHUNK_BYTES))
-            .expect("nonempty bounded artifact chunk");
-        Ok(self.reader.next_chunk(maximum).await?)
+    /// The next verified bytes, at most `maximum`, or `None` at the end.
+    pub async fn next_chunk(&mut self, maximum: NonZeroUsize) -> Result<Option<Vec<u8>>> {
+        if self.offset == self.pending.len() {
+            let Some(batch) = self.reader.next().await? else {
+                return Ok(None);
+            };
+            self.pending = batch.bytes;
+            self.offset = 0;
+        }
+        let end = self.pending.len().min(self.offset + maximum.get());
+        let chunk = self.pending[self.offset..end].to_vec();
+        self.offset = end;
+        Ok(Some(chunk))
     }
 
     pub async fn read(&mut self, buffer: &mut [u8]) -> Result<usize> {
-        let Some(maximum) = NonZeroUsize::new(buffer.len().min(CHUNK_BYTES)) else {
+        let Some(maximum) = NonZeroUsize::new(buffer.len()) else {
             return Ok(0);
         };
         let Some(chunk) = self.next_chunk(maximum).await? else {
             return Ok(0);
         };
-        let count = chunk.as_bytes().len();
-        buffer[..count].copy_from_slice(chunk.as_bytes());
-        Ok(count)
+        buffer[..chunk.len()].copy_from_slice(&chunk);
+        Ok(chunk.len())
     }
 }
 

@@ -16,7 +16,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 // Third Party Imports
 use harmos::{
@@ -281,32 +281,13 @@ impl Operation for CameraRecording {
 
 impl Resources {
     fn respond(&self, record: &ArtifactRecord) -> Result<Response<ArtifactMetadata>, Status> {
-        let required = metadata_memory(record)?;
-        if required > self.maximum {
-            return Err(Status::resource_exhausted(
-                "artifact metadata exceeds response budget",
-            ));
-        }
-        let bytes = NonZeroUsize::new(required)
-            .ok_or_else(|| Status::resource_exhausted("invalid artifact response allowance"))?;
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(bytes)
-            .map_err(|source| content_failure(source.into()))?;
         let output = metadata(record)?;
         if output.encoded_len() > self.maximum {
             return Err(Status::resource_exhausted(
                 "artifact metadata exceeds response budget",
             ));
         }
-        preparation
-            .finish(output)
-            .map_err(|source| content_failure(source.into()))?
-            .try_into_value()
-            .map_err(|source| content_failure(source.into()))?
-            .try_into_response()
-            .map_err(|source| content_failure(source.into()))
+        Ok(output.into())
     }
 }
 

@@ -14,12 +14,9 @@ pub use dokime::execution::saved::ExecutionCheckpoint;
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::collections::BTreeMap;
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{ObjectRevision, QueryValue, ReadLimits, SharedQueryValue},
-};
+use harmos::storage::ObjectRevision;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::storage::{ExecutionDocument, ExecutionMetadata};
@@ -152,10 +149,6 @@ pub struct ExecutionCheckpointContext {
     pub appearance: crate::installed_plugins::RuntimeAppearanceFrame,
 }
 
-struct BrowseRows {
-    pages: Vec<SharedQueryValue<Vec<ExecutionBrowseEntry>>>,
-}
-
 /* === Enums === */
 /// Where a browsed cycle stands, by precedence: a live running execution, an
 /// interrupted one, work still pending (or nothing ran), an execution without
@@ -186,66 +179,6 @@ impl Archived {
     /// An execution reads as archived when it, or its whole cycle, is.
     fn covers(&self, metadata: &ExecutionMetadata) -> bool {
         self.executions.contains(&metadata.execution_id) || self.cycles.contains(&metadata.cycle_id)
-    }
-}
-
-impl MemorySize for ExecutionCheckpointEvidence {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (
-                self.checkpoint.memory_size(),
-                std::mem::size_of_val(&self.checkpoint),
-            ),
-            (
-                self.outputs.memory_size(),
-                std::mem::size_of_val(&self.outputs),
-            ),
-            (
-                self.artifacts.memory_size(),
-                std::mem::size_of_val(&self.artifacts),
-            ),
-            (
-                self.record_contracts.memory_size(),
-                std::mem::size_of_val(&self.record_contracts),
-            ),
-            (
-                self.telemetry.memory_size(),
-                std::mem::size_of_val(&self.telemetry),
-            ),
-        ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
-    }
-}
-
-impl MemorySize for ExecutionBrowseEntry {
-    fn memory_size(&self) -> usize {
-        let metadata = self.metadata.memory_size();
-        let checkpoint = self.checkpoint.memory_size();
-        if [metadata, checkpoint].contains(&usize::MAX) {
-            return usize::MAX;
-        }
-        std::mem::size_of::<Self>()
-            .saturating_add(metadata.saturating_sub(std::mem::size_of::<ExecutionMetadata>()))
-            .saturating_add(
-                checkpoint.saturating_sub(std::mem::size_of::<Option<ExecutionCheckpoint>>()),
-            )
-    }
-}
-
-impl MemorySize for ExecutionBrowseCycle {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(self.cycle_id.as_str().len())
-            .saturating_add(self.started_at.as_ref().map_or(0, MemorySize::memory_size))
-            .saturating_add(self.finished_at.as_ref().map_or(0, MemorySize::memory_size))
     }
 }
 
@@ -288,263 +221,54 @@ impl CycleFold<'_> {
     }
 }
 
-impl MemorySize for ExecutionBrowseIssue {
-    fn memory_size(&self) -> usize {
-        let source = self.source.memory_size();
-        let dataset = self.dataset.memory_size();
-        if [source, dataset].contains(&usize::MAX) {
-            return usize::MAX;
-        }
-        std::mem::size_of::<Self>()
-            .saturating_add(source.saturating_sub(std::mem::size_of::<Option<String>>()))
-            .saturating_add(dataset.saturating_sub(std::mem::size_of::<Option<String>>()))
-            .saturating_add(self.message.capacity())
-    }
-}
-
-impl MemorySize for ExecutionBrowsePage {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (
-                self.entries.memory_size(),
-                std::mem::size_of_val(&self.entries),
-            ),
-            (self.next.memory_size(), std::mem::size_of_val(&self.next)),
-            (
-                self.conflicts.memory_size(),
-                std::mem::size_of_val(&self.conflicts),
-            ),
-            (
-                self.issues.memory_size(),
-                std::mem::size_of_val(&self.issues),
-            ),
-            (
-                self.cycles.memory_size(),
-                std::mem::size_of_val(&self.cycles),
-            ),
-        ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
-    }
-}
-
-impl MemorySize for ExecutionCheckpointContext {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (
-                self.checkpoint.memory_size(),
-                std::mem::size_of_val(&self.checkpoint),
-            ),
-            (self.scope.memory_size(), std::mem::size_of_val(&self.scope)),
-            (
-                self.session_id.memory_size(),
-                std::mem::size_of_val(&self.session_id),
-            ),
-            (self.cycle.memory_size(), std::mem::size_of_val(&self.cycle)),
-            (
-                self.execution_documents.memory_size(),
-                std::mem::size_of_val(&self.execution_documents),
-            ),
-            (
-                self.prompts.memory_size(),
-                std::mem::size_of_val(&self.prompts),
-            ),
-            (
-                self.health.memory_size(),
-                std::mem::size_of_val(&self.health),
-            ),
-            (self.notes.memory_size(), std::mem::size_of_val(&self.notes)),
-            (
-                self.traceability.memory_size(),
-                std::mem::size_of_val(&self.traceability),
-            ),
-            (
-                self.appearance.memory_size(),
-                std::mem::size_of_val(&self.appearance),
-            ),
-        ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
-    }
-}
-
-impl MemorySize for ExecutionCheckpointDocument {
-    fn memory_size(&self) -> usize {
-        let fields = [
-            (
-                self.checkpoint.memory_size(),
-                std::mem::size_of_val(&self.checkpoint),
-            ),
-            (
-                self.document.memory_size(),
-                std::mem::size_of_val(&self.document),
-            ),
-        ];
-        fields
-            .into_iter()
-            .fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
-                if owned == usize::MAX {
-                    usize::MAX
-                } else {
-                    bytes.saturating_add(owned.saturating_sub(inline))
-                }
-            })
-    }
-}
-
-impl MemorySize for BrowseRows {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>().saturating_add(self.pages.capacity().saturating_mul(
-            std::mem::size_of::<SharedQueryValue<Vec<ExecutionBrowseEntry>>>(),
-        ))
-    }
-}
-
 impl RuntimeHandle {
     pub async fn checkpoint_execution(
         &self,
         checkpoint: &ExecutionCheckpoint,
     ) -> Result<crate::runtime::storage::execution::ExecutionView> {
-        let config = self.config();
-        let settings = &config.storage;
-        let storage = self.storage();
-        let view = storage.view_with_limits(settings.interactive).await?;
-        let inspection = crate::runtime::storage::execution::ExecutionView::open_checkpoint(
-            storage,
-            view,
+        crate::runtime::storage::execution::ExecutionView::open_checkpoint(
+            self.storage(),
             checkpoint,
-            settings.decoded_bytes,
         )
-        .await?;
-        inspection.ok_or_else(|| Error::NotFound {
+        .await?
+        .ok_or_else(|| Error::NotFound {
             code: "execution_seal_missing".into(),
             message: "execution checkpoint has no retained exact seal".into(),
         })
     }
 
-    pub async fn execution_saved_checkpoint<U: MemorySize>(
+    pub async fn execution_saved_checkpoint(
         &self,
         id: TestExecutionId,
-        map: impl FnOnce(&ExecutionCheckpoint, NonZeroUsize) -> harmos::Result<U>,
-    ) -> Result<QueryValue<U>> {
-        let config = self.config();
-        let settings = &config.storage;
-        let storage = self.storage();
-        let limit = settings.decoded_bytes;
-        let view = storage.view_with_limits(settings.interactive).await?;
-        let inspection = crate::runtime::storage::execution::ExecutionView::open(
-            storage,
-            view,
+    ) -> Result<ExecutionCheckpoint> {
+        crate::runtime::storage::execution::ExecutionView::open(
+            self.storage(),
             &id,
             harmos::storage::ObjectVersion::Latest,
-            limit,
         )
         .await?
         .filter(|inspection| inspection.execution().saved.is_some())
         .ok_or_else(|| Error::NotFound {
             code: "execution_seal_missing".into(),
             message: "execution has no saved seal".into(),
-        })?;
-        let checkpoint = inspection.checkpoint(limit)?;
-        inspection
-            .view()
-            .project_owned(checkpoint, limit, |checkpoint, allowance| {
-                map(&checkpoint, allowance)
-            })
-            .map_err(Into::into)
+        })?
+        .checkpoint()
     }
 
-    pub async fn browse_executions<T: MemorySize>(
+    pub async fn browse_executions(
         &self,
         query: ExecutionBrowseQuery,
-        map: impl FnOnce(&ExecutionBrowsePage, NonZeroUsize) -> harmos::Result<T>,
-    ) -> Result<QueryValue<T>> {
+    ) -> Result<ExecutionBrowsePage> {
         let limit = query.limit.unwrap_or(100);
         if !(1..=1000).contains(&limit) {
             return Err(error("execution page limit must be 1..=1000"));
         }
-        let config = self.config();
-        let settings = &config.storage;
-        let storage = self.storage();
-        let view = storage.view_with_limits(settings.interactive).await?;
-        let projection = settings.decoded_bytes;
-        let mut reader = crate::runtime::storage::history::Reader::open(
-            storage,
-            &view,
-            ReadLimits {
-                // Execution Objects Include Structured Outputs; Read One Per Page.
-                rows: NonZeroUsize::new(1).unwrap(),
-                bytes: settings.decoded_bytes,
-            },
-            projection,
-        )?;
-        let mut rows = storage
-            .produce(
-                NonZeroUsize::new(std::mem::size_of::<BrowseRows>())
-                    .expect("nonzero browse container"),
-                |_| Ok(BrowseRows { pages: Vec::new() }),
-            )?
-            .try_into_value()?;
-        while let Some(page) = reader.next().await? {
-            let metadata = reader.project(&page, |rows, allowance| stored_rows(rows, allowance))?;
-            drop(page);
-            let next = reader.project(&rows, |rows, allowance| {
-                let count = rows.pages.len().checked_add(1).ok_or_else(overflow)?;
-                let bytes = std::mem::size_of::<BrowseRows>().saturating_add(count.saturating_mul(
-                    std::mem::size_of::<SharedQueryValue<Vec<ExecutionBrowseEntry>>>(),
-                ));
-                require_memory(bytes, allowance)?;
-                let mut pages = Vec::new();
-                pages.try_reserve_exact(count).map_err(|_| exhausted())?;
-                if pages.capacity() > count {
-                    return Err(exhausted());
-                }
-                pages.extend(rows.pages.iter().cloned());
-                pages.push(metadata.try_into_shared()?);
-                Ok(BrowseRows { pages })
-            })?;
-            rows = next;
-        }
-        let live = reader.project(&rows, |_, allowance| {
-            let active = self
-                .execution_storage
-                .active_ids(allowance)
-                .map_err(projection_error)?;
+        let stored =
+            stored_rows(crate::runtime::storage::history::executions(self.storage()).await?);
+        let active = self.execution_storage.active_ids()?;
+        let live = {
             let state = self.state_read();
-            let count = state
-                .cycles
-                .values()
-                .map(|cycle| cycle.execution_ids.len())
-                .try_fold(0usize, |count, length| {
-                    count.checked_add(length).ok_or_else(overflow)
-                })?;
-            let mut bytes = std::mem::size_of::<Vec<ExecutionBrowseEntry>>()
-                .saturating_add(count.saturating_mul(std::mem::size_of::<ExecutionBrowseEntry>()));
-            for cycle in state.cycles.values() {
-                for execution in state.executions_for_cycle(cycle) {
-                    bytes = bytes.saturating_add(ExecutionMetadata::construction_memory(execution));
-                }
-            }
-            require_memory(bytes, allowance)?;
             let mut live = Vec::new();
-            live.try_reserve_exact(count).map_err(|_| exhausted())?;
-            if live.capacity() > count {
-                return Err(exhausted());
-            }
             for cycle in state.cycles.values() {
                 for execution in state.executions_for_cycle(cycle) {
                     live.push(ExecutionBrowseEntry {
@@ -560,8 +284,8 @@ impl RuntimeHandle {
                     });
                 }
             }
-            Ok(live)
-        })?;
+            live
+        };
         let archived = {
             let state = self.state_read();
             Archived {
@@ -569,170 +293,110 @@ impl RuntimeHandle {
                 executions: state.archived_executions.clone(),
             }
         };
-        let page = reader.project(&rows, |rows, allowance| {
-            browse_page(rows, &live, &query, &archived, limit, allowance)
-        })?;
-        reader.project(&page, |page, allowance| map(page, allowance))
+        browse_page(&stored, &live, &query, &archived, limit)
     }
-    pub async fn execution_checkpoint_context<T: MemorySize>(
+
+    pub async fn execution_checkpoint_context(
         &self,
         checkpoint: ExecutionCheckpoint,
-        map: impl FnOnce(ExecutionCheckpointContext, NonZeroUsize) -> harmos::Result<T>,
-    ) -> Result<QueryValue<T>> {
-        let view = self.checkpoint_execution(&checkpoint).await?;
-        let view = view.snapshot(self.storage()).await?;
-        let limit = self
-            .config()
-            .storage
-            .decoded_bytes
-            .min(view.view().decoded_bytes()?);
-        view.project_context(limit, |context, allowance| {
-            let bytes = std::mem::size_of::<ExecutionCheckpointContext>()
-                .saturating_add(checkpoint.memory_size())
-                .saturating_add(context.memory_size());
-            require_memory(bytes, allowance)?;
-            let context = context.clone();
-            let context = ExecutionCheckpointContext {
-                checkpoint,
-                scope: context.scope,
-                session_id: context.session_id,
-                cycle: context.cycle,
-                execution_documents: context.execution_documents,
-                prompts: context.prompts,
-                health: context.health,
-                notes: context.notes,
-                traceability: context.traceability,
-                appearance: context.appearance,
-            };
-            map(context, allowance)
+    ) -> Result<ExecutionCheckpointContext> {
+        let view = self
+            .checkpoint_execution(&checkpoint)
+            .await?
+            .snapshot()
+            .await?;
+        let context = view.context()?.clone();
+        Ok(ExecutionCheckpointContext {
+            checkpoint,
+            scope: context.scope,
+            session_id: context.session_id,
+            cycle: context.cycle,
+            execution_documents: context.execution_documents,
+            prompts: context.prompts,
+            health: context.health,
+            notes: context.notes,
+            traceability: context.traceability,
+            appearance: context.appearance,
         })
     }
 
-    pub async fn execution_checkpoint_outputs_projected<T: MemorySize>(
+    pub async fn execution_checkpoint_outputs(
         &self,
         checkpoint: ExecutionCheckpoint,
-        map: impl FnOnce(
-            &ExecutionCheckpoint,
-            &[dokime::execution::saved::ExecutionOutput],
-            NonZeroUsize,
-        ) -> harmos::Result<T>,
-    ) -> Result<QueryValue<T>> {
+    ) -> Result<Vec<dokime::execution::saved::ExecutionOutput>> {
         let view = self.checkpoint_execution(&checkpoint).await?;
-        let limit = self
-            .config()
-            .storage
-            .decoded_bytes
-            .min(view.view().decoded_bytes()?);
-        view.project_outputs(limit, |outputs, allowance| {
-            map(&checkpoint, outputs, allowance)
-        })
+        Ok(view.outputs()?.to_vec())
     }
 
-    pub async fn execution_checkpoint_evidence<U: MemorySize>(
+    pub async fn execution_checkpoint_evidence(
         &self,
         checkpoint: ExecutionCheckpoint,
-        map: impl FnOnce(ExecutionCheckpointEvidence, NonZeroUsize) -> harmos::Result<U>,
-    ) -> Result<QueryValue<U>> {
-        let view = self.checkpoint_execution(&checkpoint).await?;
-        let view = view.snapshot(self.storage()).await?;
+    ) -> Result<ExecutionCheckpointEvidence> {
+        let view = self
+            .checkpoint_execution(&checkpoint)
+            .await?
+            .snapshot()
+            .await?;
         let outputs = view.outputs()?;
-        let limit = self
-            .config()
-            .storage
-            .decoded_bytes
-            .min(view.view().decoded_bytes()?);
-        view.project_source(limit, |captured, allowance| {
-            let output_bytes = outputs.iter().fold(0usize, |bytes, output| {
-                bytes
-                    .saturating_add(output.memory_size())
-                    .saturating_add(
-                        std::mem::size_of::<crate::runtime::query::ExecutionFileEntry>(),
-                    )
-                    .saturating_add(checkpoint.execution_id.memory_size())
-                    .saturating_add(output.relative_path.len().saturating_mul(2))
-                    .saturating_add(output.file.metadata.media_type.len())
-                    .saturating_add(output.created_at.memory_size())
-            });
-            let construction = std::mem::size_of::<ExecutionCheckpointEvidence>()
-                .saturating_add(checkpoint.memory_size())
-                .saturating_add(output_bytes.saturating_mul(2))
-                .saturating_add(captured.record_contracts.memory_size().saturating_mul(2))
-                .saturating_add(captured.telemetry_contracts.memory_size().saturating_mul(3));
-            require_memory(construction, allowance)?;
-            let evidence = ExecutionCheckpointEvidence {
-                outputs: outputs
-                    .iter()
-                    .map(|output| {
-                        crate::domains::documents::saved::entry(&checkpoint.execution_id, output)
-                    })
-                    .collect::<harmos::Result<Vec<_>>>()?,
-                artifacts: outputs
-                    .iter()
-                    .filter_map(|output| match &output.content {
-                        dokime::execution::saved::ExecutionOutputContent::Artifact {
-                            record,
-                            ..
-                        } => Some(record.as_ref().clone()),
-                        _ => None,
-                    })
-                    .collect(),
-                record_contracts: captured
-                    .record_contracts
-                    .values()
-                    .flat_map(|versions| versions.values().cloned())
-                    .collect(),
-                telemetry: captured
-                    .telemetry_contracts
-                    .values()
-                    .flat_map(|versions| versions.values())
-                    .map(
-                        |contract| super::checkpoint_telemetry::ExecutionTelemetryTable {
-                            table: contract.stream.to_string(),
-                            contract: contract.clone(),
-                        },
-                    )
-                    .collect(),
-                checkpoint,
-            };
-            map(evidence, allowance)
+        let captured = view.source_snapshot()?;
+        Ok(ExecutionCheckpointEvidence {
+            outputs: outputs
+                .iter()
+                .map(|output| {
+                    crate::domains::documents::saved::entry(&checkpoint.execution_id, output)
+                })
+                .collect::<harmos::Result<Vec<_>>>()?,
+            artifacts: outputs
+                .iter()
+                .filter_map(|output| match &output.content {
+                    dokime::execution::saved::ExecutionOutputContent::Artifact {
+                        record, ..
+                    } => Some(record.as_ref().clone()),
+                    _ => None,
+                })
+                .collect(),
+            record_contracts: captured
+                .record_contracts
+                .values()
+                .flat_map(|versions| versions.values().cloned())
+                .collect(),
+            telemetry: captured
+                .telemetry_contracts
+                .values()
+                .flat_map(|versions| versions.values())
+                .map(
+                    |contract| super::checkpoint_telemetry::ExecutionTelemetryTable {
+                        table: contract.stream.to_string(),
+                        contract: contract.clone(),
+                    },
+                )
+                .collect(),
+            checkpoint,
         })
     }
 
-    pub async fn execution_checkpoint_document<T: MemorySize>(
+    pub async fn execution_checkpoint_document(
         &self,
         checkpoint: ExecutionCheckpoint,
-        map: impl FnOnce(ExecutionCheckpointDocument, NonZeroUsize) -> harmos::Result<T>,
-    ) -> Result<QueryValue<T>> {
-        let view = self.checkpoint_execution(&checkpoint).await?;
-        let view = view.snapshot(self.storage()).await?;
-        let limit = self
-            .config()
-            .storage
-            .decoded_bytes
-            .min(view.view().decoded_bytes()?);
-        view.project_context(limit, |context, allowance| {
-            let execution = view.execution();
-            let cycle = &context.cycle.cycle;
-            let bytes = std::mem::size_of::<ExecutionCheckpointDocument>()
-                .saturating_add(checkpoint.memory_size())
-                .saturating_add(cycle.metadata.memory_size())
-                .saturating_add(cycle.test_cycle_id.memory_size())
-                .saturating_add(execution.memory_size());
-            require_memory(bytes, allowance)?;
-            let mut execution = execution.clone();
-            execution.saved = None;
-            let document = ExecutionCheckpointDocument {
-                checkpoint,
-                document: ExecutionDocument {
-                    cycle: crate::execution::storage::ExecutionCycle {
-                        cycle_id: cycle.test_cycle_id.clone(),
-                        metadata: cycle.metadata.clone(),
-                    },
-                    execution,
+    ) -> Result<ExecutionCheckpointDocument> {
+        let view = self
+            .checkpoint_execution(&checkpoint)
+            .await?
+            .snapshot()
+            .await?;
+        let cycle = &view.context()?.cycle.cycle;
+        let mut execution = view.execution().clone();
+        execution.saved = None;
+        Ok(ExecutionCheckpointDocument {
+            checkpoint,
+            document: ExecutionDocument {
+                cycle: crate::execution::storage::ExecutionCycle {
+                    cycle_id: cycle.test_cycle_id.clone(),
+                    metadata: cycle.metadata.clone(),
                 },
-                acquisition_finished: true,
-            };
-            map(document, allowance)
+                execution,
+            },
+            acquisition_finished: true,
         })
     }
 }
@@ -741,86 +405,45 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 fn stored_rows(
-    rows: &[ObjectRevision<crate::execution::TestExecution>],
-    allowance: NonZeroUsize,
-) -> harmos::Result<Vec<ExecutionBrowseEntry>> {
-    let mut bytes = std::mem::size_of::<Vec<ExecutionBrowseEntry>>().saturating_add(
-        rows.len()
-            .saturating_mul(std::mem::size_of::<ExecutionBrowseEntry>()),
-    );
-    for row in rows {
-        bytes = bytes.saturating_add(ExecutionMetadata::construction_memory(&row.value));
-        if let Some(seal) = &row.value.saved {
-            bytes = bytes
-                .saturating_add(row.value.test_execution_id.as_str().len())
-                .saturating_add(row.position.memory_size())
-                .saturating_add(row.version.memory_size())
-                .saturating_add(seal.source.evidence_through.memory_size());
-        }
-    }
-    require_memory(bytes, allowance)?;
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(rows.len())
-        .map_err(|_| exhausted())?;
-    if entries.capacity() > rows.len() {
-        return Err(exhausted());
-    }
-    for row in rows {
-        let checkpoint = row.value.saved.as_ref().map(|seal| ExecutionCheckpoint {
-            execution_id: row.value.test_execution_id.clone(),
-            position: row.position.clone(),
-            version: row.version.clone(),
-            evidence_through: seal.source.evidence_through.clone(),
-        });
-        entries.push(ExecutionBrowseEntry {
-            metadata: ExecutionMetadata::new(&row.value),
-            availability: if checkpoint.is_some() {
-                ExecutionAvailability::Stored
-            } else {
-                ExecutionAvailability::Interrupted
-            },
-            checkpoint,
-            archived: false,
-        });
-    }
-    Ok(entries)
+    rows: Vec<ObjectRevision<crate::execution::TestExecution>>,
+) -> Vec<ExecutionBrowseEntry> {
+    rows.into_iter()
+        .map(|row| {
+            let checkpoint = row.value.saved.as_ref().map(|seal| ExecutionCheckpoint {
+                execution_id: row.value.test_execution_id.clone(),
+                position: row.position.clone(),
+                version: row.version.clone(),
+                evidence_through: seal.source.evidence_through.clone(),
+            });
+            ExecutionBrowseEntry {
+                metadata: ExecutionMetadata::new(&row.value),
+                availability: if checkpoint.is_some() {
+                    ExecutionAvailability::Stored
+                } else {
+                    ExecutionAvailability::Interrupted
+                },
+                checkpoint,
+                archived: false,
+            }
+        })
+        .collect()
 }
 
 fn browse_page(
-    rows: &BrowseRows,
+    stored: &[ExecutionBrowseEntry],
     live: &[ExecutionBrowseEntry],
     query: &ExecutionBrowseQuery,
     archived: &Archived,
     limit: usize,
-    allowance: NonZeroUsize,
-) -> harmos::Result<ExecutionBrowsePage> {
+) -> Result<ExecutionBrowsePage> {
     let admitted = |row: &ExecutionBrowseEntry| {
         executions::matches(&row.metadata, &query.filter)
             && query.filter.archive.admits(archived.covers(&row.metadata))
     };
-    let count = rows.pages.iter().try_fold(live.len(), |count, page| {
-        count.checked_add(page.len()).ok_or_else(overflow)
-    })?;
-    let index = harmos::btree_map_memory::<&TestExecutionId, &ExecutionBrowseEntry>(count);
-    let slots = count.saturating_mul(std::mem::size_of::<&ExecutionBrowseEntry>());
-    let mut scratch = 0usize;
-    for row in rows.pages.iter().flat_map(|page| page.iter()).chain(live) {
-        scratch = scratch
-            .max(executions::selection_memory(&row.metadata, &query.filter))
-            .max(executions::ordering_memory(&row.metadata, query.order));
-    }
-    let checkpoints =
-        harmos::btree_map_memory::<&TestExecutionId, Option<&ExecutionCheckpoint>>(count);
-    let reserved = index
-        .saturating_add(checkpoints)
-        .saturating_add(slots)
-        .saturating_add(scratch);
-    require_memory(reserved, allowance)?;
     let mut candidates = BTreeMap::new();
     let mut checkpoints = BTreeMap::new();
     // Native Checkpoints Preserve Their Exact Revision Even When The Live Row Wins.
-    for row in rows.pages.iter().flat_map(|page| page.iter()) {
+    for row in stored {
         checkpoints.insert(&row.metadata.execution_id, row.checkpoint.as_ref());
         if admitted(row) {
             candidates.insert(&row.metadata.execution_id, row);
@@ -837,14 +460,7 @@ fn browse_page(
             candidates.remove(id);
         }
     }
-    let mut selected = Vec::new();
-    selected
-        .try_reserve_exact(candidates.len())
-        .map_err(|_| exhausted())?;
-    if selected.capacity() > count {
-        return Err(exhausted());
-    }
-    selected.extend(candidates.into_values());
+    let mut selected = candidates.into_values().collect::<Vec<_>>();
     selected.sort_unstable_by(|left, right| {
         executions::compare(&left.metadata, &right.metadata, query.order)
     });
@@ -854,10 +470,7 @@ fn browse_page(
             selected
                 .iter()
                 .position(|entry| &entry.metadata.execution_id == after)
-                .ok_or(harmos::Error::InvalidInput {
-                    field: "execution continuation",
-                    reason: "after execution ID is not in the filtered result",
-                })?
+                .ok_or_else(|| error("after execution ID is not in the filtered result"))?
                 + 1
         }
     };
@@ -865,13 +478,6 @@ fn browse_page(
     let more = selected.len().saturating_sub(start) > returned;
 
     // Fold The Whole Selection Into Per-Cycle Totals
-    let folding = harmos::btree_map_memory::<&TestCycleId, CycleFold>(selected.len())
-        .saturating_add(harmos::btree_map_memory::<&CaseId, ()>(selected.len()))
-        .saturating_add(harmos::btree_map_memory::<&TestCycleId, &CycleFold>(
-            returned,
-        ));
-    let reserved = reserved.saturating_add(folding);
-    require_memory(reserved, allowance)?;
     let mut folds = BTreeMap::<&TestCycleId, CycleFold>::new();
     for row in &selected {
         let metadata = &row.metadata;
@@ -909,39 +515,7 @@ fn browse_page(
         page_cycles.entry(id).or_insert_with(|| &folds[id]);
     }
 
-    let mut bytes = reserved
-        .saturating_add(std::mem::size_of::<ExecutionBrowsePage>())
-        .saturating_add(returned.saturating_mul(std::mem::size_of::<ExecutionBrowseEntry>()));
-    for row in selected.iter().skip(start).take(returned) {
-        bytes = bytes.saturating_add(row.memory_size());
-        if let Some(Some(checkpoint)) = checkpoints.get(&row.metadata.execution_id) {
-            bytes = bytes.saturating_add(checkpoint.memory_size());
-        }
-    }
-    for (id, fold) in &page_cycles {
-        bytes = bytes
-            .saturating_add(std::mem::size_of::<ExecutionBrowseCycle>())
-            .saturating_add(id.as_str().len())
-            .saturating_add(fold.started_at.map_or(0, MemorySize::memory_size))
-            .saturating_add(fold.finished_at.map_or(0, MemorySize::memory_size));
-    }
-    if more {
-        bytes = bytes.saturating_add(
-            selected[start + returned - 1]
-                .metadata
-                .execution_id
-                .as_str()
-                .len(),
-        );
-    }
-    require_memory(bytes, allowance)?;
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(returned)
-        .map_err(|_| exhausted())?;
-    if entries.capacity() > returned {
-        return Err(exhausted());
-    }
+    let mut entries = Vec::with_capacity(returned);
     for row in selected.into_iter().skip(start).take(returned) {
         let mut entry = (*row).clone();
         entry.archived = archived.covers(&entry.metadata);
@@ -957,14 +531,10 @@ fn browse_page(
         }
         entries.push(entry);
     }
-    let mut cycles = Vec::new();
-    cycles
-        .try_reserve_exact(page_cycles.len())
-        .map_err(|_| exhausted())?;
-    if cycles.capacity() > page_cycles.len() {
-        return Err(exhausted());
-    }
-    cycles.extend(page_cycles.into_iter().map(|(id, fold)| fold.finish(id)));
+    let cycles = page_cycles
+        .into_iter()
+        .map(|(id, fold)| fold.finish(id))
+        .collect();
     let next = more.then(|| {
         entries
             .last()
@@ -983,35 +553,6 @@ fn browse_page(
         omitted_issues: 0,
         cycles,
     })
-}
-
-fn require_memory(bytes: usize, allowance: NonZeroUsize) -> harmos::Result<()> {
-    if bytes == usize::MAX || bytes > allowance.get() {
-        return Err(exhausted());
-    }
-    Ok(())
-}
-
-fn exhausted() -> harmos::Error {
-    harmos::Error::ResourceExhausted {
-        resource: "execution browse projection",
-    }
-}
-fn overflow() -> harmos::Error {
-    harmos::Error::InvalidInput {
-        field: "execution browse",
-        reason: "memory overflows",
-    }
-}
-fn projection_error(error: Error) -> harmos::Error {
-    match error {
-        Error::Harmos(error) => error,
-        error => harmos::Error::backend(
-            "project execution browse",
-            harmos::BackendFailure::Corrupt,
-            error,
-        ),
-    }
 }
 
 fn error(error: impl ToString) -> Error {

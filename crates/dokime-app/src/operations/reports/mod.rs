@@ -19,7 +19,6 @@ use dokime::core::{TestCycleId, TestExecutionId, Timestamp};
 use dokime::operations::reports::{
     MaterializeReport, MaterializeReportRequest, MaterializedReport, ReportSubject,
 };
-use harmos::MemorySize;
 use harmos::operations::{Context, Operation};
 use std::sync::Arc;
 /* === Constants === */
@@ -112,10 +111,7 @@ async fn execution(
     at: &harmos::storage::StorageCursor,
 ) -> Result<MaterializedReport> {
     let app = ctx.scope().resources::<Dokime>();
-    let source = resources
-        .execution_storage
-        .report_source(id, &app.storage_settings)
-        .await?;
+    let source = resources.execution_storage.report_source(id).await?;
     let member = source
         .test_executions
         .iter()
@@ -127,10 +123,7 @@ async fn execution(
     let gate = resources.execution_storage.materialization_gate(id).await?;
     let _guard = gate.lock().await;
     // Recheck Mutable Lifecycle After Admission; Sealing Uses This Same Gate.
-    let source = resources
-        .execution_storage
-        .report_source(id, &app.storage_settings)
-        .await?;
+    let source = resources.execution_storage.report_source(id).await?;
     let member = source
         .test_executions
         .iter()
@@ -168,40 +161,28 @@ async fn execution(
     let defaults = resources.settings.read(|settings| settings.report);
     let inspection = resources
         .execution_storage
-        .capture_execution_view(&source, &inputs, defaults, &app.storage_settings)
+        .capture_execution_view(&source, &inputs, defaults)
         .await?;
     if inspection.evidence_through()? != at {
         return Err(invalid("capture changed requested report boundary"));
     }
     let progress = resources.progress.begin("Materializing Report");
     let storage = &resources.execution_storage.storage;
-    let captured = crate::report::materialize::execution(
-        ctx,
-        storage,
-        &app.storage_settings,
-        &inspection,
-        final_report,
-        Some(&progress),
-    )
-    .await?
-    .try_into_shared()?;
-    let outputs =
-        inspection.project_outputs(inspection.view().decoded_bytes()?, |outputs, allowance| {
-            if outputs.iter().fold(
-                std::mem::size_of::<Vec<dokime::execution::saved::ExecutionOutput>>(),
-                |bytes, output| bytes.saturating_add(output.memory_size()),
-            ) > allowance.get()
-            {
-                return Err(harmos::Error::ResourceExhausted {
-                    resource: "report output metadata",
-                });
-            }
-            Ok(outputs.to_vec())
-        })?;
+    let captured = Arc::new(
+        crate::report::materialize::execution(
+            ctx,
+            &app.storage_settings,
+            &inspection,
+            final_report,
+            Some(&progress),
+        )
+        .await?,
+    );
+    let outputs = inspection.outputs()?.to_vec();
     let renderer = app.renderer;
-    let manager = storage.clone();
+    let saved = storage.cursor_saved();
     let mut prepared =
-        tokio::task::spawn_blocking(move || renderer.execution(manager, captured, outputs))
+        tokio::task::spawn_blocking(move || renderer.execution(captured, outputs, &saved))
             .await??;
     let result = if final_report {
         resources
@@ -213,7 +194,7 @@ async fn execution(
             .execution_storage
             .publication_revision(inspection.execution())
             .await?;
-        prepared.publish_current(ctx, &revision).await
+        prepared.publish_current(storage, ctx, &revision).await
     };
     progress.track(result)
 }

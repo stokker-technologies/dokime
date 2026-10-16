@@ -17,9 +17,10 @@ mod settings;
 mod view;
 
 /* === Re-Exports === */
-pub use crate::runtime::storage::config::StorageSettings;
+pub use crate::runtime::storage::config::storage_defaults;
 pub use application::ApplicationOptions;
 pub use dokime::paths::{ApplicationPaths, DEFAULT_APPLICATION_ID};
+pub use harmos::storage::StorageSettings;
 pub use launch::Config;
 pub use policy::{StoragePolicy, StoragePolicyView};
 pub use runtime::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, SidecarNoticeHandler};

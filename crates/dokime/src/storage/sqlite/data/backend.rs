@@ -136,7 +136,9 @@ impl<C: ObjectCatalog> Backend<C> {
         drop(read);
         entries
             .into_iter()
-            .map(|entry| convert(entry).ok_or_else(|| invalid("stored collection differs from its index")))
+            .map(|entry| {
+                convert(entry).ok_or_else(|| invalid("stored collection differs from its index"))
+            })
             .collect()
     }
 }
@@ -258,7 +260,16 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             snapshot,
             "schema",
             page,
-            |scan| Ok(scan.filter("schema_key", selection.schema.as_ref().map(serde_json::to_string).transpose()?)),
+            |scan| {
+                Ok(scan.filter(
+                    "schema_key",
+                    selection
+                        .schema
+                        .as_ref()
+                        .map(serde_json::to_string)
+                        .transpose()?,
+                ))
+            },
             |entry| match entry {
                 Entry::Schema(value) => Some(value),
                 _ => None,
@@ -278,8 +289,22 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             page,
             |scan| {
                 let mut scan = scan
-                    .filter("schema_key", selection.schema.as_ref().map(serde_json::to_string).transpose()?)
-                    .filter("item", selection.key.as_ref().map(|value| key(value.as_str())).transpose()?);
+                    .filter(
+                        "schema_key",
+                        selection
+                            .schema
+                            .as_ref()
+                            .map(serde_json::to_string)
+                            .transpose()?,
+                    )
+                    .filter(
+                        "item",
+                        selection
+                            .key
+                            .as_ref()
+                            .map(|value| key(value.as_str()))
+                            .transpose()?,
+                    );
                 scan.latest_objects = selection.versions == ObjectVersions::Latest;
                 Ok(scan)
             },
@@ -302,9 +327,26 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             page,
             |scan| {
                 let mut scan = scan
-                    .filter("schema_key", Some(serde_json::to_string(&selection.schema)?))
-                    .filter("scope", selection.scope.as_ref().map(|value| key(value.as_str())).transpose()?)
-                    .filter("item", selection.item.as_ref().map(|value| key(value.as_str())).transpose()?);
+                    .filter(
+                        "schema_key",
+                        Some(serde_json::to_string(&selection.schema)?),
+                    )
+                    .filter(
+                        "scope",
+                        selection
+                            .scope
+                            .as_ref()
+                            .map(|value| key(value.as_str()))
+                            .transpose()?,
+                    )
+                    .filter(
+                        "item",
+                        selection
+                            .item
+                            .as_ref()
+                            .map(|value| key(value.as_str()))
+                            .transpose()?,
+                    );
                 scan.source_window = selection.source_start.zip(selection.source_end);
                 Ok(scan)
             },
@@ -327,10 +369,34 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             page,
             |scan| {
                 let mut scan = scan
-                    .filter("schema_key", Some(serde_json::to_string(&selection.schema)?))
-                    .filter("scope", selection.scope.as_ref().map(|value| key(value.as_str())).transpose()?)
-                    .filter("item", selection.item.as_ref().map(|value| key(value.as_str())).transpose()?)
-                    .filter("stream", selection.stream.as_ref().map(|value| key(value.as_str())).transpose()?);
+                    .filter(
+                        "schema_key",
+                        Some(serde_json::to_string(&selection.schema)?),
+                    )
+                    .filter(
+                        "scope",
+                        selection
+                            .scope
+                            .as_ref()
+                            .map(|value| key(value.as_str()))
+                            .transpose()?,
+                    )
+                    .filter(
+                        "item",
+                        selection
+                            .item
+                            .as_ref()
+                            .map(|value| key(value.as_str()))
+                            .transpose()?,
+                    )
+                    .filter(
+                        "stream",
+                        selection
+                            .stream
+                            .as_ref()
+                            .map(|value| key(value.as_str()))
+                            .transpose()?,
+                    );
                 scan.source_window = selection.source_start.zip(selection.source_end);
                 Ok(scan)
             },
@@ -353,8 +419,22 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             page,
             |scan| {
                 Ok(scan
-                    .filter("scope", selection.scope.as_ref().map(|value| key(value.as_str())).transpose()?)
-                    .filter("item", selection.item.as_ref().map(|value| key(value.as_str())).transpose()?))
+                    .filter(
+                        "scope",
+                        selection
+                            .scope
+                            .as_ref()
+                            .map(|value| key(value.as_str()))
+                            .transpose()?,
+                    )
+                    .filter(
+                        "item",
+                        selection
+                            .item
+                            .as_ref()
+                            .map(|value| key(value.as_str()))
+                            .transpose()?,
+                    ))
             },
             |entry| match entry {
                 Entry::File(value) => Some(value),
@@ -394,7 +474,13 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             let read = self.read(snapshot)?;
             let result = self
                 .state
-                .data_read_file(self.root.clone(), file.clone(), read.0.at, offset, max_bytes)
+                .data_read_file(
+                    self.root.clone(),
+                    file.clone(),
+                    read.0.at,
+                    offset,
+                    max_bytes,
+                )
                 .await
                 .map_err(|error| failure("read SQLite file", error));
             drop(read);
@@ -436,7 +522,11 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 .values()
                 .map(|pin| pin.generation)
                 .min();
-            let after = if *retention <= through.sequence { *retention } else { 0 };
+            let after = if *retention <= through.sequence {
+                *retention
+            } else {
+                0
+            };
             let (logical, complete) = self
                 .state
                 .data_prune::<C>(through.clone(), after, oldest, max_entries)
@@ -508,7 +598,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         true
     }
 
-    fn create_production<'a>(&'a self, metadata: &'a FileMetadata) -> StorageFuture<'a, StagedFile> {
+    fn create_production<'a>(
+        &'a self,
+        metadata: &'a FileMetadata,
+    ) -> StorageFuture<'a, StagedFile> {
         Box::pin(async move {
             super::entry::check_size(metadata, METADATA_BYTES)
                 .map_err(|error| failure("validate production", error))?;

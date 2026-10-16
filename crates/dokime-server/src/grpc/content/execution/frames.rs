@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::Protobuf;
@@ -42,13 +41,8 @@ use dokime_contract::operations::content as wire;
 /* === Public Functions === */
 pub(super) fn metadata(
     content: &ExecutionFileContent,
-    allowance: NonZeroUsize,
     maximum: usize,
 ) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
-    let bytes = std::mem::size_of::<wire::ExecutionFileDownloadFrame>()
-        .saturating_add(content.relative_path.len())
-        .saturating_add(content.content_type.as_ref().map_or(0, String::len));
-    admit(bytes, allowance)?;
     let frame = wire::ExecutionFileDownloadFrame {
         payload: Some(wire::ExecutionFileDownloadFramePayload::Metadata(
             wire::ExecutionFileDownloadMetadata {
@@ -68,13 +62,8 @@ pub(super) fn metadata(
 }
 pub(super) fn chunk(
     content: &ExecutionFileContent,
-    allowance: NonZeroUsize,
     maximum: usize,
 ) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
-    admit(
-        std::mem::size_of::<wire::ExecutionFileDownloadFrame>().saturating_add(content.bytes.len()),
-        allowance,
-    )?;
     let mut bytes = projection::slots(content.bytes.len())?;
     bytes.extend_from_slice(&content.bytes);
     checked(
@@ -92,13 +81,8 @@ pub(super) fn chunk(
 pub(super) fn complete(
     size: u64,
     digest: &Sha256,
-    allowance: NonZeroUsize,
     maximum: usize,
 ) -> harmos::Result<wire::ExecutionFileDownloadFrame> {
-    admit(
-        std::mem::size_of::<wire::ExecutionFileDownloadFrame>().saturating_add(64),
-        allowance,
-    )?;
     let digest = digest.clone().finalize();
     let mut hex = [0u8; 64];
     let alphabet = b"0123456789abcdef";
@@ -121,12 +105,6 @@ pub(super) fn complete(
 }
 
 /* === Private Functions === */
-fn admit(bytes: usize, allowance: NonZeroUsize) -> harmos::Result<()> {
-    if bytes > allowance.get() {
-        return Err(exhausted());
-    }
-    Ok(())
-}
 fn checked(
     frame: wire::ExecutionFileDownloadFrame,
     maximum: usize,

@@ -19,9 +19,9 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::Dokime;
 use crate::InstalledPlugin;
-use crate::runtime::storage::config::StorageSettings;
 use dokime::core::{CredentialBackendKind, Metadata, SessionId};
 use dokime::domains::ActionDispatcher;
+use harmos::storage::StorageSettings;
 
 /* === Constants === */
 /* === Macros === */
@@ -39,9 +39,7 @@ pub struct RuntimeConfig {
     pub session_id: SessionId,
     pub storage_root: PathBuf,
     pub application_root: PathBuf,
-    #[serde(default = "default_save_interval")]
-    pub save_interval: Duration,
-    #[serde(default)]
+    #[serde(default = "crate::config::storage_defaults")]
     pub storage: StorageSettings,
     #[serde(default = "default_compaction_interval")]
     pub compaction_interval: Duration,
@@ -81,8 +79,7 @@ impl RuntimeConfig {
         let storage_root = storage_root.into();
         Self {
             session_id: SessionId::new(),
-            save_interval: default_save_interval(),
-            storage: StorageSettings::default(),
+            storage: crate::config::storage_defaults(),
             compaction_interval: default_compaction_interval(),
             local_retention: None,
             // Programmatic configurations keep one disposable tree; shipped
@@ -205,10 +202,6 @@ impl Default for RuntimeCredentialConfig {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn default_save_interval() -> Duration {
-    Duration::from_millis(super::policy::DEFAULT_SAVE_INTERVAL_MS)
-}
-
 fn default_compaction_interval() -> Duration {
     Duration::from_secs(24 * 60 * 60)
 }

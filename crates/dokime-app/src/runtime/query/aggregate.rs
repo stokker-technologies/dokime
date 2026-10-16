@@ -13,17 +13,15 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::{Aggregate, MemorySize, storage::QueryValue};
+use harmos::Aggregate;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{Result, RuntimeHandle};
 use dokime::core::Value;
 
 /* === Constants === */
-pub const AGGREGATE_ROW_CEILING: usize = 10_000;
 
 /* === Macros === */
 
@@ -88,17 +86,8 @@ pub enum AggregateOperator {
 
 /* === Implementations === */
 impl RuntimeHandle {
-    pub async fn aggregate(&self, query: AggregateQuery) -> Result<QueryValue<AggregateOutcome>> {
+    pub async fn aggregate(&self, query: AggregateQuery) -> Result<AggregateOutcome> {
         crate::runtime::storage::aggregate::evaluate(&self.execution_storage, &query).await
-    }
-
-    pub async fn aggregate_projected<U: MemorySize>(
-        &self,
-        query: AggregateQuery,
-        map: impl FnOnce(&AggregateOutcome, NonZeroUsize) -> harmos::Result<U>,
-    ) -> Result<QueryValue<U>> {
-        crate::runtime::storage::aggregate::evaluate_projected(&self.execution_storage, &query, map)
-            .await
     }
 }
 

@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-mod memory;
 mod wire;
 
 /* === Re-Exports === */
@@ -18,7 +17,7 @@ mod wire;
 use std::sync::Arc;
 // Third Party Imports
 use harmos::{
-    MemorySize, Protobuf,
+    Protobuf,
     operations::{Context, Operation, Response},
 };
 use tonic::Status;
@@ -65,33 +64,29 @@ impl Operation for Get {
         _: &mut (),
     ) -> Result<Response<history::CheckpointDocument>, Status> {
         let checkpoint = super::wire::checkpoint(request.checkpoint.take())?;
-        self.resources
+        let document = self
+            .resources
             .runtime
-            .execution_checkpoint_document(checkpoint, |document, allowance| {
-                let required = document
-                    .memory_size()
-                    .saturating_add(memory::count(&document)?);
-                if required > allowance.get() {
-                    return Err(exhausted());
-                }
-                let response = history::CheckpointDocument {
-                    checkpoint: Some(
-                        super::wire::checkpoint_wire(document.checkpoint)
-                            .map_err(original_error)?,
-                    ),
-                    document: Some(
-                        wire::execution_document(document.document).map_err(original_error)?,
-                    ),
-                    acquisition_finished: document.acquisition_finished,
-                };
-                if response.encoded_len() > self.resources.maximum {
-                    return Err(exhausted());
-                }
-                Ok(response)
-            })
+            .execution_checkpoint_document(checkpoint)
             .await
-            .map_err(super::wire::checkpoint_failure)?
-            .try_into_response()
+            .map_err(super::wire::checkpoint_failure)?;
+        let project = || -> harmos::Result<history::CheckpointDocument> {
+            let response = history::CheckpointDocument {
+                checkpoint: Some(
+                    super::wire::checkpoint_wire(document.checkpoint).map_err(original_error)?,
+                ),
+                document: Some(
+                    wire::execution_document(document.document).map_err(original_error)?,
+                ),
+                acquisition_finished: document.acquisition_finished,
+            };
+            if response.encoded_len() > self.resources.maximum {
+                return Err(exhausted());
+            }
+            Ok(response)
+        };
+        project()
+            .map(Into::into)
             .map_err(|source| super::wire::checkpoint_failure(source.into()))
     }
 }

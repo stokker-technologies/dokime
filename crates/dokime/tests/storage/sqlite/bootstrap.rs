@@ -505,7 +505,7 @@ pub(crate) async fn private_import_abort() {
         let recovery = harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             backend.history().clone(),
-            &crate::sqlite::storage::storage_settings(),
+            dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
         );
         StateBackend::open(&recovery).await.unwrap();
         let recovered = RecoveryPosition {
@@ -572,7 +572,7 @@ pub(crate) async fn private_import_abort() {
         let recovery = harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             reopened.history().clone(),
-            &crate::sqlite::storage::storage_settings(),
+            dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
         );
         assert_eq!(StateBackend::open(&recovery).await.unwrap(), recovered);
         StateBackend::close(&recovery).await.unwrap();

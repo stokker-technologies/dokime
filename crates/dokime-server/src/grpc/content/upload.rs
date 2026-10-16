@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,7 +22,7 @@ use harmos::operations::{Context, Operation, Response, StreamInput, StreamItem};
 use tonic::Status;
 
 // Local Imports
-use super::{MAX_CONTENT_BYTES, metadata, metadata_memory, transfer_chunk_bytes};
+use super::{MAX_CONTENT_BYTES, metadata, transfer_chunk_bytes};
 use crate::grpc::{error::detailed, value};
 use dokime_app::{
     RuntimeHandle,
@@ -146,33 +145,13 @@ impl Operation for Upload {
         tracing::debug!(phase = "artifact_upload_seal", bytes = upload_size, elapsed_ms = %sealing.elapsed().as_millis(), succeeded = sealed.is_ok(), "original artifact upload sealing finished");
         let record = sealed.map_err(content_failure)?;
         self.upload = None;
-        let required = metadata_memory(&record)?;
-        if required > self.resources.maximum {
-            return Err(Status::resource_exhausted(
-                "artifact metadata exceeds response budget",
-            ));
-        }
-        let bytes = NonZeroUsize::new(required)
-            .ok_or_else(|| Status::resource_exhausted("invalid artifact response allowance"))?;
-        let preparation = self
-            .resources
-            .runtime
-            .storage()
-            .prepare_production(bytes)
-            .map_err(|source| content_failure(source.into()))?;
         let output = metadata(&record)?;
         if output.encoded_len() > self.resources.maximum {
             return Err(Status::resource_exhausted(
                 "artifact metadata exceeds response budget",
             ));
         }
-        preparation
-            .finish(output)
-            .map_err(|source| content_failure(source.into()))?
-            .try_into_value()
-            .map_err(|source| content_failure(source.into()))?
-            .try_into_response()
-            .map_err(|source| content_failure(source.into()))
+        Ok(output.into())
     }
     async fn stop(&mut self) -> Result<(), Status> {
         self.abandon().await

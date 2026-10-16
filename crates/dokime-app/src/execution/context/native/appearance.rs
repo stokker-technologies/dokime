@@ -103,106 +103,11 @@ struct Radii {
 /* === Traits === */
 
 /* === Implementations === */
-impl Appearance {
-    pub(crate) fn projection_memory(&self) -> Result<usize> {
-        mode(self.mode_policy)?;
-        let mut bytes = std::mem::size_of::<RuntimeAppearanceFrame>()
-            .saturating_add(self.app_name.capacity())
-            .saturating_add(optional_capacity(&self.title_template))
-            .saturating_add(optional_capacity(&self.active_theme))
-            .saturating_add(optional_capacity(&self.source_plugin_id));
-        if let Some(organization) = &self.organization {
-            bytes = bytes
-                .saturating_add(organization.name.capacity())
-                .saturating_add(optional_capacity(&organization.unit))
-                .saturating_add(optional_capacity(&organization.website));
-        }
-        if let Some(logo) = &self.logo {
-            bytes = bytes
-                .saturating_add(logo.plugin_id.capacity())
-                .saturating_add(logo.asset_id.capacity())
-                .saturating_add(logo.url.capacity())
-                .saturating_add(optional_capacity(&logo.alt));
-        }
-        for theme in &self.themes {
-            bytes = bytes.saturating_add(theme.projection_memory()?);
-        }
-        let validation = crate::execution::context::appearance_validation_memory(
-            self.themes.iter().flat_map(Theme::css_values),
-            self.themes
-                .iter()
-                .map(|theme| theme.theme_id.len())
-                .max()
-                .unwrap_or(0),
-        );
-        Ok(bytes.saturating_add(validation))
-    }
-
-    pub(crate) fn encoding_memory(frame: &RuntimeAppearanceFrame) -> usize {
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(frame.app_name.len())
-            .saturating_add(optional_length(&frame.title_template))
-            .saturating_add(
-                frame
-                    .active_theme
-                    .as_ref()
-                    .map_or(0, |id| id.as_str().len()),
-            )
-            .saturating_add(
-                frame
-                    .source_plugin_id
-                    .as_ref()
-                    .map_or(0, |id| id.as_str().len()),
-            );
-        if let Some(organization) = &frame.organization {
-            bytes = bytes
-                .saturating_add(organization.name.len())
-                .saturating_add(optional_length(&organization.unit))
-                .saturating_add(optional_length(&organization.website));
-        }
-        if let Some(logo) = &frame.logo {
-            bytes = bytes
-                .saturating_add(logo.plugin_id.as_str().len())
-                .saturating_add(logo.asset_id.as_str().len())
-                .saturating_add(logo.url.len())
-                .saturating_add(optional_length(&logo.alt));
-        }
-        for theme in &frame.themes {
-            bytes = bytes
-                .saturating_add(std::mem::size_of::<Theme>())
-                .saturating_add(theme.plugin_id.as_str().len())
-                .saturating_add(theme.theme_id.as_str().len())
-                .saturating_add(theme.label.len())
-                .saturating_add(optional_length(&theme.description))
-                .saturating_add(optional_length(&theme.stylesheet))
-                .saturating_add(property_encoding(&theme.variables));
-            for radius in domain_radii(&theme.corner_radii).into_iter().flatten() {
-                bytes = bytes.saturating_add(radius.len());
-            }
-            for variant in [&theme.light, &theme.dark] {
-                bytes = bytes
-                    .saturating_add(property_encoding(&variant.variables))
-                    .saturating_add(
-                        variant
-                            .plot_palette
-                            .len()
-                            .saturating_mul(std::mem::size_of::<String>()),
-                    );
-                for color in &variant.plot_palette {
-                    bytes = bytes.saturating_add(color.len());
-                }
-            }
-        }
-        bytes
-    }
-}
+impl Appearance {}
 
 impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
     type Error = Error;
     fn try_from(frame: &RuntimeAppearanceFrame) -> Result<Self> {
-        if Self::encoding_memory(frame) == usize::MAX {
-            return Err(invalid("appearance encoding memory overflows"));
-        }
         let mut themes = slots(frame.themes.len())?;
         for theme in &frame.themes {
             themes.push(Theme::try_from(theme)?);
@@ -242,9 +147,6 @@ impl TryFrom<&RuntimeAppearanceFrame> for Appearance {
 impl TryFrom<Appearance> for RuntimeAppearanceFrame {
     type Error = Error;
     fn try_from(frame: Appearance) -> Result<Self> {
-        if frame.projection_memory()? == usize::MAX {
-            return Err(invalid("appearance projection memory overflows"));
-        }
         let mut themes = slots(frame.themes.len())?;
         for theme in frame.themes {
             themes.push(theme.try_into()?);
@@ -290,69 +192,7 @@ impl TryFrom<Appearance> for RuntimeAppearanceFrame {
     }
 }
 
-impl Theme {
-    fn projection_memory(&self) -> Result<usize> {
-        let radii = self
-            .radii
-            .as_ref()
-            .ok_or_else(|| invalid("theme radii are missing"))?;
-        let light = self
-            .light
-            .as_ref()
-            .ok_or_else(|| invalid("light theme is missing"))?;
-        let dark = self
-            .dark
-            .as_ref()
-            .ok_or_else(|| invalid("dark theme is missing"))?;
-        let mut bytes = std::mem::size_of::<RuntimeThemeFamily>()
-            .saturating_add(self.plugin_id.capacity())
-            .saturating_add(self.theme_id.capacity())
-            .saturating_add(self.label.capacity())
-            .saturating_add(optional_capacity(&self.description))
-            .saturating_add(optional_capacity(&self.stylesheet))
-            .saturating_add(property_projection(&self.variables)?);
-        for radius in radii.values().into_iter().flatten() {
-            bytes = bytes.saturating_add(radius.capacity());
-        }
-        for variant in [light, dark] {
-            bytes = bytes
-                .saturating_add(property_projection(&variant.variables)?)
-                .saturating_add(
-                    variant
-                        .plot_palette
-                        .capacity()
-                        .saturating_mul(std::mem::size_of::<String>()),
-                );
-            for color in &variant.plot_palette {
-                bytes = bytes.saturating_add(color.capacity());
-            }
-        }
-        Ok(bytes)
-    }
-
-    fn css_values(&self) -> impl Iterator<Item = &str> {
-        self.stylesheet
-            .iter()
-            .map(String::as_str)
-            .chain(
-                self.variables
-                    .iter()
-                    .map(|property| property.value.as_str()),
-            )
-            .chain(self.light.iter().chain(&self.dark).flat_map(|variant| {
-                variant
-                    .variables
-                    .iter()
-                    .map(|property| property.value.as_str())
-                    .chain(variant.plot_palette.iter().map(String::as_str))
-            }))
-            .chain(
-                self.radii
-                    .iter()
-                    .flat_map(|radii| radii.values().into_iter().flatten().map(String::as_str)),
-            )
-    }
-}
+impl Theme {}
 
 impl TryFrom<&RuntimeThemeFamily> for Theme {
     type Error = Error;
@@ -418,20 +258,7 @@ impl TryFrom<Variant> for ThemeVariant {
     }
 }
 
-impl Radii {
-    fn values(&self) -> [Option<&String>; 8] {
-        [
-            self.base.as_ref(),
-            self.sm.as_ref(),
-            self.md.as_ref(),
-            self.lg.as_ref(),
-            self.xl.as_ref(),
-            self.two_xl.as_ref(),
-            self.three_xl.as_ref(),
-            self.four_xl.as_ref(),
-        ]
-    }
-}
+impl Radii {}
 impl From<&ThemeCornerRadii> for Radii {
     fn from(value: &ThemeCornerRadii) -> Self {
         Self {
@@ -460,18 +287,6 @@ impl From<Radii> for ThemeCornerRadii {
         }
     }
 }
-fn domain_radii(value: &ThemeCornerRadii) -> [Option<&String>; 8] {
-    [
-        value.base.as_ref(),
-        value.sm.as_ref(),
-        value.md.as_ref(),
-        value.lg.as_ref(),
-        value.xl.as_ref(),
-        value.two_xl.as_ref(),
-        value.three_xl.as_ref(),
-        value.four_xl.as_ref(),
-    ]
-}
 
 /* === Public Functions === */
 
@@ -485,18 +300,6 @@ fn slots<T>(count: usize) -> Result<Vec<T>> {
         return Err(invalid("appearance slots exceed admission"));
     }
     Ok(values)
-}
-fn optional_length(value: &Option<String>) -> usize {
-    value.as_ref().map_or(0, String::len)
-}
-fn optional_capacity(value: &Option<String>) -> usize {
-    value.as_ref().map_or(0, String::capacity)
-}
-fn property_encoding(values: &BTreeMap<String, String>) -> usize {
-    values.iter().fold(
-        values.len().saturating_mul(std::mem::size_of::<Property>()),
-        |bytes, (key, value)| bytes.saturating_add(key.len()).saturating_add(value.len()),
-    )
 }
 fn property_projection(values: &[Property]) -> Result<usize> {
     if values.windows(2).any(|pair| pair[0].key >= pair[1].key) {

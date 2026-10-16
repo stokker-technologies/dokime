@@ -168,7 +168,7 @@ async fn owned(
     runtime: &RuntimeHandle,
     principal: &Principal,
     request_id: &CommandId,
-) -> Result<harmos::storage::SharedQueryValue<RunReceipt>, Status> {
+) -> Result<std::sync::Arc<RunReceipt>, Status> {
     let receipt = runtime
         .run_request(request_id)
         .await
@@ -212,31 +212,9 @@ fn charged_project(
     request_id: &CommandId,
     receipt: &StepCommandReceipt,
 ) -> Result<harmos::operations::Response<wire::ExecutionCommandReceipt>, Status> {
-    let bytes = std::mem::size_of::<wire::ExecutionCommandReceipt>()
-        .saturating_add(request_id.as_str().len())
-        .saturating_add(receipt.command_id.as_str().len())
-        .saturating_add(receipt.execution_id.as_str().len())
-        .saturating_add(
-            receipt
-                .attempt_id
-                .as_ref()
-                .map_or(0, |id| id.as_str().len()),
-        )
-        .saturating_add(match &receipt.action {
-            StepCommand::RunStep { step_id } => step_id.as_str().len(),
-            StepCommand::Next | StepCommand::Finish => 0,
-        })
-        .saturating_add(receipt.detail.as_ref().map_or(0, String::len));
-    let preparation = loan::reserve(&resources.runtime, bytes)?;
     let output = project(request_id, receipt)?;
     loan::response_limit(&output, resources.max_message_bytes)?;
-    preparation
-        .finish(output)
-        .map_err(loan::memory_error)?
-        .try_into_value()
-        .map_err(loan::memory_error)?
-        .try_into_response()
-        .map_err(loan::memory_error)
+    Ok(output.into())
 }
 
 fn project(

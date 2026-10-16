@@ -67,7 +67,7 @@ pub(crate) async fn report_publication_reopens() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let storage = Manager::new(
         StorageBackends {
@@ -149,7 +149,7 @@ pub(crate) async fn report_publication_reopens() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let storage = Manager::new(
         StorageBackends {

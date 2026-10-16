@@ -294,7 +294,7 @@ pub(crate) async fn primary_recovery_owner() {
     let competing = FileBackend::new(
         root.path().to_owned(),
         history(),
-        &crate::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
     );
     assert!(competing.open().await.is_err());
     backend.close().await.unwrap();

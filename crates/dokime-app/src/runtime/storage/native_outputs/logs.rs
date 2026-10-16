@@ -14,10 +14,9 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 
 // Third Party Imports
-use harmos::MemorySize;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 
 // Local Imports
@@ -53,23 +52,6 @@ struct Append {
 /* === Traits === */
 
 /* === Implementations === */
-impl MemorySize for Close {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(self.execution.as_str().len())
-            .saturating_add(self.path.capacity())
-    }
-}
-
-impl MemorySize for Append {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>()
-            .saturating_add(self.execution.as_str().len())
-            .saturating_add(self.path.capacity())
-            .saturating_add(self.bytes.capacity())
-    }
-}
-
 impl ExecutionStorage {
     pub(crate) async fn reserve_output(
         self: &Arc<Self>,
@@ -77,18 +59,10 @@ impl ExecutionStorage {
         path: &str,
     ) -> Result<()> {
         validate_producer_path(path)?;
-        let ingress_bytes = std::mem::size_of::<TestExecutionId>()
-            .checked_add(std::mem::size_of::<String>())
-            .and_then(|size| size.checked_add(execution.as_str().len()))
-            .and_then(|size| size.checked_add(path.len()))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| error("native log registration ingress size overflows"))?;
-        let ingress = self.storage.prepare_production(ingress_bytes)?;
         let storage = self.clone();
         let execution = execution.clone();
         let path = path.to_owned();
         tokio::spawn(async move {
-            let _ingress = ingress;
             let owner = storage
                 .acquisition(&execution)
                 .await
@@ -104,7 +78,7 @@ impl ExecutionStorage {
                     Err(error("log path belongs to a different or closed producer"))
                 };
             }
-            let mut output = NativeOutput::new(&storage.storage, &path)?;
+            let mut output = NativeOutput::new(&path)?;
             output.log = Some(LogPrefix {
                 acknowledged: 0,
                 closed: None,
@@ -146,22 +120,13 @@ impl ExecutionStorage {
         if bytes.len() > CHUNK_BYTES {
             return Err(error("native log append exceeds 64 KiB"));
         }
-        let allowance = std::mem::size_of::<Append>()
-            .checked_add(execution.as_str().len())
-            .and_then(|size| size.checked_add(path.len()))
-            .and_then(|size| size.checked_add(bytes.len()))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| error("native log ingress size overflows"))?;
-        let ingress = self.storage.produce(allowance, |_| {
-            Ok(Append {
-                execution: execution.clone(),
-                path: path.to_owned(),
-                bytes: bytes.to_vec(),
-            })
-        })?;
+        let ingress = Append {
+            execution: execution.clone(),
+            path: path.to_owned(),
+            bytes: bytes.to_vec(),
+        };
         let storage = self.clone();
         tokio::spawn(async move {
-            let ingress = ingress.value();
             let owner = storage
                 .acquisition(&ingress.execution)
                 .await
@@ -218,21 +183,13 @@ impl ExecutionStorage {
         interrupted: bool,
     ) -> Result<()> {
         validate_producer_path(path)?;
-        let allowance = std::mem::size_of::<Close>()
-            .checked_add(execution.as_str().len())
-            .and_then(|size| size.checked_add(path.len()))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| error("native log close ingress size overflows"))?;
-        let ingress = self.storage.produce(allowance, |_| {
-            Ok(Close {
-                execution: execution.clone(),
-                path: path.to_owned(),
-                interrupted,
-            })
-        })?;
+        let close = Close {
+            execution: execution.clone(),
+            path: path.to_owned(),
+            interrupted,
+        };
         let storage = self.clone();
         tokio::spawn(async move {
-            let close = ingress.value();
             let owner = storage
                 .acquisition(&close.execution)
                 .await

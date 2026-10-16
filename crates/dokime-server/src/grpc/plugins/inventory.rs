@@ -65,13 +65,6 @@ pub(super) fn page(
     let mut selected = state
         .installed_plugins
         .range::<str, _>((start, std::ops::Bound::Unbounded));
-    let preparation = runtime
-        .storage()
-        .prepare_production(
-            std::num::NonZeroUsize::new(limit)
-                .ok_or_else(|| Status::resource_exhausted("invalid inventory allowance"))?,
-        )
-        .map_err(super::memory_failure)?;
     let mut artifacts = Vec::new();
     let mut bytes = 256usize;
     for (id, artifact) in selected.by_ref().take(size) {
@@ -151,13 +144,7 @@ pub(super) fn page(
             "plugin inventory exceeds wire budget",
         ));
     }
-    preparation
-        .finish(reply)
-        .map_err(super::memory_failure)?
-        .try_into_value()
-        .map_err(super::memory_failure)?
-        .try_into_response()
-        .map_err(super::memory_failure)
+    Ok(reply.into())
 }
 
 /* === Private Functions === */

@@ -13,9 +13,9 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::sync::Arc;
 // Third Party Imports
-use harmos::storage::{ObjectVersion, QueryLimits, QueryValue, StorageProductionPreparation};
+use harmos::storage::ObjectVersion;
 
 // Local Imports
 use super::executions::{Acquisition, ExecutionStorage};
@@ -34,7 +34,6 @@ use dokime::core::{RecordScope, SessionId, TestExecutionId};
 pub(crate) struct AnnotationAdmission {
     _guards: Vec<tokio::sync::OwnedMutexGuard<()>>,
     _owners: Vec<Arc<tokio::sync::Mutex<Acquisition>>>,
-    _memory: StorageProductionPreparation,
 }
 
 /* === Enums === */
@@ -48,32 +47,14 @@ impl ExecutionStorage {
         scope: &RecordScope,
     ) -> Result<AnnotationAdmission> {
         // Snapshot Handles In Key Order; Release The Registry Before Awaiting Owners
-        let (owners, memory) = {
+        let owners = {
             let active = self.active.lock().await;
             if active.len() > NOTE_SCAN_LIMIT {
                 return Err(annotation_limit("annotation owner scan exceeds budget"));
             }
-            let slots = std::mem::size_of::<Arc<tokio::sync::Mutex<Acquisition>>>()
-                + std::mem::size_of::<(TestExecutionId, Arc<tokio::sync::Mutex<()>>)>()
-                + std::mem::size_of::<tokio::sync::OwnedMutexGuard<()>>();
-            let mut bytes = active
-                .len()
-                .checked_mul(slots)
-                .and_then(|bytes| bytes.checked_add(3 * std::mem::size_of::<Vec<()>>()))
-                .ok_or_else(|| annotation_limit("annotation admission memory overflows"))?;
-            for id in active.keys() {
-                bytes = bytes
-                    .checked_add(id.as_str().len())
-                    .ok_or_else(|| annotation_limit("annotation admission memory overflows"))?;
-            }
-            let allowance = NonZeroUsize::new(bytes)
-                .ok_or_else(|| annotation_limit("empty annotation admission allowance"))?;
-            let memory = self.storage.prepare_production(allowance)?;
-            let mut owners = reserved_slots(active.len())?;
-            owners.extend(active.values().cloned());
-            (owners, memory)
+            active.values().cloned().collect::<Vec<_>>()
         };
-        let mut candidates = reserved_slots(owners.len())?;
+        let mut candidates = Vec::with_capacity(owners.len());
         for owner in &owners {
             let acquisition = owner.lock().await;
             if scope
@@ -114,7 +95,6 @@ impl ExecutionStorage {
         Ok(AnnotationAdmission {
             _guards: guards,
             _owners: owners,
-            _memory: memory,
         })
     }
 
@@ -122,22 +102,8 @@ impl ExecutionStorage {
         &self,
         cycle: &CycleView,
         scope: &RecordScope,
-    ) -> Result<QueryValue<Vec<TestExecutionId>>> {
-        let key_bytes = cycle
-            .test_executions
-            .iter()
-            .take(NOTE_SCAN_LIMIT)
-            .map(|execution| execution.test_execution_id.as_str().len())
-            .max()
-            .unwrap_or(0);
-        let bytes = std::mem::size_of::<TestExecutionId>()
-            .checked_add(key_bytes)
-            .and_then(|bytes| bytes.checked_mul(NOTE_CHECKPOINT_LIMIT))
-            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Vec<TestExecutionId>>()))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| annotation_limit("note target projection memory overflows"))?;
-        let memory = self.storage.prepare_production(bytes)?;
-        let mut targets = reserved_slots(NOTE_CHECKPOINT_LIMIT)?;
+    ) -> Result<Vec<TestExecutionId>> {
+        let mut targets = Vec::with_capacity(NOTE_CHECKPOINT_LIMIT);
         for (index, execution) in cycle.test_executions.iter().enumerate() {
             if index >= NOTE_SCAN_LIMIT {
                 return Err(annotation_limit("note checkpoint scan exceeds budget"));
@@ -169,47 +135,30 @@ impl ExecutionStorage {
             }
         }
         targets.sort_unstable();
-        Ok(memory.finish(targets)?.try_into_value()?)
+        Ok(targets)
     }
 
     pub(crate) async fn note_is_published(
         &self,
         target: &TestExecutionId,
         note: &OperatorNote,
-        limits: QueryLimits,
     ) -> Result<bool> {
-        let view = self.storage.view_with_limits(limits).await?;
-        let projection = view.decoded_bytes()?;
-        let Some(inspection) = super::execution::ExecutionView::open(
-            &self.storage,
-            view,
-            target,
-            ObjectVersion::Latest,
-            projection,
-        )
-        .await?
-        .filter(|inspection| inspection.execution().saved.is_some()) else {
+        let Some(inspection) =
+            super::execution::ExecutionView::open(&self.storage, target, ObjectVersion::Latest)
+                .await?
+                .filter(|inspection| inspection.execution().saved.is_some())
+        else {
             return Ok(false);
         };
-        let inspection = inspection.snapshot(&self.storage).await?;
-        let confirmed = inspection.project_context(
-            NonZeroUsize::new(std::mem::size_of::<bool>()).unwrap(),
-            |context, _| {
-                includes_note(
-                    &inspection.execution().test_execution_id,
-                    &context.session_id,
-                    &context.notes,
-                    target,
-                    note,
-                )
-                .map_err(|source| harmos::Error::Backend {
-                    operation: "verify frozen note publication",
-                    kind: harmos::BackendFailure::Corrupt,
-                    source: Box::new(source),
-                })
-            },
-        )?;
-        Ok(*confirmed)
+        let inspection = inspection.snapshot().await?;
+        let context = inspection.context()?;
+        includes_note(
+            &inspection.execution().test_execution_id,
+            &context.session_id,
+            &context.notes,
+            target,
+            note,
+        )
     }
 }
 
@@ -218,19 +167,6 @@ impl ExecutionStorage {
 /* === Private Functions === */
 fn annotation_limit(reason: &'static str) -> Error {
     Error::Operation(reason.into())
-}
-
-fn reserved_slots<T>(count: usize) -> Result<Vec<T>> {
-    let mut slots = Vec::new();
-    slots
-        .try_reserve_exact(count)
-        .map_err(|_| annotation_limit("annotation slot allocation failed"))?;
-    if slots.capacity() > count {
-        return Err(annotation_limit(
-            "annotation slots exceed their original claim",
-        ));
-    }
-    Ok(slots)
 }
 
 async fn lock_annotations<F, Fut>(
@@ -242,7 +178,7 @@ where
     F: FnMut(TestExecutionId, Arc<tokio::sync::Mutex<()>>) -> Fut,
     Fut: std::future::Future<Output = bool>,
 {
-    let mut guards = reserved_slots(candidates.len())?;
+    let mut guards = Vec::with_capacity(candidates.len());
     for (id, gate) in candidates {
         let guard = gate.clone().lock_owned().await;
         if current(id, gate).await {

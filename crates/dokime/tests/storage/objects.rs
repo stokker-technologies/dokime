@@ -70,7 +70,7 @@ pub(crate) async fn materialized_cases_reader() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let storage = Manager::new(
         StorageBackends {
@@ -126,7 +126,7 @@ pub(crate) async fn materialized_cases_reader() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let storage = Manager::new(
         StorageBackends {
@@ -184,7 +184,7 @@ pub(crate) async fn suite_definitions_producer() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let backends = StorageBackends {
         primary,
@@ -238,7 +238,7 @@ pub(crate) async fn suite_definitions_producer() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let backends = StorageBackends {
         primary,
@@ -274,7 +274,7 @@ pub(crate) async fn cycles_reopen_producers() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let backends = StorageBackends {
         primary,
@@ -337,7 +337,7 @@ pub(crate) async fn cycles_reopen_producers() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let backends = StorageBackends {
         primary,
@@ -408,7 +408,7 @@ pub(crate) async fn executions_reopen_results() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let backends = StorageBackends {
         primary,
@@ -513,7 +513,7 @@ pub(crate) async fn executions_reopen_results() {
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
-        &super::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
     ));
     let backends = StorageBackends {
         primary,

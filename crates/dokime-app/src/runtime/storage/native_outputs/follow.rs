@@ -14,24 +14,15 @@
 /* === Imports === */
 // Standard Library Imports
 use std::{
-    num::NonZeroUsize,
     sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{
-        FileFollower, FileMetadata, FilePhase, FileReference, QueryValue, SharedQueryValue,
-        StagedFile, StorageFile, StorageProductionPreparation,
-    },
-};
+use harmos::storage::{FileFollower, FilePhase, FileReference, StagedFile, StorageFile};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 // Local Imports
-use super::{
-    COPY_BYTES, NativeOutput, copy_buffer, descriptor_memory, error, file_metadata, open_file,
-};
+use super::{COPY_BYTES, NativeOutput, error, file_metadata, open_file};
 use crate::{
     Result,
     runtime::storage::executions::{Acquisition, ExecutionStorage},
@@ -50,24 +41,22 @@ use dokime::{
 
 /* === Structs === */
 pub(super) struct Production {
-    _metadata: QueryValue<FileMetadata>,
     pub(crate) staged: StagedFile,
     producer: StorageFile,
     length: u64,
     hash: Sha256,
     observed: Option<(u64, SystemTime)>,
-    pub(crate) reference: Option<QueryValue<FileReference>>,
+    pub(crate) reference: Option<FileReference>,
     pub(crate) interrupted: bool,
     failure: Option<&'static str>,
-    _admission: StorageProductionPreparation,
 }
 
 #[derive(Clone)]
 pub(crate) struct LiveOutput {
     owner: Arc<tokio::sync::Mutex<Acquisition>>,
     storage: Manager,
-    path: SharedQueryValue<String>,
-    pub(crate) identity: SharedQueryValue<StagedFile>,
+    path: Arc<String>,
+    pub(crate) identity: Arc<StagedFile>,
 }
 
 /* === Enums === */
@@ -75,7 +64,7 @@ pub(crate) struct LiveOutput {
 pub(crate) enum NativeAdmission {
     // Capture Settled First; Its Descriptor Alone Decides Finished Or Abandoned.
     Captured {
-        reference: QueryValue<FileReference>,
+        reference: FileReference,
         interrupted: bool,
     },
     // The Original Production Was Still Retained When The Follower Opened.
@@ -91,7 +80,7 @@ pub(crate) enum NativeAdmission {
 pub(crate) enum Settlement {
     Producing,
     Abandoned,
-    Finished(Box<QueryValue<FileReference>>),
+    Finished(Box<FileReference>),
 }
 
 /* === Traits === */
@@ -106,20 +95,11 @@ impl ExecutionStorage {
         expected: Option<&StagedFile>,
     ) -> Result<Option<NativeAdmission>> {
         // Retain Accepted Admission And Writes If The Selecting Viewer Cancels.
-        let bytes = std::mem::size_of::<TestExecutionId>()
-            .checked_add(execution.as_str().len())
-            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<String>() + path.len()))
-            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Option<StagedFile>>()))
-            .and_then(|bytes| bytes.checked_add(expected.map_or(0, MemorySize::memory_size)))
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| error("native follow admission memory overflows"))?;
-        let admission = self.storage.prepare_production(bytes)?;
         let storage = self.clone();
         let execution = execution.clone();
         let path = path.to_owned();
         let expected = expected.cloned();
         tokio::spawn(async move {
-            let _admission = admission;
             storage
                 .admit_native_follower(&execution, &path, offset, expected.as_ref())
                 .await
@@ -148,10 +128,7 @@ impl ExecutionStorage {
                 .descriptor
                 .as_ref()
                 .ok_or_else(|| error("captured output has no original descriptor"))?;
-            let maximum = NonZeroUsize::new(descriptor.file.memory_size())
-                .ok_or_else(|| error("captured reference memory is empty"))?;
-            let reference =
-                descriptor.try_project(maximum, |descriptor, _| Ok(descriptor.file.clone()))?;
+            let reference = descriptor.file.clone();
             let interrupted = descriptor.stream_state == Some(SavedStreamState::Interrupted);
             return Ok(Some(NativeAdmission::Captured {
                 reference,
@@ -164,27 +141,16 @@ impl ExecutionStorage {
             ));
         }
         if output.production.is_none() {
-            let metadata = file_metadata(&self.storage, execution, path, None, None)?;
-            let bytes = NonZeroUsize::new(metadata.memory_size())
-                .ok_or_else(|| error("file production memory overflows"))?;
-            let metadata_admission = self.storage.prepare_production(bytes)?;
-            let producer = self.storage.produce_file((*metadata).clone()).await?;
+            let metadata = file_metadata(execution, path, None, None)?;
+            let producer = self.storage.produce_file(metadata).await?;
             let session = producer
                 .session()
                 .ok_or_else(|| error("original production has no resumable session"))?;
-            let bytes = session
-                .memory_size()
-                .checked_add(std::mem::size_of::<Production>())
-                .and_then(NonZeroUsize::new)
-                .ok_or_else(|| error("staged identity memory overflows"))?;
-            let admission = self.storage.prepare_production(bytes)?;
             let staged = StagedFile {
                 history: session.history.clone(),
                 id: session.id.clone(),
             };
-            drop(metadata_admission);
             output.production = Some(Production {
-                _metadata: metadata,
                 staged,
                 producer,
                 length: 0,
@@ -193,7 +159,6 @@ impl ExecutionStorage {
                 reference: None,
                 interrupted: false,
                 failure: None,
-                _admission: admission,
             });
         }
         if expected.is_some_and(|identity| {
@@ -235,22 +200,10 @@ impl ExecutionStorage {
             .production
             .as_ref()
             .expect("registered original production");
-        let bytes = NonZeroUsize::new(production.staged.memory_size())
-            .ok_or_else(|| error("file identity memory is empty"))?;
-        let identity = self
-            .storage
-            .produce(bytes, |_| Ok(production.staged.clone()))?
-            .try_into_value()?
-            .try_into_shared()?;
+        let identity = Arc::new(production.staged.clone());
         let follower = self.storage.follow_file(&production.staged, offset).await?;
         let abandoned = production.interrupted;
-        let allowance = NonZeroUsize::new(std::mem::size_of::<String>() + path.len())
-            .ok_or_else(|| error("output path memory overflows"))?;
-        let path = self
-            .storage
-            .produce(allowance, |_| Ok(path.to_owned()))?
-            .try_into_value()?
-            .try_into_shared()?;
+        let path = Arc::new(path.to_owned());
         drop(acquisition);
         Ok(Some(NativeAdmission::Live {
             follower,
@@ -297,18 +250,11 @@ impl LiveOutput {
 
     pub(crate) async fn synchronize(&self) -> Result<bool> {
         // An Accepted Native Write Settles In Its Original Owner If The Viewer Cancels.
-        let admission = self.storage.prepare_production(
-            NonZeroUsize::new(
-                std::mem::size_of::<Self>() + std::mem::size_of::<StorageProductionPreparation>(),
-            )
-            .unwrap(),
-        )?;
         let owner = self.owner.clone();
         let path = self.path.clone();
         let identity = self.identity.clone();
         let storage = self.storage.clone();
         tokio::spawn(async move {
-            let _admission = admission;
             let mut acquisition = owner.lock().await;
             let output = acquisition
                 .native_outputs
@@ -347,13 +293,7 @@ impl LiveOutput {
         let Some(reference) = production.reference.as_ref() else {
             return Ok(Settlement::Producing);
         };
-        let bytes = NonZeroUsize::new(reference.memory_size())
-            .ok_or_else(|| error("sealed file reference memory is empty"))?;
-        Ok(Settlement::Finished(Box::new(
-            self.storage
-                .produce(bytes, |_| Ok((**reference).clone()))?
-                .try_into_value()?,
-        )))
+        Ok(Settlement::Finished(Box::new(reference.clone())))
     }
 }
 
@@ -392,7 +332,7 @@ pub(super) async fn capture(
             break;
         }
     }
-    seal(storage, path, output, state).await?;
+    seal(path, output, state).await?;
     let production = output
         .production
         .as_ref()
@@ -402,17 +342,12 @@ pub(super) async fn capture(
     Ok(())
 }
 
-pub(super) async fn interrupt(
-    storage: &Manager,
-    path: &str,
-    output: &mut NativeOutput,
-) -> Result<()> {
+pub(super) async fn interrupt(path: &str, output: &mut NativeOutput) -> Result<()> {
     // Preserve Only The Original Already Admitted Prefix After Source Failure.
-    seal(storage, path, output, Some(SavedStreamState::Interrupted)).await
+    seal(path, output, Some(SavedStreamState::Interrupted)).await
 }
 
 async fn seal(
-    storage: &Manager,
     path: &str,
     output: &mut NativeOutput,
     state: Option<SavedStreamState>,
@@ -433,25 +368,13 @@ async fn seal(
             "original sealed file differs from retained production",
         ));
     }
-    let bytes = NonZeroUsize::new(reference.memory_size())
-        .ok_or_else(|| error("sealed reference memory is empty"))?;
-    let reference = storage
-        .produce(bytes, |_| Ok(reference))?
-        .try_into_value()?;
-    let descriptor = storage
-        .produce(
-            descriptor_memory(path, &reference, &output.created_at)?,
-            |_| {
-                Ok(ExecutionOutput {
-                    relative_path: path.to_owned(),
-                    created_at: output.created_at.clone(),
-                    file: (*reference).clone(),
-                    stream_state: state,
-                    content: ExecutionOutputContent::File,
-                })
-            },
-        )?
-        .try_into_value()?;
+    let descriptor = ExecutionOutput {
+        relative_path: path.to_owned(),
+        created_at: output.created_at.clone(),
+        file: reference.clone(),
+        stream_state: state,
+        content: ExecutionOutputContent::File,
+    };
     production.interrupted = state == Some(SavedStreamState::Interrupted);
     production.reference = Some(reference);
     output.descriptor = Some(descriptor);
@@ -498,10 +421,7 @@ async fn synchronize(
         production.failure = Some("followed output was truncated");
         return Err(error("followed output was truncated"));
     }
-    let _buffer = storage.prepare_production(
-        NonZeroUsize::new(std::mem::size_of::<Vec<u8>>() + COPY_BYTES).unwrap(),
-    )?;
-    let mut buffer = copy_buffer()?;
+    let mut buffer = vec![0; COPY_BYTES];
     // External Native Writers May Rewrite An Inode. Validate The Retained Prefix
     // On Each Observed Change Before Admitting Any Additional Bytes.
     if (finalizing && length == production.length) || production.observed != Some(stamp) {

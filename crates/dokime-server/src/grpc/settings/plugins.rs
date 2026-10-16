@@ -16,7 +16,7 @@ use std::sync::Arc;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
-use super::{memory, preferences::Resources, wire as projection};
+use super::{preferences::Resources, wire as projection};
 use crate::grpc::value::{self, Budget, canonical};
 use dokime_app::{
     RuntimeHandle,
@@ -63,10 +63,8 @@ impl Operation for GetSettings {
         _: &mut (),
     ) -> Result<Response<wire::SettingsFrame>, Status> {
         let frame = self.resources.runtime.settings_frame().await;
-        let required = memory::frame(&frame)?;
-        self.resources.produce_result(required, || {
-            projection::encode_frame(frame, self.resources.maximum)
-        })
+        self.resources
+            .produce_result(|| projection::encode_frame(frame, self.resources.maximum))
     }
 }
 impl Operation for GetPluginSettings {
@@ -216,9 +214,6 @@ fn plugin_response(
     resources: &Resources,
     settings: RuntimePluginSettings,
 ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
-    let required = memory::plugin(&settings)?;
-    resources.produce_result(required, || {
-        projection::encode_plugin_settings(settings, resources.maximum)
-    })
+    resources.produce_result(|| projection::encode_plugin_settings(settings, resources.maximum))
 }
 /* === Tests === */

@@ -118,10 +118,6 @@ impl MemorySize for CapturedSource {
 }
 
 impl CapturedSource {
-    pub(crate) fn validation_memory(&self) -> usize {
-        self.context.validation_memory()
-    }
-
     pub(crate) fn validate_header(&self) -> Result<()> {
         if let Some(anchor) = &self.execution {
             anchor.version.check_position(&anchor.position)?;

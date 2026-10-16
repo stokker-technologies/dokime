@@ -86,73 +86,29 @@ impl Operation for Download {
             NonZeroUsize::new(super::transfer_chunk_bytes(message_limit)).ok_or_else(|| {
                 Status::resource_exhausted("message limit cannot contain execution chunk")
             })?;
-        let metadata_heap = source
-            .metadata()
-            .relative_path
-            .len()
-            .checked_add(
-                source
-                    .metadata()
-                    .content_type
-                    .as_ref()
-                    .map_or(0, String::len),
-            )
-            .ok_or_else(|| Status::resource_exhausted("execution metadata memory overflows"))?;
-        let projection = maximum
-            .get()
-            .max(metadata_heap)
-            .max(64)
-            .checked_add(std::mem::size_of::<wire::ExecutionFileDownloadFrame>())
-            .and_then(NonZeroUsize::new)
-            .ok_or_else(|| Status::resource_exhausted("execution frame memory overflows"))?;
-        let metadata = source
-            .project_metadata(projection, |metadata, allowance| {
-                frames::metadata(metadata, allowance, message_limit)
-            })
-            .map_err(stream_failure)?;
-        let owner = metadata
-            .try_into_response()
+        let metadata = frames::metadata(source.metadata(), message_limit)
             .map_err(|error| stream_failure(error.into()))?;
         output
-            .send_owned(owner)
+            .send_owned(metadata.into())
             .await
             .map_err(|error| stream_failure(error.into()))?;
         let mut digest = Sha256::new();
         let mut hashed = 0u64;
         loop {
-            let frame = source
-                .next_chunk_projected(maximum, projection, |content, allowance| {
-                    let end = content
-                        .offset
-                        .checked_add(content.bytes.len() as u64)
-                        .ok_or(harmos::Error::InvalidInput {
-                            field: "execution download",
-                            reason: "chunk offset overflows",
-                        })?;
-                    if content.offset != hashed && end != hashed {
-                        return Err(harmos::Error::InvalidInput {
-                            field: "execution download",
-                            reason: "digest prefix differs from original chunk",
-                        });
-                    }
-                    let frame = frames::chunk(content, allowance, message_limit)?;
-                    // A Timeout May Retain The Original Chunk For Retry.
-                    if content.offset == hashed {
-                        digest.update(&content.bytes);
-                        hashed = end;
-                    }
-                    Ok(frame)
-                })
-                .await
-                .map_err(stream_failure)?;
-            let Some(frame) = frame else {
+            let Some(content) = source.next_chunk(maximum).await.map_err(stream_failure)? else {
                 break;
             };
-            let owner = frame
-                .try_into_response()
+            if content.offset != hashed {
+                return Err(Status::data_loss(
+                    "execution output chunk does not continue its prefix",
+                ));
+            }
+            let frame = frames::chunk(&content, message_limit)
                 .map_err(|error| stream_failure(error.into()))?;
+            digest.update(&content.bytes);
+            hashed = content.offset + content.bytes.len() as u64;
             output
-                .send_owned(owner)
+                .send_owned(frame.into())
                 .await
                 .map_err(|error| stream_failure(error.into()))?;
         }
@@ -161,16 +117,10 @@ impl Operation for Download {
                 "execution output ended before declared prefix",
             ));
         }
-        let complete = source
-            .project_metadata(projection, |metadata, allowance| {
-                frames::complete(metadata.size_bytes, &digest, allowance, message_limit)
-            })
-            .map_err(stream_failure)?;
-        let owner = complete
-            .try_into_response()
+        let complete = frames::complete(source.metadata().size_bytes, &digest, message_limit)
             .map_err(|error| stream_failure(error.into()))?;
         output
-            .send_owned(owner)
+            .send_owned(complete.into())
             .await
             .map_err(|error| stream_failure(error.into()))?;
         Ok(().into())

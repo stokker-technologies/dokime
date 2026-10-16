@@ -25,7 +25,6 @@ use harmos::{
     operations::{Context, Operation, Response, StreamInput, StreamItem},
 };
 use sha2::{Digest, Sha256};
-use std::num::NonZeroUsize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tonic::Status;
 use uuid::Uuid;
@@ -85,35 +84,15 @@ impl Resources {
 impl Resources {
     fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
         &self,
-        required: usize,
         build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
-        if required > self.max_message_bytes {
-            return Err(Status::resource_exhausted(
-                "plugin response exceeds original allowance",
-            ));
-        }
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(
-                NonZeroUsize::new(required)
-                    .ok_or_else(|| Status::resource_exhausted("invalid plugin allowance"))?,
-            )
-            .map_err(memory_failure)?;
         let output = build()?;
         if output.encoded_len() > self.max_message_bytes {
             return Err(Status::resource_exhausted(
                 "plugin response exceeds wire allowance",
             ));
         }
-        preparation
-            .finish(output)
-            .map_err(memory_failure)?
-            .try_into_value()
-            .map_err(memory_failure)?
-            .try_into_response()
-            .map_err(memory_failure)
+        Ok(output.into())
     }
     fn entry(
         &self,
@@ -121,9 +100,7 @@ impl Resources {
     ) -> Result<Response<v1::PluginInstallation>, Status> {
         self.runtime.plugin_process_state(&mut entry);
         wire::normalize(&mut entry, self.max_message_bytes)?;
-        self.produce(wire::memory(&entry)?, || {
-            wire::entry(entry, self.max_message_bytes)
-        })
+        self.produce(|| wire::entry(entry, self.max_message_bytes))
     }
 }
 struct ListInstallations {
@@ -168,7 +145,7 @@ impl Operation for ListInstallations {
                 .saturating_add(wire::memory(entry)?)
                 .saturating_add(3 * std::mem::size_of::<v1::PluginInstallation>());
         }
-        self.resources.produce(required, || {
+        self.resources.produce(|| {
             Ok(v1::InstallationPage {
                 installations: page
                     .entries
@@ -274,19 +251,6 @@ impl Stage {
         );
         let size_bytes = header.size_bytes;
         let expected_sha256 = header.sha256.clone();
-        let upload_preparation = self
-            .resources
-            .runtime
-            .storage()
-            .prepare_production(
-                NonZeroUsize::new(size_bytes as usize + std::mem::size_of::<Vec<u8>>())
-                    .ok_or_else(|| {
-                        reject(Status::resource_exhausted(
-                            "invalid plugin upload allowance",
-                        ))
-                    })?,
-            )
-            .map_err(memory_failure)?;
         drop(first);
         let received_started = Instant::now();
         let mut bytes = Vec::new();
@@ -336,11 +300,6 @@ impl Stage {
             elapsed_ms = received_started.elapsed().as_millis(),
             "plugin stage upload completed",
         );
-        let bytes = upload_preparation
-            .finish(bytes)
-            .map_err(memory_failure)?
-            .try_into_value()
-            .map_err(memory_failure)?;
         operation.phase("Inspecting Archive");
         operation.indeterminate();
         let store = self.resources.runtime.plugin_store();
@@ -483,9 +442,7 @@ impl Operation for Remove {
             self.resources.runtime.plugin_process_state(entry);
             wire::normalize(entry, self.resources.max_message_bytes)?;
         }
-        let required = std::mem::size_of::<v1::RemovePluginReply>()
-            + entry.as_ref().map(wire::memory).transpose()?.unwrap_or(0);
-        self.resources.produce(required, || {
+        self.resources.produce(|| {
             Ok(v1::RemovePluginReply {
                 installation: entry
                     .map(|entry| wire::entry(entry, self.resources.max_message_bytes))
@@ -591,14 +548,6 @@ async fn message(
                 "plugin upload idle deadline exceeded",
             ))
         })
-}
-fn memory_failure(error: harmos::Error) -> Status {
-    let status = if matches!(error, harmos::Error::ResourceExhausted { .. }) {
-        Status::resource_exhausted("plugin admission failed")
-    } else {
-        Status::internal("plugin admission failed")
-    };
-    super::error::detailed(status, &error.into())
 }
 fn reject(status: Status) -> Status {
     tracing::warn!(code = ?status.code(), message = %status.message(), "plugin stage rejected");

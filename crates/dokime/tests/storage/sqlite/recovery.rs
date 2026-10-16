@@ -54,7 +54,7 @@ pub(crate) async fn primary_close_until() {
     let recovery = harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         backend.history().clone(),
-        &crate::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
     );
     StateBackend::open(&recovery).await.unwrap();
     let at = RecoveryPosition {
@@ -81,7 +81,7 @@ pub(crate) async fn primary_close_until() {
     let competing = harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         backend.history().clone(),
-        &crate::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
     );
     assert!(competing.open().await.is_err());
     StateBackend::close(&recovery).await.unwrap();
@@ -101,7 +101,7 @@ pub(crate) async fn snapshot_tail_frontier() {
     let recovery = harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         backend.history().clone(),
-        &crate::sqlite::storage::storage_settings(),
+        dokime::storage::state_settings(&crate::sqlite::storage::storage_settings()),
     );
     StateBackend::open(&recovery).await.unwrap();
     let history = backend.history().clone();

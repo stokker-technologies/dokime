@@ -24,7 +24,6 @@ use super::{RuntimeConfig, Settings};
 use crate::{Error, Result};
 
 /* === Constants === */
-pub(super) const DEFAULT_SAVE_INTERVAL_MS: u64 = 10_000;
 
 /* === Macros === */
 
@@ -34,7 +33,6 @@ pub(super) const DEFAULT_SAVE_INTERVAL_MS: u64 = 10_000;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StoragePolicy {
-    pub save_interval_ms: u64,
     pub compaction_interval_ms: u64,
     #[serde(default)]
     pub local_retention_ms: Option<u64>,
@@ -64,7 +62,6 @@ pub(crate) struct PolicyStore {
 impl StoragePolicy {
     pub fn validate(&self) -> Result<()> {
         for (name, value, maximum) in [
-            ("save interval", Some(self.save_interval_ms), 86_400_000),
             (
                 "compaction interval",
                 Some(self.compaction_interval_ms),
@@ -94,14 +91,12 @@ impl StoragePolicy {
             })
         };
         Ok(Self {
-            save_interval_ms: millis(config.save_interval)?,
             compaction_interval_ms: millis(config.compaction_interval)?,
             local_retention_ms: config.local_retention.map(millis).transpose()?,
         })
     }
 
     fn apply(&self, config: &mut RuntimeConfig) {
-        config.save_interval = Duration::from_millis(self.save_interval_ms);
         config.compaction_interval = Duration::from_millis(self.compaction_interval_ms);
         config.local_retention = self.local_retention_ms.map(Duration::from_millis);
     }

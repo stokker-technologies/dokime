@@ -20,19 +20,18 @@ use std::{
     io::Write,
     num::NonZeroUsize,
     ops::Deref,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 // Third Party Imports
-use harmos::{
-    MemorySize,
-    storage::{QueryValue, SharedQueryValue, StorageProductionPreparation},
-};
 
 // Local Imports
 use super::{
     CapturedExecutionReportInput, CycleReportInput,
-    cycle::{Index, allowance},
+    cycle::Index,
     render::{cycle::Report, header::Header},
 };
 use crate::document::capture::Capture;
@@ -41,7 +40,7 @@ use crate::{
     Error, Result, installed_plugins::RuntimeAppearanceFrame, runtime::progress::Operation,
     runtime::storage::cycle::CycleSnapshot,
 };
-use dokime::{core::DocumentId, storage::Manager};
+use dokime::core::DocumentId;
 
 /* === Constants === */
 
@@ -50,48 +49,30 @@ use dokime::{core::DocumentId, storage::Manager};
 /* === Type Aliases === */
 
 /* === Structs === */
+/// A report's frozen inputs, rendered to HTML on demand.
 pub(super) struct HtmlReport {
-    pub(super) manager: Manager,
-    index: SharedQueryValue<Index>,
+    index: Index,
     source: Source,
     /// The measured length avoids counting the same immutable report twice.
     /// Zero until counted; a report is never empty.
     counted: AtomicUsize,
-    _memory: StorageProductionPreparation,
-}
-
-struct Members {
-    values: Vec<SharedQueryValue<CapturedExecutionReportInput>>,
-}
-
-impl MemorySize for Members {
-    fn memory_size(&self) -> usize {
-        std::mem::size_of::<Self>().saturating_add(self.values.capacity().saturating_mul(
-            std::mem::size_of::<SharedQueryValue<CapturedExecutionReportInput>>(),
-        ))
-    }
 }
 
 /* === Enums === */
 enum Source {
     Saved {
         snapshot: CycleSnapshot,
-        documents: SharedQueryValue<BTreeMap<DocumentId, Capture>>,
-        members: SharedQueryValue<Members>,
+        documents: BTreeMap<DocumentId, Capture>,
+        members: Vec<Arc<CapturedExecutionReportInput>>,
     },
     Captured {
-        input: SharedQueryValue<CapturedExecutionReportInput>,
-        evidence: SharedQueryValue<CapturedSource>,
+        input: Arc<CapturedExecutionReportInput>,
+        evidence: Arc<CapturedSource>,
     },
 }
 
 pub(super) enum Member {
-    Captured(SharedQueryValue<CapturedExecutionReportInput>),
-}
-
-pub(super) enum Computation {
-    Saved(harmos::storage::StorageViewComputation),
-    Projection,
+    Captured(Arc<CapturedExecutionReportInput>),
 }
 
 /* === Traits === */
@@ -105,42 +86,19 @@ impl Deref for Member {
         }
     }
 }
-impl Computation {
-    pub(super) fn check(&self) -> harmos::Result<()> {
-        match self {
-            Self::Saved(work) => work.check(),
-            Self::Projection => Ok(()),
-        }
-    }
-}
 
 impl HtmlReport {
-    pub(super) async fn from_cycle(
-        manager: &Manager,
+    pub(super) fn from_cycle(
         snapshot: CycleSnapshot,
-        captured_members: Vec<QueryValue<CapturedExecutionReportInput>>,
+        captured_members: Vec<CapturedExecutionReportInput>,
         operation: Option<&Operation>,
     ) -> Result<Self> {
         let count = captured_members.len();
         let documents = cycle_document(&snapshot)?;
-        let memory = manager.prepare_production(allowance(std::mem::size_of::<Self>())?)?;
-        let bytes = std::mem::size_of::<Members>().saturating_add(count.saturating_mul(
-            std::mem::size_of::<SharedQueryValue<CapturedExecutionReportInput>>(),
-        ));
-        let mut members = manager
-            .produce(allowance(bytes)?, |_| {
-                Ok(Members {
-                    values: Vec::with_capacity(count),
-                })
-            })?
-            .try_into_value()?;
-        let index = Index::new();
-        let mut index = manager
-            .produce(allowance(index.memory_size())?, |_| Ok(index))?
-            .try_into_value()?;
+        let mut members = Vec::with_capacity(count);
+        let mut index = Index::new();
         // Compose Frozen Member Results Without Reading Pruned Raw Evidence.
-        for (materialized, captured) in captured_members.into_iter().enumerate() {
-            captured.check_origin(manager)?;
+        for (materialized, mut captured) in captured_members.into_iter().enumerate() {
             if captured.input.cycle.test_cycle_id != snapshot.source().test_cycle_id {
                 return Err(invalid("materialized member belongs to another cycle"));
             }
@@ -149,73 +107,57 @@ impl HtmlReport {
             }
             let own = captured.input.cycle.test_executions[0].test_case_id.clone();
             let id = captured.execution_id.clone();
-            let bytes = allowance(captured.memory_size())?;
-            let captured = captured
-                .try_map(bytes, |mut captured, _| {
-                    captured.record_contracts.clear();
-                    captured.telemetry_contracts.clear();
-                    let cycle = &mut captured.context.cycle;
-                    cycle.cases.retain(|case| case.test_case_id == own);
-                    cycle.cases.shrink_to_fit();
-                    cycle.execution_order.retain(|candidate| *candidate == id);
-                    cycle.execution_order.shrink_to_fit();
-                    Ok(captured)
-                })?
-                .try_into_shared()?;
-            let growth = allowance(index.capture_growth(&captured))?;
-            index = index.try_map(growth, |mut index, _| {
-                index.push_capture(&captured).map_err(failure)?;
-                Ok(index)
-            })?;
-            let bytes = allowance(members.memory_size())?;
-            members = members.try_map(bytes, |mut members, _| {
-                members.values.push(captured);
-                Ok(members)
-            })?;
+            captured.record_contracts.clear();
+            captured.telemetry_contracts.clear();
+            let cycle = &mut captured.context.cycle;
+            cycle.cases.retain(|case| case.test_case_id == own);
+            cycle.cases.shrink_to_fit();
+            cycle.execution_order.retain(|candidate| *candidate == id);
+            cycle.execution_order.shrink_to_fit();
+            index.push_capture(&captured)?;
+            members.push(Arc::new(captured));
         }
         if let Some(operation) = operation {
             operation.progress(count as u64, count as u64);
         }
-        let bytes = allowance(index.memory_size())?;
-        let index = index
-            .try_map(bytes, |mut index, _| {
-                index.sort();
-                Ok(index)
-            })?
-            .try_into_shared()?;
+        index.sort();
         Ok(Self {
-            manager: manager.clone(),
             index,
             source: Source::Saved {
                 snapshot,
                 documents,
-                members: members.try_into_shared()?,
+                members,
             },
             counted: AtomicUsize::new(0),
-            _memory: memory,
         })
     }
-}
-impl HtmlReport {
+
+    pub(super) fn from_capture(
+        captured: Arc<CapturedExecutionReportInput>,
+        evidence: Arc<CapturedSource>,
+    ) -> Result<Self> {
+        let mut index = Index::new();
+        index.push_capture(&captured)?;
+        index.sort();
+        Ok(Self {
+            index,
+            source: Source::Captured {
+                input: captured,
+                evidence,
+            },
+            counted: AtomicUsize::new(0),
+        })
+    }
+
     fn read(&self, member: usize) -> Result<Member> {
         match &self.source {
             Source::Captured { input, .. } if member == 0 => Ok(Member::Captured(input.clone())),
             Source::Captured { .. } => Err(invalid("captured report has only one member")),
             Source::Saved { members, .. } => members
-                .values
                 .get(member)
                 .cloned()
                 .map(Member::Captured)
                 .ok_or_else(|| invalid("cycle report member is missing")),
-        }
-    }
-
-    fn computation(&self) -> Result<Computation> {
-        match &self.source {
-            Source::Saved { snapshot, .. } => {
-                Ok(Computation::Saved(snapshot.view().begin_computation()?))
-            }
-            Source::Captured { .. } => Ok(Computation::Projection),
         }
     }
 
@@ -237,48 +179,18 @@ impl HtmlReport {
         }
     }
 
-    pub(super) fn captured_input(&self) -> Result<&SharedQueryValue<CapturedExecutionReportInput>> {
+    pub(super) fn captured_input(&self) -> Result<&Arc<CapturedExecutionReportInput>> {
         match &self.source {
             Source::Captured { input, .. } => Ok(input),
             Source::Saved { .. } => Err(invalid("cycle report has no single execution input")),
         }
     }
 
-    pub(super) fn captured_source(&self) -> Result<&SharedQueryValue<CapturedSource>> {
+    pub(super) fn captured_source(&self) -> Result<&Arc<CapturedSource>> {
         match &self.source {
             Source::Captured { evidence, .. } => Ok(evidence),
             Source::Saved { .. } => Err(invalid("cycle report has no single execution source")),
         }
-    }
-
-    pub(super) fn from_capture(
-        manager: &Manager,
-        captured: &SharedQueryValue<CapturedExecutionReportInput>,
-        evidence: &SharedQueryValue<CapturedSource>,
-    ) -> Result<Self> {
-        captured.check_origin(manager)?;
-        evidence.check_origin(manager)?;
-        let index = Index::new();
-        let bytes = index.capture_growth(captured);
-        let index = captured
-            .try_project(allowance(bytes)?, |input, _| {
-                let mut index = index;
-                index.push_capture(input).map_err(failure)?;
-                index.sort();
-                Ok(index)
-            })?
-            .try_into_shared()?;
-        let memory = manager.prepare_production(allowance(std::mem::size_of::<Self>())?)?;
-        Ok(Self {
-            manager: manager.clone(),
-            index,
-            source: Source::Captured {
-                input: captured.clone(),
-                evidence: evidence.clone(),
-            },
-            counted: AtomicUsize::new(0),
-            _memory: memory,
-        })
     }
 
     pub(super) fn length(&self, maximum: NonZeroUsize) -> Result<usize> {
@@ -288,7 +200,10 @@ impl HtmlReport {
         }
         let mut count = super::output::Count::new(maximum);
         match self.write(&mut count) {
-            Ok(()) => Ok(count.len()),
+            Ok(()) => {
+                self.counted.store(count.len(), Ordering::Relaxed);
+                Ok(count.len())
+            }
             Err(_) if count.exceeded() => Err(Error::Harmos(harmos::Error::ResourceExhausted {
                 resource: "report output size",
             })),
@@ -299,8 +214,7 @@ impl HtmlReport {
     pub(super) fn bytes(&self, length: usize) -> Result<Vec<u8>> {
         let mut buffer =
             super::output::Buffer::new(length).map_err(|source| invalid(&source.to_string()))?;
-        // The Caller Projects These Bytes From The Same Original Capture Loan.
-        self.write_inner(&mut buffer)?;
+        self.write(&mut buffer)?;
         let bytes = buffer.into_bytes();
         if bytes.len() != length {
             return Err(invalid("report output changed its counted size"));
@@ -309,19 +223,6 @@ impl HtmlReport {
     }
 
     pub(super) fn write(&self, writer: &mut dyn Write) -> Result<()> {
-        if let Source::Captured { input, .. } = &self.source {
-            input.try_project(NonZeroUsize::new(1).unwrap(), |_, _| {
-                self.write_inner(writer).map_err(failure)
-            })?;
-            return Ok(());
-        }
-        self.write_inner(writer)
-    }
-
-    fn write_inner(&self, writer: &mut dyn Write) -> Result<()> {
-        let _scratch = self
-            .manager
-            .prepare_production(allowance(super::render::header_memory(self.header()))?)?;
         let failure = RefCell::new(None);
         let read = |member| match self.read(member) {
             Ok(value) => Ok(value),
@@ -336,8 +237,6 @@ impl HtmlReport {
             index: &self.index,
             appearance: self.appearance(),
             read: &read,
-            manager: &self.manager,
-            computation: &|| self.computation(),
         };
         let outcome = report.write(writer);
         if let Some(source) = failure.into_inner() {
@@ -350,59 +249,27 @@ impl HtmlReport {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn cycle_document(
-    snapshot: &CycleSnapshot,
-) -> Result<SharedQueryValue<BTreeMap<DocumentId, Capture>>> {
+fn cycle_document(snapshot: &CycleSnapshot) -> Result<BTreeMap<DocumentId, Capture>> {
     let source = snapshot.source();
-    let session = snapshot.session_id();
-    let definition_bytes = crate::domains::documents::cycle_memory(&source.metadata.label)
-        .saturating_add(std::mem::size_of::<crate::document::DocumentResolveInput>())
-        .saturating_add(source.test_cycle_id.memory_size())
-        .saturating_add(session.memory_size());
-    let declaration =
-        snapshot
-            .view()
-            .project_shared(source, allowance(definition_bytes)?, |cycle, _| {
-                let mut scope =
-                    dokime::core::RecordScope::default().with_cycle(cycle.test_cycle_id.clone());
-                scope.session_id = Some(session.clone());
-                Ok(crate::document::DocumentResolveInput {
-                    definition: crate::domains::documents::cycle_document(
-                        cycle.metadata.label.clone(),
-                    ),
-                    selection: crate::document::DocumentSelection { scope },
-                    data: Default::default(),
-                })
-            })?;
-    let bytes =
-        crate::document::bounded::capture_memory(&declaration.borrowed(), Default::default())?;
-    let capture = declaration.try_map(allowance(bytes)?, |input, _| {
-        crate::document::bounded::capture_document_borrowed(input.borrowed(), Default::default())
-            .map_err(|error| failure(error.into()))
-    })?;
-    let bytes = harmos::btree_map_memory::<DocumentId, Capture>(1)
-        .saturating_add(capture.memory_size())
-        .saturating_add(capture.definition.document_id.memory_size());
-    Ok(capture
-        .try_map(allowance(bytes)?, |capture, _| {
-            Ok(BTreeMap::from([(
-                capture.definition.document_id.clone(),
-                capture,
-            )]))
-        })?
-        .try_into_shared()?)
+    let mut scope = dokime::core::RecordScope::default().with_cycle(source.test_cycle_id.clone());
+    scope.session_id = Some(snapshot.session_id().clone());
+    let declaration = crate::document::DocumentResolveInput {
+        definition: crate::domains::documents::cycle_document(source.metadata.label.clone()),
+        selection: crate::document::DocumentSelection { scope },
+        data: Default::default(),
+    };
+    let capture = crate::document::bounded::capture_document_borrowed(
+        declaration.borrowed(),
+        Default::default(),
+    )?;
+    Ok(BTreeMap::from([(
+        capture.definition.document_id.clone(),
+        capture,
+    )]))
 }
 
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
-}
-
-fn failure(source: Error) -> harmos::Error {
-    harmos::Error::backend(
-        "assemble saved HTML report",
-        harmos::BackendFailure::Corrupt,
-        source,
-    )
 }
 
 /* === Tests === */

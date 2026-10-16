@@ -372,8 +372,12 @@ impl<O: Callable> Sweep for Slot<O> {
 pub(crate) fn refused(message: impl Into<String>) -> CallError {
     CallError::Refused {
         code: STEP_REFUSAL,
-        message: message.into(),
+        failure: refusal_failure(message),
     }
+}
+
+pub(crate) fn refusal_failure(message: impl Into<String>) -> harmos::Failure {
+    harmos::Failure::new(harmos::operations::FailureKind::Permanent, message)
 }
 
 /* === Private Functions === */

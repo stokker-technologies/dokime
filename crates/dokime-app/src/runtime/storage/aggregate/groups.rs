@@ -12,19 +12,15 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-
 // Standard Library Imports
-use std::{cmp::Ordering, collections::BTreeMap, num::NonZeroUsize};
+use std::{cmp::Ordering, collections::BTreeMap};
 
 // Third Party Imports
-use harmos::storage::reduce::{Accumulator, Agg, ScalarValue, Scratch};
-use harmos::{Aggregate, MemorySize};
+use harmos::Aggregate;
 
 // Local Imports
 use super::fields::{self, Row};
-use crate::runtime::query::aggregate::{
-    AGGREGATE_ROW_CEILING, AggregateOperator, AggregateOutcome, AggregateQuery,
-};
+use crate::runtime::query::aggregate::{AggregateOperator, AggregateOutcome, AggregateQuery};
 use crate::{Error, Result};
 use dokime::core::Value;
 
@@ -42,10 +38,19 @@ const MAX_NAME_BYTES: usize = 256;
 pub(super) struct Groups {
     entries: BTreeMap<Key, Vec<Accumulator>>,
     omitted: bool,
-    // Value slots the order statistics have reserved across every page so far.
-    retained: usize,
 }
 struct Key(Vec<Value>);
+
+// HARMOS GAP WORKAROUND: Harmos keeps its accumulators crate-private, so domain
+// aggregates over Dokime's derived columns fold here. Replace once Harmos
+// exposes its accumulator or a transform over caller-built batches.
+#[derive(Clone)]
+struct Accumulator {
+    aggregate: Aggregate,
+    count: u64,
+    numbers: Vec<f64>,
+    extreme: Option<Value>,
+}
 
 /* === Enums === */
 
@@ -53,181 +58,143 @@ struct Key(Vec<Value>);
 
 /* === Implementations === */
 impl Groups {
-    pub(super) fn update(
-        current: Option<&Self>,
-        query: &AggregateQuery,
-        rows: &[Row<'_>],
-        allowance: NonZeroUsize,
-    ) -> Result<Self> {
+    /// Fold rows into at most `limit + 1` groups in key order.
+    pub(super) fn fold(query: &AggregateQuery, rows: &[Row<'_>]) -> Result<Self> {
         validate(query)?;
-        let bound = update_memory(current, query, rows)?;
-        admitted(bound, allowance)?;
-        let mut selected = match current {
-            Some(current) => current.copy()?,
-            None => Self {
-                entries: BTreeMap::new(),
-                omitted: false,
-                retained: 0,
-            },
+        let mut selected = Self {
+            entries: BTreeMap::new(),
+            omitted: false,
         };
-        // Median And Percentiles Retain Their Values; The Allowance Bounds How Many.
-        let budget = (allowance.get() / std::mem::size_of::<ScalarValue>())
-            .saturating_sub(selected.retained);
-        let mut scratch = Scratch::new(budget);
-        if query.group_by.is_empty() && selected.entries.is_empty() {
-            selected.entries.insert(Key(Vec::new()), reductions(query)?);
+        if query.group_by.is_empty() {
+            selected.entries.insert(Key(Vec::new()), reductions(query));
         }
-        for (ordinal, row) in rows.iter().enumerate() {
+        for row in rows {
             if row.source() != query.source {
                 return Err(invalid("aggregate row source differs from its query"));
             }
-            if !matches(row, query, allowance)? {
+            if !matches(row, query)? {
                 continue;
             }
-            let mut key = slots(query.group_by.len())?;
+            let mut key = Vec::with_capacity(query.group_by.len());
             for column in &query.group_by {
-                key.push(row.field(column)?.project(allowance)?);
-            }
-            let key = Key(key);
-            if !selected.entries.contains_key(&key) {
-                selected.entries.insert(key.copy()?, reductions(query)?);
+                key.push(row.field(column)?.project()?);
             }
             let reductions = selected
                 .entries
-                .get_mut(&key)
-                .expect("original group admitted");
+                .entry(Key(key))
+                .or_insert_with(|| reductions(query));
             for (reduction, column) in reductions.iter_mut().zip(&query.aggregates) {
                 let value = if column.column.is_empty() {
-                    ScalarValue::Unsigned(1)
+                    Value::Unsigned(1)
                 } else {
-                    scalar(
-                        &row.field(&column.column)?.project(allowance)?,
-                        column.aggregate,
-                    )?
+                    row.field(&column.column)?.project()?
                 };
-                reduction.push(ordinal as u64, &value, &mut scratch)?;
+                reduction.push(&value)?;
             }
-            // Retain The First Limit+1 Groups, Including Exact Aggregates For Each.
-            // An Evicted Larger Key Can Never Become A Final Smaller Key.
-            if selected.entries.len() > effective_limit(query.limit) + 1 {
+            // Retain The First Limit+1 Groups; An Evicted Larger Key Never Returns.
+            if query.limit != 0 && selected.entries.len() > query.limit + 1 {
                 selected.entries.pop_last();
                 selected.omitted = true;
             }
         }
-        selected.retained = selected
-            .retained
-            .saturating_add(budget - scratch.remaining());
-        admitted(selected.memory_size(), allowance)?;
         Ok(selected)
     }
 
-    pub(super) fn outcome(
-        &self,
-        query: &AggregateQuery,
-        allowance: NonZeroUsize,
-    ) -> Result<AggregateOutcome> {
-        validate(query)?;
-        let count = self.entries.len().min(effective_limit(query.limit));
-        let columns = query.group_by.len() + query.aggregates.len();
-        let mut bytes = std::mem::size_of::<AggregateOutcome>()
-            .saturating_add(columns.saturating_mul(std::mem::size_of::<String>()))
-            .saturating_add(count.saturating_mul(std::mem::size_of::<Vec<Value>>()));
-        for name in query
+    pub(super) fn outcome(self, query: &AggregateQuery) -> Result<AggregateOutcome> {
+        let count = match query.limit {
+            0 => self.entries.len(),
+            limit => self.entries.len().min(limit),
+        };
+        let complete = !self.omitted && self.entries.len() <= count;
+        let columns = query
             .group_by
             .iter()
-            .chain(query.aggregates.iter().map(|column| &column.alias))
-        {
-            bytes = bytes.saturating_add(name.len());
-        }
-        for (key, reductions) in self.entries.iter().take(count) {
-            bytes = bytes.saturating_add(columns.saturating_mul(std::mem::size_of::<Value>()));
-            for value in &key.0 {
-                bytes = bytes.saturating_add(
-                    fields::value_memory(value, 0)?.saturating_sub(std::mem::size_of::<Value>()),
-                );
-            }
+            .cloned()
+            .chain(query.aggregates.iter().map(|column| column.alias.clone()))
+            .collect();
+        let mut rows = Vec::with_capacity(count);
+        for (key, reductions) in self.entries.into_iter().take(count) {
+            let mut row = key.0;
             for reduction in reductions {
-                bytes = bytes.saturating_add(reduction.text_bytes());
-            }
-        }
-        // Finishing An Order Statistic Copies Its Retained Values Once.
-        bytes = bytes.saturating_add(
-            self.retained
-                .saturating_mul(std::mem::size_of::<ScalarValue>()),
-        );
-        admitted(bytes, allowance)?;
-        let mut names = slots(columns)?;
-        for name in query
-            .group_by
-            .iter()
-            .chain(query.aggregates.iter().map(|column| &column.alias))
-        {
-            names.push(fields::copy_text(name)?);
-        }
-        let mut rows = slots(count)?;
-        for (key, reductions) in self.entries.iter().take(count) {
-            let mut row = slots(columns)?;
-            for value in &key.0 {
-                row.push(fields::copy_value(value, 0)?);
-            }
-            for reduction in reductions {
-                row.push(value(reduction.clone().finish(&mut || Ok(()))?)?);
+                row.push(reduction.finish()?);
             }
             rows.push(row);
         }
         Ok(AggregateOutcome {
-            columns: names,
+            columns,
             rows,
-            complete: !self.omitted && self.entries.len() <= effective_limit(query.limit),
+            complete,
         })
+    }
+}
+
+impl Accumulator {
+    fn new(aggregate: Aggregate) -> Self {
+        Self {
+            aggregate,
+            count: 0,
+            numbers: Vec::new(),
+            extreme: None,
+        }
     }
 
-    fn copy(&self) -> Result<Self> {
-        let mut entries = BTreeMap::new();
-        for (key, values) in &self.entries {
-            let mut copied = slots(values.len())?;
-            copied.extend(values.iter().cloned());
-            entries.insert(key.copy()?, copied);
+    fn push(&mut self, value: &Value) -> Result<()> {
+        if matches!(value, Value::Null) {
+            return Ok(());
         }
-        Ok(Self {
-            entries,
-            omitted: self.omitted,
-            retained: self.retained,
+        self.count += 1;
+        match self.aggregate {
+            Aggregate::Count => {}
+            Aggregate::Min | Aggregate::Max => {
+                if matches!(value, Value::Array(_) | Value::Object(_)) {
+                    return Err(invalid("aggregate values must be scalars"));
+                }
+                let replace = self.extreme.as_ref().is_none_or(|current| {
+                    let order = compare(value, current);
+                    if self.aggregate == Aggregate::Min {
+                        order == Ordering::Less
+                    } else {
+                        order == Ordering::Greater
+                    }
+                });
+                if replace {
+                    self.extreme = Some(value.clone());
+                }
+            }
+            _ => self.numbers.push(number(value)?),
+        }
+        Ok(())
+    }
+
+    fn finish(mut self) -> Result<Value> {
+        let count = self.numbers.len() as f64;
+        Ok(match self.aggregate {
+            Aggregate::Count => Value::Unsigned(self.count),
+            Aggregate::Min | Aggregate::Max => self.extreme.unwrap_or(Value::Null),
+            _ if self.numbers.is_empty() => Value::Null,
+            Aggregate::Sum => Value::Number(self.numbers.iter().sum()),
+            Aggregate::Mean => Value::Number(self.numbers.iter().sum::<f64>() / count),
+            Aggregate::Rms => Value::Number(
+                (self.numbers.iter().map(|value| value * value).sum::<f64>() / count).sqrt(),
+            ),
+            Aggregate::Std => {
+                let mean = self.numbers.iter().sum::<f64>() / count;
+                Value::Number(
+                    (self
+                        .numbers
+                        .iter()
+                        .map(|value| (value - mean).powi(2))
+                        .sum::<f64>()
+                        / count)
+                        .sqrt(),
+                )
+            }
+            Aggregate::Median => Value::Number(percentile(&mut self.numbers, 50)),
+            Aggregate::Percentile(rank) => Value::Number(percentile(&mut self.numbers, rank)),
         })
     }
 }
-impl MemorySize for Groups {
-    fn memory_size(&self) -> usize {
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(harmos::btree_map_memory::<Key, Vec<Accumulator>>(
-                self.entries.len(),
-            ))
-            .saturating_add(
-                self.retained
-                    .saturating_mul(std::mem::size_of::<ScalarValue>()),
-            );
-        for (key, values) in &self.entries {
-            bytes = bytes
-                .saturating_add(key.memory_size().saturating_sub(std::mem::size_of::<Key>()))
-                .saturating_add(accumulators_memory(values));
-        }
-        bytes
-    }
-}
-impl MemorySize for Key {
-    fn memory_size(&self) -> usize {
-        self.0.memory_size()
-    }
-}
-impl Key {
-    fn copy(&self) -> Result<Self> {
-        let mut values = slots(self.0.len())?;
-        for value in &self.0 {
-            values.push(fields::copy_value(value, 0)?);
-        }
-        Ok(Self(values))
-    }
-}
+
 impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
@@ -310,134 +277,36 @@ pub(super) fn validate(query: &AggregateQuery) -> Result<()> {
 }
 
 /* === Private Functions === */
-fn update_memory(
-    current: Option<&Groups>,
-    query: &AggregateQuery,
-    rows: &[Row<'_>],
-) -> Result<usize> {
-    let count = current
-        .map_or(0, |current| current.entries.len())
-        .saturating_add(rows.len())
-        .saturating_add(1)
-        .min(effective_limit(query.limit) + 2);
-    let mut bytes = std::mem::size_of::<Groups>()
-        .saturating_add(harmos::btree_map_memory::<Key, Vec<Accumulator>>(count));
-    if let Some(current) = current {
-        bytes = bytes.saturating_add(
-            current
-                .memory_size()
-                .saturating_sub(std::mem::size_of::<Groups>()),
-        );
-    }
-    if query.group_by.is_empty() && current.is_none() {
-        bytes = bytes.saturating_add(
-            query
-                .aggregates
-                .len()
-                .saturating_mul(std::mem::size_of::<Accumulator>()),
-        );
-    }
-    for row in rows {
-        bytes = bytes
-            .saturating_add(
-                query
-                    .group_by
-                    .len()
-                    .saturating_mul(std::mem::size_of::<Value>()),
-            )
-            .saturating_add(
-                query
-                    .aggregates
-                    .len()
-                    .saturating_mul(std::mem::size_of::<Accumulator>()),
-            );
-        // The Retained Key And Lookup Key Coexist During Insertion.
-        for name in &query.group_by {
-            let owned = row
-                .field(name)?
-                .projection_memory()?
-                .saturating_sub(std::mem::size_of::<Value>());
-            bytes = bytes.saturating_add(owned).saturating_add(owned);
-        }
-        bytes = bytes.saturating_add(
-            query
-                .group_by
-                .len()
-                .saturating_mul(std::mem::size_of::<Value>()),
-        );
-        for column in &query.aggregates {
-            if !column.column.is_empty() {
-                bytes = bytes.saturating_add(row.field(&column.column)?.projection_memory()?);
-            }
-        }
-        for filter in &query.filters {
-            bytes = bytes.saturating_add(row.field(&filter.column)?.projection_memory()?);
-        }
-    }
-    if bytes == usize::MAX {
-        return Err(invalid("aggregate projection memory overflows"));
-    }
-    Ok(bytes)
-}
-fn reductions(query: &AggregateQuery) -> Result<Vec<Accumulator>> {
-    let mut values = slots(query.aggregates.len())?;
-    for column in &query.aggregates {
-        values.push(Accumulator::new(Agg::Of(column.aggregate)));
-    }
-    Ok(values)
-}
-fn accumulators_memory(values: &[Accumulator]) -> usize {
-    values
+fn reductions(query: &AggregateQuery) -> Vec<Accumulator> {
+    query
+        .aggregates
         .iter()
-        .fold(std::mem::size_of_val(values), |bytes, accumulator| {
-            bytes.saturating_add(accumulator.text_bytes())
-        })
+        .map(|column| Accumulator::new(column.aggregate))
+        .collect()
 }
-// The Harmos reduction reads scalars; a nested value has no order or number.
-// `Count` only asks whether a value is present, so any non-null value counts.
-fn scalar(value: &Value, aggregate: Aggregate) -> Result<ScalarValue> {
-    Ok(match value {
-        Value::Null => ScalarValue::Null,
-        _ if aggregate == Aggregate::Count => ScalarValue::Unsigned(1),
-        Value::Bool(value) => ScalarValue::Bool(*value),
-        Value::Integer(value) => ScalarValue::Signed(*value),
-        Value::Unsigned(value) => ScalarValue::Unsigned(*value),
-        Value::Number(value) if value.is_finite() => ScalarValue::Float(*value),
-        Value::Number(_) => return Err(invalid("aggregate numbers must be finite")),
-        Value::Text(value) => ScalarValue::Text(fields::copy_text(value)?),
-        Value::Datetime(value) => ScalarValue::Datetime(value.unix_timestamp_nanos()),
-        Value::Array(_) | Value::Object(_) => {
-            return Err(invalid("aggregate values must be scalars"));
-        }
-    })
+
+fn number(value: &Value) -> Result<f64> {
+    match value {
+        Value::Integer(value) => Ok(*value as f64),
+        Value::Unsigned(value) => Ok(*value as f64),
+        Value::Number(value) if value.is_finite() => Ok(*value),
+        Value::Number(_) => Err(invalid("aggregate numbers must be finite")),
+        _ => Err(invalid("aggregate statistic requires numeric values")),
+    }
 }
-fn value(scalar: ScalarValue) -> Result<Value> {
-    Ok(match scalar {
-        ScalarValue::Missing | ScalarValue::Null => Value::Null,
-        ScalarValue::Bool(value) => Value::Bool(value),
-        ScalarValue::Signed(value) => Value::Integer(value),
-        ScalarValue::Unsigned(value) => i64::try_from(value)
-            .map(Value::Integer)
-            .unwrap_or(Value::Unsigned(value)),
-        ScalarValue::Float(value) => Value::Number(value),
-        ScalarValue::Text(value) => Value::Text(value),
-        ScalarValue::Datetime(value) => Value::Datetime(
-            time::OffsetDateTime::from_unix_timestamp_nanos(value)
-                .map_err(|_| invalid("aggregate datetime is out of range"))?,
-        ),
-        ScalarValue::Exact(value) => {
-            let magnitude = value.numerator as f64 / value.denominator.get() as f64;
-            Value::Number(if value.negative {
-                -magnitude
-            } else {
-                magnitude
-            })
-        }
-    })
+
+// Linear Interpolation Between The Closest Ranks.
+fn percentile(values: &mut [f64], rank: u8) -> f64 {
+    values.sort_by(|left, right| left.total_cmp(right));
+    let position = f64::from(rank.min(100)) / 100.0 * (values.len() - 1) as f64;
+    let lower = position.floor() as usize;
+    let upper = position.ceil() as usize;
+    values[lower] + (values[upper] - values[lower]) * (position - lower as f64)
 }
-fn matches(row: &Row<'_>, query: &AggregateQuery, allowance: NonZeroUsize) -> Result<bool> {
+
+fn matches(row: &Row<'_>, query: &AggregateQuery) -> Result<bool> {
     for filter in &query.filters {
-        let value = row.field(&filter.column)?.project(allowance)?;
+        let value = row.field(&filter.column)?.project()?;
         if filter.op == AggregateOperator::IsNull {
             if !matches!(value, Value::Null) {
                 return Ok(false);
@@ -585,31 +454,6 @@ fn column(query: &AggregateQuery, name: &str) -> Result<()> {
             message,
             Vec::new(),
         ));
-    }
-    Ok(())
-}
-fn effective_limit(limit: usize) -> usize {
-    if limit == 0 {
-        AGGREGATE_ROW_CEILING
-    } else {
-        limit.min(AGGREGATE_ROW_CEILING)
-    }
-}
-fn slots<T>(count: usize) -> Result<Vec<T>> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(count)
-        .map_err(|_| invalid("aggregate allocation failed"))?;
-    if values.capacity() > count {
-        return Err(invalid("aggregate capacity exceeds admission"));
-    }
-    Ok(values)
-}
-fn admitted(bytes: usize, allowance: NonZeroUsize) -> Result<()> {
-    if bytes == usize::MAX || bytes > allowance.get() {
-        return Err(Error::Harmos(harmos::Error::ResourceExhausted {
-            resource: "native aggregate projection",
-        }));
     }
     Ok(())
 }

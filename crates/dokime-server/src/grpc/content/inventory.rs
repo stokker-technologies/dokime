@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 // Third Party Imports
@@ -43,7 +42,6 @@ struct List {
     resources: Arc<Resources>,
 }
 struct Count {
-    memory: usize,
     after: usize,
     returned: usize,
     more: bool,
@@ -87,22 +85,14 @@ impl Operation for List {
                 "file cursor epoch or execution mismatch",
             ));
         }
-        let page = self
+        let entries = self
             .resources
             .runtime
-            .execution_files_projected(&id, |entries, allowance| {
-                project(
-                    entries,
-                    &id,
-                    &epoch,
-                    request,
-                    allowance,
-                    self.resources.maximum,
-                )
-            })
+            .execution_files(&id)
             .await
             .map_err(super::files::read_failure)?;
-        page.try_into_response()
+        project(&entries, &id, &epoch, request, self.resources.maximum)
+            .map(Into::into)
             .map_err(|source| super::files::read_failure(source.into()))
     }
 }
@@ -126,13 +116,9 @@ fn project(
     id: &TestExecutionId,
     epoch: &str,
     request: &wire::ListExecutionFilesRequest,
-    allowance: NonZeroUsize,
     maximum: usize,
 ) -> harmos::Result<wire::ListExecutionFilesReply> {
-    let counted = count(entries, id, epoch, request)?;
-    if counted.memory > allowance.get() {
-        return Err(exhausted());
-    }
+    let counted = count(entries, request)?;
     let mut files = projection::slots(entries.len())?;
     for entry in entries {
         files.push(metadata(entry)?);
@@ -183,8 +169,6 @@ fn project(
 }
 fn count(
     entries: &[ExecutionFileEntry],
-    id: &TestExecutionId,
-    epoch: &str,
     request: &wire::ListExecutionFilesRequest,
 ) -> harmos::Result<Count> {
     if entries.len() > INVENTORY_LIMIT {
@@ -215,44 +199,13 @@ fn count(
     };
     let returned = entries.len().saturating_sub(after).min(limit);
     let more = entries.len().saturating_sub(after) > returned;
-    let mut memory = std::mem::size_of::<wire::ListExecutionFilesReply>()
-        .saturating_add(std::mem::size_of::<Vec<wire::ExecutionFileMetadata>>())
-        .saturating_add(
-            entries
-                .len()
-                .saturating_add(returned)
-                .saturating_mul(std::mem::size_of::<wire::ExecutionFileMetadata>()),
-        )
-        .saturating_add(epoch.len())
-        .saturating_add(id.as_str().len())
-        .saturating_add(32);
-    let mut scratch = 0usize;
     for entry in entries {
         value::text(&entry.relative_path).map_err(|_| exhausted())?;
         if let Some(content_type) = &entry.content_type {
             value::text(content_type).map_err(|_| exhausted())?;
         }
-        let heap = entry
-            .relative_path
-            .len()
-            .saturating_add(entry.content_type.as_ref().map_or(0, String::len));
-        memory = memory.saturating_add(heap);
-        scratch = scratch.max(
-            std::mem::size_of::<wire::ExecutionFileMetadata>()
-                .saturating_add(heap)
-                .saturating_mul(2)
-                .saturating_add(16),
-        );
-    }
-    if more {
-        memory = memory.saturating_add(entries[after + returned - 1].relative_path.len());
-    }
-    memory = memory.saturating_add(scratch);
-    if memory == usize::MAX {
-        return Err(exhausted());
     }
     Ok(Count {
-        memory,
         after,
         returned,
         more,

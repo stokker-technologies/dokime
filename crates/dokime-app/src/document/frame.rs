@@ -15,30 +15,24 @@
 
 // Standard Library Imports
 use std::borrow::Cow;
-use std::future::Future;
-use std::num::{NonZeroU128, NonZeroUsize};
-use std::task::{Context as Task, Poll, Waker};
+use std::cmp::Ordering;
+use std::num::NonZeroU128;
 
 // Third Party Imports
 use harmos::Aggregate;
-use harmos::storage::frame::{
-    AsOf, AsOfStrategy, Collected, Expr, Frame, GroupBy, ProjectedRow, ScalarField, ScalarPath,
-    ScanCursor, ScanOrder, ScanPage, ScanSource, collect,
-};
-use harmos::storage::reduce::{Agg, ExactNumber, ScalarKind, ScalarValue};
-use harmos::storage::{ReadKind, ReadLimits, ReadSelection};
+use harmos::storage::query::scalar::{Agg, ExactNumber, ScalarValue};
 
 // Local Imports
 use super::DocumentFailure;
 use super::binding::{Evidence, Row};
 use super::context::Entry;
+use super::fold::Accumulator;
 use super::input::RecordView;
 use crate::core::{EvidenceOrigin, RecordScope, Value};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
-const TOKEN_BYTES: usize = std::mem::size_of::<u64>();
 const NANOS_PER_SECOND: u128 = 1_000_000_000;
 const NONNUMERIC: &str = "numeric aggregate contains nonnumeric or nonfinite evidence";
 
@@ -48,19 +42,33 @@ const NONNUMERIC: &str = "numeric aggregate contains nonnumeric or nonfinite evi
 type Result<T> = dokime::Result<T>;
 
 /* === Structs === */
+/// One compiled data expression: which columns each side projects, how they
+/// correlate and how the measured value folds, per case or overall.
 pub(super) struct Plan {
-    frame: Frame,
     left: Vec<Column>,
     right: Vec<Column>,
     join: Join,
     kind: Kind,
     shape: Shape,
     cases: Option<usize>,
+    inner: Agg,
+    measured: usize,
+    outer: Option<Agg>,
 }
-struct Source {
-    scans: Vec<Vec<ProjectedRow>>,
-    sorted: Vec<(usize, ScanOrder, Vec<ProjectedRow>)>,
+
+// One Projected Row: Its Capture Order And Typed Column Values.
+#[derive(Clone)]
+struct Projected {
+    capture: u64,
+    values: Vec<ScalarValue>,
 }
+
+// The Fold Of Every Group: Per-Group Values And The Optional Outer Fold.
+struct Collected {
+    groups: Vec<Vec<ScalarValue>>,
+    outer: Option<Vec<ScalarValue>>,
+}
+
 struct Numeric {
     value: ScalarValue,
     signed: bool,
@@ -110,7 +118,7 @@ enum Output {
 impl Plan {
     pub(super) fn compile(
         expression: &DataExpression,
-        rows: usize,
+        _rows: usize,
         cases: Option<usize>,
     ) -> Result<Self> {
         let transforms = &expression.transforms;
@@ -155,110 +163,53 @@ impl Plan {
                 "per-case bindings require the original execution context",
             ));
         }
-
-        let max_rows = NonZeroUsize::new(rows.max(1)).ok_or(DocumentFailure::Limit)?;
-        let max_groups = NonZeroUsize::new(cases.unwrap_or(1).max(1))
-            .filter(|groups| groups.get() <= 4096)
-            .ok_or(DocumentFailure::Limit)?;
-        let mut frame = Frame::new(max_rows, max_groups);
+        if cases.is_some_and(|cases| cases > 4096) {
+            return Err(DocumentFailure::Limit.into());
+        }
         let mut left = Vec::new();
         let mut right = Vec::new();
         let elapsed = matches!(join, Join::Previous(_));
 
         // The Left Scan Measures Its Own Value Unless A Correlation Supplies It.
-        if join == Join::None {
-            left.push(Column::Value);
-            if kind == Kind::Numeric {
-                left.extend([Column::Signed, Column::Float]);
-            }
-        } else {
-            left.extend([Column::Execution, Column::Attempt, Column::Time]);
-        }
-        if cases.is_some() {
-            left.push(Column::Case);
-        }
-        let left_scan = frame.scan(scan_selection(), fields(&left, kind)?);
-        let mut measured = Vec::new();
-        match &join {
+        let numeric = 1 + 2 * usize::from(kind == Kind::Numeric);
+        let measured = match &join {
             Join::None => {
-                measured.push(Expr::Col(0));
+                left.push(Column::Value);
                 if kind == Kind::Numeric {
-                    measured.extend([Expr::Col(1), Expr::Col(2)]);
+                    left.extend([Column::Signed, Column::Float]);
                 }
+                numeric
             }
             Join::Previous(_) => {
+                left.extend([Column::Execution, Column::Attempt, Column::Time]);
                 right.extend([Column::Execution, Column::Attempt, Column::Time]);
-                let right_scan = frame.scan(scan_selection(), fields(&right, kind)?);
-                let join = frame.join_asof(AsOf {
-                    left: left_scan,
-                    right: right_scan,
-                    by: vec![(0, 0), (1, 1)],
-                    on: (2, 2),
-                    strategy: AsOfStrategy::Previous,
-                    right_filter: Vec::new(),
-                });
-                measured.push(Expr::diff(join));
+                1
             }
             Join::AtOrBefore { .. } => {
+                left.extend([Column::Execution, Column::Attempt, Column::Time]);
                 right.push(Column::Value);
                 if kind == Kind::Numeric {
                     right.extend([Column::Signed, Column::Float]);
                 }
                 right.extend([Column::Execution, Column::Attempt, Column::Time]);
-                let keys = right.len() - 3;
-                let right_scan = frame.scan(scan_selection(), fields(&right, kind)?);
-                let join = frame.join_asof(AsOf {
-                    left: left_scan,
-                    right: right_scan,
-                    by: vec![(0, keys), (1, keys + 1)],
-                    on: (2, keys + 2),
-                    strategy: AsOfStrategy::Backward { present: 0 },
-                    right_filter: Vec::new(),
-                });
-                measured.extend(
-                    (0..1 + 2 * usize::from(kind == Kind::Numeric))
-                        .map(|col| Expr::AsOf { join, col }),
-                );
+                numeric
             }
+        };
+        if cases.is_some() {
+            left.push(Column::Case);
         }
-
         // Inner Folds Measure Each Case; Flags Keep Their Original Representation.
         let inner = match (kind, fold) {
             (Kind::Occurrence, _) => Agg::Len,
             (_, Some(fold)) => fold,
             (_, None) => Agg::Last,
         };
-        let mut group_by = GroupBy::new(left_scan);
-        for (index, expr) in measured.into_iter().enumerate() {
-            group_by = group_by.agg(expr, if index == 0 { inner } else { flag(inner) });
-        }
-        if let Some(count) = cases {
-            let case = left
-                .iter()
-                .position(|column| *column == Column::Case)
-                .unwrap();
-            group_by.keys = vec![case];
-            group_by.groups = Some(
-                (0..count as u64)
-                    .map(|case| vec![ScalarValue::Unsigned(case)])
-                    .collect(),
-            );
-            let outer = outer
-                .ok_or_else(|| failure("per-case scalar summaries require one final outer fold"))?;
-            group_by.outer = Some(
-                (0..group_by.aggs.len())
-                    .map(|index| {
-                        if index == 0 {
-                            outer
-                        } else {
-                            Agg::Of(Aggregate::Max)
-                        }
-                    })
-                    .collect(),
-            );
-        }
-        frame.group_by(group_by);
-        frame.check().map_err(harmos_failure)?;
+        let outer = match cases {
+            Some(_) => Some(outer.ok_or_else(|| {
+                failure("per-case scalar summaries require one final outer fold")
+            })?),
+            None => None,
+        };
         let shape = match (cases.is_some(), outer, kind) {
             (true, Some(Agg::Of(Aggregate::Count)), _)
             | (false, _, Kind::Presence | Kind::Occurrence) => Shape::Count,
@@ -268,30 +219,27 @@ impl Plan {
             _ => Shape::Numeric { flags: true },
         };
         Ok(Self {
-            frame,
             left,
             right,
             join,
             kind,
             shape,
             cases,
+            inner,
+            measured,
+            outer,
         })
     }
 
+    // Projected Rows Of Both Sides And One Sorted Copy Of The Correlated Side.
     pub(super) fn memory(&self, rows: usize) -> usize {
         let width = self.left.len().max(self.right.len());
-        let copies = rows
-            .saturating_mul(
-                width
-                    .saturating_mul(std::mem::size_of::<ScalarValue>())
-                    .saturating_add(std::mem::size_of::<ProjectedRow>()),
-            )
-            // Each Scan Keeps Capture Order Plus One Keyed Copy.
-            .saturating_mul(2 * (1 + usize::from(!self.right.is_empty())));
-        self.frame
-            .explain(page(rows, 0))
-            .map_or(usize::MAX, |explain| explain.peak_bytes)
-            .saturating_add(copies)
+        rows.saturating_mul(
+            width
+                .saturating_mul(std::mem::size_of::<ScalarValue>())
+                .saturating_add(std::mem::size_of::<Projected>()),
+        )
+        .saturating_mul(2 * (1 + usize::from(!self.right.is_empty())))
     }
 
     pub(super) fn work(&self, rows: usize) -> usize {
@@ -464,13 +412,7 @@ impl Plan {
         }
     }
 
-    fn project(
-        &self,
-        columns: &[Column],
-        row: &Selected<'_>,
-        float: bool,
-        text: &mut usize,
-    ) -> Result<ProjectedRow> {
+    fn project(&self, columns: &[Column], row: &Selected<'_>, float: bool) -> Result<Projected> {
         let value = row.value.as_deref();
         let mut values = Vec::with_capacity(columns.len());
         for column in columns {
@@ -504,7 +446,6 @@ impl Plan {
                         .and_then(|keys| keys.scope)
                         .and_then(|scope| scope.test_execution_id.as_ref())
                         .map_or("", |id| id.as_str());
-                    *text = text.saturating_add(id.len());
                     ScalarValue::Text(id.to_owned())
                 }
                 Column::Attempt => {
@@ -515,7 +456,6 @@ impl Plan {
                         }) => attempt_id.as_str(),
                         _ => "",
                     };
-                    *text = text.saturating_add(attempt.len());
                     ScalarValue::Text(attempt.to_owned())
                 }
                 Column::Time => row
@@ -526,8 +466,8 @@ impl Plan {
             };
             values.push(projected);
         }
-        Ok(ProjectedRow {
-            capture_order: row.ordinal as u64,
+        Ok(Projected {
+            capture: row.ordinal as u64,
             values,
         })
     }
@@ -540,70 +480,107 @@ impl Plan {
                     .any(|row| matches!(row.value.as_deref(), Some(Value::Number(_))))
         };
         let (left_float, right_float) = (floats(&left), floats(&right));
-        let mut text = 0usize;
-        let left = left
+        let mut left = left
             .iter()
-            .map(|row| self.project(&self.left, row, left_float, &mut text))
+            .map(|row| self.project(&self.left, row, left_float))
             .collect::<Result<Vec<_>>>()?;
         let right = right
             .iter()
-            .map(|row| self.project(&self.right, row, right_float, &mut text))
+            .map(|row| self.project(&self.right, row, right_float))
             .collect::<Result<Vec<_>>>()?;
-        let rows = left.len().max(right.len());
-        let mut frame = self.frame.clone();
-        frame.max_rows = NonZeroUsize::new(rows.max(frame.max_rows.get())).unwrap();
-        for (scan, float) in [(0, left_float), (1, right_float)] {
-            if let Some(field) = frame
-                .scans
-                .get_mut(scan)
-                .and_then(|scan| scan.columns.first_mut())
-                .filter(|_| float)
-            {
-                field.kind = ScalarKind::Float;
+        left.sort_by_key(|row| row.capture);
+
+        // Each Left Row Measures Its Own Columns Or Its Correlated Right Row.
+        let correlation = match &self.join {
+            Join::None => None,
+            Join::Previous(_) => Some((Correlation::new(right, 0, Strategy::Previous), 0)),
+            Join::AtOrBefore { .. } => {
+                let keys = self.right.len() - 3;
+                Some((Correlation::new(right, keys, Strategy::AtOrBefore), keys))
+            }
+        };
+        let case = self.left.iter().position(|column| *column == Column::Case);
+        let groups = self.cases.unwrap_or(1);
+        let mut folds = (0..groups)
+            .map(|_| {
+                (0..self.measured)
+                    .map(|index| {
+                        Accumulator::new(if index == 0 {
+                            self.inner
+                        } else {
+                            flag(self.inner)
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        for row in &left {
+            let group = match case {
+                Some(column) => match row.values[column] {
+                    ScalarValue::Unsigned(case) if (case as usize) < groups => case as usize,
+                    _ => continue,
+                },
+                None => 0,
+            };
+            let measured = match &correlation {
+                None => row.values[..self.measured].to_vec(),
+                Some((correlation, keys)) => {
+                    let matched = correlation.find(&row.values[..3], row.capture);
+                    match (&self.join, matched) {
+                        (Join::Previous(_), Some(matched)) => {
+                            vec![elapsed(&matched.values[2], &row.values[2])?]
+                        }
+                        (Join::Previous(_), None) => vec![ScalarValue::Missing],
+                        (_, Some(matched)) => matched.values[..*keys].to_vec(),
+                        (_, None) => vec![ScalarValue::Missing; *keys],
+                    }
+                }
+            };
+            for (accumulator, value) in folds[group].iter_mut().zip(&measured) {
+                accumulator.push(row.capture, value).map_err(failure)?;
             }
         }
-        Self::run(&frame, left, right, text)
-    }
-
-    fn run(
-        frame: &Frame,
-        left: Vec<ProjectedRow>,
-        right: Vec<ProjectedRow>,
-        text: usize,
-    ) -> Result<Collected> {
-        let page = page(left.len().max(right.len()), text);
-        let explain = frame.explain(page).map_err(harmos_failure)?;
-        let mut scans = vec![left];
-        if frame.scans.len() > 1 {
-            scans.push(right);
-        }
-        let mut source = Source {
-            scans,
-            sorted: Vec::new(),
+        let groups = folds
+            .into_iter()
+            .map(|fold| {
+                fold.into_iter()
+                    .map(|accumulator| accumulator.finish().map_err(failure))
+                    .collect::<Result<Vec<_>>>()
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let outer = match self.outer {
+            None => None,
+            Some(outer) => {
+                let mut values = Vec::with_capacity(self.measured);
+                for column in 0..self.measured {
+                    let mut accumulator = Accumulator::new(if column == 0 {
+                        outer
+                    } else {
+                        Agg::Of(Aggregate::Max)
+                    });
+                    for (position, group) in groups.iter().enumerate() {
+                        accumulator
+                            .push(position as u64, &group[column])
+                            .map_err(failure)?;
+                    }
+                    values.push(accumulator.finish().map_err(failure)?);
+                }
+                Some(values)
+            }
         };
-        let mut check = || Ok(());
-        ready(collect(frame, &mut source, &explain, page, &mut check))
-            .ok_or_else(|| failure("bounded frame evaluation did not complete"))?
-            .map_err(harmos_failure)
+        Ok(Collected { groups, outer })
     }
 
     fn output(&self, collected: &Collected) -> Result<Output> {
-        let output = collected
-            .outputs
-            .first()
-            .ok_or_else(|| failure("bounded frame produced no output"))?;
         let values = match self.cases {
-            Some(_) => output
+            Some(_) => collected
                 .outer
                 .as_deref()
-                .ok_or_else(|| failure("bounded frame produced no outer fold"))?,
-            None => {
-                &output
-                    .groups
-                    .first()
-                    .ok_or_else(|| failure("bounded frame produced no group"))?
-                    .values
-            }
+                .ok_or_else(|| failure("document fold produced no outer value"))?,
+            None => collected
+                .groups
+                .first()
+                .ok_or_else(|| failure("document fold produced no group"))?,
         };
         let first = values.first().cloned().unwrap_or(ScalarValue::Missing);
         if matches!(first, ScalarValue::Missing) {
@@ -685,99 +662,6 @@ impl Numeric {
     }
 }
 
-impl ScanSource for Source {
-    fn page(
-        &mut self,
-        scan: usize,
-        order: &ScanOrder,
-        cursor: Option<&ScanCursor>,
-        limits: ReadLimits,
-    ) -> impl Future<Output = harmos::Result<ScanPage>> + Send {
-        std::future::ready(self.page_now(scan, order, cursor, limits))
-    }
-}
-
-impl Source {
-    fn page_now(
-        &mut self,
-        scan: usize,
-        order: &ScanOrder,
-        cursor: Option<&ScanCursor>,
-        limits: ReadLimits,
-    ) -> harmos::Result<ScanPage> {
-        let offset = match cursor {
-            None => 0,
-            Some(cursor) => {
-                u64::from_le_bytes(cursor.token.as_slice().try_into().map_err(|_| {
-                    harmos::Error::InvalidInput {
-                        field: "document frame",
-                        reason: "foreign continuation",
-                    }
-                })?) as usize
-            }
-        };
-        let rows = match order {
-            ScanOrder::Capture => self.scans.get(scan).ok_or(harmos::Error::InvalidInput {
-                field: "document frame",
-                reason: "scan out of range",
-            })?,
-            ScanOrder::Keyed { .. } => {
-                let at = match self
-                    .sorted
-                    .iter()
-                    .position(|(sorted, keyed, _)| *sorted == scan && keyed == order)
-                {
-                    Some(at) => at,
-                    None => {
-                        let mut rows = self.scans.get(scan).cloned().unwrap_or_default();
-                        let mut failure = None;
-                        rows.sort_by(|a, b| {
-                            order.compare(a, b).unwrap_or_else(|error| {
-                                failure.get_or_insert(error);
-                                std::cmp::Ordering::Equal
-                            })
-                        });
-                        if let Some(error) = failure {
-                            return Err(error);
-                        }
-                        self.sorted.push((scan, order.clone(), rows));
-                        self.sorted.len() - 1
-                    }
-                };
-                &self.sorted[at].2
-            }
-        };
-        let mut page = Vec::new();
-        let mut bytes = TOKEN_BYTES;
-        let mut more = false;
-        for row in rows.iter().skip(offset) {
-            let text = row
-                .values
-                .iter()
-                .map(|value| match value {
-                    ScalarValue::Text(text) => text.capacity(),
-                    _ => 0,
-                })
-                .sum::<usize>();
-            if page.len() == limits.rows.get() || bytes.saturating_add(text) > limits.bytes.get() {
-                more = true;
-                break;
-            }
-            bytes += text;
-            page.push(row.clone());
-        }
-        if page.is_empty() && more {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "document frame row text",
-            });
-        }
-        let next = more.then(|| ScanCursor {
-            token: ((offset + page.len()) as u64).to_le_bytes().to_vec(),
-        });
-        Ok(ScanPage { rows: page, next })
-    }
-}
-
 struct Selected<'a> {
     ordinal: usize,
     value: Option<Cow<'a, Value>>,
@@ -821,12 +705,62 @@ impl<'a> Keys<'a> {
     }
 }
 
-pub(crate) struct Lookup {
-    frame: Frame,
+// As-Of Correlation: Right Rows Grouped By (Execution, Attempt) Keys; A Left
+// Row Takes The Latest Eligible Right Row Before It In Time Or Capture Order.
+struct Correlation {
+    rows: Vec<Projected>,
+    keys: usize,
     strategy: Strategy,
-    order: ScanOrder,
-    right: Vec<ProjectedRow>,
-    text: usize,
+}
+
+impl Correlation {
+    fn new(mut rows: Vec<Projected>, keys: usize, strategy: Strategy) -> Self {
+        // Backward Matches Need A Present Value; Previous Matches Any Keyed Row.
+        rows.retain(|row| {
+            matches!(row.values[keys + 2], ScalarValue::Datetime(_))
+                && !(strategy == Strategy::AtOrBefore
+                    && matches!(row.values[0], ScalarValue::Missing))
+        });
+        rows.sort_by(|left, right| order(left, right, keys, strategy));
+        Self {
+            rows,
+            keys,
+            strategy,
+        }
+    }
+
+    // The Last Right Row Not After The Probe Among Rows With Equal Keys.
+    fn find(&self, probe: &[ScalarValue], capture: u64) -> Option<&Projected> {
+        let ScalarValue::Datetime(time) = probe[2] else {
+            return None;
+        };
+        let keys = self.keys;
+        let precedes = |row: &Projected| {
+            match text(&row.values[keys]).cmp(text(&probe[0])) {
+                Ordering::Equal => {}
+                order => return order.is_lt(),
+            }
+            match text(&row.values[keys + 1]).cmp(text(&probe[1])) {
+                Ordering::Equal => {}
+                order => return order.is_lt(),
+            }
+            match self.strategy {
+                Strategy::AtOrBefore => {
+                    matches!(row.values[keys + 2], ScalarValue::Datetime(at) if at <= time)
+                }
+                Strategy::Previous => row.capture < capture,
+            }
+        };
+        let end = self.rows.partition_point(precedes);
+        let candidate = self.rows[..end].last()?;
+        (text(&candidate.values[keys]) == text(&probe[0])
+            && text(&candidate.values[keys + 1]) == text(&probe[1]))
+        .then_some(candidate)
+    }
+}
+
+pub(crate) struct Lookup {
+    correlation: Correlation,
 }
 
 pub(crate) struct Side<'a> {
@@ -844,7 +778,6 @@ pub(crate) enum Strategy {
 
 impl Lookup {
     pub(crate) fn new<'a>(right: impl IntoIterator<Item = Side<'a>>, strategy: Strategy) -> Self {
-        let mut text = 0usize;
         let rows = right
             .into_iter()
             .map(|side| {
@@ -853,61 +786,15 @@ impl Lookup {
                 } else {
                     ScalarValue::Missing
                 }];
-                values.extend(keys(&side, &mut text));
-                ProjectedRow {
-                    capture_order: side.ordinal as u64,
+                values.extend(keys(&side));
+                Projected {
+                    capture: side.ordinal as u64,
                     values,
                 }
             })
             .collect::<Vec<_>>();
-        // Left Probes Carry Their Index First So One Frame Answers A Batch.
-        let columns = [
-            Column::Value,
-            Column::Execution,
-            Column::Attempt,
-            Column::Time,
-        ];
-        let mut frame = Frame::new(
-            NonZeroUsize::new(rows.len().max(1)).unwrap(),
-            NonZeroUsize::MIN,
-        );
-        let left = frame.scan(
-            scan_selection(),
-            fields(&columns, Kind::Ordinal).expect("static lookup fields"),
-        );
-        let right_scan = frame.scan(
-            scan_selection(),
-            fields(&columns, Kind::Ordinal).expect("static lookup fields"),
-        );
-        let join = frame.join_asof(AsOf {
-            left,
-            right: right_scan,
-            by: vec![(1, 1), (2, 2)],
-            on: (3, 3),
-            strategy: match strategy {
-                Strategy::AtOrBefore => AsOfStrategy::Backward { present: 0 },
-                Strategy::Previous => AsOfStrategy::Previous,
-            },
-            right_filter: Vec::new(),
-        });
-        frame.group_by(
-            GroupBy::new(left)
-                .keys(vec![0])
-                .agg(Expr::AsOf { join, col: 0 }, Agg::Last),
-        );
-        let order = ScanOrder::Keyed {
-            by: vec![1, 2],
-            time: (strategy == Strategy::AtOrBefore).then_some(3),
-        };
-        let mut right = rows;
-        // Keys And Times Are Typed Per Column, So Ordering Cannot Fail.
-        right.sort_by(|a, b| order.compare(a, b).unwrap_or(std::cmp::Ordering::Equal));
         Self {
-            frame,
-            strategy,
-            order,
-            right,
-            text,
+            correlation: Correlation::new(rows, 1, strategy),
         }
     }
 
@@ -916,65 +803,21 @@ impl Lookup {
     }
 
     pub(crate) fn find_many(&self, probes: &[Side<'_>]) -> Vec<Option<usize>> {
-        let mut found = vec![None; probes.len()];
-        for (chunk, probes) in probes.chunks(4096).enumerate() {
-            let base = chunk * 4096;
-            if let Err(error) = self.find_chunk(base, probes, &mut found) {
-                tracing::warn!(%error, "plot correlation frame was refused");
-            }
-        }
-        found
-    }
-
-    fn find_chunk(
-        &self,
-        base: usize,
-        probes: &[Side<'_>],
-        found: &mut [Option<usize>],
-    ) -> Result<()> {
-        let mut text = self.text;
-        let left = probes
+        probes
             .iter()
             .enumerate()
             .map(|(index, probe)| {
-                let mut values = vec![ScalarValue::Unsigned((base + index) as u64)];
-                values.extend(keys(probe, &mut text));
-                ProjectedRow {
-                    // Previous Pairs By Capture Order; Sample Probes Only By Time.
-                    capture_order: match self.strategy {
-                        Strategy::Previous => probe.ordinal as u64,
-                        Strategy::AtOrBefore => (base + index) as u64,
-                    },
-                    values,
+                // Previous Pairs By Capture Order; Sample Probes Only By Time.
+                let capture = match self.correlation.strategy {
+                    Strategy::Previous => probe.ordinal as u64,
+                    Strategy::AtOrBefore => index as u64,
+                };
+                match self.correlation.find(&keys(probe), capture)?.values[0] {
+                    ScalarValue::Unsigned(ordinal) => Some(ordinal as usize),
+                    _ => None,
                 }
             })
-            .collect::<Vec<_>>();
-        let mut frame = self.frame.clone();
-        frame.max_rows = NonZeroUsize::new(self.right.len().max(left.len()).max(1)).unwrap();
-        frame.max_groups = NonZeroUsize::new(left.len().max(1)).unwrap();
-        let page = page(self.right.len().max(left.len()), text);
-        let explain = frame.explain(page).map_err(harmos_failure)?;
-        let mut source = Source {
-            scans: vec![left, Vec::new()],
-            sorted: vec![(1, self.order.clone(), self.right.clone())],
-        };
-        let mut check = || Ok(());
-        let collected = ready(collect(&frame, &mut source, &explain, page, &mut check))
-            .ok_or_else(|| failure("bounded frame evaluation did not complete"))?
-            .map_err(harmos_failure)?;
-        let output = collected
-            .outputs
-            .first()
-            .ok_or_else(|| failure("bounded frame produced no output"))?;
-        for group in &output.groups {
-            if let (Some(ScalarValue::Unsigned(probe)), Some(ScalarValue::Unsigned(right))) =
-                (group.key.first(), group.values.first())
-                && let Some(slot) = found.get_mut(*probe as usize)
-            {
-                *slot = Some(*right as usize);
-            }
-        }
-        Ok(())
+            .collect()
     }
 }
 
@@ -999,45 +842,46 @@ fn flag(agg: Agg) -> Agg {
     }
 }
 
-fn scan_selection() -> ReadSelection {
-    ReadSelection::new(ReadKind::Records)
-}
-
-fn fields(columns: &[Column], kind: Kind) -> Result<Vec<ScalarField>> {
-    columns
-        .iter()
-        .map(|column| {
-            let (name, kind) = match column {
-                Column::Value => (
-                    "value",
-                    match kind {
-                        Kind::Numeric => ScalarKind::Exact,
-                        Kind::Presence => ScalarKind::Bool,
-                        Kind::Ordinal | Kind::Occurrence => ScalarKind::Unsigned,
-                    },
-                ),
-                Column::Signed => ("signed", ScalarKind::Bool),
-                Column::Float => ("float", ScalarKind::Bool),
-                Column::Case => ("case", ScalarKind::Unsigned),
-                Column::Execution => ("execution", ScalarKind::Text),
-                Column::Attempt => ("attempt", ScalarKind::Text),
-                Column::Time => ("time", ScalarKind::Datetime),
-            };
-            Ok(ScalarField {
-                path: ScalarPath::Payload(vec![
-                    harmos::Identifier::new(name).map_err(|_| DocumentFailure::Limit)?,
-                ]),
-                kind,
-            })
+fn order(left: &Projected, right: &Projected, keys: usize, strategy: Strategy) -> Ordering {
+    text(&left.values[keys])
+        .cmp(text(&right.values[keys]))
+        .then_with(|| text(&left.values[keys + 1]).cmp(text(&right.values[keys + 1])))
+        .then_with(|| match strategy {
+            Strategy::AtOrBefore => datetime(&left.values[keys + 2])
+                .cmp(&datetime(&right.values[keys + 2]))
+                .then(left.capture.cmp(&right.capture)),
+            Strategy::Previous => left.capture.cmp(&right.capture),
         })
-        .collect()
 }
 
-fn page(rows: usize, text: usize) -> ReadLimits {
-    ReadLimits {
-        rows: NonZeroUsize::new(rows.max(1)).unwrap(),
-        bytes: NonZeroUsize::new(text.saturating_add(TOKEN_BYTES).saturating_add(64)).unwrap(),
+fn text(value: &ScalarValue) -> &str {
+    match value {
+        ScalarValue::Text(text) => text,
+        _ => "",
     }
+}
+
+fn datetime(value: &ScalarValue) -> Option<i128> {
+    match value {
+        ScalarValue::Datetime(at) => Some(*at),
+        _ => None,
+    }
+}
+
+fn elapsed(start: &ScalarValue, end: &ScalarValue) -> Result<ScalarValue> {
+    let (ScalarValue::Datetime(start), ScalarValue::Datetime(end)) = (start, end) else {
+        return Err(failure("elapsed requires datetimes"));
+    };
+    if end < start {
+        return Ok(ScalarValue::Missing);
+    }
+    let nanos = end
+        .checked_sub(*start)
+        .ok_or_else(|| failure("elapsed time overflow"))? as u128;
+    Ok(match u64::try_from(nanos) {
+        Ok(nanos) => ScalarValue::Unsigned(nanos),
+        Err(_) => ScalarValue::Exact(ExactNumber::new(false, nanos, NonZeroU128::MIN)),
+    })
 }
 
 fn case_of(cases: &[Entry<'_>], scope: Option<&RecordScope>) -> Option<usize> {
@@ -1080,18 +924,16 @@ pub(crate) fn nanos(timestamp: &crate::core::Timestamp) -> Option<i128> {
         .map(|time| time.unix_timestamp_nanos())
 }
 
-fn keys(side: &Side<'_>, text: &mut usize) -> [ScalarValue; 3] {
+fn keys(side: &Side<'_>) -> [ScalarValue; 3] {
     let execution = side
         .scope
         .and_then(|scope| scope.test_execution_id.as_ref())
         .map_or("", |id| id.as_str());
-    *text = text.saturating_add(execution.len());
     let execution = ScalarValue::Text(execution.to_owned());
     let attempt = match side.scope.map(|scope| &scope.origin) {
         Some(EvidenceOrigin::Step { attempt_id }) => attempt_id.as_str(),
         _ => "",
     };
-    *text = text.saturating_add(attempt.len());
     [
         execution,
         ScalarValue::Text(attempt.to_owned()),
@@ -1150,22 +992,6 @@ fn seconds(value: ScalarValue) -> Result<Option<Value>> {
         )));
     }
     Ok(Some(Value::Number(float(exact) / NANOS_PER_SECOND as f64)))
-}
-
-fn ready<T>(future: impl Future<Output = T>) -> Option<T> {
-    let mut future = std::pin::pin!(future);
-    match future.as_mut().poll(&mut Task::from_waker(Waker::noop())) {
-        Poll::Ready(value) => Some(value),
-        Poll::Pending => None,
-    }
-}
-
-fn harmos_failure(error: harmos::Error) -> dokime::Error {
-    match error {
-        harmos::Error::ResourceExhausted { .. } => DocumentFailure::Limit.into(),
-        harmos::Error::InvalidInput { reason, .. } => failure(reason),
-        _ => failure("bounded frame evaluation failed"),
-    }
 }
 
 fn failure(message: &'static str) -> dokime::Error {

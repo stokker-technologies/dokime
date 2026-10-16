@@ -11,7 +11,7 @@
 /* === Re-Exports === */
 /* === Imports === */
 // Standard Library Imports
-use std::{fmt::Write, num::NonZeroUsize, sync::Arc};
+use std::{fmt::Write, sync::Arc};
 // Third Party Imports
 use harmos::{
     MemorySize, Protobuf,
@@ -110,7 +110,6 @@ impl Operation for UpdateStoragePolicy {
             .update_storage_policy(
                 request.expected_revision,
                 dokime_app::config::StoragePolicy {
-                    save_interval_ms: policy.save_interval_ms,
                     compaction_interval_ms: policy.compaction_interval_ms,
                     local_retention_ms: policy.local_retention_ms,
                 },
@@ -257,49 +256,28 @@ impl Operation for UpdateReportDefaults {
 impl Resources {
     pub(super) fn produce<T: MemorySize + Protobuf + Send + Sync + 'static>(
         &self,
-        required: usize,
         build: impl FnOnce() -> T,
     ) -> Result<Response<T>, Status> {
-        self.produce_result(required, || Ok(build()))
+        self.produce_result(|| Ok(build()))
     }
     pub(super) fn produce_result<T: MemorySize + Protobuf + Send + Sync + 'static>(
         &self,
-        required: usize,
         build: impl FnOnce() -> Result<T, Status>,
     ) -> Result<Response<T>, Status> {
-        if required > self.maximum {
-            return Err(Status::resource_exhausted(
-                "settings response exceeds configured memory budget",
-            ));
-        }
-        let bytes = NonZeroUsize::new(required)
-            .ok_or_else(|| Status::resource_exhausted("invalid settings response allowance"))?;
-        let preparation = self
-            .runtime
-            .storage()
-            .prepare_production(bytes)
-            .map_err(memory_error)?;
         let output = build()?;
         if output.encoded_len() > self.maximum {
             return Err(Status::resource_exhausted(
                 "settings response exceeds configured message budget",
             ));
         }
-        preparation
-            .finish(output)
-            .map_err(memory_error)?
-            .try_into_value()
-            .map_err(memory_error)?
-            .try_into_response()
-            .map_err(memory_error)
+        Ok(output.into())
     }
     fn policy(
         &self,
         view: dokime_app::config::StoragePolicyView,
     ) -> Result<Response<wire::StoragePolicyView>, Status> {
-        self.produce(std::mem::size_of::<wire::StoragePolicyView>(), || {
+        self.produce(|| {
             let encode = |p: dokime_app::config::StoragePolicy| wire::StoragePolicy {
-                save_interval_ms: p.save_interval_ms,
                 compaction_interval_ms: p.compaction_interval_ms,
                 local_retention_ms: p.local_retention_ms,
             };
@@ -332,7 +310,7 @@ impl Resources {
         {
             required = required.saturating_add(path_bytes(path));
         }
-        self.produce(required, || {
+        self.produce(|| {
             let path = |p: std::path::PathBuf| {
                 let mut output = String::with_capacity(path_bytes(&p));
                 let _ = write!(&mut output, "{}", p.display());
@@ -427,13 +405,5 @@ fn path_bytes(path: &std::path::Path) -> usize {
     let mut counter = Counter(0);
     let _ = write!(&mut counter, "{}", path.display());
     counter.0
-}
-fn memory_error(source: harmos::Error) -> Status {
-    let status = if matches!(source, harmos::Error::ResourceExhausted { .. }) {
-        Status::resource_exhausted("settings response admission failed")
-    } else {
-        Status::internal("settings response admission failed")
-    };
-    crate::grpc::error::detailed(status, &source.into())
 }
 /* === Tests === */

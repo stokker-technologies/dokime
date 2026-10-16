@@ -19,8 +19,7 @@ use std::collections::BTreeSet;
 use harmos::{
     DefinitionId, Identified, MemorySize,
     storage::{
-        FileReference, ObjectRetention, ObjectRevision, ObjectVersion,
-        StorageCursor, StoredObject,
+        FileReference, ObjectRetention, ObjectRevision, ObjectVersion, StorageCursor, StoredObject,
     },
 };
 

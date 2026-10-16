@@ -15,22 +15,19 @@ pub(crate) use dokime::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE as MEDIA_T
 /* === Imports === */
 
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
 
 // Third Party Imports
 
-use harmos::{MemorySize, storage::StorageCursor};
+use harmos::storage::StorageCursor;
 
 // Local Imports
 
 use super::{context::Context, records::Contracts as RecordContracts, telemetry::Contracts};
-use crate::execution::context::{ExecutionContext, source::CapturedSource};
+use crate::execution::context::source::CapturedSource;
 use crate::{Error, Result};
-use dokime::core::{Identifier, NodeId, Timestamp};
+use dokime::core::{NodeId, Timestamp};
 use dokime::execution::saved::EXECUTION_CONTEXT_SCHEMA_VERSION;
-use dokime::records::RecordContract;
 use dokime::storage::objects::presentation as native;
-use dokime::telemetry::contract::TelemetryContract;
 
 /* === Constants === */
 const SCHEMA_VERSION: u32 = EXECUTION_CONTEXT_SCHEMA_VERSION;
@@ -62,89 +59,9 @@ pub(crate) struct Source {
 
 /* === Implementations === */
 impl Source {
-    pub(crate) fn encoding_memory(value: &CapturedSource) -> Result<usize> {
-        let mut bytes = std::mem::size_of::<Self>()
-            .saturating_add(value.owner_node_id.as_str().len())
-            .saturating_add(value.validation_memory())
-            .saturating_add(value.captured_at.as_str().len());
-        bytes = bytes
-            .saturating_add(value.execution_id.as_str().len())
-            .saturating_add(value.lifecycle_id.len())
-            .saturating_add(
-                dokime::storage::objects::execution::Execution::encoding_memory(&value.lifecycle)?,
-            );
-        if let Some(anchor) = &value.execution {
-            bytes = bytes.saturating_add(native::ExecutionRevision::encoding_memory(anchor)?);
-        }
-        bytes = excess(
-            bytes,
-            value.evidence_through.memory_size(),
-            std::mem::size_of::<StorageCursor>(),
-        );
-        bytes = excess(
-            bytes,
-            Contracts::encoding_memory(&value.telemetry_contracts)?,
-            std::mem::size_of::<Contracts>(),
-        );
-        bytes = excess(
-            bytes,
-            RecordContracts::encoding_memory(&value.record_contracts)?,
-            std::mem::size_of::<RecordContracts>(),
-        );
-        Ok(excess(
-            bytes,
-            Context::encoding_memory(&value.context)?,
-            std::mem::size_of::<Context>(),
-        ))
-    }
-
-    pub(crate) fn projection_memory(&self) -> Result<usize> {
+    pub(crate) fn into_source(self) -> Result<CapturedSource> {
         if self.schema_version != SCHEMA_VERSION {
             return Err(invalid("unsupported native captured report schema"));
-        }
-        let lifecycle = required(&self.lifecycle)?;
-        let evidence = required(&self.evidence_through)?;
-        let contracts = required(&self.telemetry_contracts)?;
-        let records = required(&self.record_contracts)?;
-        let context = required(&self.context)?;
-        let mut bytes = std::mem::size_of::<CapturedSource>()
-            .saturating_add(self.owner_node_id.capacity())
-            .saturating_add(self.captured_at.capacity());
-        bytes = bytes
-            .saturating_add(self.execution_id.capacity())
-            .saturating_add(self.lifecycle_id.capacity())
-            .saturating_add(lifecycle.projection_memory()?);
-        if let Some(anchor) = &self.execution {
-            bytes = bytes.saturating_add(anchor.projection_memory()?);
-        }
-        bytes = excess(
-            bytes,
-            evidence.memory_size(),
-            std::mem::size_of::<StorageCursor>(),
-        );
-        bytes = excess(
-            bytes,
-            contracts.projection_memory()?,
-            std::mem::size_of::<BTreeMap<Identifier, BTreeMap<u32, TelemetryContract>>>(),
-        );
-        bytes = excess(
-            bytes,
-            records.projection_memory()?,
-            std::mem::size_of::<BTreeMap<Identifier, BTreeMap<u32, RecordContract>>>(),
-        );
-        Ok(excess(
-            bytes,
-            context.projection_memory()?,
-            std::mem::size_of::<ExecutionContext>(),
-        ))
-    }
-
-    pub(crate) fn into_source(self, allowance: NonZeroUsize) -> Result<CapturedSource> {
-        let bound = self.projection_memory()?;
-        if bound == usize::MAX || bound > allowance.get() {
-            return Err(invalid(
-                "native captured report exceeds original projection admission",
-            ));
         }
         if self
             .owner_node_id
@@ -176,9 +93,6 @@ impl Source {
 impl TryFrom<&CapturedSource> for Source {
     type Error = Error;
     fn try_from(value: &CapturedSource) -> Result<Self> {
-        if Self::encoding_memory(value)? == usize::MAX {
-            return Err(invalid("native captured report encoding memory overflows"));
-        }
         value.validate_header()?;
         Ok(Self {
             schema_version: SCHEMA_VERSION,
@@ -208,31 +122,11 @@ impl TryFrom<&CapturedSource> for Source {
 fn invalid(message: &str) -> Error {
     Error::InvalidReportInputs(message.into())
 }
-fn excess(bytes: usize, owned: usize, inline: usize) -> usize {
-    if owned == usize::MAX {
-        usize::MAX
-    } else {
-        bytes.saturating_add(owned.saturating_sub(inline))
-    }
-}
-fn required<T>(value: &Option<T>) -> Result<&T> {
-    value
-        .as_ref()
-        .ok_or_else(|| invalid("required native captured report field is missing"))
-}
 fn take<T>(value: Option<T>) -> Result<T> {
     value.ok_or_else(|| invalid("required native captured report field is missing"))
 }
 fn text(source: &str) -> Result<String> {
-    let mut value = String::new();
-    value
-        .try_reserve_exact(source.len())
-        .map_err(|_| invalid("captured report owner allocation failed"))?;
-    if value.capacity() > source.len() {
-        return Err(invalid("captured report owner exceeds admission"));
-    }
-    value.push_str(source);
-    Ok(value)
+    Ok(source.to_owned())
 }
 
 /* === Tests === */

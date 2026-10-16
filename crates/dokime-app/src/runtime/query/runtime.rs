@@ -214,22 +214,7 @@ impl RuntimeExecutionSummary {
 
 impl RuntimeHandle {
     pub async fn runtime_overview(&self) -> crate::Result<RuntimeOverviewSnapshot> {
-        self.overview(None).await
-    }
-
-    /// The overview the shutdown checkpoint records. Shutdown is unattended
-    /// like finalization and scans the whole store, so it reads under the
-    /// finalization budget instead of the interactive deadline.
-    pub(crate) async fn shutdown_overview(&self) -> crate::Result<RuntimeOverviewSnapshot> {
-        self.overview(Some(self.config().storage.finalization()))
-            .await
-    }
-
-    async fn overview(
-        &self,
-        budget: Option<harmos::storage::QueryLimits>,
-    ) -> crate::Result<RuntimeOverviewSnapshot> {
-        let artifact_count = self.execution_storage.artifact_count(budget).await?;
+        let artifact_count = self.execution_storage.artifact_count().await?;
         let telemetry_cursor_entries = self
             .telemetry_cursors
             .lock()

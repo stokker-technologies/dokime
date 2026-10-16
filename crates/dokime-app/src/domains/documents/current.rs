@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 
@@ -88,9 +87,6 @@ impl RuntimeHandle {
         if scopes > limits.source_bytes {
             return Err(DocumentAcquisitionFailure::Limit.into());
         }
-        let _seen = self
-            .storage()
-            .prepare_production(NonZeroUsize::new(scopes.max(1)).unwrap())?;
         let mut selection = DocumentSelection {
             scope: RecordScope::default().with_cycle(cycle_id.clone()),
         };
@@ -188,12 +184,7 @@ impl PreparedCurrentDocument {
             }
         }
         let telemetry = {
-            let context = binding_context(
-                &self.runtime,
-                &self.snapshot,
-                &self.definition,
-                &self.selection,
-            )?;
+            let context = binding_context(&self.snapshot, &self.definition, &self.selection)?;
             crate::document::binding::telemetry_needed(&self.definition, context)
         };
         artifacts |= crate::document::binding::artifacts_needed(&self.definition);
@@ -213,12 +204,8 @@ impl PreparedCurrentDocument {
             data: acquired.data,
         };
         let mut borrowed = input.borrowed();
-        borrowed.data.context = binding_context(
-            &self.runtime,
-            &self.snapshot,
-            &input.definition,
-            &input.selection,
-        )?;
+        borrowed.data.context =
+            binding_context(&self.snapshot, &input.definition, &input.selection)?;
         if let Some(id) = &input.selection.scope.test_execution_id {
             let execution = self
                 .snapshot
@@ -231,9 +218,8 @@ impl PreparedCurrentDocument {
                 scopes: execution.records.subscribed_records(),
             };
         }
-        borrowed.data.artifacts = crate::document::input::Artifacts::Native(
-            acquired.artifacts.as_deref().map_or(&[], Vec::as_slice),
-        );
+        borrowed.data.artifacts =
+            crate::document::input::Artifacts::Native(acquired.artifacts.as_deref().unwrap_or(&[]));
         let capture =
             capture_document_borrowed(borrowed, DocumentLimits::default()).map_err(|error| {
                 match error {
@@ -272,7 +258,6 @@ impl PreparedCurrentDocument {
 
 /* === Private Functions === */
 fn binding_context<'a>(
-    runtime: &RuntimeHandle,
     snapshot: &'a RuntimeStateSnapshot,
     definition: &DocumentDefinition,
     selection: &'a DocumentSelection,
@@ -307,9 +292,6 @@ fn binding_context<'a>(
     if bytes > DocumentLimits::default().source_bytes {
         return Err(DocumentAcquisitionFailure::Limit.into());
     }
-    let _seen = runtime
-        .storage()
-        .prepare_production(NonZeroUsize::new(bytes.max(1)).unwrap())?;
     Context::ordered(
         &cycle.execution_ids,
         &snapshot.state().executions,

@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 // Third Party Imports
@@ -86,12 +85,11 @@ impl Operation for Browse {
         let page = self
             .resources
             .runtime
-            .browse_executions(query, |page, allowance| {
-                project(page, allowance, self.resources.maximum)
-            })
+            .browse_executions(query)
             .await
             .map_err(super::wire::query_failure)?;
-        page.try_into_response()
+        project(&page, self.resources.maximum)
+            .map(Into::into)
             .map_err(|source| super::wire::query_failure(source.into()))
     }
 }
@@ -112,12 +110,8 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 /* === Private Functions === */
 fn project(
     page: &ExecutionBrowsePage,
-    allowance: NonZeroUsize,
     maximum: usize,
 ) -> harmos::Result<wire::ExecutionBrowsePage> {
-    if construction_memory(page) > allowance.get() {
-        return Err(exhausted());
-    }
     let projected = super::wire::browse_page(page).map_err(|source| {
         if source.code() == tonic::Code::ResourceExhausted {
             return exhausted();
@@ -137,69 +131,6 @@ fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted {
         resource: "historical response",
     }
-}
-
-fn construction_memory(page: &ExecutionBrowsePage) -> usize {
-    let slots = std::mem::size_of::<wire::ExecutionBrowsePage>()
-        .saturating_add(
-            page.entries
-                .len()
-                .saturating_mul(std::mem::size_of::<wire::ExecutionBrowseEntry>()),
-        )
-        .saturating_add(
-            page.conflicts
-                .len()
-                .saturating_mul(std::mem::size_of::<String>()),
-        )
-        .saturating_add(
-            page.issues
-                .len()
-                .saturating_mul(std::mem::size_of::<wire::HistoryIssue>()),
-        )
-        .saturating_add(
-            page.cycles
-                .len()
-                .saturating_mul(std::mem::size_of::<wire::ExecutionBrowseCycle>()),
-        );
-    let mut text = page.next.as_ref().map_or(0, |id| id.as_str().len());
-    for id in &page.conflicts {
-        text = text.saturating_add(id.as_str().len());
-    }
-    for issue in &page.issues {
-        text = text
-            .saturating_add(issue.message.len())
-            .saturating_add(issue.source.as_ref().map_or(0, String::len))
-            .saturating_add(issue.dataset.as_ref().map_or(0, String::len));
-    }
-    for cycle in &page.cycles {
-        text = text.saturating_add(cycle.cycle_id.as_str().len());
-    }
-    for entry in &page.entries {
-        let metadata = &entry.metadata;
-        for length in [
-            metadata.execution_id.as_str().len(),
-            metadata.cycle_id.as_str().len(),
-            metadata.case_id.as_str().len(),
-            metadata.title.len(),
-            metadata.template_id.as_ref().map_or(0, String::len),
-            metadata.suite_label.as_ref().map_or(0, String::len),
-        ] {
-            text = text.saturating_add(length);
-        }
-        if let Some(checkpoint) = &entry.checkpoint {
-            text = text
-                .saturating_add(checkpoint.execution_id.as_str().len())
-                .saturating_add(harmos::Message::encoded_len(&checkpoint.version));
-            for cursor in [&checkpoint.position, &checkpoint.evidence_through] {
-                text = text
-                    .saturating_add(cursor.history.store.as_str().len())
-                    .saturating_add(cursor.history.epoch.as_str().len());
-            }
-        }
-    }
-    // Optional Canonical Messages Are Inline In Each Entry Slot. Timestamp And
-    // Result Conversion Own No Heap Fields; All Copied Text Uses Exact Capacity.
-    slots.saturating_add(text)
 }
 
 fn execution_filter(filter: Option<wire::ExecutionFilter>) -> Result<ExecutionFilter, Status> {
