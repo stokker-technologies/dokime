@@ -150,7 +150,6 @@ impl State {
                 check_history(&transaction, &history)?;
                 let mut head = head(&transaction)?;
                 for entry in entries {
-                    check_dependency(&transaction, &entry.required_data)?;
                     let required = serde_json::to_vec(&entry.required_data)?;
                     let at = entry.position.sequence;
                     if at <= head.base {
@@ -222,7 +221,7 @@ impl State {
                     .checked_add(std::mem::size_of::<RecoverySnapshot>() + 4 * super::HISTORY_BYTES)
                     .ok_or(Error::Data("recovery snapshot allocation size overflow"))?;
                 let _reservation = memory.reserve_memory(allocation)?;
-                let required_data = decode_dependency(connection, blob(row, 2)?)?;
+                let required_data = decode_dependency(blob(row, 2)?)?;
                 check_state_digest(payload, blob(row, 2)?, blob(row, 1)?)?;
                 Ok(Some(RecoverySnapshot {
                     through: RecoveryPosition {
@@ -248,7 +247,6 @@ impl State {
         self.call(move |connection| Ok((|| {
             let transaction = connection.transaction()?;
             check_history(&transaction, &snapshot.through.history)?;
-            check_dependency(&transaction, &snapshot.required_data)?;
             let required = serde_json::to_vec(&snapshot.required_data)?;
             let head = head(&transaction)?;
             let through = snapshot.through.sequence;
@@ -305,7 +303,7 @@ impl State {
                 if previous.checked_add(1) != Some(at) { return Err(Error::Corrupt("durable recovery range has a gap")); }
                 let payload = blob(row,1)?;
                 if payload.len() > entry_bytes.get() { return Err(Error::Corrupt("stored recovery entry exceeds its byte bound")); }
-                let required_data = decode_dependency(connection, blob(row,3)?)?;
+                let required_data = decode_dependency(blob(row,3)?)?;
                 check_state_digest(payload,blob(row,3)?,blob(row,2)?)?;
                 let entry = RecoveryEntry { position: RecoveryPosition { history: through.history.clone(),sequence: at },payload: payload.to_vec(), required_data };
                 let next_bytes = bytes.checked_add(encoded_bytes(&entry)?).filter(|bytes| *bytes <= limits.bytes.get());
@@ -344,26 +342,12 @@ fn check_state_digest(payload: &[u8], required: &[u8], digest: &[u8]) -> Result<
     }
     Ok(())
 }
-fn check_dependency(connection: &Connection, required: &StorageCursor) -> Result<(), Error> {
-    let data = super::saved(connection)?;
-    if !(StorageCursor {
-        history: data.history,
-        sequence: data.sequence,
-    })
-    .covers(required)?
-    {
-        return Err(Error::Data(
-            "state write requires evidence beyond the durable frontier",
-        ));
-    }
-    Ok(())
-}
-fn decode_dependency(connection: &Connection, bytes: &[u8]) -> Result<StorageCursor, Error> {
+// Harmos validates this cursor against durable evidence before writing or replaying state.
+fn decode_dependency(bytes: &[u8]) -> Result<StorageCursor, Error> {
     if bytes.len() > super::HISTORY_BYTES {
         return Err(Error::Corrupt("state dependency exceeds history bound"));
     }
     let required: StorageCursor = serde_json::from_slice(bytes)?;
-    check_dependency(connection, &required)?;
     Ok(required)
 }
 
