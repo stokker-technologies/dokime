@@ -54,6 +54,23 @@ type BackendDecorator = Box<
 pub(crate) type InstalledPlugins = BTreeMap<String, InstalledPlugin>;
 
 /* === Structs === */
+// The Opened Owners A Boot Hands To Handle Assembly.
+struct BootParts {
+    config: RuntimeConfig,
+    installed_plugins: InstalledPlugins,
+    storage: dokime::storage::Manager,
+    local_state: dokime::storage::sqlite::State,
+    storage_policy: Arc<crate::config::policy::PolicyStore>,
+    record_source: Arc<crate::runtime::storage::record_capture::Source>,
+    resources: crate::app::Resources,
+    node_identity: dokime::core::DokimeNodeIdentity,
+    application_settings: crate::config::Settings,
+    plugin_preferences: PluginPreferences,
+    credentials: CredentialStore,
+    sampling: Sampling,
+    providers: ProviderExecutorRegistry,
+    boot_started: std::time::Instant,
+}
 struct BootRuntime(Option<HarmosRuntime>);
 
 pub(crate) struct HostTraceabilityIndex {
@@ -225,34 +242,7 @@ impl RuntimeHandle {
         #[cfg(test)] decorate: Option<BackendDecorator>,
     ) -> Result<(HarmosRuntime, Self)> {
         let boot_started = std::time::Instant::now();
-        if config.compaction_interval.is_zero()
-            || boot_started
-                .checked_add(config.compaction_interval)
-                .is_none()
-        {
-            return Err(Error::Operation(
-                "compaction interval must be positive and representable".into(),
-            ));
-        }
-        let mut installed_plugins = BTreeMap::new();
-        if config.local_retention.is_some_and(|duration| {
-            duration.is_zero() || i64::try_from(duration.as_micros()).is_err()
-        }) {
-            return Err(Error::Operation(
-                "local retention must be positive and fit the timestamp range".into(),
-            ));
-        }
-        for plugin in &config.installed_plugins {
-            if installed_plugins
-                .insert(plugin.source.clone(), plugin.clone())
-                .is_some()
-            {
-                return Err(Error::Operation(format!(
-                    "installed plugin `{}` is duplicated",
-                    plugin.source
-                )));
-            }
-        }
+        let installed_plugins = check_boot_config(&config, boot_started)?;
         config.storage.validate()?;
         dokime_filesystem::publication::create_dir_all(&config.storage_root)?;
         let backend =
@@ -343,163 +333,23 @@ impl RuntimeHandle {
         };
         let mut boot = BootRuntime(Some(harmos_runtime));
         let harmos_runtime = boot.0.as_ref().expect("boot owns the runtime");
-        let initialized = async {
-            harmos::storage::operations::Operations::register(
-                &harmos_runtime.operations,
-                "dokime.storage",
-                crate::app::Lanes::Open,
-                Arc::new(storage.clone()),
-            )?;
-            crate::operations::provider::register(&harmos_runtime.operations)?;
-            let execution_sessions = Arc::new(crate::domains::execution::run::Sessions::default());
-            crate::domains::execution::run::host::register(
-                &harmos_runtime.operations,
-                &execution_sessions,
-            )?;
-            crate::plot::builtins::register(&harmos_runtime.operations)?;
-            let step_builtins = crate::domains::files::register(&harmos_runtime.operations)?;
-            let publication_core =
-                super::sidecars::core::Publications::register(&harmos_runtime.operations)?;
-            let record_ingress =
-                super::sidecars::core::RecordIngress::register(&harmos_runtime.operations)?;
-
-            let initial = harmos_runtime
-                .state
-                .state()
-                .read(Clone::clone)
-                .await
-                .map_err(|error| {
-                    Error::Operation(format!("failed to read initial Harmos state: {error}"))
-                })?;
-            let initial_revision = initial.position.0;
-            let initial_state = initial.value;
-            tracing::info!(
-                phase = "storage",
-                initial_revision,
-                elapsed_ms = boot_started.elapsed().as_millis() as u64,
-                "runtime boot complete"
-            );
-
-            let initial_snapshot = crate::queries::RuntimeStateSnapshot::new(
-                Arc::new(initial_state.clone()),
-                initial_revision,
-            );
-            let (state_watch, _) = tokio::sync::watch::channel(initial_snapshot);
-            let brand = Arc::new(RwLock::new(None));
-            let process_id = SessionId::new();
-            let requests_started = std::time::Instant::now();
-            let request_storage = crate::runtime::storage::requests::RequestStorage::new(
-                storage.clone(),
-                node_identity.node_id.clone(),
-            );
-            request_storage
-                .recover(|id| {
-                    initial_state
-                        .run_requests
-                        .get(id)
-                        .map(|request| &request.summary)
-                        .filter(|summary| {
-                            summary.phase.terminal()
-                                && summary.phase
-                                    != dokime::execution::request::RunPhase::Interrupted
-                        })
-                })
-                .await?;
-            let request_storage = Arc::new(request_storage);
-            tracing::info!(
-                phase = "requests",
-                elapsed_ms = requests_started.elapsed().as_millis() as u64,
-                "request receipt recovery complete"
-            );
-            let execution_storage = Arc::new(
-                crate::runtime::storage::executions::ExecutionStorage::new(
-                    storage.clone(),
-                    harmos_runtime.state.clone(),
-                    process_id,
-                    brand.clone(),
-                )
-                .await?,
-            );
-            let runtime = Self {
-                local_storage: local_state.clone(),
-                storage_policy,
-                request_storage,
-                storage: storage.clone(),
-                execution_storage,
-                plugin_boot: Arc::new(RwLock::new(BTreeMap::new())),
-                state_manager: harmos_runtime.state.clone(),
-                record_source,
-                streams: harmos_runtime.streams.clone(),
-                operations: harmos_runtime.operations.clone(),
-                grpc: harmos_runtime.grpc().clone(),
-                publication_core,
-                record_ingress,
-                execution_sessions,
-                sampling: Arc::new(sampling),
-                evidence_admission: Default::default(),
-                telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),
-                telemetry_cursors: Arc::new(Mutex::new(BTreeMap::new())),
-                host_traceability: Arc::new(Mutex::new(HostTraceabilityIndex {
-                    generation: 0,
-                    samples: BTreeMap::new(),
-                })),
-                stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::default()),
-                host_telemetry_source: Arc::new(RwLock::new(None)),
-                providers: Arc::new(providers),
-                progress: Arc::new(crate::domains::execution::progress::ProgressRegistry::new()),
-                operation_progress: crate::runtime::progress::OperationRegistry::new(),
-                native_executions: Default::default(),
-                record_demands: Default::default(),
-                publication_ingest: Default::default(),
-                shutdown_requested: tokio::sync::watch::channel(false).0,
-                provider_tasks: Default::default(),
-                provider_completion_failure: Default::default(),
-                owned_work: Default::default(),
-                plugin_admission: Default::default(),
-                unavailable_plugins: resources.analysis.unavailable.clone(),
-                state: Arc::new(RwLock::new(Arc::new(initial_state))),
-                state_watch,
-                action_dispatchers: resources.analysis.dispatchers.clone(),
-                routing: Arc::new(std::sync::OnceLock::new()),
-                config: Arc::new(config.clone()),
-                settings: application_settings,
-                plugin_preferences: Arc::new(plugin_preferences),
-                credentials: Arc::new(credentials),
-                brand,
-            };
-
-            runtime
-                .commit_keyed(
-                    harmos::state::RequestKey::new("dokime.node.identity.v2"),
-                    crate::transactions::EstablishNodeIdentity {
-                        candidate: node_identity,
-                    },
-                )
-                .await
-                .map_err(|error| {
-                    Error::Operation(format!("failed to establish node identity: {error}"))
-                })?;
-
-            step_builtins.bind(&runtime);
-            for plugin in installed_plugins.into_values() {
-                if runtime.state_read().host_plugin_current(&plugin) {
-                    continue;
-                }
-                runtime
-                    .commit(crate::transactions::InstallHostPlugin {
-                        installation: plugin,
-                    })
-                    .await
-                    .map_err(|error| Error::Operation(error.to_string()))?;
-            }
-            let contracts = runtime.state_read().telemetry_contracts();
-            crate::runtime::storage::telemetry::register_schemas(runtime.storage(), &contracts)
-                .await?;
-            crate::operations::runtime::register(&runtime)?;
-            crate::operations::reports::register(&runtime)?;
-            Ok::<_, Error>(runtime)
-        }
-        .await;
+        let parts = BootParts {
+            config,
+            installed_plugins,
+            storage: storage.clone(),
+            local_state: local_state.clone(),
+            storage_policy,
+            record_source,
+            resources,
+            node_identity,
+            application_settings,
+            plugin_preferences,
+            credentials,
+            sampling,
+            providers,
+            boot_started,
+        };
+        let initialized = Self::initialize(harmos_runtime, parts).await;
         match initialized {
             Ok(runtime) => Ok((boot.0.take().expect("boot owns the runtime"), runtime)),
             Err(source) => {
@@ -530,6 +380,187 @@ impl RuntimeHandle {
                 }
             }
         }
+    }
+
+    // Register Operations, Recover Receipts And Assemble The Booted Handle.
+    async fn initialize(harmos_runtime: &HarmosRuntime, parts: BootParts) -> Result<Self> {
+        let BootParts {
+            config,
+            installed_plugins,
+            storage,
+            local_state,
+            storage_policy,
+            record_source,
+            resources,
+            node_identity,
+            application_settings,
+            plugin_preferences,
+            credentials,
+            sampling,
+            providers,
+            boot_started,
+        } = parts;
+        harmos::storage::operations::Operations::register(
+            &harmos_runtime.operations,
+            "dokime.storage",
+            crate::app::Lanes::Open,
+            Arc::new(storage.clone()),
+        )?;
+        crate::operations::provider::register(&harmos_runtime.operations)?;
+        let execution_sessions = Arc::new(crate::domains::execution::run::Sessions::default());
+        crate::domains::execution::run::host::register(
+            &harmos_runtime.operations,
+            &execution_sessions,
+        )?;
+        crate::plot::builtins::register(&harmos_runtime.operations)?;
+        let step_builtins = crate::domains::files::register(&harmos_runtime.operations)?;
+        let publication_core =
+            super::sidecars::core::Publications::register(&harmos_runtime.operations)?;
+        let record_ingress =
+            super::sidecars::core::RecordIngress::register(&harmos_runtime.operations)?;
+
+        let initial = harmos_runtime
+            .state
+            .state()
+            .read(Clone::clone)
+            .await
+            .map_err(|error| {
+                Error::Operation(format!("failed to read initial Harmos state: {error}"))
+            })?;
+        let initial_revision = initial.position.0;
+        let initial_state = initial.value;
+        tracing::info!(
+            phase = "storage",
+            initial_revision,
+            elapsed_ms = boot_started.elapsed().as_millis() as u64,
+            "runtime boot complete"
+        );
+
+        let initial_snapshot = crate::queries::RuntimeStateSnapshot::new(
+            Arc::new(initial_state.clone()),
+            initial_revision,
+        );
+        let (state_watch, _) = tokio::sync::watch::channel(initial_snapshot);
+        let brand = Arc::new(RwLock::new(None));
+        let process_id = SessionId::new();
+        let requests_started = std::time::Instant::now();
+        let request_storage = crate::runtime::storage::requests::RequestStorage::new(
+            storage.clone(),
+            node_identity.node_id.clone(),
+        );
+        request_storage
+            .recover(|id| {
+                initial_state
+                    .run_requests
+                    .get(id)
+                    .map(|request| &request.summary)
+                    .filter(|summary| {
+                        summary.phase.terminal()
+                            && summary.phase != dokime::execution::request::RunPhase::Interrupted
+                    })
+            })
+            .await?;
+        let request_storage = Arc::new(request_storage);
+        tracing::info!(
+            phase = "requests",
+            elapsed_ms = requests_started.elapsed().as_millis() as u64,
+            "request receipt recovery complete"
+        );
+        let execution_storage = Arc::new(
+            crate::runtime::storage::executions::ExecutionStorage::new(
+                storage.clone(),
+                harmos_runtime.state.clone(),
+                process_id,
+                brand.clone(),
+            )
+            .await?,
+        );
+        let runtime = Self {
+            local_storage: local_state.clone(),
+            storage_policy,
+            request_storage,
+            storage: storage.clone(),
+            execution_storage,
+            plugin_boot: Arc::new(RwLock::new(BTreeMap::new())),
+            state_manager: harmos_runtime.state.clone(),
+            record_source,
+            streams: harmos_runtime.streams.clone(),
+            operations: harmos_runtime.operations.clone(),
+            grpc: harmos_runtime.grpc().clone(),
+            publication_core,
+            record_ingress,
+            execution_sessions,
+            sampling: Arc::new(sampling),
+            evidence_admission: Default::default(),
+            telemetry_admission: Arc::new(tokio::sync::Mutex::new(())),
+            telemetry_cursors: Arc::new(Mutex::new(BTreeMap::new())),
+            host_traceability: Arc::new(Mutex::new(HostTraceabilityIndex {
+                generation: 0,
+                samples: BTreeMap::new(),
+            })),
+            stream_leases: Arc::new(crate::telemetry_runtime::StreamLeases::default()),
+            host_telemetry_source: Arc::new(RwLock::new(None)),
+            providers: Arc::new(providers),
+            progress: Arc::new(crate::domains::execution::progress::ProgressRegistry::new()),
+            operation_progress: crate::runtime::progress::OperationRegistry::new(),
+            native_executions: Default::default(),
+            record_demands: Default::default(),
+            publication_ingest: Default::default(),
+            shutdown_requested: tokio::sync::watch::channel(false).0,
+            provider_tasks: Default::default(),
+            provider_completion_failure: Default::default(),
+            owned_work: Default::default(),
+            plugin_admission: Default::default(),
+            unavailable_plugins: resources.analysis.unavailable.clone(),
+            state: Arc::new(RwLock::new(Arc::new(initial_state))),
+            state_watch,
+            action_dispatchers: resources.analysis.dispatchers.clone(),
+            routing: Arc::new(std::sync::OnceLock::new()),
+            config: Arc::new(config.clone()),
+            settings: application_settings,
+            plugin_preferences: Arc::new(plugin_preferences),
+            credentials: Arc::new(credentials),
+            brand,
+        };
+
+        runtime
+            .settle_boot(node_identity, installed_plugins, &step_builtins)
+            .await?;
+        Ok(runtime)
+    }
+
+    // Establish Identity, Install Host Plugins And Register Late Operations.
+    async fn settle_boot(
+        &self,
+        node_identity: dokime::core::DokimeNodeIdentity,
+        installed_plugins: InstalledPlugins,
+        step_builtins: &crate::domains::files::StepBuiltins,
+    ) -> Result<()> {
+        self.commit_keyed(
+            harmos::state::RequestKey::new("dokime.node.identity.v2"),
+            crate::transactions::EstablishNodeIdentity {
+                candidate: node_identity,
+            },
+        )
+        .await
+        .map_err(|error| Error::Operation(format!("failed to establish node identity: {error}")))?;
+
+        step_builtins.bind(self);
+        for plugin in installed_plugins.into_values() {
+            if self.state_read().host_plugin_current(&plugin) {
+                continue;
+            }
+            self.commit(crate::transactions::InstallHostPlugin {
+                installation: plugin,
+            })
+            .await
+            .map_err(|error| Error::Operation(error.to_string()))?;
+        }
+        let contracts = self.state_read().telemetry_contracts();
+        crate::runtime::storage::telemetry::register_schemas(self.storage(), &contracts).await?;
+        crate::operations::runtime::register(self)?;
+        crate::operations::reports::register(self)?;
+        Ok(())
     }
 
     pub(crate) fn installed_plugins(&self) -> Arc<InstalledPlugins> {
@@ -645,5 +676,40 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn check_boot_config(
+    config: &RuntimeConfig,
+    boot_started: std::time::Instant,
+) -> Result<InstalledPlugins> {
+    if config.compaction_interval.is_zero()
+        || boot_started
+            .checked_add(config.compaction_interval)
+            .is_none()
+    {
+        return Err(Error::Operation(
+            "compaction interval must be positive and representable".into(),
+        ));
+    }
+    let mut installed_plugins = BTreeMap::new();
+    if config
+        .local_retention
+        .is_some_and(|duration| duration.is_zero() || i64::try_from(duration.as_micros()).is_err())
+    {
+        return Err(Error::Operation(
+            "local retention must be positive and fit the timestamp range".into(),
+        ));
+    }
+    for plugin in &config.installed_plugins {
+        if installed_plugins
+            .insert(plugin.source.clone(), plugin.clone())
+            .is_some()
+        {
+            return Err(Error::Operation(format!(
+                "installed plugin `{}` is duplicated",
+                plugin.source
+            )));
+        }
+    }
+    Ok(installed_plugins)
+}
 
 /* === Tests === */

@@ -299,11 +299,7 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         commit_settled_prompts(state, settled);
 
         for request in state.run_requests.values_mut() {
-            if request.summary.phase.terminal()
-                || state
-                    .cycle_report_finalizations
-                    .contains_key(&request.summary.cycle_id)
-            {
+            if request.summary.phase.terminal() {
                 continue;
             }
 
@@ -319,12 +315,10 @@ impl Transaction<RuntimeState> for RecoverInterruptedCycles {
         // Sealed Cycles Are Served From Native History After A Restart
         state.retire_sealed_cycles();
         for (id, cycle) in &mut state.cycles {
-            // All Children Were Sealed Before This Intent Became Durable.
-            // Restart Must Resume Publication Without Changing Its Outcome.
-            if state.cycle_report_finalizations.contains_key(id) {
-                continue;
-            }
-            let mut changed = matches!(
+            // An Unsealed Cycle Report Is Not Resumed: The Cycle Stops, And A
+            // Later Stop Or Close Reports From Its Persisted Members.
+            let mut changed = state.cycle_report_finalizations.remove(id).is_some();
+            changed |= matches!(
                 cycle.lifecycle,
                 CycleStatus::Ready
                     | CycleStatus::Running

@@ -116,11 +116,7 @@ enum Output {
 
 /* === Implementations === */
 impl Plan {
-    pub(super) fn compile(
-        expression: &DataExpression,
-        _rows: usize,
-        cases: Option<usize>,
-    ) -> Result<Self> {
+    pub(super) fn compile(expression: &DataExpression, cases: Option<usize>) -> Result<Self> {
         let transforms = &expression.transforms;
         let split = transforms
             .iter()

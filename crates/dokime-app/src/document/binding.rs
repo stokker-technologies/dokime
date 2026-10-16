@@ -491,11 +491,7 @@ pub(super) fn evaluate(
     } else {
         Vec::new()
     };
-    let plan = Plan::compile(
-        expression,
-        evidence.upper_rows(),
-        per_case.then_some(cases.len()),
-    )?;
+    let plan = Plan::compile(expression, per_case.then_some(cases.len()))?;
     plan.evaluate(expression, evidence, &cases, selected)
 }
 
@@ -505,7 +501,7 @@ fn plan(expression: &DataExpression, rows: usize) -> Result<Plan> {
         .transforms
         .contains(&DataTransform::PerCase)
         .then_some(rows.clamp(1, 4096));
-    Plan::compile(expression, rows, cases)
+    Plan::compile(expression, cases)
 }
 
 fn correlate<'a>(
@@ -518,7 +514,7 @@ fn correlate<'a>(
         source: expression.source.clone(),
         transforms: expression.transforms.first().cloned().into_iter().collect(),
     };
-    let plan = Plan::compile(&selector, evidence.upper_rows(), None).ok()?;
+    let plan = Plan::compile(&selector, None).ok()?;
     plan.correlate(record, &selector, evidence).ok().flatten()
 }
 

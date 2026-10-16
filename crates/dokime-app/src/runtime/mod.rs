@@ -285,10 +285,6 @@ impl Runtime {
             // Cancellation Must Settle Even If Native Shutdown Admission Failed.
             shutdown_admission?;
 
-            // Reports Need Live Operation Admission And Plugin Renderers.
-            // Failure Leaves Preparation Open So Shutdown Retry Uses The Same Inputs.
-            self.handle.retry_pending_reports().await?;
-
             if let Some(manager) = &mut self.plugin_manager {
                 let mut lifecycle = plugins::lifecycle::Adapter {
                     handle: &self.handle,

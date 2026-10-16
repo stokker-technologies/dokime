@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::sync::Arc;
 // Third Party Imports
-use harmos::storage::{FileReference, ObjectReceipt, ObjectVersion, StorageCursor};
+use harmos::storage::{FileReference, ObjectVersion, StorageCursor};
 use tokio::sync::Mutex;
 // Local Imports
 use super::{cycle::CycleSnapshot, execution::ExecutionView};
@@ -40,10 +40,6 @@ pub(super) struct PendingCycle {
     snapshot: CycleSnapshot,
     executions: Arc<Vec<ExecutionSeal>>,
     report: Option<FileReference>,
-    seal: Option<Arc<CycleSeal>>,
-    native: Option<Cycle>,
-    publication: Option<reports::Prepared>,
-    receipt: Option<ObjectReceipt>,
     completed: Option<Arc<CompletedCycle>>,
 }
 
@@ -273,85 +269,21 @@ impl RuntimeHandle {
         frozen.session_id = Some(session.clone());
         let runtime = self.clone();
         let operation = operation.clone();
+        // Saving Survives Caller Cancellation So A Started Seal Always Settles.
         tokio::spawn(async move {
             operation.phase("Waiting for Earlier Saves");
             operation.indeterminate();
-            let _order = runtime.execution_storage.cycle_save.lock().await;
+            let order = runtime.execution_storage.cycle_save.lock().await;
             let id = frozen.test_cycle_id.clone();
-            let intent = runtime
-                .execution_storage
-                .cycle_finalization_intent(&id)
-                .await?;
-            let intent = if let Some(intent) = intent {
-                intent
-            } else {
-                // Child Seals Must Be Durable Before The Cycle Boundary Is Chosen.
-                let evidence_at = runtime.storage().flush().await?;
-                for member in &frozen.execution_ids {
-                    let execution =
-                        ExecutionView::open(runtime.storage(), member, ObjectVersion::Latest)
-                            .await?
-                            .ok_or_else(|| {
-                                invalid("cycle intent requires every persisted member")
-                            })?;
-                    let seal = execution.execution().saved.as_ref().ok_or_else(|| {
-                        invalid("cycle intent requires every member seal to be durable")
-                    })?;
-                    if !evidence_at.covers(&execution.revision()?.position)?
-                        || !execution
-                            .revision()?
-                            .position
-                            .covers(&seal.dependencies_saved)?
-                    {
-                        return Err(invalid("cycle intent precedes a member seal dependency"));
-                    }
-                }
-                let intent = crate::transactions::CycleReportFinalization {
-                    source: frozen.clone(),
-                    evidence_at,
-                };
-                runtime
-                    .commit(crate::transactions::RequestCycleReportFinalization {
-                        intent: intent.clone(),
-                    })
-                    .await
-                    .map_err(|error| Error::Operation(error.to_string()))?;
-                intent
-            };
+            let intent = runtime.cycle_intent(frozen).await?;
             // Rendering Must Never Outrun The Durable Intent Journal.
             runtime.storage().flush_recovery().await?;
-            let frozen = Arc::new(intent.source.clone());
             if let Some(completed) = runtime.recover_saved_cycle(&intent).await? {
                 return Ok(completed);
             }
-            let existing = runtime
-                .execution_storage
-                .cycle_reports
-                .lock()
-                .await
-                .get(&id)
-                .cloned();
-            let owner = if let Some(owner) = existing {
-                if **owner.lock().await.snapshot.source() != *frozen {
-                    return Err(invalid("cycle finalization changed its frozen source"));
-                }
-                owner
-            } else {
-                let pending = runtime
-                    .execution_storage
-                    .prepare_cycle_report(frozen.clone(), &intent.evidence_at, &operation)
-                    .await?;
-                let owner = Arc::new(Mutex::new(pending));
-                runtime
-                    .execution_storage
-                    .cycle_reports
-                    .lock()
-                    .await
-                    .insert(id.clone(), owner.clone());
-                owner
-            };
+            let owner = runtime.cycle_report_owner(&intent, &operation).await?;
             let at = owner.lock().await.snapshot.saved().clone();
-            drop(_order);
+            drop(order);
             runtime
                 .operations()
                 .call_as::<dokime::operations::reports::MaterializeReport>(
@@ -366,95 +298,158 @@ impl RuntimeHandle {
             if let Some(completed) = &pending.completed {
                 return Ok(completed.clone());
             }
-            if pending.seal.is_none() {
-                operation.phase("Writing Report");
-                operation.indeterminate();
-                let report = pending
-                    .report
-                    .clone()
-                    .ok_or_else(|| invalid("cycle materialization did not publish a file"))?;
-                let saved = runtime.storage().flush_until(&report.position).await?;
-                if !saved.covers(&report.position)? {
-                    return Err(invalid("cycle report is not saved"));
-                }
-                let seal = Arc::new(CycleSeal {
-                    owner_node_id: pending.snapshot.owner_node_id().clone(),
-                    evidence_through: pending.snapshot.saved().clone(),
-                    executions: (**pending.snapshot.revisions()).clone(),
-                    report,
-                    dependencies_saved: saved,
-                    sealed_at: pending.snapshot.captured_at().clone(),
-                });
-                seal.validate(pending.snapshot.source())
-                    .map_err(dokime::storage::Error::from)?;
-                pending.seal = Some(seal);
-            }
-            operation.phase("Publishing Report");
-            if pending.publication.is_none() {
-                let seal = pending.seal.as_ref().expect("prepared cycle seal");
-                let inputs = pending
-                    .executions
-                    .iter()
-                    .map(|execution| execution.source.context.clone())
-                    .collect::<Vec<_>>();
-                let publication = reports::Prepared::new(
-                    runtime.storage(),
-                    &reports::Input {
-                        owner: reports::Owner::Cycle(&pending.snapshot.source().test_cycle_id),
-                        cycle: Some(pending.snapshot.source()),
-                        execution: None,
-                        generated_at: &seal.sealed_at,
-                        final_report: true,
-                        evidence_through: &seal.evidence_through,
-                        dependencies_saved: &seal.dependencies_saved,
-                        executions: &seal.executions,
-                        inputs: &inputs,
-                        file: &seal.report,
-                    },
-                )?;
-                pending.publication = Some(publication);
-            }
-            pending
-                .publication
-                .as_mut()
-                .expect("prepared report publication")
-                .finish()
-                .await?;
-
-            operation.phase("Saving Seal");
-            if pending.native.is_none() {
-                let seal = pending.seal.as_ref().unwrap();
-                let mut header = (**pending.snapshot.source()).clone();
-                header.saved = Some((**seal).clone());
-                pending.native = Some(Cycle::try_from(&header)?);
-            }
-            if pending.receipt.is_none() {
-                pending.receipt = Some(
-                    runtime
-                        .storage()
-                        .write_object(pending.native.as_ref().unwrap())
-                        .await?,
-                );
-            }
-            let receipt = pending.receipt.as_ref().unwrap();
-            let saved = runtime.storage().flush_until(&receipt.position).await?;
-            if !saved.covers(&receipt.position)? {
-                return Err(invalid("cycle seal is not saved"));
-            }
-            let seal = pending.seal.as_ref().unwrap();
-            let mut cycle = (**pending.snapshot.source()).clone();
-            cycle.saved = Some((**seal).clone());
-            let completed = Arc::new(CompletedCycle {
-                header: cycle,
-                executions: (*pending.executions).clone(),
-            });
-            runtime
-                .release_cycle_history(&completed.header, &saved)
-                .await?;
+            let completed = runtime.seal_cycle(&pending, &operation).await?;
             pending.completed = Some(completed.clone());
             Ok(completed)
         })
         .await?
+    }
+
+    // The Durable Boundary Of A Cycle Report: The Persisted Intent, Or A New
+    // One Chosen After Every Member Seal Is Durable.
+    async fn cycle_intent(
+        &self,
+        frozen: dokime::execution::TestCycle,
+    ) -> Result<crate::transactions::CycleReportFinalization> {
+        if let Some(intent) = self
+            .execution_storage
+            .cycle_finalization_intent(&frozen.test_cycle_id)
+            .await?
+        {
+            return Ok(intent);
+        }
+        let evidence_at = self.storage().flush().await?;
+        for member in &frozen.execution_ids {
+            let execution = ExecutionView::open(self.storage(), member, ObjectVersion::Latest)
+                .await?
+                .ok_or_else(|| invalid("cycle intent requires every persisted member"))?;
+            let seal =
+                execution.execution().saved.as_ref().ok_or_else(|| {
+                    invalid("cycle intent requires every member seal to be durable")
+                })?;
+            if !evidence_at.covers(&execution.revision()?.position)?
+                || !execution
+                    .revision()?
+                    .position
+                    .covers(&seal.dependencies_saved)?
+            {
+                return Err(invalid("cycle intent precedes a member seal dependency"));
+            }
+        }
+        let intent = crate::transactions::CycleReportFinalization {
+            source: frozen,
+            evidence_at,
+        };
+        self.commit(crate::transactions::RequestCycleReportFinalization {
+            intent: intent.clone(),
+        })
+        .await
+        .map_err(|error| Error::Operation(error.to_string()))?;
+        Ok(intent)
+    }
+
+    // The One Report Owner Of A Finalizing Cycle, Shared With Its Materialization.
+    async fn cycle_report_owner(
+        &self,
+        intent: &crate::transactions::CycleReportFinalization,
+        operation: &Operation,
+    ) -> Result<Arc<Mutex<PendingCycle>>> {
+        let frozen = Arc::new(intent.source.clone());
+        let id = &frozen.test_cycle_id;
+        let existing = self
+            .execution_storage
+            .cycle_reports
+            .lock()
+            .await
+            .get(id)
+            .cloned();
+        if let Some(owner) = existing {
+            if **owner.lock().await.snapshot.source() != *frozen {
+                return Err(invalid("cycle finalization changed its frozen source"));
+            }
+            return Ok(owner);
+        }
+        let pending = self
+            .execution_storage
+            .prepare_cycle_report(frozen.clone(), &intent.evidence_at, operation)
+            .await?;
+        let owner = Arc::new(Mutex::new(pending));
+        self.execution_storage
+            .cycle_reports
+            .lock()
+            .await
+            .insert(id.clone(), owner.clone());
+        Ok(owner)
+    }
+
+    // Seal A Cycle Whose Report File Is Published: Save The Seal And The Header.
+    async fn seal_cycle(
+        &self,
+        pending: &PendingCycle,
+        operation: &Operation,
+    ) -> Result<Arc<CompletedCycle>> {
+        operation.phase("Writing Report");
+        operation.indeterminate();
+        let report = pending
+            .report
+            .clone()
+            .ok_or_else(|| invalid("cycle materialization did not publish a file"))?;
+        let saved = self.storage().flush_until(&report.position).await?;
+        if !saved.covers(&report.position)? {
+            return Err(invalid("cycle report is not saved"));
+        }
+        let seal = CycleSeal {
+            owner_node_id: pending.snapshot.owner_node_id().clone(),
+            evidence_through: pending.snapshot.saved().clone(),
+            executions: (**pending.snapshot.revisions()).clone(),
+            report,
+            dependencies_saved: saved,
+            sealed_at: pending.snapshot.captured_at().clone(),
+        };
+        seal.validate(pending.snapshot.source())
+            .map_err(dokime::storage::Error::from)?;
+        operation.phase("Publishing Report");
+        let inputs = pending
+            .executions
+            .iter()
+            .map(|execution| execution.source.context.clone())
+            .collect::<Vec<_>>();
+        reports::Prepared::new(
+            self.storage(),
+            &reports::Input {
+                owner: reports::Owner::Cycle(&pending.snapshot.source().test_cycle_id),
+                cycle: Some(pending.snapshot.source()),
+                execution: None,
+                generated_at: &seal.sealed_at,
+                final_report: true,
+                evidence_through: &seal.evidence_through,
+                dependencies_saved: &seal.dependencies_saved,
+                executions: &seal.executions,
+                inputs: &inputs,
+                file: &seal.report,
+            },
+        )?
+        .finish()
+        .await?;
+
+        operation.phase("Saving Seal");
+        let mut cycle = (**pending.snapshot.source()).clone();
+        cycle.saved = Some(seal);
+        let receipt = self
+            .storage()
+            .write_object(&Cycle::try_from(&cycle)?)
+            .await?;
+        let saved = self.storage().flush_until(&receipt.position).await?;
+        if !saved.covers(&receipt.position)? {
+            return Err(invalid("cycle seal is not saved"));
+        }
+        let completed = Arc::new(CompletedCycle {
+            header: cycle,
+            executions: (*pending.executions).clone(),
+        });
+        self.release_cycle_history(&completed.header, &saved)
+            .await?;
+        Ok(completed)
     }
 }
 
@@ -548,10 +543,6 @@ impl super::executions::ExecutionStorage {
             snapshot,
             executions: Arc::new(executions),
             report: published,
-            seal: None,
-            native: None,
-            publication: None,
-            receipt: None,
             completed: None,
         })
     }

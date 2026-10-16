@@ -16,10 +16,14 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
 // Third Party Imports
-use harmos::Aggregate;
+use harmos::{
+    Aggregate,
+    storage::query::scalar::{Agg, ScalarValue},
+};
 
 // Local Imports
 use super::fields::{self, Row};
+use crate::document::fold::Accumulator;
 use crate::runtime::query::aggregate::{AggregateOperator, AggregateOutcome, AggregateQuery};
 use crate::{Error, Result};
 use dokime::core::Value;
@@ -41,17 +45,6 @@ pub(super) struct Groups {
 }
 struct Key(Vec<Value>);
 
-// HARMOS GAP WORKAROUND: Harmos keeps its accumulators crate-private, so domain
-// aggregates over Dokime's derived columns fold here. Replace once Harmos
-// exposes its accumulator or a transform over caller-built batches.
-#[derive(Clone)]
-struct Accumulator {
-    aggregate: Aggregate,
-    count: u64,
-    numbers: Vec<f64>,
-    extreme: Option<Value>,
-}
-
 /* === Enums === */
 
 /* === Traits === */
@@ -68,7 +61,7 @@ impl Groups {
         if query.group_by.is_empty() {
             selected.entries.insert(Key(Vec::new()), reductions(query));
         }
-        for row in rows {
+        for (ordinal, row) in rows.iter().enumerate() {
             if row.source() != query.source {
                 return Err(invalid("aggregate row source differs from its query"));
             }
@@ -85,11 +78,11 @@ impl Groups {
                 .or_insert_with(|| reductions(query));
             for (reduction, column) in reductions.iter_mut().zip(&query.aggregates) {
                 let value = if column.column.is_empty() {
-                    Value::Unsigned(1)
+                    ScalarValue::Unsigned(1)
                 } else {
-                    row.field(&column.column)?.project()?
+                    scalar(&row.field(&column.column)?.project()?, column.aggregate)?
                 };
-                reduction.push(&value)?;
+                reduction.push(ordinal as u64, &value).map_err(invalid)?;
             }
             // Retain The First Limit+1 Groups; An Evicted Larger Key Never Returns.
             if query.limit != 0 && selected.entries.len() > query.limit + 1 {
@@ -116,7 +109,7 @@ impl Groups {
         for (key, reductions) in self.entries.into_iter().take(count) {
             let mut row = key.0;
             for reduction in reductions {
-                row.push(reduction.finish()?);
+                row.push(value(reduction.finish().map_err(invalid)?)?);
             }
             rows.push(row);
         }
@@ -124,73 +117,6 @@ impl Groups {
             columns,
             rows,
             complete,
-        })
-    }
-}
-
-impl Accumulator {
-    fn new(aggregate: Aggregate) -> Self {
-        Self {
-            aggregate,
-            count: 0,
-            numbers: Vec::new(),
-            extreme: None,
-        }
-    }
-
-    fn push(&mut self, value: &Value) -> Result<()> {
-        if matches!(value, Value::Null) {
-            return Ok(());
-        }
-        self.count += 1;
-        match self.aggregate {
-            Aggregate::Count => {}
-            Aggregate::Min | Aggregate::Max => {
-                if matches!(value, Value::Array(_) | Value::Object(_)) {
-                    return Err(invalid("aggregate values must be scalars"));
-                }
-                let replace = self.extreme.as_ref().is_none_or(|current| {
-                    let order = compare(value, current);
-                    if self.aggregate == Aggregate::Min {
-                        order == Ordering::Less
-                    } else {
-                        order == Ordering::Greater
-                    }
-                });
-                if replace {
-                    self.extreme = Some(value.clone());
-                }
-            }
-            _ => self.numbers.push(number(value)?),
-        }
-        Ok(())
-    }
-
-    fn finish(mut self) -> Result<Value> {
-        let count = self.numbers.len() as f64;
-        Ok(match self.aggregate {
-            Aggregate::Count => Value::Unsigned(self.count),
-            Aggregate::Min | Aggregate::Max => self.extreme.unwrap_or(Value::Null),
-            _ if self.numbers.is_empty() => Value::Null,
-            Aggregate::Sum => Value::Number(self.numbers.iter().sum()),
-            Aggregate::Mean => Value::Number(self.numbers.iter().sum::<f64>() / count),
-            Aggregate::Rms => Value::Number(
-                (self.numbers.iter().map(|value| value * value).sum::<f64>() / count).sqrt(),
-            ),
-            Aggregate::Std => {
-                let mean = self.numbers.iter().sum::<f64>() / count;
-                Value::Number(
-                    (self
-                        .numbers
-                        .iter()
-                        .map(|value| (value - mean).powi(2))
-                        .sum::<f64>()
-                        / count)
-                        .sqrt(),
-                )
-            }
-            Aggregate::Median => Value::Number(percentile(&mut self.numbers, 50)),
-            Aggregate::Percentile(rank) => Value::Number(percentile(&mut self.numbers, rank)),
         })
     }
 }
@@ -281,27 +207,52 @@ fn reductions(query: &AggregateQuery) -> Vec<Accumulator> {
     query
         .aggregates
         .iter()
-        .map(|column| Accumulator::new(column.aggregate))
+        .map(|column| Accumulator::new(Agg::Of(column.aggregate)))
         .collect()
 }
 
-fn number(value: &Value) -> Result<f64> {
-    match value {
-        Value::Integer(value) => Ok(*value as f64),
-        Value::Unsigned(value) => Ok(*value as f64),
-        Value::Number(value) if value.is_finite() => Ok(*value),
-        Value::Number(_) => Err(invalid("aggregate numbers must be finite")),
-        _ => Err(invalid("aggregate statistic requires numeric values")),
-    }
+// The Scalar Fold Reads Scalars; A Nested Value Has No Order Or Number.
+// `Count` Only Asks Whether A Value Is Present, So Any Non-Null Value Counts.
+fn scalar(value: &Value, aggregate: Aggregate) -> Result<ScalarValue> {
+    Ok(match value {
+        Value::Null => ScalarValue::Null,
+        _ if aggregate == Aggregate::Count => ScalarValue::Unsigned(1),
+        Value::Bool(value) => ScalarValue::Bool(*value),
+        Value::Integer(value) => ScalarValue::Signed(*value),
+        Value::Unsigned(value) => ScalarValue::Unsigned(*value),
+        Value::Number(value) if value.is_finite() => ScalarValue::Float(*value),
+        Value::Number(_) => return Err(invalid("aggregate numbers must be finite")),
+        Value::Text(value) => ScalarValue::Text(value.clone()),
+        Value::Datetime(value) => ScalarValue::Datetime(value.unix_timestamp_nanos()),
+        Value::Array(_) | Value::Object(_) => {
+            return Err(invalid("aggregate values must be scalars"));
+        }
+    })
 }
 
-// Linear Interpolation Between The Closest Ranks.
-fn percentile(values: &mut [f64], rank: u8) -> f64 {
-    values.sort_by(|left, right| left.total_cmp(right));
-    let position = f64::from(rank.min(100)) / 100.0 * (values.len() - 1) as f64;
-    let lower = position.floor() as usize;
-    let upper = position.ceil() as usize;
-    values[lower] + (values[upper] - values[lower]) * (position - lower as f64)
+fn value(scalar: ScalarValue) -> Result<Value> {
+    Ok(match scalar {
+        ScalarValue::Missing | ScalarValue::Null => Value::Null,
+        ScalarValue::Bool(value) => Value::Bool(value),
+        ScalarValue::Signed(value) => Value::Integer(value),
+        ScalarValue::Unsigned(value) => i64::try_from(value)
+            .map(Value::Integer)
+            .unwrap_or(Value::Unsigned(value)),
+        ScalarValue::Float(value) => Value::Number(value),
+        ScalarValue::Text(value) => Value::Text(value),
+        ScalarValue::Datetime(value) => Value::Datetime(
+            time::OffsetDateTime::from_unix_timestamp_nanos(value)
+                .map_err(|_| invalid("aggregate datetime is out of range"))?,
+        ),
+        ScalarValue::Exact(value) => {
+            let magnitude = value.numerator as f64 / value.denominator.get() as f64;
+            Value::Number(if value.negative {
+                -magnitude
+            } else {
+                magnitude
+            })
+        }
+    })
 }
 
 fn matches(row: &Row<'_>, query: &AggregateQuery) -> Result<bool> {

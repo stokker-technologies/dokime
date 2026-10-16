@@ -85,7 +85,7 @@ pub(crate) struct Acquisition {
     working: Option<Arc<ExecutionRevision>>,
     pending: Option<PendingRevision>,
     finalizing: Option<Arc<TestExecution>>,
-    report: Option<PendingReport>,
+    published: Option<PublishedReport>,
     pub(super) cycle_context: Option<Arc<CycleMemberContext>>,
 }
 
@@ -107,12 +107,11 @@ struct PendingRevision {
     receipt: Option<ObjectReceipt>,
 }
 
-struct PendingReport {
-    prepared: PreparedExecutionReport,
+// A Final Report Published In Full, Waiting For Finalization To Seal Its Owner.
+struct PublishedReport {
+    seal: Arc<ExecutionSeal>,
     inspection: super::execution::ExecutionView,
-    sealed_at: Timestamp,
-    seal: Option<Arc<ExecutionSeal>>,
-    publication: Option<reports::Prepared>,
+    appearance: RuntimeAppearanceFrame,
 }
 
 /* === Enums === */
@@ -295,7 +294,7 @@ impl ExecutionStorage {
         let owner = self.acquisition(id).await?;
         let acquisition = owner.lock().await;
         acquisition
-            .report
+            .published
             .as_ref()
             .map(|report| report.inspection.clone())
     }
@@ -393,10 +392,8 @@ impl ExecutionStorage {
             let _boundary = gate.lock().await;
             let mut acquisition = owner.lock().await;
             validate_identity(&acquisition, &frozen)?;
-            if acquisition.report.is_some() || acquisition.execution.saved.is_some() {
-                return Err(invalid(
-                    "final report is already retained; retry its original save",
-                ));
+            if acquisition.published.is_some() || acquisition.execution.saved.is_some() {
+                return Err(invalid("final report is already published"));
             }
             if acquisition
                 .finalizing
@@ -510,17 +507,10 @@ impl ExecutionStorage {
             bind_publication_revision(&mut acquisition, prepared.captured_input().execution()?)
                 .await?;
             validate_report(&acquisition, &inspection, &prepared)?;
-            if acquisition.report.is_some() {
-                return Err(invalid("report already retained; retry its original save"));
+            if acquisition.published.is_some() {
+                return Err(invalid("final report is already published"));
             }
-            acquisition.report = Some(PendingReport {
-                prepared,
-                inspection,
-                sealed_at,
-                seal: None,
-                publication: None,
-            });
-            publish_materialized_final(ctx, &mut acquisition).await
+            publish_final(ctx, &mut acquisition, prepared, inspection, &sealed_at).await
         };
         work.await
     }
@@ -530,58 +520,48 @@ impl ExecutionStorage {
             return false;
         };
         let acquisition = owner.lock().await;
-        acquisition.report.is_some() || acquisition.execution.saved.is_some()
+        acquisition.published.is_some() || acquisition.execution.saved.is_some()
     }
 
-    pub(crate) async fn retry_materialized_report(
+    /// The final report already published for `execution` at `at`, awaiting its seal.
+    pub(crate) async fn published_final_report(
         &self,
-        ctx: &harmos::operations::Context<'_>,
         execution: &TestExecutionId,
         at: &StorageCursor,
     ) -> Result<Option<dokime::operations::reports::MaterializedReport>> {
         let Some(owner) = self.acquisition(execution).await else {
             return Ok(None);
         };
-        let gate = owner.lock().await.gate.clone();
-        let _guard = gate.lock().await;
-        let mut acquisition = owner.lock().await;
-        let Some(report) = acquisition.report.as_ref() else {
+        let acquisition = owner.lock().await;
+        let Some(published) = acquisition.published.as_ref() else {
             return Ok(None);
         };
-        if report.prepared.captured_input().evidence_through != *at {
-            return Err(invalid("report retry changes the frozen evidence cursor"));
+        if published.seal.source.evidence_through != *at {
+            return Err(invalid("report request changes the frozen evidence cursor"));
         }
-        publish_materialized_final(ctx, &mut acquisition)
-            .await
-            .map(Some)
+        Ok(Some(dokime::operations::reports::MaterializedReport {
+            report: published.seal.report.clone(),
+        }))
     }
 
-    pub(crate) async fn retry_final_report(
+    /// Seal `execution` with its published final report.
+    pub(crate) async fn seal_final_report(
         &self,
         execution: &TestExecutionId,
     ) -> Result<Arc<ExecutionRevision>> {
         let owner = self
             .acquisition(execution)
             .await
-            .ok_or_else(|| invalid("report retry has no original acquisition owner"))?;
-        {
-            let mut acquisition = owner.lock().await;
-            if acquisition.execution.saved.is_some() && acquisition.pending.is_none() {
-                return complete_final_report(&mut acquisition);
-            }
-            if acquisition.report.is_none() {
-                return Err(invalid("report retry has no retained prepared input"));
-            }
-        }
-        let work = async move {
+            .ok_or_else(|| invalid("report seal has no acquisition owner"))?;
+        // Saving Survives Caller Cancellation So A Started Seal Always Settles.
+        tokio::spawn(async move {
             let gate = owner.lock().await.gate.clone();
             let _boundary = gate.lock().await;
             let mut acquisition = owner.lock().await;
-            settle_final_report(&mut acquisition).await
-        };
-        tokio::spawn(work)
-            .await
-            .map_err(|source| Error::Join { source })?
+            seal_final(&mut acquisition).await
+        })
+        .await
+        .map_err(|source| Error::Join { source })?
     }
 
     pub(crate) async fn checkpoint_targets(
@@ -701,7 +681,7 @@ impl ExecutionStorage {
             working: None,
             pending: None,
             finalizing: None,
-            report: None,
+            published: None,
             cycle_context: None,
         }));
         let existing = {
@@ -775,117 +755,71 @@ fn validate_report(
     Ok(())
 }
 
-async fn publish_materialized_final(
+async fn publish_final(
     ctx: &harmos::operations::Context<'_>,
     acquisition: &mut Acquisition,
+    mut prepared: PreparedExecutionReport,
+    inspection: super::execution::ExecutionView,
+    sealed_at: &Timestamp,
 ) -> Result<dokime::operations::reports::MaterializedReport> {
-    if let Some(seal) = &acquisition.execution.saved {
-        return Ok(dokime::operations::reports::MaterializedReport {
-            report: seal.report.clone(),
-        });
-    }
-    if acquisition
-        .report
+    let revision = acquisition
+        .working
         .as_ref()
-        .is_none_or(|report| report.seal.is_none())
-    {
-        let report = acquisition
-            .report
-            .as_mut()
-            .ok_or_else(|| invalid("finalization has no retained report"))?;
-        let revision = acquisition
-            .working
-            .as_ref()
-            .ok_or_else(|| invalid("publication has no real native revision"))?;
-        let seal = report
-            .prepared
-            .save_dependencies(&acquisition.storage, ctx, &report.sealed_at, revision)
-            .await?;
-        if seal.source.execution.execution_id != report.prepared.captured_input().execution_id
-            || seal.source.owner_node_id != report.prepared.captured_input().owner_node_id
-            || seal.source.evidence_through != report.prepared.captured_input().evidence_through
-            || seal.source.outputs.as_slice() != report.prepared.settled_outputs().as_slice()
-        {
-            return Err(invalid(
-                "saved report dependencies differ from retained input",
-            ));
-        }
-        report.seal = Some(Arc::new(seal));
-    }
-    let report = acquisition
-        .report
-        .as_mut()
-        .expect("original report retained");
-    if report.publication.is_none() {
-        let seal = report
-            .seal
-            .as_ref()
-            .expect("original dependency seal retained");
-        report.publication = Some(reports::Prepared::new(
-            &acquisition.storage,
-            &reports::Input {
-                owner: reports::Owner::Execution(&acquisition.execution_id),
-                cycle: None,
-                execution: Some(seal),
-                generated_at: &seal.sealed_at,
-                final_report: true,
-                evidence_through: &seal.source.evidence_through,
-                dependencies_saved: &seal.dependencies_saved,
-                executions: std::slice::from_ref(&seal.source.execution),
-                inputs: std::slice::from_ref(&seal.source.context),
-                file: &seal.report,
-            },
-        )?);
-    }
-    report
-        .publication
-        .as_mut()
-        .expect("original report publication retained")
-        .finish()
+        .ok_or_else(|| invalid("publication has no real native revision"))?;
+    let seal = prepared
+        .save_dependencies(&acquisition.storage, ctx, sealed_at, revision)
         .await?;
-
-    let seal = acquisition
-        .report
-        .as_ref()
-        .and_then(|report| report.seal.as_ref())
-        .ok_or_else(|| invalid("published report has no retained dependencies"))?;
-    Ok(dokime::operations::reports::MaterializedReport {
-        report: seal.report.clone(),
-    })
+    let captured = prepared.captured_input();
+    if seal.source.execution.execution_id != captured.execution_id
+        || seal.source.owner_node_id != captured.owner_node_id
+        || seal.source.evidence_through != captured.evidence_through
+        || seal.source.outputs.as_slice() != prepared.settled_outputs().as_slice()
+    {
+        return Err(invalid("saved report dependencies differ from their input"));
+    }
+    reports::Prepared::new(
+        &acquisition.storage,
+        &reports::Input {
+            owner: reports::Owner::Execution(&acquisition.execution_id),
+            cycle: None,
+            execution: Some(&seal),
+            generated_at: &seal.sealed_at,
+            final_report: true,
+            evidence_through: &seal.source.evidence_through,
+            dependencies_saved: &seal.dependencies_saved,
+            executions: std::slice::from_ref(&seal.source.execution),
+            inputs: std::slice::from_ref(&seal.source.context),
+            file: &seal.report,
+        },
+    )?
+    .finish()
+    .await?;
+    let report = seal.report.clone();
+    acquisition.published = Some(PublishedReport {
+        seal: Arc::new(seal),
+        inspection,
+        appearance: captured.context.appearance.clone(),
+    });
+    Ok(dokime::operations::reports::MaterializedReport { report })
 }
 
-async fn settle_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {
+async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {
     if acquisition.execution.saved.is_some() {
         return complete_final_report(acquisition);
     }
-    let report = acquisition
-        .report
-        .as_mut()
-        .ok_or_else(|| invalid("finalization has no retained report"))?;
-    if report.seal.is_none() {
-        return Err(invalid("materialize report dependencies before sealing"));
-    }
-    report
-        .publication
-        .as_mut()
-        .ok_or_else(|| invalid("materialize report publication before sealing"))?
-        .finish()
-        .await?;
     if acquisition.pending.is_none() {
-        let report = acquisition
-            .report
+        let seal = acquisition
+            .published
             .as_ref()
-            .expect("original report retained");
-        let seal = report
+            .ok_or_else(|| invalid("seal requires a published final report"))?
             .seal
-            .as_ref()
-            .expect("original dependency seal retained");
+            .clone();
         let terminal = acquisition
             .finalizing
             .as_ref()
-            .expect("original terminal retained");
+            .ok_or_else(|| invalid("seal has no frozen terminal execution"))?;
         let mut sealed = (**terminal).clone();
-        sealed.saved = Some((**seal).clone());
+        sealed.saved = Some((*seal).clone());
         // Keep The Mutable Head Unsealed Until This Exact Pending Admission Is Saved
         acquisition.pending = Some(PendingRevision {
             execution: Arc::new(sealed),
@@ -901,12 +835,9 @@ fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionR
         return Err(invalid("sealed owner still has an unresolved admission"));
     }
     let revision = final_revision(acquisition)?;
-    if acquisition.cycle_context.is_none() && acquisition.report.is_some() {
-        let report = acquisition
-            .report
-            .as_ref()
-            .ok_or_else(|| invalid("sealed member has no original report input"))?;
-        let captured = report.prepared.captured_input();
+    if acquisition.cycle_context.is_none()
+        && let Some(published) = &acquisition.published
+    {
         let file = &acquisition
             .execution
             .saved
@@ -916,10 +847,10 @@ fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionR
             .context;
         acquisition.cycle_context = Some(Arc::new(CycleMemberContext {
             context: file.clone(),
-            appearance: captured.context.appearance.clone(),
+            appearance: published.appearance.clone(),
         }));
     }
-    acquisition.report = None;
+    acquisition.published = None;
     acquisition.finalizing = None;
     acquisition.settled_outputs = None;
     Ok(revision)

@@ -134,7 +134,7 @@ async fn execution(
     }
     if let Some(report) = resources
         .execution_storage
-        .retry_materialized_report(ctx, id, at)
+        .published_final_report(id, at)
         .await?
     {
         return Ok(report);

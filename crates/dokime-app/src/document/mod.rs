@@ -12,7 +12,7 @@ pub(crate) mod binding;
 pub mod bounded;
 pub mod capture;
 mod context;
-mod fold;
+pub(crate) mod fold;
 pub(crate) mod frame;
 pub mod input;
 pub mod instance;
