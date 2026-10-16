@@ -110,7 +110,6 @@ impl SavedOutputs {
         };
         let mut original = storage.query(query).await?;
         original.retain_view()?;
-        let projection = projection.min(original.decoded_bytes());
         let Some(revision) = original
             .next_page_projected(projection, |rows, allowance| {
                 let [row] = rows else {
@@ -184,7 +183,6 @@ impl SavedOutputs {
         &mut self,
         projection: NonZeroUsize,
     ) -> Result<QueryValue<Vec<ExecutionFileEntry>>> {
-        let projection = projection.min(self.original.decoded_bytes());
         let entries =
             self.original
                 .project(&self.revision, projection, |revision, allowance| {
@@ -259,7 +257,7 @@ impl SavedOutputFile {
         let index = self.index;
         Ok(self.outputs.original.project(
             &self.outputs.revision,
-            maximum.min(self.outputs.original.decoded_bytes()),
+            maximum,
             |revision, allowance| map(&source(revision)?.outputs[index], allowance),
         )?)
     }
@@ -310,7 +308,6 @@ impl SavedOutputFile {
         maximum: NonZeroUsize,
         map: impl FnOnce(&T, NonZeroUsize) -> harmos::Result<U>,
     ) -> Result<QueryValue<U>> {
-        let maximum = maximum.min(self.outputs.original.decoded_bytes());
         Ok(self.outputs.original.project(input, maximum, map)?)
     }
 
