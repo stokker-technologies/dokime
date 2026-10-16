@@ -433,6 +433,10 @@ async fn nominal() {
     assert_eq!(decoded.sample.summary, typed_entry.sample.summary);
     assert_eq!(decoded.sample.metadata, typed_entry.sample.metadata);
     assert_eq!(
+        decoded.sample.values.get("timestamp"),
+        typed_entry.sample.values.get("timestamp")
+    );
+    assert_eq!(
         decoded.sample.storage_payload,
         typed_entry.sample.storage_payload
     );

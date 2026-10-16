@@ -64,6 +64,7 @@ struct Metadata {
     schema_version: u32,
     sequence: u64,
     timestamp: String,
+    timestamp_value: Vec<values::Cell>,
     received_at: String,
     source: String,
     scope: Option<ScopeRow>,
@@ -193,6 +194,13 @@ impl TypedCodec {
             schema_version: sample.schema_version,
             sequence: sample.sequence,
             timestamp: sample::copy_text(sample.timestamp.as_str())?,
+            timestamp_value: values::encode(
+                &sample
+                    .values
+                    .get("timestamp")
+                    .map(|value| BTreeMap::from([("timestamp".to_owned(), value.clone())]))
+                    .unwrap_or_default(),
+            )?,
             received_at: sample::copy_text(sample.received_at.as_str())?,
             source: sample::copy_text(sample.source.as_str())?,
             scope: sample.scope.as_ref().map(ScopeRow::from),
@@ -244,7 +252,24 @@ impl TypedCodec {
         {
             return Err(Error::Invalid("stored telemetry metadata is not canonical"));
         }
-        let decoded = decode_stream_values(&metadata.stream, &self.validator, payload)?;
+        let mut decoded = decode_stream_values(&metadata.stream, &self.validator, payload)?;
+        let mut timestamp = values::decode(&metadata.timestamp_value)?;
+        if timestamp.len() > 1 || timestamp.keys().any(|key| key != "timestamp") {
+            return Err(Error::Invalid(
+                "stored telemetry timestamp projection is invalid",
+            ));
+        }
+        if let Some(timestamp) = timestamp.remove("timestamp") {
+            if decoded
+                .get("timestamp")
+                .is_some_and(|value| value != &timestamp)
+            {
+                return Err(Error::Invalid(
+                    "stored telemetry timestamp differs from its payload",
+                ));
+            }
+            decoded.insert("timestamp".to_owned(), timestamp);
+        }
         if metadata.schema_version != self.schema.version.get()
             || self.schema.id.as_str() != format!("dokime.telemetry.{}", metadata.stream)
         {
