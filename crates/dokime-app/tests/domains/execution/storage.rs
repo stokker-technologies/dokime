@@ -271,6 +271,22 @@ pub(crate) async fn execution_save_sealing() {
         };
         assert_eq!(chunk.offset, 0);
         assert_eq!(chunk.data, index.to_le_bytes()[..3]);
+        drop(frame);
+        let frame = output.next_frame(maximum).await.unwrap().unwrap();
+        let Some(wire::ExecutionFileFollowFramePayload::Chunk(chunk)) = &frame.payload else {
+            panic!("saved output must return its remaining byte");
+        };
+        assert_eq!(chunk.offset, 3);
+        assert_eq!(chunk.data, index.to_le_bytes()[3..]);
+        drop(frame);
+        let frame = output.next_frame(maximum).await.unwrap().unwrap();
+        let Some(wire::ExecutionFileFollowFramePayload::Terminal(terminal)) = &frame.payload else {
+            panic!("saved output must finish with its sealed reference");
+        };
+        assert_eq!(terminal.phase, wire::ExecutionFilePhase::Finished);
+        assert_eq!(terminal.sealed.as_ref().unwrap().length, 4);
+        drop(frame);
+        assert!(output.next_frame(maximum).await.unwrap().is_none());
     }
     drop(handle);
     reopened.shutdown().await.unwrap();
