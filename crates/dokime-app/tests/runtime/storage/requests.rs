@@ -281,8 +281,7 @@ pub(crate) async fn receipt_initialize_storage() {
                 },
             )
             .await
-            .err()
-            .expect("the released root still contains the corrupt receipt");
+            .expect_err("the released root still contains the corrupt receipt");
         assert!(
             format!("{corrupt:?}").contains("stored entry digest differs"),
             "{corrupt:?}"

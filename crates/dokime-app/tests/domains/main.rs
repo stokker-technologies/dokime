@@ -7,6 +7,9 @@
  * ***
  */
 
+// Story Futures Nest Runtime Boot Deeply Enough To Need The Library's Limit.
+#![recursion_limit = "256"]
+
 /* === Modules === */
 pub(crate) mod documents;
 pub(crate) mod evidence;

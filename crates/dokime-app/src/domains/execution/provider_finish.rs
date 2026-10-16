@@ -146,10 +146,9 @@ impl RuntimeHandle {
             }
             complete.check(&preview).map_err(Error::Operation)?;
             complete.apply(&mut preview);
-            let cycle = preview
+            preview
                 .cycle_view(&cycle_id)
-                .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?;
-            cycle
+                .ok_or_else(|| Error::Operation("report cycle disappeared".into()))?
         };
         let mut pending = cycle
             .test_executions

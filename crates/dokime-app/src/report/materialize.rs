@@ -147,7 +147,7 @@ pub(crate) async fn execution(
     if let Some(operation) = operation {
         operation.phase("Assembling Report");
     }
-    Ok(assemble(
+    assemble(
         final_report,
         captured,
         execution,
@@ -155,7 +155,7 @@ pub(crate) async fn execution(
         plots,
         records,
         preview,
-    )?)
+    )
 }
 
 /* === Private Functions === */

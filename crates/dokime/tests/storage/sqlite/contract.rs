@@ -264,7 +264,7 @@ pub(crate) async fn finished_files_publish() {
         )
         .await
         .unwrap();
-    assert_eq!(listed, [file.clone()]);
+    assert_eq!(listed, std::slice::from_ref(&file));
     assert_eq!(
         backend
             .read_file(&snapshot, &file, 8, rows(100))

@@ -68,8 +68,7 @@ pub(crate) async fn native_aggregate(
                 .await?
                 .into_iter()
                 .map(|case| case.try_into())
-                .collect::<std::result::Result<Vec<dokime::definition::TestCase>, _>>()
-                .map_err(dokime::storage::Error::from)?;
+                .collect::<std::result::Result<Vec<dokime::definition::TestCase>, _>>()?;
             Groups::fold(query, &cases.iter().map(Row::Case).collect::<Vec<_>>())?
         }
         AggregateSource::Cycles => {
