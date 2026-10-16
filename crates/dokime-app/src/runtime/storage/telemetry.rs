@@ -735,17 +735,22 @@ mod admission_tests {
             .await
             .unwrap(),
         );
-        let state = Arc::new(backend.state(dokime::storage::sqlite::StateLimits::default()));
+        let settings = crate::config::StorageSettings::default().harmos(
+            Duration::from_secs(60),
+            NonZeroUsize::new(128 * 1024).unwrap(),
+        );
+        let state = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
+            &settings,
+        ));
         let storage = Manager::new(
             StorageBackends {
                 primary: backend,
                 state,
                 replicas: Vec::new(),
             },
-            crate::config::StorageSettings::default().harmos(
-                Duration::from_secs(60),
-                NonZeroUsize::new(128 * 1024).unwrap(),
-            ),
+            settings,
         )
         .unwrap();
         let runtime = Runtime::<TestApp>::builder((), ())

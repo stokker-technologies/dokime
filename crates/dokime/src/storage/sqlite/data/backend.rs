@@ -27,15 +27,12 @@ use harmos::{
     BackendFailure, MemorySize,
     catalog::Projection,
     storage::frame::{Scan, ScanCursor, ScanOrder, ScanPage},
-    storage::state::{
-        RecoveryEntry, RecoveryPage, RecoverySnapshot, StateBackend as StateStorageBackend,
-    },
     storage::*,
 };
 use tokio::sync::{Mutex, Notify};
 // Local Imports
 use super::super::{Error, State, memory, query};
-use super::{Entry, SavedData, StateLimits};
+use super::{Entry, SavedData};
 
 /* === Constants === */
 
@@ -85,15 +82,8 @@ struct Owner {
     views: Box<[Option<Slot>]>,
     registry_memory: Option<memory::Reservation>,
     primary_active: bool,
-    state_active: bool,
     bootstrap_limits: Option<QueryLimits>,
     retention_through: u64,
-}
-
-pub struct StateBackend {
-    history: StoreHistory,
-    limits: StateLimits,
-    owner: Arc<Mutex<Owner>>,
 }
 
 struct Slot {
@@ -178,7 +168,7 @@ impl Owner {
             .ok_or_else(|| invalid("SQLite backend is closed"))
     }
     async fn close_if_idle(&mut self) -> Result<(), Error> {
-        if !self.primary_active && !self.state_active {
+        if !self.primary_active {
             if let Some(state) = self.state.as_ref() {
                 state.close().await?;
             }
@@ -272,7 +262,6 @@ impl<C: ObjectCatalog> Backend<C> {
                 views,
                 registry_memory: Some(registry_memory),
                 primary_active: true,
-                state_active: false,
                 bootstrap_limits,
                 retention_through: 0,
             })),
@@ -281,14 +270,6 @@ impl<C: ObjectCatalog> Backend<C> {
 
     pub async fn control(&self) -> harmos::Result<State> {
         self.owner.lock().await.state()
-    }
-
-    pub fn state(&self, limits: StateLimits) -> StateBackend {
-        StateBackend {
-            history: self.history.clone(),
-            limits,
-            owner: self.owner.clone(),
-        }
     }
 
     fn file_memory(&self, state: &State, buffer: usize) -> harmos::Result<memory::Reservation> {
@@ -1769,197 +1750,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             let mut owner = self.owner.clone().lock_owned().await;
             owned("close SQLite", async move {
                 owner.primary_active = false;
-                owner.close_if_idle().await
-            })
-            .await
-        })
-    }
-}
-
-impl StateBackend {
-    async fn apply<T: Send + 'static>(
-        &self,
-        operation: &'static str,
-        action: impl FnOnce(
-            State,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<T, Error>> + Send>,
-        > + Send
-        + 'static,
-    ) -> harmos::Result<T> {
-        let owner = self.owner.clone().lock_owned().await;
-        owned(operation, async move {
-            if !owner.state_active {
-                return Err(Error::Closed);
-            }
-            let result = action(owner.state.as_ref().ok_or(Error::Closed)?.clone()).await;
-            drop(owner);
-            result
-        })
-        .await
-    }
-}
-
-impl StateStorageBackend for StateBackend {
-    fn history(&self) -> &StoreHistory {
-        &self.history
-    }
-    fn open(&self) -> StorageFuture<'_, RecoveryPosition> {
-        Box::pin(async move {
-            if self.limits.entry_bytes > self.limits.batch_bytes {
-                return Err(invalid("recovery entry bound exceeds batch bound"));
-            }
-            let mut owner = self.owner.clone().lock_owned().await;
-            let history = self.history.clone();
-            owned("open SQLite recovery", async move {
-                let state = owner.state.as_ref().ok_or(Error::Closed)?;
-                let position = state.state_open(history).await?;
-                owner.state_active = true;
-                Ok(position)
-            })
-            .await
-        })
-    }
-    fn read_snapshot(&self, maximum: NonZeroUsize) -> StorageFuture<'_, Option<RecoverySnapshot>> {
-        let history = self.history.clone();
-        let maximum = maximum.min(self.limits.snapshot_bytes);
-        Box::pin(self.apply("read SQLite recovery snapshot", move |state| {
-            Box::pin(async move { state.state_snapshot(history, maximum).await })
-        }))
-    }
-    fn write_snapshot<'a>(&'a self, snapshot: &'a RecoverySnapshot) -> StorageFuture<'a, ()> {
-        Box::pin(async move {
-            self.history.check(&snapshot.through.history)?;
-            if snapshot.payload.len() > self.limits.snapshot_bytes.get() {
-                return Err(invalid("recovery snapshot exceeds byte bound"));
-            }
-            let owner = self.owner.clone().lock_owned().await;
-            if !owner.state_active {
-                return Err(invalid("SQLite recovery backend is closed"));
-            }
-            let allocation = snapshot
-                .payload
-                .len()
-                .checked_add(std::mem::size_of::<RecoverySnapshot>())
-                .and_then(|bytes| bytes.checked_add(snapshot.through.history.memory_size()))
-                .and_then(|bytes| {
-                    bytes.checked_add(snapshot.required_data.memory_size().saturating_mul(3))
-                })
-                .ok_or_else(|| invalid("recovery snapshot allocation size overflow"))?;
-            let reservation = owner
-                .state
-                .as_ref()
-                .ok_or_else(|| invalid("SQLite backend is closed"))?
-                .reserve_memory(allocation)
-                .map_err(|error| failure("reserve SQLite recovery snapshot", error))?;
-            let snapshot = snapshot.clone();
-            let maximum = self.limits.snapshot_bytes;
-            owned("write SQLite recovery snapshot", async move {
-                let result = owner
-                    .state
-                    .as_ref()
-                    .ok_or(Error::Closed)?
-                    .state_store_snapshot(snapshot, maximum)
-                    .await;
-                drop(reservation);
-                drop(owner);
-                result
-            })
-            .await
-        })
-    }
-    fn read_entries<'a>(
-        &'a self,
-        after: &'a RecoveryPosition,
-        through: &'a RecoveryPosition,
-        limits: ReadLimits,
-    ) -> StorageFuture<'a, RecoveryPage> {
-        Box::pin(async move {
-            self.history.check(&after.history)?;
-            self.history.check(&through.history)?;
-            let after = after.clone();
-            let through = through.clone();
-            let maximum = self.limits.entry_bytes;
-            self.apply("read SQLite recovery page", move |state| {
-                Box::pin(async move { state.state_page(after, through, limits, maximum).await })
-            })
-            .await
-        })
-    }
-    fn write_entries<'a>(&'a self, entries: &'a [RecoveryEntry]) -> StorageFuture<'a, ()> {
-        Box::pin(async move {
-            let mut bytes = 0usize;
-            for entry in entries {
-                self.history.check(&entry.position.history)?;
-                if entry.payload.len() > self.limits.entry_bytes.get() {
-                    return Err(invalid("recovery entry exceeds byte bound"));
-                }
-                let dependency_bytes =
-                    super::entry::check_size(&entry.required_data, super::HISTORY_BYTES)
-                        .map_err(|error| failure("size SQLite state dependency", error))?;
-                bytes = bytes
-                    .checked_add(entry.payload.len())
-                    .and_then(|value| value.checked_add(dependency_bytes))
-                    .and_then(|value| value.checked_add(64))
-                    .filter(|value| *value <= self.limits.batch_bytes.get())
-                    .ok_or_else(|| invalid("recovery batch exceeds byte bound"))?;
-            }
-            let owner = self.owner.clone().lock_owned().await;
-            if !owner.state_active {
-                return Err(invalid("SQLite recovery backend is closed"));
-            }
-            let mut allocation = entries
-                .len()
-                .checked_mul(std::mem::size_of::<RecoveryEntry>())
-                .and_then(|bytes| bytes.checked_add(self.history.memory_size()))
-                .ok_or_else(|| invalid("recovery batch allocation size overflow"))?;
-            for entry in entries {
-                allocation = allocation
-                    .checked_add(entry.payload.len())
-                    .and_then(|bytes| bytes.checked_add(entry.position.history.memory_size()))
-                    .and_then(|bytes| {
-                        bytes.checked_add(entry.required_data.memory_size().saturating_mul(3))
-                    })
-                    .ok_or_else(|| invalid("recovery batch allocation size overflow"))?;
-            }
-            let reservation = owner
-                .state
-                .as_ref()
-                .ok_or_else(|| invalid("SQLite backend is closed"))?
-                .reserve_memory(allocation)
-                .map_err(|error| failure("reserve SQLite recovery batch", error))?;
-            let entries = entries.to_vec();
-            let history = self.history.clone();
-            let limits = self.limits;
-            owned("write SQLite recovery entries", async move {
-                let result = owner
-                    .state
-                    .as_ref()
-                    .ok_or(Error::Closed)?
-                    .state_write(history, entries, limits)
-                    .await;
-                drop(reservation);
-                drop(owner);
-                result
-            })
-            .await
-        })
-    }
-    fn flush<'a>(&'a self, through: &'a RecoveryPosition) -> StorageFuture<'a, RecoveryPosition> {
-        Box::pin(async move {
-            self.history.check(&through.history)?;
-            let through = through.clone();
-            self.apply("flush SQLite recovery", move |state| {
-                Box::pin(async move { state.state_flush(through).await })
-            })
-            .await
-        })
-    }
-    fn close(&self) -> StorageFuture<'_, ()> {
-        Box::pin(async move {
-            let mut owner = self.owner.clone().lock_owned().await;
-            owned("close SQLite recovery", async move {
-                owner.state_active = false;
                 owner.close_if_idle().await
             })
             .await

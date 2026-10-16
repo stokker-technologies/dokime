@@ -282,10 +282,14 @@ impl RuntimeHandle {
         let sampling = Sampling::default();
         let providers = ProviderExecutorRegistry::new(providers);
         dokime_filesystem::publication::create_dir_all(&config.storage_root)?;
-        let recovery = Arc::new(backend.state(dokime::storage::sqlite::StateLimits::default()));
         let settings = config
             .storage
             .harmos(config.save_interval, backend_limits.batch_bytes);
+        let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+            config.storage_root.clone(),
+            harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
+            &settings,
+        ));
         tracing::info!(
             read_pool_bytes = settings.budget.read_memory_bytes.get(),
             max_views = settings.max_views.get(),

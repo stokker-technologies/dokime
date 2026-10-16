@@ -22,13 +22,11 @@ mod record_filter;
 mod retained;
 mod retention;
 mod scan;
-pub(super) mod state;
 
 /* === Re-Exports === */
-pub use backend::{Backend, Limits, StateBackend};
+pub use backend::{Backend, Limits};
 pub(crate) use entry::Entry;
 pub(super) use index::IndexSchema;
-pub use state::StateLimits;
 
 /* === Imports === */
 // Standard Library Imports

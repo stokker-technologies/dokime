@@ -16,7 +16,7 @@ pub(crate) mod query;
 /* === Re-Exports === */
 pub use crate::storage::error::Error;
 pub use catalog::Source;
-pub use data::{Backend, Limits, StateBackend, StateLimits};
+pub use data::{Backend, Limits};
 pub use rusqlite;
 
 /* === Imports === */
@@ -134,7 +134,7 @@ impl State {
                 .open(root.join("local.lock"))?;
             acquire_lease(&lease)?;
 
-            // Recovery Shares `local.sqlite`; An Older Separate Journal Is Never Merged.
+            // Retired State Databases Are Never Silently Replaced.
             if root.join("recovery.sqlite").exists() {
                 return Err(Error::Conflict(
                     "a separate recovery database requires a fresh storage root",
@@ -155,6 +155,17 @@ impl State {
                 ));
             }
 
+            let has_state: bool = connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_recovery_head')",
+                [],
+                |row| row.get(0),
+            )?;
+            if has_state {
+                return Err(Error::Conflict(
+                    "SQLite-persisted state requires a fresh storage root for JSON state storage",
+                ));
+            }
+
             connection.execute_batch(
                 "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;
                 PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;
@@ -165,7 +176,6 @@ impl State {
             transaction.execute_batch(catalog::SCHEMA)?;
             transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             transaction.commit()?;
-            data::state::initialize(&mut connection)?;
 
             Ok(Self(Arc::new(Owner {
                 live: Arc::new(Mutex::new(Some(Live { connection, lease }))),

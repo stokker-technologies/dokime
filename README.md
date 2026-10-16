@@ -559,6 +559,11 @@ and authoring macros.
 | `derive` | Yes | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
 
+The application stores state checkpoints and their journal through Harmos's shared
+JSON/JSONL backend; SQLite holds the data catalog and evidence. Existing roots
+with SQLite-persisted application state require a fresh storage root for this
+development format. Existing data is never silently reset.
+
 For remote automation, depend on the reusable client crate:
 
 ```toml
