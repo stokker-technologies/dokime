@@ -93,10 +93,6 @@ impl MemorySize for CapturedSource {
                 std::mem::size_of_val(&self.outputs),
             ),
             (
-                self.outputs.memory_size(),
-                std::mem::size_of_val(&self.outputs),
-            ),
-            (
                 self.context.memory_size(),
                 std::mem::size_of_val(&self.context),
             ),

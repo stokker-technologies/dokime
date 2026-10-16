@@ -285,6 +285,8 @@ async fn run_kill_child() {
         .await;
 
     assert!(created.is_ok());
+    // The Crash Starts After Both Native Data And Managed State Are Durable.
+    runtime.storage().flush_recovery().await.unwrap();
     fs::write(root.join("journal-entry-ready"), "ready").expect("write marker");
 
     loop {

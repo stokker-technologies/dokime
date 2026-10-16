@@ -566,7 +566,8 @@ impl RuntimeHandle {
                     })
                     .map(|sample| {
                         let mut sample = sample.clone();
-                        sample.scope = Some(holder.scope.clone());
+                        // A Producer's Step Origin Survives Delivery Back To Its Owner.
+                        sample.scope = Some(delivery_scope(sample.scope.as_ref(), &holder.scope));
                         serde_json::to_string(&sample)
                     })
                     .collect::<std::result::Result<Vec<_>, _>>();
@@ -815,6 +816,16 @@ impl RuntimeHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn delivery_scope(source: Option<&RecordScope>, holder: &RecordScope) -> RecordScope {
+    source
+        .filter(|source| {
+            source.test_execution_id.is_some()
+                && source.test_execution_id == holder.test_execution_id
+        })
+        .unwrap_or(holder)
+        .clone()
+}
+
 fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
     let left_ended = left.closed_at.as_ref();
     let right_ended = right.closed_at.as_ref();
@@ -824,3 +835,27 @@ fn overlaps(left: &LeaseWindow, right: &LeaseWindow) -> bool {
 }
 
 /* === Tests === */
+#[cfg(test)]
+mod tests {
+    use super::delivery_scope;
+    use dokime::core::{EvidenceOrigin, RecordScope, TestExecutionId};
+
+    #[test]
+    fn delivery_preserves_producer_origin_for_its_execution() {
+        let holder = RecordScope {
+            test_execution_id: Some(TestExecutionId::new()),
+            ..Default::default()
+        };
+        let source = RecordScope {
+            origin: EvidenceOrigin::Initialization,
+            ..holder.clone()
+        };
+        assert_eq!(delivery_scope(Some(&source), &holder), source);
+        assert_eq!(delivery_scope(None, &holder), holder);
+        let other = RecordScope {
+            test_execution_id: Some(TestExecutionId::new()),
+            ..Default::default()
+        };
+        assert_eq!(delivery_scope(Some(&source), &other), other);
+    }
+}

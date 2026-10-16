@@ -433,8 +433,8 @@ pub(crate) async fn two_executions_rows() {
         Some(second.to_string()),
     );
 
-    // Stored once, however many runs read it.
-    assert_eq!(stored(&handle).await, 1);
+    // The Unscoped Measurement And Each Execution Retain Their Own Capture.
+    assert_eq!(stored(&handle).await, 3);
 
     // Releasing one hold leaves the instance running for the other, and the
     // released run stops being evidence of anything new.
@@ -454,7 +454,11 @@ pub(crate) async fn two_executions_rows() {
         2,
         "the run still holding it keeps receiving"
     );
-    assert_eq!(stored(&handle).await, 2, "each measurement is stored once");
+    assert_eq!(
+        stored(&handle).await,
+        5,
+        "only the remaining execution captures the second measurement"
+    );
 
     handle.release_stream_leases(second_leases).await.unwrap();
     drop(handle);
