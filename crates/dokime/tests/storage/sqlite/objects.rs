@@ -29,7 +29,7 @@ use harmos::{
 };
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, StateLimits};
+use dokime::storage::sqlite::{Backend, Limits};
 
 /* === Constants === */
 
@@ -103,7 +103,11 @@ pub(crate) async fn scalar_failure_cursor() {
             })
             .await
             .unwrap();
-        let recovery = Arc::new(backend.state(StateLimits::default()));
+        let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            backend.history().clone(),
+            &crate::sqlite::storage::storage_settings(),
+        ));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
@@ -271,7 +275,11 @@ pub(crate) async fn query_page_drop() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                state: Arc::new(backend.state(StateLimits::default())),
+                state: Arc::new(harmos::storage::state::file::FileBackend::new(
+                    root.path().to_owned(),
+                    backend.history().clone(),
+                    &crate::sqlite::storage::storage_settings(),
+                )),
                 replicas: vec![],
             },
             StorageSettings {
@@ -370,7 +378,11 @@ pub(crate) async fn stream_frames_charge() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                state: Arc::new(backend.state(StateLimits::default())),
+                state: Arc::new(harmos::storage::state::file::FileBackend::new(
+                    root.path().to_owned(),
+                    backend.history().clone(),
+                    &crate::sqlite::storage::storage_settings(),
+                )),
                 replicas: vec![],
             },
             crate::sqlite::storage::storage_settings(),
@@ -520,7 +532,11 @@ pub(crate) async fn file_query_offset() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                state: Arc::new(backend.state(StateLimits::default())),
+                state: Arc::new(harmos::storage::state::file::FileBackend::new(
+                    root.path().to_owned(),
+                    backend.history().clone(),
+                    &crate::sqlite::storage::storage_settings(),
+                )),
                 replicas: vec![],
             },
             crate::sqlite::storage::storage_settings(),
@@ -645,7 +661,11 @@ pub(crate) async fn pinned_page_waiting() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: backend.clone(),
-                state: Arc::new(backend.state(StateLimits::default())),
+                state: Arc::new(harmos::storage::state::file::FileBackend::new(
+                    root.path().to_owned(),
+                    backend.history().clone(),
+                    &crate::sqlite::storage::storage_settings(),
+                )),
                 replicas: vec![],
             },
             settings,
@@ -731,7 +751,11 @@ pub(crate) async fn private_object_version() {
         let storage = StorageManager::new(
             StorageBackends {
                 primary: source.clone(),
-                state: Arc::new(source.state(StateLimits::default())),
+                state: Arc::new(harmos::storage::state::file::FileBackend::new(
+                    root.path().to_owned(),
+                    source.history().clone(),
+                    &crate::sqlite::storage::storage_settings(),
+                )),
                 replicas: vec![],
             },
             crate::sqlite::storage::storage_settings(),

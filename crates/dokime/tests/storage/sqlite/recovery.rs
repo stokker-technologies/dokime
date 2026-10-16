@@ -20,7 +20,7 @@ use std::num::NonZeroUsize;
 use harmos::storage::{state::*, *};
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, State, StateLimits};
+use dokime::storage::sqlite::{Backend, Limits, State};
 
 /* === Constants === */
 
@@ -51,7 +51,11 @@ pub(crate) async fn primary_close_until() {
     let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
         .await
         .unwrap();
-    let recovery = backend.state(StateLimits::default());
+    let recovery = harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        backend.history().clone(),
+        &crate::sqlite::storage::storage_settings(),
+    );
     StateBackend::open(&recovery).await.unwrap();
     let at = RecoveryPosition {
         history: backend.history().clone(),
@@ -71,7 +75,15 @@ pub(crate) async fn primary_close_until() {
     StorageBackend::close(&backend).await.unwrap();
     assert!(backend.cursor_saved().await.is_err());
     assert_eq!(recovery.flush(&at).await.unwrap(), at);
-    assert!(State::open(root.path()).await.is_err());
+    // Data And State Resources Have Independent Lifetimes And Leases.
+    let owner = State::open(root.path()).await.unwrap();
+    owner.close().await.unwrap();
+    let competing = harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        backend.history().clone(),
+        &crate::sqlite::storage::storage_settings(),
+    );
+    assert!(competing.open().await.is_err());
     StateBackend::close(&recovery).await.unwrap();
     let owner = State::open(root.path()).await.unwrap();
     owner.close().await.unwrap();
@@ -86,7 +98,11 @@ pub(crate) async fn snapshot_tail_frontier() {
     let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
         .await
         .unwrap();
-    let recovery = backend.state(StateLimits::default());
+    let recovery = harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        backend.history().clone(),
+        &crate::sqlite::storage::storage_settings(),
+    );
     StateBackend::open(&recovery).await.unwrap();
     let history = backend.history().clone();
     let at = |sequence| RecoveryPosition {

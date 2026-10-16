@@ -27,7 +27,7 @@ use harmos::storage::{
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, StateLimits};
+use dokime::storage::sqlite::{Backend, Limits};
 
 /* === Constants === */
 
@@ -502,7 +502,11 @@ pub(crate) async fn private_import_abort() {
                 .is_err()
         );
         assert_eq!(backend.cursor_saved().await.unwrap(), prior);
-        let recovery = backend.state(StateLimits::default());
+        let recovery = harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            backend.history().clone(),
+            &crate::sqlite::storage::storage_settings(),
+        );
         StateBackend::open(&recovery).await.unwrap();
         let recovered = RecoveryPosition {
             history: prior.history.clone(),
@@ -565,7 +569,11 @@ pub(crate) async fn private_import_abort() {
             .await
             .unwrap();
         assert_eq!(reopened.cursor_saved().await.unwrap(), prior);
-        let recovery = reopened.state(StateLimits::default());
+        let recovery = harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            reopened.history().clone(),
+            &crate::sqlite::storage::storage_settings(),
+        );
         assert_eq!(StateBackend::open(&recovery).await.unwrap(), recovered);
         StateBackend::close(&recovery).await.unwrap();
         assert!(reopened.write(batch).await.is_err());

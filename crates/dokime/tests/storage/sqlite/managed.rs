@@ -30,7 +30,7 @@ use prost::Message;
 
 // Local Imports
 use super::storage::{history, id, key, limits, read_all, record, schema, view};
-use dokime::storage::sqlite::{Backend, Limits as BackendLimits, StateLimits};
+use dokime::storage::sqlite::{Backend, Limits as BackendLimits};
 
 /* === Constants === */
 
@@ -217,7 +217,11 @@ pub(crate) async fn compacted_snapshots_receipts() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.state(StateLimits::default()));
+        let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            data.history().clone(),
+            &policy(),
+        ));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data.clone(),
@@ -345,7 +349,11 @@ pub(crate) fn cancelled_backend_instance() {
                     .is_err()
             );
 
-            let recovery = data.state(StateLimits::default());
+            let recovery = harmos::storage::state::file::FileBackend::new(
+                root.path().to_owned(),
+                data.history().clone(),
+                &policy(),
+            );
             let (release, blocked) = std::sync::mpsc::channel::<()>();
             let (started, ready) = tokio::sync::oneshot::channel();
             let worker = tokio::task::spawn_blocking(move || {
@@ -377,7 +385,11 @@ pub(crate) async fn manager_queries_evidence() {
             .unwrap(),
     );
     let history = data.history().clone();
-    let recovery = Arc::new(data.state(StateLimits::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        data.history().clone(),
+        &policy(),
+    ));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data.clone(),
@@ -533,7 +545,11 @@ pub(crate) async fn manager_queries_evidence() {
             .unwrap(),
     );
     assert_eq!(data.history(), &history);
-    let recovery = Arc::new(data.state(StateLimits::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        data.history().clone(),
+        &policy(),
+    ));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data,
@@ -591,7 +607,11 @@ pub(crate) async fn managed_journal_backends() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.state(StateLimits::default()));
+        let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            data.history().clone(),
+            &policy(),
+        ));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
@@ -645,7 +665,11 @@ pub(crate) async fn captured_records_duplicates() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.state(StateLimits::default()));
+        let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            data.history().clone(),
+            &policy(),
+        ));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
@@ -774,7 +798,11 @@ pub(crate) async fn cancelled_boot_storage() {
             .unwrap(),
     );
     let history = data.history().clone();
-    let recovery = Arc::new(data.state(StateLimits::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        data.history().clone(),
+        &policy(),
+    ));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data,
@@ -798,7 +826,11 @@ pub(crate) async fn cancelled_boot_storage() {
         .await
         .unwrap();
     assert_eq!(data.history(), &history);
-    let recovery = data.state(StateLimits::default());
+    let recovery = harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        data.history().clone(),
+        &policy(),
+    );
     recovery.open().await.unwrap();
     recovery.close().await.unwrap();
     data.close().await.unwrap();
@@ -826,7 +858,11 @@ pub(crate) async fn oversized_admission_order() {
         .await
         .unwrap(),
     );
-    let recovery = Arc::new(primary.state(StateLimits::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        primary.history().clone(),
+        &policy(),
+    ));
     let storage = StorageManager::new(
         StorageBackends {
             primary: primary.clone(),
@@ -925,7 +961,11 @@ pub(crate) async fn follower_bridges_admissions() {
         .await
         .unwrap(),
     );
-    let recovery = Arc::new(data.state(StateLimits::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        data.history().clone(),
+        &policy(),
+    ));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data,
@@ -1003,7 +1043,11 @@ pub(crate) async fn replay_tail_saving() {
         .await
         .unwrap(),
     );
-    let recovery = Arc::new(data.state(StateLimits::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        data.history().clone(),
+        &policy(),
+    ));
     let storage = StorageManager::new(
         StorageBackends {
             primary: data,
@@ -1097,7 +1141,11 @@ pub(crate) async fn managed_producer_restart() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.state(StateLimits::default()));
+        let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            data.history().clone(),
+            &policy(),
+        ));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
@@ -1209,7 +1257,11 @@ pub(crate) async fn replays_dense_journal_pages() {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.state(StateLimits::default()));
+        let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            data.history().clone(),
+            &policy(),
+        ));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,

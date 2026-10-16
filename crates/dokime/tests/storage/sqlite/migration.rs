@@ -25,7 +25,7 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::storage::{history, id};
-use dokime::storage::sqlite::{Backend, Error, Limits, State, StateLimits};
+use dokime::storage::sqlite::{Backend, Error, Limits, State};
 
 /* === Constants === */
 
@@ -80,7 +80,11 @@ pub(crate) async fn refuses_retired_evidence() {
         .write(StorageBatch::new(&parts, NonZeroUsize::new(4096).unwrap()).unwrap())
         .await
         .unwrap();
-    let recovery = backend.state(StateLimits::default());
+    let recovery = harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        backend.history().clone(),
+        &crate::sqlite::storage::storage_settings(),
+    );
     recovery.open().await.unwrap();
     recovery
         .write_entries(&[RecoveryEntry {
@@ -151,7 +155,11 @@ pub(crate) async fn refuses_retired_evidence() {
         .await
         .unwrap();
     assert_eq!(backend.cursor_saved().await.unwrap().sequence, 1);
-    let recovery = backend.state(StateLimits::default());
+    let recovery = harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        backend.history().clone(),
+        &crate::sqlite::storage::storage_settings(),
+    );
     assert_eq!(recovery.open().await.unwrap().sequence, 1);
     recovery.close().await.unwrap();
     backend.close().await.unwrap();
