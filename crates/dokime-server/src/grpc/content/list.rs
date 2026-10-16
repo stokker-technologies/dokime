@@ -76,12 +76,7 @@ impl Operation for List {
             .runtime
             .artifacts_limited(SCAN_LIMIT)
             .await
-            .map_err(|source| {
-                detailed(
-                    Status::resource_exhausted("artifact inventory exceeds limit"),
-                    &source,
-                )
-            })?;
+            .map_err(inventory_failure)?;
         let start = if request.after_artifact_id.is_empty() {
             0
         } else {
@@ -125,6 +120,24 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 /* === Private Functions === */
+fn inventory_failure(error: dokime_app::Error) -> Status {
+    let status = match &error {
+        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
+            Status::resource_exhausted("artifact inventory exceeds its read budget")
+        }
+        dokime_app::Error::Overload { .. } => {
+            Status::resource_exhausted("artifact inventory is busy")
+        }
+        dokime_app::Error::Unavailable { .. }
+        | dokime_app::Error::ShuttingDown
+        | dokime_app::Error::Interrupted => {
+            Status::unavailable("artifact inventory is unavailable")
+        }
+        _ => Status::internal("artifact inventory could not be read"),
+    };
+    detailed(status, &error)
+}
+
 fn project(
     records: &[ArtifactRecord],
     request: &wire::ListArtifactsRequest,

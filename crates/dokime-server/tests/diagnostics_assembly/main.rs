@@ -23,7 +23,9 @@ use dokime_app::domains::exports::storage::DiagnosticPathKey;
 use dokime_app::{Runtime, RuntimeConfig};
 use tempfile::tempdir;
 
-use dokime_server::diagnostics_assembly::{DiagnosticCheckStatus, DiagnosticsSnapshot};
+use dokime_server::diagnostics_assembly::{
+    DiagnosticCheckStatus, DiagnosticsSnapshot, StartupDoctorCheck, StartupDoctorCheckKey,
+};
 
 /* === Constants === */
 
@@ -42,6 +44,14 @@ use dokime_server::diagnostics_assembly::{DiagnosticCheckStatus, DiagnosticsSnap
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn storage_root_check(diagnostics: &DiagnosticsSnapshot) -> &StartupDoctorCheck {
+    diagnostics
+        .startup_doctor
+        .checks
+        .iter()
+        .find(|check| check.key == StartupDoctorCheckKey::StorageRoot)
+        .expect("the storage root is reported")
+}
 
 /* === Tests === */
 
@@ -73,62 +83,50 @@ pub(crate) async fn assembles_counts_runtime() {
 
     // The startup-doctor passes on a healthy, present storage root.
     assert_eq!(diagnostics.startup_doctor.status, DiagnosticCheckStatus::Ok);
-    let baseline = diagnostics
+    let present = storage_root_check(&diagnostics);
+    assert_eq!(present.status, DiagnosticCheckStatus::Ok);
+    assert_eq!(present.message, "storage root exists");
+    assert_eq!(
+        present.detail.as_deref(),
+        Some(root.path().to_string_lossy().as_ref())
+    );
+    let accepting = diagnostics
         .startup_doctor
         .checks
         .iter()
-        .find(|check| check.message == "storage baseline is compatible")
-        .expect("an existing root reports its baseline");
-    assert_eq!(baseline.status, DiagnosticCheckStatus::Ok);
-    assert_eq!(
-        baseline.detail.as_deref(),
-        Some("schema version 1; data format dokime.sqlite.storage.v1")
-    );
+        .find(|check| check.key == StartupDoctorCheckKey::ShutdownState)
+        .expect("the shutdown state is reported");
+    assert_eq!(accepting.status, DiagnosticCheckStatus::Ok);
+    assert_eq!(accepting.message, "runtime accepts commands");
 
-    // A root from another baseline fails the doctor and names the mismatch.
-    let foreign = tempdir().unwrap();
-    dokime::storage::sqlite::rusqlite::Connection::open(foreign.path().join("local.sqlite"))
-        .unwrap()
-        .execute_batch("PRAGMA user_version=7; CREATE TABLE foreign_evidence(payload BLOB);")
-        .unwrap();
-    let refused = DiagnosticsSnapshot::from_runtime(
+    // An absent root under an existing parent warns that it will be created.
+    let parent = tempdir().unwrap();
+    let pending = DiagnosticsSnapshot::from_runtime(
         runtime.runtime_overview().await.unwrap(),
-        foreign.path(),
+        &parent.path().join("absent"),
         &runtime.application_root(),
     );
-    assert_eq!(refused.startup_doctor.status, DiagnosticCheckStatus::Failed);
-    let baseline = refused
-        .startup_doctor
-        .checks
-        .iter()
-        .find(|check| check.status == DiagnosticCheckStatus::Failed)
-        .expect("the incompatible baseline is reported");
     assert_eq!(
-        baseline.message,
-        "storage baseline is incompatible with this build"
+        pending.startup_doctor.status,
+        DiagnosticCheckStatus::Warning
     );
-    assert!(
-        baseline
-            .detail
-            .as_deref()
-            .is_some_and(|detail| detail.contains("schema version 7")),
-        "{:?}",
-        baseline.detail
+    let created = storage_root_check(&pending);
+    assert_eq!(created.status, DiagnosticCheckStatus::Warning);
+    assert_eq!(
+        created.message,
+        "storage root will be created on first write"
     );
 
-    // An absent root has no baseline row to report.
-    let absent = DiagnosticsSnapshot::from_runtime(
+    // A root without a parent fails the doctor.
+    let orphan = DiagnosticsSnapshot::from_runtime(
         runtime.runtime_overview().await.unwrap(),
-        &foreign.path().join("absent"),
+        &parent.path().join("missing").join("absent"),
         &runtime.application_root(),
     );
-    assert!(
-        absent
-            .startup_doctor
-            .checks
-            .iter()
-            .all(|check| !check.message.starts_with("storage baseline"))
-    );
+    assert_eq!(orphan.startup_doctor.status, DiagnosticCheckStatus::Failed);
+    let refused = storage_root_check(&orphan);
+    assert_eq!(refused.status, DiagnosticCheckStatus::Failed);
+    assert_eq!(refused.message, "storage root parent does not exist");
 
     // The bundle carries the runtime's storage-layout contract.
     assert_eq!(

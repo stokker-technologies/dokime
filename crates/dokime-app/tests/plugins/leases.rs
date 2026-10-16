@@ -596,21 +596,29 @@ pub(crate) async fn foreign_stream_refuses() {
         "the refusal names the stream: {refusal}"
     );
 
-    // Stored once: the host's own copy, not one per leaseholder. A second
-    // stored row would be the reader re-publishing what it was handed.
+    // The host keeps the unscoped measurement and the leasing run keeps its
+    // own capture; a third row would be the reader re-publishing what it was
+    // handed.
     let stored = handle
         .selected_telemetry(dokime_app::domains::evidence::TelemetrySelection {
             streams: vec![foreign_stream()],
             ..Default::default()
         })
-        .await;
-    assert_eq!(
-        stored
-            .iter()
-            .filter(|sample| sample.stream == foreign_stream())
-            .count(),
-        1,
-        "one measurement is stored once, however many runs read it"
+        .await
+        .into_iter()
+        .filter(|sample| sample.stream == foreign_stream())
+        .map(|sample| {
+            sample
+                .scope
+                .and_then(|scope| scope.test_execution_id)
+                .map(|id| id.to_string())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(stored.len(), 2, "the reader does not re-publish its rows");
+    assert!(stored.contains(&None), "the unscoped measurement is stored");
+    assert!(
+        stored.contains(&Some(execution.to_string())),
+        "the leasing run captures its own copy"
     );
 
     // Releasing the hold stops the delivery, not the storage.
