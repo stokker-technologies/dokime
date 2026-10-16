@@ -631,7 +631,7 @@ uninstrumented. Windows validation runs independently as advisory for ordinary
 Dev updates, with its results and artifacts retained. Main and releases require
 both native platforms. Windows validation also installs that candidate's NSIS
 package and requires native launch, control, live listening and restart evidence.
-Run `mise run test:system:javascript` on a disposable interactive Windows account
+Run `mise run test:system:typescript` on a disposable interactive Windows account
 with `DOKIME_E2E_DISPOSABLE_WINDOWS=1`, WebView2 and a matching `msedgedriver.exe`
 (`DOKIME_E2E_DRIVER` can select it). Restore the exact build package first with
 `mise run ci:artifacts:restore`; the runner verifies its manifest and supplies the

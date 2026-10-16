@@ -34,7 +34,7 @@ ROLES = (
     "build:dev",
     "test:integration:rust",
     "test:integration:python",
-    "test:integration:javascript",
+    "test:integration:typescript",
     "test:acceptance:rust",
     "test:acceptance:python",
     "ci:coverage",
@@ -61,7 +61,7 @@ def verify_tree(event: dict) -> None:
     roles = ROLES
     for platform in required_platforms(event):
         if platform == "windows":
-            job_id("test:system:javascript", platform, completed=True)
+            job_id("test:system:typescript", platform, completed=True)
         for role in roles:
             job_id(role, platform, completed=True)
     if "pull_request" not in event:

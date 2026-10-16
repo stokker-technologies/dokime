@@ -20,32 +20,21 @@ install = "preinstalled"
 sources = ["src/dokime"]
 categories = ["integration", "acceptance"]
 
-[testing.javascript.integration]
+[testing.typescript.integration]
+# Vitest discovers the desktop client's stories from its own configuration.
+directory = "crates/dokime-gui"
 command = [
   "node",
-  "--test",
-  "--test-reporter=spec",
-  "--test-reporter=junit",
-  "--test-reporter-destination=stdout",
-  "--test-reporter-destination={junit}",
-  "--test-timeout={timeout_ms}",
-  "crates/dokime-gui/src-tauri/tests/rpc/fixtures/generator.test.mjs",
-  "crates/dokime-gui/tests/execution-file-paging.test.mjs",
-  "crates/dokime-gui/src-tauri/tests/plots/reduce.test.mjs",
-  "crates/dokime-gui/src-tauri/tests/plots/viewport.test.mjs",
-  "crates/dokime-gui/tests/prompt-banner.test.mjs",
-  "crates/dokime-gui/tests/plot-auto.test.mjs",
-  "crates/dokime-gui/tests/histogram-axes.test.mjs",
-  "crates/dokime-gui/tests/execution-list.test.mjs",
-  "crates/dokime-gui/tests/cycle-menus.test.mjs",
-  "crates/dokime-gui/tests/storage-reset.test.mjs",
-  "crates/dokime-gui/tests/console-follow.test.mjs",
-  "crates/dokime-gui/tests/console-records.test.mjs",
-  "crates/dokime-gui/tests/report-steps.test.mjs",
-  "crates/dokime-gui/tests/status-bar-operations.test.mjs",
+  "node_modules/vitest/vitest.mjs",
+  "run",
+  "--reporter=default",
+  "--reporter=junit",
+  "--outputFile.junit={junit}",
+  "--testTimeout={timeout_ms}",
+  "--hookTimeout={timeout_ms}",
 ]
 
-[testing.javascript.system]
+[testing.typescript.system]
 command = [
   "uv",
   "run",

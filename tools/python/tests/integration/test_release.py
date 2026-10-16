@@ -179,7 +179,7 @@ def test_windows_installed_evidence(tmp_path: Path) -> None:
     root = _release(tmp_path)
     path = root / "windows/manifest.json"
     manifest = json.loads(path.read_text())
-    manifest["validation"]["suites"].remove("system-javascript")
+    manifest["validation"]["suites"].remove("system-typescript")
     path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="complete native test evidence"):
         verify_release(root, COMMIT, TAG, tmp_path)
@@ -769,8 +769,8 @@ def _release(source: Path) -> Path:
 
 
 def case_development_artifacts(tmp_path: Path) -> None:
-    assert "system-javascript" not in checks.required_suites("windows", "dev")
-    assert "system-javascript" in checks.required_suites("windows", "release")
+    assert "system-typescript" not in checks.required_suites("windows", "dev")
+    assert "system-typescript" in checks.required_suites("windows", "release")
     root = _release(tmp_path)
     package = root / "linux"
     path = package / "manifest.json"

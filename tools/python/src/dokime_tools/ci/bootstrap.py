@@ -119,7 +119,7 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "test",
             "coverage",
             "catalog",
-            "javascript",
+            "typescript",
             "publish",
         ),
     )
@@ -147,7 +147,7 @@ def selected_tools(role: str, system: str) -> list[str]:
     common = ["python", "uv", "rust", "node", pnpm]
     if role in {"check", "build"}:
         return []  # Complete Maintained-Source Checks Use The Pinned Tool Set.
-    if role in {"catalog", "javascript"}:
+    if role in {"catalog", "typescript"}:
         return [*common, "sccache"]
     if role == "publish":
         return [
@@ -180,7 +180,7 @@ def prepare_tools(role: str) -> None:
             _run(["mise", "exec", "--", "cargo", "fetch", "--locked"])
     if role in {"build", "contracts"}:
         prepare_harmos(Path.cwd(), allow_install=role == "contracts")
-    if role == "javascript":
+    if role == "typescript":
         _run(["mise", "exec", "--", "pnpm", "install", "--frozen-lockfile"])
     for tool in ("mise", "rustc", "cargo", "python", "uv", "node", "pnpm"):
         _run(["mise", "exec", "--", tool, "--version"])

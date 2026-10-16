@@ -15,8 +15,7 @@
     "format:fix": "biome format --write .",
     "lint": "biome lint .",
     "lint:fix": "biome check --write .",
-    "test": "pnpm run test:scripts",
-    "test:scripts": "node --test src-tauri/tests/rpc/fixtures/generator.test.mjs src-tauri/tests/plots/reduce.test.mjs src-tauri/tests/plots/viewport.test.mjs tests/execution-file-paging.test.mjs tests/prompt-banner.test.mjs tests/plot-auto.test.mjs tests/histogram-axes.test.mjs tests/series-legend.test.mjs tests/backend-evidence.test.mjs tests/execution-list.test.mjs tests/storage-reset.test.mjs tests/storage-backup.test.mjs tests/cycle-menus.test.mjs tests/console-follow.test.mjs tests/console-records.test.mjs tests/operator-notes.test.mjs tests/report-steps.test.mjs tests/execution-sections.test.mjs tests/status-bar-operations.test.mjs tests/label-editor.test.mjs",
+    "test": "node ./node_modules/vitest/vitest.mjs run",
     "test:e2e": "node e2e/native-desktop.mjs",
     "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
     "preview": "node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1",
@@ -65,6 +64,7 @@
     "shadcn": "^4.21.4",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^5.0.5"
   }
 }

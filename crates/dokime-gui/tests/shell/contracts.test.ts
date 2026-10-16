@@ -10,70 +10,109 @@
 /* === Imports === */
 
 import assert from "node:assert/strict";
+import { type SpawnSyncReturns, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
-import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { fromBinary } from "@bufbuild/protobuf";
+import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
+import { afterAll, beforeAll, test } from "vitest";
 
 /* === Constants === */
 
-const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const gui = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const repository = resolve(gui, "../..");
-const require = createRequire(resolve(gui, "package.json"));
-const { fromBinary } = require("@bufbuild/protobuf");
-const { FileDescriptorSetSchema } = require("@bufbuild/protobuf/wkt");
 
 /* === State === */
 
-let temporary;
-let selected;
-let baseline;
+let temporary: string | undefined;
+let selected: string;
+let baseline: Map<string, string>;
 
 /* === Fixture === */
 
-function run(args = []) {
-  return spawnSync(process.execPath, [resolve(temporary, "tools/bindings.mjs"), selected, ...args], {
-    cwd: temporary,
+function workspace(): string {
+  assert.ok(temporary, "the generator workspace was not prepared");
+  return temporary;
+}
+
+function run(args: string[] = []) {
+  const root = workspace();
+  return spawnSync(process.execPath, [resolve(root, "tools/bindings.mjs"), selected, ...args], {
+    cwd: root,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
 }
 
-function assertSucceeded(result) {
+function assertSucceeded(result: SpawnSyncReturns<string>) {
   assert.ifError(result.error);
   assert.equal(result.status, 0, result.stderr || result.stdout);
 }
 
 function snapshot() {
-  const files = new Map();
-  function visit(directory) {
+  const root = workspace();
+  const files = new Map<string, string>();
+  function visit(directory: string) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = resolve(directory, entry.name);
       if (entry.isDirectory()) visit(path);
-      else files.set(relative(temporary, path).split(sep).join("/"), readFileSync(path, "utf8"));
+      else files.set(relative(root, path).split(sep).join("/"), readFileSync(path, "utf8"));
     }
   }
-  visit(resolve(temporary, ".generated"));
-  visit(resolve(temporary, "src/lib/rpc/generated"));
+  visit(resolve(root, ".generated"));
+  visit(resolve(root, "src/lib/rpc/generated"));
   return files;
 }
 
-before(() => {
-  // Select The Same Explicit Cargo Export That The Repository Binding Task Uses.
+function descriptors() {
+  const descriptor = readFileSync(resolve(selected, "descriptors.bin"));
+  return { descriptor, set: fromBinary(FileDescriptorSetSchema, descriptor) };
+}
+
+function generated(path: string): string {
+  const content = baseline.get(path);
+  assert.ok(content, `Missing generated source: ${path}`);
+  return content;
+}
+
+beforeAll(() => {
+  // Select The Same Explicit Cargo Export That The Repository Binding Task Uses
   if (process.env.DOKIME_CONTRACT_EXPORT) {
     selected = resolve(process.env.DOKIME_CONTRACT_EXPORT);
   } else {
-    assert.ok(process.env.DOKIME_CONTRACT_BUILD_JSON,
-      "Generator tests require DOKIME_CONTRACT_EXPORT or DOKIME_CONTRACT_BUILD_JSON from the selected canonical producer.");
-    const selection = spawnSync(process.env.UV ?? "uv", [
-      "run", "--no-sync", "python", "-m", "dokime_tools.contracts", "locate", process.env.DOKIME_CONTRACT_BUILD_JSON,
-    ], { cwd: repository, encoding: "utf8" });
+    assert.ok(
+      process.env.DOKIME_CONTRACT_BUILD_JSON,
+      "Generator tests require DOKIME_CONTRACT_EXPORT or DOKIME_CONTRACT_BUILD_JSON from the selected canonical producer.",
+    );
+    const selection = spawnSync(
+      process.env.UV ?? "uv",
+      [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "dokime_tools.contracts",
+        "locate",
+        process.env.DOKIME_CONTRACT_BUILD_JSON,
+      ],
+      { cwd: repository, encoding: "utf8" },
+    );
     assertSucceeded(selection);
     selected = resolve(selection.stdout.trim());
   }
+
+  // Generate Into A Disposable Copy Of The Binding Tool
   const cache = resolve(gui, "node_modules/.cache");
   mkdirSync(cache, { recursive: true });
   temporary = mkdtempSync(resolve(cache, "dokime-generator-"));
@@ -81,35 +120,35 @@ before(() => {
   mkdirSync(resolve(temporary, "src/lib/rpc/generated"), { recursive: true });
   cpSync(resolve(gui, "package.json"), resolve(temporary, "package.json"));
   cpSync(resolve(gui, "tools/bindings.mjs"), resolve(temporary, "tools/bindings.mjs"));
-  symlinkSync(resolve(gui, "node_modules"), resolve(temporary, "node_modules"), process.platform === "win32" ? "junction" : "dir");
+  symlinkSync(
+    resolve(gui, "node_modules"),
+    resolve(temporary, "node_modules"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
   assertSucceeded(run());
   baseline = snapshot();
 });
 
-after(() => {
+afterAll(() => {
   if (temporary) rmSync(temporary, { recursive: true, force: true });
 });
 
 /* === Tests === */
 
-test("Canonical Descriptor Paths", () => {
-  const descriptor = readFileSync(resolve(selected, "descriptors.bin"));
-  const set = fromBinary(FileDescriptorSetSchema, descriptor);
+test("Canonical Bindings", () => {
+  const { descriptor, set } = descriptors();
+  const client = generated("src/lib/rpc/generated/client.ts");
+
+  // Canonical Descriptor Paths
   for (const file of set.file) {
     const path = `.generated/${file.name.replace(/\.proto$/, "_pb.ts")}`;
     assert.ok(baseline.has(path), `Missing generated descriptor: ${path}`);
     assert.equal(path.includes("\\"), false);
   }
-  const client = baseline.get("src/lib/rpc/generated/client.ts");
-  assert.ok(client);
   assert.ok(client.includes("../../../../.generated/dokime/v1/"));
   assert.equal(client.includes('from "./dokime/v1/'), false);
-});
 
-test("Canonical Methods And Descriptor Identity", () => {
-  const descriptor = readFileSync(resolve(selected, "descriptors.bin"));
-  const set = fromBinary(FileDescriptorSetSchema, descriptor);
-  const client = baseline.get("src/lib/rpc/generated/client.ts");
+  // Canonical Methods
   for (const file of set.file) {
     for (const service of file.service) {
       for (const method of service.method) {
@@ -124,36 +163,46 @@ test("Canonical Methods And Descriptor Identity", () => {
       }
     }
   }
-  const identity = baseline.get("src/lib/rpc/generated/identity.ts");
+
+  // Descriptor Identity
+  const identity = generated("src/lib/rpc/generated/identity.ts");
   const expected = createHash("sha256").update(descriptor).digest("hex");
   assert.ok(identity.includes(`descriptorSha256 = "${expected}"`));
 });
 
-test("LF Identity And Deterministic Generation", () => {
+test("Deterministic Generation", () => {
+  // LF Identity
   for (const [path, content] of baseline) assert.equal(content.includes("\r\n"), false, path);
+
+  // Regeneration Reproduces The Baseline And Passes The Check
   assertSucceeded(run());
   assert.deepEqual(snapshot(), baseline);
   assertSucceeded(run(["--check"]));
 });
 
-test("CRLF Comparison Preserves The Checkout", () => {
+test("Binding Check", () => {
+  const root = workspace();
+
+  // CRLF Comparison Preserves The Checkout
   for (const [path, content] of baseline) {
-    writeFileSync(resolve(temporary, path), content.replace(/\n/g, "\r\n"));
+    writeFileSync(resolve(root, path), content.replace(/\n/g, "\r\n"));
   }
   try {
     assertSucceeded(run(["--check"]));
     for (const [path, content] of baseline) {
-      assert.equal(readFileSync(resolve(temporary, path), "utf8"), content.replace(/\n/g, "\r\n"));
+      assert.equal(readFileSync(resolve(root, path), "utf8"), content.replace(/\n/g, "\r\n"));
     }
   } finally {
-    for (const [path, content] of baseline) writeFileSync(resolve(temporary, path), content);
+    for (const [path, content] of baseline) writeFileSync(resolve(root, path), content);
   }
-});
 
-test("Canonical Check Rejects Changed Output", () => {
-  const path = resolve(temporary, "src/lib/rpc/generated/identity.ts");
+  // Canonical Check Rejects Changed Output
+  const path = resolve(root, "src/lib/rpc/generated/identity.ts");
   const original = readFileSync(path, "utf8");
-  writeFileSync(path, original.replace(/descriptorSha256 = "[a-f0-9]+"/, 'descriptorSha256 = "changed"'));
+  writeFileSync(
+    path,
+    original.replace(/descriptorSha256 = "[a-f0-9]+"/, 'descriptorSha256 = "changed"'),
+  );
   try {
     const result = run(["--check"]);
     assert.ifError(result.error);

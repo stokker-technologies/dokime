@@ -37,12 +37,12 @@ contracts_prepare_release = [
   "ci:contracts:publish",
 ]
 build_release = ["ci:contracts:restore", "build:release"]
-test_integration_javascript = ["ci:contracts:restore", "test:integration:javascript"]
+test_integration_typescript = ["ci:contracts:restore", "test:integration:typescript"]
 test_integration_rust = ["ci:artifacts:restore", "test:integration:rust"]
 test_integration_python = ["ci:artifacts:restore", "test:integration:python"]
 test_acceptance_rust = ["ci:artifacts:restore", "test:acceptance:rust"]
 test_acceptance_python = ["ci:artifacts:restore", "test:acceptance:python"]
-test_system_javascript = ["ci:artifacts:restore", "test:system:javascript"]
+test_system_typescript = ["ci:artifacts:restore", "test:system:typescript"]
 ci_coverage = ["ci:artifacts:restore", "ci:coverage"]
 test = ["ci:artifacts:restore", "ci:artifacts:collect", "ci:artifacts:validate"]
 

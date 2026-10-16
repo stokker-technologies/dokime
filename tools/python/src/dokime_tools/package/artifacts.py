@@ -248,7 +248,7 @@ def validate(root: Path) -> None:
             or entry.get("revision") != _output(root, ["git", "rev-parse", "HEAD"])
             or entry.get("platform") != platform()
             or (
-                suite != "integration-javascript"
+                suite != "integration-typescript"
                 and entry.get("started_unix_seconds", 0)
                 < manifest["built_unix_seconds"]
             )
