@@ -41,7 +41,7 @@ pub(crate) async fn persisted_input_refusals() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed"]);
-    register_python_suite(&runtime, suite.clone()).await;
+    register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, false).await;
     runtime
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())

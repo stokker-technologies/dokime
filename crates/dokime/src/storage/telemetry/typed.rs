@@ -261,7 +261,7 @@ impl TypedCodec {
             received_at: metadata.received_at,
             source: metadata.source,
             scope: metadata.scope,
-            values: vec![],
+            values: values::encode(&Default::default())?,
             summary: metadata.summary,
             metadata: metadata.metadata,
         }

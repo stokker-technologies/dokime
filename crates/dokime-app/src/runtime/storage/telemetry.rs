@@ -60,7 +60,7 @@ pub struct TelemetryReader {
 }
 
 struct TypedRead {
-    reader: harmos::storage::query::QueryReader,
+    query: harmos::storage::query::Query,
     codec: telemetry::TypedCodec,
     head: Option<QueryValue<Vec<PositionedTelemetry>>>,
     offset: usize,
@@ -142,27 +142,24 @@ impl TelemetryReader {
             }
             for contract in versions.values() {
                 let codec = telemetry::codec(contract)?;
-                let reader = storage.query_in(
-                    view.view(),
-                    Query {
-                        at: view.evidence_through()?.clone(),
-                        source: Source::Stream(StreamSelection {
-                            schema: codec.schema().clone(),
-                            scope: Some(scope.clone()),
-                            item: None,
-                            stream: Some(contract.stream.clone()),
-                            source_start: None,
-                            source_end: None,
-                        }),
-                        transforms: vec![],
-                        slice: RowSlice {
-                            offset: 0,
-                            limit: None,
-                        },
+                let query = Query {
+                    at: view.evidence_through()?.clone(),
+                    source: Source::Stream(StreamSelection {
+                        schema: codec.schema().clone(),
+                        scope: Some(scope.clone()),
+                        item: None,
+                        stream: Some(contract.stream.clone()),
+                        source_start: None,
+                        source_end: None,
+                    }),
+                    transforms: vec![],
+                    slice: RowSlice {
+                        offset: 0,
+                        limit: None,
                     },
-                )?;
+                };
                 readers.push(TypedRead {
-                    reader,
+                    query,
                     codec,
                     head: None,
                     offset: 0,
@@ -234,56 +231,65 @@ impl TelemetryReader {
         while selected.len() < self.page.rows.get() {
             for source in &mut self.readers {
                 while !source.finished && source.head.is_none() {
-                    match source.reader.next().await? {
-                        Some(harmos::storage::query::QueryOutput::Schema(_)) => {}
-                        Some(harmos::storage::query::QueryOutput::Batch(batch)) => {
-                            let raw = batch.as_record_batch();
-                            let metadata = raw
-                                .column_by_name("_storage")
-                                .and_then(|column| {
-                                    column.as_any().downcast_ref::<arrow_array::StructArray>()
-                                })
-                                .ok_or_else(|| {
-                                    invalid("typed telemetry storage metadata is absent")
-                                })?;
-                            let positions = metadata
-                                .column_by_name("position")
-                                .and_then(|column| {
-                                    column.as_any().downcast_ref::<arrow_array::UInt64Array>()
-                                })
-                                .ok_or_else(|| invalid("typed telemetry positions are absent"))?;
-                            let bound = self
-                                .projection
-                                .get()
-                                .checked_add(
-                                    raw.num_rows()
-                                        .checked_mul(std::mem::size_of::<PositionedTelemetry>())
-                                        .ok_or_else(exhausted)?,
-                                )
-                                .and_then(NonZeroUsize::new)
-                                .ok_or_else(exhausted)?;
-                            let retained = self.storage.prepare_production(bound)?;
-                            let decoded =
-                                telemetry::decode_batch(&source.codec, &batch, self.projection)?;
-                            let rows = decoded
-                                .into_iter()
-                                .enumerate()
-                                .filter(|(index, _)| positions.value(*index) > self.after)
-                                .map(|(index, captured)| PositionedTelemetry {
-                                    position: positions.value(index),
-                                    captured,
-                                })
-                                .collect::<Vec<_>>();
-                            if !rows.is_empty() {
-                                let retained = retained.finish(rows)?.try_into_value()?;
-                                source.head = Some(retained);
-                                source.offset = 0;
+                    // Finish Each Bounded Query Before Opening Another Schema's Head.
+                    // Holding Readers For Every Schema Can Exhaust Admission Slots.
+                    source.query.slice.limit = Some(self.page.rows.get() as u64);
+                    let mut reader = self.storage.query(source.query.clone()).await?;
+                    let retained = self.storage.prepare_production(self.projection)?;
+                    let mut rows = Vec::new();
+                    let mut count = 0u64;
+                    let mut decoded_bytes = std::mem::size_of::<Vec<PositionedTelemetry>>();
+                    while let Some(output) = reader.next().await? {
+                        let harmos::storage::query::QueryOutput::Batch(batch) = output else {
+                            continue;
+                        };
+                        let raw = batch.as_record_batch();
+                        count = count
+                            .checked_add(raw.num_rows() as u64)
+                            .ok_or_else(exhausted)?;
+                        let metadata = raw
+                            .column_by_name("_storage")
+                            .and_then(|column| {
+                                column.as_any().downcast_ref::<arrow_array::StructArray>()
+                            })
+                            .ok_or_else(|| invalid("typed telemetry storage metadata is absent"))?;
+                        let positions = metadata
+                            .column_by_name("position")
+                            .and_then(|column| {
+                                column.as_any().downcast_ref::<arrow_array::UInt64Array>()
+                            })
+                            .ok_or_else(|| invalid("typed telemetry positions are absent"))?;
+                        let decoded =
+                            telemetry::decode_batch(&source.codec, &batch, self.projection)?;
+                        for (index, captured) in decoded.into_iter().enumerate() {
+                            if positions.value(index) <= self.after {
+                                continue;
                             }
+                            let row = PositionedTelemetry {
+                                position: positions.value(index),
+                                captured,
+                            };
+                            decoded_bytes = decoded_bytes
+                                .checked_add(row.memory_size())
+                                .ok_or_else(exhausted)?;
+                            if decoded_bytes > self.projection.get() {
+                                return Err(exhausted().into());
+                            }
+                            rows.try_reserve_exact(1).map_err(|_| exhausted())?;
+                            rows.push(row);
                         }
-                        None => {
-                            source.reader.completion()?;
-                            source.finished = true;
-                        }
+                    }
+                    reader.completion()?;
+                    source.query.slice.offset = source
+                        .query
+                        .slice
+                        .offset
+                        .checked_add(count)
+                        .ok_or_else(exhausted)?;
+                    source.finished = count < self.page.rows.get() as u64;
+                    if !rows.is_empty() {
+                        source.head = Some(retained.finish(rows)?.try_into_value()?);
+                        source.offset = 0;
                     }
                 }
             }

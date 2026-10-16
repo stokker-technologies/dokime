@@ -79,6 +79,16 @@ macro_rules! matrix {
 }
 
 matrix! {
+    "/dokime.v1.Reports/MaterializeReport", unary, contracts::reports::MaterializeReport = contracts::reports::MaterializeReportRequest {
+        subject: contracts::reports::ReportSubject::Execution(String::new()),
+        at: harmos::storage::StorageCursor {
+            history: harmos::storage::StoreHistory {
+                store: harmos::Identifier::new("authorization").unwrap(),
+                epoch: harmos::Identifier::new("test").unwrap(),
+            },
+            sequence: 0,
+        },
+    };
     "/harmos.host.v1.Host/Operations", unary, harmos::operations::host::Operations;
     "/dokime.v1.Content/FollowExecutionFile", download, contracts::content::FollowExecutionFile;
     "/dokime.v1.Appearance/GetAppearance", unary, contracts::appearance::GetAppearance;

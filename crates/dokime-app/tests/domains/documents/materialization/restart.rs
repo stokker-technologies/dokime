@@ -87,7 +87,7 @@ pub(crate) async fn persisted_cycle_restart() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let suite = fixture_suite(&["passed", "passed"]);
-    register_python_suite(&runtime, suite.clone()).await;
+    register_custom_suite(&runtime, suite.clone()).await;
     let cycle_id = start_cycle(&runtime, suite, false).await;
     let source = cycle_snapshot(&runtime, &cycle_id).await;
     let first = source.test_executions[0].test_execution_id.clone();

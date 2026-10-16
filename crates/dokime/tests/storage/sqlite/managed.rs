@@ -876,9 +876,17 @@ pub(crate) async fn oversized_admission_order() {
         })
         .collect::<Vec<_>>();
 
-    // One admitted operation exceeds the physical byte cap; it must retain
-    // one stable cursor range while the manager sends several bounded writes.
-    let admitted = storage.write_records(&writes).await.unwrap();
+    // Oversized Atomic Admissions Fail Before Allocating A Cursor Range.
+    assert!(storage.write_records(&writes).await.is_err());
+    assert_eq!(storage.flush().await.unwrap(), schema_cursor);
+    // The Producer Splits The Payload Into Independently Durable Batches.
+    let mut admitted = schema_cursor;
+    for row in &writes {
+        admitted = storage
+            .write_records(std::slice::from_ref(row))
+            .await
+            .unwrap();
+    }
     assert_eq!(admitted.sequence, 41);
     assert_eq!(storage.flush_until(&admitted).await.unwrap(), admitted);
     assert_eq!(primary.cursor_saved().await.unwrap(), admitted);

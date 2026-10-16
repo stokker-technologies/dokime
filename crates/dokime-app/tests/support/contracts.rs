@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::{identifier, metadata};
-use dokime::core::{Identifier, ValueType};
+use dokime::core::{Identifier, Value, ValueType};
 use dokime::records::{RecordContract, RecordField, RecordSeverity};
 use dokime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 use harmos::{
@@ -558,7 +558,9 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
 fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(
     sample: &dokime::telemetry::TelemetrySample,
 ) -> Vec<u8> {
-    let mut values = serde_json::to_value(&sample.values).unwrap();
+    let mut values = Value::Object(sample.values.clone())
+        .to_plain_json()
+        .unwrap();
     let graph = Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default())
         .unwrap();
     if graph.definitions[graph.root]

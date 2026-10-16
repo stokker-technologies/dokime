@@ -85,8 +85,12 @@ async fn cancellation() {
     release_tx.send(()).unwrap();
     blocker.await.unwrap();
 
-    // Cancelling The Waiter Does Not Revoke Storage-Owned Atomic Work
-    let saved = backend.cursor_saved().await.unwrap();
+    // Cancellation Before Dispatch Leaves No Hidden Write To Overtake A Retry
+    assert_eq!(backend.cursor_saved().await.unwrap(), position(1));
+    let unchanged = view(&backend, 1).await;
+    assert!(read_all(&backend, &unchanged).await.is_empty());
+    backend.release_view(unchanged.snapshot()).await.unwrap();
+    let saved = backend.write(write_batch(&parts)).await.unwrap();
     assert_eq!(saved, position(65));
     let current = view(&backend, 65).await;
     assert_eq!(read_all(&backend, &current).await, records);

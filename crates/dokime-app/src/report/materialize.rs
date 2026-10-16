@@ -79,8 +79,11 @@ pub(crate) async fn execution(
         bytes: settings.page_bytes,
     };
     let limit = settings.budget.read_memory_bytes;
+    let page_projection = settings
+        .decoded_bytes
+        .min(inspection.view().decoded_bytes()?);
     let mut records = super::query::empty(storage)?;
-    let mut reader = inspection.context_records(storage, page, limit)?;
+    let mut reader = inspection.context_records(storage, page, page_projection)?;
     while let Some(rows) = reader.next().await? {
         let bytes = rows.iter().try_fold(
             std::mem::size_of::<Vec<dokime::records::RecordEntry>>(),

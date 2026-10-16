@@ -145,7 +145,7 @@ async fn cycle_restart_child() {
     owner.install_plugins().await.unwrap();
     let runtime = owner.handle();
     let suite = fixture_suite(&["passed", "passed"]);
-    register_python_suite(&runtime, suite.clone()).await;
+    register_custom_suite(&runtime, suite.clone()).await;
     let id = start_cycle(&runtime, suite, false).await;
     let receipt = runtime.run_cycle_cases(id, CommandContext::default()).await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
