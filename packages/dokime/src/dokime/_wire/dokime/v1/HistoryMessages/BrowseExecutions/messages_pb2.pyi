@@ -87,7 +87,7 @@ class Row6(_message.Message):
     def __init__(self, source: _Optional[str] = ..., dataset: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
 
 class Row7(_message.Message):
-    __slots__ = ("cycle_id", "lifecycle", "result_status", "case_count", "execution_count", "unrun_count", "queued_count", "running_count", "passed_count", "failed_count", "blocked_count", "started_at", "finished_at")
+    __slots__ = ("cycle_id", "lifecycle", "result_status", "case_count", "execution_count", "unrun_count", "queued_count", "running_count", "passed_count", "failed_count", "blocked_count", "started_at", "finished_at", "label")
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     LIFECYCLE_FIELD_NUMBER: _ClassVar[int]
     RESULT_STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -101,6 +101,7 @@ class Row7(_message.Message):
     BLOCKED_COUNT_FIELD_NUMBER: _ClassVar[int]
     STARTED_AT_FIELD_NUMBER: _ClassVar[int]
     FINISHED_AT_FIELD_NUMBER: _ClassVar[int]
+    LABEL_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str
     lifecycle: Row15
     result_status: Row16
@@ -114,7 +115,8 @@ class Row7(_message.Message):
     blocked_count: int
     started_at: Row9
     finished_at: Row9
-    def __init__(self, cycle_id: _Optional[str] = ..., lifecycle: _Optional[_Union[Row15, _Mapping]] = ..., result_status: _Optional[_Union[Row16, _Mapping]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., unrun_count: _Optional[int] = ..., queued_count: _Optional[int] = ..., running_count: _Optional[int] = ..., passed_count: _Optional[int] = ..., failed_count: _Optional[int] = ..., blocked_count: _Optional[int] = ..., started_at: _Optional[_Union[Row9, _Mapping]] = ..., finished_at: _Optional[_Union[Row9, _Mapping]] = ...) -> None: ...
+    label: str
+    def __init__(self, cycle_id: _Optional[str] = ..., lifecycle: _Optional[_Union[Row15, _Mapping]] = ..., result_status: _Optional[_Union[Row16, _Mapping]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., unrun_count: _Optional[int] = ..., queued_count: _Optional[int] = ..., running_count: _Optional[int] = ..., passed_count: _Optional[int] = ..., failed_count: _Optional[int] = ..., blocked_count: _Optional[int] = ..., started_at: _Optional[_Union[Row9, _Mapping]] = ..., finished_at: _Optional[_Union[Row9, _Mapping]] = ..., label: _Optional[str] = ...) -> None: ...
 
 class Row8(_message.Message):
     __slots__ = ("Unspecified", "Invalidated", "Pending", "Running", "Passed", "Failed", "Blocked", "Cancelled", "Interrupted", "Skipped")

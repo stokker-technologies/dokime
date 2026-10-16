@@ -141,13 +141,10 @@ export function groupExecutions(pages: ExecutionBrowsePage[]): ExploreEntry[] {
       const finished = totals.finished_at;
       return {
         target,
-        /* A cycle's own label is not in the browse projection, but the
-           admitted suite label is, and it is what the entries were selected
-           on. Only when every entry that resolves a suite names the same one
-           does it describe the group: a cycle spanning two suites has no
-           single suite, and naming it after whichever entry paged first would
-           be worse than the identifier. */
-        title: suiteTitle(entries, target.id),
+        /* A group is titled by its own cycle. Only a cycle whose header is
+           no longer readable falls back to a suite label every entry agrees
+           on, and then to its identifier. */
+        title: totals.label ?? suiteTitle(entries, target.id),
         session_id: null,
         lifecycle: totals.lifecycle,
         result_status: totals.result_status,

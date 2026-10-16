@@ -301,6 +301,7 @@ function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): Exe
     safeNumber(value, `History.BrowseExecutions cycle ${label} count`);
   return {
     cycle_id: cycle.cycleId,
+    label: cycle.label ?? null,
     lifecycle: mapBrowseLifecycle(cycle.lifecycle),
     result_status: cycle.resultStatus ? mapResultStatus(cycle.resultStatus) : null,
     case_count: count(cycle.caseCount, "case"),

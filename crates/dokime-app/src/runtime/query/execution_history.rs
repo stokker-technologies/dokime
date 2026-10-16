@@ -82,6 +82,8 @@ pub struct ExecutionBrowsePage {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionBrowseCycle {
     pub cycle_id: TestCycleId,
+    /// The cycle's own label, when its header is still readable.
+    pub label: Option<String>,
     pub lifecycle: ExecutionBrowseLifecycle,
     /// Present once the cycle settled: failed when any execution failed,
     /// passed when every execution passed.
@@ -205,6 +207,7 @@ impl CycleFold<'_> {
 
         ExecutionBrowseCycle {
             cycle_id: cycle_id.clone(),
+            label: None,
             lifecycle,
             result_status,
             case_count: self.cases.len(),
@@ -293,7 +296,26 @@ impl RuntimeHandle {
                 executions: state.archived_executions.clone(),
             }
         };
-        browse_page(&stored, &live, &query, &archived, limit)
+        let mut page = browse_page(&stored, &live, &query, &archived, limit)?;
+        // Each Group Is Titled By Its Own Cycle, Live Or Sealed In History.
+        for cycle in &mut page.cycles {
+            let live = self
+                .state_read()
+                .cycles
+                .get(&cycle.cycle_id)
+                .map(|header| header.metadata.label.clone());
+            cycle.label = match live {
+                Some(label) => Some(label),
+                None => dokime::storage::objects::cycle::read(
+                    self.storage(),
+                    &cycle.cycle_id,
+                    harmos::storage::ObjectVersion::Latest,
+                )
+                .await?
+                .map(|revision| revision.value.metadata.label),
+            };
+        }
+        Ok(page)
     }
 
     pub async fn execution_checkpoint_context(

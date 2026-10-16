@@ -182,6 +182,8 @@ pub struct ExecutionBrowseCycle {
     pub blocked_count: u64,
     pub started_at: Option<Timestamp>,
     pub finished_at: Option<Timestamp>,
+    // The cycle's own label, absent when its header is no longer readable.
+    pub label: Option<String>,
 }
 
 #[harmos::message]

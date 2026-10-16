@@ -46,6 +46,7 @@ function entry(
 function totals(overrides: Partial<ExecutionBrowseCycle> = {}): ExecutionBrowseCycle {
   return {
     cycle_id: "cycle-a",
+    label: null,
     lifecycle: "running",
     result_status: null,
     case_count: 6,
@@ -120,6 +121,10 @@ test("Backend Cycle Totals", () => {
   assert.equal(later.result_status, "passed");
   assert.equal(later.passed_count, 6);
   assert.equal(later.duration_s, 3600);
+
+  // A Readable Cycle Is Titled By Its Own Label
+  const [labelled] = groupExecutions([page(loaded, [totals({ label: "Charger Bench" })])]);
+  assert.equal(labelled.title, "Charger Bench");
 
   // Entries Without Backend Totals Are Refused
   assert.throws(() => groupExecutions([page(loaded, [])]), /no totals/);

@@ -34,13 +34,6 @@ pub struct ExecutionFileStream {
     source: Source,
     metadata: ExecutionFileContent,
     offset: u64,
-    pending: Option<Pending>,
-}
-
-// A Cancelled Caller Receives The Same Chunk Again Rather Than Skipping It.
-struct Pending {
-    maximum: NonZeroUsize,
-    content: ExecutionFileContent,
 }
 
 /* === Enums === */
@@ -63,7 +56,6 @@ impl ExecutionFileStream {
             source: Source::Live(reader),
             metadata,
             offset: 0,
-            pending: None,
         })
     }
 
@@ -73,7 +65,6 @@ impl ExecutionFileStream {
             source: Source::Saved(Box::new(file)),
             metadata,
             offset: 0,
-            pending: None,
         })
     }
 
@@ -81,25 +72,11 @@ impl ExecutionFileStream {
         &self.metadata
     }
 
+    /// The next chunk of at most `maximum` bytes, or `None` at the end.
     pub async fn next_chunk(
         &mut self,
         maximum: NonZeroUsize,
     ) -> Result<Option<ExecutionFileContent>> {
-        if !self.prepare(maximum).await? {
-            return Ok(None);
-        }
-        let pending = self.pending.take().expect("prepared original chunk");
-        self.offset = end(&pending.content)?;
-        Ok(Some(pending.content))
-    }
-
-    async fn prepare(&mut self, maximum: NonZeroUsize) -> Result<bool> {
-        if let Some(pending) = &self.pending {
-            if pending.maximum != maximum {
-                return Err(invalid("pending chunk has another maximum").into());
-            }
-            return Ok(true);
-        }
         let content = match &mut self.source {
             Source::Live(reader) => reader.next_chunk(maximum).await?,
             Source::Saved(file) => {
@@ -111,7 +88,7 @@ impl ExecutionFileStream {
             if self.offset != self.metadata.size_bytes {
                 return Err(invalid("source ended before observed prefix").into());
             }
-            return Ok(false);
+            return Ok(None);
         };
         if content.offset != self.offset
             || content.bytes.is_empty()
@@ -120,8 +97,8 @@ impl ExecutionFileStream {
         {
             return Err(invalid("original chunk differs from selected prefix").into());
         }
-        self.pending = Some(Pending { maximum, content });
-        Ok(true)
+        self.offset = end(&content)?;
+        Ok(Some(content))
     }
 }
 

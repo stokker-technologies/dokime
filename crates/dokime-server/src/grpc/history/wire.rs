@@ -165,6 +165,7 @@ fn browse_cycle(
 ) -> Result<history_wire::ExecutionBrowseCycle, Status> {
     Ok(history_wire::ExecutionBrowseCycle {
         cycle_id: value.cycle_id.as_str().to_owned(),
+        label: value.label.clone(),
         lifecycle: match value.lifecycle {
             ExecutionBrowseLifecycle::Running => history_wire::ExecutionBrowseLifecycle::Running,
             ExecutionBrowseLifecycle::Interrupted => {

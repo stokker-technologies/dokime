@@ -158,6 +158,8 @@ export type ExecutionBrowseEntry = {
 /** One cycle's totals over the whole browse selection, as the backend folded them. */
 export type ExecutionBrowseCycle = {
   cycle_id: TestCycleId;
+  /** The cycle's own label; null once its header is no longer readable. */
+  label: string | null;
   lifecycle: "running" | "interrupted" | "pending" | "uncheckpointed" | "completed";
   result_status: "pending" | "passed" | "failed" | "blocked" | "cancelled" | null;
   case_count: number;
