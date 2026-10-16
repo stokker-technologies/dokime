@@ -39,6 +39,7 @@ DOKIME_CONTRACT_BUILD_JSON = "{{config_root}}/target/contracts/build.jsonl"
 CARGO_NET_GIT_FETCH_WITH_CLI = "true"
 NODE_OPTIONS = "--use-system-ca"
 PYO3_NO_PYTHON = "1"
+TMPDIR = "/var/tmp"
 # Cache Linux Compiler Outputs Without Sharing Target Directories Across Jobs.
 # Windows Uses Cargo's Native Artifact Cache Within Each Job.
 RUSTC_WRAPPER = "{% if os() == 'windows' %}{% else %}sccache{% endif %}"
