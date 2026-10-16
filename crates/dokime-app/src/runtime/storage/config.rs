@@ -140,10 +140,6 @@ impl StorageSettings {
 
         settings.query_decoded_bytes = self.decoded_bytes;
         settings.query_execution = self.interactive;
-        settings.query_execution_ceiling = harmos::storage::QueryLimits {
-            memory_bytes: self.budget.read_memory_bytes,
-            ..self.interactive
-        };
     }
 
     /// Explicit Product Policy For Every Harmos Storage Setting.
@@ -166,10 +162,7 @@ impl StorageSettings {
 
             query_decoded_bytes: self.decoded_bytes,
             query_execution: self.interactive,
-            query_execution_ceiling: harmos::storage::QueryLimits {
-                memory_bytes: self.budget.read_memory_bytes,
-                ..self.interactive
-            },
+
             replication_limits: harmos::storage::ReadLimits {
                 rows: nonzero(64),
                 bytes: nonzero(64 * 1024),
