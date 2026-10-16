@@ -55,7 +55,7 @@ pub fn run() {
     }
     dotenv::dotenv().ok();
     if let Err(error) = start_tauri_app() {
-        eprintln!("failed to run Dokime desktop shell: {error}");
+        eprintln!("failed to run {} desktop shell: {error}", crate::PRODUCT);
         std::process::exit(1);
     }
 }
@@ -190,7 +190,7 @@ fn start_tauri_app() -> tauri::Result<()> {
                 let complete = Arc::clone(&shutdown_complete);
                 let started = Arc::clone(&shutdown_started);
                 for window in app.webview_windows().values() {
-                    let _ = window.set_title("Dokime — Finishing Reports…");
+                    let _ = window.set_title(&format!("{} — Finishing Reports…", crate::PRODUCT));
                 }
                 tauri::async_runtime::spawn(async move {
                     loop {
@@ -201,12 +201,16 @@ fn start_tauri_app() -> tauri::Result<()> {
                         if let Err(error) = result {
                             tracing::error!(?error, "native desktop shutdown failed");
                             for window in app.webview_windows().values() {
-                                let _ = window.set_title("Dokime — Report Finalization Failed");
+                                let _ = window.set_title(&format!(
+                                    "{} — Report Finalization Failed",
+                                    crate::PRODUCT
+                                ));
                             }
                             let (send, receive) = tokio::sync::oneshot::channel();
                             app.dialog()
                                 .message(format!(
-                                    "Dokime could not finish closing cleanly. Reports may be incomplete.\n\n{error:?}"
+                                    "{} could not finish closing cleanly. Reports may be incomplete.\n\n{error:?}",
+                                    crate::PRODUCT
                                 ))
                                 .title("Report Finalization Failed")
                                 .buttons(MessageDialogButtons::YesNoCancelCustom(

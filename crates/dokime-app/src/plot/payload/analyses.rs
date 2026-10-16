@@ -132,6 +132,8 @@ pub enum PlotAnalysis {
     },
     BoxSummary {
         series: Vec<BoxSummary>,
+        /// Samples summarized across every box.
+        total: usize,
     },
     SigmaInterval {
         series: Vec<SigmaSeries>,
@@ -193,12 +195,17 @@ pub(super) fn analyze(
                     .collect(),
             })
         }
-        PlotType::BoxSummary => Some(PlotAnalysis::BoxSummary {
-            series: series
+        PlotType::BoxSummary => {
+            let boxes: Vec<BoxSummary> = series
                 .iter()
                 .flat_map(|entry| grouped_boxes(entry, request))
-                .collect(),
-        }),
+                .collect();
+            let total = boxes.iter().map(|summary| summary.count).sum();
+            Some(PlotAnalysis::BoxSummary {
+                series: boxes,
+                total,
+            })
+        }
         PlotType::XyInterval => Some(PlotAnalysis::SigmaInterval {
             series: series
                 .iter()

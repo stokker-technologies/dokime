@@ -8,9 +8,9 @@
 
 import type { Wire } from "@/lib/rpc/canonical";
 import type {
-  Row12 as GeneratedNativeExecutionCheckpoint,
-  Row32 as GeneratedNativeStorageCursor,
-  Row39 as GeneratedNativeStoreHistory,
+  Row13 as GeneratedNativeExecutionCheckpoint,
+  Row35 as GeneratedNativeStorageCursor,
+  Row53 as GeneratedNativeStoreHistory,
 } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type { ValueFormat } from "./format";
 
@@ -157,6 +157,24 @@ export type ExecutionBrowseEntry = {
   archived: boolean;
 };
 
+/** One cycle's totals over the whole browse selection, as the backend folded them. */
+export type ExecutionBrowseCycle = {
+  cycle_id: TestCycleId;
+  lifecycle: "running" | "interrupted" | "pending" | "uncheckpointed" | "completed";
+  result_status: "pending" | "passed" | "failed" | "blocked" | "cancelled" | null;
+  case_count: number;
+  execution_count: number;
+  /** Planned executions that never started; every other count excludes them. */
+  unrun_count: number;
+  queued_count: number;
+  running_count: number;
+  passed_count: number;
+  failed_count: number;
+  blocked_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
 export type ExecutionBrowseIssue = {
   source: string | null;
   dataset: string | null;
@@ -171,6 +189,8 @@ export type ExecutionBrowsePage = {
   omitted_conflicts: number;
   issues: ExecutionBrowseIssue[];
   omitted_issues: number;
+  /** Totals of every cycle the entries belong to, over the whole selection. */
+  cycles: ExecutionBrowseCycle[];
 };
 
 export type ExecutionCheckpoint = Pick<

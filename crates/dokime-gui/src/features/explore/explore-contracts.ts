@@ -29,11 +29,14 @@ export type ExploreTarget = { kind: "cycle"; id: string } | { kind: "execution";
 export type ExploreEntry = Omit<CycleHistorySummary, "test_cycle_id"> & {
   target: ExploreTarget;
   source: ExploreSource;
-  /** The executions that ran. Every count on this entry is derived from these. */
+  /** The loaded executions that ran. Counts come from the backend's totals,
+   *  which cover the whole selection rather than the loaded pages. */
   executions: ExecutionBrowseEntry[];
-  /** The planned cases this cycle never started, kept for the caption and for
-   *  resolving a direct link to one of them. */
+  /** The loaded planned cases this cycle never started, kept for resolving a
+   *  direct link to one of them. */
   unrun: ExecutionBrowseEntry[];
+  /** Planned cases this cycle never started, across the whole selection. */
+  unrun_count: number;
   owner?: string;
 };
 

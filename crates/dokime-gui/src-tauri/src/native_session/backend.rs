@@ -26,6 +26,7 @@ use tokio::{
 // Local Imports
 use super::diagnostics::Capture;
 use super::{BackendDiagnostics, DesktopSessionError as Error};
+use crate::PRODUCT;
 // The development-stream contracts a backend must report to be trusted. The
 // desktop and its backend ship from one installer, so this is the same gate
 // cargo-dokime applies to a separately installed host.
@@ -36,9 +37,16 @@ const READINESS_LIMIT: u64 = 16 * 1024;
 
 const READY_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// The installed bundle's directory name, as the bundler names it.
 #[cfg(any(windows, target_os = "macos"))]
-const PRODUCT: &str = "Dokime";
-const MISSING: &str = "No Dokime backend was found beside this application. Reinstall Dokime with the desktop installer, set DOKIME_HOME to an installation directory, or attach to a backend endpoint.";
+const BUNDLE: &str = env!("DOKIME_BUNDLE_NAME");
+const MISSING: &str = concat!(
+    "No ",
+    env!("DOKIME_BRAND_LABEL"),
+    " backend was found beside this application. Reinstall ",
+    env!("DOKIME_BRAND_LABEL"),
+    " with the desktop installer, set DOKIME_HOME to an installation directory, or attach to a backend endpoint."
+);
 
 /* === Macros === */
 
@@ -144,11 +152,12 @@ impl Process {
                     .read_until(b'\n', &mut line)
                     .await
                     .map_err(|error| {
-                        format!("The Dokime backend readiness could not be read: {error}.")
+                        format!("The {PRODUCT} backend readiness could not be read: {error}.")
                     })?;
                 if read == 0 {
-                    return Err("The Dokime backend stopped before reporting readiness; review its diagnostics."
-                        .to_owned());
+                    return Err(format!(
+                        "The {PRODUCT} backend stopped before reporting readiness; review its diagnostics."
+                    ));
                 }
                 match phase_name(&line) {
                     Some(phase) => {
@@ -160,7 +169,7 @@ impl Process {
             }
         })
         .await
-        .map_err(|_| "The Dokime backend did not report readiness in time.".to_owned())?
+        .map_err(|_| format!("The {PRODUCT} backend did not report readiness in time."))?
     }
 
     pub async fn shutdown(&mut self) -> Result<ExitStatus, String> {
@@ -175,7 +184,7 @@ impl Process {
     }
 
     fn failure(error: std::io::Error, action: &str) -> String {
-        format!("The Dokime backend could not {action}: {error}.")
+        format!("The {PRODUCT} backend could not {action}: {error}.")
     }
 }
 
@@ -205,7 +214,7 @@ pub async fn start(
         .kill_on_drop(true);
     no_console(&mut command);
     let mut child = command.spawn().map_err(|error| Error::Startup {
-        message: format!("Dokime backend {executable} could not be started: {error}"),
+        message: format!("{PRODUCT} backend {executable} could not be started: {error}"),
         diagnostics: Some(Box::new(BackendDiagnostics {
             executable: executable.clone(),
             exit_code: None,
@@ -256,14 +265,14 @@ fn installed_directories() -> Vec<PathBuf> {
     ["LOCALAPPDATA", "ProgramFiles"]
         .into_iter()
         .filter_map(std::env::var_os)
-        .map(|root| PathBuf::from(root).join(PRODUCT))
+        .map(|root| PathBuf::from(root).join(BUNDLE))
         .collect()
 }
 
 #[cfg(target_os = "macos")]
 fn installed_directories() -> Vec<PathBuf> {
     vec![PathBuf::from(format!(
-        "/Applications/{PRODUCT}.app/Contents/MacOS"
+        "/Applications/{BUNDLE}.app/Contents/MacOS"
     ))]
 }
 
@@ -296,15 +305,18 @@ fn phase_name(line: &[u8]) -> Option<String> {
 
 fn endpoint(line: &[u8], executable: &Path) -> Result<String, String> {
     if line.len() as u64 > READINESS_LIMIT || !line.ends_with(b"\n") {
-        return Err("The Dokime backend did not report readiness.".to_owned());
+        return Err(format!("The {PRODUCT} backend did not report readiness."));
     }
-    let ready: serde_json::Value = serde_json::from_slice(line)
-        .map_err(|error| format!("The Dokime backend readiness could not be parsed: {error}."))?;
+    let ready: serde_json::Value = serde_json::from_slice(line).map_err(|error| {
+        format!("The {PRODUCT} backend readiness could not be parsed: {error}.")
+    })?;
     if ready["event"] != "ready"
         || ready["protocol"] != READINESS_PROTOCOL
         || ready["transport"] != "grpc"
     {
-        return Err("The Dokime backend reported an unsupported readiness message.".to_owned());
+        return Err(format!(
+            "The {PRODUCT} backend reported an unsupported readiness message."
+        ));
     }
     // The bundled backend is installed together with this desktop, so the
     // identity the ready line carries must match exactly; anything else means
@@ -314,9 +326,9 @@ fn endpoint(line: &[u8], executable: &Path) -> Result<String, String> {
     identity(line).map_err(|reason| identity_failure(executable, &reason))?;
     let published = ready["endpoint"]
         .as_str()
-        .ok_or_else(|| "The Dokime backend readiness omitted its gRPC endpoint.".to_owned())?;
+        .ok_or_else(|| format!("The {PRODUCT} backend readiness omitted its gRPC endpoint."))?;
     let published = url::Url::parse(published)
-        .map_err(|error| format!("The Dokime backend reported an invalid endpoint: {error}."))?;
+        .map_err(|error| format!("The {PRODUCT} backend reported an invalid endpoint: {error}."))?;
     // An owned backend serves this desktop alone; a published address that is
     // not loopback means something other than the bundled backend answered.
     if published.scheme() != "http"
@@ -325,13 +337,15 @@ fn endpoint(line: &[u8], executable: &Path) -> Result<String, String> {
             Some("127.0.0.1" | "localhost" | "[::1]")
         )
     {
-        return Err("The Dokime backend reported a non-local endpoint.".to_owned());
+        return Err(format!(
+            "The {PRODUCT} backend reported a non-local endpoint."
+        ));
     }
     Ok(published.to_string())
 }
 
 fn identity_failure(executable: &Path, reason: &str) -> String {
-    format!("Dokime backend {} {reason}.", executable.display())
+    format!("{PRODUCT} backend {} {reason}.", executable.display())
 }
 
 fn identity(bytes: &[u8]) -> Result<(), String> {
@@ -339,13 +353,13 @@ fn identity(bytes: &[u8]) -> Result<(), String> {
         .map_err(|error| format!("returned invalid version information: {error}"))?;
     if identity.dev_protocol != DEV_PROTOCOL {
         return Err(format!(
-            "uses development protocol {}, and this desktop requires {DEV_PROTOCOL}; reinstall Dokime so the application and its backend ship together",
+            "uses development protocol {}, and this desktop requires {DEV_PROTOCOL}; reinstall {PRODUCT} so the application and its backend ship together",
             identity.dev_protocol
         ));
     }
     if identity.version != env!("CARGO_PKG_VERSION") {
         return Err(format!(
-            "reports version {}, and this desktop is {}; reinstall Dokime so the application and its backend ship together",
+            "reports version {}, and this desktop is {}; reinstall {PRODUCT} so the application and its backend ship together",
             identity.version,
             env!("CARGO_PKG_VERSION")
         ));

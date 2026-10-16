@@ -486,6 +486,14 @@ pub struct CycleSummary {
         description = "The admitted suite identity is retained in the bounded summary so shell consumers need not embed every case/execution just to render its title."
     )]
     pub suite: Option<Metadata>,
+    // Planned cases by their latest attempt: running counts cases whose attempt
+    // is running; queued counts cases still waiting to run (no attempt yet, an
+    // undispatched attempt, or one admitted but not started).
+    #[row(
+        description = "Planned cases by their latest attempt: running counts cases whose attempt is running; queued counts cases still waiting to run (no attempt yet, an undispatched attempt, or one admitted but not started)."
+    )]
+    pub running_count: u64,
+    pub queued_count: u64,
 }
 
 // Detail pages preserve native planned-case / execution-attempt vector order.

@@ -345,7 +345,7 @@ impl Serialize for StepFailure<'_> {
 
 impl Serialize for CaseRun<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields = serializer.serialize_map(Some(8))?;
+        let mut fields = serializer.serialize_map(Some(6))?;
         fields.serialize_entry("queue_item_id", &self.test_case.test_case_id)?;
         fields.serialize_entry("case_id", &self.test_case.test_case_id)?;
         fields.serialize_entry(
@@ -363,8 +363,6 @@ impl Serialize for CaseRun<'_> {
                 fields.serialize_entry("plots", &BTreeMap::<String, JsonValue>::new())?;
             }
         }
-        fields.serialize_entry("histograms", &BTreeMap::<String, JsonValue>::new())?;
-        fields.serialize_entry("box_summaries", &BTreeMap::<String, JsonValue>::new())?;
         fields.end()
     }
 }

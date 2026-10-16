@@ -842,6 +842,7 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
           upper_whisker: series.upperWhisker,
           outliers: [...series.outliers],
         })),
+        total: safeNumber(result.value.field0.total, "box summary total"),
       };
     case "SigmaInterval":
       if (!result.value.field0) throw new Error("Native plot analysis is missing its result.");

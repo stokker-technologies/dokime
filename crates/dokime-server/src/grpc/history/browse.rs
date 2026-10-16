@@ -155,6 +155,11 @@ fn construction_memory(page: &ExecutionBrowsePage) -> usize {
             page.issues
                 .len()
                 .saturating_mul(std::mem::size_of::<wire::HistoryIssue>()),
+        )
+        .saturating_add(
+            page.cycles
+                .len()
+                .saturating_mul(std::mem::size_of::<wire::ExecutionBrowseCycle>()),
         );
     let mut text = page.next.as_ref().map_or(0, |id| id.as_str().len());
     for id in &page.conflicts {
@@ -165,6 +170,9 @@ fn construction_memory(page: &ExecutionBrowsePage) -> usize {
             .saturating_add(issue.message.len())
             .saturating_add(issue.source.as_ref().map_or(0, String::len))
             .saturating_add(issue.dataset.as_ref().map_or(0, String::len));
+    }
+    for cycle in &page.cycles {
+        text = text.saturating_add(cycle.cycle_id.as_str().len());
     }
     for entry in &page.entries {
         let metadata = &entry.metadata;

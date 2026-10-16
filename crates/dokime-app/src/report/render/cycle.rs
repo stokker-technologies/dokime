@@ -83,13 +83,11 @@ impl Serialize for DocumentWarningText<'_> {
 }
 impl Serialize for Report<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut fields = serializer.serialize_map(Some(13))?;
+        let mut fields = serializer.serialize_map(Some(11))?;
         fields.serialize_entry("appearance", self.appearance)?;
-        fields.serialize_entry("box_summaries", &BTreeMap::<String, JsonValue>::new())?;
         fields.serialize_entry("case_runs", &Rows(self, Section::Cases))?;
         fields.serialize_entry("documents", &self.header.documents)?;
         fields.serialize_entry("generated_at", &self.header.generated_at)?;
-        fields.serialize_entry("histograms", &BTreeMap::<String, JsonValue>::new())?;
         fields.serialize_entry(
             "hub",
             &Hub {
@@ -250,7 +248,7 @@ impl Serialize for SnapshotRows<'_, '_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let input = self.0.header;
         let snapshot = snapshot(input);
-        let mut fields = serializer.serialize_map(Some(13))?;
+        let mut fields = serializer.serialize_map(Some(11))?;
         fields.serialize_entry("run", &snapshot.run)?;
         fields.serialize_entry("session_id", &snapshot.session_id)?;
         fields.serialize_entry("title", &snapshot.title)?;

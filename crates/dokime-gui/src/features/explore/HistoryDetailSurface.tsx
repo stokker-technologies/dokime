@@ -217,9 +217,9 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
         ))}
         {/* The cases with nothing behind them are one line, not rows: the
             count stays visible without pretending each is inspectable. */}
-        {!unrun && entry?.unrun.length ? (
+        {!unrun && entry?.unrun_count ? (
           <p className="text-sm text-muted-foreground" role="status">
-            {unrunCaption(entry.unrun.length)}
+            {unrunCaption(entry.unrun_count)}
           </p>
         ) : null}
         {!query.isPending && !query.isError && !entry && !unrun ? (

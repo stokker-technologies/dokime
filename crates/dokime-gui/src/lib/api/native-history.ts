@@ -17,8 +17,8 @@ import type { Wire } from "@/lib/rpc/canonical";
 import type * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { CycleHistorySummary } from "@/lib/types";
-import { listNativeCycles, listNativeExecutions } from "./native-planning";
-import { durationSeconds, mapBounded, safeNumber, timestampIso } from "./native-values";
+import { listNativeCycles } from "./native-planning";
+import { durationSeconds, safeNumber, timestampIso } from "./native-values";
 
 /* === Types === */
 
@@ -29,39 +29,20 @@ type ResultStatus = NonNullable<CycleSummary["result"]>["status"];
 /* === Public API === */
 
 /**
- * Read the native cycle index and project its authored summary fields into the
- * view model consumed by the original cycle selector/sidebar.
- *
- * CycleSummary intentionally does not contain a per-execution status
- * histogram. Active cycles therefore read execution summaries as a bounded
- * second pass so running counts stay truthful without loading execution
- * details, steps, or evidence.
+ * Read the native cycle index and project its summary fields, running and
+ * queued counts included, into the view model consumed by the original cycle
+ * selector/sidebar.
  */
 export async function fetchNativeCycleHistory(
   session: SessionIdentity,
 ): Promise<CycleHistorySummary[]> {
   const cycles = await listNativeCycles(session);
-  const activeCycles = cycles.filter((cycle) =>
-    ["Running", "Paused", "Stopping"].includes(cycle.status?.HarmosVariant.case ?? ""),
-  );
-  const activeExecutions = await mapBounded(activeCycles, (cycle) =>
-    listNativeExecutions(session, cycle.cycleId),
-  );
-  const activeByCycleId = new Map(
-    activeCycles.map((cycle, index) => [cycle.cycleId, activeExecutions[index]]),
-  );
-
-  return cycles
-    .map((cycle) => mapCycleHistorySummary(cycle, activeByCycleId.get(cycle.cycleId)))
-    .sort(compareCycleHistorySummary);
+  return cycles.map(mapCycleHistorySummary).sort(compareCycleHistorySummary);
 }
 
 /* === Mapping === */
 
-function mapCycleHistorySummary(
-  cycle: CycleSummary,
-  executions: Awaited<ReturnType<typeof listNativeExecutions>> | undefined,
-): CycleHistorySummary {
+function mapCycleHistorySummary(cycle: CycleSummary): CycleHistorySummary {
   const caseCount = safeNumber(cycle.caseCount, "Execution.ListCycles case count");
   const executionCount = safeNumber(cycle.executionCount, "Execution.ListCycles execution count");
   const result = cycle.result;
@@ -71,9 +52,6 @@ function mapCycleHistorySummary(
   const startedAt = timestampIso(cycle.startedAt);
   const updatedAt = timestampIso(cycle.updatedAt) ?? timestampIso(cycle.createdAt) ?? "";
   const finishedAt = terminal ? updatedAt || null : null;
-  const activeRunning = executions?.filter(
-    (item) => item.status?.HarmosVariant.case === "Running",
-  ).length;
 
   return {
     test_cycle_id: cycle.cycleId,
@@ -88,8 +66,8 @@ function mapCycleHistorySummary(
     result_status: resultStatus(result?.status),
     case_count: caseCount,
     execution_count: executionCount,
-    queued_count: Math.max(caseCount - executionCount, 0),
-    running_count: activeRunning ?? 0,
+    queued_count: safeNumber(cycle.queuedCount, "Execution.ListCycles queued count"),
+    running_count: safeNumber(cycle.runningCount, "Execution.ListCycles running count"),
     passed_count: result?.passed ?? 0,
     failed_count: result?.failed ?? 0,
     blocked_count: result?.blocked ?? 0,

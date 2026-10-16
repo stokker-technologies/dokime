@@ -510,7 +510,8 @@ impl Resources {
             if !status.success() {
                 return Err(Error::Shutdown {
                     message: format!(
-                        "The Dokime backend did not close cleanly ({status}); reports may be incomplete."
+                        "The {} backend did not close cleanly ({status}); reports may be incomplete.",
+                        crate::PRODUCT
                     ),
                 });
             }

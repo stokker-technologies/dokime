@@ -28,6 +28,8 @@ pub use error::Error;
 // Local Imports
 
 /* === Constants === */
+/// The product name operators see, taken from the generated brand at build time.
+pub const PRODUCT: &str = env!("DOKIME_BRAND_LABEL");
 
 /* === Macros === */
 

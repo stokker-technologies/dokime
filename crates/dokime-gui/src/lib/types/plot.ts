@@ -165,6 +165,8 @@ export type PlotAnalysis =
         upper_whisker: number;
         outliers: number[];
       }[];
+      /** Samples summarized across every box. */
+      total: number;
     }
   | {
       kind: "sigma_interval";

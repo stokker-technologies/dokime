@@ -67,7 +67,7 @@ class Row4(_message.Message):
     def __init__(self, identifier: _Optional[str] = ..., label: _Optional[str] = ..., description: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., attributes: _Optional[_Iterable[_Union[Row7, _Mapping]]] = ..., created_at: _Optional[_Union[Row8, _Mapping]] = ..., updated_at: _Optional[_Union[Row8, _Mapping]] = ...) -> None: ...
 
 class Row5(_message.Message):
-    __slots__ = ("cycle_id", "metadata", "status", "case_count", "execution_count", "continue_on_failure", "observed_cursor", "created_at", "started_at", "updated_at", "result", "archived", "sealed", "suite")
+    __slots__ = ("cycle_id", "metadata", "status", "case_count", "execution_count", "continue_on_failure", "observed_cursor", "created_at", "started_at", "updated_at", "result", "archived", "sealed", "suite", "running_count", "queued_count")
     CYCLE_ID_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -82,6 +82,8 @@ class Row5(_message.Message):
     ARCHIVED_FIELD_NUMBER: _ClassVar[int]
     SEALED_FIELD_NUMBER: _ClassVar[int]
     SUITE_FIELD_NUMBER: _ClassVar[int]
+    RUNNING_COUNT_FIELD_NUMBER: _ClassVar[int]
+    QUEUED_COUNT_FIELD_NUMBER: _ClassVar[int]
     cycle_id: str
     metadata: Row4
     status: Row9
@@ -96,7 +98,9 @@ class Row5(_message.Message):
     archived: bool
     sealed: bool
     suite: Row4
-    def __init__(self, cycle_id: _Optional[str] = ..., metadata: _Optional[_Union[Row4, _Mapping]] = ..., status: _Optional[_Union[Row9, _Mapping]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., continue_on_failure: _Optional[bool] = ..., observed_cursor: _Optional[_Union[Row3, _Mapping]] = ..., created_at: _Optional[_Union[Row8, _Mapping]] = ..., started_at: _Optional[_Union[Row8, _Mapping]] = ..., updated_at: _Optional[_Union[Row8, _Mapping]] = ..., result: _Optional[_Union[Row10, _Mapping]] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ..., suite: _Optional[_Union[Row4, _Mapping]] = ...) -> None: ...
+    running_count: int
+    queued_count: int
+    def __init__(self, cycle_id: _Optional[str] = ..., metadata: _Optional[_Union[Row4, _Mapping]] = ..., status: _Optional[_Union[Row9, _Mapping]] = ..., case_count: _Optional[int] = ..., execution_count: _Optional[int] = ..., continue_on_failure: _Optional[bool] = ..., observed_cursor: _Optional[_Union[Row3, _Mapping]] = ..., created_at: _Optional[_Union[Row8, _Mapping]] = ..., started_at: _Optional[_Union[Row8, _Mapping]] = ..., updated_at: _Optional[_Union[Row8, _Mapping]] = ..., result: _Optional[_Union[Row10, _Mapping]] = ..., archived: _Optional[bool] = ..., sealed: _Optional[bool] = ..., suite: _Optional[_Union[Row4, _Mapping]] = ..., running_count: _Optional[int] = ..., queued_count: _Optional[int] = ...) -> None: ...
 
 class Row6(_message.Message):
     __slots__ = ("records", "telemetry", "prompts", "artifacts", "health", "traceability", "notes")

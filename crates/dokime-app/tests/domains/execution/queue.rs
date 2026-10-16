@@ -18,6 +18,8 @@
 
 // Local Imports
 use super::*;
+use dokime_app::execution::ResultStatus;
+use dokime_app::runtime::query::execution_history::ExecutionBrowseLifecycle;
 
 /* === Constants === */
 
@@ -252,6 +254,72 @@ pub(crate) async fn later_cases_start() {
     assert_eq!(completed.test_executions[0].status, ExecutionStatus::Passed);
     assert_eq!(completed.test_executions[1].status, ExecutionStatus::Passed);
     assert_ne!(first_started_at, second_started_at);
+}
+
+pub(crate) async fn running_queued_counts() {
+    let root = tempdir().unwrap();
+    let executor = Arc::new(BlockingPublishingExecutor::new());
+    let (_owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let suite = fixture_suite(&["passed", "passed", "passed"]);
+    register_python_suite(&runtime, suite.clone()).await;
+    let test_cycle_id = start_cycle(&runtime, suite, false).await;
+    let tally = |runtime: &RuntimeHandle| {
+        let snapshot = runtime.watch_state().latest();
+        let state = snapshot.state();
+        dokime_app::runtime::query::case_tally(state, &state.cycles[&test_cycle_id])
+    };
+    let browsed = |runtime: RuntimeHandle| {
+        let test_cycle_id = test_cycle_id.clone();
+        async move {
+            let page = runtime
+                .browse_executions(Default::default(), |page, _| Ok(page.clone()))
+                .await
+                .unwrap();
+            page.cycles
+                .iter()
+                .find(|cycle| cycle.cycle_id == test_cycle_id)
+                .cloned()
+                .expect("browse reports the cycle")
+        }
+    };
+
+    // One Case Runs While The Others Wait Their Turn
+    let run = runtime
+        .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(run.status, CommandStatus::Accepted, "{:?}", run.rejection);
+    executor.wait_until_entered().await;
+    wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Running).await;
+    let waiting = tally(&runtime);
+    assert_eq!(waiting.running, 1);
+    assert_eq!(waiting.queued, 2);
+    let cycle = browsed(runtime.clone()).await;
+    assert_eq!(cycle.lifecycle, ExecutionBrowseLifecycle::Running);
+    assert_eq!(cycle.running_count, 1);
+    assert_eq!(cycle.queued_count, 2);
+    assert_eq!(cycle.execution_count, 3);
+    assert_eq!(cycle.case_count, 3);
+    assert_eq!(cycle.unrun_count, 0);
+    assert_eq!(cycle.result_status, None);
+    assert!(cycle.started_at.is_some());
+
+    // A Settled, Sealed Cycle Has Nothing Running Or Waiting And Passed
+    executor.release();
+    let completed =
+        wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
+    for execution in &completed.test_executions {
+        crate::support::native::checkpoint(&runtime, &execution.test_execution_id).await;
+    }
+    let settled = tally(&runtime);
+    assert_eq!(settled.running, 0);
+    assert_eq!(settled.queued, 0);
+    let cycle = browsed(runtime.clone()).await;
+    assert_eq!(cycle.lifecycle, ExecutionBrowseLifecycle::Completed);
+    assert_eq!(cycle.result_status, Some(ResultStatus::Passed));
+    assert_eq!(cycle.running_count, 0);
+    assert_eq!(cycle.queued_count, 0);
+    assert_eq!(cycle.passed_count, 3);
+    assert!(cycle.finished_at.is_some());
 }
 
 pub(crate) async fn request_retries_receipt() {
