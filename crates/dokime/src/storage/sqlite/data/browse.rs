@@ -14,17 +14,14 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::{mem::size_of, num::NonZeroUsize, sync::Arc};
+use std::{num::NonZeroUsize, sync::Arc};
 
 // Third Party Imports
-use harmos::{MemorySize, schema::graph::Field, storage::*};
-use rusqlite::{
-    Connection,
-    types::{Value, ValueRef},
-};
+use harmos::{schema::graph::Field, storage::*};
+use rusqlite::{Connection, types::Value};
 
 // Local Imports
-use super::super::{Error, State, memory, query};
+use super::super::{Error, State, query};
 use super::{SavedData, entry, index::keys, position, sequence};
 
 /* === Constants === */
@@ -68,25 +65,21 @@ impl State {
             limits,
             maximum,
         } = read;
-        let memory = self.clone();
         self.call_read(execution, move |connection| {
             Ok((|| {
                 request.check_view(&view, cursor.as_ref())?;
                 let plan = Plan::new(&cut, &request, cursor.as_ref())?;
-                validate(connection, &memory.0.memory, &plan, &request, maximum)?;
-                let count = limits.rows.get().min(64);
-                let _headers = memory.0.memory.reserve_owned(
-                    count
-                        .checked_mul(size_of::<ObjectMetadata>() + size_of::<memory::Reservation>())
-                        .ok_or(Error::Data("browse page allocation size overflow"))?,
-                    usize::MAX,
-                )?;
+                validate(connection, &plan, &request, maximum)?;
+                let count = limits.rows.get();
+                count
+                    .checked_add(1)
+                    .filter(|count| *count <= i64::MAX as usize)
+                    .ok_or(Error::Data("browse count exceeds SQLite range"))?;
                 let sql = plan.sql(count + 1);
                 let mut statement = connection.prepare(&sql)?;
                 let mut rows =
                     statement.query(rusqlite::params_from_iter(plan.arguments.iter()))?;
                 let mut entries = Vec::with_capacity(count);
-                let mut charges = Vec::with_capacity(count);
                 let mut more = false;
                 while let Some(row) = rows.next()? {
                     if entries.len() == count {
@@ -105,24 +98,6 @@ impl State {
                         .get_ref(3)?
                         .as_str()
                         .map_err(|_| Error::Corrupt("invalid object version index"))?;
-                    let mut bytes = schema
-                        .len()
-                        .checked_add(item.len())
-                        .and_then(|bytes| bytes.checked_add(version.len()))
-                        .and_then(|bytes| bytes.checked_mul(6))
-                        .and_then(|bytes| bytes.checked_add(2 * super::HISTORY_BYTES))
-                        .and_then(|bytes| {
-                            bytes.checked_add(2 * request.columns.len() * size_of::<ObjectScalar>())
-                        })
-                        .ok_or(Error::Data("browse row allocation size overflow"))?;
-                    for index in 0..request.columns.len() {
-                        if let ValueRef::Blob(value) = row.get_ref(6 + 2 * index)? {
-                            bytes = bytes
-                                .checked_add(2 * value.len())
-                                .ok_or(Error::Data("browse scalar allocation size overflow"))?;
-                        }
-                    }
-                    charges.push(memory.0.memory.reserve_owned(bytes, usize::MAX)?);
                     let mut values = Vec::with_capacity(request.columns.len());
                     for (index, column) in request.columns.iter().enumerate() {
                         values.push(keys::decode(column, row.get_ref(6 + 2 * index)?)?);
@@ -354,7 +329,6 @@ impl Plan {
 /* === Private Functions === */
 fn validate(
     connection: &Connection,
-    memory: &Arc<memory::Budget>,
     plan: &Plan,
     request: &ObjectBrowseRequest,
     maximum: NonZeroUsize,
@@ -384,15 +358,6 @@ fn validate(
                 "scalar field metadata exceeds backend bound",
             ));
         }
-        let mut bytes = super::Entry::fields_decoding_bytes(fields.len())?;
-        for index in 0..request.columns.len() {
-            if let ValueRef::Blob(value) = row.get_ref(6 + 2 * index)? {
-                bytes = bytes
-                    .checked_add(value.len())
-                    .ok_or(Error::Data("scalar validation allocation size overflow"))?;
-            }
-        }
-        let _charge = memory.reserve_owned(bytes, usize::MAX)?;
         let fields: Vec<Field> = serde_json::from_slice(fields)?;
         request.check_schema(&fields)?;
         for (index, column) in request.columns.iter().enumerate() {
@@ -405,22 +370,6 @@ fn validate(
         }
     }
     Ok(())
-}
-
-pub(super) fn planning_bytes(
-    request: &ObjectBrowseRequest,
-    cursor: Option<&ObjectBrowseCursor>,
-) -> Result<usize, Error> {
-    // SQL Keyset Terms Are Quadratic In The Bounded Sort Count
-    // Charge all plan/cursor clones, parameters, temporary formatting strings
-    // and the final SQL before building them inside the physical callback.
-    request
-        .memory_size()
-        .checked_add(cursor.map_or(0, MemorySize::memory_size))
-        .and_then(|bytes| bytes.checked_mul(8))
-        .and_then(|bytes| bytes.checked_add((request.order.len() * 2 + 2).pow(2) * 512))
-        .and_then(|bytes| bytes.checked_add(64 * 1024))
-        .ok_or(Error::Data("scalar planning allocation size overflow"))
 }
 
 /* === Tests === */

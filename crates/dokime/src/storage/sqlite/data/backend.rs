@@ -565,12 +565,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         if !found {
             return Err(invalid("scalar schema is absent from the object catalog"));
         }
-        if super::browse::planning_bytes(request, None)
-            .map_err(|error| failure("validate scalar query planning", error))?
-            > limits.memory_bytes.get()
-        {
-            return Err(invalid("scalar query planning exceeds memory bound"));
-        }
         self.validate_query_limits(limits)
     }
 
@@ -587,21 +581,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 .execution_limits()
                 .ok_or_else(|| invalid("scalar query requires execution limits"))?;
             let (state, pin) = self.pin(view).await?;
-            let (planning, cut, read) = pin
+            let (cut, read) = pin
                 .prepare(|| {
                     self.validate_object_browse(request, execution)?;
-                    let bytes = super::browse::planning_bytes(request, cursor)?
-                        .checked_add(
-                            view.id()
-                                .memory_size()
-                                .checked_mul(3)
-                                .ok_or(Error::Data("view identity allocation size overflow"))?,
-                        )
-                        .and_then(|bytes| {
-                            bytes.checked_add(std::mem::size_of::<OwnedRead<ObjectBrowsePage>>())
-                        })
-                        .ok_or(Error::Data("query planning allocation size overflow"))?;
-                    let planning = state.reserve_query(bytes, execution.memory_bytes)?;
                     let read = super::browse::Read {
                         view: view.clone(),
                         request: request.clone(),
@@ -609,18 +591,15 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                         limits,
                         maximum: self.limits.entry_bytes,
                     };
-                    Ok((planning, pin.cut.clone(), read))
+                    Ok((pin.cut.clone(), read))
                 })
                 .map_err(|error| failure("prepare scalar query", error))?;
-            owned_read("read SQLite scalar metadata", async move {
+            let (result, _pin) = owned("read SQLite scalar metadata", async move {
                 let result = state.data_browse(cut, read, pin.execution.clone()).await;
-                Ok(OwnedRead {
-                    result,
-                    _planning: planning,
-                    _pin: pin,
-                })
+                Ok((result, pin))
             })
-            .await
+            .await?;
+            result.map_err(|error| failure("read SQLite scalar metadata", error))
         })
     }
 
