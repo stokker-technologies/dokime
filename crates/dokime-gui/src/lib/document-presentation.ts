@@ -105,8 +105,6 @@ export function documentCard(
     region: "main",
     groups: [],
     plots: [],
-    histograms: [],
-    box_summaries: [],
     rows: [],
     show_report_outcome: true,
     max_items: null,

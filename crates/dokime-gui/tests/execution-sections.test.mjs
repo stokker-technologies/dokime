@@ -33,7 +33,7 @@ test("built-in card kinds own their sections and every other kind is Report", ()
   assert.equal(executionSectionOf("criteria"), "steps-criteria");
   assert.equal(executionSectionOf("notes"), "notes");
   assert.equal(executionSectionOf("traceability"), "traceability");
-  for (const kind of ["plots", "histograms", "box_summaries", "overview", "table", "health"]) {
+  for (const kind of ["plots", "overview", "table", "health"]) {
     assert.equal(executionSectionOf(kind), "report", kind);
   }
 });

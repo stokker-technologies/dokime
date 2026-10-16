@@ -10,6 +10,8 @@
 /* === Local Imports === */
 
 import { formatNumber } from "@/lib/format";
+import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
+import { plotPlaceholderText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Types === */
@@ -34,13 +36,13 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
 
   if (!bars.length) {
     return (
-      <div className="plot-empty grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 p-4 text-center text-muted-foreground">
-        <strong>{plot.title}</strong>
-        <span>{plot.stateLabel ?? "Waiting For Samples"}</span>
-        <span className="text-xs">
-          {plot.stateDetail ?? "No categorical samples are available in the selected window."}
-        </span>
-      </div>
+      <PlotPlaceholder
+        title={plot.title}
+        {...plotPlaceholderText(
+          plot,
+          "No categorical samples are available in the selected window.",
+        )}
+      />
     );
   }
 

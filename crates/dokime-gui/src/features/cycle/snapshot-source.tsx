@@ -28,7 +28,6 @@ import { createContext, type ReactNode, useContext } from "react";
 
 /* === Local Imports === */
 
-import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
 import type {
   ArtifactRecord,
   DocumentViewPayload,
@@ -44,10 +43,8 @@ import type {
 
 /* === Types === */
 
-/** The document payloads a frozen plot, histogram or box summary is drawn from. */
+/** The captured plot payloads a frozen document is drawn from. */
 export type FrozenPlotPayloads = {
-  boxSummaries: Record<string, DocumentBoxSummaryPayload>;
-  histograms: Record<string, DocumentHistogramPayload>;
   plots: Record<string, PlotPayload>;
 };
 
@@ -102,7 +99,7 @@ export function useCycleSnapshotSource(): CycleSnapshotSource | null {
   return useContext(CycleSnapshotContext);
 }
 
-/** The payloads a frozen plot, histogram or box summary is drawn from. */
+/** The captured plot payloads a frozen document is drawn from. */
 export function useFrozenPlotPayloads(executionId: string | null): FrozenPlotPayloads | null {
   const snapshot = useContext(CycleSnapshotContext);
   return snapshot ? snapshot.plotPayloads(executionId) : null;

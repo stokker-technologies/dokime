@@ -354,7 +354,7 @@ function sectionChromeFor(
 }
 
 function defaultCardChrome(card: DocumentViewCard): DocumentBlockChrome {
-  return ["plots", "histograms", "box_summaries"].includes(card.kind) ? "flat" : "normal";
+  return card.kind === "plots" ? "flat" : "normal";
 }
 
 /** Do two labels say the same thing, ignoring case and word separators? */
@@ -368,9 +368,6 @@ function sameLabel(left: string, right: string): boolean {
 }
 
 function documentCardEyebrow(card: DocumentViewCard): string {
-  if (card.kind === "box_summaries") {
-    return "Distribution";
-  }
   if (card.kind === "telemetry_context") {
     return "Telemetry";
   }

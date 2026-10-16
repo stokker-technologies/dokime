@@ -52,13 +52,10 @@ export const FIXTURE_ARTIFACT_NAME = "startup-summary.json";
 
 export function reportFixturePayload(): ReportPayload {
   return {
-    box_summaries: {},
     case_runs: [
       {
-        box_summaries: {},
         case_id: FIXTURE_CASE_ID,
         documents: { default: reportDocument(FIXTURE_EXECUTION_ID) },
-        histograms: {},
         plots: {},
         queue_item_id: "queue-1",
         test_execution_id: FIXTURE_EXECUTION_ID,
@@ -67,7 +64,6 @@ export function reportFixturePayload(): ReportPayload {
     cycle_summary: null,
     documents: { default: reportDocument(null) },
     generated_at: "2026-09-30T12:34:00.000Z",
-    histograms: {},
     plots: {},
     schema_version: 1,
     snapshot: {

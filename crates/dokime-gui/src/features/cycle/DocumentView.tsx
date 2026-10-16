@@ -106,8 +106,6 @@ export function DocumentView({
         <DocumentWorkspaceView
           {...shown}
           renderMode="report"
-          reportBoxSummaries={view.reportPayloads?.boxSummaries ?? {}}
-          reportHistograms={view.reportPayloads?.histograms ?? {}}
           reportPlots={view.reportPayloads?.plots ?? {}}
           reportTelemetry={view.plotContextTelemetry}
         />
@@ -119,8 +117,6 @@ export function DocumentView({
     <DocumentSectionActionContext.Provider value={sectionAction}>
       <DocumentWorkspaceView
         {...shown}
-        boxSummarySections={view.boxSummarySections}
-        histogramSections={view.histogramSections}
         plotContextTelemetry={view.plotContextTelemetry}
         plotResetKey={options.plotWindow.label}
         plotWindowS={options.plotWindowOverridden ? options.plotWindow.value : undefined}
@@ -153,7 +149,6 @@ export function useDocumentSurface(options: DocumentSurfaceOptions) {
     scope: options.scope,
     parameters: options.parameters,
     noteElapsedStart: options.noteElapsedStart,
-    windowS: options.plotWindowOverridden ? options.plotWindow.value : undefined,
   });
   const nativeSession = useNativeSessionOptional();
   const artifacts = view.artifacts.map((artifact) => {
@@ -223,11 +218,7 @@ export function documentWindowElapsedUnit(sections: DocumentViewSection[]): stri
 /** Does any visible card in `sections` honour the live plot window? */
 export function documentHasWindowedCards(sections: DocumentViewSection[]): boolean {
   return sections.some((section) =>
-    section.cards.some(
-      (card) =>
-        isDocumentSurfaceCard(card) &&
-        (card.kind === "plots" || card.kind === "histograms" || card.kind === "box_summaries"),
-    ),
+    section.cards.some((card) => isDocumentSurfaceCard(card) && card.kind === "plots"),
   );
 }
 

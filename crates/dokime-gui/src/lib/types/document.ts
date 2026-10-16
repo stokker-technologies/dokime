@@ -137,29 +137,6 @@ export type DocumentViewPlot = {
   downsample?: DocumentDownsampleTechnique | null;
 };
 
-export type DocumentViewHistogram = {
-  histogram_id: string;
-  title: string;
-  stream: string;
-  field: string;
-  group: string;
-  unit?: string | null;
-  description?: string | null;
-  bins: number;
-  live_window_s?: number | null;
-};
-
-export type DocumentViewBoxSummary = {
-  box_summary_id: string;
-  title: string;
-  stream: string;
-  field: string;
-  group: string;
-  unit?: string | null;
-  description?: string | null;
-  live_window_s?: number | null;
-};
-
 /** Presentation-ready table row: cells are already formatted for display, so no
     renderer needs to know whether the row came off the wire or out of a report. */
 export type DocumentViewTableRow = {
@@ -178,8 +155,6 @@ export type DocumentViewCard = {
     | "criteria"
     | "steps"
     | "plots"
-    | "histograms"
-    | "box_summaries"
     | "notes"
     | "records"
     | "health"
@@ -199,8 +174,6 @@ export type DocumentViewCard = {
   region: "main" | "sidebar";
   groups: DocumentViewMetricGroup[];
   plots: DocumentViewPlot[];
-  histograms: DocumentViewHistogram[];
-  box_summaries: DocumentViewBoxSummary[];
   rows: DocumentViewTableRow[];
   show_report_outcome: boolean;
   max_items?: number | null;
