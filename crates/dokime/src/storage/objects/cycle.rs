@@ -13,14 +13,14 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeSet, num::NonZeroUsize};
+use std::collections::BTreeSet;
 
 // Third Party Imports
 use harmos::{
     DefinitionId, Identified, MemorySize,
     storage::{
-        FileReference, ObjectRetention, ObjectRevision, ObjectVersion, ObjectVersionToken,
-        QueryValue, StorageCursor, StorageView, StoredObject,
+        FileReference, ObjectRetention, ObjectRevision, ObjectVersion,
+        StorageCursor, StoredObject,
     },
 };
 
@@ -630,57 +630,22 @@ impl Cycle {
 }
 
 /* === Public Functions === */
-pub async fn read_in(
+pub async fn read(
     storage: &Manager,
-    view: &StorageView,
     id: &TestCycleId,
     version: ObjectVersion,
-    limit: NonZeroUsize,
-) -> Result<Option<QueryValue<ObjectRevision<TestCycle>>>> {
-    let Some(stored) = storage
-        .read_object_in::<Cycle>(view, id.as_str(), version, limit)
-        .await?
-    else {
+) -> Result<Option<ObjectRevision<TestCycle>>> {
+    let Some(stored) = storage.read_object::<Cycle>(id.as_str(), version).await? else {
         return Ok(None);
     };
-    let cycle = view.project_owned(stored, limit, restore_revision)?;
-    Ok(Some(cycle))
+    Ok(Some(ObjectRevision {
+        value: stored.value.try_into()?,
+        position: stored.position,
+        version: stored.version,
+    }))
 }
 
 /* === Private Functions === */
-fn restore_revision(
-    stored: ObjectRevision<Cycle>,
-    allowance: NonZeroUsize,
-) -> harmos::Result<ObjectRevision<TestCycle>> {
-    // Include Original Revision Metadata And Conversion Scratch
-    let projection = stored.value.projection_memory().map_err(projection_error)?;
-    let position = stored.position.memory_size();
-    let version = stored.version.memory_size();
-    if [projection, position, version].contains(&usize::MAX) {
-        return Err(harmos::Error::ResourceExhausted {
-            resource: "cycle revision projection memory",
-        });
-    }
-    let bound = projection
-        .saturating_add(
-            std::mem::size_of::<ObjectRevision<TestCycle>>()
-                .saturating_sub(std::mem::size_of::<TestCycle>()),
-        )
-        .saturating_add(position.saturating_sub(std::mem::size_of::<StorageCursor>()))
-        .saturating_add(version.saturating_sub(std::mem::size_of::<ObjectVersionToken>()));
-    if bound == usize::MAX || bound > allowance.get() {
-        return Err(harmos::Error::ResourceExhausted {
-            resource: "cycle revision projection memory",
-        });
-    }
-
-    Ok(ObjectRevision {
-        value: stored.value.try_into().map_err(projection_error)?,
-        position: stored.position,
-        version: stored.version,
-    })
-}
-
 fn lifecycle_text(value: &CycleStatus) -> &'static str {
     match value {
         CycleStatus::Previewed => "previewed",
@@ -692,17 +657,6 @@ fn lifecycle_text(value: &CycleStatus) -> &'static str {
         CycleStatus::Failed => "failed",
         CycleStatus::Blocked => "blocked",
         CycleStatus::Stopped => "stopped",
-    }
-}
-
-fn projection_error(source: Error) -> harmos::Error {
-    match source {
-        Error::Runtime(source) => source,
-        source => harmos::Error::backend(
-            "decode cycle projection",
-            harmos::BackendFailure::Corrupt,
-            source,
-        ),
     }
 }
 

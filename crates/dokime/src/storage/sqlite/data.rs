@@ -9,28 +9,18 @@
 
 /* === Modules === */
 mod backend;
-mod bootstrap;
-mod bootstrap_files;
-mod browse;
 mod entry;
 mod files;
-mod index;
-mod inventory;
 mod mutations;
 mod production;
-mod record_filter;
-mod retained;
 mod retention;
-mod scan;
 
 /* === Re-Exports === */
-pub use backend::{Backend, Limits};
+pub use backend::Backend;
 pub(crate) use entry::Entry;
-pub(super) use index::IndexSchema;
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::storage::*;
 use rusqlite::{Connection, params, types::Value};
@@ -47,7 +37,6 @@ CREATE TABLE IF NOT EXISTS storage_data_head (
     singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
     format TEXT NOT NULL, history BLOB NOT NULL,
     saved TEXT NOT NULL CHECK(length(saved) = 16),
-    lost_objects_through TEXT NOT NULL CHECK(length(lost_objects_through) = 16),
     retention_generation TEXT NOT NULL CHECK(length(retention_generation) = 16)
 );
 CREATE TABLE IF NOT EXISTS storage_data_entries (
@@ -57,7 +46,7 @@ CREATE TABLE IF NOT EXISTS storage_data_entries (
     schema_id TEXT, schema_key TEXT, item TEXT NOT NULL,
     scope TEXT, stream TEXT, source_time BLOB,
     object_version TEXT, body BLOB NOT NULL,
-    digest BLOB NOT NULL CHECK(length(digest) = 32), retired_at TEXT, object_fields BLOB
+    digest BLOB NOT NULL CHECK(length(digest) = 32), retired_at TEXT
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS storage_object_releases (
     schema_id TEXT NOT NULL, schema_key TEXT NOT NULL, schema_version INTEGER NOT NULL,
@@ -66,49 +55,6 @@ CREATE TABLE IF NOT EXISTS storage_object_releases (
     generation TEXT NOT NULL CHECK(length(generation)=16),
     PRIMARY KEY(schema_id,item,generation)
 ) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS storage_object_scalars (
-    position TEXT NOT NULL CHECK(length(position)=16),
-    tag INTEGER NOT NULL CHECK(tag>0), kind TEXT NOT NULL,
-    value BLOB,
-    PRIMARY KEY(position, tag)
-) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS storage_object_scalar_value
-    ON storage_object_scalars(tag, kind, value, position);
-CREATE TABLE IF NOT EXISTS storage_bootstrap (
-    singleton INTEGER PRIMARY KEY CHECK(singleton = 1), metadata BLOB NOT NULL
-);
-CREATE TABLE IF NOT EXISTS storage_bootstrap_entries (
-    position TEXT PRIMARY KEY CHECK(length(position)=16),
-    kind TEXT NOT NULL CHECK(kind IN ('schema','object','record','stream','file')),
-    body BLOB NOT NULL, digest BLOB NOT NULL CHECK(length(digest)=32)
-) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS storage_bootstrap_kind_position
-    ON storage_bootstrap_entries(kind, position);
-CREATE TABLE IF NOT EXISTS storage_bootstrap_releases (
-    schema_id TEXT NOT NULL, schema_version INTEGER NOT NULL, encoding INTEGER NOT NULL,
-    item TEXT NOT NULL, body BLOB NOT NULL,
-    PRIMARY KEY(schema_id,schema_version,encoding,item)
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS storage_bootstrap_schemas (
-    schema_key TEXT NOT NULL,
-    position TEXT NOT NULL UNIQUE CHECK(length(position)=16),
-    PRIMARY KEY(schema_key, position)
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS storage_bootstrap_abort (
-    singleton INTEGER PRIMARY KEY CHECK(singleton=1), identity BLOB NOT NULL
-);
-CREATE TABLE IF NOT EXISTS storage_bootstrap_files (
-    id TEXT PRIMARY KEY, owner BLOB NOT NULL, metadata BLOB NOT NULL,
-    finish_intent BLOB, finished BLOB
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS storage_bootstrap_installs (
-    id TEXT PRIMARY KEY, reference BLOB NOT NULL,
-    created INTEGER NOT NULL CHECK(created IN (0,1))
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS storage_bootstrap_completed (
-    singleton INTEGER PRIMARY KEY CHECK(singleton=1), receipt BLOB NOT NULL,
-    digest BLOB NOT NULL CHECK(length(digest)=32)
-);
 CREATE TABLE IF NOT EXISTS storage_staging (
     owner TEXT NOT NULL, id TEXT NOT NULL, phase TEXT NOT NULL,
     uuid TEXT NOT NULL UNIQUE, PRIMARY KEY(owner,id,phase)
@@ -139,21 +85,18 @@ CREATE INDEX IF NOT EXISTS storage_data_scope ON storage_data_entries(kind, scop
 pub(crate) struct SavedData {
     pub history: StoreHistory,
     pub sequence: u64,
-    pub lost_objects_through: u64,
     pub retention_generation: u64,
 }
 
-pub(super) struct PageRead {
-    pub cut: SavedData,
-    pub selection: ReadSelection,
-    pub after: Option<u64>,
-    pub limits: ReadLimits,
-    pub entry_bytes: NonZeroUsize,
-}
-
-pub(crate) struct Page {
-    pub entries: Vec<Entry>,
-    pub has_more: bool,
+/// A scan of one entry kind within a pinned cut, ascending by position.
+pub(super) struct Scan {
+    pub kind: &'static str,
+    pub at: u64,
+    pub generation: u64,
+    pub filters: Vec<(&'static str, Value)>,
+    pub source_window: Option<(std::time::SystemTime, std::time::SystemTime)>,
+    pub latest_objects: bool,
+    pub page: ScanPage,
 }
 
 /* === Enums === */
@@ -178,293 +121,57 @@ impl State {
         &self,
         root: &std::path::Path,
         batch: StorageBatch<'_>,
-        entry_bytes: NonZeroUsize,
-        batch_bytes: NonZeroUsize,
     ) -> Result<SavedData, Error> {
-        if batch.encoded_bytes() > batch_bytes.get() {
-            return Err(Error::Data("SQLite batch exceeds its encoded bound"));
-        }
         let root = root.to_path_buf();
         let mut prepared = Vec::with_capacity(batch.len());
-        let mut bytes = 0usize;
         for value in batch.entries() {
             batch.first().history.check(&value.position().history)?;
-            let length = Encoded::encoded_bytes(value, entry_bytes.get())?;
-            bytes = bytes
-                .checked_add(length)
-                .filter(|bytes| *bytes <= batch_bytes.get())
-                .ok_or(Error::Data("SQLite batch framing exceeds its byte bound"))?;
+            let length = Encoded::encoded_bytes(value, usize::MAX)?;
             prepared.push(Encoded::new(value, length)?);
         }
         let history = batch.first().history.clone();
-        let owner = self.0.clone();
-        self.call(move |connection| {
-            let mut schema = owner.index_schema.lock().unwrap();
-            let result = write(
-                connection,
-                &root,
-                &history,
-                &prepared,
-                entry_bytes,
-                &mut schema,
-            );
-            if result.is_err() {
-                *schema = None;
-            }
-            Ok(result)
-        })
-        .await?
+        self.call(move |connection| Ok(write(connection, &root, &history, &prepared)))
+            .await?
     }
 
     pub(crate) async fn data_object(
         &self,
-        through: StorageCursor,
+        at: u64,
         generation: u64,
-        query: ObjectPoint,
-        maximum: NonZeroUsize,
-        execution: Option<std::sync::Arc<super::query::Budget>>,
+        point: ObjectPoint,
     ) -> Result<Option<ObjectEntry>, Error> {
-        self.call_read(execution,move |connection| Ok((|| {
-        let schema = key(query.schema.as_str())?;
-        let item = key(query.item.as_str())?;
-        let exact = match &query.version {
-            ObjectVersion::Latest => None,
-            ObjectVersion::Exact(version) => Some(serde_json::to_string(version)?),
-        };
-            let head = saved(connection)?;
-            head.history.check(&through.history)?;
-            if through.sequence > head.sequence { return Err(Error::Data("object read exceeds saved frontier")); }
-            let mut statement = connection.prepare(
-                "SELECT position, body, digest FROM storage_data_entries WHERE kind='object'
-                 AND schema_id=?1 AND item=?2 AND position<=?3
-                 AND (?4 IS NULL OR object_version=?4) AND (retired_at IS NULL OR retired_at>?5) ORDER BY position DESC LIMIT 1")?;
-            let mut rows = statement.query(params![schema, item, position(through.sequence), exact, position(generation)])?;
-            let Some(row) = rows.next()? else { return Ok(None); };
-            let encoded = blob(row, 1)?;
-            if encoded.len() > maximum.get() { return Err(Error::Data("object exceeds read byte bound")); }
-            check_digest(encoded, blob(row, 2)?)?;
-            let entry = Entry::decode("object", encoded)?;
-            let Entry::Object(object) = entry else { return Err(Error::Corrupt("object index collection differs")); };
-            if object.value.schema.id != query.schema || object.value.item != query.item
-                || position(object.position.sequence) != row.get::<_, String>(0)?
-                || matches!(&query.version, ObjectVersion::Exact(version) if *version != object.version)
-            { return Err(Error::Corrupt("object index identity differs")); }
-            object.position.history.check(&through.history)?;
-            Ok(Some(object))
-        })())).await?
+        self.read(move |connection| Ok(read_object(connection, at, generation, &point)))
+            .await?
     }
 
-    pub(super) async fn data_page<T: Send + 'static>(
-        &self,
-        read: PageRead,
-        execution: Option<std::sync::Arc<super::query::Budget>>,
-        finish: impl FnOnce(Page) -> Result<T, Error> + Send + 'static,
-    ) -> Result<T, Error> {
-        let PageRead {
-            cut,
-            selection,
-            after,
-            limits,
-            entry_bytes,
-        } = read;
-        // Planning Executes Under The Same Active Budget
-        // The physical owner excludes queue waiting while charging parameter
-        // construction, statement preparation, stepping and row construction.
-        self.call_read(execution, move |connection| {
-            Ok((|| {
-        let through = StorageCursor {
-            history: cut.history.clone(),
-            sequence: cut.sequence,
-        };
-        // The continuation narrows the index range itself. As a second bound
-        // beside the selection's own, SQLite keeps walking from the selection
-        // start and filters, so every page would rescan the history before it.
-        let through_sequence = selection
-            .through
-            .unwrap_or(through.sequence)
-            .min(through.sequence);
-        let (lower, upper) = match (after, selection.order) {
-            (Some(after), ReadOrder::Ascending) => (selection.after.max(after), through_sequence),
-            (Some(after), _) => (selection.after, through_sequence.min(after.saturating_sub(1))),
-            (None, _) => (selection.after, through_sequence),
-        };
-        let mut arguments = vec![
-            Value::Text(kind(selection.kind).into()),
-            Value::Text(position(lower)),
-            Value::Text(position(upper)),
-            Value::Text(position(cut.retention_generation)),
-        ];
-        let mut clauses = vec![
-            "NOT EXISTS(SELECT 1 FROM storage_deleted_files WHERE entries.kind='file' AND storage_deleted_files.id=entries.item)".to_owned(),
-            "entries.kind=?1".to_owned(),
-            "entries.position>?2".into(),
-            "entries.position<=?3".into(),
-            "(entries.retired_at IS NULL OR entries.retired_at>?4)".into(),
-        ];
-        for (column, value) in [
-            (
-                "schema_key",
-                selection
-                    .schema
-                    .as_ref()
-                    .map(serde_json::to_string)
-                    .transpose()?,
-            ),
-            (
-                "scope",
-                selection
-                    .scope
-                    .as_ref()
-                    .map(|value| key(value.as_str()))
-                    .transpose()?,
-            ),
-            (
-                "stream",
-                selection
-                    .stream
-                    .as_ref()
-                    .map(|value| key(value.as_str()))
-                    .transpose()?,
-            ),
-            (
-                "item",
-                selection
-                    .item
-                    .as_ref()
-                    .map(|value| key(value.as_str()))
-                    .transpose()?,
-            ),
-            (
-                "item",
-                selection
-                    .object_key
-                    .as_ref()
-                    .map(|value| key(value.as_str()))
-                    .transpose()?,
-            ),
-        ] {
-            if let Some(value) = value {
-                arguments.push(Value::Text(value));
-                clauses.push(format!("entries.{column}=?{}", arguments.len()));
-            }
-        }
-        if let Some(after) = after {
-            arguments.push(Value::Text(position(after)));
-            clauses.push(format!(
-                "entries.position {} ?{}",
-                if selection.order == ReadOrder::Ascending {
-                    ">"
-                } else {
-                    "<"
-                },
-                arguments.len()
-            ));
-        }
-        if let Some(range) = selection.source_time {
-            arguments.push(Value::Blob(timestamp_key(range.start).to_vec()));
-            clauses.push(format!("entries.source_time>=?{}", arguments.len()));
-            arguments.push(Value::Blob(timestamp_key(range.end).to_vec()));
-            clauses.push(format!("entries.source_time<?{}", arguments.len()));
-        }
-        if selection.kind == ReadKind::Objects
-            && selection.object_versions == ObjectVersions::Latest
-        {
-            arguments.push(Value::Text(position(
-                selection.through.unwrap_or(through.sequence).min(through.sequence),
-            )));
-            clauses.push(format!("NOT EXISTS (SELECT 1 FROM storage_data_entries AS newer
-                WHERE newer.kind='object' AND newer.schema_id=entries.schema_id AND newer.item=entries.item
-                AND newer.position>entries.position AND newer.position<=?{}
-                AND (newer.retired_at IS NULL OR newer.retired_at>?4))", arguments.len()));
-        }
-        let count = limits.rows.get();
-        let lookahead = count.checked_add(1)
-            .and_then(|value| i64::try_from(value).ok())
-            .ok_or(Error::Data("page row limit exceeds SQLite range"))?;
-        let bound = if selection.record_filter.is_none() { format!(" LIMIT {lookahead}") } else { String::new() };
-        // A scoped selection walks only its own owner's entries in position
-        // order rather than every entry of its kind across the cut.
-        let index = if selection.scope.is_some() { "storage_data_scope" } else { "storage_data_kind_position" };
-        let sql = format!("SELECT entries.position,length(entries.body) FROM storage_data_entries AS entries
-            INDEXED BY {index} WHERE {} ORDER BY entries.position {}{}",
-            clauses.join(" AND "), if selection.order == ReadOrder::Ascending { "ASC" } else { "DESC" }, bound);
+    pub(super) async fn data_scan(&self, scan: Scan) -> Result<Vec<Entry>, Error> {
+        self.read(move |connection| Ok(read_scan(connection, &scan)))
+            .await?
+    }
+}
 
-                let head = saved(connection)?;
-                head.history.check(&through.history)?;
-                if through.sequence > head.sequence {
-                    return Err(Error::Data("page exceeds saved frontier"));
-                }
-                if selection.kind == ReadKind::Objects
-                    && selection.history == ReadHistory::Complete
-                    && selection.after < cut.lost_objects_through
-                {
-                    return Err(harmos::Error::Gap {
-                        requested: selection.after.saturating_add(1),
-                        available: cut.lost_objects_through.saturating_add(1),
-                    }
-                    .into());
-                }
-                let filter = record_filter::Prepared::new(connection, &cut, &selection, entry_bytes)?;
-                let mut statement = connection.prepare(&sql)?;
-                let mut rows = statement.query(rusqlite::params_from_iter(arguments))?;
-                let mut entries = Vec::new();
-                let mut bytes = 0usize;
-                while let Some(row) = rows.next()? {
-                    super::query::checkpoint()?;
-                    let length = usize::try_from(row.get::<_, i64>(1)?)
-                        .map_err(|_| Error::Corrupt("stored entry length exceeds address space"))?;
-                    if length > entry_bytes.get() {
-                        return Err(Error::Corrupt("stored entry exceeds backend bound"));
-                    }
-                    if filter.is_none() && entries.len() == count
-                    {
-                        if entries.is_empty() {
-                            return Err(Error::Data("first entry exceeds page byte bound"));
-                        }
-                        return finish(Page {
-                            entries,
-                            has_more: true,
-                        });
-                    }
-                    // Inspect Lookahead Metadata Before Loading Another Owned Blob.
-                    let selected: String = row.get(0)?;
-                    let mut content = connection.prepare("SELECT body,digest FROM storage_data_entries WHERE position=?1")?;
-                    let mut content_rows = content.query([&selected])?;
-                    let content_row = content_rows.next()?.ok_or(Error::Corrupt("selected page entry disappeared"))?;
-                    let body = blob(content_row, 0)?;
-                    if body.len() != length {
-                        return Err(Error::Corrupt("selected page length differs"));
-                    }
-                    check_digest(body, blob(content_row, 1)?)?;
-                    let portable = Entry::portable_bytes(kind(selection.kind), body)?;
-                    if filter.is_none() && portable > limits.bytes.get().saturating_sub(bytes) {
-                        if entries.is_empty() {
-                            return Err(Error::Data("first entry exceeds page byte bound"));
-                        }
-                        return finish(Page { entries, has_more: true });
-                    }
-                    let entry = Entry::decode(kind(selection.kind), body)?;
-                    if position(entry.position().sequence) != selected {
-                        return Err(Error::Corrupt("entry index position differs"));
-                    }
-                    entry.position().history.check(&through.history)?;
-                    if let Some(filter) = &filter {
-                        if !filter.matches(&entry, &selection, &cut, entry_bytes)? { continue; }
-                        if entries.len() == count || portable > limits.bytes.get().saturating_sub(bytes) {
-                            if entries.is_empty() { return Err(Error::Data("first selected entry exceeds page byte bound")); }
-                            return finish(Page { entries, has_more: true });
-                        }
-                    }
-                    bytes += portable;
-                    entries.push(entry);
-                }
-                finish(Page {
-                    entries,
-                    has_more: false,
-                })
-            })())
-        })
-        .await?
+impl Scan {
+    pub(super) fn new(kind: &'static str, at: u64, generation: u64, page: ScanPage) -> Self {
+        Self {
+            kind,
+            at,
+            generation,
+            filters: Vec::new(),
+            source_window: None,
+            latest_objects: false,
+            page,
+        }
+    }
+
+    pub(super) fn filter(
+        mut self,
+        column: &'static str,
+        value: Option<String>,
+    ) -> Self {
+        if let Some(value) = value {
+            self.filters.push((column, Value::Text(value)));
+        }
+        self
     }
 }
 
@@ -478,30 +185,43 @@ pub(super) fn check_format(connection: &Connection) -> Result<(), Error> {
         |row| row.get(0),
     )?;
     if exists {
-        saved(connection)?;
+        let format: Option<String> = connection
+            .query_row(
+                "SELECT format FROM storage_data_head WHERE singleton=1",
+                [],
+                |row| row.get(0),
+            )
+            .map(Some)
+            .or_else(|error| match error {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                error => Err(error),
+            })?;
+        if format.as_deref().is_some_and(|format| format != FORMAT) {
+            return Err(Error::Incompatible(format!(
+                "local.sqlite declares data format {}, and this build reads {FORMAT}",
+                format.unwrap_or_default()
+            )));
+        }
     }
     Ok(())
 }
 
 fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<SavedData, Error> {
     let transaction = connection.transaction()?;
-    let initialized: bool = transaction.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND
-            (name GLOB 'storage_data_*' OR name GLOB 'storage_bootstrap*'
-                OR name IN ('storage_object_scalars','storage_file_stages')))",
-        [],
-        |row| row.get(0),
-    )?;
     transaction.execute_batch(SCHEMA)?;
     transaction.execute_batch(production::SCHEMA)?;
     transaction.execute_batch(mutations::SCHEMA)?;
-    transaction.execute_batch(inventory::SCHEMA)?;
     let exists = transaction.query_row(
         "SELECT EXISTS(SELECT 1 FROM storage_data_head)",
         [],
         |row| row.get::<_, bool>(0),
     )?;
     if !exists {
+        let initialized: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM storage_data_entries)",
+            [],
+            |row| row.get(0),
+        )?;
         if initialized {
             return Err(Error::Corrupt("initialized data owner has no saved head"));
         }
@@ -516,25 +236,22 @@ fn open(connection: &mut Connection, expected: Option<StoreHistory>) -> Result<S
             return Err(Error::Data("history identity exceeds its bound"));
         }
         transaction.execute(
-            "INSERT INTO storage_data_head VALUES (1,?1,?2,?3,?3,?3)",
+            "INSERT INTO storage_data_head VALUES (1,?1,?2,?3,?3)",
             params![FORMAT, encoded, position(0)],
-        )?;
-        transaction.execute(
-            "INSERT INTO storage_data_origin VALUES (1,?1)",
-            [position(0)],
         )?;
     }
     let head = saved(&transaction)?;
     if let Some(expected) = expected {
         expected.check(&head.history)?;
     }
-    inventory::verify(&transaction, &head)?;
     transaction.commit()?;
     Ok(head)
 }
 
-fn saved(connection: &Connection) -> Result<SavedData, Error> {
-    let mut statement = connection.prepare("SELECT format,history,saved,lost_objects_through,retention_generation FROM storage_data_head WHERE singleton=1")?;
+pub(super) fn saved(connection: &Connection) -> Result<SavedData, Error> {
+    let mut statement = connection.prepare(
+        "SELECT format,history,saved,retention_generation FROM storage_data_head WHERE singleton=1",
+    )?;
     let mut rows = statement.query([])?;
     let row = rows
         .next()?
@@ -546,16 +263,10 @@ fn saved(connection: &Connection) -> Result<SavedData, Error> {
     if history.len() > HISTORY_BYTES {
         return Err(Error::Corrupt("stored history exceeds its bound"));
     }
-    let saved_sequence = sequence(&row.get::<_, String>(2)?)?;
-    let lost_objects_through = sequence(&row.get::<_, String>(3)?)?;
-    if lost_objects_through > saved_sequence {
-        return Err(Error::Corrupt("retention coverage exceeds saved frontier"));
-    }
     Ok(SavedData {
         history: serde_json::from_slice(history)?,
-        sequence: saved_sequence,
-        lost_objects_through,
-        retention_generation: sequence(&row.get::<_, String>(4)?)?,
+        sequence: sequence(&row.get::<_, String>(2)?)?,
+        retention_generation: sequence(&row.get::<_, String>(3)?)?,
     })
 }
 
@@ -564,53 +275,14 @@ fn write(
     root: &std::path::Path,
     history: &StoreHistory,
     entries: &[Encoded],
-    maximum: NonZeroUsize,
-    schema: &mut Option<index::IndexSchema>,
 ) -> Result<SavedData, Error> {
     let transaction = connection.transaction()?;
-    bootstrap::check_writes(&transaction)?;
     let mut head = saved(&transaction)?;
     head.history.check(history)?;
     for entry in entries {
-        {
-            let mut statement = transaction.prepare(
-                "SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1",
-            )?;
-            let mut rows = statement.query([position(entry.position)])?;
-            if let Some(row) = rows.next()? {
-                if row.get_ref(3)?.data_type() != rusqlite::types::Type::Null {
-                    return Err(Error::Data("position retry was logically pruned"));
-                }
-                let body = blob(row, 1)?;
-                if body.len() > maximum.get() {
-                    return Err(Error::Corrupt("position retry exceeds entry bound"));
-                }
-                let digest = blob(row, 2)?;
-                check_digest(body, digest)?;
-                if digest != entry.digest.as_slice() {
-                    return Err(Error::Conflict("position retry has different bytes"));
-                }
-                if row.get_ref(0)?.as_str().map_err(|error| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        0,
-                        rusqlite::types::Type::Text,
-                        Box::new(error),
-                    )
-                })? != entry.kind
-                    || body != entry.body.as_slice()
-                {
-                    return Err(Error::Corrupt("position retry content differs"));
-                }
-                inventory::confirm(&transaction, entry)?;
-                if entry.position > head.sequence {
-                    return Err(Error::Corrupt("position retry exceeds saved frontier"));
-                }
-                if entry.kind == "file" {
-                    let reference: FileReference = serde_json::from_slice(&entry.body)?;
-                    files::confirm(&transaction, root, &reference)?;
-                }
-                continue;
-            }
+        // Exact Retries Of Saved Positions Must Repeat The Same Bytes.
+        if retried(&transaction, root, entry, head.sequence)? {
+            continue;
         }
         if head.sequence.checked_add(1) != Some(entry.position) {
             return Err(Error::Data("data write has a gap or pruned retry"));
@@ -628,25 +300,8 @@ fn write(
             let reference: FileReference = serde_json::from_slice(&entry.body)?;
             files::confirm(&transaction, root, &reference)?;
         }
-        store_entry(&transaction, entry, maximum, schema)?;
-        head.sequence = entry.position;
-    }
-    transaction.execute(
-        "UPDATE storage_data_head SET saved=?1 WHERE singleton=1",
-        [position(head.sequence)],
-    )?;
-    transaction.commit()?;
-    Ok(head)
-}
-
-fn store_entry(
-    connection: &Connection,
-    entry: &Encoded,
-    maximum: NonZeroUsize,
-    schema: &mut Option<index::IndexSchema>,
-) -> Result<(), Error> {
-    connection.execute(
-            "INSERT INTO storage_data_entries VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,NULL,NULL)",
+        transaction.execute(
+            "INSERT INTO storage_data_entries VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,NULL)",
             params![
                 position(entry.position),
                 entry.kind,
@@ -662,21 +317,168 @@ fn store_entry(
                 entry.digest.as_slice()
             ],
         )?;
-    if entry.kind == "object" {
-        index::write(connection, entry, maximum, schema)?;
+        head.sequence = entry.position;
     }
-    connection.execute(
-        "INSERT INTO storage_data_inventory VALUES (?1,?2,?3,0)",
-        params![
-            position(entry.position),
-            entry.kind,
-            entry.digest.as_slice()
-        ],
+    transaction.execute(
+        "UPDATE storage_data_head SET saved=?1 WHERE singleton=1",
+        [position(head.sequence)],
     )?;
-    Ok(())
+    transaction.commit()?;
+    Ok(head)
 }
 
-fn blob<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> Result<&'a [u8], Error> {
+fn retried(
+    connection: &Connection,
+    root: &std::path::Path,
+    entry: &Encoded,
+    saved: u64,
+) -> Result<bool, Error> {
+    let mut statement = connection
+        .prepare("SELECT kind,body,digest,retired_at FROM storage_data_entries WHERE position=?1")?;
+    let mut rows = statement.query([position(entry.position)])?;
+    let Some(row) = rows.next()? else {
+        return Ok(false);
+    };
+    if row.get_ref(3)?.data_type() != rusqlite::types::Type::Null {
+        return Err(Error::Data("position retry was logically pruned"));
+    }
+    let body = blob(row, 1)?;
+    let digest = blob(row, 2)?;
+    check_digest(body, digest)?;
+    if digest != entry.digest.as_slice() {
+        return Err(Error::Conflict("position retry has different bytes"));
+    }
+    if row.get::<_, String>(0)? != entry.kind || body != entry.body.as_slice() {
+        return Err(Error::Corrupt("position retry content differs"));
+    }
+    if entry.position > saved {
+        return Err(Error::Corrupt("position retry exceeds saved frontier"));
+    }
+    if entry.kind == "file" {
+        let reference: FileReference = serde_json::from_slice(&entry.body)?;
+        files::confirm(connection, root, &reference)?;
+    }
+    Ok(true)
+}
+
+fn read_object(
+    connection: &Connection,
+    at: u64,
+    generation: u64,
+    point: &ObjectPoint,
+) -> Result<Option<ObjectEntry>, Error> {
+    let schema = key(point.schema.as_str())?;
+    let item = key(point.item.as_str())?;
+    let exact = match &point.version {
+        ObjectVersion::Latest => None,
+        ObjectVersion::Exact(version) => Some(serde_json::to_string(version)?),
+    };
+    let mut statement = connection.prepare(
+        "SELECT position, body, digest FROM storage_data_entries WHERE kind='object'
+         AND schema_id=?1 AND item=?2 AND position<=?3
+         AND (?4 IS NULL OR object_version=?4) AND (retired_at IS NULL OR retired_at>?5)
+         ORDER BY position DESC LIMIT 1",
+    )?;
+    let mut rows = statement.query(params![
+        schema,
+        item,
+        position(at),
+        exact,
+        position(generation)
+    ])?;
+    let Some(row) = rows.next()? else {
+        return Ok(None);
+    };
+    let encoded = blob(row, 1)?;
+    check_digest(encoded, blob(row, 2)?)?;
+    let Entry::Object(object) = Entry::decode("object", encoded)? else {
+        return Err(Error::Corrupt("object index collection differs"));
+    };
+    if object.value.schema.id != point.schema
+        || object.value.item != point.item
+        || position(object.position.sequence) != row.get::<_, String>(0)?
+        || matches!(&point.version, ObjectVersion::Exact(version) if *version != object.version)
+    {
+        return Err(Error::Corrupt("object index identity differs"));
+    }
+    Ok(Some(object))
+}
+
+fn read_scan(connection: &Connection, scan: &Scan) -> Result<Vec<Entry>, Error> {
+    let mut arguments = vec![
+        Value::Text(scan.kind.into()),
+        Value::Text(position(scan.page.after)),
+        Value::Text(position(scan.at)),
+        Value::Text(position(scan.generation)),
+    ];
+    let mut clauses = vec![
+        "entries.kind=?1".to_owned(),
+        "entries.position>?2".to_owned(),
+        "entries.position<=?3".to_owned(),
+        "(entries.retired_at IS NULL OR entries.retired_at>?4)".to_owned(),
+    ];
+    if scan.kind == "file" {
+        clauses.push(
+            "NOT EXISTS(SELECT 1 FROM storage_deleted_files WHERE storage_deleted_files.id=entries.item)"
+                .to_owned(),
+        );
+    }
+    for (column, value) in &scan.filters {
+        arguments.push(value.clone());
+        clauses.push(format!("entries.{column}=?{}", arguments.len()));
+    }
+    if let Some((start, end)) = scan.source_window {
+        arguments.push(Value::Blob(timestamp_key(start).to_vec()));
+        clauses.push(format!("entries.source_time>=?{}", arguments.len()));
+        arguments.push(Value::Blob(timestamp_key(end).to_vec()));
+        clauses.push(format!("entries.source_time<?{}", arguments.len()));
+    }
+    if scan.latest_objects {
+        // The Newest Revision Of Each Key At The Cut, Ordered By Its Position.
+        clauses.push(
+            "NOT EXISTS (SELECT 1 FROM storage_data_entries AS newer
+                WHERE newer.kind='object' AND newer.schema_id=entries.schema_id
+                AND newer.item=entries.item AND newer.position>entries.position
+                AND newer.position<=?3 AND (newer.retired_at IS NULL OR newer.retired_at>?4))"
+                .to_owned(),
+        );
+    }
+    let rows = i64::try_from(scan.page.rows.get())
+        .map_err(|_| Error::Data("page row limit exceeds SQLite range"))?;
+    // A Scoped Selection Walks Only Its Owner's Entries In Position Order.
+    let index = if scan.filters.iter().any(|(column, _)| *column == "scope") {
+        "storage_data_scope"
+    } else {
+        "storage_data_kind_position"
+    };
+    let sql = format!(
+        "SELECT entries.position,entries.body,entries.digest FROM storage_data_entries AS entries
+         INDEXED BY {index} WHERE {} ORDER BY entries.position ASC LIMIT {rows}",
+        clauses.join(" AND ")
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let mut selected = statement.query(rusqlite::params_from_iter(arguments))?;
+    let mut entries = Vec::new();
+    let mut bytes = 0usize;
+    while let Some(row) = selected.next()? {
+        let body = blob(row, 1)?;
+        check_digest(body, blob(row, 2)?)?;
+        // Charge The Portable Encoding Harmos Measures; The First Entry Always Fits.
+        let portable = Entry::portable_bytes(scan.kind, body)?;
+        if !entries.is_empty() && portable > scan.page.bytes.get().saturating_sub(bytes) {
+            break;
+        }
+        let entry = Entry::decode(scan.kind, body)?;
+        if position(entry.position().sequence) != row.get::<_, String>(0)? {
+            return Err(Error::Corrupt("entry index position differs"));
+        }
+        bytes = bytes.saturating_add(portable);
+        entries.push(entry);
+    }
+    Ok(entries)
+}
+
+pub(super) fn blob<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> Result<&'a [u8], Error> {
     row.get_ref(column)?.as_blob().map_err(|source| {
         Error::Sqlite(rusqlite::Error::FromSqlConversionFailure(
             column,
@@ -686,26 +488,18 @@ fn blob<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> Result<&'a [u8], Error
     })
 }
 
-fn check_digest(body: &[u8], digest: &[u8]) -> Result<(), Error> {
+pub(super) fn check_digest(body: &[u8], digest: &[u8]) -> Result<(), Error> {
     if Sha256::digest(body).as_slice() != digest {
         return Err(Error::Corrupt("stored entry digest differs"));
     }
     Ok(())
 }
 
-fn kind(value: ReadKind) -> &'static str {
-    match value {
-        ReadKind::Schemas => "schema",
-        ReadKind::Objects => "object",
-        ReadKind::Records => "record",
-        ReadKind::Stream => "stream",
-        ReadKind::Files => "file",
-    }
-}
-fn position(sequence: u64) -> String {
+pub(super) fn position(sequence: u64) -> String {
     format!("{sequence:016x}")
 }
-fn sequence(value: &str) -> Result<u64, Error> {
+
+pub(super) fn sequence(value: &str) -> Result<u64, Error> {
     if value.len() != 16
         || !value
             .bytes()

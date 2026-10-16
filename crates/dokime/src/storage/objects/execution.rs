@@ -13,14 +13,14 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::collections::BTreeMap;
 
 // Third Party Imports
 use harmos::{
     DefinitionId, Identified, MemorySize,
     storage::{
         FileReference, ObjectRetention, ObjectRevision, ObjectVersion, ObjectVersionToken,
-        QueryValue, StorageCursor, StorageView, StoredObject,
+        StorageCursor, StoredObject,
     },
 };
 
@@ -2469,14 +2469,7 @@ impl StoredObject for Execution {
 }
 
 impl Execution {
-    pub fn into_execution(self, allowance: NonZeroUsize) -> Result<TestExecution> {
-        let bound = self.projection_memory()?;
-        if bound == usize::MAX || bound > allowance.get() {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "execution projection memory",
-            }
-            .into());
-        }
+    pub fn into_execution(self) -> Result<TestExecution> {
         self.try_into()
     }
 
@@ -2486,21 +2479,22 @@ impl Execution {
 }
 
 /* === Public Functions === */
-pub async fn read_in(
+pub async fn read(
     storage: &Manager,
-    view: &StorageView,
     id: &TestExecutionId,
     version: ObjectVersion,
-    limit: NonZeroUsize,
-) -> Result<Option<QueryValue<ObjectRevision<TestExecution>>>> {
+) -> Result<Option<ObjectRevision<TestExecution>>> {
     let Some(stored) = storage
-        .read_object_in::<Execution>(view, id.as_str(), version, limit)
+        .read_object::<Execution>(id.as_str(), version)
         .await?
     else {
         return Ok(None);
     };
-    let execution = view.project_owned(stored, limit, restore_revision)?;
-    Ok(Some(execution))
+    Ok(Some(ObjectRevision {
+        value: stored.value.try_into()?,
+        position: stored.position,
+        version: stored.version,
+    }))
 }
 
 pub async fn flush_seal(
@@ -2547,51 +2541,6 @@ fn termination_reason(value: &crate::execution::TerminationReason) -> &'static s
         TerminationReason::Failed => "failed",
         TerminationReason::Cancelled => "cancelled",
         TerminationReason::Interrupted => "interrupted",
-    }
-}
-
-fn restore_revision(
-    stored: ObjectRevision<Execution>,
-    allowance: NonZeroUsize,
-) -> harmos::Result<ObjectRevision<TestExecution>> {
-    // Include Original Revision Metadata And Conversion Scratch
-    let projection = stored.value.projection_memory().map_err(projection_error)?;
-    let position = stored.position.memory_size();
-    let version = stored.version.memory_size();
-    if [projection, position, version].contains(&usize::MAX) {
-        return Err(harmos::Error::ResourceExhausted {
-            resource: "execution revision projection memory",
-        });
-    }
-    let bound = projection
-        .saturating_add(
-            std::mem::size_of::<ObjectRevision<TestExecution>>()
-                .saturating_sub(std::mem::size_of::<TestExecution>()),
-        )
-        .saturating_add(position.saturating_sub(std::mem::size_of::<StorageCursor>()))
-        .saturating_add(version.saturating_sub(std::mem::size_of::<ObjectVersionToken>()));
-    if bound == usize::MAX || bound > allowance.get() {
-        return Err(harmos::Error::ResourceExhausted {
-            resource: "execution revision projection memory",
-        });
-    }
-
-    // Move The Original Revision And Captured Execution
-    Ok(ObjectRevision {
-        value: stored.value.try_into().map_err(projection_error)?,
-        position: stored.position,
-        version: stored.version,
-    })
-}
-
-fn projection_error(source: Error) -> harmos::Error {
-    match source {
-        Error::Runtime(source) => source,
-        source => harmos::Error::backend(
-            "decode execution projection",
-            harmos::BackendFailure::Corrupt,
-            source,
-        ),
     }
 }
 

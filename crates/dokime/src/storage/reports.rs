@@ -15,12 +15,11 @@
 
 // Standard Library Imports
 use harmos::schema::Described;
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{
-    Identifier, MemorySize, Message,
-    storage::{FileReference, RecordQuery, SchemaKey, StorageCursor},
+    Identifier, Message,
+    storage::{FileReference, SchemaKey, StorageCursor, StoredRecord},
 };
 
 // Local Imports
@@ -73,13 +72,12 @@ pub struct Input<'a> {
 
 pub struct Prepared {
     manager: Manager,
-    row: harmos::storage::QueryValue<Publication>,
-    payload: harmos::storage::QueryValue<Vec<u8>>,
+    row: Publication,
+    payload: Vec<u8>,
     scope: Identifier,
     schema: SchemaKey,
     schema_position: Option<StorageCursor>,
     position: Option<StorageCursor>,
-    _memory: harmos::storage::StorageProductionPreparation,
 }
 
 /* === Enums === */
@@ -99,24 +97,8 @@ impl Prepared {
                 "report dependencies are not durable in this manager",
             ));
         }
-        let memory = manager.prepare_production(bound(
-            std::mem::size_of::<Self>()
-                .saturating_add(
-                    64 + std::mem::size_of::<SchemaKey>() + "dokime.report.publication".len(),
-                )
-                .saturating_add(input.dependencies_saved.memory_size().saturating_mul(3)),
-        )?)?;
-        let row = manager
-            .produce(bound(Publication::encoding_memory(input)?)?, |_| {
-                Publication::new(input).map_err(failure)
-            })?
-            .try_into_value()?;
-        let payload = manager
-            .produce(
-                bound(std::mem::size_of::<Vec<u8>>().saturating_add(row.encoded_len()))?,
-                |_| Ok(row.encode_to_vec()),
-            )?
-            .try_into_value()?;
+        let row = Publication::new(input)?;
+        let payload = row.encode_to_vec();
         Ok(Self {
             manager: manager.clone(),
             row,
@@ -125,7 +107,6 @@ impl Prepared {
             schema: schema(),
             schema_position: None,
             position: None,
-            _memory: memory,
         })
     }
 
@@ -178,8 +159,9 @@ impl Owner<'_> {
 }
 
 impl Publication {
-    pub fn from_record(record: &harmos::storage::StoredRecord<Self>) -> Result<&Self> {
-        let publication = &record.payload;
+    /// Decode and verify one saved publication record against its envelope.
+    pub fn from_record(record: &StoredRecord) -> Result<Self> {
+        let publication = Self::decode(&record.payload)?;
         publication.check()?;
         let dependencies = publication
             .dependencies_saved
@@ -200,42 +182,8 @@ impl Publication {
         Ok(publication)
     }
 
-    pub fn encoding_memory(input: &Input<'_>) -> Result<usize> {
-        validate(input)?;
-        let sources = input.executions.iter().try_fold(0usize, |total, source| {
-            Ok::<_, Error>(total.saturating_add(Revision::encoding_memory(source)?))
-        })?;
-        let inputs = input.inputs.iter().fold(0usize, |total, file| {
-            total.saturating_add(file.memory_size())
-        });
-        Ok(std::mem::size_of::<Self>()
-            .saturating_add(64)
-            .saturating_add(input.generated_at.as_str().len())
-            .saturating_add(input.evidence_through.memory_size())
-            .saturating_add(input.dependencies_saved.memory_size())
-            .saturating_add(sources)
-            .saturating_add(inputs)
-            .saturating_add(
-                input
-                    .execution
-                    .map(Seal::encoding_memory)
-                    .transpose()?
-                    .unwrap_or(0),
-            )
-            .saturating_add(
-                input
-                    .cycle
-                    .map(Cycle::encoding_memory)
-                    .transpose()?
-                    .unwrap_or(0),
-            )
-            .saturating_add(input.file.memory_size()))
-    }
-
     pub fn new(input: &Input<'_>) -> Result<Self> {
-        if Self::encoding_memory(input)? == usize::MAX {
-            return Err(Error::Invalid("report publication memory overflow"));
-        }
+        validate(input)?;
         let mut executions = Vec::with_capacity(input.executions.len());
         for source in input.executions {
             executions.push(Revision::try_from(source)?);
@@ -357,12 +305,6 @@ impl Publication {
         }
         Ok(())
     }
-
-    pub fn decoding_memory(bytes: &[u8]) -> Result<usize> {
-        Ok(<Self as Message>::decoding_memory(bytes)?.saturating_add(
-            std::mem::size_of::<TestCycleId>().max(std::mem::size_of::<TestExecutionId>()) + 36,
-        ))
-    }
 }
 
 /* === Public Functions === */
@@ -374,55 +316,21 @@ pub fn schema() -> SchemaKey {
     }
 }
 
-pub fn query(owner: Owner<'_>, report: Option<Identifier>) -> RecordQuery<Publication> {
-    let scope = owner.scope();
-    let selected_scope = scope.clone();
-    let selected_item = report.clone();
-    let mut query = RecordQuery::new(schema(), move |bytes, allowance: NonZeroUsize| {
-        if Publication::decoding_memory(bytes).map_err(failure)? > allowance.get() {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "report publication decoded allowance",
-            });
-        }
-        let decode = || -> Result<Publication> {
-            let publication = Publication::decode(bytes)?;
-            publication.check()?;
-            if publication.owner() != selected_scope.as_str()
-                || selected_item.as_ref().is_some_and(|id| {
-                    publication
-                        .file
-                        .as_ref()
-                        .is_none_or(|file| &file.metadata.id != id)
-                })
-            {
-                return Err(Error::Invalid("report publication differs from selection"));
-            }
-            Ok(publication)
-        };
-        decode().map_err(failure)
-    });
-    query.scope = Some(scope);
-    query.item = report;
-    query
+/// The record selection holding one owner's publications, optionally one report.
+pub fn selection(
+    owner: Owner<'_>,
+    report: Option<Identifier>,
+) -> harmos::storage::query::RecordSelection {
+    harmos::storage::query::RecordSelection {
+        schema: schema(),
+        scope: Some(owner.scope()),
+        item: report,
+        source_start: None,
+        source_end: None,
+    }
 }
 
 /* === Private Functions === */
-fn bound(bytes: usize) -> Result<NonZeroUsize> {
-    if bytes == usize::MAX {
-        return Err(Error::Invalid("report publication memory overflow"));
-    }
-    NonZeroUsize::new(bytes).ok_or(Error::Invalid("empty report publication allowance"))
-}
-
-fn failure(error: Error) -> harmos::Error {
-    match error {
-        Error::Runtime(error) => error,
-        other => {
-            harmos::Error::backend("report publication", harmos::BackendFailure::Corrupt, other)
-        }
-    }
-}
-
 fn validate(input: &Input<'_>) -> Result<()> {
     input.generated_at.to_datetime()?;
     let owner = match input.owner {

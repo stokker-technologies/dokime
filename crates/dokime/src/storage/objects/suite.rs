@@ -13,7 +13,6 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::num::NonZeroUsize;
 
 // Third Party Imports
 use harmos::{
@@ -93,13 +92,9 @@ impl Suite {
 }
 
 /* === Public Functions === */
-pub async fn read(
-    storage: &Manager,
-    suite_id: &str,
-    limit: NonZeroUsize,
-) -> Result<Option<TestSuite>> {
+pub async fn read(storage: &Manager, suite_id: &str) -> Result<Option<TestSuite>> {
     let saved = storage
-        .read_object::<Suite>(suite_id, ObjectVersion::Latest, limit)
+        .read_object::<Suite>(suite_id, ObjectVersion::Latest)
         .await?;
     saved.map(|saved| saved.value.restore()).transpose()
 }

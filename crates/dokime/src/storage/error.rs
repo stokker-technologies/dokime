@@ -37,12 +37,10 @@ pub enum Error {
     Owned,
     #[error("local state SQLite: {0}")]
     Sqlite(#[from] rusqlite::Error),
-    #[error("saved query exhausted its cumulative execution timeout")]
-    QueryTimeout(#[source] Option<rusqlite::Error>),
     #[error("local state task: {0}")]
     Task(#[from] tokio::task::JoinError),
-    #[error("unsupported local state schema version {0}")]
-    Schema(i64),
+    #[error("storage root is incompatible with this build: {0}; delete it or choose a fresh root")]
+    Incompatible(String),
     #[error("invalid storage catalog operation: {0}")]
     Catalog(String),
     #[error("SQLite data: {0}")]

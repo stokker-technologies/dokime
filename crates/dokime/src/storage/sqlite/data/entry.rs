@@ -55,14 +55,6 @@ struct Buffer {
     length: usize,
 }
 
-pub(super) struct Retained {
-    pub schema_key: Option<String>,
-    pub position: u64,
-    pub kind: &'static str,
-    pub body: Vec<u8>,
-    pub digest: [u8; 32],
-}
-
 /* === Enums === */
 pub(crate) enum Entry {
     Schema(StorageSchema),
@@ -97,50 +89,12 @@ impl<'a> From<StorageEntry<'a>> for Borrowed<'a> {
     }
 }
 
-impl Retained {
-    pub(super) fn new(value: StorageEntry<'_>, maximum: usize) -> Result<Self, Error> {
-        let kind = match value {
-            StorageEntry::Schema(_) => "schema",
-            StorageEntry::Object(_) => "object",
-            StorageEntry::Record(_) => "record",
-            StorageEntry::Row(_) => "stream",
-            StorageEntry::File(_) => "file",
-        };
-        let body = match value {
-            StorageEntry::Object(value) => object::encode(value, object::length(value, maximum)?)?,
-            _ => encode(&Borrowed::from(value), maximum)?,
-        };
-        let digest = Sha256::digest(&body).into();
-        let schema_key = match value {
-            StorageEntry::Schema(value) => Some(serde_json::to_string(&value.key)?),
-            _ => None,
-        };
-        Ok(Self {
-            schema_key,
-            position: value.position().sequence,
-            kind,
-            body,
-            digest,
-        })
-    }
-}
-
 impl Entry {
     pub(super) fn portable_bytes(kind: &str, body: &[u8]) -> Result<usize, Error> {
         if kind == "object" {
             object::portable_bytes(body)
         } else {
             Ok(body.len())
-        }
-    }
-
-    pub(super) fn part(&self) -> StoragePart<'_> {
-        match self {
-            Self::Schema(value) => StoragePart::Schemas(std::slice::from_ref(value)),
-            Self::Object(value) => StoragePart::Objects(std::slice::from_ref(value)),
-            Self::Record(value) => StoragePart::Records(std::slice::from_ref(value)),
-            Self::Stream(value) => StoragePart::Stream(std::slice::from_ref(value)),
-            Self::File(value) => StoragePart::Files(std::slice::from_ref(value)),
         }
     }
 

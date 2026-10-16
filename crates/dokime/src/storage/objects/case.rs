@@ -18,7 +18,7 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::{
     DefinitionId, Identified,
-    storage::{ObjectRetention, ObjectVersion, QueryValue, StoredObject},
+    storage::{ObjectRetention, ObjectVersion, StoredObject},
 };
 
 // Local Imports
@@ -129,27 +129,14 @@ impl TryFrom<Case> for TestCase {
 }
 
 /* === Public Functions === */
-pub async fn read(
-    storage: &Manager,
-    id: &CaseId,
-    limit: NonZeroUsize,
-) -> Result<Option<QueryValue<TestCase>>> {
+pub async fn read(storage: &Manager, id: &CaseId) -> Result<Option<TestCase>> {
     let Some(stored) = storage
-        .read_object::<Case>(id.as_str(), ObjectVersion::Latest, limit)
+        .read_object::<Case>(id.as_str(), ObjectVersion::Latest)
         .await?
     else {
         return Ok(None);
     };
-    let case = stored.try_map(limit, |stored, allowance| {
-        let bound = stored.value.projection_memory().map_err(projection_error)?;
-        if bound == usize::MAX || bound > allowance.get() {
-            return Err(harmos::Error::ResourceExhausted {
-                resource: "case projection memory",
-            });
-        }
-        stored.value.try_into().map_err(projection_error)
-    })?;
-    Ok(Some(case))
+    Ok(Some(stored.value.try_into()?))
 }
 
 /* === Private Functions === */
@@ -214,14 +201,6 @@ impl Case {
         Ok(fields
             .into_iter()
             .fold(std::mem::size_of::<TestCase>(), usize::saturating_add))
-    }
-}
-
-fn projection_error(source: Error) -> harmos::Error {
-    harmos::Error::Backend {
-        operation: "decode case projection",
-        kind: harmos::BackendFailure::Corrupt,
-        source: Box::new(source),
     }
 }
 

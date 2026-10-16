@@ -78,7 +78,6 @@ impl State {
         }
         self.call(move |connection| {
             Ok((|| {
-                super::bootstrap::check_writes(connection)?;
                 let (generation, phase, _) =
                     checkpoint(connection, &file)?.ok_or(Error::Data("unknown production"))?;
                 if phase != FilePhase::Producing
@@ -105,7 +104,6 @@ impl State {
         let encoded = entry::encode(&requested, METADATA_BYTES)?;
         self.call(move |connection| {
             Ok((|| {
-                super::bootstrap::check_writes(connection)?;
                 let file = StagedFile {
                     history: requested.session.history.clone(),
                     id: requested.session.id.clone(),
@@ -264,7 +262,6 @@ impl State {
     ) -> Result<(), Error> {
         self.call(move |connection| {
             Ok((|| {
-                super::bootstrap::check_writes(connection)?;
                 let current = progress(connection, &root, &file)?;
                 if current.phase != FilePhase::Producing {
                     return Ok(());
@@ -287,7 +284,6 @@ impl State {
         file: StagedFile,
     ) -> Result<(), Error> {
         self.call(move |connection| Ok((|| {
-            super::bootstrap::check_writes(connection)?;
             saved(connection)?.history.check(&file.history)?;
             let active: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_productions p JOIN storage_file_stages s ON p.id=s.id WHERE p.id=?1 AND p.phase=0 AND s.finished IS NULL)",[file.id.as_str()],|row|row.get(0))?;
             if active { return Err(Error::Conflict("active production cannot be deleted")); }
@@ -300,16 +296,14 @@ impl State {
             let added = transaction.execute("INSERT OR IGNORE INTO storage_deleted_files VALUES (?1)",[file.id.as_str()])?;
             if added!=0 {
                 let mut head=saved(&transaction)?;
-                let at: Option<String> = transaction.query_row("SELECT position FROM storage_data_entries WHERE kind='file' AND item=?1",[file.id.as_str()],|row|row.get(0)).optional()?;
-                if let Some(at)=at { head.lost_objects_through=head.lost_objects_through.max(sequence(&at)?); }
                 head.retention_generation=head.retention_generation.checked_add(1).ok_or(Error::Data("retention generation exhausted"))?;
-                transaction.execute("UPDATE storage_data_head SET lost_objects_through=?1,retention_generation=?2 WHERE singleton=1",params![position(head.lost_objects_through),position(head.retention_generation)])?;
+                transaction.execute("UPDATE storage_data_head SET retention_generation=?1 WHERE singleton=1",params![position(head.retention_generation)])?;
             }
             transaction.commit()?;
             // Tombstones Fence New Reads Before Physical Reclamation. The
             // Serialized Owner Drains Every Previously Accepted Bounded Read.
             if let Some(reference)=reference
-                && !files::shared_bytes(connection,&reference.sha256,Some(file.id.as_str()),None)? {
+                && !files::shared_bytes(connection,&reference.sha256,Some(file.id.as_str()))? {
                     let path=files::final_path(&root,&reference)?;
                     files::remove(&path)?;
                     #[cfg(unix)]
@@ -448,7 +442,6 @@ fn verify_prefix(
     let mut remaining = checkpoint.length - offset;
     let mut buffer = [0; CHUNK_BYTES];
     while remaining > 0 {
-        super::super::query::checkpoint()?;
         let count = remaining.min(CHUNK_BYTES as u64) as usize;
         file.read_exact(&mut buffer[..count])?;
         digest.update(&buffer[..count]);

@@ -10,12 +10,11 @@
 /* === Modules === */
 mod catalog;
 pub(crate) mod data;
-pub(crate) mod query;
 
 /* === Re-Exports === */
 pub use crate::storage::error::Error;
 pub use catalog::Source;
-pub use data::{Backend, Limits};
+pub use data::Backend;
 pub use rusqlite;
 
 /* === Imports === */
@@ -25,54 +24,53 @@ use std::{
     path::Path,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
 // Third Party Imports
-use rusqlite::{Connection, OpenFlags, OptionalExtension};
+use rusqlite::{Connection, InterruptHandle};
 use tokio::sync::Mutex;
 // Local Imports
 
 /* === Constants === */
 pub const SCHEMA_VERSION: i64 = 1;
-pub const DATA_FORMAT: &str = data::FORMAT;
 // A runtime being replaced releases the root as it exits; a successor waits
 // this long for that before calling the root owned.
 const LEASE_WAIT: Duration = Duration::from_secs(5);
 const LEASE_POLL: Duration = Duration::from_millis(50);
+// Tables Of Earlier Layouts; Their Presence Means The Root Predates This Build.
+const RETIRED_TABLES: &str = "'storage_operations','storage_deletions','storage_recovery_head',
+    'storage_bootstrap','storage_bootstrap_entries','storage_object_scalars',
+    'storage_data_inventory','storage_data_origin'";
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+/// The exclusive owner of one storage root's SQLite connection and lease.
 #[derive(Clone)]
 pub struct State(Arc<Owner>);
 
 struct Owner {
     live: Arc<Mutex<Option<Live>>>,
     closing: AtomicBool,
-    data_pins: AtomicUsize,
-    index_schema: std::sync::Mutex<Option<data::IndexSchema>>,
-    scanned: AtomicU64,
-}
-
-pub(crate) struct DataPin {
-    owner: Arc<Owner>,
+    interrupt: InterruptHandle,
+    // The interruptible read running now, so a late cancellation cannot interrupt a successor.
+    running: std::sync::Mutex<u64>,
+    reads: AtomicU64,
 }
 
 struct Live {
     connection: Connection,
-    lease: File,
+    _lease: File,
 }
 
-/// What an existing storage root declares, read without taking its lease.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Baseline {
-    pub schema_version: i64,
-    pub data_format: Option<String>,
-    pub separate_recovery: bool,
+// Interrupts The In-Flight Read When Its Caller Is Cancelled.
+struct Interruption {
+    owner: Arc<Owner>,
+    read: u64,
 }
 
 /* === Enums === */
@@ -80,36 +78,17 @@ pub struct Baseline {
 /* === Traits === */
 
 /* === Implementations === */
-impl Drop for DataPin {
+impl Drop for Interruption {
     fn drop(&mut self) {
-        self.owner.data_pins.fetch_sub(1, Ordering::AcqRel);
+        let running = self.owner.running.lock().unwrap();
+        if self.read != 0 && *running == self.read {
+            self.owner.interrupt.interrupt();
+        }
     }
 }
 
 impl State {
-    pub(crate) fn pin_data(&self, _connection: &Connection) -> Result<DataPin, Error> {
-        if self.0.closing.load(Ordering::Acquire) {
-            return Err(Error::Closed);
-        }
-        self.0
-            .data_pins
-            .try_update(Ordering::AcqRel, Ordering::Acquire, |pins| {
-                pins.checked_add(1)
-            })
-            .map_err(|_| Error::Data("live data pin count overflow"))?;
-        Ok(DataPin {
-            owner: self.0.clone(),
-        })
-    }
-
-    pub fn scanned_rows(&self) -> u64 {
-        self.0.scanned.load(Ordering::Acquire)
-    }
-
-    pub(crate) fn has_data_pins(&self) -> bool {
-        self.0.data_pins.load(Ordering::Acquire) != 0
-    }
-
+    /// Open the root exclusively; roots from another layout fail to open.
     pub async fn open(root: impl AsRef<Path>) -> Result<Self, Error> {
         let root = root.as_ref().to_path_buf();
         tokio::task::spawn_blocking(move || {
@@ -121,200 +100,106 @@ impl State {
                 .write(true)
                 .open(root.join("local.lock"))?;
             acquire_lease(&lease)?;
-
-            // Retired State Databases Are Never Silently Replaced.
             if root.join("recovery.sqlite").exists() {
-                return Err(Error::Conflict(
-                    "a separate recovery database requires a fresh storage root",
+                return Err(Error::Incompatible(
+                    "it holds a separate recovery.sqlite".to_owned(),
                 ));
             }
             let mut connection = Connection::open(root.join("local.sqlite"))?;
-            check_version(&connection)?;
-            data::check_format(&connection)?;
-            let retired: bool = connection.query_row(
-                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name IN
-                 ('storage_operations','storage_deletions'))",
-                [],
-                |row| row.get(0),
-            )?;
-            if retired {
-                return Err(Error::Conflict(
-                    "retired storage tables require a fresh root",
-                ));
-            }
-
-            let has_state: bool = connection.query_row(
-                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='storage_recovery_head')",
-                [],
-                |row| row.get(0),
-            )?;
-            if has_state {
-                return Err(Error::Conflict(
-                    "SQLite-persisted state requires a fresh storage root for JSON state storage",
-                ));
-            }
-
+            check_layout(&connection)?;
             connection.execute_batch(
                 "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;
-                PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;
-                PRAGMA threads=0; PRAGMA cache_size=-512;",
+                PRAGMA foreign_keys=ON; PRAGMA temp_store=MEMORY;",
             )?;
-
             let transaction = connection.transaction()?;
             transaction.execute_batch(catalog::SCHEMA)?;
             transaction.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             transaction.commit()?;
-
+            let interrupt = connection.get_interrupt_handle();
             Ok(Self(Arc::new(Owner {
-                live: Arc::new(Mutex::new(Some(Live { connection, lease }))),
+                live: Arc::new(Mutex::new(Some(Live {
+                    connection,
+                    _lease: lease,
+                }))),
                 closing: AtomicBool::new(false),
-                data_pins: AtomicUsize::new(0),
-                index_schema: std::sync::Mutex::new(None),
-                scanned: AtomicU64::new(0),
+                interrupt,
+                running: std::sync::Mutex::new(0),
+                reads: AtomicU64::new(1),
             })))
         })
         .await?
     }
 
+    /// Close the connection and release the root lease once.
     pub async fn close(&self) -> Result<(), Error> {
         self.0.closing.store(true, Ordering::Release);
         let mut live = self.0.live.clone().lock_owned().await;
-        let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
-            *owner.index_schema.lock().unwrap() = None;
-            let Some(Live { connection, lease }) = live.take() else {
+            let Some(Live { connection, _lease }) = live.take() else {
                 return Ok(());
             };
-            match connection.close() {
-                Ok(()) => {
-                    drop(lease);
-                    Ok(())
-                }
-                Err((connection, error)) => {
-                    *live = Some(Live { connection, lease });
-                    Err(Error::Sqlite(error))
-                }
-            }
+            connection.close().map_err(|(connection, error)| {
+                *live = Some(Live { connection, _lease });
+                Error::Sqlite(error)
+            })
         })
         .await?
     }
 
+    /// Run a write or control operation to completion, even if its caller is cancelled.
     pub async fn call<T: Send + 'static>(
         &self,
         operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
-        self.dispatch(None, operation).await
+        self.dispatch(false, operation).await
     }
 
-    pub(crate) async fn call_read<T: Send + 'static>(
+    /// Run a read; a cancelled caller interrupts its in-flight statement.
+    pub(crate) async fn read<T: Send + 'static>(
         &self,
-        query: Option<Arc<query::Budget>>,
-        operation: impl FnOnce(&mut Connection) -> Result<Result<T, Error>, rusqlite::Error>
-        + Send
-        + 'static,
-    ) -> Result<Result<T, Error>, Error> {
-        self.dispatch(query, operation).await
+        operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
+    ) -> Result<T, Error> {
+        self.dispatch(true, operation).await
     }
 
     async fn dispatch<T: Send + 'static>(
         &self,
-        query: Option<Arc<query::Budget>>,
+        interruptible: bool,
         operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
-        let owner = self.0.clone();
-        if owner.closing.load(Ordering::Acquire) {
+        if self.0.closing.load(Ordering::Acquire) {
             return Err(Error::Closed);
         }
         // Acquire before spawning: a cancelled caller cannot leave a queued
         // older write that overtakes its retry or a subsequent transition.
+        let owner = self.0.clone();
         let mut live = owner.live.clone().lock_owned().await;
-        if owner.closing.load(Ordering::Acquire) {
-            return Err(Error::Closed);
-        }
-        tokio::task::spawn_blocking(move || {
-            let result = live.as_mut().ok_or(Error::Closed).and_then(|live| {
-                let connection = &mut live.connection;
-                match query {
-                    Some(query) => query.run(connection, operation),
-                    None => operation(connection).map_err(Error::Sqlite),
-                }
-            });
+        let read = if interruptible {
+            owner.reads.fetch_add(1, Ordering::Relaxed)
+        } else {
+            0
+        };
+        let mut interruption = Interruption {
+            owner: owner.clone(),
+            read,
+        };
+        let result = tokio::task::spawn_blocking(move || {
+            *owner.running.lock().unwrap() = read;
+            let result = live
+                .as_mut()
+                .ok_or(Error::Closed)
+                .and_then(|live| operation(&mut live.connection).map_err(Error::Sqlite));
+            *owner.running.lock().unwrap() = 0;
             drop(live);
-            drop(owner);
             result
         })
-        .await?
-    }
-}
-
-impl Baseline {
-    /// Describes why this build refuses the root, or `None` when it accepts it.
-    pub fn mismatch(&self) -> Option<String> {
-        if self.separate_recovery {
-            return Some(
-                "it holds a separate recovery.sqlite from an earlier storage layout".to_owned(),
-            );
-        }
-        if self.schema_version != 0 && self.schema_version != SCHEMA_VERSION {
-            return Some(format!(
-                "local.sqlite declares schema version {}, and this build reads version {SCHEMA_VERSION}",
-                self.schema_version
-            ));
-        }
-        match &self.data_format {
-            Some(format) if format != DATA_FORMAT => Some(format!(
-                "local.sqlite declares data format {format}, and this build reads {DATA_FORMAT}"
-            )),
-            _ => None,
-        }
+        .await;
+        interruption.read = 0;
+        result?
     }
 }
 
 /* === Public Functions === */
-/// Reads the baseline an existing root declares without locking or writing it.
-///
-/// Returns `None` when the root holds no Dokime database yet. Safe to call
-/// while a runtime owns the root: the connection is read-only.
-pub fn inspect(root: &Path) -> Result<Option<Baseline>, Error> {
-    // Resolve The Root's Database Files
-    let separate_recovery = root.join("recovery.sqlite").exists();
-    let path = root.join("local.sqlite");
-    if !path.is_file() {
-        return Ok(separate_recovery.then_some(Baseline {
-            schema_version: 0,
-            data_format: None,
-            separate_recovery,
-        }));
-    }
-
-    // Read The Declared Version And Data Format
-    let connection = Connection::open_with_flags(
-        &path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )?;
-    let schema_version = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    let headed: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='storage_data_head')",
-        [],
-        |row| row.get(0),
-    )?;
-    let data_format = if headed {
-        connection
-            .query_row(
-                "SELECT format FROM storage_data_head WHERE singleton=1",
-                [],
-                |row| row.get(0),
-            )
-            .optional()?
-    } else {
-        None
-    };
-    Ok(Some(Baseline {
-        schema_version,
-        data_format,
-        separate_recovery,
-    }))
-}
 
 /* === Private Functions === */
 // Takes the root's exclusive lease, waiting a bounded time for a departing
@@ -333,24 +218,35 @@ fn acquire_lease(lease: &File) -> Result<(), Error> {
     }
 }
 
-fn check_version(connection: &Connection) -> Result<(), Error> {
+// One Layout Check: A Fresh File Or This Build's Exact Layout.
+fn check_layout(connection: &Connection) -> Result<(), Error> {
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if version == SCHEMA_VERSION {
+    let tables: bool = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%')",
+        [],
+        |row| row.get(0),
+    )?;
+    if version == 0 && !tables {
         return Ok(());
     }
-    if version != 0 {
-        return Err(Error::Schema(version));
+    if version != SCHEMA_VERSION {
+        return Err(Error::Incompatible(format!(
+            "local.sqlite declares schema version {version}, and this build reads version {SCHEMA_VERSION}"
+        )));
     }
-    let unversioned: bool = connection.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%')",
-        [], |row| row.get(0),
+    let retired: bool = connection.query_row(
+        &format!(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ({RETIRED_TABLES}))"
+        ),
+        [],
+        |row| row.get(0),
     )?;
-    if unversioned {
-        return Err(Error::Conflict(
-            "unversioned database requires a fresh storage root",
+    if retired {
+        return Err(Error::Incompatible(
+            "local.sqlite uses an earlier storage layout".to_owned(),
         ));
     }
-    Ok(())
+    data::check_format(connection)
 }
 
 /* === Tests === */

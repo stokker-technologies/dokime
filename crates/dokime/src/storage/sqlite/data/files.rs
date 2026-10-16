@@ -36,13 +36,6 @@ const CHUNK_BYTES: usize = 64 * 1024;
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct Read {
-    pub root: PathBuf,
-    pub reference: FileReference,
-    pub through: u64,
-    pub offset: u64,
-    pub maximum: NonZeroUsize,
-}
 
 /* === Enums === */
 
@@ -64,15 +57,13 @@ impl State {
         root: PathBuf,
         staging: StagedFile,
         offset: u64,
-        bytes: &[u8],
+        bytes: Vec<u8>,
     ) -> Result<(), Error> {
         if bytes.is_empty() {
             return Err(Error::Data("file batch must not be empty"));
         }
-        let bytes = bytes.to_vec();
         self.call(move |connection| {
             Ok((|| {
-                super::bootstrap::check_writes(connection)?;
                 super::production::check_writable(connection, staging.id.as_str())?;
                 saved(connection)?.history.check(&staging.history)?;
                 let (metadata, finished) = metadata_for(connection, &staging.id)?
@@ -130,7 +121,6 @@ impl State {
     ) -> Result<FileReference, Error> {
         self.call(move |connection| {
             Ok((|| {
-                super::bootstrap::check_writes(connection)?;
                 super::production::check_writable(connection, staging.id.as_str())?;
                 let head = saved(connection)?;
                 head.history.check(&staging.history)?;
@@ -209,7 +199,6 @@ impl State {
         staging: StagedFile,
     ) -> Result<(), Error> {
         self.call(move |connection| Ok((|| {
-                super::bootstrap::check_writes(connection)?;
             saved(connection)?.history.check(&staging.history)?;
             if metadata_for(connection, &staging.id)?.is_some_and(|(_, finished)| finished.is_some()) {
                 // Aborting cannot remove a finished file or its retry identity.
@@ -223,7 +212,7 @@ impl State {
                 if connection.query_row("SELECT EXISTS(SELECT 1 FROM storage_data_entries WHERE kind='file' AND item=?1)", [staging.id.as_str()], |row| row.get::<_, bool>(0))? {
                     return Err(Error::Data("cannot abort a published file reference"));
                 }
-                if !shared_bytes(connection, &intent.sha256, Some(staging.id.as_str()), None)? {
+                if !shared_bytes(connection, &intent.sha256, Some(staging.id.as_str()))? {
                     remove(&final_path(&root, &intent)?)?;
                 }
             }
@@ -236,23 +225,19 @@ impl State {
 
     pub(super) async fn data_read_file(
         &self,
-        read: Read,
-        execution: Option<std::sync::Arc<super::super::query::Budget>>,
+        root: PathBuf,
+        reference: FileReference,
+        through: u64,
+        offset: u64,
+        maximum: NonZeroUsize,
     ) -> Result<Vec<u8>, Error> {
-        let Read {
-            root,
-            reference,
-            through,
-            offset,
-            maximum,
-        } = read;
         let maximum = maximum.get();
-        self.call_read(execution, move |connection| {
+        self.read(move |connection| {
             Ok((|| {
                 let head = saved(connection)?;
                 head.history.check(&reference.position.history)?;
                 if through > head.sequence {
-                    return Err(Error::Data("file view exceeds saved frontier"));
+                    return Err(Error::Data("file snapshot exceeds saved frontier"));
                 }
                 // Bind Published Bytes To The Original Saved View
                 if reference.position.sequence <= through {
@@ -268,7 +253,7 @@ impl State {
                     super::check_digest(body, blob(row, 1)?)?;
                     let stored: FileReference = serde_json::from_slice(body)?;
                     if stored != reference {
-                        return Err(Error::Conflict("file reference differs from saved view"));
+                        return Err(Error::Conflict("file reference differs from saved snapshot"));
                     }
                 }
                 let (_, finished) = metadata_for(connection, &reference.metadata.id)?
@@ -309,7 +294,6 @@ pub(super) fn create_file(
         entry::key(scope.as_str())?;
     }
     let encoded = entry::encode(&metadata, METADATA_BYTES)?;
-    super::bootstrap::check_writes(connection)?;
     super::production::check_writable(connection, metadata.id.as_str())?;
     let head = saved(connection)?;
     let active = super::production::checkpoint(
@@ -390,12 +374,7 @@ pub(super) fn create_file(
 }
 
 pub(super) fn confirm_durability(path: &Path) -> Result<(), Error> {
-    use dokime_filesystem::publication::{ConfirmError, confirm_with_checkpoint};
-    match confirm_with_checkpoint(path, super::super::query::checkpoint) {
-        Ok(()) => Ok(()),
-        Err(ConfirmError::Filesystem(error)) => Err(error.into()),
-        Err(ConfirmError::Checkpoint(error)) => Err(error),
-    }
+    Ok(dokime_filesystem::publication::confirm(path)?)
 }
 
 pub(super) fn confirm(
@@ -415,14 +394,6 @@ pub(super) fn confirm(
     verify(&path, reference)?;
     confirm_durability(&path)?;
     Ok(())
-}
-
-pub(super) fn verify_saved(
-    connection: &Connection,
-    root: &Path,
-    reference: &FileReference,
-) -> Result<(), Error> {
-    confirm(connection, root, reference)
 }
 
 pub(super) fn finish_intent(
@@ -538,15 +509,12 @@ pub(super) fn shared_bytes(
     connection: &Connection,
     sha256: &[u8; 32],
     local_id: Option<&str>,
-    import_id: Option<&str>,
 ) -> Result<bool, Error> {
     let hash = serde_json::to_string(sha256)?;
     Ok(connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM storage_file_stages WHERE NOT EXISTS(SELECT 1 FROM storage_deleted_files WHERE storage_deleted_files.id=storage_file_stages.id) AND (?2 IS NULL OR id<>?2)
-            AND (json_extract(finished,'$.sha256')=?1 OR json_extract(finish_intent,'$.sha256')=?1))
-         OR EXISTS(SELECT 1 FROM storage_bootstrap_installs WHERE (?3 IS NULL OR id<>?3)
-            AND json_extract(reference,'$.sha256')=?1)",
-        params![hash,local_id,import_id], |row| row.get(0),
+            AND (json_extract(finished,'$.sha256')=?1 OR json_extract(finish_intent,'$.sha256')=?1))",
+        params![hash, local_id], |row| row.get(0),
     )?)
 }
 
@@ -587,7 +555,6 @@ pub(super) fn verify(path: &Path, reference: &FileReference) -> Result<(), Error
     let mut digest = Sha256::new();
     let mut buffer = [0; CHUNK_BYTES];
     loop {
-        super::super::query::checkpoint()?;
         let count = file.read(&mut buffer)?;
         if count == 0 {
             break;
