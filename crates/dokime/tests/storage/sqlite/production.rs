@@ -441,7 +441,6 @@ pub(crate) async fn recovery_charges_limits() {
     let backend = Backend::<()>::primary(
         root.path().to_path_buf(),
         Limits {
-            memory_bytes: bound(4 * 1024 * 1024),
             ..Default::default()
         },
     )

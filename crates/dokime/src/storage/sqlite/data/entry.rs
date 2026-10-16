@@ -144,23 +144,6 @@ impl Entry {
         }
     }
 
-    pub(super) fn decoding_bytes(kind: &str, encoded: usize) -> Result<usize, Error> {
-        if kind == "schema" {
-            return StorageSchema::decoding_memory_bytes(encoded)
-                .and_then(|bytes| {
-                    encoded
-                        .checked_mul(3)
-                        .and_then(|metadata| bytes.checked_add(metadata))
-                })
-                .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()))
-                .ok_or(Error::Data("decoded schema allocation size overflow"));
-        }
-        encoded
-            .checked_mul(3)
-            .and_then(|bytes| bytes.checked_add(std::mem::size_of::<Self>()))
-            .ok_or(Error::Data("decoded entry allocation size overflow"))
-    }
-
     pub(super) fn decode(kind: &str, body: &[u8]) -> Result<Self, Error> {
         Ok(match kind {
             "schema" => Self::Schema(serde_json::from_slice(body)?),

@@ -636,7 +636,6 @@ pub(crate) async fn exhausted_read_retry() {
     let backend = Backend::<()>::primary(
         root.path().to_path_buf(),
         Limits {
-            memory_bytes: bound(3 * 1024 * 1024),
             entry_bytes: bound(2 * 1024 * 1024),
             ..Limits::default()
         },
@@ -789,7 +788,6 @@ pub(crate) async fn page_lookahead_blobs() {
     let backend = Backend::<()>::primary(
         root.path().to_path_buf(),
         Limits {
-            memory_bytes: bound(4 * 1024 * 1024),
             ..Limits::default()
         },
     )

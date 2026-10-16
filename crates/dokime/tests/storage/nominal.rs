@@ -123,8 +123,6 @@ async fn nominal() {
     let settings = Limits {
         entry_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
         batch_bytes: NonZeroUsize::new(16 * 1024 * 1024).unwrap(),
-
-        memory_bytes: NonZeroUsize::new(64 * 1024 * 1024).unwrap(),
     };
     let backend = Backend::<Objects>::primary(root.path().to_owned(), settings)
         .await

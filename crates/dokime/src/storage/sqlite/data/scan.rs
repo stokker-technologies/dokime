@@ -19,7 +19,7 @@ use std::{
     mem::size_of,
     num::NonZeroUsize,
     sync::{
-        Arc, Mutex,
+        Mutex,
         atomic::{AtomicU64, Ordering},
     },
 };
@@ -34,7 +34,7 @@ use harmos::{
 };
 use rusqlite::{Connection, types::Value as SqlValue};
 // Local Imports
-use super::super::{Error, memory, query};
+use super::super::{Error, query};
 use super::{Entry, SavedData, blob, check_digest, entry, kind, position};
 use projection::Projection;
 
@@ -74,7 +74,6 @@ struct Window {
     arguments: Vec<SqlValue>,
 }
 struct Decoder<'a> {
-    memory: &'a Arc<memory::Budget>,
     scanned: &'a AtomicU64,
     cut: &'a SavedData,
     read: &'a Read,
@@ -165,10 +164,6 @@ impl Decoder<'_> {
         }
         check_digest(body, blob(row, 2)?)?;
         let selection = &self.read.scan.selection;
-        let _decoded = self.memory.reserve_owned(
-            Entry::decoding_bytes(kind(selection.kind), body.len())?,
-            usize::MAX,
-        )?;
         let entry = Entry::decode(kind(selection.kind), body)?;
         let (record, stream) = match &entry {
             Entry::Record(record) => (record, None),
@@ -177,7 +172,6 @@ impl Decoder<'_> {
         };
         check_record(record, stream, indexed, self.schema, selection, self.cut)?;
         let bytes = self.projection.output_memory(record, stream)?;
-        let _charge = self.memory.reserve_owned(bytes, usize::MAX)?;
         let values = self
             .projection
             .project(record, stream, bound(bytes)?, self.read.maximum)?;
@@ -222,7 +216,6 @@ pub(super) fn admission(scan: &Scan, order: &ScanOrder) -> harmos::Result<()> {
 
 pub(super) fn page(
     connection: &Connection,
-    memory: &Arc<memory::Budget>,
     scanned: &AtomicU64,
     cut: &SavedData,
     read: &Read,
@@ -244,11 +237,9 @@ pub(super) fn page(
         return Err(Error::Data("scan cut exceeds the original saved view"));
     }
     let window = Window::new(cut, selection)?;
-    let schema = schema(connection, memory, cut, selection, read.maximum, active)?;
+    let schema = schema(connection, cut, selection, read.maximum, active)?;
     let construction = projection::construction_memory(&schema, &read.scan.columns)?;
-    let _projection = memory.reserve_owned(construction, usize::MAX)?;
     let decoder = Decoder {
-        memory,
         scanned,
         cut,
         read,
@@ -399,9 +390,6 @@ fn sorted(
         if key.len() < size_of::<u64>() || body.len() > read.maximum.get() {
             return Err(Error::Corrupt("sorted scan row is malformed"));
         }
-        let _decoded = decoder
-            .memory
-            .reserve_owned(body.len().saturating_mul(4), usize::MAX)?;
         let values: Vec<ScalarValue> = serde_json::from_slice(body)?;
         if values.len() != read.scan.columns.len() {
             return Err(Error::Corrupt("sorted scan row width differs"));
@@ -525,7 +513,6 @@ fn encode_key(value: &ScalarValue, key: &mut Vec<u8>) -> Result<(), Error> {
 
 pub(super) fn schema(
     connection: &Connection,
-    memory: &Arc<memory::Budget>,
     cut: &SavedData,
     selection: &ReadSelection,
     maximum: NonZeroUsize,
@@ -552,8 +539,6 @@ pub(super) fn schema(
             return Err(Error::Corrupt("scan schema exceeds backend bound"));
         }
         check_digest(body, blob(row, 2)?)?;
-        let _decoded =
-            memory.reserve_owned(Entry::decoding_bytes("schema", body.len())?, usize::MAX)?;
         let schema: StorageSchema = serde_json::from_slice(body)?;
         schema.position.history.check(&cut.history)?;
         if schema.key != *key || schema.position.sequence != indexed || indexed > through {

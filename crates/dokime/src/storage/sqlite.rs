@@ -10,7 +10,6 @@
 /* === Modules === */
 mod catalog;
 pub(crate) mod data;
-mod memory;
 pub(crate) mod query;
 
 /* === Re-Exports === */
@@ -23,7 +22,6 @@ pub use rusqlite;
 // Standard Library Imports
 use std::{
     fs::{File, OpenOptions},
-    num::NonZeroUsize,
     path::Path,
     sync::{
         Arc,
@@ -39,7 +37,6 @@ use tokio::sync::Mutex;
 /* === Constants === */
 pub const SCHEMA_VERSION: i64 = 1;
 pub const DATA_FORMAT: &str = data::FORMAT;
-const SQLITE_MEMORY_BYTES: usize = 32 * 1024 * 1024;
 // A runtime being replaced releases the root as it exits; a successor waits
 // this long for that before calling the root owned.
 const LEASE_WAIT: Duration = Duration::from_secs(5);
@@ -57,7 +54,6 @@ struct Owner {
     live: Arc<Mutex<Option<Live>>>,
     closing: AtomicBool,
     data_pins: AtomicUsize,
-    memory: Arc<memory::Budget>,
     index_schema: std::sync::Mutex<Option<data::IndexSchema>>,
     scanned: AtomicU64,
 }
@@ -115,14 +111,6 @@ impl State {
     }
 
     pub async fn open(root: impl AsRef<Path>) -> Result<Self, Error> {
-        Self::open_with_memory(root, NonZeroUsize::new(SQLITE_MEMORY_BYTES).unwrap()).await
-    }
-
-    pub(crate) async fn open_with_memory(
-        root: impl AsRef<Path>,
-        ceiling: NonZeroUsize,
-    ) -> Result<Self, Error> {
-        let memory = memory::Budget::new(ceiling);
         let root = root.as_ref().to_path_buf();
         tokio::task::spawn_blocking(move || {
             std::fs::create_dir_all(&root)?;
@@ -181,7 +169,6 @@ impl State {
                 live: Arc::new(Mutex::new(Some(Live { connection, lease }))),
                 closing: AtomicBool::new(false),
                 data_pins: AtomicUsize::new(0),
-                memory,
                 index_schema: std::sync::Mutex::new(None),
                 scanned: AtomicU64::new(0),
             })))
@@ -217,21 +204,6 @@ impl State {
         operation: impl FnOnce(&mut Connection) -> Result<T, rusqlite::Error> + Send + 'static,
     ) -> Result<T, Error> {
         self.dispatch(None, operation).await
-    }
-
-    pub(crate) fn reserve_query(
-        &self,
-        bytes: usize,
-        ceiling: NonZeroUsize,
-    ) -> Result<memory::Reservation, Error> {
-        self.0.memory.reserve_owned(bytes, ceiling.get())
-    }
-
-    pub(crate) fn reserve_memory(&self, bytes: usize) -> Result<memory::Reservation, Error> {
-        if self.0.closing.load(Ordering::Acquire) {
-            return Err(Error::Closed);
-        }
-        self.0.memory.reserve_owned(bytes, usize::MAX)
     }
 
     pub(crate) async fn call_read<T: Send + 'static>(

@@ -270,7 +270,6 @@ impl State {
         // Planning Executes Under The Same Active Budget
         // The physical owner excludes queue waiting while charging parameter
         // construction, statement preparation, stepping and row construction.
-        let memory = self.clone();
         self.call_read(execution, move |connection| {
             Ok((|| {
         let through = StorageCursor {
@@ -405,7 +404,7 @@ impl State {
                     }
                     .into());
                 }
-                let filter = record_filter::Prepared::new(connection, &memory.0.memory, &cut, &selection, entry_bytes)?;
+                let filter = record_filter::Prepared::new(connection, &cut, &selection, entry_bytes)?;
                 let mut statement = connection.prepare(&sql)?;
                 let mut rows = statement.query(rusqlite::params_from_iter(arguments))?;
                 let mut entries = Vec::new();

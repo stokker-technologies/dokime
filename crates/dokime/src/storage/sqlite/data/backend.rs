@@ -65,7 +65,6 @@ macro_rules! read_entries {
 pub struct Limits {
     pub entry_bytes: NonZeroUsize,
     pub batch_bytes: NonZeroUsize,
-    pub memory_bytes: NonZeroUsize,
 }
 
 pub struct Backend<C: ObjectCatalog> {
@@ -139,7 +138,6 @@ impl Default for Limits {
         Self {
             entry_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
             batch_bytes: NonZeroUsize::new(16 * 1024 * 1024).unwrap(),
-            memory_bytes: NonZeroUsize::new(32 * 1024 * 1024).unwrap(),
         }
     }
 }
@@ -207,7 +205,7 @@ impl<C: ObjectCatalog> Backend<C> {
         if limits.entry_bytes > limits.batch_bytes {
             return Err(invalid("entry bound exceeds batch bound"));
         }
-        let state = State::open_with_memory(&root, limits.memory_bytes)
+        let state = State::open(&root)
             .await
             .map_err(|error| failure("open SQLite", error))?;
         let cut = state
@@ -528,7 +526,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             let cancellation = query::Cancellation::new();
             let cancelled = cancellation.flag();
             let owner = state.0.clone();
-            let memory = state.0.memory.clone();
             let execution = pin.execution.clone();
             // Original Future Drop Signals The Worker. Its Actual Pin And Charge
             // Stay In The Physical Closure And Result Mailbox Until Settlement.
@@ -537,7 +534,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                     let _cancel = query::cancellation(cancelled);
                     let result = super::scan::page(
                         connection,
-                        &memory,
                         &owner.scanned,
                         &cut,
                         &read,
@@ -562,10 +558,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             let mut owner = self.owner.clone().lock_owned().await;
             let root = self.root.clone();
             let expected = self.history.clone();
-            let memory = self.limits.memory_bytes;
             owned("open SQLite", async move {
                 if owner.state.is_none() {
-                    let state = State::open_with_memory(&root, memory).await?;
+                    let state = State::open(&root).await?;
                     tracing::debug!(store = %expected.store, epoch = %expected.epoch, "SQLite storage owner opened");
                     state.data_open(Some(expected)).await?;
                     owner.bootstrap_limits = state.data_bootstrap_limits().await?;

@@ -673,7 +673,7 @@ pub(crate) async fn large_native_limits() {
         root.path().to_path_buf(),
         Limits {
             entry_bytes: NonZeroUsize::new(256 * 1024).unwrap(),
-            memory_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
+
             ..Limits::default()
         },
         history(),

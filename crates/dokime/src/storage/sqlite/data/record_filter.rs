@@ -13,12 +13,12 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, sync::Arc};
+use std::num::NonZeroUsize;
 // Third Party Imports
 use harmos::storage::{QueryLimits, ReadKind, ReadSelection, RecordFilter, StorageSchema};
 use rusqlite::Connection;
 // Local Imports
-use super::super::{Error, memory, query};
+use super::super::{Error, query};
 use super::{Entry, SavedData, scan};
 
 /* === Constants === */
@@ -42,7 +42,6 @@ pub(super) struct Prepared<'a> {
 impl<'a> Prepared<'a> {
     pub(super) fn new(
         connection: &Connection,
-        memory: &Arc<memory::Budget>,
         cut: &SavedData,
         selection: &'a ReadSelection,
         maximum: NonZeroUsize,
@@ -59,7 +58,7 @@ impl<'a> Prepared<'a> {
         }
         filter.check()?;
         scan::projection::admission(selection, &filter.columns)?;
-        let schema = scan::schema(connection, memory, cut, selection, maximum, None)?;
+        let schema = scan::schema(connection, cut, selection, maximum, None)?;
         let bytes = scan::projection::construction_memory(&schema, &filter.columns)?;
         let projection = scan::projection::Projection::new(&schema, &filter.columns, bytes)?;
         Ok(Some(Self {
