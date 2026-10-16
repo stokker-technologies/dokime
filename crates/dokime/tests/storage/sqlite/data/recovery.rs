@@ -25,7 +25,8 @@ use harmos::{
 };
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, StateBackend as SQLiteStateBackend, StateLimits};
+use dokime::storage::sqlite::{Backend, Limits};
+use harmos::storage::{config::StorageSettings, state::file::FileBackend};
 
 /* === Constants === */
 
@@ -76,54 +77,34 @@ fn page(rows: usize) -> ReadLimits {
     }
 }
 
-async fn native(root: &Path, limits: StateLimits) -> (Backend<()>, SQLiteStateBackend) {
+async fn native(root: &Path, limits: StorageSettings) -> (Backend<()>, FileBackend) {
     let primary = Backend::<()>::replica(root.to_path_buf(), Limits::default(), history())
         .await
         .unwrap();
-    let recovery = primary.state(limits);
+    let recovery = FileBackend::new(root.to_owned(), primary.history().clone(), &limits);
     (primary, recovery)
 }
 
-async fn close(primary: &Backend<()>, recovery: &SQLiteStateBackend) {
+async fn close(primary: &Backend<()>, recovery: &FileBackend) {
     recovery.close().await.unwrap();
     primary.close().await.unwrap();
-}
-
-async fn recovery_sql<T: Send + 'static>(
-    root: &Path,
-    operation: impl FnOnce(&rusqlite::Connection) -> Result<T, rusqlite::Error> + Send + 'static,
-) -> Result<T, rusqlite::Error> {
-    let path = root.join("local.sqlite");
-    tokio::task::spawn_blocking(move || {
-        let connection = rusqlite::Connection::open(path)?;
-        operation(&connection)
-    })
-    .await
-    .unwrap()
 }
 
 /* === Tests === */
 
 pub(crate) async fn durable_prefix_rollback() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), StateLimits::default()).await;
+    let (primary, backend) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     assert_eq!(backend.open().await.unwrap(), at(0));
     backend.write_entries(&[entry(1), entry(2)]).await.unwrap();
-    // Acknowledged SQLite Writes Are Already Durable
+    // Acknowledged File Writes Are Already Durable
     assert_eq!(backend.flush(&at(1)).await.unwrap(), at(2));
-    recovery_sql(root.path(), |connection| {
-        connection.execute_batch(
-            "CREATE TRIGGER refuse_four BEFORE INSERT ON storage_recovery_entries
-         WHEN NEW.position='0000000000000004' BEGIN SELECT RAISE(ABORT,'fixture'); END;",
-        )
-    })
-    .await
-    .unwrap();
-    assert!(backend.write_entries(&[entry(3), entry(4)]).await.is_err());
+    // A Rejected Batch Must Not Publish Its Otherwise Valid Prefix.
+    assert!(backend.write_entries(&[entry(3), entry(5)]).await.is_err());
     assert_eq!(backend.flush(&at(2)).await.unwrap(), at(2));
     close(&primary, &backend).await;
 
-    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
+    let (primary, reopened) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     assert_eq!(reopened.open().await.unwrap(), at(2));
     assert_eq!(
         reopened
@@ -133,11 +114,6 @@ pub(crate) async fn durable_prefix_rollback() {
             .entries,
         [entry(1), entry(2)]
     );
-    recovery_sql(root.path(), |connection| {
-        connection.execute_batch("DROP TRIGGER refuse_four")
-    })
-    .await
-    .unwrap();
     reopened.write_entries(&[entry(3)]).await.unwrap();
     assert_eq!(reopened.flush(&at(3)).await.unwrap(), at(3));
     close(&primary, &reopened).await;
@@ -145,7 +121,7 @@ pub(crate) async fn durable_prefix_rollback() {
 
 pub(crate) async fn retries_conflicts_explicit() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), StateLimits::default()).await;
+    let (primary, backend) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     backend.open().await.unwrap();
     backend.write_entries(&[entry(1)]).await.unwrap();
     backend.write_entries(&[entry(1)]).await.unwrap();
@@ -194,7 +170,7 @@ pub(crate) async fn retries_conflicts_explicit() {
 
 pub(crate) async fn snapshot_transaction_tail() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), StateLimits::default()).await;
+    let (primary, backend) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     backend.open().await.unwrap();
     backend
         .write_entries(&(1..=5).map(entry).collect::<Vec<_>>())
@@ -240,7 +216,7 @@ pub(crate) async fn snapshot_transaction_tail() {
     );
     close(&primary, &backend).await;
 
-    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
+    let (primary, reopened) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     assert_eq!(reopened.open().await.unwrap(), at(5));
     assert_eq!(
         reopened
@@ -264,42 +240,43 @@ pub(crate) async fn snapshot_transaction_tail() {
 pub(crate) async fn saved_corruption_rows() {
     for missing in [false, true] {
         let root = tempfile::tempdir().unwrap();
-        let (primary, backend) = native(root.path(), StateLimits::default()).await;
+        let (primary, backend) =
+            native(root.path(), crate::sqlite::storage::storage_settings()).await;
         backend.open().await.unwrap();
         backend.write_entries(&[entry(1), entry(2)]).await.unwrap();
-        recovery_sql(root.path(), move |connection| {
-            connection.execute(if missing {
-                "DELETE FROM storage_recovery_entries WHERE position='0000000000000001'"
-            } else {
-                "UPDATE storage_recovery_entries SET payload=x'00' WHERE position='0000000000000001'"
-            }, [])
-        }).await.unwrap();
         close(&primary, &backend).await;
-
-        let (primary, reopened) = native(root.path(), StateLimits::default()).await;
-        assert_eq!(reopened.open().await.unwrap(), at(2));
+        let path = root.path().join("state.jsonl");
+        let bytes = std::fs::read(&path).unwrap();
+        let mut lines = bytes
+            .split_inclusive(|byte| *byte == b'\n')
+            .map(<[u8]>::to_vec)
+            .collect::<Vec<_>>();
+        if missing {
+            lines.remove(1);
+        } else {
+            let line = &mut lines[1];
+            let index = line.iter().position(|byte| *byte == b'1').unwrap();
+            line[index] = b'9';
+        }
+        let corrupted = lines.concat();
+        std::fs::write(&path, &corrupted).unwrap();
+        let (primary, reopened) =
+            native(root.path(), crate::sqlite::storage::storage_settings()).await;
         assert!(matches!(
-            reopened.read_entries(&at(0), &at(2), page(2)).await,
+            reopened.open().await,
             Err(harmos::Error::Backend {
                 kind: BackendFailure::Corrupt,
                 ..
             })
         ));
-        let rows: i64 = recovery_sql(root.path(), |connection| {
-            connection.query_row("SELECT COUNT(*) FROM storage_recovery_entries", [], |row| {
-                row.get(0)
-            })
-        })
-        .await
-        .unwrap();
-        assert_eq!(rows, if missing { 1 } else { 2 });
+        assert_eq!(std::fs::read(&path).unwrap(), corrupted);
         close(&primary, &reopened).await;
     }
 }
 
 pub(crate) async fn primary_recovery_owner() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), StateLimits::default()).await;
+    let (primary, backend) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     backend.open().await.unwrap();
     assert!(matches!(
         Backend::<()>::primary(root.path().to_path_buf(), Limits::default()).await,
@@ -308,13 +285,18 @@ pub(crate) async fn primary_recovery_owner() {
             ..
         })
     ));
-    // Neither Adapter Alone Can Release The Shared Physical Owner
+    // Closing Data Releases Its Resource Without Closing State.
     primary.close().await.unwrap();
-    assert!(
-        Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
-            .await
-            .is_err()
+    let independent = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+        .await
+        .unwrap();
+    independent.close().await.unwrap();
+    let competing = FileBackend::new(
+        root.path().to_owned(),
+        history(),
+        &crate::sqlite::storage::storage_settings(),
     );
+    assert!(competing.open().await.is_err());
     backend.close().await.unwrap();
     let mut other = history();
     other.store = Identifier::new("other").unwrap();
@@ -322,19 +304,19 @@ pub(crate) async fn primary_recovery_owner() {
         Backend::<()>::replica(root.path().to_path_buf(), Limits::default(), other).await,
         Err(harmos::Error::DifferentHistory)
     ));
-    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
+    let (primary, reopened) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     assert_eq!(reopened.open().await.unwrap(), at(0));
     close(&primary, &reopened).await;
 }
 
 pub(crate) async fn input_snapshot_bounded() {
     let root = tempfile::tempdir().unwrap();
-    let limits = StateLimits {
-        entry_bytes: NonZeroUsize::new(512).unwrap(),
-        batch_bytes: NonZeroUsize::new(2048).unwrap(),
+    let limits = StorageSettings {
+        max_batch_bytes: NonZeroUsize::new(512).unwrap(),
         snapshot_bytes: NonZeroUsize::new(1024).unwrap(),
+        ..crate::sqlite::storage::storage_settings()
     };
-    let (primary, backend) = native(root.path(), limits).await;
+    let (primary, backend) = native(root.path(), limits.clone()).await;
     backend.open().await.unwrap();
     let mut oversized = entry(1);
     oversized.payload = vec![0; 513];
@@ -353,7 +335,7 @@ pub(crate) async fn input_snapshot_bounded() {
     };
     backend.write_snapshot(&snapshot).await.unwrap();
     close(&primary, &backend).await;
-    let (primary, reopened) = native(root.path(), limits).await;
+    let (primary, reopened) = native(root.path(), limits.clone()).await;
     reopened.open().await.unwrap();
     assert!(matches!(
         reopened.read_snapshot(NonZeroUsize::MIN).await,
@@ -371,17 +353,12 @@ pub(crate) async fn input_snapshot_bounded() {
 
 pub(crate) async fn failed_snapshot_retry() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), StateLimits::default()).await;
+    let (primary, backend) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     backend.open().await.unwrap();
     backend.write_entries(&[entry(1), entry(2)]).await.unwrap();
-    recovery_sql(root.path(), |connection| {
-        connection.execute_batch(
-            "CREATE TRIGGER refuse_snapshot BEFORE UPDATE OF snapshot ON storage_recovery_head
-         BEGIN SELECT RAISE(ABORT,'fixture'); END;",
-        )
-    })
-    .await
-    .unwrap();
+    // A Directory At The Temporary File Name Forces Publication To Fail.
+    let blocked = root.path().join("state.json.pending");
+    std::fs::create_dir(&blocked).unwrap();
     let snapshot = RecoverySnapshot {
         required_data: StorageCursor {
             history: history(),
@@ -411,14 +388,10 @@ pub(crate) async fn failed_snapshot_retry() {
             .await
             .is_err()
     );
-    recovery_sql(root.path(), |connection| {
-        connection.execute_batch("DROP TRIGGER refuse_snapshot")
-    })
-    .await
-    .unwrap();
+    std::fs::remove_dir(&blocked).unwrap();
     backend.write_snapshot(&snapshot).await.unwrap();
     close(&primary, &backend).await;
-    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
+    let (primary, reopened) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     assert_eq!(reopened.open().await.unwrap(), at(2));
     assert_eq!(
         reopened
@@ -440,7 +413,7 @@ pub(crate) async fn failed_snapshot_retry() {
 
 pub(crate) async fn snapshot_requires_frontier() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), StateLimits::default()).await;
+    let (primary, backend) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     backend.open().await.unwrap();
     backend.write_entries(&[entry(1)]).await.unwrap();
     let snapshot = RecoverySnapshot {
@@ -464,7 +437,7 @@ pub(crate) async fn snapshot_requires_frontier() {
     );
     assert_eq!(backend.flush(&at(1)).await.unwrap(), at(1));
     close(&primary, &backend).await;
-    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
+    let (primary, reopened) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     assert_eq!(reopened.open().await.unwrap(), at(1));
     assert!(
         reopened
@@ -488,17 +461,17 @@ pub(crate) async fn snapshot_requires_frontier() {
 
 pub(crate) async fn cancelled_waiter_owned() {
     let root = tempfile::tempdir().unwrap();
-    let (primary, backend) = native(root.path(), StateLimits::default()).await;
+    let (primary, backend) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     backend.open().await.unwrap();
     let entries = [entry(1)];
     let mut write = backend.write_entries(&entries);
-    // One Poll Admits The Original Owned SQLite Operation
+    // One Poll Dispatches The Original Owned File Operation
     if let std::task::Poll::Ready(result) = futures_util::poll!(write.as_mut()) {
         result.unwrap();
     }
     drop(write);
     close(&primary, &backend).await;
-    let (primary, reopened) = native(root.path(), StateLimits::default()).await;
+    let (primary, reopened) = native(root.path(), crate::sqlite::storage::storage_settings()).await;
     assert_eq!(reopened.open().await.unwrap(), at(1));
     assert_eq!(
         reopened
