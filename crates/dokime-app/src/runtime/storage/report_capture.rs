@@ -268,9 +268,10 @@ impl ExecutionStorage {
         if !self.storage.cursor_saved().covers(through)? {
             return Err(invalid("report evidence is not durable"));
         }
+        let saved = self.storage.cursor_saved();
         for output in inputs.outputs.iter() {
-            if !through.covers(&output.file.position)? {
-                return Err(invalid("report evidence precedes its captured output"));
+            if !saved.covers(&output.file.position)? {
+                return Err(invalid("captured report output is not durable"));
             }
         }
         let view = self

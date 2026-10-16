@@ -50,6 +50,8 @@ macro_rules! host_streams {
                     memory_total_bytes: Integer, Value, "Memory Total", Option<i64>;
                     memory_used_bytes: Integer, Value, "Memory Used", Option<i64>;
                     memory_pressure_percent: Number, Value, "Memory Pressure", Option<f64>;
+                    system_uptime_s: Number, Value, "System Uptime", Option<f64>;
+                    temperature_sensor_count: Integer, Value, "Temperature Sensor Count", Option<i64>;
                     battery_percent: Number, Value, "Battery", Option<f64>;
                     battery_state: Text, State, "Battery State", Option<String>;
                     battery_power_plugged: Boolean, State, "Battery Power Plugged", Option<bool>;

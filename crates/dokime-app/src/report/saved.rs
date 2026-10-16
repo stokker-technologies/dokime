@@ -379,7 +379,7 @@ impl PreparedExecutionReport {
             output_validation_memory(&outputs).saturating_add(captured.validation_memory());
         let _scratch = manager.prepare_production(allowance(scratch)?)?;
         captured.validate()?;
-        validate_outputs(&captured.execution_id, &captured.evidence_through, &outputs)
+        validate_outputs(&captured.execution_id, &manager.cursor_saved(), &outputs)
             .map_err(|error| Error::InvalidReportInputs(error.to_string()))?;
         let (context, report) = ReportFile::capture(&manager, &html)?;
         if outputs.iter().any(|output| {

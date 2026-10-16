@@ -61,6 +61,10 @@ impl RuntimeHandle {
                     let Some(at) = &request.completion_at else {
                         continue;
                     };
+                    // A Recorded Permanent Publication Failure Waits For An Explicit Rerun.
+                    if request.publication_failure.is_some() {
+                        continue;
+                    }
                     if !state.cycles.contains_key(&request.summary.cycle_id) {
                         continue;
                     }

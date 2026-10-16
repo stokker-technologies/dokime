@@ -250,12 +250,8 @@ impl ExecutionView {
                 ))
             })?;
         let _validation = storage.prepare_production(scratch)?;
-        validate_outputs(
-            &captured.execution_id,
-            &captured.evidence_through,
-            &captured.outputs,
-        )
-        .map_err(dokime::storage::Error::from)?;
+        validate_outputs(&captured.execution_id, &saved, &captured.outputs)
+            .map_err(dokime::storage::Error::from)?;
 
         validation.check()?;
         drop(validation);

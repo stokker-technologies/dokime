@@ -214,7 +214,8 @@ impl ExecutionSource {
                 "context must use the native execution context media type",
             ));
         }
-        validate_outputs(id, &self.evidence_through, &self.outputs)?;
+        // Settled Outputs Precede The Frozen Context, Not Necessarily The Evidence Cut.
+        validate_outputs(id, &self.context.position, &self.outputs)?;
         if self
             .outputs
             .iter()

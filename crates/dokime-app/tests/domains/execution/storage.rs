@@ -389,8 +389,8 @@ pub(crate) async fn terminal_capture_repaired() {
     owner.shutdown().await.unwrap();
 }
 
-// a permanent finalization failure settles the cycle Failed with its cause, and a
-// rerun of the same case on a runtime that can encode its report runs and seals.
+// A permanent finalization failure settles the run Failed with its cause and leaves the
+// recorded test outcome unchanged; a rerun on a runtime that can encode its report seals.
 pub(crate) async fn permanent_finalization_settles() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = started_with_fixture(
@@ -407,35 +407,36 @@ pub(crate) async fn permanent_finalization_settles() {
         .await;
     assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
 
-    // The report can never be encoded. The watch stream reports the cycle
-    // Failed instead of Running forever.
+    // The report can never be encoded. The watch stream settles the run
+    // instead of leaving it running forever.
     let terminal = tokio::time::timeout(
         Duration::from_secs(60),
         watch.wait_until(|snapshot| {
             snapshot
                 .state()
-                .cycles
-                .get(&test_cycle_id)
-                .is_some_and(|cycle| cycle.lifecycle == CycleStatus::Failed)
+                .run_requests
+                .get(&receipt.command_id)
+                .is_some_and(|request| request.summary.phase.terminal())
         }),
     )
     .await
-    .expect("the state watch reports the cycle Failed")
+    .expect("the state watch settles the run")
     .expect("the state watch stays open");
     let cycle = terminal.state().cycle_view(&test_cycle_id).unwrap();
     assert!(
         cycle.saved.is_none(),
         "an unproduced report is never sealed"
     );
+    assert_eq!(cycle.lifecycle, CycleStatus::Completed);
     let failed_id = cycle.test_executions[0].test_execution_id.clone();
     let test_case_id = cycle.test_executions[0].test_case_id.clone();
-    assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Failed);
+    assert_eq!(cycle.test_executions[0].status, ExecutionStatus::Passed);
     assert!(cycle.test_executions[0].saved.is_none());
     let diagnosis = terminal
         .state()
         .run_requests
         .get(&receipt.command_id)
-        .and_then(|request| request.failure.clone());
+        .and_then(|request| request.publication_failure.clone());
     assert!(
         diagnosis
             .as_deref()
@@ -453,8 +454,8 @@ pub(crate) async fn permanent_finalization_settles() {
     owner.shutdown().await.unwrap();
 
     // Restart on the same store with a fixture whose reports encode. The
-    // failure stays terminal and its cause durable: in the receipt, and as
-    // evidence scoped to the execution and to the cycle.
+    // publication failure stays terminal and its cause durable: in the receipt,
+    // and as evidence scoped to the execution and to the cycle.
     let (mut owner, runtime) = started_with_fixture(
         config(root.path()),
         Arc::new(FakePythonExecutor::fixed("passed")),
@@ -463,7 +464,7 @@ pub(crate) async fn permanent_finalization_settles() {
     register_python_suite(&runtime, suite).await;
     assert_eq!(
         cycle_snapshot(&runtime, &test_cycle_id).await.lifecycle,
-        CycleStatus::Failed
+        CycleStatus::Completed
     );
     let receipt = runtime
         .run_request(&receipt.command_id)
@@ -471,7 +472,7 @@ pub(crate) async fn permanent_finalization_settles() {
         .unwrap()
         .unwrap();
     assert_eq!(receipt.summary.phase, RunPhase::Failed);
-    assert_eq!(receipt.summary.failed, 1);
+    assert_eq!(receipt.summary.failed, 0);
     assert!(
         receipt
             .interruption
@@ -516,7 +517,7 @@ pub(crate) async fn permanent_finalization_settles() {
             CommandContext::default(),
         )
         .await
-        .expect("a failed finalization leaves the case restartable");
+        .expect("an unsealed finalization leaves the case restartable");
     runtime
         .run_cycle_case(
             test_cycle_id.clone(),
@@ -537,7 +538,7 @@ pub(crate) async fn permanent_finalization_settles() {
     .expect("the rerun cycle seals once its reports encode");
     let original = &rerun.test_executions[0];
     assert_eq!(original.test_execution_id, failed_id);
-    assert_eq!(original.status, ExecutionStatus::Failed);
+    assert_eq!(original.status, ExecutionStatus::Passed);
     assert!(
         original.saved.is_some(),
         "the failed attempt seals with the cycle"

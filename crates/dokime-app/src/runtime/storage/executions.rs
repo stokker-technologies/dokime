@@ -554,11 +554,15 @@ impl ExecutionStorage {
             } else {
                 acquisition.snapshot_outputs().await?
             };
+            // A Final Report Seals Every Settled Output; Settlement May Follow The Evidence Cut.
+            let pending = |output: &ExecutionOutput| -> harmos::Result<bool> {
+                Ok(!final_report && !report_boundary.covers(&output.file.position)?)
+            };
             let unavailable_outputs = storage
                 .produce(allowance(outputs.memory_size())?, |_| {
                     let mut unavailable = Vec::new();
                     for output in outputs.iter() {
-                        if !report_boundary.covers(&output.file.position)? {
+                        if pending(output)? {
                             unavailable.push(output.relative_path.clone());
                         }
                     }
@@ -569,7 +573,7 @@ impl ExecutionStorage {
                 .try_project(allowance(outputs.memory_size())?, |outputs, _| {
                     let mut included = Vec::with_capacity(outputs.len());
                     for output in outputs {
-                        if report_boundary.covers(&output.file.position)? {
+                        if !pending(output)? {
                             included.push(output.clone());
                         }
                     }
