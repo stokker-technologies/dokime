@@ -109,8 +109,12 @@ impl State {
                                 super::production::stored_checkpoint(&transaction, &file)?.ok_or(
                                     Error::Data("producer receipt precedes durable ownership"),
                                 )?;
+                            let finished_length =
+                                super::files::stored_metadata(&transaction, &file.id)?
+                                    .and_then(|(_, finished)| finished)
+                                    .map_or(0, |reference| reference.length);
                             if generation < producer.session.generation
-                                || checkpoint.length < producer.length
+                                || checkpoint.length.max(finished_length) < producer.length
                             {
                                 return Err(Error::Data(
                                     "producer receipt precedes durable fence or prefix",

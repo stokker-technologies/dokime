@@ -210,9 +210,12 @@ impl ExecutionState {
         sample: &crate::telemetry::TelemetrySample,
     ) -> Result<(), String> {
         if let Some(position) = self.sample_positions.get(&sample.sample_id)
-            && !same_sample(&self.stream_rows[*position], sample, self.local_inputs)
+            && let Some(field) =
+                sample_difference(&self.stream_rows[*position], sample, self.local_inputs)
         {
-            return Err("sample identity was reused with different admitted contents".into());
+            return Err(format!(
+                "sample identity was reused with different admitted contents: {field}"
+            ));
         }
         Ok(())
     }
@@ -941,11 +944,11 @@ pub(crate) fn lock(executions: &Executions) -> MutexGuard<'_, BTreeMap<String, E
 
 // Host Admission Adds Receipt Time And Full Ownership To Locally Produced Rows.
 // Canonical Payload Bytes Are Internal And May Be Absent After Wire Decoding.
-fn same_sample(
+fn sample_difference(
     previous: &crate::telemetry::TelemetrySample,
     incoming: &crate::telemetry::TelemetrySample,
     local: bool,
-) -> bool {
+) -> Option<&'static str> {
     let scope_matches = if local {
         match (&previous.scope, &incoming.scope) {
             (Some(left), Some(right)) => {
@@ -959,21 +962,34 @@ fn same_sample(
     } else {
         previous.scope == incoming.scope
     };
-    previous.sample_id == incoming.sample_id
-        && previous.stream == incoming.stream
-        && previous.schema_version == incoming.schema_version
-        && previous.sequence == incoming.sequence
-        && previous.timestamp == incoming.timestamp
-        && (local || previous.received_at == incoming.received_at)
-        && previous.source == incoming.source
-        && scope_matches
-        && previous.values == incoming.values
-        && previous.summary == incoming.summary
-        && previous.metadata == incoming.metadata
-        && match (&previous.storage_payload, &incoming.storage_payload) {
-            (Some(left), Some(right)) => left == right,
-            _ => true,
-        }
+    [
+        ("sample_id", previous.sample_id == incoming.sample_id),
+        ("stream", previous.stream == incoming.stream),
+        (
+            "schema_version",
+            previous.schema_version == incoming.schema_version,
+        ),
+        ("sequence", previous.sequence == incoming.sequence),
+        ("timestamp", previous.timestamp == incoming.timestamp),
+        (
+            "received_at",
+            local || previous.received_at == incoming.received_at,
+        ),
+        ("source", previous.source == incoming.source),
+        ("scope", scope_matches),
+        ("values", previous.values == incoming.values),
+        ("summary", previous.summary == incoming.summary),
+        ("metadata", previous.metadata == incoming.metadata),
+        (
+            "storage_payload",
+            match (&previous.storage_payload, &incoming.storage_payload) {
+                (Some(left), Some(right)) => left == right,
+                _ => true,
+            },
+        ),
+    ]
+    .into_iter()
+    .find_map(|(field, matches)| (!matches).then_some(field))
 }
 
 fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
@@ -986,7 +1002,7 @@ fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::same_sample;
+    use super::sample_difference;
     use crate::core::{Identifier, RecordScope, TestExecutionId, Timestamp, Value};
     use crate::telemetry::TelemetrySample;
 
@@ -1005,23 +1021,23 @@ mod tests {
         });
         let wire: TelemetrySample =
             serde_json::from_value(serde_json::to_value(&original).unwrap()).unwrap();
-        assert!(same_sample(&original, &wire, false));
+        assert!(sample_difference(&original, &wire, false).is_none());
         let mut admitted = wire.clone();
         admitted.received_at = Timestamp::new("2000-01-01T00:00:00Z");
         admitted.scope.as_mut().unwrap().session_id = Some(crate::core::SessionId::new());
-        assert!(same_sample(&original, &admitted, true));
-        assert!(!same_sample(&original, &admitted, false));
+        assert!(sample_difference(&original, &admitted, true).is_none());
+        assert!(sample_difference(&original, &admitted, false).is_some());
         let mut changed = wire.clone();
         changed.values.insert("value".into(), Value::from(2.0));
-        assert!(!same_sample(&original, &changed, true));
+        assert!(sample_difference(&original, &changed, true).is_some());
         let mut changed = original.clone();
         changed.storage_payload = Some(vec![3]);
-        assert!(!same_sample(&original, &changed, true));
+        assert!(sample_difference(&original, &changed, true).is_some());
         let mut changed = wire;
         changed.scope = Some(RecordScope {
             test_execution_id: Some(TestExecutionId::new()),
             ..Default::default()
         });
-        assert!(!same_sample(&original, &changed, true));
+        assert!(sample_difference(&original, &changed, true).is_some());
     }
 }

@@ -170,7 +170,43 @@ pub(crate) async fn shared_sha_identity() {
             history: file.history.clone(),
             sequence: index as u64 + 1,
         };
+        let append = MutationReceipt {
+            mutation: MutationId {
+                window: id("append"),
+                key: file.id.clone(),
+            },
+            fingerprint: [index as u8; 32],
+            expires_at: SystemTime::now() + Duration::from_secs(3600),
+            value: MutationValue::Producer(FileProducer {
+                session: FileSession {
+                    history: file.history.clone(),
+                    id: file.id.clone(),
+                    generation: 1,
+                },
+                length: 4,
+            }),
+        };
+        assert!(
+            backend
+                .save_mutations(std::slice::from_ref(&append))
+                .await
+                .is_err()
+        );
         let reference = backend.finish_file(file, &position, 4, hash).await.unwrap();
+        backend
+            .save_mutations(std::slice::from_ref(&append))
+            .await
+            .unwrap();
+        for (window, length, generation) in [("past-end", 5, 1), ("future-owner", 4, 2)] {
+            let mut invalid = append.clone();
+            invalid.mutation.window = id(window);
+            let MutationValue::Producer(producer) = &mut invalid.value else {
+                unreachable!()
+            };
+            producer.length = length;
+            producer.session.generation = generation;
+            assert!(backend.save_mutations(&[invalid]).await.is_err());
+        }
         let receipt = MutationReceipt {
             mutation: MutationId {
                 window: id("capture"),

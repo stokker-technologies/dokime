@@ -694,8 +694,9 @@ pub(crate) async fn pinned_page_waiting() {
                 .expect("shared memory refusal waited for its own retained page");
             assert!(matches!(
                 result,
-                Err(harmos::Error::ResourceExhausted {
-                    resource: "query retained working memory"
+                Err(harmos::Error::InvalidInput {
+                    field: "storage read",
+                    reason: "page exceeds read memory budget"
                 })
             ));
             assert_eq!(storage.status().read_bytes, before);

@@ -213,6 +213,30 @@ pub(crate) async fn stream_rows_views() {
     backend.cursor_saved().await.unwrap();
     let current = view(&backend, 2).await;
     assert!(backend.read_view(&position(2)).await.is_err());
+    let mut next = row.clone();
+    next.record.position = position(3);
+    next.sequence = 0;
+    let mut captured = next.clone();
+    captured.record.position = position(4);
+    captured.record.scope = Some(id("other-execution"));
+    let added = [next, captured];
+    backend
+        .write(write_batch(&[StoragePart::Stream(&added)]))
+        .await
+        .unwrap();
+    backend
+        .write(write_batch(&[StoragePart::Stream(&added)]))
+        .await
+        .unwrap();
+    let mut conflict = added[0].clone();
+    conflict.sequence = 1;
+    assert!(
+        backend
+            .write(write_batch(&[StoragePart::Stream(&[conflict])]))
+            .await
+            .is_err()
+    );
+
     let mut selection = ReadSelection::new(ReadKind::Stream);
     selection.stream = Some(id("input"));
     assert_eq!(
@@ -221,7 +245,7 @@ pub(crate) async fn stream_rows_views() {
             .await
             .unwrap()
             .entries,
-        vec![row]
+        vec![row.clone()]
     );
     selection.after = 2;
     assert!(
@@ -233,7 +257,14 @@ pub(crate) async fn stream_rows_views() {
             .is_empty()
     );
     backend.release_view(current.snapshot()).await.unwrap();
-    backend.read_view(&position(2)).await.unwrap();
+    let latest = view(&backend, 4).await;
+    selection.after = 0;
+    let all = backend
+        .read_stream(&latest, &selection, None, limits(3))
+        .await
+        .unwrap();
+    assert_eq!(all.entries, vec![row, added[0].clone(), added[1].clone()]);
+    backend.release_view(latest.snapshot()).await.unwrap();
     backend.close().await.unwrap();
 }
 

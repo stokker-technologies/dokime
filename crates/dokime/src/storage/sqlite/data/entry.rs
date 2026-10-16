@@ -299,7 +299,8 @@ impl Encoded {
         let identity_bytes = match value {
             StorageEntry::Schema(_) => Some(23),
             StorageEntry::Object(_) => Some(23),
-            StorageEntry::Record(_) | StorageEntry::Row(_) => 5usize.checked_add(item.len()),
+            StorageEntry::Row(_) => Some(23),
+            StorageEntry::Record(_) => 5usize.checked_add(item.len()),
             StorageEntry::File(_) => 5usize.checked_add(item.len()),
         }
         .ok_or(Error::Data("entry allocation size overflow"))?;
@@ -376,7 +377,8 @@ impl Encoded {
         let identity = match value {
             StorageEntry::Schema(_) => format!("schema:{position:016x}"),
             StorageEntry::Object(_) => format!("object:{position:016x}"),
-            StorageEntry::Record(_) | StorageEntry::Row(_) => format!("item:{item}"),
+            StorageEntry::Row(_) => format!("stream:{position:016x}"),
+            StorageEntry::Record(_) => format!("item:{item}"),
             StorageEntry::File(_) => format!("file:{item}"),
         };
         let body = match value {
