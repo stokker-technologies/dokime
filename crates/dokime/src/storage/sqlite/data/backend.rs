@@ -620,24 +620,20 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 query::Budget::new(limits)
                     .map_err(|error| failure("initialize private import budget", error))?,
             );
-            let (reservation, import) = execution
+            let import = execution
                 .prepare(|| {
                     super::entry::check_size(identity, super::bootstrap::METADATA_BYTES)?;
                     super::entry::check_size(saved, super::bootstrap::METADATA_BYTES)?;
-                    let reservation = state
-                        .reserve_query(super::bootstrap::WORKING_BYTES, limits.memory_bytes)?;
                     let import = super::bootstrap::Import {
                         identity: identity.clone(),
                         saved: saved.clone(),
                         limits,
                     };
-                    Ok((reservation, import))
+                    Ok(import)
                 })
                 .map_err(|error| failure("prepare private replica import", error))?;
             owned("begin private replica import", async move {
-                let result = state
-                    .data_begin_bootstrap(import, execution, reservation)
-                    .await;
+                let result = state.data_begin_bootstrap(import, execution).await;
                 if result.is_ok() {
                     owner.bootstrap_limits = Some(limits);
                 }
@@ -663,25 +659,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 query::Budget::new(limits)
                     .map_err(|error| failure("initialize private import write budget", error))?,
             );
-            let (reservation, identity, entries) = execution
+            let (identity, entries) = execution
                 .prepare(|| {
                     super::entry::check_size(batch.identity(), super::bootstrap::METADATA_BYTES)?;
-                    let mut bytes = batch
-                        .len()
-                        .checked_mul(std::mem::size_of::<super::entry::Retained>())
-                        .and_then(|bytes| bytes.checked_add(super::bootstrap::WORKING_BYTES))
-                        .ok_or(Error::Data("private import allocation size overflow"))?;
-                    for value in batch.part().entries() {
-                        let body = super::entry::Retained::encoded_bytes(
-                            value,
-                            self.limits.entry_bytes.get(),
-                        )?;
-                        bytes = body
-                            .checked_mul(2)
-                            .and_then(|body| bytes.checked_add(body))
-                            .ok_or(Error::Data("private import allocation size overflow"))?;
-                    }
-                    let reservation = state.reserve_query(bytes, limits.memory_bytes)?;
                     let identity = batch.identity().clone();
                     let mut entries = Vec::with_capacity(batch.len());
                     for value in batch.part().entries() {
@@ -690,13 +670,13 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                             self.limits.entry_bytes.get(),
                         )?);
                     }
-                    Ok((reservation, identity, entries))
+                    Ok((identity, entries))
                 })
                 .map_err(|error| failure("prepare private import rows", error))?;
             let maximum = self.limits.entry_bytes;
             owned("write private import rows", async move {
                 let result = state
-                    .data_write_bootstrap(identity, entries, execution, reservation, maximum)
+                    .data_write_bootstrap(identity, entries, execution, maximum)
                     .await;
                 drop(owner);
                 result
@@ -727,12 +707,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 query::Budget::new(limits)
                     .map_err(|error| failure("initialize private import verification", error))?,
             );
-            let (reservation, manifest) = execution
+            let manifest = execution
                 .prepare(|| {
                     super::entry::check_size(manifest, super::bootstrap::METADATA_BYTES)?;
-                    let bytes = super::bootstrap_files::working_bytes(self.root.as_os_str().len())?;
-                    let reservation = state.reserve_query(bytes, limits.memory_bytes)?;
-                    Ok((reservation, manifest.clone()))
+                    Ok(manifest.clone())
                 })
                 .map_err(|error| failure("prepare private import verification", error))?;
             let maximum = self.limits.entry_bytes;
@@ -740,7 +718,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             owner.retention_through = 0;
             owned("prepare private import commit", async move {
                 let result = state
-                    .data_finish_bootstrap(manifest, root, execution, reservation, maximum)
+                    .data_finish_bootstrap(manifest, root, execution, maximum)
                     .await;
                 drop(owner);
                 result
@@ -756,17 +734,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 .map_err(|error| failure("validate private import abort", error))?;
             let mut owner = self.owner.clone().lock_owned().await;
             let state = owner.state()?;
-            let bytes = super::bootstrap_files::working_bytes(self.root.as_os_str().len())
-                .map_err(|error| failure("size private import cleanup", error))?;
-            let reservation = state
-                .reserve_memory(bytes)
-                .map_err(|error| failure("reserve private import abort", error))?;
             let identity = identity.clone();
             let root = self.root.clone();
             owned("abort private replica import", async move {
-                let result = state
-                    .data_abort_bootstrap(identity, root, reservation)
-                    .await;
+                let result = state.data_abort_bootstrap(identity, root).await;
                 if result.is_ok() {
                     owner.bootstrap_limits = state.data_bootstrap_limits().await?;
                 }
@@ -1414,23 +1385,15 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             self.history.check(&identity.cut().history)?;
             let owner = self.owner.clone().lock_owned().await;
             let state = owner.state()?;
-            let limits = owner
+            owner
                 .bootstrap_limits
                 .ok_or_else(|| invalid("private release import requires begin"))?;
-            let bytes = super::entry::check_size(&releases, self.limits.batch_bytes.get())
-                .map_err(|error| failure("measure private object releases", error))?
-                .checked_mul(4)
-                .and_then(|bytes| bytes.checked_add(super::bootstrap::WORKING_BYTES))
-                .ok_or_else(|| invalid("private release import allocation overflow"))?;
-            let reservation = state
-                .reserve_query(bytes, limits.memory_bytes)
-                .map_err(|error| failure("reserve private object releases", error))?;
+            super::entry::check_size(&releases, self.limits.batch_bytes.get())
+                .map_err(|error| failure("measure private object releases", error))?;
             let identity = identity.clone();
             let releases = releases.to_vec();
             owned("write private object releases", async move {
-                let result = state
-                    .data_bootstrap_releases(identity, releases, reservation)
-                    .await;
+                let result = state.data_bootstrap_releases(identity, releases).await;
                 drop(owner);
                 result
             })
@@ -1448,20 +1411,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             self.history.check(&through.history)?;
             let mut owner = self.owner.clone().lock_owned().await;
             let state = owner.state()?;
-            let bytes = schema
-                .memory_size()
-                .checked_add(item.as_str().len())
-                .and_then(|bytes| bytes.checked_add(through.memory_size()))
-                .and_then(|bytes| bytes.checked_add(512))
-                .ok_or_else(|| invalid("object history release allocation overflow"))?;
-            let reservation = state
-                .reserve_memory(bytes)
-                .map_err(|error| failure("reserve SQLite object history release", error))?;
             let schema = schema.clone();
             let item = item.clone();
             let through = through.clone();
             owned("release SQLite object history", async move {
-                let _reservation = reservation;
                 state
                     .data_release_object_history(schema, item, through)
                     .await?;

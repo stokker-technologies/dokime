@@ -33,7 +33,6 @@ use super::{Entry, blob, check_digest, entry, position, saved, sequence};
 
 /* === Constants === */
 pub(super) const METADATA_BYTES: usize = 4 * super::HISTORY_BYTES;
-pub(super) const WORKING_BYTES: usize = 16 * METADATA_BYTES;
 
 /* === Macros === */
 
@@ -65,10 +64,8 @@ impl State {
         &self,
         identity: BootstrapId,
         releases: Vec<ObjectRetentionRelease>,
-        reservation: memory::Reservation,
     ) -> Result<(), Error> {
         self.call(move |connection| Ok((|| {
-            let _reservation = reservation;
             let transaction = connection.transaction()?;
             matching(&transaction, &identity)?;
             let mut previous = None;
@@ -102,11 +99,9 @@ impl State {
         &self,
         import: Import,
         execution: Arc<query::Budget>,
-        reservation: memory::Reservation,
     ) -> Result<(), Error> {
         let owner = self.0.clone();
         self.call_read(Some(execution), move |connection| {
-            let _reservation = reservation;
             *owner.index_schema.lock().unwrap() = None;
             Ok(begin(connection, &import))
         })
@@ -114,9 +109,7 @@ impl State {
     }
 
     pub(super) async fn data_bootstrap_limits(&self) -> Result<Option<QueryLimits>, Error> {
-        let reservation = self.reserve_memory(WORKING_BYTES)?;
         self.call(move |connection| {
-            let _reservation = reservation;
             Ok((|| {
                 let Some(import) = active(connection)? else {
                     if has_rows(connection)? {
@@ -136,12 +129,10 @@ impl State {
         identity: BootstrapId,
         entries: Vec<entry::Retained>,
         execution: Arc<query::Budget>,
-        reservation: memory::Reservation,
         maximum: NonZeroUsize,
     ) -> Result<(), Error> {
         let limits = execution.limits;
         self.call_read(Some(execution), move |connection| {
-            let _reservation = reservation;
             Ok(write(connection, &identity, &entries, limits, maximum))
         })
         .await?
@@ -152,14 +143,12 @@ impl State {
         manifest: BootstrapManifest,
         root: PathBuf,
         execution: Arc<query::Budget>,
-        reservation: memory::Reservation,
         maximum: NonZeroUsize,
     ) -> Result<StorageCursor, Error> {
         let memory = self.0.memory.clone();
         let state = self.clone();
         let limits = execution.limits;
         self.call_read(Some(execution), move |connection| {
-            let _reservation = reservation;
             *state.0.index_schema.lock().unwrap() = None;
             Ok((|| {
                 if let Some(receipt) = completed(connection)?
@@ -196,14 +185,10 @@ impl State {
         &self,
         identity: BootstrapId,
         root: PathBuf,
-        reservation: memory::Reservation,
     ) -> Result<(), Error> {
         // Cleanup Retains Physical Ownership Without An Execution Cutoff
-        self.call(move |connection| {
-            let _reservation = reservation;
-            Ok(abort(connection, &root, &identity))
-        })
-        .await?
+        self.call(move |connection| Ok(abort(connection, &root, &identity)))
+            .await?
     }
 }
 

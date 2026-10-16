@@ -98,10 +98,6 @@ impl<'a> From<StorageEntry<'a>> for Borrowed<'a> {
 }
 
 impl Retained {
-    pub(super) fn encoded_bytes(value: StorageEntry<'_>, maximum: usize) -> Result<usize, Error> {
-        check_size(&Borrowed::from(value), maximum)
-    }
-
     pub(super) fn new(value: StorageEntry<'_>, maximum: usize) -> Result<Self, Error> {
         let kind = match value {
             StorageEntry::Schema(_) => "schema",
