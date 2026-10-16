@@ -478,7 +478,7 @@ impl ExecutionStorage {
             let (offset, length) = source.selection.extent(size_bytes)?;
             let allowance = content_memory(&source.path, length)?;
             let work_owner = source.clone();
-            let physical = move || {
+            let mut physical = move || {
                 // Cancellation Releases The Waiter; Accepted Physical Work Keeps Its Owners
 
                 computation

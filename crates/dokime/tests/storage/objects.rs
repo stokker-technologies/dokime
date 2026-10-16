@@ -67,7 +67,11 @@ pub(crate) async fn materialized_cases_reader() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(Default::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &super::sqlite::storage::storage_settings(),
+    ));
     let storage = Manager::new(
         StorageBackends {
             primary,
@@ -119,7 +123,11 @@ pub(crate) async fn materialized_cases_reader() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(Default::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &super::sqlite::storage::storage_settings(),
+    ));
     let storage = Manager::new(
         StorageBackends {
             primary,
@@ -173,7 +181,11 @@ pub(crate) async fn suite_definitions_producer() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(Default::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &super::sqlite::storage::storage_settings(),
+    ));
     let backends = StorageBackends {
         primary,
         state: recovery,
@@ -223,7 +235,11 @@ pub(crate) async fn suite_definitions_producer() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(Default::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &super::sqlite::storage::storage_settings(),
+    ));
     let backends = StorageBackends {
         primary,
         state: recovery,
@@ -255,7 +271,11 @@ pub(crate) async fn cycles_reopen_producers() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(Default::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &super::sqlite::storage::storage_settings(),
+    ));
     let backends = StorageBackends {
         primary,
         state: recovery,
@@ -314,7 +334,11 @@ pub(crate) async fn cycles_reopen_producers() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(Default::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &super::sqlite::storage::storage_settings(),
+    ));
     let backends = StorageBackends {
         primary,
         state: recovery,
@@ -381,7 +405,11 @@ pub(crate) async fn executions_reopen_results() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(Default::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &super::sqlite::storage::storage_settings(),
+    ));
     let backends = StorageBackends {
         primary,
         state: recovery,
@@ -482,7 +510,11 @@ pub(crate) async fn executions_reopen_results() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(Default::default()));
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &super::sqlite::storage::storage_settings(),
+    ));
     let backends = StorageBackends {
         primary,
         state: recovery,
