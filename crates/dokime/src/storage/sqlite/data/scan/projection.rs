@@ -13,7 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{mem::size_of, num::NonZeroUsize, sync::Arc, time::UNIX_EPOCH};
+use std::{mem::size_of, num::NonZeroUsize, time::UNIX_EPOCH};
 // Third Party Imports
 use harmos::{
     MemorySize,
@@ -21,7 +21,7 @@ use harmos::{
 };
 // Local Imports
 use super::native;
-use crate::storage::sqlite::{Error, memory};
+use crate::storage::sqlite::Error;
 
 /* === Constants === */
 
@@ -112,7 +112,6 @@ impl<'a> Projection<'a> {
         &self,
         record: &StoredRecord,
         stream: Option<&harmos::Identifier>,
-        memory: &Arc<memory::Budget>,
         bytes: NonZeroUsize,
         maximum: NonZeroUsize,
     ) -> Result<Vec<ScalarValue>, Error> {
@@ -123,7 +122,7 @@ impl<'a> Projection<'a> {
                 bytes,
             )?),
             Self::Native { fields, kind } => {
-                let row = kind.decode(&record.payload, memory, maximum)?;
+                let row = kind.decode(&record.payload, maximum)?;
                 let mut values = Vec::new();
                 values
                     .try_reserve_exact(fields.len())

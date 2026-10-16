@@ -74,7 +74,6 @@ impl<'a> Prepared<'a> {
         entry: &Entry,
         selection: &ReadSelection,
         cut: &SavedData,
-        memory: &Arc<memory::Budget>,
         maximum: NonZeroUsize,
     ) -> Result<bool, Error> {
         query::checkpoint()?;
@@ -94,9 +93,7 @@ impl<'a> Prepared<'a> {
         let bytes = self.projection.output_memory(record, None)?;
         let allowance = NonZeroUsize::new(bytes)
             .ok_or(Error::Data("record filter projection allowance is empty"))?;
-        let values = self
-            .projection
-            .project(record, None, memory, allowance, maximum)?;
+        let values = self.projection.project(record, None, allowance, maximum)?;
         if harmos::MemorySize::memory_size(&values) > bytes {
             return Err(Error::Corrupt("record filter projection exceeded preclaim"));
         }

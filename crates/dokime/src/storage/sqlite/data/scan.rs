@@ -178,13 +178,9 @@ impl Decoder<'_> {
         check_record(record, stream, indexed, self.schema, selection, self.cut)?;
         let bytes = self.projection.output_memory(record, stream)?;
         let _charge = self.memory.reserve_owned(bytes, usize::MAX)?;
-        let values = self.projection.project(
-            record,
-            stream,
-            self.memory,
-            bound(bytes)?,
-            self.read.maximum,
-        )?;
+        let values = self
+            .projection
+            .project(record, stream, bound(bytes)?, self.read.maximum)?;
         if values.memory_size() > bytes {
             return Err(Error::Corrupt("scan projection exceeded preclaim"));
         }

@@ -450,7 +450,7 @@ impl State {
                     }
                     entry.position().history.check(&through.history)?;
                     if let Some(filter) = &filter {
-                        if !filter.matches(&entry, &selection, &cut, &memory.0.memory, entry_bytes)? { continue; }
+                        if !filter.matches(&entry, &selection, &cut, entry_bytes)? { continue; }
                         if entries.len() == count || portable > limits.bytes.get().saturating_sub(bytes) {
                             if entries.is_empty() { return Err(Error::Data("first selected entry exceeds page byte bound")); }
                             return finish(Page { entries, has_more: true });

@@ -16,7 +16,6 @@
 use std::{
     collections::BTreeMap,
     num::{NonZeroU128, NonZeroUsize},
-    sync::Arc,
 };
 // Third Party Imports
 use harmos::{
@@ -27,7 +26,7 @@ use harmos::{
     storage::{SchemaKey, frame::*, reduce::*},
 };
 // Local Imports
-use crate::storage::sqlite::{Error, memory, query};
+use crate::storage::sqlite::{Error, query};
 use crate::{
     core::{EvidenceOrigin, RecordScope, Value},
     storage::records,
@@ -42,7 +41,6 @@ use crate::{
 /* === Structs === */
 pub(super) struct Row {
     value: Data,
-    _memory: memory::Reservation,
 }
 
 /* === Enums === */
@@ -127,24 +125,15 @@ impl Kind {
         field.check_schema(schema)?;
         Ok(())
     }
-    pub(super) fn decode(
-        self,
-        payload: &[u8],
-        memory: &Arc<memory::Budget>,
-        maximum: NonZeroUsize,
-    ) -> Result<Row, Error> {
+    pub(super) fn decode(self, payload: &[u8], maximum: NonZeroUsize) -> Result<Row, Error> {
         query::checkpoint()?;
         match self {
             Self::Record => {
-                let bytes = records::RecordRow::decoding_memory(payload).map_err(codec)?;
-                let _decoded = memory.reserve_owned(bytes, usize::MAX)?;
                 let row = records::RecordRow::from_bytes(payload, maximum.get()).map_err(codec)?;
                 let bytes = row.projection_memory().map_err(codec)?;
-                let admission = memory.reserve_owned(bytes, usize::MAX)?;
                 let record = row.into_entry(bound(bytes)?).map_err(codec)?;
                 Ok(Row {
                     value: Data::Record(record),
-                    _memory: admission,
                 })
             }
         }

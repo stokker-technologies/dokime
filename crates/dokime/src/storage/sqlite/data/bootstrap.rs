@@ -22,13 +22,13 @@ use std::{
 
 // Third Party Imports
 use harmos::storage::ObjectRetentionRelease;
-use harmos::{MemorySize, storage::*};
+use harmos::storage::*;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use super::super::{Error, State, memory, query};
+use super::super::{Error, State, query};
 use super::{Entry, blob, check_digest, entry, position, saved, sequence};
 
 /* === Constants === */
@@ -145,7 +145,6 @@ impl State {
         execution: Arc<query::Budget>,
         maximum: NonZeroUsize,
     ) -> Result<StorageCursor, Error> {
-        let memory = self.0.memory.clone();
         let state = self.clone();
         let limits = execution.limits;
         self.call_read(Some(execution), move |connection| {
@@ -171,9 +170,9 @@ impl State {
                         "private import policy changed after admission",
                     ));
                 }
-                verify_manifest(connection, &root, &manifest, &memory, maximum)?;
+                verify_manifest(connection, &root, &manifest, maximum)?;
                 super::bootstrap_files::install(connection, &root, manifest.identity())?;
-                publish(connection, &root, &import, &manifest, &memory, maximum)?;
+                publish(connection, &root, &import, &manifest, maximum)?;
                 cleanup_completed(connection, &root, manifest.identity())?;
                 Ok(manifest.identity().cut().clone())
             })())
@@ -213,7 +212,6 @@ fn publish(
     root: &Path,
     import: &Import,
     manifest: &BootstrapManifest,
-    memory: &Arc<memory::Budget>,
     maximum: NonZeroUsize,
 ) -> Result<(), Error> {
     let receipt = Completed {
@@ -301,8 +299,6 @@ fn publish(
             return Err(Error::Corrupt("private import entry exceeds backend bound"));
         }
         check_digest(body, blob(row, 2)?)?;
-        let _decoded =
-            memory.reserve_owned(Entry::decoding_bytes(kind, body.len())?, usize::MAX)?;
         let value = Entry::decode(kind, body)?;
         let typed = value.part().entries().next().expect("one typed entry");
         let length = entry::Encoded::encoded_bytes(typed, maximum.get())?;
@@ -590,7 +586,6 @@ fn verify_manifest(
     connection: &Connection,
     root: &Path,
     expected: &BootstrapManifest,
-    memory: &Arc<memory::Budget>,
     maximum: NonZeroUsize,
 ) -> Result<(), Error> {
     expected.check_complete()?;
@@ -630,10 +625,7 @@ fn verify_manifest(
                 return Err(Error::Corrupt("private import entry exceeds backend bound"));
             }
             check_digest(body, blob(row, 2)?)?;
-            let _decoded =
-                memory.reserve_owned(Entry::decoding_bytes(label, body.len())?, usize::MAX)?;
             let value = Entry::decode(label, body)?;
-            let typed = value.part().entries().next().expect("one typed entry");
             if index != position(value.position().sequence) || sequence(index)? == 0 {
                 return Err(Error::Corrupt("private import position index differs"));
             }
@@ -645,11 +637,6 @@ fn verify_manifest(
                     bytes: maximum,
                 },
             )?;
-            let canonical_bytes = body
-                .len()
-                .checked_mul(2)
-                .ok_or(Error::Data("private canonical entry size overflow"))?;
-            let _canonical = memory.reserve_owned(canonical_bytes, usize::MAX)?;
             let encoded = entry::Retained::new(
                 batch.part().entries().next().expect("one typed entry"),
                 maximum.get(),
@@ -657,7 +644,7 @@ fn verify_manifest(
             if encoded.body != body {
                 return Err(Error::Corrupt("private import entry is not canonical"));
             }
-            validate_dependencies(connection, &value, expected.identity(), memory, maximum)?;
+            validate_dependencies(connection, &value, expected.identity(), maximum)?;
             actual.record(batch)?;
         }
         actual.finish_collection(kind);
@@ -696,8 +683,6 @@ fn verify_manifest(
     while let Some(row) = rows.next()? {
         query::checkpoint()?;
         let body = blob(row, 0)?;
-        let _decoded =
-            memory.reserve_owned(Entry::decoding_bytes("file", body.len())?, usize::MAX)?;
         let Entry::File(reference) = Entry::decode("file", body)? else {
             unreachable!("file collection")
         };
@@ -733,11 +718,7 @@ fn verify_manifest(
     Ok(())
 }
 
-fn validate_schema(
-    schema: &StorageSchema,
-    identity: &BootstrapId,
-    memory: &Arc<memory::Budget>,
-) -> Result<(), Error> {
+fn validate_schema(schema: &StorageSchema, identity: &BootstrapId) -> Result<(), Error> {
     identity.cut().history.check(&schema.position.history)?;
     if schema.position.sequence == 0 || schema.position.sequence > identity.cut().sequence {
         return Err(Error::Corrupt("private import schema lies outside its cut"));
@@ -750,11 +731,6 @@ fn validate_schema(
         ))
     };
     let settings = harmos::config::SchemaSettings::default();
-    let bytes = schema
-        .schema
-        .validation_memory_bytes(&settings)
-        .map_err(failure)?;
-    let _validation = memory.reserve_owned(bytes, usize::MAX)?;
     schema.schema.prepare(&settings).map_err(failure)?;
     Ok(())
 }
@@ -763,20 +739,11 @@ fn validate_dependencies(
     connection: &Connection,
     entry: &Entry,
     identity: &BootstrapId,
-    memory: &Arc<memory::Budget>,
     maximum: NonZeroUsize,
 ) -> Result<(), Error> {
     let key = match entry {
         Entry::Schema(schema) => {
-            validate_schema(schema, identity, memory)?;
-            let _key = memory.reserve_owned(
-                schema
-                    .key
-                    .memory_size()
-                    .checked_mul(3)
-                    .ok_or(Error::Data("private schema lookup size overflow"))?,
-                usize::MAX,
-            )?;
+            validate_schema(schema, identity)?;
             let indexed: Option<String> = connection
                 .query_row(
                     "SELECT position FROM storage_bootstrap_schemas WHERE schema_key=?1 AND position=?2",
@@ -794,12 +761,6 @@ fn validate_dependencies(
         Entry::Stream(value) => &value.record.schema,
         Entry::File(_) => return Ok(()),
     };
-    let _key = memory.reserve_owned(
-        key.memory_size()
-            .checked_mul(3)
-            .ok_or(Error::Data("private schema lookup size overflow"))?,
-        usize::MAX,
-    )?;
     let mut statement = connection.prepare(
         "SELECT e.position,e.body,e.digest FROM storage_bootstrap_schemas s JOIN storage_bootstrap_entries e ON e.position=s.position WHERE s.schema_key=?1 AND e.kind='schema' AND e.position<?2 ORDER BY e.position DESC LIMIT 1",
     )?;
@@ -817,7 +778,6 @@ fn validate_dependencies(
         ));
     }
     check_digest(body, blob(row, 2)?)?;
-    let _schema = memory.reserve_owned(Entry::decoding_bytes("schema", body.len())?, usize::MAX)?;
     let schema: StorageSchema = serde_json::from_slice(body)?;
     let indexed: String = row.get(0)?;
     if schema.key != *key
@@ -826,7 +786,7 @@ fn validate_dependencies(
     {
         return Err(Error::Corrupt("private import schema dependency differs"));
     }
-    validate_schema(&schema, identity, memory)?;
+    validate_schema(&schema, identity)?;
     query::checkpoint()?;
     Ok(())
 }
