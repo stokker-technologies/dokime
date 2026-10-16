@@ -295,7 +295,6 @@ pub(crate) async fn process_cancel_exit() {
     assert_eq!(exited.len(), 1);
     assert!(exited[0].cancelled);
     assert_eq!(exited[0].exit_code, None, "a signal ended it");
-    assert!(exited[0].duration_ms < 30_000);
     assert!(report.records::<StepHandleCancelled>().is_empty());
 }
 

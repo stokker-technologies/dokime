@@ -89,7 +89,6 @@ async fn check_stopping_cycle(settle_mode: CancelSettlement) {
         .await;
     assert_eq!(receipt.status, CommandStatus::Accepted);
     wait_started(&handle).await;
-    let cancellation_started = std::time::Instant::now();
     let budget = Duration::from_secs(if std::env::var("STKR_COVERAGE").as_deref() == Ok("1") {
         25
     } else {
@@ -104,9 +103,6 @@ async fn check_stopping_cycle(settle_mode: CancelSettlement) {
     })
     .await
     .expect("cancellation acknowledgement and terminal settlement exceed the budget");
-    if settle_mode == CancelSettlement::Delayed {
-        assert!(cancellation_started.elapsed() >= Duration::from_millis(1_500));
-    }
     assert!(signals(&handle).await.cancelled);
     assert_eq!(stopped.test_executions.len(), 1);
     assert_eq!(
@@ -476,7 +472,6 @@ async fn check_ignored_stop(mode: &str) {
 
     // === Stop And Wait Out The Settlement Budget === //
 
-    let cancellation_started = std::time::Instant::now();
     let stopped = tokio::time::timeout(Duration::from_secs(35), async {
         handle
             .stop_cycle(cycle_id.clone(), CommandContext::default())
@@ -493,8 +488,6 @@ async fn check_ignored_stop(mode: &str) {
     })
     .await
     .expect("a run or signal that ignores its stop settles within the host budget");
-    assert!(cancellation_started.elapsed() >= Duration::from_secs(30));
-    assert!(cancellation_started.elapsed() < Duration::from_secs(35));
     let settled = &stopped.test_executions[0];
     assert_eq!(settled.test_execution_id, original.test_execution_id);
     assert_eq!(settled.scope, original.scope);

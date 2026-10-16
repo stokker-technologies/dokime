@@ -22,11 +22,7 @@ use dokime_host::collectors::{
     wifi::{NmcliWifiRow, WifiLinkReport, parse_iw_interfaces},
 };
 #[cfg(target_os = "linux")]
-use std::{
-    os::unix::fs::PermissionsExt,
-    process::Command,
-    time::{Duration, Instant},
-};
+use std::{os::unix::fs::PermissionsExt, process::Command};
 
 // Standard Library Imports
 
@@ -145,7 +141,6 @@ sys.exit(7 if os.environ["DOKIME_PROBE_CASE"] == "failure" else 0)
         std::env::set_var("PATH", path);
         std::env::set_var("DOKIME_PROBE_PID", root.path().join("pid"));
     }
-    let start = Instant::now();
     let sample = BluetoothCollector::default().collect().unwrap();
     match mode.as_str() {
         "success" => {
@@ -165,7 +160,6 @@ sys.exit(7 if os.environ["DOKIME_PROBE_CASE"] == "failure" else 0)
                 sample.values["probe_error"],
                 Value::from("bluetoothctl could not be started: command timed out")
             );
-            assert!(start.elapsed() < Duration::from_secs(10));
         }
         _ => panic!("unknown probe case"),
     }

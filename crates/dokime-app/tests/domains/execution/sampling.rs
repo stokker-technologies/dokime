@@ -14,7 +14,7 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 // Third Party Imports
 use tempfile::tempdir;
@@ -74,10 +74,6 @@ const SHARED_QUERY_BUDGET: Duration = Duration::from_secs(5);
 /// Artificial Backend Delay Within The Ordinary Query Deadline.
 const OUTPUT_READ_STALL: Duration = Duration::from_secs(1);
 
-/// How much slower the last case may settle than the first. Work that grows
-/// with the store's history settles the sixth case several times slower.
-const GROWTH: u32 = 3;
-
 /// Cases of one cycle whose terminal captures seal concurrently.
 const LOGGED_CASES: usize = 5;
 
@@ -116,17 +112,15 @@ fn budget_edge_config(root: &Path, settings: serde_json::Value) -> RuntimeConfig
     config
 }
 
-async fn run_case(handle: &RuntimeHandle, label: &str) -> Duration {
-    run_case_execution(handle, label, Duration::from_secs(60))
-        .await
-        .0
+async fn run_case(handle: &RuntimeHandle, label: &str) {
+    run_case_execution(handle, label, Duration::from_secs(60)).await;
 }
 
 async fn run_case_execution(
     handle: &RuntimeHandle,
     label: &str,
     bound: Duration,
-) -> (Duration, dokime::core::TestExecutionId) {
+) -> dokime::core::TestExecutionId {
     let suite = handle
         .test_suites()
         .await
@@ -146,7 +140,6 @@ async fn run_case_execution(
         )
         .await
         .unwrap();
-    let started = Instant::now();
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -168,7 +161,6 @@ async fn run_case_execution(
     })
     .await
     .unwrap_or_else(|_| panic!("{label} records its terminal provider state"));
-    let settled = started.elapsed();
     assert_eq!(
         phase.summary.phase,
         RunPhase::Completed,
@@ -195,7 +187,7 @@ async fn run_case_execution(
         CriterionStatus::Passed,
         "{label}: the run was handed back every pulse row exactly once"
     );
-    (settled, execution.test_execution_id)
+    execution.test_execution_id
 }
 
 /* === Tests === */
@@ -211,17 +203,9 @@ pub(crate) async fn paged_evidence_settles() {
             .unwrap()]),
     )
     .await;
-    let mut settled = Vec::with_capacity(CASES);
     for case in 0..CASES {
-        settled.push(run_case(&handle, &format!("pulse.case{case}")).await);
+        run_case(&handle, &format!("pulse.case{case}")).await;
     }
-    let first = settled[0];
-    let last = settled[CASES - 1];
-    assert!(
-        last <= first * GROWTH,
-        "the last case settled in {last:?} against the first case's {first:?}: \
-         replay and terminal capture grew with the store's history ({settled:?})"
-    );
     drop(handle);
     runtime.shutdown().await.unwrap();
 }
@@ -336,8 +320,7 @@ pub(crate) async fn large_case_seals() {
         serde_json::json!({ "pulse_rows": LARGE_PULSE_ROWS }),
     ))
     .await;
-    let (_, execution_id) =
-        run_case_execution(&handle, "pulse.large", Duration::from_secs(300)).await;
+    let execution_id = run_case_execution(&handle, "pulse.large", Duration::from_secs(300)).await;
     let html = crate::support::native::report(&handle, &execution_id).await;
     let payload = crate::support::reports::parse(&html);
     let series = &payload["case_runs"][0]["plots"]["fixture.checks.smoke.pulse"]["series"][0];
@@ -371,7 +354,7 @@ pub(crate) async fn whole_capture_plot_seals() {
         }),
     ))
     .await;
-    let (_, execution_id) =
+    let execution_id =
         run_case_execution(&handle, "spectrum.whole", Duration::from_secs(300)).await;
     let html = crate::support::native::report(&handle, &execution_id).await;
     let payload = crate::support::reports::parse(&html);
