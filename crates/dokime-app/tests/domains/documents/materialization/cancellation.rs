@@ -258,7 +258,7 @@ pub(crate) async fn stopped_report_boundary() {
     );
     let captured = crate::support::native::open(&runtime, &checkpoint)
         .await
-        .snapshot(runtime.storage())
+        .snapshot()
         .await
         .unwrap();
     let samples = crate::support::native::samples(&runtime, &checkpoint).await;

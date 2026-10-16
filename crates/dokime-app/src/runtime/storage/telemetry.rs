@@ -494,7 +494,7 @@ mod admission_tests {
     async fn later_refusal_preserves_the_accepted_prefix_without_replay() {
         let root = tempfile::tempdir().unwrap();
         let backend = Arc::new(
-            dokime::storage::sqlite::Backend::primary(root.path().to_owned())
+            dokime::storage::Backend::primary(root.path().to_owned())
                 .await
                 .unwrap(),
         );

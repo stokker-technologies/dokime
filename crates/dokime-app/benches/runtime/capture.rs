@@ -29,8 +29,8 @@ use harmos::{
     Identifier,
     state::Transaction,
     storage::{
-        ReadKind, ReadLimits, ReadSelection, ReadView, StorageBackend, StorageBatch, StorageCursor,
-        StoragePart, StorageSchema, StoreHistory, StoredRecord,
+        ScanPage, StorageBackend, StorageBatch, StorageCursor, StoragePart, StorageSchema,
+        StoredRecord, query::RecordSelection,
     },
 };
 use serde_json::{Value, json};
@@ -41,7 +41,7 @@ use tracing::{
 use tracing_subscriber::{Layer, layer::Context, prelude::*, registry::LookupSpan};
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits};
+use dokime::storage::sqlite::Backend;
 use dokime_app::{
     Runtime,
     records::{ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase},
@@ -318,23 +318,16 @@ async fn runtime(count: u64, timings: &AdmissionTimings) -> Duration {
 
 async fn direct_sqlite(count: u64, batch_size: usize) -> Duration {
     let root = tempfile::tempdir().unwrap();
-    let history = StoreHistory {
-        store: Identifier::new("bench").unwrap(),
-        epoch: Identifier::new("run").unwrap(),
-    };
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
+        .await
+        .unwrap();
+    backend.open().await.unwrap();
+    let history = backend.history().clone();
     let position = |sequence| StorageCursor {
         history: history.clone(),
         sequence,
     };
     let schema = dokime::storage::records::schema();
-    let backend = Backend::<()>::replica(
-        root.path().to_path_buf(),
-        Limits::default(),
-        history.clone(),
-    )
-    .await
-    .unwrap();
-    backend.open().await.unwrap();
     backend
         .write(
             StorageBatch::new(
@@ -407,38 +400,42 @@ async fn direct_sqlite(count: u64, batch_size: usize) -> Duration {
     let written = write_at.elapsed();
     let saved = backend.cursor_saved().await.unwrap();
     let replay_at = Instant::now();
-    let view = ReadView::new(
-        Identifier::new("benchmark.view").unwrap(),
-        saved.clone(),
-        saved.clone(),
-        backend.read_view(&saved).await.unwrap(),
-    )
-    .unwrap();
-    let selection = ReadSelection::new(ReadKind::Records);
-    let limits = ReadLimits {
-        rows: NonZeroUsize::new(256).unwrap(),
-        bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
+    let view = backend.open_snapshot(&saved).await.unwrap();
+    let selection = RecordSelection {
+        schema: schema.clone(),
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
     };
-    let mut cursor = None;
+    let mut after = 0;
     let mut received = 0;
     let mut pages = 0;
     loop {
         let page = backend
-            .read_records(&view, &selection, cursor.as_ref(), limits)
+            .read_records(
+                &view,
+                &selection,
+                ScanPage {
+                    after,
+                    rows: NonZeroUsize::new(256).unwrap(),
+                    bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
+                },
+            )
             .await
             .unwrap();
+        let Some(last) = page.last() else {
+            break;
+        };
         pages += 1;
-        for record in page.entries {
+        after = last.position.sequence;
+        for record in page {
             assert_eq!(record, records[received]);
             received += 1;
         }
-        cursor = page.next;
-        if cursor.is_none() {
-            break;
-        }
     }
     assert_eq!(received, records.len());
-    backend.release_view(view.snapshot()).await.unwrap();
+    backend.release_snapshot(&view).await.unwrap();
     let replayed = replay_at.elapsed();
     let final_files = storage_files(root.path());
     backend.close().await.unwrap();

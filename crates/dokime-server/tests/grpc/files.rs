@@ -656,9 +656,9 @@ async fn producer_generation_follow(runtime: &dokime_app::RuntimeHandle) {
     };
     let mut follower = storage.follow_file(&identity, 0).await.unwrap();
     let maximum = std::num::NonZeroUsize::new(64).unwrap();
-    let prefix = follower.next_chunk(maximum).await.unwrap().unwrap();
-    assert_eq!(prefix.as_bytes(), b"prefix-");
-    let mut retained = prefix.as_bytes().to_vec();
+    let prefix = follower.next_batch(maximum).await.unwrap().unwrap();
+    assert_eq!(prefix.bytes, b"prefix-");
+    let mut retained = prefix.bytes.clone();
     drop(prefix);
     assert_eq!(follower.offset(), 7);
     drop(producer);
@@ -675,15 +675,15 @@ async fn producer_generation_follow(runtime: &dokime_app::RuntimeHandle) {
     );
     resumed.write_all(b"suffix").await.unwrap();
     let sealed = resumed.finish().await.unwrap();
-    let suffix = tokio::time::timeout(Duration::from_secs(5), follower.next_chunk(maximum))
+    let suffix = tokio::time::timeout(Duration::from_secs(5), follower.next_batch(maximum))
         .await
         .unwrap()
         .unwrap()
         .unwrap();
-    assert_eq!(suffix.as_bytes(), b"suffix");
-    retained.extend_from_slice(suffix.as_bytes());
+    assert_eq!(suffix.bytes, b"suffix");
+    retained.extend_from_slice(&suffix.bytes);
     drop(suffix);
-    assert!(follower.next_chunk(maximum).await.unwrap().is_none());
+    assert!(follower.next_batch(maximum).await.unwrap().is_none());
     assert_eq!(follower.progress().phase, FilePhase::Finished);
     assert_eq!(follower.offset(), 13);
     assert_eq!(sealed.position.history, identity.history);
@@ -889,13 +889,12 @@ async fn live_follow_refusal(change: &str) {
 }
 
 pub(crate) async fn execution_file_buffer() {
-    // The boundary is the storage read memory budget: a snapshot of this file
-    // cannot be decoded within `decoded_bytes`, so the transfer must stream it
-    // in bounded chunks. Twice the budget crosses it with margin. The whole
-    // transfer runs inside one query computation (5 s by default), and the
-    // earlier 300 MiB workload needed 3.5 to 6.4 s under machine load, so a
-    // larger file measures the machine instead of the boundary.
-    let size_bytes = 2 * crate::common::budgets::story_settings().decoded_bytes.get() as u64;
+    // A file larger than one storage response batch must stream in bounded
+    // chunks; twice the batch crosses that boundary with margin.
+    let size_bytes = 2 * crate::common::budgets::story_settings()
+        .response
+        .batch_bytes
+        .get() as u64;
 
     let Gated {
         root: _root,

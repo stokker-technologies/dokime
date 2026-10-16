@@ -45,12 +45,17 @@ impl harmos::Application for ReportReader {
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn whole() -> harmos::storage::ByteRange {
+    harmos::storage::ByteRange {
+        offset: 0,
+        limit: None,
+    }
+}
 
 /* === Tests === */
 
 pub(crate) async fn report_save_receipt() {
     use dokime::execution::saved::ExecutionRevision;
-    use dokime::storage::sqlite::Limits;
     use dokime::storage::{
         Backend,
         objects::execution::{self, Execution},
@@ -70,15 +75,8 @@ pub(crate) async fn report_save_receipt() {
 
     let reads = crate::support::budgets::story_settings();
     let root = tempfile::tempdir().unwrap();
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Limits::default())
-            .await
-            .unwrap(),
-    );
-    let settings = reads.harmos(
-        Duration::from_secs(60),
-        NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
+    let settings = reads;
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -88,9 +86,7 @@ pub(crate) async fn report_save_receipt() {
         StorageBackends {
             primary,
             state: recovery,
-            replicas: vec![],
         },
-        // The Runtime Admits Its Configured Execution Read Budget.
         settings,
     )
     .unwrap();
@@ -232,47 +228,29 @@ pub(crate) async fn report_save_receipt() {
         context,
     };
     let before = manager.status().accepted;
-    let captured = manager
-        .produce(
-            NonZeroUsize::new(harmos::MemorySize::memory_size(&captured)).unwrap(),
-            |_| Ok(captured),
-        )
-        .unwrap()
-        .try_into_value()
-        .unwrap()
-        .try_into_shared()
-        .unwrap();
+    let captured = Arc::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
-    let outputs = manager
-        .produce(
-            NonZeroUsize::new(std::mem::size_of::<
-                Vec<dokime::execution::saved::ExecutionOutput>,
-            >())
-            .unwrap(),
-            |_| Ok(Vec::new()),
-        )
-        .unwrap()
-        .try_into_value()
-        .unwrap();
+    let outputs = Vec::new();
     let mut prepared = dokime_app::report::Renderer
-        .execution(manager.clone(), captured.clone(), outputs)
+        .execution(captured.clone(), outputs, &manager.cursor_saved())
         .unwrap();
     assert_eq!(manager.status().accepted, before);
     let sealed_at = finished_at;
     let original = prepared
-        .save_dependencies(&runtime.operations, &sealed_at, &revision)
+        .save_dependencies(&manager, &runtime.operations, &sealed_at, &revision)
         .await
         .unwrap();
     let saved = manager.status().saved;
     let repeated = prepared
-        .save_dependencies(&runtime.operations, &sealed_at, &revision)
+        .save_dependencies(&manager, &runtime.operations, &sealed_at, &revision)
         .await
         .unwrap();
-    assert_eq!(*original, *repeated);
+    assert_eq!(original, repeated);
     assert_eq!(manager.status().saved, saved);
     assert!(
         prepared
             .save_dependencies(
+                &manager,
                 &runtime.operations,
                 &Timestamp::new("2030-01-01T00:00:00Z"),
                 &revision
@@ -283,45 +261,28 @@ pub(crate) async fn report_save_receipt() {
     assert_eq!(manager.status().saved, saved);
 
     // Read The Original Native Captured File
-    let mut reader = manager.read_file(&original.source.context).await.unwrap();
-    let mut bytes = Vec::new();
-    while let Some(chunk) = reader
-        .next_chunk(NonZeroUsize::new(4096).unwrap())
+    let bytes = dokime::storage::read_file_bytes(&manager, &original.source.context)
         .await
-        .unwrap()
-    {
-        bytes.extend_from_slice(chunk.as_bytes());
-    }
+        .unwrap();
     assert!(!bytes.is_empty());
     assert_eq!(bytes.len() as u64, original.source.context.length);
     assert_eq!(
         sha2::Sha256::digest(&bytes).as_slice(),
         original.source.context.sha256.as_slice()
     );
-    drop(reader);
 
     // Flush The Seal's Own Original Receipt
     let mut sealed_execution = original_execution;
-    sealed_execution.saved = Some((*original).clone());
+    sealed_execution.saved = Some(original.clone());
     let sealed = Execution::try_from(&sealed_execution).unwrap();
-    let before_seal = manager
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
     let receipt = manager.write_object(&sealed).await.unwrap();
     execution::flush_seal(&manager, &sealed_execution, &receipt)
         .await
         .unwrap();
-    let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
-    let restored = execution::read_in(
+    let restored = execution::read(
         &manager,
-        &view,
         &sealed_execution.test_execution_id,
         ObjectVersion::Exact(receipt.version.clone()),
-        NonZeroUsize::new(1024 * 1024).unwrap(),
     )
     .await
     .unwrap()
@@ -360,23 +321,15 @@ pub(crate) async fn report_save_receipt() {
     assert_eq!(manager.status().accepted, accepted);
 
     // Inspect The Original Seal And Preserve Its Earlier Evidence Cut
-    let limit = NonZeroUsize::new(1024 * 1024).unwrap();
     let inspection = dokime_app::runtime::ExecutionView::open(
         &manager,
-        view.clone(),
         &sealed_execution.test_execution_id,
         ObjectVersion::Exact(receipt.version.clone()),
-        limit,
     )
     .await
     .unwrap()
     .unwrap();
-    assert!(
-        inspection
-            .checkpoint(NonZeroUsize::new(1).unwrap())
-            .is_err()
-    );
-    let checkpoint = inspection.checkpoint(limit).unwrap();
+    let checkpoint = inspection.checkpoint().unwrap();
     assert_eq!(checkpoint.position, receipt.position);
     assert_eq!(checkpoint.version, receipt.version);
     assert_eq!(
@@ -384,88 +337,50 @@ pub(crate) async fn report_save_receipt() {
         original.source.evidence_through
     );
     assert_ne!(checkpoint.position, checkpoint.evidence_through);
-    let reopened = dokime_app::runtime::ExecutionView::open_checkpoint(
-        &manager,
-        view.clone(),
-        &checkpoint,
-        limit,
-    )
-    .await
-    .unwrap()
-    .unwrap();
+    let reopened = dokime_app::runtime::ExecutionView::open_checkpoint(&manager, &checkpoint)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(reopened.execution(), &sealed_execution);
-    // Reopened Snapshots Keep Exact Context And Original Loan Identity.
+    // Reopened Snapshots Keep The Exact Captured Context.
     assert!(reopened.context().is_err());
     let accepted = manager.status().accepted;
-    let snapshot = reopened.snapshot(&manager).await.unwrap();
+    let snapshot = reopened.snapshot().await.unwrap();
     assert_eq!(snapshot.context().unwrap(), &captured.context);
     assert_eq!(
         snapshot.captured_at().unwrap(),
         &captured.input.generated_at
     );
     assert_eq!(snapshot.execution(), &sealed_execution);
-    assert_eq!(*snapshot.checkpoint(limit).unwrap(), *checkpoint);
-    let ceiling = snapshot.view().decoded_bytes().unwrap();
-    let oversized = NonZeroUsize::new(ceiling.get().checked_add(1).unwrap()).unwrap();
-    assert!(
-        snapshot
-            .project_context(oversized, |_, _| Ok(true))
-            .is_err()
-    );
-    let shared = snapshot.snapshot(&manager).await.unwrap();
+    assert_eq!(snapshot.checkpoint().unwrap(), checkpoint);
+    let shared = snapshot.snapshot().await.unwrap();
     assert!(std::ptr::eq(
         snapshot.context().unwrap(),
         shared.context().unwrap(),
     ));
     assert!(std::ptr::eq(snapshot.execution(), shared.execution()));
-    let matches = shared
-        .project_context(
-            NonZeroUsize::new(std::mem::size_of::<bool>()).unwrap(),
-            |context, _| Ok(context.notes[0].message == "Original operator note"),
-        )
-        .unwrap();
-    assert!(*matches);
-    drop(matches);
-    assert_eq!(manager.status().accepted, accepted);
-    let mut report = shared.read_file(&original.report).await.unwrap();
-    assert!(
-        report
-            .next_chunk(NonZeroUsize::new(1).unwrap())
-            .await
-            .unwrap()
-            .is_some()
+    assert_eq!(
+        shared.context().unwrap().notes[0].message,
+        "Original operator note"
     );
+    assert_eq!(manager.status().accepted, accepted);
+    let mut report = shared.read_file(&original.report, whole()).await.unwrap();
+    assert!(report.next().await.unwrap().is_some());
     drop(report);
     let mut foreign = original.report.clone();
     foreign.sha256[0] ^= 1;
-    assert!(shared.read_file(&foreign).await.is_err());
+    assert!(shared.read_file(&foreign, whole()).await.is_err());
     drop(shared);
     drop(snapshot);
-    assert!(
-        dokime_app::runtime::ExecutionView::open_checkpoint(
-            &manager,
-            before_seal,
-            &checkpoint,
-            limit,
-        )
-        .await
-        .unwrap()
-        .is_none()
-    );
 
     // Shape-Valid Cut Substitution And Unsealed Revisions Are Refused
-    let mut wrong_cut = (*checkpoint).clone();
+    let mut wrong_cut = checkpoint.clone();
     wrong_cut.evidence_through.sequence = 0;
     wrong_cut.validate().unwrap();
     assert!(
-        dokime_app::runtime::ExecutionView::open_checkpoint(
-            &manager,
-            view.clone(),
-            &wrong_cut,
-            limit,
-        )
-        .await
-        .is_err()
+        dokime_app::runtime::ExecutionView::open_checkpoint(&manager, &wrong_cut)
+            .await
+            .is_err()
     );
     let unsealed = dokime::execution::saved::ExecutionCheckpoint {
         execution_id: original.source.execution.execution_id.clone(),
@@ -474,32 +389,19 @@ pub(crate) async fn report_save_receipt() {
         evidence_through: original.source.evidence_through.clone(),
     };
     assert!(!matches!(
-        dokime_app::runtime::ExecutionView::open_checkpoint(
-            &manager,
-            view.clone(),
-            &unsealed,
-            limit,
-        )
-        .await,
+        dokime_app::runtime::ExecutionView::open_checkpoint(&manager, &unsealed).await,
         Ok(Some(_))
     ));
     drop(reopened);
     drop(checkpoint);
     drop(inspection);
-    assert_eq!(restored.value.saved, Some((*original).clone()));
+    assert_eq!(restored.value.saved, Some(original.clone()));
     drop(restored);
-    drop(view);
 
-    let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
-    let unchanged = execution::read_in(
+    let unchanged = execution::read(
         &manager,
-        &view,
         &sealed_execution.test_execution_id,
         ObjectVersion::Latest,
-        limit,
     )
     .await
     .unwrap()
@@ -507,7 +409,6 @@ pub(crate) async fn report_save_receipt() {
     assert_eq!(unchanged.value, sealed_execution);
     assert_eq!(unchanged.position, receipt.position);
     drop(unchanged);
-    drop(view);
     runtime.stop().await.unwrap();
 }
 
@@ -774,29 +675,25 @@ pub(crate) async fn cycle_report_reboot() {
             .cycles
             .is_empty()
     );
-    let query = harmos::storage::RecordQuery::new(
-        dokime::storage::records::schema(),
-        |bytes, allowance| {
-            dokime::storage::records::RecordRow::from_bytes(bytes, allowance.get()).map_err(
-                |source| {
-                    harmos::Error::backend(
-                        "read saved records",
-                        harmos::BackendFailure::Corrupt,
-                        source,
-                    )
-                },
-            )
-        },
-    );
-    let mut reader = handle.storage().query(query).await.unwrap();
+    let mut reader = dokime::storage::rows::Rows::<harmos::storage::StoredRecord>::open::<
+        dokime::storage::records::RecordRow,
+    >(
+        handle.storage(),
+        handle.storage().cursor_saved(),
+        harmos::storage::query::Source::Records(harmos::storage::query::RecordSelection {
+            schema: dokime::storage::records::schema(),
+            scope: None,
+            item: None,
+            source_start: None,
+            source_end: None,
+        }),
+    )
+    .await
+    .unwrap();
     let mut after = Vec::new();
-    while let Some(page) = reader.next_page().await.unwrap() {
-        for row in page.iter() {
-            let entry = row
-                .payload
-                .clone()
-                .into_entry(std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap())
-                .unwrap();
+    while let Some(batch) = reader.next().await.unwrap() {
+        for row in batch {
+            let entry = dokime::storage::records::RecordRow::decode_entry(&row.payload).unwrap();
             after.push((entry.record_id.clone(), entry.record_type.to_string()));
         }
     }
@@ -810,27 +707,20 @@ pub(crate) async fn cycle_report_reboot() {
     // constructing a live cycle to read it from.
     assert_eq!(
         handle
-            .execution_checkpoint_context(checkpoint, |context, _| Ok(context
-                .cycle
-                .cycle
-                .created_at))
+            .execution_checkpoint_context(checkpoint)
             .await
             .unwrap()
+            .cycle
+            .cycle
+            .created_at
             .as_str(),
         created.as_str(),
         "the checkpoint preserves the original wall-clock created_at",
     );
-    let view = handle
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
-    let stored = dokime::storage::objects::cycle::read_in(
+    let stored = dokime::storage::objects::cycle::read(
         handle.storage(),
-        &view,
         &id,
         harmos::storage::ObjectVersion::Latest,
-        view.decoded_bytes().unwrap(),
     )
     .await
     .unwrap()
@@ -842,7 +732,6 @@ pub(crate) async fn cycle_report_reboot() {
         "reboot reads the original verified report without rendering another revision",
     );
     drop(stored);
-    drop(view);
     drop(handle);
     rebooted.shutdown().await.unwrap();
 }

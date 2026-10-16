@@ -158,16 +158,11 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
                                 "inspection must remain unsealed"
                             );
                             // Validate The Published Payload Outside The Timed Region.
-                            let mut reader = runtime.storage().read_file(&report.report).await.unwrap();
-                            let mut bytes = Vec::new();
-                            while let Some(batch) = reader.next_chunk(NonZeroUsize::new(64 * 1024).unwrap()).await.unwrap() {
-                                bytes.extend_from_slice(batch.as_bytes());
-                            }
+                            let bytes = dokime::storage::read_file_bytes(runtime.storage(), &report.report).await.unwrap();
                             let html = String::from_utf8(bytes).unwrap();
                             let json = html.split_once(r#"<script id="hub-report-data" type="application/json">"#).unwrap().1.split_once("</script>").unwrap().0;
                             let payload: serde_json::Value = serde_json::from_str(json).unwrap();
                             assert!(plot_payload_count(&payload) >= 5, "steady report must materialize its five measurement plots");
-                            drop(reader);
                             black_box(&report.report);
                             drop(report);
                             tokio::time::timeout(SETTLE, settle(&runtime, &cycle, &request)).await.expect("benchmark cycle seals after measurement");

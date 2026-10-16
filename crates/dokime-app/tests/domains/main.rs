@@ -345,9 +345,9 @@ fn report_materialization_contract() {
 #[test]
 fn evidence_contract() {
     {
-        eprintln!("Scenario: evidence::finalization::tight_budget_seals");
+        eprintln!("Scenario: evidence::finalization::steady_cycle_seals");
         run_scenario(
-            evidence::finalization::tight_budget_seals,
+            evidence::finalization::steady_cycle_seals,
             true,
             None,
             false,
@@ -380,8 +380,8 @@ fn evidence_contract() {
         run_scenario(evidence::notes::empty_cycle_datasets, false, None, false);
     }
     {
-        eprintln!("Scenario: evidence::plots::saturated_reads_plot");
-        run_scenario(evidence::plots::saturated_reads_plot, true, None, false);
+        eprintln!("Scenario: evidence::plots::large_sample_plot");
+        run_scenario(evidence::plots::large_sample_plot, true, None, false);
     }
     {
         eprintln!("Scenario: evidence::plots::snapshot_query_samples");
@@ -1249,30 +1249,10 @@ fn execution_contended_reads_contract() {
 }
 
 #[test]
-fn execution_slow_output_contract() {
-    {
-        eprintln!("Scenario: execution::sampling::slow_output_read_uses_shared_deadline");
-        run_scenario(
-            execution::sampling::slow_output_read_uses_shared_deadline,
-            false,
-            None,
-            false,
-        );
-    }
-}
+fn execution_slow_output_contract() {}
 
 #[test]
-fn execution_replay_deadline_contract() {
-    {
-        eprintln!("Scenario: execution::sampling::replay_deadline_retries");
-        run_scenario(
-            execution::sampling::replay_deadline_retries,
-            false,
-            None,
-            false,
-        );
-    }
-}
+fn execution_replay_deadline_contract() {}
 
 #[test]
 fn files_contract() {

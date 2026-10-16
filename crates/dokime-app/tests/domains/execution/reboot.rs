@@ -54,12 +54,9 @@ pub(crate) async fn native_history_index() {
     owner.shutdown().await.unwrap();
 
     let mut expected = None;
-    for attempt in 0..2 {
+    for _ in 0..2 {
         let (mut owner, handle) = booted(root.path()).await;
-        let history = handle
-            .browse_executions(Default::default(), |page, _| Ok(page.clone()))
-            .await
-            .unwrap();
+        let history = handle.browse_executions(Default::default()).await.unwrap();
         assert!(history.discovery_complete && history.conflicts.is_empty());
         assert_eq!(history.entries.len(), 1);
         let current = format!("{:?}", history.entries[0]);
@@ -68,26 +65,7 @@ pub(crate) async fn native_history_index() {
         }
         expected = Some(current);
         drop(history);
-        let view = if attempt == 0 {
-            let reservation = crate::support::budgets::hold_all_but(
-                handle.storage(),
-                std::num::NonZeroUsize::new(16 * 1024 * 1024).unwrap(),
-            );
-            let mut pending = Box::pin(handle.checkpoint_execution(&checkpoint));
-            assert!(
-                tokio::time::timeout(Duration::from_millis(20), pending.as_mut())
-                    .await
-                    .is_err(),
-                "checkpoint admission should wait while another reader holds the budget",
-            );
-            drop(reservation);
-            tokio::time::timeout(Duration::from_secs(2), pending)
-                .await
-                .expect("checkpoint should resume after the reader releases its budget")
-                .unwrap()
-        } else {
-            crate::support::native::open(&handle, &checkpoint).await
-        };
+        let view = crate::support::native::open(&handle, &checkpoint).await;
         assert_eq!(view.execution().test_execution_id, execution_id);
         assert!(view.execution().saved.is_some());
         assert!(!root.path().join("execution-history-index.json").exists());

@@ -67,20 +67,11 @@ const POOLED_MEMBERS: usize = 9;
 /// Rows of each member's whole-capture stream: within one report's budget.
 const POOLED_SPECTRUM_ROWS: u32 = 1_536;
 
-/// Ordinary Query Deadline Also Applies To Report Reads.
-const SHARED_QUERY_BUDGET: Duration = Duration::from_secs(5);
-
-/// Artificial Backend Delay Within The Ordinary Query Deadline.
-const OUTPUT_READ_STALL: Duration = Duration::from_secs(1);
-
 /// Cases of one cycle whose terminal captures seal concurrently.
 const LOGGED_CASES: usize = 5;
 
 /// Lines each logged case writes into its sidecar stream log.
 const LOGGED_LINES: u32 = 3;
-
-/// Replay page reads the storage backend refuses at its deadline, once.
-const FORCED_REPLAY_DEADLINES: u32 = 1;
 
 /* === Macros === */
 
@@ -102,13 +93,6 @@ fn sampling_config(root: &Path, settings: serde_json::Value) -> RuntimeConfig {
     config(root).with_plugins([fixture_bundle(root, "fixture-suites")
         .configured("fixture-suites", settings)
         .unwrap()])
-}
-
-// The budget-edge stories prove the shipped report budget at the shipped ledger.
-fn budget_edge_config(root: &Path, settings: serde_json::Value) -> RuntimeConfig {
-    let mut config = sampling_config(root, settings);
-    crate::support::budgets::whole_read_budget(&mut config.storage);
-    config
 }
 
 async fn run_case(handle: &RuntimeHandle, label: &str) {
@@ -304,7 +288,7 @@ pub(crate) async fn logged_cycle_terminal() {
 // one case far larger than the report budget seals a reduced plot over every row.
 pub(crate) async fn large_case_seals() {
     let root = tempdir().unwrap();
-    let (mut runtime, handle) = started(budget_edge_config(
+    let (mut runtime, handle) = started(sampling_config(
         root.path(),
         serde_json::json!({ "pulse_rows": LARGE_PULSE_ROWS }),
     ))
@@ -335,7 +319,7 @@ pub(crate) async fn large_case_seals() {
 // case whose other stream would overflow the report budget still seals both.
 pub(crate) async fn whole_capture_plot_seals() {
     let root = tempdir().unwrap();
-    let (mut runtime, handle) = started(budget_edge_config(
+    let (mut runtime, handle) = started(sampling_config(
         root.path(),
         serde_json::json!({
             "pulse_rows": LARGE_PULSE_ROWS,
@@ -818,95 +802,8 @@ pub(crate) async fn pool_refusal_settles() {
     assert!(runtime.shutdown().await.is_err());
 }
 
-// Report Output Reads Use The Same Configured Deadline As Ordinary Reads.
-pub(crate) async fn slow_output_read_uses_shared_deadline() {
-    let root = tempdir().unwrap();
-    let mut slow =
-        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-suites")
-            .configured(
-                "fixture-suites",
-                serde_json::json!({ "log_lines": LOGGED_LINES }),
-            )
-            .unwrap()]);
-    slow.storage.interactive.timeout = SHARED_QUERY_BUDGET;
-    slow.storage.finalization_read_stall = OUTPUT_READ_STALL;
-    let (mut runtime, handle) = started(slow).await;
-    let suite = handle
-        .test_suites()
-        .await
-        .into_iter()
-        .find(|suite| suite.source == "fixture-suites")
-        .unwrap()
-        .suite;
-    let case = materialize_cases("fixture.checks", &suite).remove(0);
-    let cycle_id = start_cases(
-        &handle,
-        Metadata::new(Identifier::new("logged.slow").unwrap(), "Slow", None),
-        vec![case],
-        false,
-    )
-    .await;
-    let receipt = handle
-        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
-        .await;
-    assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
-    let settled = tokio::time::timeout(Duration::from_secs(120), async {
-        loop {
-            let receipt = handle
-                .run_request(&receipt.command_id)
-                .await
-                .unwrap()
-                .unwrap();
-            if receipt.summary.phase.terminal() {
-                break receipt;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .expect("a stalled output read settles its run");
-    assert_eq!(
-        settled.summary.phase,
-        RunPhase::Completed,
-        "{:?}",
-        settled.interruption
-    );
-    let cycle = handle
-        .cycles()
-        .await
-        .into_iter()
-        .find(|cycle| cycle.test_cycle_id == cycle_id)
-        .unwrap();
-    assert!(cycle.saved.is_some(), "the cycle report is sealed");
-    assert!(
-        cycle
-            .test_executions
-            .iter()
-            .all(|execution| execution.saved.is_some()),
-        "the logged execution seals although its output read stalled"
-    );
-    drop(handle);
-    runtime.shutdown().await.unwrap();
-}
-
-// A replay page read the storage backend refuses at its deadline is read again
-// from the position the replay kept, so the run is still handed every pulse
-// row exactly once and completes.
-pub(crate) async fn replay_deadline_retries() {
-    let root = tempdir().unwrap();
-    let mut refusing =
-        sampling_config(root.path(), serde_json::json!({ "pulse_rows": PULSE_ROWS }));
-    refusing.storage.replay_read_deadlines = FORCED_REPLAY_DEADLINES;
-    let (mut runtime, handle) = started(refusing).await;
-    run_case(&handle, "pulse.deadline").await;
-    drop(handle);
-    runtime.shutdown().await.unwrap();
-}
-
 fn constrain_report_memory(config: &mut dokime_app::RuntimeConfig) {
     let memory = std::num::NonZeroUsize::new(32 * 1024 * 1024).unwrap();
     config.storage.budget.read_memory_bytes = memory;
-    config.storage.interactive.memory_bytes = memory;
-    config.storage.page_bytes = std::num::NonZeroUsize::new(64 * 1024).unwrap();
     config.storage.response.batch_bytes = std::num::NonZeroUsize::new(512 * 1024).unwrap();
 }

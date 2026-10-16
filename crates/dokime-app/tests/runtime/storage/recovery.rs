@@ -137,10 +137,7 @@ async fn resident(handle: &RuntimeHandle, cycle_id: &TestCycleId) -> bool {
 
 // Every Sealed Member Reopens From Native History With Its Wide Aggregates
 async fn assert_history(handle: &RuntimeHandle, cycles: &[&CycleView], entries: usize) {
-    let history = handle
-        .browse_executions(Default::default(), |page, _| Ok(page.clone()))
-        .await
-        .unwrap();
+    let history = handle.browse_executions(Default::default()).await.unwrap();
     assert!(history.discovery_complete && history.conflicts.is_empty());
     assert_eq!(history.entries.len(), entries);
     drop(history);

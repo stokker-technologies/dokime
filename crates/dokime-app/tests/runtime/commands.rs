@@ -211,48 +211,30 @@ async fn kill_recovers_cycle() {
 
     // The Saved Cycle Retains Admission Even After It Leaves The Live Registry.
     let (mut runtime_owner, runtime) = booted(root.path()).await;
-    let mut query = runtime
-        .storage()
-        .query(harmos::storage::ObjectQuery::<
-            dokime::storage::objects::cycle::Cycle,
-        >::new())
-        .await
-        .unwrap();
-    let cycle = query
-        .next_page_projected(
-            std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-            |entries, _| {
-                assert_eq!(entries.len(), 1);
-                Ok(entries[0]
-                    .value
-                    .restore()
-                    .expect("saved cycle is canonical"))
-            },
-        )
-        .await
-        .unwrap()
-        .expect("admitted cycle remains saved");
+    let cycles = dokime::storage::rows::objects::<dokime::storage::objects::cycle::Cycle>(
+        runtime.storage(),
+        None,
+        harmos::storage::query::ObjectVersions::Latest,
+        Vec::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(cycles.len(), 1, "admitted cycle remains saved");
+    let cycle = dokime::execution::TestCycle::try_from(cycles[0].value.clone())
+        .expect("saved cycle is canonical");
     assert_eq!(cycle.metadata.identifier.as_str(), "fixture.cycle");
     assert!(cycle.execution_ids.is_empty());
     assert_eq!(cycle.lifecycle, CycleStatus::Ready);
     let id = cycle.test_cycle_id.clone();
     drop(cycle);
-    drop(query);
     drop(runtime);
     runtime_owner.shutdown().await.unwrap();
 
     let (mut runtime_owner, runtime) = booted(root.path()).await;
-    let view = runtime
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
-    let cycle = dokime::storage::objects::cycle::read_in(
+    let cycle = dokime::storage::objects::cycle::read(
         runtime.storage(),
-        &view,
         &id,
         harmos::storage::ObjectVersion::Latest,
-        std::num::NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
     )
     .await
     .unwrap()
@@ -261,7 +243,6 @@ async fn kill_recovers_cycle() {
     assert_eq!(cycle.value.lifecycle, CycleStatus::Stopped);
     assert!(cycle.value.execution_ids.is_empty());
     drop(cycle);
-    drop(view);
     drop(runtime);
     runtime_owner.shutdown().await.unwrap();
 }

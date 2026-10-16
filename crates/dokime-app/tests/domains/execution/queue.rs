@@ -281,10 +281,7 @@ pub(crate) async fn running_queued_counts() {
     let browsed = |runtime: RuntimeHandle| {
         let test_cycle_id = test_cycle_id.clone();
         async move {
-            let page = runtime
-                .browse_executions(Default::default(), |page, _| Ok(page.clone()))
-                .await
-                .unwrap();
+            let page = runtime.browse_executions(Default::default()).await.unwrap();
             page.cycles
                 .iter()
                 .find(|cycle| cycle.cycle_id == test_cycle_id)

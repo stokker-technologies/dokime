@@ -24,7 +24,6 @@ use sha2::Digest;
 use dokime::execution::saved::ExecutionRevision;
 use dokime::execution::{HealthItem, OperatorNote};
 use dokime::records::RecordContract;
-use dokime::storage::sqlite::Limits;
 use dokime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime::telemetry::contract::TelemetryContract;
 use dokime_app::report::{CycleReportInput, saved::CapturedExecutionReportInput};
@@ -73,19 +72,9 @@ pub fn register_storage(operations: &harmos::operations::OperationManager, manag
 }
 
 pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
-    let view = manager
-        .view_with_limits(crate::support::budgets::story_settings().finalization())
+    let bytes = dokime::storage::read_file_bytes(manager, file)
         .await
         .unwrap();
-    let mut reader = view.read_file(file).await.unwrap();
-    let mut bytes = Vec::new();
-    while let Some(chunk) = reader
-        .next_chunk(NonZeroUsize::new(64 * 1024).unwrap())
-        .await
-        .unwrap()
-    {
-        bytes.extend_from_slice(chunk.as_bytes());
-    }
     assert_eq!(bytes.len() as u64, file.length);
     assert_eq!(
         sha2::Sha256::digest(&bytes).as_slice(),
@@ -132,15 +121,8 @@ pub async fn render_annotated(
     assert_eq!(input.cycle.test_executions.len(), 1);
 
     let root = tempfile::tempdir().unwrap();
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Limits::default())
-            .await
-            .unwrap(),
-    );
-    let settings = crate::support::budgets::story_settings().harmos(
-        Duration::from_secs(60),
-        std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
+    let settings = crate::support::budgets::story_settings();
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -150,7 +132,6 @@ pub async fn render_annotated(
         StorageBackends {
             primary,
             state: recovery,
-            replicas: vec![],
         },
         settings,
     )
@@ -232,49 +213,24 @@ pub async fn render_annotated(
     };
 
     // Prepare, Save, And Read Back The Stored Report
-    let captured = manager
-        .produce(
-            NonZeroUsize::new(harmos::MemorySize::memory_size(&captured)).unwrap(),
-            |_| Ok(captured),
-        )
-        .unwrap()
-        .try_into_value()
-        .unwrap()
-        .try_into_shared()
-        .unwrap();
+    let captured = Arc::new(captured);
     let revision = captured.execution.as_ref().unwrap().clone();
-    let outputs = manager
-        .produce(
-            NonZeroUsize::new(std::mem::size_of::<
-                Vec<dokime::execution::saved::ExecutionOutput>,
-            >())
-            .unwrap(),
-            |_| Ok(Vec::new()),
-        )
-        .unwrap()
-        .try_into_value()
-        .unwrap();
+    let outputs = Vec::new();
     let mut prepared = dokime_app::report::Renderer
-        .execution(manager.clone(), captured, outputs)
+        .execution(captured, outputs, &manager.cursor_saved())
         .unwrap();
     let seal = prepared
         .save_dependencies(
+            &manager,
             &owner.operations,
             &execution.finished_at.clone().unwrap(),
             &revision,
         )
         .await
         .unwrap();
-    let mut reader = manager.read_file(&seal.report).await.unwrap();
-    let mut html = Vec::new();
-    while let Some(chunk) = reader
-        .next_chunk(NonZeroUsize::new(64 * 1024).unwrap())
+    let html = dokime::storage::read_file_bytes(&manager, &seal.report)
         .await
-        .unwrap()
-    {
-        html.extend_from_slice(chunk.as_bytes());
-    }
-    drop(reader);
+        .unwrap();
     let html = String::from_utf8(html).unwrap();
     drop(prepared);
     owner.stop().await.unwrap();

@@ -9,7 +9,6 @@
 
 /* === Modules === */
 mod capture;
-mod frames;
 mod report;
 mod storage;
 
@@ -35,7 +34,6 @@ criterion_group! {
     config = benchmark_config();
     targets =
         capture::benchmark,
-        frames::benchmark,
         report::benchmark,
         storage::benchmark,
         bench_evidence_selection_and_materialization

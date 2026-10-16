@@ -44,12 +44,8 @@ use dokime::domains::ActionDispatcher;
 
 /* === Type Aliases === */
 #[cfg(test)]
-type BackendDecorator = Box<
-    dyn FnOnce(
-            harmos::storage::StorageBackends<dokime::storage::objects::Objects>,
-        ) -> harmos::storage::StorageBackends<dokime::storage::objects::Objects>
-        + Send,
->;
+type BackendDecorator =
+    Box<dyn FnOnce(harmos::storage::StorageBackends) -> harmos::storage::StorageBackends + Send>;
 
 pub(crate) type InstalledPlugins = BTreeMap<String, InstalledPlugin>;
 

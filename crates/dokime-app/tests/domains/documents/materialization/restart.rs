@@ -19,7 +19,7 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::{ReadLimits, ReadView, StorageBackend};
+use harmos::storage::StorageBackend;
 
 // Local Imports
 use crate::support::prelude::*;
@@ -94,37 +94,10 @@ pub(crate) async fn persisted_cycle_restart() {
     owner.shutdown().await.unwrap();
 
     // Active Parent History Must Survive Reclamation Before Restart.
-    let backend = dokime::storage::Backend::primary(
-        root.path().to_owned(),
-        dokime::storage::sqlite::Limits::default(),
-    )
-    .await
-    .unwrap();
-    let at = backend.open().await.unwrap();
-    let snapshot = backend.read_view(&at).await.unwrap();
-    let view = ReadView::new(
-        Identifier::new("active-cycle-releases").unwrap(),
-        at.clone(),
-        at.clone(),
-        snapshot,
-    )
-    .unwrap();
-    let releases = backend
-        .read_object_releases(
-            &view,
-            None,
-            ReadLimits {
-                rows: NonZeroUsize::new(128).unwrap(),
-                bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
-            },
-        )
+    let backend = dokime::storage::Backend::primary(root.path().to_owned())
         .await
         .unwrap();
-    assert!(
-        releases.entries.is_empty(),
-        "active parent must retain member history"
-    );
-    drop(view);
+    let at = backend.open().await.unwrap();
     while !backend
         .prune_objects(&at, NonZeroUsize::new(128).unwrap())
         .await

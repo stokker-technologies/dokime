@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod backend;
 pub mod budgets;
 pub mod bundles;
 pub mod contracts;

@@ -163,53 +163,27 @@ async fn managed_records_kill() {
     drop(runtime);
     owner.shutdown().await.unwrap();
 
-    use harmos::storage::{ReadKind, ReadLimits, ReadSelection, ReadView, StorageBackend};
-    let backend = dokime::storage::sqlite::Backend::<()>::primary(
-        config(root.path()).storage_root,
-        dokime::storage::sqlite::Limits::default(),
-    )
-    .await
-    .unwrap();
+    use harmos::storage::StorageBackend;
+    let backend = dokime::storage::Backend::primary(config(root.path()).storage_root)
+        .await
+        .unwrap();
     let saved = backend.cursor_saved().await.unwrap();
-    let view = ReadView::new(
-        Identifier::new("fixture.record-positions").unwrap(),
-        saved.clone(),
-        saved.clone(),
-        backend.read_view(&saved).await.unwrap(),
-    )
-    .unwrap();
-    let mut selection = ReadSelection::new(ReadKind::Records);
-    selection.schema = Some(dokime::storage::records::schema());
-    let limits = ReadLimits {
-        rows: 16.try_into().unwrap(),
-        bytes: (1024 * 1024).try_into().unwrap(),
-    };
-    let mut cursor = None;
     let mut count = 0;
     let mut identities = std::collections::BTreeSet::new();
     let mut positions = std::collections::BTreeSet::new();
-    loop {
-        let page = backend
-            .read_records(&view, &selection, cursor.as_ref(), limits)
-            .await
-            .unwrap();
-        for row in page.entries {
-            let record =
-                dokime::storage::records::decode(&row.payload, limits.bytes.get()).unwrap();
-            if record.source != "runtime"
-                || record.record_type.as_str() != "calibration.field.completed"
-            {
-                continue;
-            }
-            assert_eq!(row.item.as_str(), record.record_id.as_str());
-            count += 1;
-            identities.insert(record.record_id.clone());
-            positions.insert(record.sequence);
+    for row in
+        crate::support::backend::records(&backend, &saved, dokime::storage::records::schema()).await
+    {
+        let record = dokime::storage::records::RecordRow::decode_entry(&row.payload).unwrap();
+        if record.source != "runtime"
+            || record.record_type.as_str() != "calibration.field.completed"
+        {
+            continue;
         }
-        cursor = page.next;
-        if cursor.is_none() {
-            break;
-        }
+        assert_eq!(row.item.as_str(), record.record_id.as_str());
+        count += 1;
+        identities.insert(record.record_id.clone());
+        positions.insert(record.sequence);
     }
     assert_eq!(
         count, 64,
@@ -221,14 +195,12 @@ async fn managed_records_kill() {
         64,
         "managed journal positions survive the kill"
     );
-    backend.release_view(view.snapshot()).await.unwrap();
     backend.close().await.unwrap();
 }
 
 async fn record_position_writer(root: PathBuf) {
     let executor = Arc::new(BlockingPublishingExecutor::new());
     let mut settings = config(&root);
-    settings.save_interval = Duration::from_secs(3600);
     let (_owner, runtime) = started_with_fixture(settings, executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;

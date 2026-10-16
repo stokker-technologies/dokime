@@ -19,14 +19,13 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::MemorySize;
-use harmos::storage::{ReadLimits, ReadView, StorageBackend, StorageBackends};
+use harmos::storage::{StorageBackend, StorageBackends};
 
 // Local Imports
 use crate::support::prelude::*;
 use crate::support::publication::{PublicationBackend, PublicationFault};
 use dokime::execution::saved::ExecutionRevision;
-use dokime::storage::{Backend, Manager, objects::execution::Execution, sqlite::Limits};
+use dokime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime_app::report::saved::CapturedExecutionReportInput;
 
 /* === Constants === */
@@ -103,58 +102,35 @@ pub(crate) async fn dependency_publication_retry() {
     source_owner.shutdown().await.unwrap();
 
     // A Durable Parent Seal Releases History For Both The Cycle And Its Member.
-    let backend = Backend::primary(source_root.path().to_owned(), Limits::default())
+    let backend = Backend::primary(source_root.path().to_owned())
         .await
         .unwrap();
-    let saved = backend.open().await.unwrap();
-    let snapshot = backend.read_view(&saved).await.unwrap();
-    let view = ReadView::new(
-        Identifier::new("sealed-cycle-releases").unwrap(),
-        saved.clone(),
-        saved.clone(),
-        snapshot,
-    )
-    .unwrap();
-    let releases = backend
-        .read_object_releases(
-            &view,
-            None,
-            ReadLimits {
-                rows: NonZeroUsize::new(128).unwrap(),
-                bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
-            },
-        )
+    backend.open().await.unwrap();
+    let released = backend
+        .local_state()
+        .call(|connection| {
+            let mut statement = connection.prepare("SELECT item FROM storage_object_releases")?;
+            let items = statement
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(items)
+        })
         .await
         .unwrap();
+    assert!(released.iter().any(|item| item == cycle_id.as_str()));
     assert!(
-        releases
-            .entries
+        released
             .iter()
-            .any(|release| release.item.as_str() == cycle_id.as_str())
+            .any(|item| item == template.execution_id.as_str())
     );
-    assert!(
-        releases
-            .entries
-            .iter()
-            .any(|release| release.item.as_str() == template.execution_id.as_str())
-    );
-    drop(view);
     backend.close().await.unwrap();
     drop(backend);
 
     for suffix in [".context", ".report"] {
         let root = tempdir().unwrap();
-        let primary = Arc::new(
-            Backend::primary(root.path().to_owned(), Limits::default())
-                .await
-                .unwrap(),
-        );
+        let primary = Arc::new(Backend::primary(root.path().to_owned()).await.unwrap());
         let fault = Arc::new(PublicationFault::new(suffix));
-        let mut settings = crate::support::budgets::story_settings().harmos(
-            Duration::from_secs(60),
-            NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
-        );
-        settings.max_retries = 0;
+        let settings = crate::support::budgets::story_settings();
         let state = Arc::new(harmos::storage::state::file::FileBackend::new(
             root.path().to_owned(),
             harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -165,7 +141,6 @@ pub(crate) async fn dependency_publication_retry() {
             StorageBackends {
                 primary: backend,
                 state,
-                replicas: vec![],
             },
             settings,
         )
@@ -191,33 +166,15 @@ pub(crate) async fn dependency_publication_retry() {
         input.evidence_through = receipt.position.clone();
         manager.flush_until(&receipt.position).await.unwrap();
         let boundary = input.evidence_through.clone();
-        let input = manager
-            .produce(NonZeroUsize::new(input.memory_size()).unwrap(), |_| {
-                Ok(input)
-            })
-            .unwrap()
-            .try_into_value()
-            .unwrap()
-            .try_into_shared()
-            .unwrap();
-        let outputs = manager
-            .produce(
-                NonZeroUsize::new(std::mem::size_of::<
-                    Vec<dokime::execution::saved::ExecutionOutput>,
-                >())
-                .unwrap(),
-                |_| Ok(Vec::new()),
-            )
-            .unwrap()
-            .try_into_value()
-            .unwrap();
+        let input = Arc::new(input);
+        let outputs = Vec::new();
         let mut report = dokime_app::report::Renderer
-            .execution(manager.clone(), input, outputs)
+            .execution(input, outputs, &manager.cursor_saved())
             .unwrap();
         let sealed_at = execution.finished_at.as_ref().unwrap();
         assert!(
             report
-                .save_dependencies(&owner.operations, sealed_at, &revision)
+                .save_dependencies(&manager, &owner.operations, sealed_at, &revision)
                 .await
                 .is_err(),
             "{suffix} must interrupt dependency publication"
@@ -238,7 +195,6 @@ pub(crate) async fn dependency_publication_retry() {
             .read_object::<Execution>(
                 execution.test_execution_id.as_str(),
                 harmos::storage::ObjectVersion::Latest,
-                crate::support::budgets::story_settings().decoded_bytes,
             )
             .await
             .unwrap()
@@ -251,7 +207,7 @@ pub(crate) async fn dependency_publication_retry() {
         fault.disarm();
         manager.retry_transient_persistence();
         let seal = report
-            .save_dependencies(&owner.operations, sealed_at, &revision)
+            .save_dependencies(&manager, &owner.operations, sealed_at, &revision)
             .await
             .unwrap();
         assert_eq!(

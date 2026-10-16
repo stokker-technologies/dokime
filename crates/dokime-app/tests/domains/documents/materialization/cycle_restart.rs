@@ -205,17 +205,10 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
         let children = state.cycles[&id].execution_ids.clone();
         drop(state);
         for child in children {
-            let view = runtime
-                .storage()
-                .view_with_limits(crate::support::budgets::story_settings().finalization())
-                .await
-                .unwrap();
             let native = crate::runtime::storage::execution::ExecutionView::open(
                 runtime.storage(),
-                view,
                 &child,
                 harmos::storage::ObjectVersion::Latest,
-                crate::support::budgets::story_settings().decoded_bytes,
             )
             .await
             .unwrap()
@@ -235,11 +228,7 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
         }
         let native = runtime
             .storage()
-            .read_object::<Cycle>(
-                id.as_str(),
-                harmos::storage::ObjectVersion::Latest,
-                crate::support::budgets::story_settings().decoded_bytes,
-            )
+            .read_object::<Cycle>(id.as_str(), harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
             .unwrap();
@@ -286,11 +275,7 @@ async fn frozen_cycle_cursor_and_durable_seal_survive_process_crash() {
         );
         let native = runtime
             .storage()
-            .read_object::<Cycle>(
-                id.as_str(),
-                harmos::storage::ObjectVersion::Latest,
-                crate::support::budgets::story_settings().decoded_bytes,
-            )
+            .read_object::<Cycle>(id.as_str(), harmos::storage::ObjectVersion::Latest)
             .await
             .unwrap()
             .unwrap();

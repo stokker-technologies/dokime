@@ -18,15 +18,14 @@ use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 // Third Party Imports
-use harmos::storage::frame::{Scan, ScanCursor, ScanOrder, ScanPage};
+use std::num::NonZeroUsize;
+
 use harmos::storage::{
-    BackendSnapshot, BootstrapId, BootstrapManifest, FileCheckpoint, FileMetadata, FileProgress,
-    FileReference, MutationReceipt, ObjectBrowseCursor, ObjectBrowsePage, ObjectBrowseRequest,
-    ObjectEntry, ObjectKey, ObjectPoint, ObjectReleaseCursor, ObjectReleasePage,
-    ObjectRetentionRelease, ObjectVersions, QueryLimits, ReadCursor, ReadLimits, ReadPage,
-    ReadSelection, ReadView, RetainedBatch, RetainedSnapshot, SchemaKey, StagedFile,
+    BackendSnapshot, FileCheckpoint, FileMetadata, FileProgress, FileReference, MutationReceipt,
+    ObjectEntry, ObjectKey, ObjectPoint, ReadLimits, ScanPage, SchemaKey, StagedFile,
     StorageBackend, StorageBatch, StorageCursor, StorageFuture, StorageSchema, StoreHistory,
     StoredRecord, StoredRow,
+    query::{FileSelection, ObjectSelection, RecordSelection, SchemaSelection, StreamSelection},
 };
 // Local Imports
 
@@ -46,7 +45,7 @@ pub struct PublicationFault {
     released: AtomicUsize,
 }
 pub struct PublicationBackend {
-    inner: Arc<dyn StorageBackend<Catalog = dokime::storage::objects::Objects>>,
+    inner: Arc<dyn StorageBackend>,
     fault: Arc<PublicationFault>,
 }
 
@@ -86,15 +85,11 @@ impl PublicationFault {
     }
 }
 impl PublicationBackend {
-    pub fn new(
-        inner: Arc<dyn StorageBackend<Catalog = dokime::storage::objects::Objects>>,
-        fault: Arc<PublicationFault>,
-    ) -> Self {
+    pub fn new(inner: Arc<dyn StorageBackend>, fault: Arc<PublicationFault>) -> Self {
         Self { inner, fault }
     }
 }
 impl StorageBackend for PublicationBackend {
-    type Catalog = dokime::storage::objects::Objects;
     fn finish_file<'a>(
         &'a self,
         staging: &'a StagedFile,
@@ -140,21 +135,6 @@ impl StorageBackend for PublicationBackend {
             Ok(())
         })
     }
-    fn read_object_releases<'a>(
-        &'a self,
-        _view: &'a ReadView,
-        _cursor: Option<&'a ObjectReleaseCursor>,
-        _limits: ReadLimits,
-    ) -> StorageFuture<'a, ObjectReleasePage> {
-        self.inner.read_object_releases(_view, _cursor, _limits)
-    }
-    fn write_bootstrap_releases<'a>(
-        &'a self,
-        _identity: &'a BootstrapId,
-        _releases: &'a [ObjectRetentionRelease],
-    ) -> StorageFuture<'a, ()> {
-        self.inner.write_bootstrap_releases(_identity, _releases)
-    }
     fn history(&self) -> &StoreHistory {
         self.inner.history()
     }
@@ -164,191 +144,80 @@ impl StorageBackend for PublicationBackend {
     fn cursor_saved(&self) -> StorageFuture<'_, StorageCursor> {
         self.inner.cursor_saved()
     }
-    fn supports_retained_snapshots(&self) -> bool {
-        self.inner.supports_retained_snapshots()
-    }
-    fn read_retained_view<'a>(
-        &'a self,
-        _through: &'a StorageCursor,
-        _limits: QueryLimits,
-    ) -> StorageFuture<'a, RetainedSnapshot> {
-        self.inner.read_retained_view(_through, _limits)
-    }
-    fn begin_bootstrap<'a>(
-        &'a self,
-        _identity: &'a BootstrapId,
-        _saved: &'a StorageCursor,
-        _limits: QueryLimits,
-    ) -> StorageFuture<'a, ()> {
-        self.inner.begin_bootstrap(_identity, _saved, _limits)
-    }
-    fn write_bootstrap<'a>(&'a self, _batch: RetainedBatch<'a>) -> StorageFuture<'a, ()> {
-        self.inner.write_bootstrap(_batch)
-    }
-    fn create_bootstrap_file<'a>(
-        &'a self,
-        _identity: &'a BootstrapId,
-        _metadata: &'a FileMetadata,
-    ) -> StorageFuture<'a, StagedFile> {
-        self.inner.create_bootstrap_file(_identity, _metadata)
-    }
-    fn write_bootstrap_file<'a>(
-        &'a self,
-        _identity: &'a BootstrapId,
-        _staging: &'a StagedFile,
-        _offset: u64,
-        _bytes: &'a [u8],
-    ) -> StorageFuture<'a, ()> {
-        self.inner
-            .write_bootstrap_file(_identity, _staging, _offset, _bytes)
-    }
-    fn finish_bootstrap_file<'a>(
-        &'a self,
-        _identity: &'a BootstrapId,
-        _staging: &'a StagedFile,
-        _position: &'a StorageCursor,
-        _length: u64,
-        _sha256: [u8; 32],
-    ) -> StorageFuture<'a, FileReference> {
-        self.inner
-            .finish_bootstrap_file(_identity, _staging, _position, _length, _sha256)
-    }
-    fn abort_bootstrap_file<'a>(
-        &'a self,
-        _identity: &'a BootstrapId,
-        _staging: &'a StagedFile,
-    ) -> StorageFuture<'a, ()> {
-        self.inner.abort_bootstrap_file(_identity, _staging)
-    }
-    fn finish_bootstrap<'a>(
-        &'a self,
-        _manifest: &'a BootstrapManifest,
-    ) -> StorageFuture<'a, StorageCursor> {
-        self.inner.finish_bootstrap(_manifest)
-    }
-    fn abort_bootstrap<'a>(&'a self, _identity: &'a BootstrapId) -> StorageFuture<'a, ()> {
-        self.inner.abort_bootstrap(_identity)
+    fn close(&self) -> StorageFuture<'_, ()> {
+        self.inner.close()
     }
     fn write<'a>(&'a self, batch: StorageBatch<'a>) -> StorageFuture<'a, StorageCursor> {
         self.inner.write(batch)
     }
-    fn read_view<'a>(&'a self, through: &'a StorageCursor) -> StorageFuture<'a, BackendSnapshot> {
-        self.inner.read_view(through)
+    fn open_snapshot<'a>(&'a self, at: &'a StorageCursor) -> StorageFuture<'a, BackendSnapshot> {
+        self.inner.open_snapshot(at)
     }
-    fn release_view<'a>(&'a self, snapshot: &'a BackendSnapshot) -> StorageFuture<'a, ()> {
-        self.inner.release_view(snapshot)
+    fn release_snapshot<'a>(&'a self, snapshot: &'a BackendSnapshot) -> StorageFuture<'a, ()> {
+        self.inner.release_snapshot(snapshot)
     }
     fn read_schemas<'a>(
         &'a self,
-        view: &'a ReadView,
-        selection: &'a ReadSelection,
-        cursor: Option<&'a ReadCursor>,
-        limits: ReadLimits,
-    ) -> StorageFuture<'a, ReadPage<StorageSchema>> {
-        self.inner.read_schemas(view, selection, cursor, limits)
-    }
-    fn read_files<'a>(
-        &'a self,
-        view: &'a ReadView,
-        selection: &'a ReadSelection,
-        cursor: Option<&'a ReadCursor>,
-        limits: ReadLimits,
-    ) -> StorageFuture<'a, ReadPage<FileReference>> {
-        self.inner.read_files(view, selection, cursor, limits)
-    }
-    fn read_object<'a>(
-        &'a self,
-        view: &'a ReadView,
-        query: &'a ObjectPoint,
-        max_bytes: std::num::NonZeroUsize,
-    ) -> StorageFuture<'a, Option<ObjectEntry>> {
-        self.inner.read_object(view, query, max_bytes)
+        snapshot: &'a BackendSnapshot,
+        selection: &'a SchemaSelection,
+        page: ScanPage,
+    ) -> StorageFuture<'a, Vec<StorageSchema>> {
+        self.inner.read_schemas(snapshot, selection, page)
     }
     fn read_objects<'a>(
         &'a self,
-        view: &'a ReadView,
-        selection: &'a ReadSelection,
-        cursor: Option<&'a ReadCursor>,
-        limits: ReadLimits,
-    ) -> StorageFuture<'a, ReadPage<ObjectEntry>> {
-        self.inner.read_objects(view, selection, cursor, limits)
-    }
-    fn validate_record_filter(
-        &self,
-        _selection: &ReadSelection,
-        _limits: QueryLimits,
-    ) -> harmos::Result<()> {
-        self.inner.validate_record_filter(_selection, _limits)
+        snapshot: &'a BackendSnapshot,
+        selection: &'a ObjectSelection,
+        page: ScanPage,
+    ) -> StorageFuture<'a, Vec<ObjectEntry>> {
+        self.inner.read_objects(snapshot, selection, page)
     }
     fn read_records<'a>(
         &'a self,
-        view: &'a ReadView,
-        selection: &'a ReadSelection,
-        cursor: Option<&'a ReadCursor>,
-        limits: ReadLimits,
-    ) -> StorageFuture<'a, ReadPage<StoredRecord>> {
-        self.inner.read_records(view, selection, cursor, limits)
+        snapshot: &'a BackendSnapshot,
+        selection: &'a RecordSelection,
+        page: ScanPage,
+    ) -> StorageFuture<'a, Vec<StoredRecord>> {
+        self.inner.read_records(snapshot, selection, page)
     }
     fn read_stream<'a>(
         &'a self,
-        view: &'a ReadView,
-        selection: &'a ReadSelection,
-        cursor: Option<&'a ReadCursor>,
-        limits: ReadLimits,
-    ) -> StorageFuture<'a, ReadPage<StoredRow>> {
-        self.inner.read_stream(view, selection, cursor, limits)
+        snapshot: &'a BackendSnapshot,
+        selection: &'a StreamSelection,
+        page: ScanPage,
+    ) -> StorageFuture<'a, Vec<StoredRow>> {
+        self.inner.read_stream(snapshot, selection, page)
     }
-    fn supports_file_sessions(&self) -> bool {
-        self.inner.supports_file_sessions()
-    }
-    fn supports_mutation_receipts(&self) -> bool {
-        self.inner.supports_mutation_receipts()
-    }
-    fn save_mutations<'a>(&'a self, _receipts: &'a [MutationReceipt]) -> StorageFuture<'a, ()> {
-        self.inner.save_mutations(_receipts)
-    }
-    fn recover_mutations(&self, _limits: ReadLimits) -> StorageFuture<'_, Vec<MutationReceipt>> {
-        self.inner.recover_mutations(_limits)
-    }
-    fn create_production<'a>(
+    fn read_files<'a>(
         &'a self,
-        _metadata: &'a FileMetadata,
-    ) -> StorageFuture<'a, StagedFile> {
-        self.inner.create_production(_metadata)
+        snapshot: &'a BackendSnapshot,
+        selection: &'a FileSelection,
+        page: ScanPage,
+    ) -> StorageFuture<'a, Vec<FileReference>> {
+        self.inner.read_files(snapshot, selection, page)
     }
-    fn fence_production<'a>(
+    fn read_object<'a>(
         &'a self,
-        _file: &'a StagedFile,
-        _expected: u64,
-        _next: u64,
-    ) -> StorageFuture<'a, ()> {
-        self.inner.fence_production(_file, _expected, _next)
+        snapshot: &'a BackendSnapshot,
+        point: &'a ObjectPoint,
+    ) -> StorageFuture<'a, Option<ObjectEntry>> {
+        self.inner.read_object(snapshot, point)
     }
-    fn save_production<'a>(&'a self, _checkpoint: &'a FileCheckpoint) -> StorageFuture<'a, ()> {
-        self.inner.save_production(_checkpoint)
-    }
-    fn recover_productions(&self, _limits: ReadLimits) -> StorageFuture<'_, Vec<FileCheckpoint>> {
-        self.inner.recover_productions(_limits)
-    }
-    fn file_progress<'a>(&'a self, _file: &'a StagedFile) -> StorageFuture<'a, FileProgress> {
-        self.inner.file_progress(_file)
-    }
-    fn read_production<'a>(
+    fn read_file<'a>(
         &'a self,
-        _file: &'a StagedFile,
-        _offset: u64,
-        _max_bytes: std::num::NonZeroUsize,
+        snapshot: &'a BackendSnapshot,
+        file: &'a FileReference,
+        offset: u64,
+        max_bytes: NonZeroUsize,
     ) -> StorageFuture<'a, Vec<u8>> {
-        self.inner.read_production(_file, _offset, _max_bytes)
+        self.inner.read_file(snapshot, file, offset, max_bytes)
     }
-    fn supports_file_deletion(&self) -> bool {
-        self.inner.supports_file_deletion()
-    }
-    fn delete_file<'a>(&'a self, _file: &'a StagedFile) -> StorageFuture<'a, ()> {
-        self.inner.delete_file(_file)
-    }
-    fn abandon_file<'a>(&'a self, _staging: &'a StagedFile) -> StorageFuture<'a, ()> {
-        self.inner.abandon_file(_staging)
+    fn prune_objects<'a>(
+        &'a self,
+        through: &'a StorageCursor,
+        max_entries: NonZeroUsize,
+    ) -> StorageFuture<'a, bool> {
+        self.inner.prune_objects(through, max_entries)
     }
     fn create_file<'a>(&'a self, metadata: &'a FileMetadata) -> StorageFuture<'a, StagedFile> {
         self.inner.create_file(metadata)
@@ -364,66 +233,57 @@ impl StorageBackend for PublicationBackend {
     fn abort_file<'a>(&'a self, staging: &'a StagedFile) -> StorageFuture<'a, ()> {
         self.inner.abort_file(staging)
     }
-    fn read_file<'a>(
+    fn supports_file_sessions(&self) -> bool {
+        self.inner.supports_file_sessions()
+    }
+    fn create_production<'a>(
         &'a self,
-        view: &'a ReadView,
-        file: &'a FileReference,
+        metadata: &'a FileMetadata,
+    ) -> StorageFuture<'a, StagedFile> {
+        self.inner.create_production(metadata)
+    }
+    fn fence_production<'a>(
+        &'a self,
+        file: &'a StagedFile,
+        expected: u64,
+        next: u64,
+    ) -> StorageFuture<'a, ()> {
+        self.inner.fence_production(file, expected, next)
+    }
+    fn save_production<'a>(&'a self, checkpoint: &'a FileCheckpoint) -> StorageFuture<'a, ()> {
+        self.inner.save_production(checkpoint)
+    }
+    fn recover_productions(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<FileCheckpoint>> {
+        self.inner.recover_productions(limits)
+    }
+    fn file_progress<'a>(&'a self, file: &'a StagedFile) -> StorageFuture<'a, FileProgress> {
+        self.inner.file_progress(file)
+    }
+    fn read_production<'a>(
+        &'a self,
+        file: &'a StagedFile,
         offset: u64,
-        max_bytes: std::num::NonZeroUsize,
+        max_bytes: NonZeroUsize,
     ) -> StorageFuture<'a, Vec<u8>> {
-        self.inner.read_file(view, file, offset, max_bytes)
+        self.inner.read_production(file, offset, max_bytes)
     }
-    fn prune_objects<'a>(
-        &'a self,
-        through: &'a StorageCursor,
-        max_entries: std::num::NonZeroUsize,
-    ) -> StorageFuture<'a, bool> {
-        self.inner.prune_objects(through, max_entries)
+    fn abandon_file<'a>(&'a self, staging: &'a StagedFile) -> StorageFuture<'a, ()> {
+        self.inner.abandon_file(staging)
     }
-    fn close(&self) -> StorageFuture<'_, ()> {
-        self.inner.close()
+    fn supports_file_deletion(&self) -> bool {
+        self.inner.supports_file_deletion()
     }
-    fn validate_object_browse(
-        &self,
-        request: &ObjectBrowseRequest,
-        limits: QueryLimits,
-    ) -> harmos::Result<()> {
-        self.inner.validate_object_browse(request, limits)
+    fn delete_file<'a>(&'a self, file: &'a StagedFile) -> StorageFuture<'a, ()> {
+        self.inner.delete_file(file)
     }
-    fn read_object_browse<'a>(
-        &'a self,
-        view: &'a ReadView,
-        request: &'a ObjectBrowseRequest,
-        cursor: Option<&'a ObjectBrowseCursor>,
-        limits: ReadLimits,
-    ) -> StorageFuture<'a, ObjectBrowsePage> {
-        self.inner.read_object_browse(view, request, cursor, limits)
+    fn supports_mutation_receipts(&self) -> bool {
+        self.inner.supports_mutation_receipts()
     }
-    fn validate_object_versions(&self, versions: ObjectVersions) -> harmos::Result<()> {
-        self.inner.validate_object_versions(versions)
+    fn save_mutations<'a>(&'a self, receipts: &'a [MutationReceipt]) -> StorageFuture<'a, ()> {
+        self.inner.save_mutations(receipts)
     }
-    fn validate_query_limits(&self, limits: QueryLimits) -> harmos::Result<()> {
-        self.inner.validate_query_limits(limits)
-    }
-    fn read_query_view<'a>(
-        &'a self,
-        through: &'a StorageCursor,
-        limits: QueryLimits,
-    ) -> StorageFuture<'a, BackendSnapshot> {
-        self.inner.read_query_view(through, limits)
-    }
-    fn supports_scan_order(&self, scan: &Scan, order: &ScanOrder) -> bool {
-        self.inner.supports_scan_order(scan, order)
-    }
-    fn scan_ordered<'a>(
-        &'a self,
-        view: &'a ReadView,
-        scan: &'a Scan,
-        order: &'a ScanOrder,
-        cursor: Option<&'a ScanCursor>,
-        limits: ReadLimits,
-    ) -> StorageFuture<'a, ScanPage> {
-        self.inner.scan_ordered(view, scan, order, cursor, limits)
+    fn recover_mutations(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<MutationReceipt>> {
+        self.inner.recover_mutations(limits)
     }
 }
 

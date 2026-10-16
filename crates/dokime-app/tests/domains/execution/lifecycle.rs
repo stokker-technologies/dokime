@@ -60,17 +60,10 @@ async fn stored_cycle(
     dokime_app::execution::TestCycle,
     harmos::storage::StorageCursor,
 ) {
-    let view = runtime
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
-    let stored = dokime::storage::objects::cycle::read_in(
+    let stored = dokime::storage::objects::cycle::read(
         runtime.storage(),
-        &view,
         test_cycle_id,
         harmos::storage::ObjectVersion::Latest,
-        crate::support::budgets::story_settings().decoded_bytes,
     )
     .await
     .unwrap()
@@ -227,7 +220,7 @@ pub(crate) async fn stop_archive_state() {
     assert_eq!(run_stopped.status, CommandStatus::Rejected);
     assert!(
         runtime
-            .browse_executions(Default::default(), |page, _| Ok(page.clone()))
+            .browse_executions(Default::default())
             .await
             .unwrap()
             .entries
@@ -263,7 +256,7 @@ pub(crate) async fn stop_archive_state() {
                 dokime_app::runtime::query::execution_history::ExecutionBrowseQuery::default();
             query.filter.archive = scope;
             runtime
-                .browse_executions(query, |page, _| Ok(page.clone()))
+                .browse_executions(query)
                 .await
                 .unwrap()
                 .entries

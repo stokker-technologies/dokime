@@ -72,17 +72,10 @@ pub(crate) async fn execution_save_sealing() {
     let cycle = wait_for_cycle_lifecycle(&handle, &cycle_id, CycleStatus::Running).await;
     let id = cycle.test_executions[0].test_execution_id.clone();
     handle.storage().flush().await.unwrap();
-    let view = handle
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
-    let running = dokime::storage::objects::execution::read_in(
+    let running = dokime::storage::objects::execution::read(
         handle.storage(),
-        &view,
         &id,
         harmos::storage::ObjectVersion::Latest,
-        crate::support::budgets::story_settings().decoded_bytes,
     )
     .await
     .unwrap()
@@ -91,7 +84,6 @@ pub(crate) async fn execution_save_sealing() {
     assert!(running.value.saved.is_none());
     let snapshot = running.value.snapshot.clone();
     drop(running);
-    drop(view);
 
     // Native Reads Use The Requested Batch Size And Shared Storage Admission.
     let large_path = "large.bin";
@@ -264,17 +256,10 @@ pub(crate) async fn execution_save_sealing() {
             .all(|cycle| cycle.test_cycle_id != cycle_id),
         "sealed cycle stays in saved history"
     );
-    let view = handle
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
-    let saved_cycle = dokime::storage::objects::cycle::read_in(
+    let saved_cycle = dokime::storage::objects::cycle::read(
         handle.storage(),
-        &view,
         &cycle_id,
         harmos::storage::ObjectVersion::Latest,
-        crate::support::budgets::story_settings().decoded_bytes,
     )
     .await
     .unwrap()
@@ -282,19 +267,11 @@ pub(crate) async fn execution_save_sealing() {
     let seal = saved_cycle.value.saved.as_ref().unwrap();
     seal.validate(&saved_cycle.value).unwrap();
     assert_eq!(seal.report, cycle_report);
-    let mut reader = view.read_file(&seal.report).await.unwrap();
-    let mut bytes = Vec::new();
-    while let Some(chunk) = reader
-        .next_chunk(std::num::NonZeroUsize::new(64 * 1024).unwrap())
+    let bytes = dokime::storage::read_file_bytes(handle.storage(), &seal.report)
         .await
-        .unwrap()
-    {
-        bytes.extend_from_slice(chunk.as_bytes());
-    }
+        .unwrap();
     assert!(String::from_utf8(bytes).unwrap().contains(id.as_str()));
-    drop(reader);
     drop(saved_cycle);
-    drop(view);
     let restored = crate::support::native::open(&handle, &checkpoint).await;
     assert_eq!(restored.execution().snapshot, snapshot);
     assert_eq!(crate::support::native::report(&handle, &id).await, html);
@@ -370,12 +347,7 @@ pub(crate) async fn terminal_capture_repaired() {
     })
     .await
     .unwrap();
-    assert!(
-        handle
-            .execution_saved_checkpoint(id.clone(), |checkpoint, _| Ok(checkpoint.clone()))
-            .await
-            .is_err()
-    );
+    assert!(handle.execution_saved_checkpoint(id.clone()).await.is_err());
     handle.set_brand(None);
     let checkpoint = crate::support::native::checkpoint(&handle, &id).await;
     assert_eq!(

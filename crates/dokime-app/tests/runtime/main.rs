@@ -211,8 +211,8 @@ fn domain_contract() {
         run_scenario(query_records::oversized_record_changes, false, None, false);
     }
     {
-        eprintln!("Scenario: query_records::required_record_capacity");
-        run_scenario(query_records::required_record_capacity, false, None, false);
+        eprintln!("Scenario: query_records::published_record_reads");
+        run_scenario(query_records::published_record_reads, false, None, false);
     }
     {
         eprintln!("Scenario: query_records::live_reader_cursor");

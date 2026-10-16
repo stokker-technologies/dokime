@@ -24,7 +24,6 @@ use super::*;
 /// Ample for one interactive point read, but below what materializing Mini's
 /// full report costs in a debug build, so a finalization that borrowed the
 /// interactive query budget would fail.
-const TIGHT_QUERY_BUDGET: Duration = Duration::from_millis(200);
 const STEADY_SUITE: &str = "mini.charger.steady";
 /// The steady suite sweeps three voltages across three loads.
 const STEADY_CASES: usize = 9;
@@ -47,14 +46,11 @@ const STEADY_CASES: usize = 9;
 
 /* === Tests === */
 
-// Finalization runs under its own budget: Mini's nine-case steady cycle seals
-// every report although the interactive query budget is starved. Whether a
-// simulated case passes is Mini's concern; every one must seal.
-pub(crate) async fn tight_budget_seals() {
+// Mini's nine-case steady cycle seals every report. Whether a simulated case
+// passes is Mini's concern; every one must seal.
+pub(crate) async fn steady_cycle_seals() {
     let root = tempdir().unwrap();
-    let mut tight = config(root.path()).with_plugins([fixture_bundle(root.path(), "mini-sidecar")]);
-    tight.storage.interactive.timeout = TIGHT_QUERY_BUDGET;
-    tight.storage.interactive.timeout = TIGHT_QUERY_BUDGET;
+    let tight = config(root.path()).with_plugins([fixture_bundle(root.path(), "mini-sidecar")]);
     let (mut owner, runtime) = started(tight).await;
     let registration = runtime
         .test_suites()

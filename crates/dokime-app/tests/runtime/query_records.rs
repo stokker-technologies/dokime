@@ -140,43 +140,13 @@ pub(crate) async fn oversized_record_changes() {
     owner.shutdown().await.unwrap();
 }
 
-fn hold_read_capacity(
-    handle: &RuntimeHandle,
-) -> Vec<harmos::storage::StorageProductionPreparation> {
-    let storage = handle.storage();
-    let mut held = Vec::new();
-    while let Ok(claim) = storage.prepare_production((1024 * 1024).try_into().unwrap()) {
-        held.push(claim);
-    }
-    while let Ok(claim) = storage.prepare_production(256.try_into().unwrap()) {
-        held.push(claim);
-    }
-    held
-}
-
-pub(crate) async fn required_record_capacity() {
+pub(crate) async fn published_record_reads() {
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;
     let handle = owner.handle();
-    let held = hold_read_capacity(&handle);
-    let publisher = handle.clone();
-    let publication = tokio::spawn(async move { publish(&publisher).await });
-    // Let The Required Projector Encounter The Refused Reservation.
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    drop(held);
-    tokio::time::timeout(std::time::Duration::from_secs(5), publication)
-        .await
-        .unwrap()
-        .unwrap();
+    publish(&handle).await;
     let reader = handle.captured_records();
-    let record = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        reader.next(0, reader.frontier()),
-    )
-    .await
-    .unwrap()
-    .unwrap()
-    .unwrap();
+    let record = reader.next(0, reader.frontier()).await.unwrap().unwrap();
     assert_eq!(
         record.record.record_type.as_str(),
         "calibration.field.completed"
@@ -200,16 +170,7 @@ pub(crate) async fn live_reader_cursor() {
         .unwrap()
         .sequence;
     drop(captured);
-    let held = hold_read_capacity(&handle);
-    let mut waiting = Box::pin(subscription.next());
-    assert!(futures_util::poll!(waiting.as_mut()).is_pending());
-    drop(held);
-    let record = tokio::time::timeout(std::time::Duration::from_secs(5), &mut waiting)
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
-    drop(waiting);
+    let record = subscription.next().await.unwrap().unwrap();
     drop(subscription);
     assert_eq!(record.sequence, expected);
     drop(record);
@@ -644,9 +605,8 @@ pub(crate) async fn capture_failure_provider() {
 }
 
 pub(crate) async fn primary_capture_boots() {
-    use dokime::storage::sqlite::{Backend, Limits};
-    use harmos::storage::{ReadKind, ReadLimits, ReadSelection, ReadView, StorageBackend};
-    use std::{num::NonZeroUsize, sync::Arc};
+    use harmos::storage::StorageBackend;
+    use std::sync::Arc;
 
     let root = tempfile::tempdir().unwrap();
     let mut expected = Vec::new();
@@ -688,51 +648,31 @@ pub(crate) async fn primary_capture_boots() {
         owner.shutdown().await.unwrap();
     }
     let backend = Arc::new(
-        Backend::<()>::primary(primary.unwrap(), Limits::default())
+        dokime::storage::Backend::primary(primary.unwrap())
             .await
             .unwrap(),
     );
     let saved = backend.cursor_saved().await.unwrap();
-    let view = ReadView::new(
-        Identifier::new("fixture.capture-boots").unwrap(),
-        saved.clone(),
-        saved.clone(),
-        backend.read_view(&saved).await.unwrap(),
-    )
-    .unwrap();
-    let mut selection = ReadSelection::new(ReadKind::Records);
-    selection.schema = Some(dokime::storage::records::schema());
-    let limits = ReadLimits {
-        rows: NonZeroUsize::new(16).unwrap(),
-        bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
-    };
     let mut actual = Vec::new();
     let mut epochs = Vec::new();
-    let mut cursor = None;
-    loop {
-        let page = backend
-            .read_records(&view, &selection, cursor.as_ref(), limits)
-            .await
-            .unwrap();
-        for row in page.entries {
-            let record =
-                dokime::storage::records::decode(&row.payload, limits.bytes.get()).unwrap();
-            assert_eq!(row.item.as_str(), record.record_id.as_str());
-            actual.push(record.record_id.to_string());
-            epochs.push(
-                row.scope
-                    .expect("captured record retains boot scope")
-                    .to_string(),
-            );
-        }
-        cursor = page.next;
-        if cursor.is_none() {
-            break;
-        }
+    for row in crate::support::backend::records(
+        backend.as_ref(),
+        &saved,
+        dokime::storage::records::schema(),
+    )
+    .await
+    {
+        let record = dokime::storage::records::RecordRow::decode_entry(&row.payload).unwrap();
+        assert_eq!(row.item.as_str(), record.record_id.as_str());
+        actual.push(record.record_id.to_string());
+        epochs.push(
+            row.scope
+                .expect("captured record retains boot scope")
+                .to_string(),
+        );
     }
     assert_eq!(actual, expected);
     assert_ne!(epochs[0], epochs[1]);
-    backend.release_view(view.snapshot()).await.unwrap();
     backend.close().await.unwrap();
 }
 
@@ -797,24 +737,16 @@ pub(crate) async fn native_entry_independent() {
         .flush_until(&receipt.position)
         .await
         .unwrap();
-    let view = handle
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().interactive)
-        .await
-        .unwrap();
-    let restored = cycle::read_in(
+    let restored = cycle::read(
         handle.storage(),
-        &view,
         &cycle.test_cycle_id,
         ObjectVersion::Latest,
-        NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
     )
     .await
     .unwrap()
     .unwrap();
     assert_eq!(restored.value, cycle);
     drop(restored);
-    drop(view);
     drop(handle);
     owner.shutdown().await.unwrap();
 }

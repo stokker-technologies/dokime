@@ -71,10 +71,9 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
             .unwrap();
         executor.block_on(fixture.storage.flush()).unwrap();
         let saved = fixture.storage.cursor_saved();
-        let snapshot = executor
-            .block_on(fixture.backend.read_view(&saved))
+        let view = executor
+            .block_on(fixture.backend.open_snapshot(&saved))
             .unwrap();
-        let view = ReadView::new(id("file-benchmark"), saved.clone(), saved, snapshot).unwrap();
         let expected = executor.block_on(read(&fixture, &view, &file));
         assert_eq!(expected, bytes);
         group.bench_function(BenchmarkId::new("read_finished", length), |bencher| {
@@ -84,7 +83,7 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
             });
         });
         executor
-            .block_on(fixture.backend.release_view(view.snapshot()))
+            .block_on(fixture.backend.release_snapshot(&view))
             .unwrap();
         executor.block_on(fixture.runtime.stop()).unwrap();
     }
@@ -101,7 +100,7 @@ fn metadata(length: usize) -> FileMetadata {
         expected_sha256: None,
     }
 }
-async fn read(fixture: &Fixture, view: &ReadView, file: &FileReference) -> Vec<u8> {
+async fn read(fixture: &Fixture, view: &BackendSnapshot, file: &FileReference) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(file.length as usize);
     while bytes.len() < file.length as usize {
         let batch = fixture

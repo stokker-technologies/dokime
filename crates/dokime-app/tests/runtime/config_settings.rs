@@ -47,7 +47,6 @@ pub(crate) async fn backend_policy_restart() {
     assert_eq!(before.revision, 0);
     assert!(!before.restart_required);
     let mut policy = before.configured.clone();
-    policy.save_interval_ms = 1200;
     policy.compaction_interval_ms = 7_200_000;
     policy.local_retention_ms = Some(604_800_000);
     let saved = handle
@@ -63,7 +62,7 @@ pub(crate) async fn backend_policy_restart() {
         Err(dokime_app::Error::Conflict { .. })
     ));
     let mut invalid = policy.clone();
-    invalid.save_interval_ms = 0;
+    invalid.compaction_interval_ms = 0;
     assert!(handle.update_storage_policy(1, invalid).await.is_err());
     assert_eq!(handle.storage_policy().await.unwrap(), saved);
     assert_eq!(
@@ -81,7 +80,7 @@ pub(crate) async fn backend_policy_restart() {
     drop(handle);
 
     let mut fallback = config(root.path());
-    fallback.save_interval = Duration::from_secs(1);
+    fallback.compaction_interval = Duration::from_secs(3600);
     let mut runtime = dokime_app::Runtime::start(fallback).await.unwrap();
     let restored = runtime.handle().storage_policy().await.unwrap();
     assert_eq!(restored.revision, 0, "revisions count saves in one process");
@@ -92,7 +91,7 @@ pub(crate) async fn backend_policy_restart() {
     let settings = root.path().join("application/settings.json");
     let saved: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&settings).unwrap()).unwrap();
-    assert_eq!(saved["storage"]["save_interval_ms"], 1200);
+    assert_eq!(saved["storage"]["compaction_interval_ms"], 7_200_000);
     assert!(saved.get("restart_required").is_none());
     std::fs::write(settings, b"broken").unwrap();
     assert!(
@@ -107,9 +106,9 @@ pub(crate) async fn concurrent_policy_revision() {
     let (mut runtime, handle) = crate::support::booted(root.path()).await;
     let original = handle.storage_policy().await.unwrap();
     let mut a = original.configured.clone();
-    a.save_interval_ms = 100;
+    a.compaction_interval_ms = 3_600_000;
     let mut b = original.configured;
-    b.save_interval_ms = 200;
+    b.compaction_interval_ms = 10_800_000;
     let (a, b) = tokio::join!(
         handle.update_storage_policy(0, a),
         handle.update_storage_policy(0, b)

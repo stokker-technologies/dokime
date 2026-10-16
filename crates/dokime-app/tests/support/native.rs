@@ -37,11 +37,8 @@ use dokime_app::{RuntimeHandle, runtime::ExecutionView};
 pub async fn checkpoint(handle: &RuntimeHandle, id: &TestExecutionId) -> ExecutionCheckpoint {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     loop {
-        match handle
-            .execution_saved_checkpoint(id.clone(), |checkpoint, _| Ok(checkpoint.clone()))
-            .await
-        {
-            Ok(checkpoint) => return (*checkpoint).clone(),
+        match handle.execution_saved_checkpoint(id.clone()).await {
+            Ok(checkpoint) => return checkpoint,
             Err(error) if tokio::time::Instant::now() >= deadline => {
                 panic!("saved seal did not appear: {error}")
             }
@@ -50,20 +47,10 @@ pub async fn checkpoint(handle: &RuntimeHandle, id: &TestExecutionId) -> Executi
     }
 }
 pub async fn open(handle: &RuntimeHandle, checkpoint: &ExecutionCheckpoint) -> ExecutionView {
-    let view = handle
-        .storage()
-        .view_with_limits(crate::support::budgets::story_settings().finalization())
+    ExecutionView::open_checkpoint(handle.storage(), checkpoint)
         .await
-        .unwrap();
-    ExecutionView::open_checkpoint(
-        handle.storage(),
-        view,
-        checkpoint,
-        crate::support::budgets::story_settings().decoded_bytes,
-    )
-    .await
-    .unwrap()
-    .unwrap()
+        .unwrap()
+        .unwrap()
 }
 pub async fn records(
     handle: &RuntimeHandle,
@@ -96,7 +83,7 @@ pub async fn samples(
     checkpoint: &ExecutionCheckpoint,
 ) -> Vec<dokime::telemetry::TelemetrySample> {
     let evidence = handle
-        .execution_checkpoint_evidence(checkpoint.clone(), |value, _| Ok(value))
+        .execution_checkpoint_evidence(checkpoint.clone())
         .await
         .unwrap();
     let mut samples = Vec::new();
@@ -128,16 +115,9 @@ pub async fn report(handle: &RuntimeHandle, id: &TestExecutionId) -> String {
     let checkpoint = checkpoint(handle, id).await;
     let view = open(handle, &checkpoint).await;
     let file = &view.execution().saved.as_ref().unwrap().report;
-    let mut reader = view.read_file(file).await.unwrap();
-    let mut bytes = Vec::new();
-    while let Some(chunk) = reader
-        .next_chunk(NonZeroUsize::new(64 * 1024).unwrap())
+    let bytes = dokime::storage::read_file_bytes(handle.storage(), file)
         .await
-        .unwrap()
-    {
-        assert!(bytes.len() + chunk.as_bytes().len() <= 16 * 1024 * 1024);
-        bytes.extend_from_slice(chunk.as_bytes());
-    }
+        .unwrap();
     String::from_utf8(bytes).unwrap()
 }
 

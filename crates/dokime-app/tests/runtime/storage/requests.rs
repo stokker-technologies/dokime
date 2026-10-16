@@ -17,15 +17,13 @@
 use std::{num::NonZeroUsize, process::Command};
 
 // Third Party Imports
-use harmos::storage::{
-    ObjectCatalog, ObjectKey, ObjectPoint, ObjectVersion, ReadView, StorageBackend,
-};
+use harmos::storage::{ObjectKey, ObjectPoint, ObjectVersion, StorageBackend};
 
 // Local Imports
 use crate::support::prelude::*;
 use dokime::core::CommandId;
 use dokime::execution::request::RunSummary;
-use dokime::storage::{objects::Objects, requests::Request};
+use dokime::storage::requests::Request;
 use dokime_app::domains::execution::requests::{RunPhase, RunReceipt};
 
 /* === Constants === */
@@ -117,39 +115,28 @@ async fn durable_requests_reopens() {
     runtime.shutdown().await.unwrap();
 
     // Read The Saved Native Parent After The Runtime Has Closed
-    let backend = dokime::storage::Backend::primary(
-        root.path().to_path_buf(),
-        dokime::storage::sqlite::Limits::default(),
-    )
-    .await
-    .unwrap();
+    let backend = dokime::storage::Backend::primary(root.path().to_path_buf())
+        .await
+        .unwrap();
     let saved = backend.open().await.unwrap();
-    let snapshot = backend.read_view(&saved).await.unwrap();
-    let view = ReadView::new(
-        Identifier::new("view.receipt.reopened").unwrap(),
-        saved.clone(),
-        saved,
-        snapshot.clone(),
-    )
-    .unwrap();
-    let maximum = NonZeroUsize::new(65536).unwrap();
+    let snapshot = backend.open_snapshot(&saved).await.unwrap();
     let query = ObjectPoint {
         schema: Identifier::new("dokime.object.request").unwrap(),
-        item: ObjectKey::new(pending.summary.request_id.as_str(), maximum).unwrap(),
+        item: ObjectKey::new(pending.summary.request_id.as_str(), NonZeroUsize::MAX).unwrap(),
         version: ObjectVersion::Latest,
     };
     let object = backend
-        .read_object(&view, &query, maximum)
+        .read_object(&snapshot, &query)
         .await
         .unwrap()
         .unwrap();
-    let native = Objects::decode::<Request>(&object.value, maximum).unwrap();
+    let native = <Request as harmos::Message>::decode(&object.value.payload).unwrap();
     let receipt = native.restore().unwrap();
     assert_eq!(receipt.summary.phase, RunPhase::Interrupted);
     assert_eq!(receipt.claimed, pending.claimed);
     assert_eq!(receipt.last_claim, pending.last_claim);
     assert_eq!(receipt.summary.finished_at, recovered.summary.finished_at);
-    backend.release_view(&snapshot).await.unwrap();
+    backend.release_snapshot(&snapshot).await.unwrap();
     backend.close().await.unwrap();
 }
 
@@ -232,13 +219,10 @@ pub(crate) async fn receipt_initialize_storage() {
         .unwrap();
     runtime.shutdown().await.unwrap();
     // Corrupt The Saved Receipt Without Changing Its Recovery Selection
-    let backend = dokime::storage::Backend::primary(
-        root.path().to_path_buf(),
-        dokime::storage::sqlite::Limits::default(),
-    )
-    .await
-    .unwrap();
-    let control = backend.control().await.unwrap();
+    let backend = dokime::storage::Backend::primary(root.path().to_path_buf())
+        .await
+        .unwrap();
+    let control = backend.local_state();
     control
         .call(|connection| {
             let changed = connection.execute(
@@ -264,9 +248,7 @@ pub(crate) async fn receipt_initialize_storage() {
             Err(error) => error,
         };
         assert!(
-            failure
-                .to_string()
-                .contains("saved entry differs from admission inventory"),
+            failure.to_string().contains("stored entry digest differs"),
             "{failure}"
         );
         assert!(
@@ -279,28 +261,41 @@ pub(crate) async fn receipt_initialize_storage() {
             .await
             .unwrap();
         local.close().await.unwrap();
-        let reopened = dokime::storage::Backend::primary(
-            root.path().to_path_buf(),
-            dokime::storage::sqlite::Limits::default(),
-        )
-        .await
-        .err()
-        .expect("the released root still contains the corrupt receipt");
+        let reopened = dokime::storage::Backend::primary(root.path().to_path_buf())
+            .await
+            .unwrap();
+        let saved = reopened.open().await.unwrap();
+        let snapshot = reopened.open_snapshot(&saved).await.unwrap();
+        let corrupt = reopened
+            .read_objects(
+                &snapshot,
+                &harmos::storage::query::ObjectSelection {
+                    schema: None,
+                    key: None,
+                    versions: harmos::storage::query::ObjectVersions::Revisions,
+                },
+                harmos::storage::ScanPage {
+                    after: 0,
+                    rows: NonZeroUsize::new(1024).unwrap(),
+                    bytes: NonZeroUsize::new(16 * 1024 * 1024).unwrap(),
+                },
+            )
+            .await
+            .err()
+            .expect("the released root still contains the corrupt receipt");
         assert!(
-            reopened
-                .to_string()
-                .contains("saved entry differs from admission inventory"),
-            "{reopened}"
+            format!("{corrupt:?}").contains("stored entry digest differs"),
+            "{corrupt:?}"
         );
+        reopened.release_snapshot(&snapshot).await.unwrap();
+        reopened.close().await.unwrap();
     }
 }
 
 pub(crate) async fn admitted_progress_stop() {
     let root = tempdir().unwrap();
     let executor = Arc::new(BlockingPublishingExecutor::new());
-    let mut settings = config(root.path());
-    settings.save_interval = Duration::from_secs(3600);
-    let (mut runtime, handle) = started_with_fixture(settings, executor.clone()).await;
+    let (mut runtime, handle) = started_with_fixture(config(root.path()), executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&handle, suite.clone()).await;
     let cycle = start_cycle(&handle, suite, false).await;

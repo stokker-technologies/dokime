@@ -83,7 +83,7 @@ pub(super) fn benchmark(criterion: &mut Criterion) {
                 }
             }
             match actual.unwrap() {
-                harmos::storage::reduce::ScalarValue::Float(value) => {
+                harmos::storage::query::scalar::ScalarValue::Float(value) => {
                     assert!((value - 325.0 / 2.0f64.sqrt()).abs() < 1e-9)
                 }
                 _ => panic!("unexpected RMS representation"),

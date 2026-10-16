@@ -28,7 +28,7 @@ use criterion::Criterion;
 use harmos::{Application, Identifier, Message, Runtime, state::Never, storage::*};
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits};
+use dokime::storage::sqlite::Backend;
 
 /* === Constants === */
 
@@ -68,22 +68,13 @@ impl Fixture {
     async fn new(concurrency: usize) -> Self {
         let root = tempfile::tempdir().unwrap();
         let backend = Arc::new(
-            Backend::<()>::primary(
-                root.path().to_owned(),
-                Limits {
-                    entry_bytes: nz(1024 * 1024),
-                    batch_bytes: nz(16 * 1024 * 1024),
-                },
-            )
-            .await
-            .unwrap(),
+            Backend::<()>::primary(root.path().to_owned())
+                .await
+                .unwrap(),
         );
-        let mut policy = dokime_app::config::StorageSettings::default();
-        policy.budget.read_memory_bytes = nz(128 * 1024 * 1024);
-        policy.request.max_active_queries = nz(concurrency);
-        policy.interactive.memory_bytes = nz(64 * 1024 * 1024);
-        policy.decoded_bytes = nz(64 * 1024 * 1024);
-        let settings = policy.harmos(Duration::from_millis(10), nz(16 * 1024 * 1024));
+        let mut settings = dokime_app::config::storage_defaults();
+        settings.budget.read_memory_bytes = nz(128 * 1024 * 1024);
+        settings.request.max_active_queries = nz(concurrency);
         let storage = StorageManager::new(
             StorageBackends {
                 state: Arc::new(harmos::storage::state::file::FileBackend::new(
@@ -92,7 +83,6 @@ impl Fixture {
                     dokime::storage::state_settings(&settings),
                 )),
                 primary: backend.clone(),
-                replicas: vec![],
             },
             settings,
         )

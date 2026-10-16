@@ -58,21 +58,9 @@ struct Signals {
 
 /* === Private Functions === */
 async fn snapshot_records(
-    handle: &RuntimeHandle,
     snapshot: &dokime_app::runtime::ExecutionView,
 ) -> Vec<dokime_app::runtime::ContextRecord> {
-    let settings = crate::support::budgets::story_settings();
-    let page = harmos::storage::ReadLimits {
-        rows: settings.page_rows,
-        bytes: settings.page_bytes,
-    };
-    let mut reader = snapshot
-        .context_records(
-            handle.storage(),
-            page,
-            snapshot.view().decoded_bytes().unwrap(),
-        )
-        .unwrap();
+    let mut reader = snapshot.context_records().await.unwrap();
     let mut records = Vec::new();
     while let Some(page) = reader.next().await.unwrap() {
         records.extend(page.iter().cloned());
@@ -81,21 +69,9 @@ async fn snapshot_records(
 }
 
 async fn snapshot_samples(
-    handle: &RuntimeHandle,
     snapshot: &dokime_app::runtime::ExecutionView,
 ) -> Vec<dokime::telemetry::TelemetrySample> {
-    let settings = crate::support::budgets::story_settings();
-    let page = harmos::storage::ReadLimits {
-        rows: settings.page_rows,
-        bytes: settings.page_bytes,
-    };
-    let mut reader = snapshot
-        .context_telemetry(
-            handle.storage(),
-            page,
-            snapshot.view().decoded_bytes().unwrap(),
-        )
-        .unwrap();
+    let mut reader = snapshot.context_telemetry().unwrap();
     let mut samples = Vec::new();
     while let Some(page) = reader.next().await.unwrap() {
         samples.extend(page.iter().map(|entry| entry.sample.clone()));
@@ -441,7 +417,7 @@ pub(crate) async fn native_capture_contexts() {
         .unwrap();
     assert!(captured.execution().saved.is_none());
     assert_eq!(captured.context().unwrap().scope, execution.scope);
-    let records = snapshot_records(&handle, &captured).await;
+    let records = snapshot_records(&captured).await;
     for note in &notes {
         assert_eq!(
             records
@@ -462,7 +438,7 @@ pub(crate) async fn native_capture_contexts() {
     }
     assert_eq!(captured.execution().status, ExecutionStatus::Running);
     assert_eq!(
-        snapshot_samples(&handle, &captured)
+        snapshot_samples(&captured)
             .await
             .iter()
             .filter(|row| row.stream.as_str() == STREAM)
@@ -480,7 +456,7 @@ pub(crate) async fn native_capture_contexts() {
         later.evidence_through().unwrap().sequence > captured.evidence_through().unwrap().sequence
     );
     assert_eq!(
-        snapshot_samples(&handle, &later)
+        snapshot_samples(&later)
             .await
             .iter()
             .filter(|row| row.stream.as_str() == STREAM)
@@ -488,7 +464,7 @@ pub(crate) async fn native_capture_contexts() {
         4
     );
     assert_eq!(
-        snapshot_samples(&handle, &captured)
+        snapshot_samples(&captured)
             .await
             .iter()
             .filter(|row| row.stream.as_str() == STREAM)

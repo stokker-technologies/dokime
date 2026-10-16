@@ -527,7 +527,7 @@ pub(crate) async fn source_settings_absent() {
     assert_eq!(handle.storage_sources().await.unwrap(), expected);
     assert!(
         handle
-            .browse_executions(Default::default(), |page, _| Ok(page.clone()))
+            .browse_executions(Default::default())
             .await
             .unwrap()
             .entries

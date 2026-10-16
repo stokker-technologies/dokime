@@ -425,7 +425,7 @@ pub(crate) async fn backend_policy_revision() {
         .into_inner();
     assert_eq!(initial.revision, 0);
     let mut policy = initial.configured.unwrap();
-    policy.save_interval_ms = 1234;
+    policy.compaction_interval_ms = 7_200_000;
     let request = contracts::settings::UpdateStoragePolicyRequest {
         expected_revision: 0,
         policy: Some(policy.clone()),
