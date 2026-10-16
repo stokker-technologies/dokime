@@ -917,23 +917,16 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 query::Budget::new(limits)
                     .map_err(|error| failure("initialize private file staging", error))?,
             );
-            let (reservation, identity, metadata, root) = execution
+            let (identity, metadata, root) = execution
                 .prepare(|| {
                     super::entry::check_size(identity, super::bootstrap::METADATA_BYTES)?;
                     super::entry::check_size(metadata, super::bootstrap_files::METADATA_BYTES)?;
-                    let bytes = super::bootstrap_files::working_bytes(self.root.as_os_str().len())?;
-                    let reservation = state.reserve_query(bytes, limits.memory_bytes)?;
-                    Ok((
-                        reservation,
-                        identity.clone(),
-                        metadata.clone(),
-                        self.root.clone(),
-                    ))
+                    Ok((identity.clone(), metadata.clone(), self.root.clone()))
                 })
                 .map_err(|error| failure("prepare private file staging", error))?;
             owned("create private import file", async move {
                 let result = state
-                    .data_create_bootstrap_file(root, identity, metadata, execution, reservation)
+                    .data_create_bootstrap_file(root, identity, metadata, execution)
                     .await;
                 drop(owner);
                 result
@@ -965,20 +958,14 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 query::Budget::new(limits)
                     .map_err(|error| failure("initialize private file write", error))?,
             );
-            let (reservation, identity, staging, root, bytes) = execution
+            let (identity, staging, root, bytes) = execution
                 .prepare(|| {
                     super::entry::check_size(identity, super::bootstrap::METADATA_BYTES)?;
                     super::entry::check_size(
                         &(&staging.history, &staging.id),
                         super::bootstrap_files::METADATA_BYTES,
                     )?;
-                    let working =
-                        super::bootstrap_files::working_bytes(self.root.as_os_str().len())?
-                            .checked_add(bytes.len())
-                            .ok_or(Error::Data("private file write allocation overflow"))?;
-                    let reservation = state.reserve_query(working, limits.memory_bytes)?;
                     Ok((
-                        reservation,
                         identity.clone(),
                         staging.clone(),
                         self.root.clone(),
@@ -987,19 +974,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 })
                 .map_err(|error| failure("prepare private file write", error))?;
             owned("write private import file", async move {
-                let chunk = super::bootstrap_files::Chunk {
-                    offset,
-                    bytes: &bytes,
-                };
+                let batch = super::bootstrap_files::Batch { offset, bytes };
                 let result = state
-                    .data_write_bootstrap_file(
-                        root,
-                        identity,
-                        staging,
-                        chunk,
-                        execution,
-                        reservation,
-                    )
+                    .data_write_bootstrap_file(root, identity, staging, batch, execution)
                     .await;
                 drop(owner);
                 result
@@ -1027,7 +1004,7 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 query::Budget::new(limits)
                     .map_err(|error| failure("initialize private file finish", error))?,
             );
-            let (reservation, identity, staging, root, finish) = execution
+            let (identity, staging, root, finish) = execution
                 .prepare(|| {
                     super::entry::check_size(identity, super::bootstrap::METADATA_BYTES)?;
                     super::entry::check_size(
@@ -1035,33 +1012,17 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                         super::bootstrap_files::METADATA_BYTES,
                     )?;
                     super::entry::check_size(position, super::bootstrap::METADATA_BYTES)?;
-                    let working =
-                        super::bootstrap_files::working_bytes(self.root.as_os_str().len())?;
-                    let reservation = state.reserve_query(working, limits.memory_bytes)?;
                     let finish = super::bootstrap_files::Finish {
                         position: position.clone(),
                         length,
                         sha256,
                     };
-                    Ok((
-                        reservation,
-                        identity.clone(),
-                        staging.clone(),
-                        self.root.clone(),
-                        finish,
-                    ))
+                    Ok((identity.clone(), staging.clone(), self.root.clone(), finish))
                 })
                 .map_err(|error| failure("prepare private file finish", error))?;
             owned("finish private import file", async move {
                 let result = state
-                    .data_finish_bootstrap_file(
-                        root,
-                        identity,
-                        staging,
-                        finish,
-                        execution,
-                        reservation,
-                    )
+                    .data_finish_bootstrap_file(root, identity, staging, finish, execution)
                     .await;
                 drop(owner);
                 result
@@ -1087,17 +1048,12 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 super::bootstrap_files::METADATA_BYTES,
             )
             .map_err(|error| failure("validate private cleanup staging", error))?;
-            let working = super::bootstrap_files::working_bytes(self.root.as_os_str().len())
-                .map_err(|error| failure("size private cleanup", error))?;
-            let reservation = state
-                .reserve_query(working, self.limits.memory_bytes)
-                .map_err(|error| failure("reserve private cleanup", error))?;
             let identity = identity.clone();
             let staging = staging.clone();
             let root = self.root.clone();
             owned("abort private import file", async move {
                 let result = state
-                    .data_abort_bootstrap_file(root, identity, staging, reservation)
+                    .data_abort_bootstrap_file(root, identity, staging)
                     .await;
                 drop(owner);
                 result

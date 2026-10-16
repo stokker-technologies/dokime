@@ -25,22 +25,21 @@ use rusqlite::{Connection, params};
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 // Local Imports
-use super::super::{Error, State, memory, query};
+use super::super::{Error, State, query};
 use super::{blob, bootstrap, entry, files};
 
 /* === Constants === */
 pub(super) const METADATA_BYTES: usize = bootstrap::METADATA_BYTES;
-pub(super) const CHUNK_BYTES: usize = 64 * 1024;
-pub(super) const WORKING_BYTES: usize = 12 * METADATA_BYTES + 2 * CHUNK_BYTES;
+const BUFFER_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(super) struct Chunk<'a> {
+pub(super) struct Batch {
     pub offset: u64,
-    pub bytes: &'a [u8],
+    pub bytes: Vec<u8>,
 }
 
 pub(super) struct Finish {
@@ -67,11 +66,9 @@ impl State {
         identity: BootstrapId,
         metadata: FileMetadata,
         execution: Arc<query::Budget>,
-        reservation: memory::Reservation,
     ) -> Result<StagedFile, Error> {
         let limits = execution.limits;
         self.call_read(Some(execution), move |connection| {
-            let _reservation = reservation;
             Ok((|| {
                 matching(connection, &identity, Some(limits))?;
                 entry::key(metadata.id.as_str())?;
@@ -118,22 +115,15 @@ impl State {
         root: PathBuf,
         identity: BootstrapId,
         staged: StagedFile,
-        chunk: Chunk<'_>,
+        batch: Batch,
         execution: Arc<query::Budget>,
-        preparation: memory::Reservation,
     ) -> Result<(), Error> {
-        let Chunk { offset, bytes } = chunk;
+        let Batch { offset, bytes } = batch;
         if bytes.is_empty() {
             return Err(Error::Data("private file batch must not be empty"));
         }
-        let (reservation, bytes) = execution.prepare(|| {
-            let reservation = self.reserve_query(2 * bytes.len(), execution.limits.memory_bytes)?;
-            Ok((reservation, bytes.to_vec()))
-        })?;
         let limits = execution.limits;
         self.call_read(Some(execution), move |connection| {
-            let _preparation = preparation;
-            let _reservation = reservation;
             Ok((|| {
                 matching(connection, &identity, Some(limits))?;
                 let stage = load(connection, &identity, &staged)?
@@ -146,7 +136,7 @@ impl State {
                     .expected_length
                     .is_some_and(|length| end > length)
                 {
-                    return Err(Error::Data("private file chunk exceeds expected length"));
+                    return Err(Error::Data("private file batch exceeds expected length"));
                 }
                 let sealed = stage.finished.as_ref().or(stage.intent.as_ref());
                 let installed = path(connection, &root, &identity, &staged.id, true)?;
@@ -191,7 +181,6 @@ impl State {
         staged: StagedFile,
         finish: Finish,
         execution: Arc<query::Budget>,
-        reservation: memory::Reservation,
     ) -> Result<FileReference, Error> {
         let Finish {
             position,
@@ -200,7 +189,6 @@ impl State {
         } = finish;
         let limits = execution.limits;
         self.call_read(Some(execution), move |connection| {
-            let _reservation = reservation;
             Ok((|| {
                 matching(connection, &identity, Some(limits))?;
                 identity.cut().history.check(&position.history)?;
@@ -272,10 +260,8 @@ impl State {
         root: PathBuf,
         identity: BootstrapId,
         staged: StagedFile,
-        reservation: memory::Reservation,
     ) -> Result<(), Error> {
         self.call(move |connection| {
-            let _reservation = reservation;
             Ok((|| {
                 matching(connection, &identity, None)?;
                 abort_file(connection, &root, &identity, &staged, true)
@@ -371,7 +357,7 @@ pub(super) fn install(
                 .create(true)
                 .truncate(true)
                 .open(&copy)?;
-            let mut buffer = [0; CHUNK_BYTES];
+            let mut buffer = [0; BUFFER_BYTES];
             loop {
                 query::checkpoint()?;
                 let count = input.read(&mut buffer)?;
@@ -398,13 +384,6 @@ pub(super) fn install(
             &reference.metadata.id,
         )?)?;
     }
-}
-
-pub(super) fn working_bytes(root_bytes: usize) -> Result<usize, Error> {
-    root_bytes
-        .checked_mul(8)
-        .and_then(|bytes| bytes.checked_add(WORKING_BYTES))
-        .ok_or(Error::Data("private file working allocation overflow"))
 }
 
 pub(super) fn cleanup(
@@ -576,7 +555,7 @@ fn verify(path: &Path, reference: &FileReference) -> Result<(), Error> {
         return Err(Error::Data("private file finish length differs"));
     }
     let mut digest = Sha256::new();
-    let mut buffer = [0; CHUNK_BYTES];
+    let mut buffer = [0; BUFFER_BYTES];
     loop {
         query::checkpoint()?;
         let count = file.read(&mut buffer)?;
