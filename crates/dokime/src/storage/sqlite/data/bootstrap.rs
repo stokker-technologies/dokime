@@ -312,7 +312,7 @@ fn publish(
                 "private import visibility bytes are not canonical",
             ));
         }
-        super::store_entry(&transaction, &encoded, memory, maximum, &mut schema)?;
+        super::store_entry(&transaction, &encoded, maximum, &mut schema)?;
     }
     drop(rows);
     drop(statement);

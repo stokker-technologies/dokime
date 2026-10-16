@@ -14,7 +14,6 @@
 /* === Imports === */
 
 // Standard Library Imports
-use std::mem::size_of;
 
 // Third Party Imports
 use harmos::{
@@ -74,26 +73,6 @@ enum Value<'a> {
 
 /* === Implementations === */
 impl Decoder {
-    pub(in crate::storage::sqlite::data) fn construction_bytes(
-        schema: &Schema,
-        encoding: harmos::storage::PayloadEncoding,
-    ) -> Result<usize, Error> {
-        match encoding {
-            harmos::storage::PayloadEncoding::ProtobufV1 => Ok(0),
-            harmos::storage::PayloadEncoding::PostcardV1 => Validator::construction_memory_bytes(
-                schema,
-                &harmos::config::SchemaSettings::default(),
-            )
-            .map_err(|error| {
-                Error::Runtime(harmos::Error::backend(
-                    "budget Postcard scalar schema",
-                    harmos::BackendFailure::Permanent,
-                    error,
-                ))
-            }),
-        }
-    }
-
     pub(in crate::storage::sqlite::data) fn new(
         schema: &Schema,
         encoding: harmos::storage::PayloadEncoding,
@@ -206,26 +185,6 @@ pub(in crate::storage::sqlite::data) fn decode(
         }
         _ => return Err(Error::Corrupt("scalar key exceeds its declared range")),
     })
-}
-
-pub(in crate::storage::sqlite::data) fn allocation_bytes(
-    fields: &[Field],
-    payload_bytes: usize,
-    decoder: &Decoder,
-) -> Result<usize, Error> {
-    let count = fields.iter().filter(|field| supported(field)).count();
-    let traversal = match decoder {
-        Decoder::Protobuf => 0,
-        // A Path Contains At Most One Field And Index Per Schema Level.
-        Decoder::Postcard(_) => {
-            (2 * (harmos::schema::MAX_DEPTH + 1)).next_power_of_two() * size_of::<PathElement<'_>>()
-        }
-    };
-    count
-        .checked_mul(size_of::<Borrowed<'_>>() + size_of::<Cell>())
-        .and_then(|bytes| bytes.checked_add(payload_bytes))
-        .and_then(|bytes| bytes.checked_add(traversal))
-        .ok_or(Error::Data("scalar index allocation size overflow"))
 }
 
 pub(in crate::storage::sqlite::data) fn encode(

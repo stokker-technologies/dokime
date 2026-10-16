@@ -197,7 +197,6 @@ impl State {
             prepared.push(Encoded::new(value, length)?);
         }
         let history = batch.first().history.clone();
-        let memory = self.0.memory.clone();
         let owner = self.0.clone();
         self.call(move |connection| {
             let mut schema = owner.index_schema.lock().unwrap();
@@ -206,7 +205,6 @@ impl State {
                 &root,
                 &history,
                 &prepared,
-                &memory,
                 entry_bytes,
                 &mut schema,
             );
@@ -567,7 +565,6 @@ fn write(
     root: &std::path::Path,
     history: &StoreHistory,
     entries: &[Encoded],
-    memory: &std::sync::Arc<super::memory::Budget>,
     maximum: NonZeroUsize,
     schema: &mut Option<index::IndexSchema>,
 ) -> Result<SavedData, Error> {
@@ -632,7 +629,7 @@ fn write(
             let reference: FileReference = serde_json::from_slice(&entry.body)?;
             files::confirm(&transaction, root, &reference)?;
         }
-        store_entry(&transaction, entry, memory, maximum, schema)?;
+        store_entry(&transaction, entry, maximum, schema)?;
         head.sequence = entry.position;
     }
     transaction.execute(
@@ -646,7 +643,6 @@ fn write(
 fn store_entry(
     connection: &Connection,
     entry: &Encoded,
-    memory: &std::sync::Arc<super::memory::Budget>,
     maximum: NonZeroUsize,
     schema: &mut Option<index::IndexSchema>,
 ) -> Result<(), Error> {
@@ -668,7 +664,7 @@ fn store_entry(
             ],
         )?;
     if entry.kind == "object" {
-        index::write(connection, entry, memory, maximum, schema)?;
+        index::write(connection, entry, maximum, schema)?;
     }
     connection.execute(
         "INSERT INTO storage_data_inventory VALUES (?1,?2,?3,0)",
