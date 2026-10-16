@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 import { TAG_COLUMN_WIDTH, TagChip } from "@/components/suite-picker/SuiteTags";
 import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import { useBrand } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -77,7 +78,8 @@ export function CatalogIdentifier({ className, subject, value }: CatalogIdentifi
  * tag column's chip face so it sits on the same vertical as the tags above.
  */
 export function SuiteProvenance({ className, plugin, source }: SuiteProvenanceProps) {
-  const owner = plugin ? ownerDisplay(plugin.owner) : null;
+  const brand = useBrand();
+  const owner = plugin ? ownerDisplay(plugin.owner, brand.label) : null;
   const pluginLabel =
     plugin?.label && plugin.label !== plugin.plugin_id
       ? `${plugin.label} · ${plugin.plugin_id}`
@@ -112,11 +114,14 @@ export function SuiteProvenance({ className, plugin, source }: SuiteProvenancePr
 /* === Public Functions === */
 
 /** Searchable plugin text for one suite, so the filter matches provenance too. */
-export function pluginSearchText(plugin: RuntimeInstalledPluginRecord | undefined): unknown[] {
+export function pluginSearchText(
+  plugin: RuntimeInstalledPluginRecord | undefined,
+  brandLabel: string,
+): unknown[] {
   if (!plugin) {
     return [];
   }
-  const owner = ownerDisplay(plugin.owner);
+  const owner = ownerDisplay(plugin.owner, brandLabel);
   return [
     plugin.plugin_id,
     plugin.label,
@@ -128,10 +133,13 @@ export function pluginSearchText(plugin: RuntimeInstalledPluginRecord | undefine
 
 /* === Private Functions === */
 
-function ownerDisplay(owner: RuntimeInstalledPluginRecord["owner"]): OwnerDisplay | null {
+function ownerDisplay(
+  owner: RuntimeInstalledPluginRecord["owner"],
+  brandLabel: string,
+): OwnerDisplay | null {
   switch (owner?.kind) {
     case "host":
-      return { label: "Host", title: "Registered by the Dokime host" };
+      return { label: "Host", title: `Registered by the ${brandLabel} host` };
     case "embedded":
       return { label: "Built-in", title: `Built into this application (${owner.generation})` };
     case "bundle":

@@ -16,6 +16,7 @@ import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatStagePluginBytes, type StagePluginProgress } from "@/lib/api/native-plugins";
+import { useBrand } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -37,6 +38,7 @@ export function PluginDropZone({
   onFile,
   progress,
 }: PluginDropZoneProps) {
+  const brand = useBrand();
   const inputId = useId();
   const [dragging, setDragging] = useState(false);
 
@@ -86,7 +88,7 @@ export function PluginDropZone({
               {disabled ? stagingLabel(progress, filename) : "Drop a plugin bundle here"}
             </p>
             <p className="text-sm text-muted-foreground">
-              Dokime stages and inspects its frozen catalog without running the file.
+              {brand.label} stages and inspects its frozen catalog without running the file.
             </p>
           </div>
           <Button asChild aria-disabled={disabled} size="sm" variant="outline">

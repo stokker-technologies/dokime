@@ -17,6 +17,12 @@ import { defineConfig } from "vitest/config";
 // Stories exercise the desktop client's models in Node; the evidence runner adds the JUnit
 // reporter and the per-test deadline on its command line.
 export default defineConfig({
+  // The default live build's constants (see `vite.config.ts`), so a story can import any module
+  // the shipped surface imports.
+  define: {
+    __DOKIME_TRANSPORT__: JSON.stringify("ipc"),
+    __DOKIME_UI_MODE__: JSON.stringify("live"),
+  },
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

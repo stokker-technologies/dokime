@@ -23,6 +23,7 @@ import type {
   InstalledPluginDetail as InstalledPluginDetailModel,
   SettingValues,
 } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import { useBrand } from "@/lib/brand";
 
 /* === Types === */
 
@@ -42,6 +43,7 @@ export function InstalledPluginDetail({
   onSaveCredential,
   savingCredential,
 }: InstalledPluginDetailProps) {
+  const brand = useBrand();
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* One aligned row: what the program is, its version muted beside it,
@@ -76,7 +78,7 @@ export function InstalledPluginDetail({
                 label="Registration"
                 value={
                   detail.owner?.kind === "host"
-                    ? "Dokime host"
+                    ? `${brand.label} host`
                     : detail.owner?.kind === "bundle"
                       ? detail.owner.package
                       : detail.owner?.kind === "embedded"

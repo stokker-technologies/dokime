@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/empty";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { formatArtifactSize } from "@/lib/artifact-tree";
+import { useBrand } from "@/lib/brand";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Types === */
@@ -65,6 +66,7 @@ export function PluginList({
   changingEnabled,
   settingsSectionOf,
 }: PluginListProps) {
+  const brand = useBrand();
   if (entries.length === 0) {
     return (
       <Empty className="min-h-44 border">
@@ -83,7 +85,7 @@ export function PluginList({
   }
 
   const rows = entries.map((entry): PluginTableRow => {
-    const status = statusPresentation(entry);
+    const status = statusPresentation(entry, brand.label);
     const removalPending = entry.state === "removal_pending" && entry.consented_at !== null;
     const configurable = settingsSectionOf(entry) !== null;
     const name = entry.metadata?.identity.name ?? entry.install_id;
@@ -133,7 +135,7 @@ export function PluginList({
 
 /* === Public Functions === */
 
-export function statusPresentation(entry: PluginEntry): StatusPresentation {
+export function statusPresentation(entry: PluginEntry, brandLabel: string): StatusPresentation {
   if (entry.error) {
     return {
       label: entry.active ? "Active · Bundle unavailable" : "Unavailable",
@@ -145,7 +147,7 @@ export function statusPresentation(entry: PluginEntry): StatusPresentation {
     return {
       label: entry.consented_at === null ? "Cleanup pending" : "Removal pending",
       reason: entry.active
-        ? "Active until Dokime restarts."
+        ? `Active until ${brandLabel} restarts.`
         : entry.last_boot?.state === "failed"
           ? entry.last_boot.error
           : null,

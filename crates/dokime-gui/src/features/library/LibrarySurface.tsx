@@ -33,6 +33,7 @@ import {
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { TemplateStepTimeline } from "@/features/library/TemplateStepTimeline";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
+import { useBrand } from "@/lib/brand";
 import type { SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import { usePageChrome } from "@/shell/page-chrome";
 
@@ -74,6 +75,7 @@ const SUITE_IDENTIFIER_INSET = "pl-6";
  * catalog scannable and hand one template to that dialog.
  */
 export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
+  const brand = useBrand();
   const navigate = useNavigate();
   const suitesQuery = useTestSuitesQuery();
   const cycleLabelQuery = useCycleLabelQuery(appendTo);
@@ -108,9 +110,9 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const suiteRows = useMemo(
     () =>
       filterTestSuites(suites ?? [], suiteSearch, (suite) =>
-        pluginSearchText(plugins.get(suite.source)),
+        pluginSearchText(plugins.get(suite.source), brand.label),
       ),
-    [plugins, suiteSearch, suites],
+    [brand.label, plugins, suiteSearch, suites],
   );
   const hasSearch = suiteSearch.trim().length > 0;
 

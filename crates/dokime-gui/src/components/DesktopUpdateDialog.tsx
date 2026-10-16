@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useBrand } from "@/lib/brand";
 import {
   type GitlabAuthStatus,
   type GitlabUpdateCheck,
@@ -46,6 +47,7 @@ type BusyAction = "checking" | "installing" | "signing-in" | "signing-out" | nul
 /* === Components === */
 
 export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogProps) {
+  const brand = useBrand();
   const [auth, setAuth] = useState<GitlabAuthStatus | null>(null);
   const [busy, setBusy] = useState<BusyAction>(null);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +144,7 @@ export function DesktopUpdateDialog({ open, onOpenChange }: DesktopUpdateDialogP
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>GitLab Updates</DialogTitle>
-          <DialogDescription>Sign in to check private Dokime releases.</DialogDescription>
+          <DialogDescription>Sign in to check private {brand.label} releases.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3 text-sm">

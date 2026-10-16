@@ -10,7 +10,8 @@
 /* The materialization dialog (concept 11).
  *
  * Two steps and one outcome: edit the template's parameters, read the cases
- * they generate, then add them to a cycle. This is the only way cases enter a
+ * they generate, then add them to a cycle. A single case at its defaults skips
+ * the reading (`summaryNeeded`). This is the only way cases enter a
  * cycle, so the dialog owns the whole transaction and keeps entered values
  * through validation and RPC failures. */
 
@@ -35,7 +36,6 @@ import {
   type EditorParameterRow,
   editorProblemCount,
   editorRow,
-  parameterValueType,
   seedEditorRows,
 } from "@/components/parameter-editor/model";
 import { ParameterEditor } from "@/components/parameter-editor/ParameterEditor";
@@ -43,7 +43,6 @@ import {
   buildPayload,
   createPlanSelection,
   type FileRowState,
-  formatPreview,
   initialFileRows,
   registeredParameterRaw,
   titleCaseIdentifier,
@@ -65,9 +64,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { caseDeltas, summaryNeeded } from "@/features/library/template-dialog-model";
 import type {
   FileDefinition,
-  ParameterDefinition,
   PreviewTestCycleResponse,
   StartTestCycleRequest,
   SuiteTemplateEntry,
@@ -250,20 +249,21 @@ export function TemplateDialog({
   }
 
   /* Next expands the selection through Planning.PreviewSelection with the
-     edited values; a failure keeps the operator on step 1 with their input. */
-  async function goToSummary() {
+     edited values; a failure keeps the operator on step 1 with their input.
+     A preview with nothing to review (`summaryNeeded`) adds at once. */
+  async function next() {
     if (problems || busy) return;
     setBusy(true);
     setError(null);
     try {
-      setPreview(
-        await previewTestCycle({
-          cycle_id: appendTo,
-          parameters: {},
-          selections: request().selections,
-        }),
-      );
-      setStep("summary");
+      const expanded = await previewTestCycle({
+        cycle_id: appendTo,
+        parameters: {},
+        selections: request().selections,
+      });
+      setPreview(expanded);
+      if (summaryNeeded(expanded, rows)) setStep("summary");
+      else await add(expanded);
     } catch (failure: unknown) {
       setError(messageOf(failure));
     } finally {
@@ -276,29 +276,29 @@ export function TemplateDialog({
     setBusy(true);
     setError(null);
     try {
-      const count = preview.case_count;
-      if (appendTo) {
-        const response = await appendTestCycle({ cycleId: appendTo, request: request() });
-        /* The cases are in the cycle: the dialog has finished, and closes
-           before anything that only reports what happened. Announcing first
-           left a successful add behind an open dialog whenever the toast or
-           the navigation threw. */
-        onOpenChange(false);
-        announce(
-          count,
-          response.plan?.test_cycle?.title ?? targetCycleLabel ?? suite.name,
-          appendTo,
-        );
-      } else {
-        const created = await createTestCycle(request());
-        onOpenChange(false);
-        announce(count, suite.name, created.cycleId);
-        await navigate({ search: { appendTo: created.cycleId }, to: "/library" });
-      }
+      await add(preview);
     } catch (failure: unknown) {
       setError(messageOf(failure));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function add(planned: PreviewTestCycleResponse) {
+    const count = planned.case_count;
+    if (appendTo) {
+      const response = await appendTestCycle({ cycleId: appendTo, request: request() });
+      /* The cases are in the cycle: the dialog has finished, and closes
+           before anything that only reports what happened. Announcing first
+           left a successful add behind an open dialog whenever the toast or
+           the navigation threw. */
+      onOpenChange(false);
+      announce(count, response.plan?.test_cycle?.title ?? targetCycleLabel ?? suite.name, appendTo);
+    } else {
+      const created = await createTestCycle(request());
+      onOpenChange(false);
+      announce(count, suite.name, created.cycleId);
+      await navigate({ search: { appendTo: created.cycleId }, to: "/library" });
     }
   }
 
@@ -395,7 +395,7 @@ export function TemplateDialog({
           <Button
             className="h-9 w-full"
             disabled={Boolean(problems) || busy || !parametersReady}
-            onClick={() => void goToSummary()}
+            onClick={() => void next()}
             type="button"
           >
             Next
@@ -445,6 +445,7 @@ export function TemplateDialog({
       <Sheet modal onOpenChange={onOpenChange} open={open}>
         <SheetContent
           className="inset-x-0 grid max-w-none grid-rows-[auto_minmax(0,1fr)_auto] p-0"
+          onOpenAutoFocus={focusContent}
           side="right"
         >
           <SheetHeader className="grid gap-2 text-center">
@@ -462,7 +463,10 @@ export function TemplateDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       {/* A pinned top, not a centred box: the header keeps its place while the
           body grows or shrinks between the two steps. */}
-      <DialogContent className="top-[6vh] max-h-[88vh] translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] pb-0 sm:max-w-[720px]">
+      <DialogContent
+        className="top-[6vh] max-h-[88vh] translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] pb-0 sm:max-w-[720px]"
+        onOpenAutoFocus={focusContent}
+      >
         <DialogHeader className="items-center gap-2 text-center">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="sr-only">
@@ -630,38 +634,15 @@ function readTouchDensity(): boolean {
 }
 
 /**
- * The values of one planned case that differ from what the template registered.
+ * Opening focuses the dialog itself rather than its first tabbable control.
  *
- * The comparison is against the definition, not against the operator's edit
- * list: an expanded parameter gives every case a different value, and a case
- * whose value happens to match the default must not claim a change. A
- * parameter the preview names but the template does not define is dropped
- * rather than printed as a raw key.
+ * The first control is a copy button under the title; focusing it opened its
+ * tooltip over the title on every open. Tab still reaches it, and hover still
+ * shows its tooltip.
  */
-function caseDeltas(parameters: Record<string, unknown>, rows: EditorParameterRow[]): string[] {
-  const deltas: string[] = [];
-  for (const row of rows) {
-    if (!(row.name in parameters)) continue;
-    const valueType = parameterValueType(row.definition);
-    const actual = valueText(parameters[row.name], valueType);
-    if (actual === registeredValueText(row.definition, valueType)) continue;
-    const unit = row.definition.unit?.trim();
-    const label = row.definition.label ?? titleCaseIdentifier(row.name);
-    deltas.push(`${label}: ${actual}${unit ? ` ${unit}` : ""}`);
-  }
-  return deltas;
-}
-
-function valueText(value: unknown, valueType: string): string {
-  return formatPreview(Array.isArray(value) ? value : [value], valueType);
-}
-
-/** The registered value, formatted the same way a case's value is. */
-function registeredValueText(definition: ParameterDefinition, valueType: string): string {
-  const single = (definition.expansion?.kind ?? "single") === "single";
-  return single && definition.list
-    ? valueText(definition.values[0], valueType)
-    : valueText(definition.values, valueType);
+function focusContent(event: Event) {
+  event.preventDefault();
+  (event.currentTarget as HTMLElement).focus();
 }
 
 function messageOf(failure: unknown): string {

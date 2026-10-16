@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatArtifactSize } from "@/lib/artifact-tree";
+import { useBrand } from "@/lib/brand";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 
 /* === Types === */
@@ -44,6 +45,7 @@ export function PluginConsentDialog({
   onCancel,
   onInstall,
 }: PluginConsentDialogProps) {
+  const brand = useBrand();
   return (
     <Dialog
       onOpenChange={(open) => {
@@ -57,8 +59,8 @@ export function PluginConsentDialog({
         <DialogHeader>
           <DialogTitle>Review Plugin</DialogTitle>
           <DialogDescription>
-            Dokime inspected this file without running it. Confirm the declared identity before
-            installing it.
+            {brand.label} inspected this file without running it. Confirm the declared identity
+            before installing it.
           </DialogDescription>
         </DialogHeader>
 
@@ -121,8 +123,8 @@ export function PluginConsentDialog({
               <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />
               <div className="grid gap-1">
                 <p className="font-medium text-foreground">
-                  Installing runs these native executables with Dokime&apos;s privileges at every
-                  start — install only plugins you trust.
+                  Installing runs these native executables with {brand.label}&apos;s privileges at
+                  every start — install only plugins you trust.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   It will not run until the next restart. If this plugin is already installed, this

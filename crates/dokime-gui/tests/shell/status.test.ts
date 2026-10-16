@@ -11,6 +11,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { backendExitMeaning } from "@/app/native-session/errors";
+import type { RuntimeInstalledPluginRecord } from "@/features/settings/installed-plugins/installed-plugin-contracts";
+import { statusPresentation } from "@/features/settings/plugins/PluginList";
+import { programSource } from "@/features/settings/plugins/PluginPrograms";
 import {
   type OperationFrame,
   operationPercent,
@@ -106,4 +110,34 @@ test("Operation Summary", () => {
   );
   assert.ok(outranked.kind === "single");
   assert.equal(outranked.operation.id, "busy");
+});
+
+test("Backend Exit Meaning", () => {
+  // Each Code The Server Defines Names Its Cause
+  assert.match(backendExitMeaning(2) ?? "", /^Invalid input/);
+  assert.match(backendExitMeaning(3) ?? "", /^Runtime failure/);
+  assert.match(backendExitMeaning(4) ?? "", /^Incompatible storage/);
+  assert.equal(backendExitMeaning(0), "Clean stop");
+
+  // An Undefined Code Or A Signal Claims No Meaning
+  assert.equal(backendExitMeaning(1), null);
+  assert.equal(backendExitMeaning(null), null);
+});
+
+test("Brand Label", () => {
+  // Host Programs Are Named After The Running Brand
+  const program = {
+    owner: { kind: "host" },
+    version: "1.2.0",
+  } as unknown as RuntimeInstalledPluginRecord;
+  assert.equal(programSource(program, "Acme"), "Acme Host · v1.2.0");
+
+  // A Pending Removal Waits For The Brand To Restart
+  const entry = {
+    active: true,
+    consented_at: 1,
+    error: null,
+    state: "removal_pending",
+  } as unknown as Parameters<typeof statusPresentation>[0];
+  assert.equal(statusPresentation(entry, "Acme").reason, "Active until Acme restarts.");
 });

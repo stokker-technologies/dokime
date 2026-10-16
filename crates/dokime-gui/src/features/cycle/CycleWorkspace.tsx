@@ -47,7 +47,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { TestExecution } from "@/lib/types";
-import { useFocusMode } from "@/shell/focus-mode";
+import { focusPresentation, useFocusMode } from "@/shell/focus-mode";
 import { usePageChrome } from "@/shell/page-chrome";
 import { useSelectionStore } from "@/stores/selection-store";
 import { CycleEvidencePane } from "./CycleEvidencePane";
@@ -183,6 +183,7 @@ export function CycleWorkspace({
   }, [cycleTitle, selectedExecutionId, selectedLabel]);
   const toggleFocus = focus.setFocused;
   const focused = focus.focused;
+  const focusLabel = focusPresentation(focused).toggleLabel;
   const pageActions = useMemo(
     () =>
       live ? (
@@ -197,20 +198,29 @@ export function CycleWorkspace({
               label={reportSubject.label}
             />
           ) : null}
+          {/* Focus names its exit in text: the bar is the only chrome left,
+              and Escape is a shortcut, not the way out. */}
           <Button
-            aria-label={focused ? "Leave Focus" : "Focus"}
+            aria-label={focusLabel}
             aria-pressed={focused}
-            className="size-[var(--bar-control-height)]"
+            className={focused ? undefined : "size-[var(--bar-control-height)]"}
             onClick={() => toggleFocus(!focused)}
-            size="icon"
-            title={focused ? "Leave Focus (Escape)" : "Focus"}
+            size={focused ? "default" : "icon"}
+            title={focused ? `${focusLabel} (Escape)` : focusLabel}
             variant={focused ? "secondary" : "outline"}
           >
-            {focused ? <Minimize2 /> : <Maximize2 />}
+            {focused ? (
+              <>
+                <Minimize2 />
+                {focusLabel}
+              </>
+            ) : (
+              <Maximize2 />
+            )}
           </Button>
         </div>
       ) : null,
-    [cycleId, executionSelected, focused, live, reportSubject, toggleFocus],
+    [cycleId, executionSelected, focusLabel, focused, live, reportSubject, toggleFocus],
   );
   /* The page bar names the selected node as a breadcrumb; Back from an
      execution returns to the cycle (see `useParentRoute`). */

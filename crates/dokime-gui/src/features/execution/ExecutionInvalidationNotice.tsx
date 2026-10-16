@@ -8,10 +8,12 @@
  */
 
 import { Badge } from "@/components/ui/badge";
+import { useBrand } from "@/lib/brand";
 import type { TestExecution } from "@/lib/types";
 
 /** An invalidated attempt keeps its evidence but cannot produce a result. */
 export function ExecutionInvalidationNotice({ execution }: { execution: TestExecution | null }) {
+  const brand = useBrand();
   if (execution?.status !== "invalidated") return null;
   const reason = execution.invalidation;
   return (
@@ -26,7 +28,7 @@ export function ExecutionInvalidationNotice({ execution }: { execution: TestExec
         {reason
           ? reason.current
             ? `Plugin ${reason.previous.source} changed after this execution was created.`
-            : `Plugin ${reason.previous.source} was not available when Dokime restarted. It may have been removed, disabled, or failed to load.`
+            : `Plugin ${reason.previous.source} was not available when ${brand.label} restarted. It may have been removed, disabled, or failed to load.`
           : "The plugin required by this execution changed or is no longer available."}
       </p>
       <p>This execution ended without a result. Its recorded evidence is preserved.</p>
