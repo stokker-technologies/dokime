@@ -65,6 +65,7 @@ struct Preflight<'a> {
     offset: usize,
     memory: usize,
     typed_cell: usize,
+    scalar_cell: usize,
 }
 
 /* === Enums === */
@@ -129,8 +130,10 @@ impl<'a> Preflight<'a> {
         self.space();
         self.claim(if matches!(scope, Scope::Dynamic) {
             128
-        } else {
+        } else if matches!(self.peek(), Some(b'{' | b'[')) {
             self.typed_cell
+        } else {
+            self.scalar_cell
         })?;
         match self.peek() {
             Some(b'{') => self.object(scope, depth + 1),
@@ -487,6 +490,27 @@ fn decoding_memory(bytes: &[u8]) -> Result<usize> {
         .checked_mul(16)
         .and_then(|bytes| bytes.checked_add(4096))
         .ok_or_else(|| invalid("materialized inline bound overflows"))?;
+    // Scalar Leaves Cannot Allocate A Report Struct. Their Owned Forms Are
+    // Strings Or Closed Values; Include A Full Map Node And Vec Growth For
+    // Scalars Used As Collection Entries, Even For The First Insertion.
+    let scalar_inline = [
+        std::mem::size_of::<String>(),
+        std::mem::size_of::<dokime::core::Value>(),
+        std::mem::size_of::<super::value::Value>(),
+        std::mem::size_of::<serde_json::Value>(),
+    ]
+    .into_iter()
+    .max()
+    .expect("nonempty scalar type inventory");
+    let scalar_cell = [
+        harmos::btree_map_memory::<String, dokime::core::Value>(1),
+        harmos::btree_map_memory::<String, super::value::Value>(1),
+        harmos::btree_map_memory::<String, serde_json::Value>(1),
+        scalar_inline.saturating_mul(4),
+    ]
+    .into_iter()
+    .max()
+    .expect("nonempty scalar allocation inventory");
     let memory = bytes
         .len()
         .checked_mul(8)
@@ -497,6 +521,7 @@ fn decoding_memory(bytes: &[u8]) -> Result<usize> {
         offset: 0,
         memory,
         typed_cell,
+        scalar_cell,
     };
     scan.value(Scope::Envelope, 0)?;
     scan.space();
