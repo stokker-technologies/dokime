@@ -26,8 +26,6 @@ const EMPTY_REPORT_PAYLOAD: ReportPayload = {
   test_cycle_plan: null,
   test_executions: [],
   plots: {},
-  histograms: {},
-  box_summaries: {},
   case_runs: [],
   cycle_summary: null,
   warnings: ["Report data is unavailable."],
@@ -50,8 +48,6 @@ export function readReportPayload(): ReportPayload {
       test_executions: parsed.test_executions ?? [],
       documents: parsed.documents ?? {},
       plots: capturedPlots(parsed.plots),
-      histograms: parsed.histograms ?? {},
-      box_summaries: parsed.box_summaries ?? {},
       case_runs: (parsed.case_runs ?? []).map((caseRun) => ({
         ...caseRun,
         documents: caseRun.documents ?? {},

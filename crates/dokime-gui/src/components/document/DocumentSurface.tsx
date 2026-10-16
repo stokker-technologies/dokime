@@ -49,7 +49,6 @@ import {
 } from "@/components/ui/table";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { formatValue } from "@/lib/dashboard";
-import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
 import { isStatedGroup } from "@/lib/traceability";
 import type {
   DocumentViewCard,
@@ -64,47 +63,10 @@ import type {
   TelemetryStream,
   TraceabilitySnapshot,
 } from "@/lib/types";
-import { BoxSummaryPlot } from "@/plots/catalog/BoxSummaryPlot";
-import { HistogramPlot } from "@/plots/catalog/HistogramPlot";
-import { histogramAxisTitle } from "@/plots/histogram-axes";
 import { PlotInteractionProvider } from "@/plots/interaction";
 import type { LivePlotStateMap } from "@/plots/live-data";
 
 /* === Types === */
-
-export type HistogramCardSpec = {
-  key: string;
-  title: string;
-  values: number[];
-  unit: string;
-  /** The x axis title: the binned value's label and unit. */
-  xTitle: string;
-  bins: number;
-};
-
-export type HistogramTopicGroup = {
-  title: string;
-  description: string;
-  histograms: HistogramCardSpec[];
-};
-
-export type HistogramSectionSpec = {
-  key: string;
-  title: string;
-  groups: HistogramTopicGroup[];
-};
-
-export type BoxSummaryTopicGroup = {
-  title: string;
-  description: string;
-  summaries: DocumentBoxSummaryPayload[];
-};
-
-export type BoxSummarySectionSpec = {
-  key: string;
-  title: string;
-  groups: BoxSummaryTopicGroup[];
-};
 
 type DocumentSurfaceSharedProps = {
   artifacts: ArtifactTreeInput[];
@@ -125,12 +87,10 @@ type DocumentSurfaceSharedProps = {
 };
 
 type LiveDocumentSurfaceProps = DocumentSurfaceSharedProps & {
-  boxSummarySection?: BoxSummarySectionSpec;
   /** The execution scope host captures attach to; absent hides the controls. */
   captureScope?: RecordScope | null;
   /** The unsealed cycle or execution a new operator note is filed against. */
   noteScope?: RecordScope | null;
-  histogramSection?: HistogramSectionSpec;
   livePlotStates: LivePlotStateMap;
   onPlotSettingsChange?: PlotSettingsChange;
   plotContextTelemetry: Record<string, TelemetryStream> | null;
@@ -140,8 +100,6 @@ type LiveDocumentSurfaceProps = DocumentSurfaceSharedProps & {
 
 type ReportDocumentSurfaceProps = DocumentSurfaceSharedProps & {
   renderMode: "report";
-  reportBoxSummaries: Record<string, DocumentBoxSummaryPayload>;
-  reportHistograms: Record<string, DocumentHistogramPayload>;
   reportPlots: Record<string, PlotPayload>;
   reportTelemetry: Record<string, TelemetryStream> | null;
 };
@@ -213,50 +171,6 @@ export function DocumentCardContent(props: DocumentCardContentProps) {
           title={props.sectionTitle}
         />
       </div>
-    );
-  }
-
-  if (props.card.kind === "histograms") {
-    return reportMode ? (
-      <div className="grid gap-4">
-        {props.card.histograms.map((histogram) => {
-          const payloadHistogram = props.reportHistograms[histogram.histogram_id];
-          return payloadHistogram ? (
-            <HistogramPlot
-              bins={payloadHistogram.bins}
-              key={histogram.histogram_id}
-              title={payloadHistogram.title}
-              unit={payloadHistogram.display_unit}
-              values={payloadHistogram.values}
-              xTitle={histogramAxisTitle({
-                label: payloadHistogram.field,
-                unit: payloadHistogram.unit,
-              })}
-            />
-          ) : null;
-        })}
-      </div>
-    ) : props.histogramSection ? (
-      <TelemetryHistogramGroups groups={props.histogramSection.groups} />
-    ) : (
-      <p className="text-sm text-muted-foreground">No histogram samples available.</p>
-    );
-  }
-
-  if (props.card.kind === "box_summaries") {
-    return reportMode ? (
-      <div className="grid gap-4">
-        {props.card.box_summaries.map((boxSummary) => {
-          const payloadBoxSummary = props.reportBoxSummaries[boxSummary.box_summary_id];
-          return payloadBoxSummary ? (
-            <BoxSummaryPlot key={boxSummary.box_summary_id} summary={payloadBoxSummary} />
-          ) : null;
-        })}
-      </div>
-    ) : props.boxSummarySection ? (
-      <TelemetryBoxSummaryGroups groups={props.boxSummarySection.groups} />
-    ) : (
-      <p className="text-sm text-muted-foreground">No distribution samples available.</p>
     );
   }
 
@@ -429,64 +343,6 @@ export function DocumentTableContent({ rows }: { rows: DocumentViewTableRow[] })
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-export function TelemetryHistogramGroups({ groups }: { groups: HistogramTopicGroup[] }) {
-  return groups.length ? (
-    <div className="grid gap-5">
-      {groups.map((group) => (
-        <section className="grid gap-3" key={group.title}>
-          <div>
-            <h3 className="text-base font-semibold">{group.title}</h3>
-            <p className="text-sm text-muted-foreground">{group.description}</p>
-          </div>
-          <div className="grid gap-4">
-            {group.histograms.map((histogram) => (
-              <HistogramPlot
-                bins={histogram.bins}
-                emptyMessage="Waiting for numeric telemetry samples."
-                key={histogram.key}
-                title={histogram.title}
-                unit={histogram.unit}
-                values={histogram.values}
-                xTitle={histogram.xTitle}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  ) : (
-    <div className="grid min-h-44 place-content-center gap-2 rounded-lg border text-center text-muted-foreground">
-      <strong>No histogram telemetry yet</strong>
-      <span>Publish numeric stream samples to see distributions.</span>
-    </div>
-  );
-}
-
-export function TelemetryBoxSummaryGroups({ groups }: { groups: BoxSummaryTopicGroup[] }) {
-  return groups.length ? (
-    <div className="grid gap-5">
-      {groups.map((group) => (
-        <section className="grid gap-3" key={group.title}>
-          <div>
-            <h3 className="text-base font-semibold">{group.title}</h3>
-            <p className="text-sm text-muted-foreground">{group.description}</p>
-          </div>
-          <div className="grid gap-4">
-            {group.summaries.map((summary) => (
-              <BoxSummaryPlot key={summary.box_summary_id} summary={summary} />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  ) : (
-    <div className="grid min-h-44 place-content-center gap-2 rounded-lg border text-center text-muted-foreground">
-      <strong>No distribution telemetry yet</strong>
-      <span>Publish numeric stream samples to see summaries.</span>
     </div>
   );
 }

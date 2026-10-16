@@ -371,7 +371,5 @@ function isReportCard(card: DocumentViewCard): boolean {
 
 /** Inside Report a card keeps its title but not a second frame; plots stay flat. */
 function reportCardChrome(card: DocumentViewCard): DocumentBlockChrome {
-  return card.kind === "plots" || card.kind === "histograms" || card.kind === "box_summaries"
-    ? "flat"
-    : "embedded";
+  return card.kind === "plots" ? "flat" : "embedded";
 }

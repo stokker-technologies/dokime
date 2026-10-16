@@ -12,87 +12,50 @@
 import { HistogramChart } from "@/components/HistogramChart";
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { histogramAxisTitle } from "@/plots/histogram-axes";
+import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
+import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
-
-/* === Types === */
-
-type HistogramPlotProps = {
-  bins: number;
-  title: string;
-  unit: string;
-  values: number[];
-  /** The x axis title: the binned value's label and unit. */
-  xTitle?: string;
-  emptyMessage?: string;
-};
 
 /* === Components === */
 
-export function HistogramPlot({
-  bins,
-  title,
-  unit,
-  values,
-  xTitle,
-  emptyMessage = "No numeric samples available for this histogram.",
-}: HistogramPlotProps) {
-  return (
-    <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3">
-      <HistogramChart
-        bins={bins}
-        emptyMessage={emptyMessage}
-        sampleLabel="samples"
-        title={title}
-        unit={unit}
-        values={values}
-        xTitle={xTitle}
-      />
-      <StatsSummaryTable rows={[{ label: title, unit, values }]} />
-    </article>
-  );
-}
-
+/**
+ * A histogram plot: the backend's bins per series and its statistics of each.
+ * Until any series has samples it shows the same placeholder as a time series.
+ */
 export function HistogramSeriesPlot({ plot }: { plot: PlotCardSpec }) {
   const analysis = plot.analysis?.kind === "histogram" ? plot.analysis : null;
+  const series = analysis?.series ?? [];
   const axis = plot.histogramAxes?.x;
   const unit = axis?.unit ?? plot.histogram?.unit ?? plot.unit ?? "";
 
+  if (plot.analysis?.kind === "error") {
+    return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
+  }
+  if (!series.some((item) => item.count > 0)) {
+    return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
+  }
+
+  const seriesLabel = (key: string) => plot.series.find((item) => item.key === key)?.label ?? key;
+  const rows = series.map((item) => ({
+    label: series.length === 1 ? plot.title : seriesLabel(item.key),
+    unit,
+    statistics: item.statistics ?? null,
+    count: item.count,
+  }));
+
   return (
     <article className="plot-card grid min-w-0 max-w-full overflow-hidden gap-3">
-      {analysis?.series.length ? (
-        analysis.series.map((series) => (
-          <HistogramChart
-            key={series.key}
-            title={
-              analysis.series.length > 1
-                ? `${plot.title} / ${plot.series.find((item) => item.key === series.key)?.label ?? series.key}`
-                : plot.title
-            }
-            values={[]}
-            distribution={series}
-            sampleLabel="samples"
-            unit={unit}
-            format={axis?.format ?? null}
-            xTitle={axis ? histogramAxisTitle(axis) : undefined}
-          />
-        ))
-      ) : (
-        <p>{plot.stateDetail ?? "No histogram analysis is available."}</p>
-      )}
-      {analysis?.series.length ? (
-        <StatsSummaryTable
-          rows={analysis.series.map((series) => ({
-            label:
-              analysis.series.length === 1
-                ? plot.title
-                : (plot.series.find((item) => item.key === series.key)?.label ?? series.key),
-            unit,
-            values: [],
-            statistics: series.statistics,
-            count: series.count,
-          }))}
+      {series.map((item) => (
+        <HistogramChart
+          key={item.key}
+          title={series.length > 1 ? `${plot.title} / ${seriesLabel(item.key)}` : plot.title}
+          distribution={item}
+          unit={unit}
+          format={axis?.format ?? null}
+          xTitle={axis ? histogramAxisTitle(axis) : undefined}
         />
-      ) : null}
+      ))}
+      <StatsSummaryTable rows={rows} />
     </article>
   );
 }

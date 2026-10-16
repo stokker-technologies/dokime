@@ -25,7 +25,7 @@ import type { DocumentViewPayload, HubLiveState } from "@/lib/types";
 
 /* === Constants === */
 
-const NO_PLOT_PAYLOADS: FrozenPlotPayloads = { boxSummaries: {}, histograms: {}, plots: {} };
+const NO_PLOT_PAYLOADS: FrozenPlotPayloads = { plots: {} };
 
 /** Revisions describe what has changed since a frame; nothing has. */
 const FROZEN_REVISIONS = {
@@ -75,20 +75,10 @@ export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource
     plan: payload.test_cycle_plan ?? null,
     plotPayloads: (executionId) => {
       if (executionId === null) {
-        return {
-          boxSummaries: payload.box_summaries,
-          histograms: payload.histograms,
-          plots: payload.plots,
-        };
+        return { plots: payload.plots };
       }
       const caseRun = caseRuns.get(executionId);
-      return caseRun
-        ? {
-            boxSummaries: caseRun.box_summaries,
-            histograms: caseRun.histograms,
-            plots: caseRun.plots,
-          }
-        : NO_PLOT_PAYLOADS;
+      return caseRun ? { plots: caseRun.plots } : NO_PLOT_PAYLOADS;
     },
     records: snapshot?.records ?? [],
     runtimeShell: runtimeShell(snapshot),

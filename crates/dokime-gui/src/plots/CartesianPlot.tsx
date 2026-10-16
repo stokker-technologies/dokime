@@ -37,6 +37,8 @@ import { isNumber } from "@/lib/utils";
 import { formatElapsedTick, xValue } from "@/plots/axis";
 import { resolvePlotCssColor, resolvePlotThemeColors } from "@/plots/colors";
 import { usePlotInteraction } from "@/plots/interaction";
+import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
+import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PlotViewportMode } from "@/plots/types";
 import { type HeldViewport, heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
@@ -717,24 +719,16 @@ export const CartesianPlot = memo(function CartesianPlot({
   }, [chartFrame, dataSignature, hasData, liveXRange, resetKey, timeAxis, viewportMode, xScale]);
 
   if (displayError || !hasData) {
+    const placeholder = displayError
+      ? plotUnavailableText(displayError)
+      : hasTimeline
+        ? plotPlaceholderText(
+            { stateLabel: stateLabel ?? "Unavailable", stateDetail },
+            "The stream is active, but this signal is unavailable in the selected window.",
+          )
+        : plotPlaceholderText({ stateLabel, stateDetail });
     return (
-      <div className="plot-empty relative grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 p-4 text-center text-muted-foreground">
-        {actions ? <div className="absolute top-2 right-2">{actions}</div> : null}
-        <strong>{title}</strong>
-        {description ? <span className="text-xs">{description}</span> : null}
-        <span>
-          {displayError
-            ? "Plot Unavailable"
-            : (stateLabel ?? (hasTimeline ? "Unavailable" : "Waiting For Samples"))}
-        </span>
-        <span className="text-xs">
-          {displayError ??
-            stateDetail ??
-            (hasTimeline
-              ? "The stream is active, but this signal is unavailable in the selected window."
-              : "No plottable data recorded.")}
-        </span>
-      </div>
+      <PlotPlaceholder actions={actions} description={description} title={title} {...placeholder} />
     );
   }
 

@@ -9,12 +9,12 @@
 
 /* === Types === */
 
+/** One labelled distribution's backend statistics; `null` until they arrive. */
 export type StatsSummaryRow = {
   label: string;
   unit?: string;
-  values: number[];
-  statistics?: StatsSummary | null;
-  count?: number;
+  statistics: StatsSummary | null;
+  count: number;
 };
 
 /** The backend's statistics of one trace over the rows of the shown window. */
@@ -178,30 +178,24 @@ export function formatSummaryValue(value: number | null | undefined): string {
   return value.toFixed(Math.abs(value) >= 100 ? 0 : 2);
 }
 
-export function describeValues(values: number[]): StatsSummary {
-  if (!values.length) {
-    return {};
-  }
-  const ordered = [...values].sort((left, right) => left - right);
-  const mean = values.reduce((total, value) => total + value, 0) / values.length;
-  const variance = values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
-  const middle = Math.floor(ordered.length / 2);
-  const median =
-    ordered.length % 2
-      ? ordered[middle]
-      : ((ordered[middle - 1] ?? 0) + (ordered[middle] ?? 0)) / 2;
-
-  return {
-    mean,
-    median,
-    std: Math.sqrt(variance),
-    rms: Math.sqrt(values.reduce((total, value) => total + value ** 2, 0) / values.length),
-    min: ordered[0],
-    max: ordered[ordered.length - 1],
-  };
-}
-
 export function formatStatValue(value: number | undefined, unit?: string): string {
   const text = formatSummaryValue(value);
   return unit && text !== "-" ? `${text} ${unit}` : text;
+}
+
+/**
+ * A distribution's statistics as the summary grid prints them, in order. The
+ * values are the backend's; a statistic it did not deliver prints a dash.
+ */
+export function statsSummaryCells(row: StatsSummaryRow): [string, string][] {
+  const stats = row.statistics ?? {};
+  return [
+    ["Mean", formatStatValue(stats.mean, row.unit)],
+    ["Median", formatStatValue(stats.median, row.unit)],
+    ["Std", formatStatValue(stats.std, row.unit)],
+    ["RMS", formatStatValue(stats.rms, row.unit)],
+    ["Min", formatStatValue(stats.min, row.unit)],
+    ["Max", formatStatValue(stats.max, row.unit)],
+    ["Count", String(row.count)],
+  ];
 }

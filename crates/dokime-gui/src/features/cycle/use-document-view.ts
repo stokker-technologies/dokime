@@ -24,8 +24,6 @@ import { scopeVisibleIn } from "@/lib/scope";
 import { elapsedLabel } from "@/lib/time-format";
 import type { DocumentViewPayload, HubLiveState, RecordScope, TestExecution } from "@/lib/types";
 import {
-  buildDocumentBoxSummarySections,
-  buildDocumentHistogramSections,
   mergeParameterContexts,
   plotContextTelemetrySnapshot,
   uniqueArtifacts,
@@ -56,8 +54,6 @@ export type DocumentViewOptions = {
     case: Record<string, unknown> | null | undefined;
     execution: Record<string, unknown> | null | undefined;
   };
-  /** The operator's plot window, when they overrode the authored one. */
-  windowS: number | null | undefined;
 };
 
 /* === Hooks === */
@@ -70,7 +66,6 @@ export function useDocumentView({
   scope,
   live,
   parameters,
-  windowS,
 }: DocumentViewOptions) {
   const sections = useMemo(() => orderedDocumentSections(document), [document]);
   const mainCards = useMemo(
@@ -136,37 +131,10 @@ export function useDocumentView({
     () => plotContextTelemetrySnapshot(liveSnapshot, plots),
     [liveSnapshot, plots],
   );
-  const histogramCards = useMemo(
-    () => mainCards.filter((block) => block.kind === "histograms"),
-    [mainCards],
-  );
-  const boxSummaryCards = useMemo(
-    () => mainCards.filter((block) => block.kind === "box_summaries"),
-    [mainCards],
-  );
   const parameterContext = useMemo(
     () => mergeParameterContexts(parameters.case, parameters.execution),
     [parameters.case, parameters.execution],
   );
-  const histogramSections = useMemo(
-    () =>
-      buildDocumentHistogramSections({
-        cards: histogramCards,
-        snapshot: liveSnapshot,
-        windowS,
-      }),
-    [histogramCards, liveSnapshot, windowS],
-  );
-  const boxSummarySections = useMemo(
-    () =>
-      buildDocumentBoxSummarySections({
-        cards: boxSummaryCards,
-        snapshot: liveSnapshot,
-        windowS,
-      }),
-    [boxSummaryCards, liveSnapshot, windowS],
-  );
-
   return {
     artifacts,
     criterionRecords,
@@ -176,8 +144,6 @@ export function useDocumentView({
     stepRecords,
     streams,
     traceability: traceabilityQuery.data ?? null,
-    boxSummarySections,
-    histogramSections,
     notes: stampedNotes,
     parameterContext,
     plotContextTelemetry,

@@ -40,8 +40,6 @@ export const DOCUMENT_CARD_HIERARCHY: readonly DocumentCardKind[] = [
   "table",
   "traceability",
   "plots",
-  "histograms",
-  "box_summaries",
   "steps",
   "criteria",
   "media",

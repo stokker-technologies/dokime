@@ -15,10 +15,8 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import { useNativeSessionOptional } from "@/app/native-session/NativeSessionProvider";
 import {
-  type BoxSummarySectionSpec,
   DocumentCardContent,
   type DocumentCardContentProps,
-  type HistogramSectionSpec,
 } from "@/components/document/DocumentSurface";
 import {
   type DocumentBlockChrome,
@@ -31,7 +29,6 @@ import { updatePlotSettings } from "@/lib/api/native-documents";
 import { useReportDefaults } from "@/lib/application-settings";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { orderedDocumentSections } from "@/lib/document-layout";
-import type { DocumentBoxSummaryPayload, DocumentHistogramPayload } from "@/lib/report-types";
 import type { TraceabilityExportName } from "@/lib/traceability";
 import type {
   DocumentViewCard,
@@ -79,8 +76,6 @@ type DocumentWorkspaceViewBaseProps = {
 };
 
 type LiveDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
-  boxSummarySections: BoxSummarySectionSpec[];
-  histogramSections: HistogramSectionSpec[];
   plotContextTelemetry: Record<string, TelemetryStream> | null;
   plotResetKey: string;
   plotWindowS?: number | null;
@@ -90,8 +85,6 @@ type LiveDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
 
 type ReportDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
   renderMode: "report";
-  reportBoxSummaries: Record<string, DocumentBoxSummaryPayload>;
-  reportHistograms: Record<string, DocumentHistogramPayload>;
   reportPlots: Record<string, PlotPayload>;
   reportTelemetry: Record<string, TelemetryStream> | null;
 };
@@ -257,8 +250,6 @@ function documentCardContentProps(
     return {
       ...shared,
       renderMode: "report",
-      reportBoxSummaries: props.reportBoxSummaries,
-      reportHistograms: props.reportHistograms,
       reportPlots: props.reportPlots,
       reportTelemetry: props.reportTelemetry,
     };
@@ -266,9 +257,7 @@ function documentCardContentProps(
 
   return {
     ...shared,
-    boxSummarySection: props.boxSummarySections.find((item) => item.key === card.card_id),
     captureScope: props.scope?.test_cycle_id && props.scope.test_execution_id ? props.scope : null,
-    histogramSection: props.histogramSections.find((item) => item.key === card.card_id),
     livePlotStates,
     noteScope: props.scope?.test_cycle_id ? props.scope : null,
     plotContextTelemetry: props.plotContextTelemetry,

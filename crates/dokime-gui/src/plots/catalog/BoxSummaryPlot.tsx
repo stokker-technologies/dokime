@@ -9,87 +9,27 @@
 
 /* === Local Imports === */
 
-import type { DocumentBoxSummaryPayload } from "@/lib/report-types";
 import { isNumber } from "@/lib/utils";
+import { PlotPlaceholder } from "@/plots/PlotPlaceholder";
+import { plotPlaceholderText, plotUnavailableText } from "@/plots/plot-placeholder";
 import type { PlotCardSpec } from "@/plots/types";
 
 /* === Types === */
 
-type BoxSummaryPlotProps = {
-  summary: DocumentBoxSummaryPayload;
-};
-
-type BoxSummaryBucket = Pick<
-  DocumentBoxSummaryPayload,
-  "minimum" | "q1" | "median" | "q3" | "maximum" | "outliers"
-> & {
+/** One box as the backend summarized it, whiskers as its drawn extent. */
+type BoxSummaryBucket = {
   key: string;
   label: string;
   sample_count: number;
+  minimum: number;
+  q1: number;
+  median: number;
+  q3: number;
+  maximum: number;
+  outliers: number[];
 };
 
 /* === Components === */
-
-export function BoxSummaryPlot({ summary }: BoxSummaryPlotProps) {
-  const hasData =
-    summary.sample_count > 0 && summary.median !== null && summary.median !== undefined;
-  const values = [summary.minimum, summary.q1, summary.median, summary.q3, summary.maximum].filter(
-    isNumber,
-  );
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(max - min, 0.001);
-
-  return (
-    <article className="grid min-h-44 gap-3 rounded-md bg-muted/20 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <strong className="text-sm">{summary.title}</strong>
-        <span className="text-xs text-muted-foreground">
-          {summary.sample_count ? `${summary.sample_count} samples` : "No samples"}
-        </span>
-      </div>
-      {hasData ? (
-        <div className="grid gap-3">
-          <div className="relative h-16">
-            <span className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-border" />
-            <span
-              className="absolute top-1/2 h-px -translate-y-1/2 bg-foreground"
-              style={{
-                left: `${position(summary.minimum, min, range)}%`,
-                right: `${100 - position(summary.maximum, min, range)}%`,
-              }}
-            />
-            <span
-              className="absolute top-1/2 h-9 -translate-y-1/2 rounded border bg-primary/20"
-              style={{
-                left: `${position(summary.q1, min, range)}%`,
-                right: `${100 - position(summary.q3, min, range)}%`,
-              }}
-            />
-            <span
-              className="absolute top-1/2 h-11 w-px -translate-y-1/2 bg-primary"
-              style={{ left: `${position(summary.median, min, range)}%` }}
-            />
-          </div>
-          <dl className="grid grid-cols-5 gap-2 text-xs">
-            <BoxValue label="Min" unit={summary.display_unit} value={summary.minimum} />
-            <BoxValue label="Q1" unit={summary.display_unit} value={summary.q1} />
-            <BoxValue label="Median" unit={summary.display_unit} value={summary.median} />
-            <BoxValue label="Q3" unit={summary.display_unit} value={summary.q3} />
-            <BoxValue label="Max" unit={summary.display_unit} value={summary.maximum} />
-          </dl>
-          <p className="text-xs text-muted-foreground">
-            {summary.outliers.length} outlier{summary.outliers.length === 1 ? "" : "s"}
-          </p>
-        </div>
-      ) : (
-        <div className="grid min-h-28 place-content-center text-sm text-muted-foreground">
-          No numeric samples available for this summary.
-        </div>
-      )}
-    </article>
-  );
-}
 
 export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
   const buckets = plotBoxSummaryBuckets(plot);
@@ -108,16 +48,11 @@ export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
   const max = Math.max(...values);
   const range = Math.max(max - min, 0.001);
 
+  if (plot.analysis?.kind === "error") {
+    return <PlotPlaceholder title={plot.title} {...plotUnavailableText(plot.analysis.message)} />;
+  }
   if (!buckets.length) {
-    return (
-      <div className="plot-empty grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 p-4 text-center text-muted-foreground">
-        <strong>{plot.title}</strong>
-        <span>{plot.stateLabel ?? "Waiting For Samples"}</span>
-        <span className="text-xs">
-          {plot.stateDetail ?? "No numeric samples are available in the selected window."}
-        </span>
-      </div>
-    );
+    return <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot)} />;
   }
 
   return (
@@ -179,15 +114,6 @@ export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
         ))}
       </div>
     </article>
-  );
-}
-
-function BoxValue({ label, unit, value }: { label: string; unit: string; value?: number | null }) {
-  return (
-    <div className="grid gap-1">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium">{formatValue(value, unit)}</dd>
-    </div>
   );
 }
 

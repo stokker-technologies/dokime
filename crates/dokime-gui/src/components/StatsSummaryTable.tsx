@@ -21,7 +21,7 @@ import type {
   StatsSummary,
   StatsSummaryRow,
 } from "@/lib/statistics";
-import { describeValues, formatStatValue } from "@/lib/statistics";
+import { formatStatValue, statsSummaryCells } from "@/lib/statistics";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -129,9 +129,9 @@ function DescribedStatsTable({ rows }: { rows: StatsSummaryRow[] }) {
   const described = useMemo(
     () =>
       rows.map((row) => ({
-        count: row.count ?? row.values.length,
+        count: row.count,
         label: row.label,
-        stats: row.statistics ?? describeValues(row.values),
+        stats: row.statistics ?? {},
         unit: row.unit,
       })),
     [rows],
@@ -196,16 +196,7 @@ function TraceCell({ row }: { row: SeriesLegendRow }) {
 }
 
 function StatsSummaryGrid({ row }: { row: StatsSummaryRow }) {
-  const stats = row.statistics ?? describeValues(row.values);
-  const items = [
-    ["Mean", formatStatValue(stats.mean, row.unit)],
-    ["Median", formatStatValue(stats.median, row.unit)],
-    ["Std", formatStatValue(stats.std, row.unit)],
-    ["RMS", formatStatValue(stats.rms, row.unit)],
-    ["Min", formatStatValue(stats.min, row.unit)],
-    ["Max", formatStatValue(stats.max, row.unit)],
-    ["Count", String(row.count ?? row.values.length)],
-  ];
+  const items = statsSummaryCells(row);
 
   return (
     <section
