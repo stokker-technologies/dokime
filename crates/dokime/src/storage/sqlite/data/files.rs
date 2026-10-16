@@ -65,24 +65,15 @@ impl State {
         staging: StagedFile,
         offset: u64,
         bytes: &[u8],
-        preparation: super::super::memory::Reservation,
     ) -> Result<(), Error> {
         if bytes.is_empty() {
             return Err(Error::Data("file batch must not be empty"));
         }
-        let allocation = bytes
-            .len()
-            .checked_mul(2)
-            .and_then(|bytes| bytes.checked_add(4 * METADATA_BYTES))
-            .ok_or(Error::Data("file write allocation size overflow"))?;
-        let reservation = self.reserve_memory(allocation)?;
         let bytes = bytes.to_vec();
         self.call(move |connection| {
             Ok((|| {
                 super::bootstrap::check_writes(connection)?;
                 super::production::check_writable(connection, staging.id.as_str())?;
-                let _preparation = preparation;
-                let _reservation = reservation;
                 saved(connection)?.history.check(&staging.history)?;
                 let (metadata, finished) = metadata_for(connection, &staging.id)?
                     .ok_or(Error::Data("unknown file staging"))?;

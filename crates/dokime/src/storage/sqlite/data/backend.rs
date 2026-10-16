@@ -271,22 +271,6 @@ impl<C: ObjectCatalog> Backend<C> {
         self.owner.lock().await.state()
     }
 
-    fn file_memory(&self, state: &State, buffer: usize) -> harmos::Result<memory::Reservation> {
-        // Metadata decoding, retry records, path construction, history bodies
-        // and the physical file buffer coexist until the operation settles.
-        let bytes = self
-            .root
-            .as_os_str()
-            .len()
-            .checked_mul(4)
-            .and_then(|bytes| bytes.checked_add(8 * 16 * 1024 + 4 * super::HISTORY_BYTES))
-            .and_then(|bytes| bytes.checked_add(buffer))
-            .ok_or_else(|| invalid("SQLite file allocation size overflow"))?;
-        state
-            .reserve_memory(bytes)
-            .map_err(|error| failure("reserve SQLite file operation", error))
-    }
-
     async fn view(
         &self,
         through: &StorageCursor,
@@ -1230,11 +1214,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     fn delete_file<'a>(&'a self, file: &'a StagedFile) -> StorageFuture<'a, ()> {
         Box::pin(async move {
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 0)?;
             let root = self.root.clone();
             let file = file.clone();
             owned("delete file", async move {
-                let _reservation = reservation;
                 state.production_delete(root, file).await
             })
             .await
@@ -1255,11 +1237,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             super::entry::check_size(metadata, 16 * 1024)
                 .map_err(|error| failure("validate production", error))?;
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 64 * 1024)?;
             let root = self.root.clone();
             let metadata = metadata.clone();
             owned("create production", async move {
-                let _reservation = reservation;
                 state.production_create(root, metadata).await
             })
             .await
@@ -1274,10 +1254,8 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         Box::pin(async move {
             self.history.check(&file.history)?;
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 0)?;
             let file = file.clone();
             owned("fence production", async move {
-                let _reservation = reservation;
                 state.production_fence(file, expected, next).await
             })
             .await
@@ -1288,11 +1266,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             super::entry::check_size(checkpoint, 16 * 1024)
                 .map_err(|error| failure("validate checkpoint", error))?;
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 64 * 1024)?;
             let checkpoint = checkpoint.clone();
             let root = self.root.clone();
             owned("save production", async move {
-                let _reservation = reservation;
                 state.production_save(root, checkpoint).await
             })
             .await
@@ -1301,10 +1277,8 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     fn recover_productions(&self, limits: ReadLimits) -> StorageFuture<'_, Vec<FileCheckpoint>> {
         Box::pin(async move {
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 64 * 1024)?;
             let root = self.root.clone();
             owned("recover productions", async move {
-                let _reservation = reservation;
                 state.production_recover(root, limits).await
             })
             .await
@@ -1313,11 +1287,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     fn file_progress<'a>(&'a self, file: &'a StagedFile) -> StorageFuture<'a, FileProgress> {
         Box::pin(async move {
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 0)?;
             let root = self.root.clone();
             let file = file.clone();
             owned("read file progress", async move {
-                let _reservation = reservation;
                 state.production_progress(root, file).await
             })
             .await
@@ -1331,11 +1303,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     ) -> StorageFuture<'a, Vec<u8>> {
         Box::pin(async move {
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, maximum.get().min(64 * 1024))?;
             let root = self.root.clone();
             let file = file.clone();
             owned("read production", async move {
-                let _reservation = reservation;
                 state.production_read(root, file, offset, maximum).await
             })
             .await
@@ -1344,11 +1314,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     fn abandon_file<'a>(&'a self, file: &'a StagedFile) -> StorageFuture<'a, ()> {
         Box::pin(async move {
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 0)?;
             let root = self.root.clone();
             let file = file.clone();
             owned("abandon production", async move {
-                let _reservation = reservation;
                 state.production_abandon(root, file).await
             })
             .await
@@ -1367,12 +1335,8 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                     .ok_or_else(|| invalid("mutation batch exceeds byte bound"))?;
             }
             let state = self.owner.lock().await.state()?;
-            let reservation = state
-                .reserve_memory(bytes)
-                .map_err(|error| failure("reserve mutation batch", error))?;
             let receipts = receipts.to_vec();
             owned("save mutation receipts", async move {
-                let _reservation = reservation;
                 state.mutations_save(receipts).await
             })
             .await
@@ -1393,11 +1357,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
             super::entry::check_size(metadata, 16 * 1024)
                 .map_err(|error| failure("validate SQLite file metadata", error))?;
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 0)?;
             let root = self.root.clone();
             let metadata = metadata.clone();
             owned("create SQLite file", async move {
-                let _reservation = reservation;
                 state.data_create_file(root, metadata).await
             })
             .await
@@ -1414,13 +1376,12 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 return Err(invalid("file batch exceeds the configured byte limit"));
             }
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 0)?;
             let root = self.root.clone();
             let staging = staging.clone();
             // data_write_file reserves its copied chunk before allocation and
             // transfers that charge into the physical SQLite callback.
             state
-                .data_write_file(root, staging, offset, bytes, reservation)
+                .data_write_file(root, staging, offset, bytes)
                 .await
                 .map_err(|error| failure("write SQLite file", error))
         })
@@ -1434,12 +1395,10 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     ) -> StorageFuture<'a, FileReference> {
         Box::pin(async move {
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 64 * 1024)?;
             let root = self.root.clone();
             let staging = staging.clone();
             let position = position.clone();
             owned("finish SQLite file", async move {
-                let _reservation = reservation;
                 state
                     .data_finish_file(root, staging, position, length, sha256)
                     .await
@@ -1450,11 +1409,9 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
     fn abort_file<'a>(&'a self, staging: &'a StagedFile) -> StorageFuture<'a, ()> {
         Box::pin(async move {
             let state = self.owner.lock().await.state()?;
-            let reservation = self.file_memory(&state, 0)?;
             let root = self.root.clone();
             let staging = staging.clone();
             owned("abort SQLite file", async move {
-                let _reservation = reservation;
                 state.data_abort_file(root, staging).await
             })
             .await
