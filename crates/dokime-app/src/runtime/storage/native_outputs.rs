@@ -272,9 +272,6 @@ impl ExecutionStorage {
             };
             let acquisition = owner.lock_owned().await;
             computation.check()?;
-            if acquisition.native_outputs.len() > 256 {
-                return Err(error("native output inventory exceeds 256 sources"));
-            }
             let mut count = 0usize;
             let mut bytes = std::mem::size_of::<Vec<ExecutionFileEntry>>();
             for (path, output) in &acquisition.native_outputs {
