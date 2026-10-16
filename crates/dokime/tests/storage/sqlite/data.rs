@@ -527,15 +527,9 @@ pub(crate) async fn finished_files_frontier() {
 pub(crate) async fn cancelled_waiter_settlement() {
     let root = tempfile::tempdir().unwrap();
     let backend = Arc::new(
-        Backend::<()>::primary(
-            root.path().to_path_buf(),
-            Limits {
-                views: bound(1),
-                ..Limits::default()
-            },
-        )
-        .await
-        .unwrap(),
+        Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+            .await
+            .unwrap(),
     );
     let records = [record(backend.history(), 1, "record.one", &[1])];
     let parts = [StoragePart::Records(&records)];
@@ -586,10 +580,6 @@ pub(crate) async fn cancelled_waiter_settlement() {
     drop(reader);
     let mut released = backend.release_view(&snapshot);
     assert!(futures_util::poll!(&mut released).is_pending());
-    assert!(
-        backend.read_view(&saved).await.is_err(),
-        "a physical reader still occupies the single view slot"
-    );
     assert!(matches!(
         backend
             .read_records(

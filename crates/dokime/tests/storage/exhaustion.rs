@@ -50,7 +50,7 @@ async fn exhaustion() {
     let settings = Limits {
         entry_bytes: NonZeroUsize::new(1024).unwrap(),
         batch_bytes: NonZeroUsize::new(4096).unwrap(),
-        views: NonZeroUsize::new(1).unwrap(),
+
         memory_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
     };
     let backend = Backend::<()>::replica(root.path().to_owned(), settings, history())

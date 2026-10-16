@@ -31,7 +31,7 @@ use harmos::{
 };
 use tokio::sync::{Mutex, Notify};
 // Local Imports
-use super::super::{Error, State, memory, query};
+use super::super::{Error, State, query};
 use super::{Entry, SavedData};
 
 /* === Constants === */
@@ -65,7 +65,6 @@ macro_rules! read_entries {
 pub struct Limits {
     pub entry_bytes: NonZeroUsize,
     pub batch_bytes: NonZeroUsize,
-    pub views: NonZeroUsize,
     pub memory_bytes: NonZeroUsize,
 }
 
@@ -79,8 +78,7 @@ pub struct Backend<C: ObjectCatalog> {
 
 struct Owner {
     state: Option<State>,
-    views: Box<[Option<Slot>]>,
-    registry_memory: Option<memory::Reservation>,
+    views: Vec<Slot>,
     primary_active: bool,
     bootstrap_limits: Option<QueryLimits>,
     retention_through: u64,
@@ -110,7 +108,6 @@ struct Pin {
     settled: Notify,
     execution: Option<Arc<query::Budget>>,
     runs: super::scan::Runs,
-    _memory: memory::Reservation,
 }
 
 /* === Enums === */
@@ -142,7 +139,6 @@ impl Default for Limits {
         Self {
             entry_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
             batch_bytes: NonZeroUsize::new(16 * 1024 * 1024).unwrap(),
-            views: NonZeroUsize::new(64).unwrap(),
             memory_bytes: NonZeroUsize::new(32 * 1024 * 1024).unwrap(),
         }
     }
@@ -172,29 +168,20 @@ impl Owner {
                 state.close().await?;
             }
             self.state = None;
-            for slot in &mut self.views {
-                *slot = None;
-            }
-            self.registry_memory = None;
+            self.views.clear();
             self.bootstrap_limits = None;
             self.retention_through = 0;
         }
         Ok(())
     }
     fn pins(&self) -> impl Iterator<Item = &Arc<Pin>> {
-        self.views
-            .iter()
-            .filter_map(|slot| slot.as_ref().map(|slot| &slot.pin))
+        self.views.iter().map(|slot| &slot.pin)
     }
     fn sweep(&mut self) {
-        for slot in &mut self.views {
-            if slot.as_ref().is_some_and(|slot| {
-                slot.pin.released.load(Ordering::Acquire)
-                    && slot.pin.active_reads.load(Ordering::Acquire) == 0
-            }) {
-                *slot = None;
-            }
-        }
+        self.views.retain(|slot| {
+            !slot.pin.released.load(Ordering::Acquire)
+                || slot.pin.active_reads.load(Ordering::Acquire) != 0
+        });
     }
 }
 
@@ -234,23 +221,6 @@ impl<C: ObjectCatalog> Backend<C> {
         let root = root.canonicalize().map_err(|error| {
             harmos::Error::backend("resolve SQLite root", BackendFailure::Permanent, error)
         })?;
-        let registry_bytes = limits
-            .views
-            .get()
-            .checked_mul(std::mem::size_of::<Option<Slot>>())
-            .and_then(|bytes| {
-                bytes.checked_add(std::mem::size_of::<Owner>() + 2 * std::mem::size_of::<usize>())
-            })
-            .ok_or_else(|| invalid("SQLite view registry size overflow"))?;
-        let registry_memory = state
-            .reserve_query(registry_bytes, limits.memory_bytes)
-            .map_err(|error| failure("reserve SQLite view registry", error))?;
-        let mut views = Box::<[Option<Slot>]>::new_uninit_slice(limits.views.get());
-        for slot in &mut views {
-            slot.write(None);
-        }
-        // SAFETY: Every slot is initialized to None before assuming the slice.
-        let views = unsafe { views.assume_init() };
         Ok(Self {
             catalog: std::marker::PhantomData,
             root,
@@ -258,8 +228,7 @@ impl<C: ObjectCatalog> Backend<C> {
             limits,
             owner: Arc::new(Mutex::new(Owner {
                 state: Some(state),
-                views,
-                registry_memory: Some(registry_memory),
+                views: Vec::new(),
                 primary_active: true,
                 bootstrap_limits,
                 retention_through: 0,
@@ -280,23 +249,7 @@ impl<C: ObjectCatalog> Backend<C> {
         self.history.check(&through.history)?;
         let mut owner = self.owner.lock().await;
         owner.sweep();
-        if owner.pins().count() >= self.limits.views.get() {
-            return Err(invalid("SQLite view capacity exhausted"));
-        }
         let state = owner.state()?;
-        let ceiling = limits.map_or(self.limits.memory_bytes, |limits| limits.memory_bytes);
-        // History is capped at HISTORY_BYTES before decoding. Pin and query
-        // Arc headers are charged before allocating any retained view state.
-        let pin_bytes = std::mem::size_of::<Pin>()
-            + 2 * std::mem::size_of::<usize>()
-            + 4 * super::HISTORY_BYTES
-            + 2 * self.root.as_os_str().len()
-            + std::mem::size_of::<query::Budget>()
-            + 4 * std::mem::size_of::<usize>()
-            + std::mem::size_of::<super::super::DataPin>();
-        let reservation = state
-            .reserve_query(pin_bytes, ceiling)
-            .map_err(|error| failure("reserve SQLite view state", error))?;
         let execution = limits
             .map(query::Budget::new)
             .transpose()
@@ -307,7 +260,7 @@ impl<C: ObjectCatalog> Backend<C> {
         let memory = state.0.memory.clone();
         let maximum = self.limits.entry_bytes;
         let pin_state = state.clone();
-        let (cut, reservation, protection) = state
+        let (cut, protection) = state
             .call_read(execution.clone(), move |connection| {
                 Ok((|| {
                     let protection = pin_state.pin_data(connection)?;
@@ -324,7 +277,7 @@ impl<C: ObjectCatalog> Backend<C> {
                     if retained {
                         super::retained::verify(connection, &root, &cut, &memory, maximum)?;
                     }
-                    Ok((cut, reservation, protection))
+                    Ok((cut, protection))
                 })())
             })
             .await
@@ -346,7 +299,6 @@ impl<C: ObjectCatalog> Backend<C> {
                 settled: Notify::new(),
                 execution: execution.clone(),
                 runs: super::scan::Runs::default(),
-                _memory: reservation,
             });
             Ok((token, snapshot, pin, Arc::new(protection)))
         };
@@ -356,12 +308,7 @@ impl<C: ObjectCatalog> Backend<C> {
         }
         .map_err(|error| failure("prepare SQLite view registration", error))?;
         // No Suspension After Registration
-        let slot = owner
-            .views
-            .iter_mut()
-            .find(|slot| slot.is_none())
-            .expect("checked SQLite view capacity");
-        *slot = Some(Slot {
+        owner.views.push(Slot {
             token,
             pin,
             protection: Some(protection),
@@ -376,7 +323,6 @@ impl<C: ObjectCatalog> Backend<C> {
         let slot = owner
             .views
             .iter()
-            .filter_map(Option::as_ref)
             .find(|slot| slot.token.as_slice() == view.snapshot().token)
             .filter(|slot| {
                 let pin = &slot.pin;
@@ -624,17 +570,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                     tracing::debug!(store = %expected.store, epoch = %expected.epoch, "SQLite storage owner opened");
                     state.data_open(Some(expected)).await?;
                     owner.bootstrap_limits = state.data_bootstrap_limits().await?;
-                    let bytes = owner
-                        .views
-                        .len()
-                        .checked_mul(std::mem::size_of::<Option<Slot>>())
-                        .and_then(|bytes| {
-                            bytes.checked_add(
-                                std::mem::size_of::<Owner>() + 2 * std::mem::size_of::<usize>(),
-                            )
-                        })
-                        .ok_or(Error::Data("SQLite view registry size overflow"))?;
-                    owner.registry_memory = Some(state.reserve_query(bytes, memory)?);
                     owner.state = Some(state);
                 }
                 let cut = owner
@@ -921,7 +856,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 let Some(slot) = owner
                     .views
                     .iter()
-                    .filter_map(Option::as_ref)
                     .find(|slot| slot.token.as_slice() == snapshot.token)
                 else {
                     return Ok(());

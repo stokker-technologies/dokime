@@ -50,7 +50,7 @@ async fn cancellation() {
     let settings = Limits {
         entry_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
         batch_bytes: NonZeroUsize::new(16 * 1024 * 1024).unwrap(),
-        views: NonZeroUsize::new(4).unwrap(),
+
         memory_bytes: NonZeroUsize::new(32 * 1024 * 1024).unwrap(),
     };
     let backend = Backend::<()>::replica(root.path().to_owned(), settings, history())

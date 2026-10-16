@@ -183,16 +183,9 @@ pub(crate) async fn saved_views_payloads() {
 
 pub(crate) async fn stream_rows_views() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::replica(
-        root.path().to_path_buf(),
-        Limits {
-            views: NonZeroUsize::new(1).unwrap(),
-            ..Limits::default()
-        },
-        history(),
-    )
-    .await
-    .unwrap();
+    let backend = Backend::<()>::replica(root.path().to_path_buf(), Limits::default(), history())
+        .await
+        .unwrap();
     let backend = Arc::new(backend);
     backend.open().await.unwrap();
     backend
@@ -212,7 +205,8 @@ pub(crate) async fn stream_rows_views() {
         .unwrap();
     backend.cursor_saved().await.unwrap();
     let current = view(&backend, 2).await;
-    assert!(backend.read_view(&position(2)).await.is_err());
+    let parallel = backend.read_view(&position(2)).await.unwrap();
+    backend.release_view(&parallel).await.unwrap();
     let mut next = row.clone();
     next.record.position = position(3);
     next.sequence = 0;
@@ -652,24 +646,10 @@ pub(crate) async fn small_rows_orders() {
 
 pub(crate) async fn native_query_capacity() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::replica(
-        root.path().to_path_buf(),
-        Limits {
-            views: NonZeroUsize::MIN,
-            ..Limits::default()
-        },
-        history(),
-    )
-    .await
-    .unwrap();
+    let backend = Backend::<()>::replica(root.path().to_path_buf(), Limits::default(), history())
+        .await
+        .unwrap();
     backend.open().await.unwrap();
-    let tiny = QueryLimits {
-        memory_bytes: NonZeroUsize::MIN,
-        spill_bytes: 0,
-        timeout: std::time::Duration::from_secs(5),
-        ..crate::sqlite::storage::storage_settings().query_execution
-    };
-    assert!(backend.read_query_view(&position(0), tiny).await.is_err());
     for (memory_bytes, spill_bytes) in [(4 * 1024 * 1024, 0), (64 * 1024 * 1024, 64 * 1024 * 1024)]
     {
         let requested = QueryLimits {
@@ -682,12 +662,11 @@ pub(crate) async fn native_query_capacity() {
             .read_query_view(&position(0), requested)
             .await
             .unwrap();
-        assert!(
-            backend
-                .read_query_view(&position(0), requested)
-                .await
-                .is_err()
-        );
+        let parallel = backend
+            .read_query_view(&position(0), requested)
+            .await
+            .unwrap();
+        backend.release_view(&parallel).await.unwrap();
         backend.release_view(&pin).await.unwrap();
     }
     assert_eq!(backend.cursor_saved().await.unwrap(), position(0));

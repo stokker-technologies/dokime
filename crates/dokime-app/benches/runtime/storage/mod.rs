@@ -73,7 +73,7 @@ impl Fixture {
                 Limits {
                     entry_bytes: nz(1024 * 1024),
                     batch_bytes: nz(16 * 1024 * 1024),
-                    views: nz(64),
+
                     memory_bytes: nz(128 * 1024 * 1024),
                 },
             )
