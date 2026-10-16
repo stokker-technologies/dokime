@@ -59,13 +59,6 @@ use rusqlite::Connection;
 /* === Tests === */
 
 pub(crate) async fn refuses_previous_data() {
-    let allocator_root = tempfile::tempdir().unwrap();
-    State::open(allocator_root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
     for version in [2, 3, 4, 5] {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("local.sqlite");
@@ -100,13 +93,6 @@ pub(crate) async fn refuses_previous_data() {
 }
 
 pub(crate) async fn refuses_unversioned_schema() {
-    let allocator_root = tempfile::tempdir().unwrap();
-    State::open(allocator_root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("local.sqlite");
     let existing = Connection::open(&path).unwrap();
@@ -183,13 +169,6 @@ pub(crate) async fn refuses_retired_intent() {
 }
 
 pub(crate) async fn refuses_attachment_receipts() {
-    let allocator_root = tempfile::tempdir().unwrap();
-    State::open(allocator_root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("local.sqlite");
     let owner = State::open(root.path()).await.unwrap();
@@ -234,13 +213,6 @@ pub(crate) async fn refuses_attachment_receipts() {
 }
 
 pub(crate) async fn refuses_second_drop() {
-    let allocator_root = tempfile::tempdir().unwrap();
-    State::open(allocator_root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
     let root = tempfile::tempdir().unwrap();
     let state = State::open(root.path()).await.unwrap();
     assert!(matches!(State::open(root.path()).await, Err(Error::Owned)));
@@ -252,13 +224,6 @@ pub(crate) async fn refuses_second_drop() {
 }
 
 pub(crate) async fn sqlite_rolls_reopen() {
-    let allocator_root = tempfile::tempdir().unwrap();
-    State::open(allocator_root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
     let root = tempfile::tempdir().unwrap();
     let state = State::open(root.path()).await.unwrap();
     state.call(|connection| connection.execute_batch(
@@ -289,13 +254,6 @@ pub(crate) async fn sqlite_rolls_reopen() {
 }
 
 pub(crate) async fn cancelled_caller_progress() {
-    let allocator_root = tempfile::tempdir().unwrap();
-    State::open(allocator_root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
     let root = tempfile::tempdir().unwrap();
     let state = State::open(root.path()).await.unwrap();
     state
@@ -339,13 +297,6 @@ pub(crate) async fn cancelled_caller_progress() {
 }
 
 pub(crate) async fn close_drains_clones() {
-    let allocator_root = tempfile::tempdir().unwrap();
-    State::open(allocator_root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
     use std::future::Future;
 
     let root = tempfile::tempdir().unwrap();

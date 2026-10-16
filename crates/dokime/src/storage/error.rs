@@ -37,10 +37,6 @@ pub enum Error {
     Owned,
     #[error("local state SQLite: {0}")]
     Sqlite(#[from] rusqlite::Error),
-    #[error("SQLite allocator must be installed before library initialization: {0}")]
-    Allocator(#[source] rusqlite::Error),
-    #[error("SQLite allocation exceeds the owning memory budget: {0}")]
-    Memory(#[source] rusqlite::Error),
     #[error("saved query exhausted its cumulative execution timeout")]
     QueryTimeout(#[source] Option<rusqlite::Error>),
     #[error("local state task: {0}")]

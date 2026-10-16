@@ -553,8 +553,6 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
         &self.history
     }
     fn validate_query_limits(&self, limits: QueryLimits) -> harmos::Result<()> {
-        // The allocator bounds retained SQLite/owned state; temporary storage
-        // stays in memory and every page uses the saved view's active budget.
         limits.check()
     }
     fn validate_object_versions(&self, _versions: ObjectVersions) -> harmos::Result<()> {
@@ -1984,7 +1982,6 @@ fn failure(operation: &'static str, error: Error) -> harmos::Error {
         Error::Data(reason) => invalid(reason),
         other => {
             let kind = match &other {
-                Error::Memory(_) => BackendFailure::Permanent,
                 Error::Owned | Error::Conflict(_) => BackendFailure::Conflict,
                 Error::Json(_) | Error::Corrupt(_) => BackendFailure::Corrupt,
                 Error::Io(_) | Error::Sqlite(_) | Error::Publication(_) => {

@@ -87,7 +87,6 @@ pub(crate) async fn assembles_counts_runtime() {
 
     // A root from another baseline fails the doctor and names the mismatch.
     let foreign = tempdir().unwrap();
-    dokime::storage::sqlite::initialize_sqlite().unwrap();
     dokime::storage::sqlite::rusqlite::Connection::open(foreign.path().join("local.sqlite"))
         .unwrap()
         .execute_batch("PRAGMA user_version=7; CREATE TABLE foreign_evidence(payload BLOB);")

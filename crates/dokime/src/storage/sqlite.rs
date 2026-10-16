@@ -122,11 +122,9 @@ impl State {
         root: impl AsRef<Path>,
         ceiling: NonZeroUsize,
     ) -> Result<Self, Error> {
-        initialize_sqlite()?;
         let memory = memory::Budget::new(ceiling);
         let root = root.as_ref().to_path_buf();
         tokio::task::spawn_blocking(move || {
-            let _context = memory.enter();
             std::fs::create_dir_all(&root)?;
             let lease = OpenOptions::new()
                 .create(true)
@@ -184,10 +182,8 @@ impl State {
     pub async fn close(&self) -> Result<(), Error> {
         self.0.closing.store(true, Ordering::Release);
         let mut live = self.0.live.clone().lock_owned().await;
-        let memory = self.0.memory.clone();
         let owner = self.0.clone();
         tokio::task::spawn_blocking(move || {
-            let _context = memory.enter();
             *owner.index_schema.lock().unwrap() = None;
             let Some(Live { connection, lease }) = live.take() else {
                 return Ok(());
@@ -236,12 +232,7 @@ impl State {
         + 'static,
     ) -> Result<Result<T, Error>, Error> {
         let ceiling = query.as_ref().map(|query| query.limits.memory_bytes);
-        let allocation = self.0.memory.clone();
-        // Inspect Both Result Layers Before Another Physical Call Resets Refusal
-        self.dispatch(ceiling, query, move |connection| {
-            operation(connection).map(|result| result.map_err(|error| allocation.classify(error)))
-        })
-        .await
+        self.dispatch(ceiling, query, operation).await
     }
 
     async fn dispatch<T: Send + 'static>(
@@ -261,18 +252,15 @@ impl State {
             return Err(Error::Closed);
         }
         tokio::task::spawn_blocking(move || {
-            let _context = owner.memory.enter();
-            owner.memory.begin();
             let _ceiling = ceiling
                 .map(|ceiling| owner.memory.restrict(ceiling))
                 .transpose()?;
             let result = live.as_mut().ok_or(Error::Closed).and_then(|live| {
                 let connection = &mut live.connection;
-                let result = match query {
+                match query {
                     Some(query) => query.run(connection, operation),
                     None => operation(connection).map_err(Error::Sqlite),
-                };
-                result.map_err(|error| owner.memory.classify(error))
+                }
             });
             drop(live);
             drop(owner);
@@ -306,10 +294,6 @@ impl Baseline {
 }
 
 /* === Public Functions === */
-pub fn initialize_sqlite() -> Result<(), Error> {
-    memory::install()
-}
-
 /// Reads the baseline an existing root declares without locking or writing it.
 ///
 /// Returns `None` when the root holds no Dokime database yet. Safe to call
@@ -327,7 +311,6 @@ pub fn inspect(root: &Path) -> Result<Option<Baseline>, Error> {
     }
 
     // Read The Declared Version And Data Format
-    initialize_sqlite()?;
     let connection = Connection::open_with_flags(
         &path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,

@@ -322,7 +322,6 @@ async fn incompatible_storage_is_refused_by_name() {
     std::fs::create_dir_all(&data).unwrap();
 
     // Write A Root From Another Baseline
-    sqlite::initialize_sqlite().unwrap();
     let connection = rusqlite::Connection::open(data.join("local.sqlite")).unwrap();
     connection
         .execute_batch("PRAGMA user_version=7; CREATE TABLE foreign_evidence(payload BLOB);")

@@ -159,14 +159,6 @@ pub(crate) async fn refuses_retired_evidence() {
 
 pub(crate) async fn refuses_separate_database() {
     let root = tempfile::tempdir().unwrap();
-    // Initialize The Shared Allocator Before Opening A Fixture Connection
-    let allocator_root = tempfile::tempdir().unwrap();
-    State::open(allocator_root.path())
-        .await
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
     let recovery_path = root.path().join("recovery.sqlite");
     let connection = rusqlite::Connection::open(&recovery_path).unwrap();
     connection
