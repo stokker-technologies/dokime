@@ -257,7 +257,6 @@ impl<C: ObjectCatalog> Backend<C> {
             .map(Arc::new);
         let through = through.clone();
         let root = self.root.clone();
-        let memory = state.0.memory.clone();
         let maximum = self.limits.entry_bytes;
         let pin_state = state.clone();
         let (cut, protection) = state
@@ -275,7 +274,7 @@ impl<C: ObjectCatalog> Backend<C> {
                     }
                     cut.sequence = through.sequence;
                     if retained {
-                        super::retained::verify(connection, &root, &cut, &memory, maximum)?;
+                        super::retained::verify(connection, &root, &cut, maximum)?;
                     }
                     Ok((cut, protection))
                 })())
@@ -528,8 +527,8 @@ impl<C: ObjectCatalog> StorageBackend for Backend<C> {
                 .map_err(|error| failure("prepare frame scan", error))?;
             let cancellation = query::Cancellation::new();
             let cancelled = cancellation.flag();
-            let memory = state.0.memory.clone();
             let owner = state.0.clone();
+            let memory = state.0.memory.clone();
             let execution = pin.execution.clone();
             // Original Future Drop Signals The Worker. Its Actual Pin And Charge
             // Stay In The Physical Closure And Result Mailbox Until Settlement.

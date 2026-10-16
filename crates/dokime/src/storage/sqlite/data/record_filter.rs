@@ -32,7 +32,6 @@ pub(super) struct Prepared<'a> {
     filter: &'a RecordFilter,
     projection: scan::projection::Projection<'a>,
     schema: StorageSchema,
-    _memory: memory::Reservation,
 }
 
 /* === Enums === */
@@ -62,13 +61,11 @@ impl<'a> Prepared<'a> {
         scan::projection::admission(selection, &filter.columns)?;
         let schema = scan::schema(connection, memory, cut, selection, maximum, None)?;
         let bytes = scan::projection::construction_memory(&schema, &filter.columns)?;
-        let charge = memory.reserve_owned(bytes, usize::MAX)?;
         let projection = scan::projection::Projection::new(&schema, &filter.columns, bytes)?;
         Ok(Some(Self {
             filter,
             projection,
             schema,
-            _memory: charge,
         }))
     }
 
@@ -95,7 +92,6 @@ impl<'a> Prepared<'a> {
             cut,
         )?;
         let bytes = self.projection.output_memory(record, None)?;
-        let charge = memory.reserve_owned(bytes, usize::MAX)?;
         let allowance = NonZeroUsize::new(bytes)
             .ok_or(Error::Data("record filter projection allowance is empty"))?;
         let values = self
@@ -106,7 +102,6 @@ impl<'a> Prepared<'a> {
         }
         let selected = self.filter.matches(&values)?;
         drop(values);
-        drop(charge);
         Ok(selected)
     }
 }
