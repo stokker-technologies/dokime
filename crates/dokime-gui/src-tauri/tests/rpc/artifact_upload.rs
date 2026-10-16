@@ -189,10 +189,9 @@ impl ScopedFixture {
             )
             .await
             .unwrap();
-        let cycle_id_typed = handle
-            .start_registered_cycle("rpc.artifact-upload", metadata(), false, Default::default())
-            .await
-            .unwrap();
+        let cycle_id_typed =
+            super::artifact_fixture::registered_cycle(&handle, "rpc.artifact-upload", metadata())
+                .await;
         let cycle_id = cycle_id_typed.to_string();
         handle
             .run_cycle_cases(cycle_id_typed, Default::default())

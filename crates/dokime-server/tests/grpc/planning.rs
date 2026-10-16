@@ -72,9 +72,8 @@ fn plan(
     }
 }
 
-fn create(plan: contracts::planning::SelectionPlan) -> contracts::execution::CreateCycleRequest {
+fn create() -> contracts::execution::CreateCycleRequest {
     contracts::execution::CreateCycleRequest {
-        plan: Some(plan),
         metadata: Some(contracts::common::Metadata {
             identifier: "planning.cycle".into(),
             label: "Plan".into(),
@@ -83,6 +82,37 @@ fn create(plan: contracts::planning::SelectionPlan) -> contracts::execution::Cre
         }),
         ..Default::default()
     }
+}
+
+fn append(
+    cycle_id: &str,
+    plan: contracts::planning::SelectionPlan,
+) -> contracts::execution::AppendPlannedCasesRequest {
+    contracts::execution::AppendPlannedCasesRequest {
+        cycle_id: cycle_id.into(),
+        plan: Some(plan),
+        context: None,
+    }
+}
+
+async fn empty_cycle(execution: &WireClient) -> String {
+    execution
+        .unary::<contracts::execution::CreateCycle>(create())
+        .await
+        .unwrap()
+        .into_inner()
+        .cycle_id
+}
+
+async fn assert_no_cases(owner: &Runtime) {
+    assert!(
+        owner
+            .handle()
+            .cycles()
+            .await
+            .iter()
+            .all(|cycle| cycle.cases().next().is_none())
+    );
 }
 
 fn error_code(status: &tonic::Status) -> String {
@@ -254,13 +284,11 @@ pub(crate) async fn ordered_selections_provider() {
         Value::Integer(i64::MAX)
     );
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let reply = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(input)))
+    let cycle_id = common::planned_cycle(&execution, authenticated(create()), input)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let snapshot = owner.handle().watch_state().latest();
-    let id = dokime_app::core::TestCycleId::from_uuid(reply.cycle_id).unwrap();
+    let id = dokime_app::core::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
     assert_eq!(cycle.lifecycle, dokime_app::execution::CycleStatus::Ready);
     assert_eq!(cycle.test_executions.len(), cycle.cases().count());
@@ -355,6 +383,7 @@ pub(crate) async fn planning_refuses_inputs() {
         .unwrap_err();
     assert_eq!(error_code(&failure), "mixed_provider_targets");
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let target = empty_cycle(&execution).await;
     let mut invalid = selection(&first);
     invalid
         .files
@@ -419,15 +448,15 @@ pub(crate) async fn planning_refuses_inputs() {
         );
         assert_eq!(
             execution
-                .unary::<contracts::execution::CreateCycle>(create(input))
+                .unary::<contracts::execution::AppendPlannedCases>(append(&target, input))
                 .await
                 .unwrap_err()
                 .code(),
             expected,
-            "creating a cycle from {label}"
+            "appending {label}"
         );
     }
-    assert!(owner.handle().cycles().await.is_empty());
+    assert_no_cases(&owner).await;
     server.shutdown().await.unwrap();
     // Authentication Is A Construction Setting Of The Runtime Service.
     owner.shutdown().await.unwrap();
@@ -472,9 +501,7 @@ pub(crate) async fn planning_refuses_inputs() {
     let execution = WireClient::connect(read.local_endpoint()).await.unwrap();
     assert_eq!(
         execution
-            .unary::<contracts::execution::CreateCycle>(authenticated(create(plan(vec![
-                selection(&first)
-            ]))))
+            .unary::<contracts::execution::CreateCycle>(authenticated(create()))
             .await
             .unwrap_err()
             .code(),
@@ -528,14 +555,16 @@ pub(crate) async fn template_conflicts_disambiguate() {
         .await
         .unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let created = execution
-        .unary::<contracts::execution::CreateCycle>(create(plan(vec![selection(&first)])))
-        .await
-        .unwrap()
-        .into_inner();
+    let cycle_id = common::planned_cycle(
+        &execution,
+        Request::new(create()),
+        plan(vec![selection(&first)]),
+    )
+    .await
+    .unwrap();
     let cycles = owner.handle().cycles().await;
     assert_eq!(cycles.len(), 1);
-    assert_eq!(cycles[0].test_cycle_id.as_str(), created.cycle_id);
+    assert_eq!(cycles[0].test_cycle_id.as_str(), cycle_id);
     assert!(
         cycles[0]
             .cases()
@@ -557,6 +586,7 @@ pub(crate) async fn effective_native_materialization() {
         .unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let target = empty_cycle(&execution).await;
     for expression in [
         ParameterExpr::Range {
             start: 0,
@@ -594,7 +624,7 @@ pub(crate) async fn effective_native_materialization() {
             .unwrap_err();
         assert_eq!(error_code(&failure), "parameter_expansion_limit");
         let failure = execution
-            .unary::<contracts::execution::CreateCycle>(create(input))
+            .unary::<contracts::execution::AppendPlannedCases>(append(&target, input))
             .await
             .unwrap_err();
         assert_eq!(error_code(&failure), "parameter_expansion_limit");
@@ -649,11 +679,11 @@ pub(crate) async fn effective_native_materialization() {
     assert!(failure.message().contains("10201"));
     assert!(
         execution
-            .unary::<contracts::execution::CreateCycle>(create(input))
+            .unary::<contracts::execution::AppendPlannedCases>(append(&target, input))
             .await
             .is_err()
     );
-    assert!(owner.handle().cycles().await.is_empty());
+    assert_no_cases(&owner).await;
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -685,6 +715,7 @@ pub(crate) async fn payload_budget_allocation() {
         .unwrap();
     let planning = WireClient::connect(server.local_endpoint()).await.unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let target = empty_cycle(&execution).await;
     let input = plan(vec![selection(&suite)]);
     let failure = planning
         .unary::<contracts::planning::PreviewSelection>(
@@ -698,7 +729,7 @@ pub(crate) async fn payload_budget_allocation() {
     assert_eq!(
         error_code(
             &execution
-                .unary::<contracts::execution::CreateCycle>(create(input))
+                .unary::<contracts::execution::AppendPlannedCases>(append(&target, input))
                 .await
                 .unwrap_err()
         ),
@@ -778,13 +809,13 @@ pub(crate) async fn payload_budget_allocation() {
     assert_eq!(
         error_code(
             &execution
-                .unary::<contracts::execution::CreateCycle>(create(input))
+                .unary::<contracts::execution::AppendPlannedCases>(append(&target, input))
                 .await
                 .unwrap_err()
         ),
         "planning_payload_limit"
     );
-    assert!(owner.handle().cycles().await.is_empty());
+    assert_no_cases(&owner).await;
     server.shutdown().await.unwrap();
     owner.shutdown().await.unwrap();
 }
@@ -854,13 +885,11 @@ pub(crate) async fn registered_cases_selection() {
         ids
     );
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let created = execution
-        .unary::<contracts::execution::CreateCycle>(create(selected))
+    let cycle_id = common::planned_cycle(&execution, Request::new(create()), selected)
         .await
-        .unwrap()
-        .into_inner();
+        .unwrap();
     let snapshot = owner.handle().watch_state().latest();
-    let id = dokime_app::core::TestCycleId::from_uuid(created.cycle_id).unwrap();
+    let id = dokime_app::core::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
     assert_eq!(cycle.test_executions.len(), 2);
     assert_ne!(

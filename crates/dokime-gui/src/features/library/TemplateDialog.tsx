@@ -10,23 +10,17 @@
 /* The materialization dialog (concept 11).
  *
  * Two steps and one outcome: edit the template's parameters, read the cases
- * they generate, then add them to a cycle. A single case at its defaults skips
- * the reading (`summaryNeeded`). This is the only way cases enter a
- * cycle, so the dialog owns the whole transaction and keeps entered values
- * through validation and RPC failures. */
+ * they generate, then append them to the active cycle. A single case at its
+ * defaults skips the reading (`summaryNeeded`). This is the only way cases
+ * enter a cycle, so the dialog owns the whole transaction and keeps entered
+ * values through validation and RPC failures. Without an active cycle it adds
+ * nothing and offers New Cycle. */
 
 /* === External Imports === */
 
 import { useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 /* === Local Imports === */
@@ -50,7 +44,6 @@ import {
 import { apiSelection } from "@/components/suite-picker/model";
 import {
   useAppendTestCycleMutation,
-  useCreateTestCycleMutation,
   usePreviewTestCycleMutation,
 } from "@/components/suite-picker/server-state";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
@@ -64,12 +57,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { caseDeltas, summaryNeeded } from "@/features/library/template-dialog-model";
+import {
+  caseAppend,
+  caseDeltas,
+  NO_ACTIVE_CYCLE,
+  summaryNeeded,
+} from "@/features/library/template-dialog-model";
 import type {
   FileDefinition,
   PreviewTestCycleResponse,
-  StartTestCycleRequest,
   SuiteTemplateEntry,
+  TestCycleSelection,
   TestSuiteEntry,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -88,13 +86,15 @@ const STEP_LABELS: { key: DialogStep; label: string }[] = [
 /* === Types === */
 
 type TemplateDialogProps = {
-  /** The cycle the cases join; absent means the dialog creates one. */
-  appendTo?: string;
+  /** The active cycle the cases join; absent, the dialog adds nothing. */
+  cycleId?: string;
+  /** The active cycle's label, shown on the summary step. */
+  cycleLabel?: string;
+  /** Opens New Cycle, for when there is no active cycle to add to. */
+  onNewCycle: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   suite: TestSuiteEntry;
-  /** The label of the cycle named by `appendTo`, shown on the summary step. */
-  targetCycleLabel?: string;
   template: SuiteTemplateEntry;
 };
 
@@ -103,11 +103,12 @@ type DialogStep = "parameters" | "summary";
 /* === Components === */
 
 export function TemplateDialog({
-  appendTo,
+  cycleId,
+  cycleLabel,
+  onNewCycle,
   onOpenChange,
   open,
   suite,
-  targetCycleLabel,
   template,
 }: TemplateDialogProps) {
   const navigate = useNavigate();
@@ -139,7 +140,6 @@ export function TemplateDialog({
   const [busy, setBusy] = useState(false);
 
   const { mutateAsync: previewTestCycle } = usePreviewTestCycleMutation();
-  const { mutateAsync: createTestCycle } = useCreateTestCycleMutation();
   const { mutateAsync: appendTestCycle } = useAppendTestCycleMutation();
   const { mutateAsync: uploadArtifact } = useOperatorArtifactUploadMutation();
 
@@ -154,26 +154,21 @@ export function TemplateDialog({
     [fileRows, rows],
   );
 
-  const request = useCallback(
-    (): StartTestCycleRequest => ({
-      continue_on_failure: true,
-      force: true,
-      parameters: {},
-      selections: [
-        apiSelection(
-          createPlanSelection({
-            files: payload.files,
-            suiteId: suite.suite_id,
-            suiteName: suite.name,
-            template,
-            values: payload.values,
-          }),
-        ),
-      ],
-      title: suite.name,
-    }),
+  const selections = useMemo(
+    (): TestCycleSelection[] => [
+      apiSelection(
+        createPlanSelection({
+          files: payload.files,
+          suiteId: suite.suite_id,
+          suiteName: suite.name,
+          template,
+          values: payload.values,
+        }),
+      ),
+    ],
     [payload.files, payload.values, suite.name, suite.suite_id, template],
   );
+  const append = caseAppend(cycleId, selections);
 
   function changeRaw(name: string, raw: string) {
     setError(null);
@@ -252,14 +247,14 @@ export function TemplateDialog({
      edited values; a failure keeps the operator on step 1 with their input.
      A preview with nothing to review (`summaryNeeded`) adds at once. */
   async function next() {
-    if (problems || busy) return;
+    if (problems || busy || !append) return;
     setBusy(true);
     setError(null);
     try {
       const expanded = await previewTestCycle({
-        cycle_id: appendTo,
+        cycle_id: append.cycleId,
         parameters: {},
-        selections: request().selections,
+        selections: append.selections,
       });
       setPreview(expanded);
       if (summaryNeeded(expanded, rows)) setStep("summary");
@@ -285,29 +280,19 @@ export function TemplateDialog({
   }
 
   async function add(planned: PreviewTestCycleResponse) {
+    if (!append) throw new Error(NO_ACTIVE_CYCLE);
     const count = planned.case_count;
-    if (appendTo) {
-      const response = await appendTestCycle({ cycleId: appendTo, request: request() });
-      /* The cases are in the cycle: the dialog has finished, and closes
-           before anything that only reports what happened. Announcing first
-           left a successful add behind an open dialog whenever the toast or
-           the navigation threw. */
-      onOpenChange(false);
-      announce(count, response.plan?.test_cycle?.title ?? targetCycleLabel ?? suite.name, appendTo);
-    } else {
-      const created = await createTestCycle(request());
-      onOpenChange(false);
-      announce(count, suite.name, created.cycleId);
-      await navigate({ search: { appendTo: created.cycleId }, to: "/library" });
-    }
-  }
-
-  function announce(count: number, cycleLabel: string, cycleId: string) {
-    toast.success(`Added ${count} ${count === 1 ? "case" : "cases"} to ${cycleLabel}`, {
+    const response = await appendTestCycle(append);
+    /* The cases are in the cycle: the dialog has finished, and closes before
+       anything that only reports what happened. Announcing first left a
+       successful add behind an open dialog whenever the toast threw. */
+    onOpenChange(false);
+    const label = response.plan?.test_cycle?.title ?? cycleLabel ?? append.cycleId;
+    toast.success(`Added ${count} ${count === 1 ? "case" : "cases"} to ${label}`, {
       action: {
         label: "Open Cycle",
         onClick: () => {
-          void navigate({ params: { cycleId }, to: "/cycles/$cycleId" });
+          void navigate({ params: { cycleId: append.cycleId }, to: "/cycles/$cycleId" });
         },
       },
     });
@@ -367,9 +352,20 @@ export function TemplateDialog({
         <SummaryStep
           preview={preview}
           rows={rows}
-          target={appendTo ? (targetCycleLabel ?? appendTo) : "New Cycle — Created On Add"}
+          target={cycleLabel ?? cycleId ?? ""}
           title={title}
         />
+      )}
+      {append ? null : (
+        <div
+          className="mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border bg-muted/50 px-3 py-2"
+          role="status"
+        >
+          <p className="text-sm text-muted-foreground">{NO_ACTIVE_CYCLE}</p>
+          <Button onClick={onNewCycle} size="sm" type="button" variant="outline">
+            New Cycle
+          </Button>
+        </div>
       )}
       {error ? (
         <p className="px-4 text-sm text-destructive" role="alert">
@@ -394,7 +390,7 @@ export function TemplateDialog({
         <span className="grid justify-items-stretch gap-0.5">
           <Button
             className="h-9 w-full"
-            disabled={Boolean(problems) || busy || !parametersReady}
+            disabled={Boolean(problems) || busy || !parametersReady || !append}
             onClick={() => void next()}
             type="button"
           >
@@ -409,7 +405,7 @@ export function TemplateDialog({
       ) : (
         <Button
           className="h-9 w-full"
-          disabled={busy || !preview}
+          disabled={busy || !preview || !append}
           onClick={() => void finishAndAdd()}
           type="button"
         >

@@ -448,35 +448,27 @@ pub(crate) async fn planned_params_limit() {
             parameter
         })
         .collect();
-    common::register_fixture_execution(&owner.handle(), suite).await;
+    common::register_fixture_execution(&owner.handle(), suite.clone()).await;
     let server = Server::start(owner.handle(), Config::local())
         .await
         .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
     // Native registered suites can exceed the transport's creation schema
     // bound. Inspection must still expose every existing planned parameter.
-    let cycle_id = owner
-        .handle()
-        .start_registered_cycle(
-            "fixture.suite",
-            common::metadata("large.case", "Large case"),
-            false,
-            dokime_app::runtime::command::CommandContext::default(),
-        )
-        .await
-        .unwrap()
-        .to_string();
-    let other_cycle = owner
-        .handle()
-        .start_registered_cycle(
-            "fixture.suite",
-            common::metadata("other.case", "Other case"),
-            false,
-            dokime_app::runtime::command::CommandContext::default(),
-        )
-        .await
-        .unwrap()
-        .to_string();
+    let cycle_id = common::cycle_with_cases(
+        &owner.handle(),
+        common::metadata("large.case", "Large case"),
+        common::materialize_cases("fixture.suite", &suite),
+    )
+    .await
+    .to_string();
+    let other_cycle = common::cycle_with_cases(
+        &owner.handle(),
+        common::metadata("other.case", "Other case"),
+        common::materialize_cases("fixture.suite", &suite),
+    )
+    .await
+    .to_string();
     let case_id = client
         .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
             cycle_id: cycle_id.clone(),

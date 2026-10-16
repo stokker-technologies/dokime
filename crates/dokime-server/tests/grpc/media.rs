@@ -281,23 +281,21 @@ pub(super) async fn running_execution(
     client: &WireClient,
     gate: &UploadGate,
 ) -> contracts::content::ArtifactScope {
-    let cycle_id = client
-        .unary::<contracts::execution::CreateCycle>(authenticated(
-            contracts::execution::CreateCycleRequest {
-                plan: Some(super::workflow::selection_plan(owner)),
-                metadata: Some(contracts::common::Metadata {
-                    identifier: "media.capture".into(),
-                    label: "Media".into(),
-                    description: None,
-                    ..Default::default()
-                }),
+    let cycle_id = common::planned_cycle(
+        client,
+        authenticated(contracts::execution::CreateCycleRequest {
+            metadata: Some(contracts::common::Metadata {
+                identifier: "media.capture".into(),
+                label: "Media".into(),
+                description: None,
                 ..Default::default()
-            },
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+            }),
+            ..Default::default()
+        }),
+        super::workflow::selection_plan(owner),
+    )
+    .await
+    .unwrap();
     client
         .unary::<contracts::execution::RunCycle>(authenticated(
             contracts::execution::RunCycleRequest {

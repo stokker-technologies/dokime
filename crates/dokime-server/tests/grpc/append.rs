@@ -57,6 +57,21 @@ fn plan(selection: contracts::planning::RegisteredSelection) -> contracts::plann
     }
 }
 
+async fn cases(execution: &WireClient, cycle_id: &str) -> Vec<contracts::execution::CaseSummary> {
+    execution
+        .unary::<contracts::execution::ListCases>(auth(
+            contracts::execution::ListCasesRequest {
+                cycle_id: cycle_id.into(),
+                ..Default::default()
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner()
+        .cases
+}
+
 async fn client(server: &Server) -> WireClient {
     WireClient::connect(server.local_endpoint()).await.unwrap()
 }
@@ -79,14 +94,12 @@ pub(crate) async fn append_cases_control() {
     .unwrap();
     let execution = client(&server).await;
 
+    // A cycle starts empty and Ready; creating it needs no plan.
     let cycle_id = execution
         .unary::<contracts::execution::CreateCycle>(auth(
             contracts::execution::CreateCycleRequest {
-                plan: Some(plan(selection(&suite, 0))),
                 metadata: Some(contracts::common::Metadata {
-                    identifier: "append.cycle".into(),
                     label: "Append cycle".into(),
-                    description: None,
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -97,18 +110,53 @@ pub(crate) async fn append_cases_control() {
         .unwrap()
         .into_inner()
         .cycle_id;
-    let before = execution
-        .unary::<contracts::execution::ListCases>(auth(
-            contracts::execution::ListCasesRequest {
+    let created = execution
+        .unary::<contracts::execution::GetCycle>(auth(
+            contracts::execution::GetCycleRequest {
                 cycle_id: cycle_id.clone(),
-                ..Default::default()
             },
             CONTROL_TOKEN,
         ))
         .await
         .unwrap()
-        .into_inner()
-        .cases;
+        .into_inner();
+    assert_eq!(created.status, contracts::execution::CycleStatus::Ready);
+    assert_eq!(created.case_count, 0);
+    // An empty identifier is derived by the server.
+    assert!(created.metadata.unwrap().identifier.starts_with("cycle."));
+    assert!(cases(&execution, &cycle_id).await.is_empty());
+
+    // Running an empty cycle is refused until cases are appended.
+    let empty = execution
+        .unary::<contracts::execution::RunCycle>(auth(
+            contracts::execution::RunCycleRequest {
+                cycle_id: cycle_id.clone(),
+                context: None,
+                idempotency_key: None,
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(matches!(
+        empty.outcome,
+        Some(contracts::execution::RunReplyOutcome::Rejected(ref rejection))
+            if rejection.code == "empty_cycle"
+    ));
+
+    execution
+        .unary::<contracts::execution::AppendPlannedCases>(auth(
+            contracts::execution::AppendPlannedCasesRequest {
+                cycle_id: cycle_id.clone(),
+                plan: Some(plan(selection(&suite, 0))),
+                context: None,
+            },
+            CONTROL_TOKEN,
+        ))
+        .await
+        .unwrap();
+    let before = cases(&execution, &cycle_id).await;
     assert_eq!(before.len(), 1);
 
     let request = contracts::execution::AppendPlannedCasesRequest {
@@ -131,18 +179,7 @@ pub(crate) async fn append_cases_control() {
         .into_inner();
     assert!(reply.observed_cursor.is_some());
 
-    let after = execution
-        .unary::<contracts::execution::ListCases>(auth(
-            contracts::execution::ListCasesRequest {
-                cycle_id: cycle_id.clone(),
-                ..Default::default()
-            },
-            CONTROL_TOKEN,
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .cases;
+    let after = cases(&execution, &cycle_id).await;
     assert_eq!(after.len(), 2);
     assert_eq!(after[0].case_id, before[0].case_id);
     assert_eq!(after[0].template_id, before[0].template_id);
@@ -160,18 +197,8 @@ pub(crate) async fn append_cases_control() {
         ))
         .await
         .unwrap();
-    let labels = execution
-        .unary::<contracts::execution::ListCases>(auth(
-            contracts::execution::ListCasesRequest {
-                cycle_id: cycle_id.clone(),
-                ..Default::default()
-            },
-            CONTROL_TOKEN,
-        ))
+    let labels = cases(&execution, &cycle_id)
         .await
-        .unwrap()
-        .into_inner()
-        .cases
         .into_iter()
         .map(|case| case.metadata.unwrap().label)
         .collect::<Vec<_>>();
@@ -187,18 +214,7 @@ pub(crate) async fn append_cases_control() {
     );
 
     // Numbering continues from the stored ordinals: renaming "#2" never frees it.
-    let renamed = execution
-        .unary::<contracts::execution::ListCases>(auth(
-            contracts::execution::ListCasesRequest {
-                cycle_id: cycle_id.clone(),
-                ..Default::default()
-            },
-            CONTROL_TOKEN,
-        ))
-        .await
-        .unwrap()
-        .into_inner()
-        .cases[2]
+    let renamed = cases(&execution, &cycle_id).await[2]
         .latest_execution_id
         .clone()
         .unwrap();
@@ -224,18 +240,8 @@ pub(crate) async fn append_cases_control() {
         ))
         .await
         .unwrap();
-    let labels = execution
-        .unary::<contracts::execution::ListCases>(auth(
-            contracts::execution::ListCasesRequest {
-                cycle_id: cycle_id.clone(),
-                ..Default::default()
-            },
-            CONTROL_TOKEN,
-        ))
+    let labels = cases(&execution, &cycle_id)
         .await
-        .unwrap()
-        .into_inner()
-        .cases
         .into_iter()
         .map(|case| case.metadata.unwrap().label)
         .collect::<Vec<_>>();

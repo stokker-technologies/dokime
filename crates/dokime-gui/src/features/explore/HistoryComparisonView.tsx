@@ -34,7 +34,6 @@ type ComparisonRow = { get: (cycle: ExploreEntry) => string; label: string };
 const COMPARISON_ROWS: ComparisonRow[] = [
   { label: "Owner", get: (cycle) => cycle.owner ?? "—" },
   { label: "Source", get: (cycle) => cycle.source.label },
-  { label: "Suite", get: (cycle) => cycle.suite_name ?? "—" },
   { label: "Cases", get: (cycle) => String(cycle.case_count) },
   { label: "Passed", get: (cycle) => String(cycle.passed_count) },
   { label: "Failed", get: (cycle) => String(cycle.failed_count) },

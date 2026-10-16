@@ -55,16 +55,9 @@ async fn fixture(root: &std::path::Path) -> (Runtime, CreateNoteRequest) {
     let handle = owner.handle();
     let cycle_id = tokio::time::timeout(
         std::time::Duration::from_secs(5),
-        handle.start_cycle(
+        handle.create_cycle(
             CycleDefinition {
-                suite: TestSuite {
-                    metadata: metadata.clone(),
-                    tags: vec![],
-                    parameter_groups: vec![],
-                    test_case_templates: vec![],
-                },
                 metadata,
-                cases: vec![],
                 continue_on_failure: false,
             },
             CommandContext::default(),

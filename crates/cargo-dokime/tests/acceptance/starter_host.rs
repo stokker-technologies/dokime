@@ -412,20 +412,7 @@ async fn assert_soak(executable: &Path, bundle: &Path, package: &str, expected: 
         .await
         .unwrap();
     assert_eq!(preview.cases.len(), 1);
-    let cycle_id = execution
-        .execution_create_cycle(contracts::execution::CreateCycleRequest {
-            plan: Some(plan),
-            metadata: Some(contracts::common::Metadata {
-                identifier: "starter.host.soak".into(),
-                label: "Starter soak".into(),
-                description: None,
-                ..Default::default()
-            }),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .cycle_id;
+    let cycle_id = planned_cycle(&execution, "starter.host.soak", "Starter soak", plan).await;
     let before_cases = execution
         .execution_list_cases(contracts::execution::ListCasesRequest {
             cycle_id: cycle_id.clone(),
@@ -655,27 +642,16 @@ async fn assert_installed(executable: &Path, bundle: &Path, package: &str) {
                 .is_some_and(|metadata| metadata.identifier == format!("{package}.soak.hold"))
         })
         .unwrap();
-    let cycle_id = execution
-        .execution_create_cycle(contracts::execution::CreateCycleRequest {
-            plan: Some(contracts::planning::SelectionPlan {
-                selections: vec![contracts::planning::RegisteredSelection {
-                    suite_id,
-                    template_id: template.template_id.clone(),
-                    ..Default::default()
-                }],
-                ..Default::default()
-            }),
-            metadata: Some(contracts::common::Metadata {
-                identifier: "starter.installed.soak".into(),
-                label: "Installed soak".into(),
-                description: None,
-                ..Default::default()
-            }),
+    let plan = contracts::planning::SelectionPlan {
+        selections: vec![contracts::planning::RegisteredSelection {
+            suite_id,
+            template_id: template.template_id.clone(),
             ..Default::default()
-        })
-        .await
-        .unwrap()
-        .cycle_id;
+        }],
+        ..Default::default()
+    };
+    let cycle_id =
+        planned_cycle(&execution, "starter.installed.soak", "Installed soak", plan).await;
     execution
         .execution_run_cycle(contracts::execution::RunCycleRequest {
             cycle_id: cycle_id.clone(),
@@ -805,6 +781,36 @@ async fn assert_evidence(endpoint: &str, execution_id: &str, package: &str) {
             "{artifact} was not captured: {files:#?}"
         );
     }
+}
+
+async fn planned_cycle(
+    execution: &Client,
+    identifier: &str,
+    label: &str,
+    plan: contracts::planning::SelectionPlan,
+) -> String {
+    let cycle_id = execution
+        .execution_create_cycle(contracts::execution::CreateCycleRequest {
+            metadata: Some(contracts::common::Metadata {
+                identifier: identifier.into(),
+                label: label.into(),
+                description: None,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .cycle_id;
+    execution
+        .execution_append_planned_cases(contracts::execution::AppendPlannedCasesRequest {
+            cycle_id: cycle_id.clone(),
+            plan: Some(plan),
+            context: None,
+        })
+        .await
+        .unwrap();
+    cycle_id
 }
 
 async fn wait_terminal(client: &Client, cycle_id: &str) {

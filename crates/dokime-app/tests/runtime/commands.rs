@@ -71,16 +71,14 @@ pub(crate) async fn idempotency_survives_restart() {
         ..CommandContext::default()
     };
     let definition = CycleDefinition {
-        suite: empty_suite(),
         metadata: metadata("fixture.cycle", "Fixture Cycle"),
-        cases: Vec::new(),
         continue_on_failure: false,
     };
 
     let cycle_id = {
         let (mut runtime, handle) = booted(root.path()).await;
         let created = handle
-            .start_cycle(definition.clone(), context.clone())
+            .create_cycle(definition.clone(), context.clone())
             .await;
         assert!(created.is_ok());
         let cycles = handle
@@ -101,12 +99,12 @@ pub(crate) async fn idempotency_survives_restart() {
     assert_eq!(restored[0].test_cycle_id, cycle_id);
     assert_eq!(restored[0].lifecycle, CycleStatus::Stopped);
     let fresh = handle
-        .start_cycle(definition.clone(), context.clone())
+        .create_cycle(definition.clone(), context.clone())
         .await
         .unwrap();
     assert_eq!(fresh, cycle_id);
     assert_eq!(
-        handle.start_cycle(definition, context).await.unwrap(),
+        handle.create_cycle(definition, context).await.unwrap(),
         fresh
     );
     assert_eq!(
@@ -273,11 +271,9 @@ async fn run_kill_child() {
         PathBuf::from(std::env::var_os("DOKIME_RUNTIME_KILL_ROOT").expect("kill child root env"));
     let (_owner, runtime) = booted(&root).await;
     let created = runtime
-        .start_cycle(
+        .create_cycle(
             CycleDefinition {
-                suite: empty_suite(),
                 metadata: metadata("fixture.cycle", "Fixture Cycle"),
-                cases: Vec::new(),
                 continue_on_failure: false,
             },
             CommandContext::default(),

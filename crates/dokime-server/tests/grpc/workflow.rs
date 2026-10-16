@@ -130,12 +130,10 @@ impl Gated {
             .unwrap();
         let server = service.listen().await.unwrap();
         let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
-        let cycle = execution
-            .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
-            .await
-            .unwrap()
-            .into_inner()
-            .cycle_id;
+        let cycle =
+            common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
+                .await
+                .unwrap();
         Self {
             root,
             gate,
@@ -189,9 +187,8 @@ async fn fixture_with_provider(
     owner
 }
 
-fn create(owner: &Runtime) -> contracts::execution::CreateCycleRequest {
+fn create() -> contracts::execution::CreateCycleRequest {
     contracts::execution::CreateCycleRequest {
-        plan: Some(selection_plan(owner)),
         metadata: Some(contracts::common::Metadata {
             identifier: "grpc.cycle".into(),
             label: "gRPC cycle".into(),
@@ -267,12 +264,9 @@ pub(crate) async fn registered_create_definitions() {
         .into_inner();
     let initial = stream.message().await.unwrap().unwrap();
     assert!(initial.resynchronized);
-    let id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+    let id = common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     let planned = execution
         .unary::<contracts::execution::GetCycle>(authenticated(
             contracts::execution::GetCycleRequest {
@@ -379,12 +373,9 @@ pub(crate) async fn registered_create_definitions() {
         .unwrap()
         .into_inner();
     assert_eq!(list.cycles.len(), 1);
-    let other = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+    let other = common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     execution
         .unary::<contracts::execution::StopCycle>(authenticated(control(&other)))
         .await
@@ -430,12 +421,10 @@ pub(crate) async fn stopping_running_unwind() {
         .await
         .unwrap();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let cycle_id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+    let cycle_id =
+        common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
+            .await
+            .unwrap();
     let reply = execution
         .unary::<contracts::execution::RunCycle>(authenticated(run(&cycle_id)))
         .await
@@ -518,18 +507,14 @@ pub(crate) async fn runtime_shell_cursor() {
         .unwrap();
     let execution = WireClient::new(connection.clone());
     let observation = WireClient::new(connection);
-    let first_cycle = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
-    let second_cycle = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+    let first_cycle =
+        common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
+            .await
+            .unwrap();
+    let second_cycle =
+        common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
+            .await
+            .unwrap();
 
     let first = observation
         .unary::<contracts::observation::GetRuntimeShell>(authenticated(
@@ -542,7 +527,6 @@ pub(crate) async fn runtime_shell_cursor() {
         .unwrap()
         .into_inner();
     assert_eq!(first.cycle_summaries.len(), 1);
-    assert!(first.cycle_summaries[0].suite.is_some());
     let next_cycle = first
         .next_after_cycle_id
         .clone()
@@ -607,7 +591,7 @@ pub(crate) async fn runtime_shell_cursor() {
     );
 
     execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create()))
         .await
         .unwrap();
     assert_eq!(
@@ -647,12 +631,10 @@ pub(crate) async fn checkpoint_telemetry_queries() {
         .unwrap();
     let execution = WireClient::new(connection.clone());
     let history = WireClient::new(connection);
-    let cycle_id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+    let cycle_id =
+        common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
+            .await
+            .unwrap();
     execution
         .unary::<contracts::execution::RunCycle>(authenticated(run(&cycle_id)))
         .await
@@ -753,12 +735,10 @@ pub(crate) async fn historical_checkpoint_content() {
     let execution = WireClient::new(connection.clone());
     let history = WireClient::new(connection.clone());
     let reports = WireClient::new(connection);
-    let cycle_id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+    let cycle_id =
+        common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
+            .await
+            .unwrap();
     let case_id = execution
         .unary::<contracts::execution::ListCases>(authenticated(
             contracts::execution::ListCasesRequest {
@@ -1119,7 +1099,7 @@ pub(crate) async fn read_role_admit() {
     let client = WireClient::connect(read.local_endpoint()).await.unwrap();
     assert_eq!(
         client
-            .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+            .unary::<contracts::execution::CreateCycle>(authenticated(create()))
             .await
             .unwrap_err()
             .code(),
@@ -1138,6 +1118,27 @@ pub(crate) async fn read_role_admit() {
         .await
         .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
+    let mut blank = create();
+    blank.metadata.as_mut().unwrap().label = "  ".into();
+    assert_eq!(
+        client
+            .unary::<contracts::execution::CreateCycle>(blank)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::InvalidArgument
+    );
+    let cycle_id = client
+        .unary::<contracts::execution::CreateCycle>(create())
+        .await
+        .unwrap()
+        .into_inner()
+        .cycle_id;
+    let append = |plan| contracts::execution::AppendPlannedCasesRequest {
+        cycle_id: cycle_id.clone(),
+        plan: Some(plan),
+        context: None,
+    };
     // A malformed wire value is refused while the plan is decoded, before any
     // suite lookup. What the removed global parameter object also caught —
     // a value that decodes but does not fit its declaration — is now the
@@ -1152,28 +1153,28 @@ pub(crate) async fn read_role_admit() {
             }],
         },
     ] {
-        let mut request = create(&owner);
-        request.plan.as_mut().unwrap().selections[0]
-            .parameters
-            .push(contracts::planning::RegisteredSelectionParametersEntry {
+        let mut plan = selection_plan(&owner);
+        plan.selections[0].parameters.push(
+            contracts::planning::RegisteredSelectionParametersEntry {
                 key: "fixture.result".into(),
                 value: Some(contracts::planning::SelectionValues {
                     values: vec![value],
                 }),
-            });
+            },
+        );
         assert_eq!(
             client
-                .unary::<contracts::execution::CreateCycle>(request)
+                .unary::<contracts::execution::AppendPlannedCases>(append(plan))
                 .await
                 .unwrap_err()
                 .code(),
             Code::InvalidArgument
         );
     }
-    let mut request = create(&owner);
-    request.plan.as_mut().unwrap().selections[0].suite_id = "not.registered".into();
+    let mut plan = selection_plan(&owner);
+    plan.selections[0].suite_id = "not.registered".into();
     let failure = client
-        .unary::<contracts::execution::CreateCycle>(request)
+        .unary::<contracts::execution::AppendPlannedCases>(append(plan))
         .await
         .unwrap_err();
     assert_eq!(failure.code(), Code::NotFound);
@@ -1193,13 +1194,14 @@ pub(crate) async fn read_role_admit() {
     assert_eq!(rejection.message, failure.message());
     assert!(
         client
-            .unary::<contracts::execution::ListCycles>(
-                contracts::execution::ListCyclesRequest::default()
-            )
+            .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
+                cycle_id: cycle_id.clone(),
+                ..Default::default()
+            })
             .await
             .unwrap()
             .into_inner()
-            .cycles
+            .cases
             .is_empty()
     );
     assert_eq!(
@@ -1248,12 +1250,9 @@ pub(crate) async fn stalled_stream_execution() {
     let server = service.listen().await.unwrap();
     let address = server.address();
     let execution = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let id = execution
-        .unary::<contracts::execution::CreateCycle>(create(&owner))
+    let id = common::planned_cycle(&execution, Request::new(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     let result = execution
         .unary::<contracts::execution::RunCycle>(run(&id))
         .await
@@ -1337,12 +1336,10 @@ pub(crate) async fn run_cycle_targets() {
         .await
         .unwrap();
     let execution = WireClient::new(connection);
-    let cycle_id = execution
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+    let cycle_id =
+        common::planned_cycle(&execution, authenticated(create()), selection_plan(&owner))
+            .await
+            .unwrap();
     let diagnostics = {
         let snapshot = owner.handle().watch_state().latest();
         let entry = snapshot.state().suites.get("fixture.diagnostics").unwrap();

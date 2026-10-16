@@ -176,18 +176,13 @@ pub(crate) async fn shared_stream_publishes() {
     let suite = Checks::definition().suite;
 
     // Run Both Templates
-    let cycle = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("fixture.shared.cycle", "Shared Cycle"),
-                cases: materialize_cases(SUITE, &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = start_cases(
+        &handle,
+        metadata("fixture.shared.cycle", "Shared Cycle"),
+        materialize_cases(SUITE, &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle.clone(), CommandContext::default())
         .await;

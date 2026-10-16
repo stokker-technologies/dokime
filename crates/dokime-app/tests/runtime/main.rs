@@ -52,18 +52,6 @@ fn provider_config(root: &Path) -> RuntimeConfig {
     config(root).with_plugins([fixture_bundle(root, "mini-sidecar")])
 }
 
-fn preview_definition(suffix: &str) -> CycleDefinition {
-    CycleDefinition {
-        suite: empty_suite(),
-        metadata: metadata(
-            &format!("fixture.preview.{suffix}"),
-            &format!("Fixture Preview {suffix}"),
-        ),
-        cases: Vec::new(),
-        continue_on_failure: false,
-    }
-}
-
 async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
     tokio::time::timeout(Duration::from_secs(30), async {
         while runtime
@@ -77,19 +65,22 @@ async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
     })
     .await
     .expect("previous provider finishes");
-    let mut definition = preview_definition(suffix);
     let registration = runtime
         .test_suites()
         .await
         .into_iter()
         .find(|suite| suite.source == "mini-sidecar" && suite.suite_id == "mini.checks")
         .expect("mini suite registered");
-    definition.cases = materialize_cases(&registration.suite_id, &registration.suite);
-    definition.suite = registration.suite;
-    runtime
-        .start_cycle(definition, CommandContext::default())
-        .await
-        .unwrap()
+    start_cases(
+        runtime,
+        metadata(
+            &format!("fixture.cycle.{suffix}"),
+            &format!("Fixture Cycle {suffix}"),
+        ),
+        materialize_cases(&registration.suite_id, &registration.suite),
+        false,
+    )
+    .await
 }
 
 async fn record_health(runtime: &RuntimeHandle, message: &str) -> dokime_app::Result<()> {

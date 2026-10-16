@@ -71,12 +71,9 @@ pub(crate) async fn step_pages_selections() {
     .await
     .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let id = client
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+    let id = common::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     client
         .unary::<contracts::execution::RunCycle>(authenticated(run(&id)))
         .await
@@ -215,7 +212,7 @@ pub(crate) async fn step_pages_selections() {
     );
     request.limit = 31;
     client
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+        .unary::<contracts::execution::CreateCycle>(authenticated(create()))
         .await
         .unwrap();
     request.cursor = initial_cursor;

@@ -57,12 +57,9 @@ pub(crate) async fn large_cycles_order() {
         .await
         .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let id = client
-        .unary::<contracts::execution::CreateCycle>(create(&owner))
+    let id = common::planned_cycle(&client, Request::new(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     let summary = client
         .unary::<contracts::execution::GetCycle>(contracts::execution::GetCycleRequest {
             cycle_id: id.clone(),
@@ -132,7 +129,7 @@ pub(crate) async fn large_cycles_order() {
     // cycle still crosses the 256-case boundary through every RPC projection.
     common::register_fixture_execution(&owner.handle(), common::fixture_suite(&["passed"])).await;
     client
-        .unary::<contracts::execution::CreateCycle>(create(&owner))
+        .unary::<contracts::execution::CreateCycle>(create())
         .await
         .unwrap();
     assert_eq!(
@@ -240,12 +237,9 @@ pub(crate) async fn large_run_preparation() {
         .await
         .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let id = client
-        .unary::<contracts::execution::CreateCycle>(create(&owner))
+    let id = common::planned_cycle(&client, Request::new(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     let outcome = client
         .unary::<contracts::execution::RunCycle>(run(&id))
         .await

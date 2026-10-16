@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+mod append;
 mod create;
 mod request;
 mod rerun;
@@ -35,8 +36,10 @@ mod stop;
 /* === Enums === */
 #[derive(Debug, clap::Subcommand)]
 pub(crate) enum Command {
-    #[command(about = "Create A Cycle From Registered Cases And Optionally Submit It.")]
+    #[command(about = "Create An Empty Cycle, Optionally Append Registered Cases And Submit It.")]
     Create(create::Args),
+    #[command(about = "Append Planned Cases To An Existing Cycle.")]
+    Append(append::Args),
     #[command(about = "Submit An Existing Cycle Once With A Caller-Retained Key.")]
     Run(run::Args),
     #[command(about = "Read Or Wait For A Durable Request Without Replaying Work.")]
@@ -57,6 +60,7 @@ pub(crate) enum Command {
 pub(crate) async fn run(command: Command) -> crate::Result<()> {
     match command {
         Command::Create(args) => create::run(args).await,
+        Command::Append(args) => append::run(args).await,
         Command::Run(args) => run::run(args).await,
         Command::Request(args) => request::run(args).await,
         Command::Stop(args) => stop::run(args).await,

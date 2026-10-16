@@ -15,10 +15,7 @@ mod payload;
 
 /* === Imports === */
 // Standard Library Imports
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 // Third Party Imports
 use harmos::operations::{Context, Operation};
 use tonic::Status;
@@ -29,7 +26,7 @@ use super::{
 };
 use dokime_app::core::{CaseId, CommandId, TemplateId, TestCycleId};
 use dokime_app::definition::{
-    CaseMaterializationOptions, CaseMaterializationSelection, SuiteRegistry, TestCase, TestSuite,
+    CaseMaterializationOptions, CaseMaterializationSelection, SuiteRegistry, TestCase,
     materialize_template_cases,
 };
 use dokime_app::state::RuntimeState;
@@ -52,7 +49,6 @@ struct Preview {
 }
 
 pub(super) struct ResolvedPlan {
-    pub(super) suite: TestSuite,
     pub(super) cases: Vec<TestCase>,
     pub(super) preview: Vec<wire::PlannedCase>,
 }
@@ -188,11 +184,9 @@ pub(super) fn resolve(
     let mut output_budget = Budget::new();
     let mut expression_budget = bounds::Budget::new();
     let mut payload_budget = payload::BUDGET;
-    let mut suite: Option<TestSuite> = None;
     let mut target = None;
     let mut cases = Vec::new();
     let mut preview = Vec::new();
-    let mut templates = BTreeSet::new();
     for (selection_index, selection) in plan.selections.into_iter().enumerate() {
         value::text(&selection.suite_id)?;
         value::text(&selection.template_id)?;
@@ -258,13 +252,6 @@ pub(super) fn resolve(
             if !parameters.contains_key(parameter.metadata.identifier.as_str()) {
                 bounds::expression(&parameter.expression, &mut expression_budget, 0)?;
             }
-        }
-        let combined = suite.get_or_insert_with(|| TestSuite {
-            test_case_templates: vec![],
-            ..entry.suite.clone()
-        });
-        if templates.insert(template.test_case_template_id.clone()) {
-            combined.test_case_templates.push(template.clone());
         }
         let parameters = parameters
             .into_iter()
@@ -368,12 +355,7 @@ pub(super) fn resolve(
     if cases.is_empty() {
         return Err(rejection("empty_selection", "selection generated no cases"));
     }
-    let suite = suite.expect("nonempty selections");
-    Ok(ResolvedPlan {
-        suite,
-        cases,
-        preview,
-    })
+    Ok(ResolvedPlan { cases, preview })
 }
 
 /* === Private Functions === */
@@ -442,9 +424,7 @@ fn resolve_registered(
     if limit > 1000 || plan.case_ids.len() > limit {
         return Err(Status::resource_exhausted("plan exceeds its case limit"));
     }
-    let mut suite: Option<TestSuite> = None;
     let mut target = None;
-    let mut templates = BTreeSet::new();
     let mut budget = Budget::new();
     let mut payload_budget = payload::BUDGET;
     let mut cases = Vec::new();
@@ -488,13 +468,6 @@ fn resolve_registered(
         target = Some(selected_target);
         payload::registered_case(case, &mut payload_budget)?;
         let parameters = canonical::object(&case.parameters, &mut budget)?;
-        let combined = suite.get_or_insert_with(|| TestSuite {
-            test_case_templates: vec![],
-            ..entry.suite.clone()
-        });
-        if templates.insert(template.test_case_template_id.clone()) {
-            combined.test_case_templates.push(template.clone());
-        }
         preview.push(wire::PlannedCase {
             case_id: id.to_string(),
             suite_id: entry.suite_id.clone(),
@@ -506,11 +479,7 @@ fn resolve_registered(
         });
         cases.push(case.clone());
     }
-    Ok(ResolvedPlan {
-        suite: suite.expect("nonempty registered case IDs"),
-        cases,
-        preview,
-    })
+    Ok(ResolvedPlan { cases, preview })
 }
 
 fn rejection(code: &str, message: impl Into<String>) -> Status {

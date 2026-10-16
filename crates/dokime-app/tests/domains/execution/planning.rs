@@ -37,53 +37,27 @@ use super::*;
 
 /* === Private Functions === */
 
-pub(crate) async fn preview_start_plans() {
+// A cycle is created empty, refuses to run until cases are appended, then
+// runs the appended cases to completion.
+pub(crate) async fn empty_cycle_grows() {
     let root = tempdir().unwrap();
-    let (_owner, runtime) = booted(root.path()).await;
-    let suite = fixture_suite(&["passed"]);
-    runtime
-        .set_suites(
-            "fixture",
-            dokime_app::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition::new(
-                "fixture.registration",
-                suite.clone(),
-            )
-            .unwrap()]),
-        )
-        .await
-        .unwrap();
-    let mut live = runtime.watch_state();
-    let initial_revision = live.latest().revision();
+    let (_owner, runtime) =
+        booted_with_fixture(root.path(), Arc::new(FakePythonExecutor::fixed("passed"))).await;
+    let suite = plt400_suite();
+    register_python_suite(&runtime, suite.clone()).await;
 
-    let preview = runtime
-        .preview_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("cycle.preview", "Preview Cycle"),
-                cases: materialize_cases("fixture.registration", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await;
-    let start = runtime
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("cycle.start", "Start Cycle"),
-                cases: materialize_cases("fixture.registration", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await;
-    live.next().await.unwrap();
-    let cycles = runtime.cycles().await;
-    let revision = runtime
-        .runtime_overview()
-        .await
-        .expect("runtime overview query succeeds")
-        .revision;
+    // Created: Ready, Empty, And Visible
+    let cycle_id = start_cases(
+        &runtime,
+        metadata("cycle.explicit", "Explicit Cycle"),
+        Vec::new(),
+        false,
+    )
+    .await;
+    let created = cycle_snapshot(&runtime, &cycle_id).await;
+    assert_eq!(created.lifecycle, CycleStatus::Ready);
+    assert_eq!(created.cases().count(), 0);
+    assert!(created.test_executions.is_empty());
     let query = runtime
         .query_runtime_view(RuntimeViewQuery {
             scope: None,
@@ -94,34 +68,91 @@ pub(crate) async fn preview_start_plans() {
         })
         .await
         .unwrap();
-
-    assert!(preview.is_ok());
-    assert!(start.is_ok());
-    assert_eq!(cycles.len(), 2);
-    assert!(revision >= initial_revision + 2);
-    assert!(cycles.iter().any(|cycle| {
-        cycle.lifecycle == CycleStatus::Previewed
-            && cycle.cases().count() == 1
-            && cycle.test_executions.len() == 1
-            && cycle.test_executions[0].status == ExecutionStatus::Skipped
-            && cycle.test_executions[0].started_at.is_none()
-            && cycle.test_executions[0].finished_at.is_none()
-    }));
-    assert!(cycles.iter().any(|cycle| {
-        cycle.lifecycle == CycleStatus::Ready
-            && cycle.started_at.is_none()
-            && cycle.cases().count() == 1
-            && cycle.test_executions.len() == 1
-            && cycle.test_executions[0].status == ExecutionStatus::Skipped
-            && cycle.test_executions[0].started_at.is_none()
-            && cycle.test_executions[0].finished_at.is_none()
-    }));
-    let latest = live.latest().revision();
-    assert!(latest >= initial_revision + 2);
     let RuntimeViewPayload::Cycles { frame } = query.payload else {
         panic!("expected cycle query frame");
     };
-    assert_eq!(frame.count, 2);
+    assert_eq!(frame.count, 1);
+
+    // Empty: Running Is Refused
+    let refused = runtime
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(refused.status, CommandStatus::Rejected);
+    assert_eq!(
+        refused
+            .rejection
+            .as_ref()
+            .map(|rejection| rejection.code.as_str()),
+        Some("empty_cycle")
+    );
+    assert_eq!(
+        cycle_snapshot(&runtime, &cycle_id).await.lifecycle,
+        CycleStatus::Ready
+    );
+
+    // Appended: Cases Join Unstarted
+    let registration = runtime
+        .test_suites()
+        .await
+        .into_iter()
+        .find(|entry| entry.suite == suite)
+        .expect("fixture suite is installed");
+    runtime
+        .append_cycle_cases(
+            cycle_id.clone(),
+            materialize_cases(&registration.suite_id, &registration.suite),
+            CommandContext::default(),
+        )
+        .await
+        .unwrap();
+    let appended = cycle_snapshot(&runtime, &cycle_id).await;
+    assert_eq!(appended.lifecycle, CycleStatus::Ready);
+    assert!(appended.started_at.is_none());
+    assert_eq!(appended.cases().count(), 1);
+    assert_eq!(appended.test_executions.len(), 1);
+    assert_eq!(appended.test_executions[0].status, ExecutionStatus::Skipped);
+    assert!(appended.test_executions[0].started_at.is_none());
+    assert!(appended.test_executions[0].finished_at.is_none());
+
+    // Run: The Appended Cases Complete
+    let accepted = runtime
+        .run_cycle_cases(cycle_id.clone(), CommandContext::default())
+        .await;
+    assert_eq!(accepted.status, CommandStatus::Accepted, "{accepted:?}");
+    let completed = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Completed).await;
+    assert_eq!(completed.test_executions.len(), 1);
+    assert_eq!(completed.test_executions[0].status, ExecutionStatus::Passed);
+}
+
+// Stopping a cycle that never received cases leaves it terminal and unsealed;
+// its report still renders, empty, from current state.
+pub(crate) async fn empty_cycle_stops() {
+    let root = tempdir().unwrap();
+    let (_owner, runtime) = booted(root.path()).await;
+    let cycle_id = start_cases(
+        &runtime,
+        metadata("cycle.unused", "Unused Cycle"),
+        Vec::new(),
+        false,
+    )
+    .await;
+
+    runtime
+        .stop_cycle(cycle_id.clone(), CommandContext::default())
+        .await
+        .unwrap();
+    let stopped = wait_for_cycle_lifecycle(&runtime, &cycle_id, CycleStatus::Stopped).await;
+    assert!(stopped.test_executions.is_empty());
+    assert!(stopped.saved.is_none());
+
+    let report = runtime.open_cycle_report(&cycle_id).await.unwrap();
+    assert_eq!(report.origin, dokime_app::ReportOrigin::Current);
+    let payload = crate::support::reports::parse(std::str::from_utf8(&report.html).unwrap());
+    assert!(
+        payload["test_executions"]
+            .as_array()
+            .is_none_or(|executions| executions.is_empty())
+    );
 }
 
 /* === Tests === */

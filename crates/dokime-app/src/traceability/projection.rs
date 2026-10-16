@@ -1223,7 +1223,7 @@ fn parameter_unit(parameter: &MaterializedParameter) -> Option<String> {
 }
 
 fn cycle_traceability_entries(cycle: &CycleView) -> Vec<TraceabilityEntry> {
-    let mut entries = vec![
+    vec![
         entry(
             "cycle.created_at",
             "Cycle Created At",
@@ -1254,24 +1254,7 @@ fn cycle_traceability_entries(cycle: &CycleView) -> Vec<TraceabilityEntry> {
             Value::from(cycle.continue_on_failure),
             TEST_EXECUTION_TRACEABILITY.source,
         ),
-    ];
-
-    if let Some(suite) = unique_cycle_suite(cycle) {
-        entries.push(entry(
-            "suite.identifier",
-            "Suite",
-            Value::from(suite.identifier.as_str()),
-            TEST_DEFINITION_TRACEABILITY.source,
-        ));
-        entries.push(entry(
-            "suite.label",
-            "Suite Label",
-            Value::from(suite.label.as_str()),
-            TEST_DEFINITION_TRACEABILITY.source,
-        ));
-    }
-
-    entries
+    ]
 }
 
 fn host_traceability_entries_from_values(
@@ -1548,22 +1531,6 @@ fn push_execution_entry(
         return;
     }
     entries.push(entry(identifier_value, label, value, source));
-}
-
-fn unique_cycle_suite(cycle: &CycleView) -> Option<&dokime::core::Metadata> {
-    let mut selected: Option<&dokime::core::Metadata> = None;
-    for suite in cycle.cases().filter_map(|case| case.suite.as_ref()).chain(
-        cycle
-            .test_executions
-            .iter()
-            .filter_map(|execution| execution.suite.as_ref()),
-    ) {
-        if selected.is_some_and(|selected| selected.identifier != suite.identifier) {
-            return None;
-        }
-        selected = Some(suite);
-    }
-    selected
 }
 
 fn resource_traceability_groups(

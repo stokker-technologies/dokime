@@ -130,9 +130,9 @@ export function timeOfDayLabel(timestamp: string | null | undefined): string {
 }
 
 /**
- * The name a new cycle gets when the operator gives none: the moment it was
- * created, written the way the user's locale writes dates and times, so the
- * list reads as a timeline rather than as the suite name repeated.
+ * The title the New Cycle form opens with: the moment it opened, written the
+ * way the user's locale writes dates and times, so the list reads as a
+ * timeline.
  */
 export function defaultCycleLabel(now: Date = new Date()): string {
   const formatted = new Intl.DateTimeFormat(undefined, {

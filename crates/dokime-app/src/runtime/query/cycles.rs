@@ -32,7 +32,6 @@ use dokime::core::Timestamp;
 pub struct CycleFilter {
     pub text: String,
     pub statuses: Vec<CycleStatus>,
-    pub suite_ids: Vec<String>,
     pub created_after: Option<Timestamp>,
     pub created_before: Option<Timestamp>,
     pub archive: super::executions::ArchiveScope,
@@ -120,12 +119,7 @@ fn matches_filter(state: &RuntimeState, cycle: &TestCycle, filter: &CycleFilter)
     if !filter.statuses.is_empty() && !filter.statuses.contains(&cycle.lifecycle) {
         return false;
     }
-    if !filter.suite_ids.is_empty()
-        && !suites(state, cycle).any(|suite| filter.suite_ids.iter().any(|id| id == suite.0))
-    {
-        return false;
-    }
-    if !matches_text(state, cycle, &filter.text) {
+    if !matches_text(cycle, &filter.text) {
         return false;
     }
     within(
@@ -135,29 +129,15 @@ fn matches_filter(state: &RuntimeState, cycle: &TestCycle, filter: &CycleFilter)
     )
 }
 
-fn matches_text(state: &RuntimeState, cycle: &TestCycle, text: &str) -> bool {
+fn matches_text(cycle: &TestCycle, text: &str) -> bool {
     let needle = text.trim().to_lowercase();
     if needle.is_empty() {
         return true;
     }
     let contains = |candidate: &str| candidate.to_lowercase().contains(&needle);
     contains(&cycle.metadata.label)
-        || contains(cycle.test_cycle_id.as_str())
+        || cycle.metadata.description.as_deref().is_some_and(contains)
         || contains(cycle.metadata.identifier.as_str())
-        || suites(state, cycle).any(|suite| contains(suite.1))
-}
-
-fn suites<'a>(
-    state: &'a RuntimeState,
-    cycle: &'a TestCycle,
-) -> impl Iterator<Item = (&'a str, &'a str)> {
-    state.cases_for_cycle(cycle).map(|case| {
-        let label = case
-            .suite
-            .as_ref()
-            .map_or_else(|| case.suite_id.as_str(), |suite| suite.label.as_str());
-        (case.suite_id.as_str(), label)
-    })
 }
 
 fn within(value: &Timestamp, after: Option<&Timestamp>, before: Option<&Timestamp>) -> bool {

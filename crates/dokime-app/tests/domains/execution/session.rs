@@ -71,18 +71,13 @@ async fn check_stopping_cycle(settle_mode: CancelSettlement) {
         CancelSettlement::Refused => "cancel_refused",
     };
     let suite = fixture_suite(&handle, &[mode]).await;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("cycle.sidecar.cancel", "Sidecar Cancellation Cycle"),
-                cases: materialize_cases("fixture.sidecar", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        metadata("cycle.sidecar.cancel", "Sidecar Cancellation Cycle"),
+        materialize_cases("fixture.sidecar", &suite),
+        false,
+    )
+    .await;
 
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
@@ -244,18 +239,13 @@ pub(crate) async fn abandoned_transfer_log() {
     let mut runtime = fixture_runtime(root.path()).await;
     let handle = runtime.handle();
     let suite = fixture_suite(&handle, &["abandon"]).await;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("cycle.sidecar.abandon", "Sidecar Abandonment Cycle"),
-                cases: materialize_cases("fixture.sidecar", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        metadata("cycle.sidecar.abandon", "Sidecar Abandonment Cycle"),
+        materialize_cases("fixture.sidecar", &suite),
+        false,
+    )
+    .await;
 
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
@@ -304,18 +294,13 @@ pub(crate) async fn live_stream_log_follow() {
     let mut runtime = fixture_runtime(root.path()).await;
     let handle = runtime.handle();
     let suite = fixture_suite(&handle, &["stream_log"]).await;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("cycle.sidecar.stream_log", "Sidecar Stream Log Cycle"),
-                cases: materialize_cases("fixture.sidecar", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        metadata("cycle.sidecar.stream_log", "Sidecar Stream Log Cycle"),
+        materialize_cases("fixture.sidecar", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -443,18 +428,13 @@ async fn check_ignored_stop(mode: &str) {
     let mut runtime = fixture_runtime(root.path()).await;
     let handle = runtime.handle();
     let suite = fixture_suite(&handle, &[mode]).await;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("cycle.sidecar.ignored", "Ignored Stop Cycle"),
-                cases: materialize_cases("fixture.sidecar", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        metadata("cycle.sidecar.ignored", "Ignored Stop Cycle"),
+        materialize_cases("fixture.sidecar", &suite),
+        false,
+    )
+    .await;
     handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;
@@ -530,18 +510,13 @@ pub(crate) async fn execution_scope_error() {
     let mut runtime = fixture_runtime(root.path()).await;
     let handle = runtime.handle();
     let suite = fixture_suite(&handle, &["scope_error"]).await;
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: metadata("cycle.sidecar.error", "Sidecar Error Cycle"),
-                cases: materialize_cases("fixture.sidecar", &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &handle,
+        metadata("cycle.sidecar.error", "Sidecar Error Cycle"),
+        materialize_cases("fixture.sidecar", &suite),
+        false,
+    )
+    .await;
     let receipt = handle
         .run_cycle_cases(cycle_id.clone(), CommandContext::default())
         .await;

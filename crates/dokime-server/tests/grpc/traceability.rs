@@ -22,7 +22,6 @@ use dokime_app::core::{Identifier, ParameterId, RecordScope, Timestamp, Value, V
 use dokime_app::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
 use dokime_app::runtime::command::CommandContext;
 use dokime_app::telemetry::{TelemetryBatch, TelemetrySample};
-use dokime_app::transactions::CycleDefinition;
 
 /* === Constants === */
 
@@ -90,18 +89,12 @@ pub(crate) async fn get_traceability_cursor() {
         .set_suites("fixture", SuiteSet::new([registration]))
         .await
         .unwrap();
-    let cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: common::metadata("traceability.fixture", "Traceability"),
-                cases: common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = common::cycle_with_cases(
+        &handle,
+        common::metadata("traceability.fixture", "Traceability"),
+        common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+    )
+    .await;
 
     let server = Server::start(
         handle.clone(),
@@ -214,18 +207,12 @@ pub(crate) async fn get_traceability_cursor() {
     assert!(sources.contains("traceability.test_execution"));
     assert!(sources.contains("traceability.operator"));
 
-    let second_cycle_id = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: common::metadata("traceability.second", "Second Traceability"),
-                cases: common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let second_cycle_id = common::cycle_with_cases(
+        &handle,
+        common::metadata("traceability.second", "Second Traceability"),
+        common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+    )
+    .await;
     let second_host_receipt = handle
         .publish_telemetry_batch(host_batch(None, "second-host"))
         .await

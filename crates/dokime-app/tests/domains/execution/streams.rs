@@ -199,7 +199,6 @@ impl EmbeddedProvider for Probe {
 pub(crate) async fn live_rows_paths() {
     use dokime::core::Metadata;
     use dokime_app::runtime::command::{CommandContext, CommandStatus};
-    use dokime_app::transactions::CycleDefinition;
 
     let root = tempfile::tempdir().unwrap();
     let config = crate::support::budgets::runtime_config(
@@ -229,25 +228,20 @@ pub(crate) async fn live_rows_paths() {
         .await
         .unwrap();
     let handle = runtime.handle();
-    let cycle = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: Checks::definition().suite,
-                metadata: Metadata::new(
-                    Identifier::new("fixture.live.cycle").unwrap(),
-                    "Live Cycle",
-                    None,
-                ),
-                cases: crate::support::suites::materialize_cases(
-                    "fixture.embedded.checks",
-                    &Checks::definition().suite,
-                ),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = crate::support::suites::start_cases(
+        &handle,
+        Metadata::new(
+            Identifier::new("fixture.live.cycle").unwrap(),
+            "Live Cycle",
+            None,
+        ),
+        crate::support::suites::materialize_cases(
+            "fixture.embedded.checks",
+            &Checks::definition().suite,
+        ),
+        false,
+    )
+    .await;
     let admitted_owner =
         handle.watch_state().latest().state().plugin_owners["fixture.embedded"].clone();
     let admitted_identity = handle

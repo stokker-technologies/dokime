@@ -269,35 +269,6 @@ impl SuiteRegistry {
         .then_some(entry)
     }
 
-    pub(crate) fn materialize_suite(
-        &self,
-        suite_id: &str,
-        registration_id: CommandId,
-    ) -> dokime::Result<Vec<TestCase>> {
-        let entry = self.get(suite_id).ok_or_else(|| dokime::Error::Parameter {
-            name: "suite_id".into(),
-            reason: "installed suite registration not found".into(),
-        })?;
-        let mut cases = Vec::new();
-        for template in &entry.suite.test_case_templates {
-            let output = dokime::definition::materialize_template_cases(
-                &entry.suite_id,
-                template,
-                Default::default(),
-                dokime::definition::CaseMaterializationOptions {
-                    force: true,
-                    registration_id: registration_id.clone(),
-                    ..Default::default()
-                },
-            )?;
-            cases.extend(output.test_cases.into_iter().map(|mut case| {
-                case.suite = Some(entry.suite.metadata.clone());
-                case
-            }));
-        }
-        Ok(cases)
-    }
-
     pub fn provider_target_for_case(&self, case: &TestCase) -> Option<ExecutionProviderTarget> {
         let suite = self.suite_for_case(case)?;
         Some(ExecutionProviderTarget {

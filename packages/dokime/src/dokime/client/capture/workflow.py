@@ -119,9 +119,10 @@ class Capture:
             backend = await client.connect()
             capture._files.state["backend_id"] = backend.id
             capture._stage("creating_cycle", "Creating Cycle...")
-            cycle_id = await client.create_cycle(
+            cycle = await client.new_cycle(
                 suite=suite, template=template, parameters=supplied, label=label
             )
+            cycle_id = cycle.id
             capture._files.state.update(
                 cycle_id=cycle_id, request_key=str(uuid.uuid4())
             )

@@ -46,6 +46,13 @@ import {
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
 import { archivedCycleGroups, type CycleRow } from "@/features/cycles-home/cycles-model";
+import {
+  EMPTY_TITLE_ERROR,
+  initialNewCycleForm,
+  newCycleFormError,
+  newCycleRequest,
+} from "@/features/cycles-home/new-cycle-form";
+import { defaultCycleLabel } from "@/lib/time-format";
 import { reportFixturePayload } from "@/report/report-fixture";
 import { focusPresentation } from "@/shell/focus-mode";
 
@@ -393,4 +400,29 @@ test("Evidence Pane", () => {
     kind: "failed",
     message: DOCUMENT_FAILED_FALLBACK,
   });
+});
+
+test("New Cycle Form", () => {
+  const opened = new Date(2026, 9, 16, 14, 5);
+  const form = initialNewCycleForm(opened);
+
+  // The Title Opens As The Moment The Dialog Opened, Continuing Past Failures
+  assert.equal(form.title, defaultCycleLabel(opened));
+  assert.notEqual(form.title, defaultCycleLabel(new Date(2026, 9, 17, 9, 30)));
+  assert.equal(form.description, "");
+  assert.equal(form.continueOnFailure, true);
+  assert.equal(newCycleFormError(form), null);
+
+  // A Blank Title Is Refused
+  assert.equal(newCycleFormError({ ...form, title: "   " }), EMPTY_TITLE_ERROR);
+
+  // The Request Trims Its Text And Omits A Blank Description
+  assert.deepEqual(
+    newCycleRequest({ continueOnFailure: false, description: "  ", title: "  Bench A  " }),
+    { continueOnFailure: false, description: undefined, label: "Bench A" },
+  );
+  assert.deepEqual(
+    newCycleRequest({ continueOnFailure: true, description: " Night run ", title: "Bench B" }),
+    { continueOnFailure: true, description: "Night run", label: "Bench B" },
+  );
 });

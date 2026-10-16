@@ -37,18 +37,18 @@ use super::*;
 
 /* === Private Functions === */
 fn labelled(
-    owner: &Runtime,
     identifier: &str,
     label: &str,
+    description: Option<&str>,
 ) -> contracts::execution::CreateCycleRequest {
     contracts::execution::CreateCycleRequest {
         metadata: Some(contracts::common::Metadata {
             identifier: identifier.into(),
             label: label.into(),
-            description: None,
+            description: description.map(Into::into),
             ..Default::default()
         }),
-        ..create(owner)
+        ..create()
     }
 }
 
@@ -96,14 +96,18 @@ pub(crate) async fn cycle_search_once() {
         .await
         .unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    for (identifier, label) in [
-        ("grpc.burn-c", "Burn In Gamma"),
-        ("grpc.calibration", "Calibration Sweep"),
-        ("grpc.burn-a", "Burn In Alpha"),
-        ("grpc.burn-b", "Burn In Beta"),
+    for (identifier, label, description) in [
+        ("grpc.burn-c", "Burn In Gamma", None),
+        (
+            "grpc.calibration",
+            "Calibration Sweep",
+            Some("Thermal soak"),
+        ),
+        ("grpc.burn-a", "Burn In Alpha", Some("Thermal soak")),
+        ("grpc.burn-b", "Burn In Beta", None),
     ] {
         client
-            .unary::<contracts::execution::CreateCycle>(labelled(&owner, identifier, label))
+            .unary::<contracts::execution::CreateCycle>(labelled(identifier, label, description))
             .await
             .unwrap();
     }
@@ -139,18 +143,29 @@ pub(crate) async fn cycle_search_once() {
     .await;
     assert_eq!(single, walked);
 
-    // Text also matches the suite label every fixture cycle admits.
-    let by_suite = walk(
+    // Text also matches the description, and the identifier.
+    let by_description = walk(
         &mut client,
         contracts::execution::CycleFilter {
-            text: "fixture".into(),
+            text: "thermal SOAK".into(),
+            ..Default::default()
+        },
+        by_label.clone(),
+        1,
+    )
+    .await;
+    assert_eq!(by_description, ["Burn In Alpha", "Calibration Sweep"]);
+    let by_identifier = walk(
+        &mut client,
+        contracts::execution::CycleFilter {
+            text: "grpc.burn-b".into(),
             ..Default::default()
         },
         by_label.clone(),
         2,
     )
     .await;
-    assert_eq!(by_suite.len(), 4);
+    assert_eq!(by_identifier, ["Burn In Beta"]);
 
     // A status the runtime has not reached selects nothing; the one it has
     // selects everything.
@@ -243,12 +258,9 @@ pub(crate) async fn listed_cases_page() {
         .await
         .unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let cycle_id = client
-        .unary::<contracts::execution::CreateCycle>(create(&owner))
+    let cycle_id = common::planned_cycle(&client, Request::new(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     let page = client
         .unary::<contracts::execution::ListCases>(contracts::execution::ListCasesRequest {
             cycle_id,

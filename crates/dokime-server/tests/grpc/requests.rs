@@ -97,12 +97,9 @@ pub(crate) async fn commands_owner_receipts() {
     let mut owner = fixture(root.path(), gate.clone()).await;
     let server = Server::start(owner.handle(), config()).await.unwrap();
     let client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let cycle_id = client
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+    let cycle_id = common::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     let execution_id = client
         .unary::<contracts::execution::ListExecutions>(authenticated(
             contracts::execution::ListExecutionsRequest {
@@ -282,12 +279,9 @@ pub(crate) async fn keyed_runs_restart() {
     let mut owner = fixture(root.path(), gate.clone()).await;
     let server = Server::start(owner.handle(), config()).await.unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let cycle_id = client
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+    let cycle_id = common::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     let request = contracts::execution::RunCycleRequest {
         idempotency_key: Some("operator-operation-1".into()),
         ..run(&cycle_id)
@@ -364,12 +358,10 @@ pub(crate) async fn keyed_runs_restart() {
     assert!(
         matches!(conflict.outcome, Some(contracts::execution::RunReplyOutcome::Rejected(ref error)) if error.code == "request_identity_conflict")
     );
-    let other_cycle = client
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
-        .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+    let other_cycle =
+        common::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
+            .await
+            .unwrap();
     let conflict = client
         .unary::<contracts::execution::RunCycle>(authenticated(
             contracts::execution::RunCycleRequest {
@@ -527,12 +519,9 @@ pub(crate) async fn invalid_run_admission() {
     let mut owner = fixture(root.path(), gate).await;
     let server = Server::start(owner.handle(), config()).await.unwrap();
     let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
-    let id = client
-        .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+    let id = common::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
         .await
-        .unwrap()
-        .into_inner()
-        .cycle_id;
+        .unwrap();
     for key in ["".into(), " ".into(), "bad\nkey".into(), "x".repeat(257)] {
         let error = client
             .unary::<contracts::execution::RunCycle>(authenticated(
@@ -583,12 +572,9 @@ pub(crate) async fn crashed_run_replay() {
         let owner = fixture(&root, gate.clone()).await;
         let server = Server::start(owner.handle(), config()).await.unwrap();
         let mut client = WireClient::connect(server.local_endpoint()).await.unwrap();
-        let cycle = client
-            .unary::<contracts::execution::CreateCycle>(authenticated(create(&owner)))
+        let cycle = common::planned_cycle(&client, authenticated(create()), selection_plan(&owner))
             .await
-            .unwrap()
-            .into_inner()
-            .cycle_id;
+            .unwrap();
         let cases = client
             .unary::<contracts::execution::ListCases>(authenticated(
                 contracts::execution::ListCasesRequest {

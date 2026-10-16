@@ -163,8 +163,6 @@ export function groupExecutions(pages: ExecutionBrowsePage[]): ExploreEntry[] {
            be worse than the identifier. */
         title: target.kind === "cycle" ? suiteTitle(entries, target.id) : entries[0].metadata.title,
         session_id: null,
-        suite_id: null,
-        suite_name: null,
         lifecycle: running
           ? "running"
           : interrupted

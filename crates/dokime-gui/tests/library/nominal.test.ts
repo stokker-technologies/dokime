@@ -12,7 +12,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { EditorParameterRow } from "@/components/parameter-editor/model";
-import { summaryNeeded } from "@/features/library/template-dialog-model";
+import { caseAppend, summaryNeeded } from "@/features/library/template-dialog-model";
+import type { TestCycleSelection } from "@/lib/types";
 
 /* === Fixture === */
 
@@ -42,4 +43,17 @@ test("Summary Skip", () => {
 
   // An Expansion Into Several Cases Keeps The Summary
   assert.equal(summaryNeeded(preview({ current: 16 }, { current: 16 }), ROWS), true);
+});
+
+test("Append Requires Cycle", () => {
+  const selections: TestCycleSelection[] = [
+    { parameters: { current: [16] }, suite_id: "suite.charger", template_id: "charge" },
+  ];
+
+  // Without An Active Cycle Nothing Is Added
+  assert.equal(caseAppend(undefined, selections), null);
+  assert.equal(caseAppend("  ", selections), null);
+
+  // With One, The Cases Join That Cycle And No Other
+  assert.deepEqual(caseAppend("cycle-1", selections), { cycleId: "cycle-1", selections });
 });

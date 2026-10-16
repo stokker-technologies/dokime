@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::definition::{TestCase, TestSuite};
+use crate::definition::TestCase;
 use crate::execution::{CycleStatus, CycleView};
 use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
@@ -38,9 +38,7 @@ use dokime::core::{CommandId, Metadata, RecordScope, TestCycleId, Timestamp, Val
 /* === Structs === */
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CycleDefinition {
-    pub suite: TestSuite,
     pub metadata: Metadata,
-    pub cases: Vec<TestCase>,
     pub continue_on_failure: bool,
 }
 
@@ -51,47 +49,27 @@ pub struct RegisterCases {
     pub cases: Vec<TestCase>,
 }
 
-#[harmos::transaction(id = "dokime.execution.cycle.create", version = 3, irreversible)]
+// A cycle is created empty and Ready; cases join it only through AppendCycle.
+#[harmos::transaction(id = "dokime.execution.cycle.create", version = 4, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreateCycle {
-    pub mode: CreateCycleMode,
     pub definition: CycleDefinition,
     pub test_cycle_id: TestCycleId,
     pub occurred_at: Timestamp,
-    #[serde(default)]
-    pub settings: BTreeMap<String, BTreeMap<String, Value>>,
 }
 
-#[harmos::transaction(id = "dokime.execution.cycle.append", version = 3, irreversible)]
+#[harmos::transaction(id = "dokime.execution.cycle.append", version = 4, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppendCycle {
     pub admission_identifier: dokime::core::CommandId,
     pub test_cycle_id: TestCycleId,
-    pub source: AppendCycleSource,
+    pub cases: Vec<TestCase>,
     pub occurred_at: Timestamp,
     #[serde(default)]
     pub settings: BTreeMap<String, BTreeMap<String, Value>>,
 }
 
 /* === Enums === */
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CreateCycleMode {
-    Preview,
-    Start,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "source")]
-pub enum AppendCycleSource {
-    Cases {
-        cases: Vec<TestCase>,
-    },
-    Templates {
-        suite: Box<TestSuite>,
-        cases: Vec<TestCase>,
-    },
-}
 
 /* === Traits === */
 
@@ -178,29 +156,21 @@ fn apply_create_cycle(
 ) -> Result<TestCycleId, Error> {
     let (cycle, records) = prepare_create_cycle(state, create)?;
     let cycle_id = cycle.test_cycle_id.clone();
-    state
-        .suites
-        .register_cases(cycle.cases())
-        .map_err(conflict)?;
-    // Starting A Cycle Keeps At Most One Sealed Cycle: Retire The Previous One
-    if matches!(create.mode, CreateCycleMode::Start) {
-        state.retire_sealed_cycles();
-    }
+    // Creating A Cycle Keeps At Most One Sealed Cycle: Retire The Previous One
+    state.retire_sealed_cycles();
     state
         .replace_cycle(cycle)
         .expect("cycle projection has valid ownership");
-    if matches!(create.mode, CreateCycleMode::Start) {
-        state.run_parameters.clear();
-        let scope = RecordScope::default().with_cycle(cycle_id.clone());
-        records.apply(state);
-        state.record_health(
-            scope,
-            crate::execution::HealthSeverity::Info,
-            "Cycle ready for execution.",
-            Some("Provider execution is ready.".to_owned()),
-            create.occurred_at.clone(),
-        );
-    }
+    state.run_parameters.clear();
+    let scope = RecordScope::default().with_cycle(cycle_id.clone());
+    records.apply(state);
+    state.record_health(
+        scope,
+        crate::execution::HealthSeverity::Info,
+        "Cycle ready for execution.",
+        Some("Provider execution is ready.".to_owned()),
+        create.occurred_at.clone(),
+    );
     Ok(cycle_id)
 }
 
@@ -208,56 +178,33 @@ fn prepare_create_cycle(
     state: &RuntimeState,
     create: &CreateCycle,
 ) -> Result<(CycleView, crate::transactions::records::draft::Drafts), Error> {
-    let lifecycle = match create.mode {
-        CreateCycleMode::Preview => CycleStatus::Previewed,
-        CreateCycleMode::Start => CycleStatus::Ready,
-    };
-    let (mut cycle, selected_cases) = build_cycle(
+    let cycle = empty_cycle(
         create.test_cycle_id.clone(),
         state.session_id.clone(),
         create.definition.clone(),
-        lifecycle,
         create.occurred_at.clone(),
     );
-    state
-        .suites
-        .validate_cases(&selected_cases)
-        .map_err(conflict)?;
-    materialize_cycle_executions(
-        state,
-        &mut cycle,
-        &selected_cases,
-        &create.settings,
-        Some(&create.definition.suite),
-        create.test_cycle_id.as_str(),
-    )?;
     state.validate_cycle_view(&cycle).map_err(conflict)?;
     let mut records = crate::transactions::records::draft::Drafts::new(state);
-    if matches!(create.mode, CreateCycleMode::Start) {
-        let scope = RecordScope::default().with_cycle(cycle.test_cycle_id.clone());
-        records.draft(
-            BuiltinDraft {
-                record_type: BuiltinRecordType::TestCyclePrepared,
-                source: "runtime".to_owned(),
-                severity: RecordSeverity::Info,
-                message: Some(format!("Cycle {} prepared.", cycle.metadata.label)),
-                details: BTreeMap::from([(
-                    "lifecycle".to_owned(),
-                    Value::from(format!("{:?}", cycle.lifecycle)),
-                )]),
-                scope: Some(scope.clone()),
-            },
-            create.occurred_at.clone(),
-        );
-    }
+    let scope = RecordScope::default().with_cycle(cycle.test_cycle_id.clone());
+    records.draft(
+        BuiltinDraft {
+            record_type: BuiltinRecordType::TestCyclePrepared,
+            source: "runtime".to_owned(),
+            severity: RecordSeverity::Info,
+            message: Some(format!("Cycle {} prepared.", cycle.metadata.label)),
+            details: BTreeMap::from([(
+                "lifecycle".to_owned(),
+                Value::from(format!("{:?}", cycle.lifecycle)),
+            )]),
+            scope: Some(scope),
+        },
+        create.occurred_at.clone(),
+    );
     Ok((cycle, records))
 }
 
 fn apply_append_cycle(state: &mut RuntimeState, append: &AppendCycle) -> Result<(), Error> {
-    apply_append_cycle_inner(state, append)
-}
-
-fn apply_append_cycle_inner(state: &mut RuntimeState, append: &AppendCycle) -> Result<(), Error> {
     let cycle = prepare_append_cycle(state, append)?;
     state
         .suites
@@ -270,25 +217,17 @@ fn apply_append_cycle_inner(state: &mut RuntimeState, append: &AppendCycle) -> R
 }
 
 fn prepare_append_cycle(state: &RuntimeState, append: &AppendCycle) -> Result<CycleView, Error> {
-    let cases = match &append.source {
-        AppendCycleSource::Cases { cases } | AppendCycleSource::Templates { cases, .. } => {
-            cases.clone()
-        }
-    };
+    let cases = &append.cases;
     let mut cycle = state
         .cycle_view(&append.test_cycle_id)
         .ok_or_else(|| Error::not_found("not_found", "cycle not found"))?;
-    state.suites.validate_cases(&cases).map_err(conflict)?;
+    state.suites.validate_cases(cases).map_err(conflict)?;
     append_cases(&mut cycle, cases.clone(), append.occurred_at.clone()).map_err(conflict)?;
     materialize_cycle_executions(
         state,
         &mut cycle,
-        &cases,
+        cases,
         &append.settings,
-        match &append.source {
-            AppendCycleSource::Templates { suite, .. } => Some(suite.as_ref()),
-            _ => None,
-        },
         append.admission_identifier.as_str(),
     )?;
     state.validate_cycle_view(&cycle).map_err(conflict)?;
@@ -300,7 +239,6 @@ fn materialize_cycle_executions(
     cycle: &mut CycleView,
     selected_cases: &[TestCase],
     settings: &BTreeMap<String, BTreeMap<String, Value>>,
-    authored_suite: Option<&TestSuite>,
     admission_identifier: &str,
 ) -> Result<(), Error> {
     for (ordinal, case) in selected_cases.iter().enumerate() {
@@ -317,7 +255,6 @@ fn materialize_cycle_executions(
             state,
             cycle,
             case,
-            authored_suite.filter(|suite| case.suite.as_ref() == Some(&suite.metadata)),
             id,
             plugin,
             source
@@ -331,36 +268,30 @@ fn materialize_cycle_executions(
     Ok(())
 }
 
-fn build_cycle(
+fn empty_cycle(
     test_cycle_id: TestCycleId,
     session_id: dokime::core::SessionId,
     definition: CycleDefinition,
-    lifecycle: CycleStatus,
     at: Timestamp,
-) -> (CycleView, Vec<TestCase>) {
+) -> CycleView {
     let CycleDefinition {
-        suite: _,
         metadata,
-        cases,
         continue_on_failure,
     } = definition;
-    (
-        CycleView {
-            saved: None,
-            test_cycle_id,
-            session_id: Some(session_id),
-            metadata,
-            lifecycle,
-            created_at: at.clone(),
-            started_at: None,
-            updated_at: at,
-            test_executions: Vec::new(),
-            records: TestRecordSet::default(),
-            continue_on_failure,
-            result: None,
-        },
-        cases,
-    )
+    CycleView {
+        saved: None,
+        test_cycle_id,
+        session_id: Some(session_id),
+        metadata,
+        lifecycle: CycleStatus::Ready,
+        created_at: at.clone(),
+        started_at: None,
+        updated_at: at,
+        test_executions: Vec::new(),
+        records: TestRecordSet::default(),
+        continue_on_failure,
+        result: None,
+    }
 }
 
 fn append_lifecycle(cycle: &CycleView, has_new_cases: bool) -> Result<CycleStatus, String> {
@@ -370,7 +301,7 @@ fn append_lifecycle(cycle: &CycleView, has_new_cases: bool) -> Result<CycleStatu
     ) {
         return Err("cycle cannot be modified from its current state".to_owned());
     }
-    if has_new_cases && cycle.lifecycle != CycleStatus::Previewed {
+    if has_new_cases {
         cycle
             .lifecycle
             .try_transition(CycleStatus::Ready)
@@ -392,7 +323,7 @@ fn append_cases(cycle: &mut CycleView, cases: Vec<TestCase>, at: Timestamp) -> R
             return Err(format!("case {} is immutable", case.test_case_id));
         }
     }
-    if has_new_cases && cycle.lifecycle != CycleStatus::Previewed {
+    if has_new_cases {
         cycle.saved = None;
         cycle.lifecycle = lifecycle;
         cycle.result = None;

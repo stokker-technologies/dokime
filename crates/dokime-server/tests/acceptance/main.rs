@@ -278,9 +278,8 @@ async fn create_cycle(
         .await
         .unwrap();
     assert_eq!(preview.cases.len(), 1);
-    execution
+    let cycle_id = execution
         .execution_create_cycle(contracts::execution::CreateCycleRequest {
-            plan: Some(plan),
             metadata: Some(contracts::common::Metadata {
                 identifier: identifier.to_owned(),
                 label: identifier.to_owned(),
@@ -291,7 +290,16 @@ async fn create_cycle(
         })
         .await
         .unwrap()
-        .cycle_id
+        .cycle_id;
+    execution
+        .execution_append_planned_cases(contracts::execution::AppendPlannedCasesRequest {
+            cycle_id: cycle_id.clone(),
+            plan: Some(plan),
+            context: None,
+        })
+        .await
+        .unwrap();
+    cycle_id
 }
 
 async fn run_cycle(execution: &mut Client, cycle_id: &str) {

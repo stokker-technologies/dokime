@@ -267,15 +267,17 @@ async fn started_cycle(
         }
     }
     let test_cycle_id = runtime
-        .start_cycle(
+        .create_cycle(
             CycleDefinition {
                 metadata: registration.suite.metadata.clone(),
-                suite: registration.suite,
-                cases,
                 continue_on_failure: true,
             },
             CommandContext::default(),
         )
+        .await
+        .unwrap();
+    runtime
+        .append_cycle_cases(test_cycle_id.clone(), cases, CommandContext::default())
         .await
         .unwrap();
     let receipt = runtime

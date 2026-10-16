@@ -456,16 +456,9 @@ pub(crate) async fn settled_prompt_refused() {
     let mut owner = prompt_runtime(root.path(), definition).await;
     let handle = owner.handle();
     let cycle = handle
-        .start_cycle(
+        .create_cycle(
             dokime_app::transactions::CycleDefinition {
-                suite: dokime::definition::TestSuite {
-                    metadata: common::metadata("suite.prompt.settle", "Prompt Settle"),
-                    tags: Vec::new(),
-                    parameter_groups: Vec::new(),
-                    test_case_templates: Vec::new(),
-                },
                 metadata: common::metadata("cycle.prompt.settle", "Prompt Settle"),
-                cases: Vec::new(),
                 continue_on_failure: false,
             },
             CommandContext::default(),

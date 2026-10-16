@@ -12,12 +12,18 @@
 
 /* === External Imports === */
 
-import { type UseQueryResult, useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 /* === Local Imports === */
 
 import { useNativeSession } from "@/app/native-session/NativeSessionProvider";
-import { listNativeCycles, type NativeCycleSelection } from "@/lib/api/native-planning";
+import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
+import {
+  createNativeTestCycle,
+  listNativeCycles,
+  type NativeCycleSelection,
+  type NewCycleRequest,
+} from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { PromptRequest } from "@/lib/types";
@@ -28,7 +34,7 @@ type CycleSummary = Wire<GeneratedCycleSummary>;
 /* === Types === */
 
 export type CyclesQuerySelection = {
-  /** Matched server-side against label, identifier and admitted suite label. */
+  /** Matched server-side against the cycle's label and identifier. */
   text?: string;
   /* True lists only archived cycles, false only the others. False is the
      default so the status bar and an unfiltered Cycles home ask the identical
@@ -72,7 +78,6 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
           ? { case: "Archived", value: {} }
           : { case: "Unarchived", value: {} },
       },
-      suiteIds: [],
     },
     order: { key: { HarmosVariant: { case: "UpdatedAt", value: {} } }, descending: true },
   };
@@ -109,5 +114,22 @@ export function usePendingPromptsQuery(): UseQueryResult<PromptRequest[]> {
     queryKey: cyclesHomeQueryKeys.pendingPrompts(session.identity.generation),
     refetchInterval: 5_000,
     staleTime: 2_000,
+  });
+}
+
+/* === Mutation Hooks === */
+
+/** Creates an empty Ready cycle and refreshes every cycle list that shows it. */
+export function useCreateCycleMutation() {
+  const session = useNativeSession();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: NewCycleRequest) => createNativeTestCycle(session.identity, request),
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateWorkflowResourceQueries(queryClient),
+        queryClient.invalidateQueries({ queryKey: cyclesHomeQueryKeys.all }),
+      ]);
+    },
   });
 }

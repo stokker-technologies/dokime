@@ -227,18 +227,13 @@ pub(crate) async fn contended_reads_stay_interactive() {
 
 /* === Private Functions === */
 async fn start(handle: &RuntimeHandle, suite: &TestSuite, id: &str) -> TestCycleId {
-    handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: Metadata::new(Identifier::new(id).unwrap(), id, None),
-                cases: materialize_cases("fixture.checks", suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap()
+    start_cases(
+        handle,
+        Metadata::new(Identifier::new(id).unwrap(), id, None),
+        materialize_cases("fixture.checks", suite),
+        false,
+    )
+    .await
 }
 
 async fn settle(handle: &RuntimeHandle, command: &dokime::core::CommandId) -> RunPhase {

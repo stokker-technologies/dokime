@@ -22,7 +22,6 @@ use dokime_app::{
     core::Value,
     document::{DocumentCard, DocumentCardBody, DocumentDefinition, DocumentSection},
     runtime::command::CommandContext,
-    transactions::CycleDefinition,
 };
 use dokime_client::contracts::documents::DocumentFrameFrame as Frame;
 
@@ -69,18 +68,12 @@ pub(crate) async fn current_document_rows() {
     authored.section(measurements);
     suite.test_case_templates[0].document = Some(authored);
     common::register_fixture_execution(&handle, suite.clone()).await;
-    let cycle = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: common::metadata("document.fixture", "Document"),
-                cases: common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = common::cycle_with_cases(
+        &handle,
+        common::metadata("document.fixture", "Document"),
+        common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+    )
+    .await;
     let server = Server::start(
         handle.clone(),
         Config::local()
@@ -243,18 +236,12 @@ pub(crate) async fn summary_complete_telemetry() {
     telemetry_document.section(progress);
     suite.test_case_templates[0].document = Some(telemetry_document);
     common::register_fixture_progress_execution(&handle, suite.clone()).await;
-    let cycle = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: common::metadata("summary.fixture", "Summary"),
-                cases: common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = common::cycle_with_cases(
+        &handle,
+        common::metadata("summary.fixture", "Summary"),
+        common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+    )
+    .await;
     handle
         .run_cycle_cases(cycle.clone(), CommandContext::default())
         .await;
@@ -404,18 +391,12 @@ pub(crate) async fn duration_x_axis() {
         .set_suites("provider:fixture", SuiteSet::new([registration]))
         .await
         .unwrap();
-    let cycle = handle
-        .start_cycle(
-            CycleDefinition {
-                suite: suite.clone(),
-                metadata: common::metadata("axis.fixture", "Axis"),
-                cases: common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = common::cycle_with_cases(
+        &handle,
+        common::metadata("axis.fixture", "Axis"),
+        common::materialize_cases(suite.metadata.identifier.as_str(), &suite),
+    )
+    .await;
     let server = Server::start(handle.clone(), Config::local())
         .await
         .unwrap();

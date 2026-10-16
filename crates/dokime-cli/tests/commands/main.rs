@@ -86,6 +86,27 @@ pub(crate) async fn json_files_connection() {
             "--label",
             "Override",
         ],
+        // A cycle needs a label; waiting needs a run request.
+        vec!["cycle", "create"],
+        vec!["cycle", "create", "--label", "Test", "--wait-seconds", "5"],
+        // Appending names an existing cycle, or reads it from the request file.
+        vec!["cycle", "append", "--template", "checks.probe"],
+        vec![
+            "cycle",
+            "append",
+            "98184567-8924-4fb0-b4e2-667347e097a1",
+            "--input-file",
+            "request.json",
+        ],
+        vec![
+            "cycle",
+            "append",
+            "98184567-8924-4fb0-b4e2-667347e097a1",
+            "--input-file",
+            "request.json",
+            "--template",
+            "checks.probe",
+        ],
     ] {
         assert!(Cli::try_parse_from(std::iter::once("dokime").chain(arguments)).is_err());
     }
@@ -258,6 +279,29 @@ pub(crate) async fn json_files_connection() {
         ],
         vec![
             "cycle",
+            "create",
+            "--label",
+            "Test",
+            "--identifier",
+            "Not An Identifier",
+        ],
+        vec!["cycle", "create", "--label", "Test", "--request-key", " "],
+        vec!["cycle", "append", "invalid", "--template", "checks.probe"],
+        vec![
+            "cycle",
+            "append",
+            "98184567-8924-4fb0-b4e2-667347e097a1",
+            "--case-id",
+            "invalid",
+        ],
+        vec![
+            "cycle",
+            "append",
+            "--input-file",
+            file.path().to_str().unwrap(),
+        ],
+        vec![
+            "cycle",
             "request",
             "98184567-8924-4fb0-b4e2-667347e097a1",
             "--cycle-id",
@@ -280,6 +324,14 @@ pub(crate) async fn json_files_connection() {
     }
 
     for arguments in [
+        vec!["cycle", "create", "--label", "Test"],
+        vec![
+            "cycle",
+            "append",
+            "98184567-8924-4fb0-b4e2-667347e097a1",
+            "--template",
+            "checks.probe",
+        ],
         vec!["plan", "preview", "--template", "checks.probe"],
         vec![
             "plan",

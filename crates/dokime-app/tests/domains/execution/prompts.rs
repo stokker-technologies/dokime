@@ -24,8 +24,8 @@ use dokime::prompts::{PromptField, PromptFieldKind, PromptRequest};
 use dokime::records::{ProductConnectionDetails, ProductConnectionState, RecordCondition};
 use dokime_app::RuntimeConfig;
 use dokime_app::definition::RuntimeCondition;
+use dokime_app::execution::CycleStatus;
 use dokime_app::runtime::command::{CommandContext, CommandStatus};
-use dokime_app::{execution::CycleStatus, transactions::CycleDefinition};
 
 /* === Constants === */
 
@@ -320,22 +320,17 @@ pub(crate) async fn condition_gated_runtime() {
 pub(crate) async fn stopping_cycle_waits() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = started(prompt_config(root.path())).await;
-    let cycle_id = runtime
-        .start_cycle(
-            CycleDefinition {
-                suite: prompt_test_suite(),
-                metadata: Metadata::new(
-                    Identifier::new("cycle.prompt.stop").unwrap(),
-                    "Prompt Stop Cycle",
-                    None,
-                ),
-                cases: Vec::new(),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle_id = start_cases(
+        &runtime,
+        Metadata::new(
+            Identifier::new("cycle.prompt.stop").unwrap(),
+            "Prompt Stop Cycle",
+            None,
+        ),
+        Vec::new(),
+        false,
+    )
+    .await;
     let mut prompt = prompt_request();
     prompt.scope = RecordScope::default().with_cycle(cycle_id.clone());
 
@@ -373,22 +368,17 @@ pub(crate) async fn stopping_cycle_waits() {
 pub(crate) async fn restart_closes_prompts() {
     let root = tempdir().unwrap();
     let (mut owner, runtime) = started(prompt_config(root.path())).await;
-    let cycle = runtime
-        .start_cycle(
-            CycleDefinition {
-                suite: prompt_test_suite(),
-                metadata: Metadata::new(
-                    Identifier::new("cycle.prompt.recovery").unwrap(),
-                    "Prompt Recovery",
-                    None,
-                ),
-                cases: Vec::new(),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = start_cases(
+        &runtime,
+        Metadata::new(
+            Identifier::new("cycle.prompt.recovery").unwrap(),
+            "Prompt Recovery",
+            None,
+        ),
+        Vec::new(),
+        false,
+    )
+    .await;
     let mut scoped = prompt_request();
     scoped.scope = RecordScope::default().with_cycle(cycle);
     let id = scoped.prompt_id.clone();
@@ -723,19 +713,6 @@ fn prompts(
     registrar
 }
 
-fn prompt_test_suite() -> TestSuite {
-    TestSuite {
-        metadata: Metadata::new(
-            Identifier::new("suite.prompt.stop").unwrap(),
-            "Prompt Stop Suite",
-            None,
-        ),
-        tags: Vec::new(),
-        parameter_groups: Vec::new(),
-        test_case_templates: Vec::new(),
-    }
-}
-
 pub(crate) async fn requests_refuses_scopes() {
     let root = tempdir().unwrap();
     let (_owner, runtime) = started(prompt_config(root.path())).await;
@@ -894,22 +871,17 @@ pub(crate) async fn stopped_sidecar_question() {
         .find(|suite| suite.source == "fixture-suites" && suite.suite_id == "fixture.questions")
         .expect("the sidecar serves its asking suite")
         .suite;
-    let cycle = runtime
-        .start_cycle(
-            CycleDefinition {
-                cases: crate::support::suites::materialize_cases("fixture.questions", &suite),
-                suite,
-                metadata: Metadata::new(
-                    Identifier::new("fixture.questions.cycle").unwrap(),
-                    "Sidecar Asking Cycle",
-                    None,
-                ),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = start_cases(
+        &runtime,
+        Metadata::new(
+            Identifier::new("fixture.questions.cycle").unwrap(),
+            "Sidecar Asking Cycle",
+            None,
+        ),
+        crate::support::suites::materialize_cases("fixture.questions", &suite),
+        false,
+    )
+    .await;
     let receipt = runtime
         .run_cycle_cases(cycle.clone(), CommandContext::default())
         .await;
@@ -998,22 +970,17 @@ async fn check_stopped_question(stop_cycle: bool) {
     let mut owner = dokime_app::Runtime::start(config).await.unwrap();
     let runtime = owner.handle();
     let suite = AskingChecks::definition().suite;
-    let cycle = runtime
-        .start_cycle(
-            CycleDefinition {
-                cases: crate::support::suites::materialize_cases("fixture.asking.checks", &suite),
-                suite,
-                metadata: Metadata::new(
-                    Identifier::new("fixture.asking.cycle").unwrap(),
-                    "Asking Cycle",
-                    None,
-                ),
-                continue_on_failure: false,
-            },
-            CommandContext::default(),
-        )
-        .await
-        .unwrap();
+    let cycle = start_cases(
+        &runtime,
+        Metadata::new(
+            Identifier::new("fixture.asking.cycle").unwrap(),
+            "Asking Cycle",
+            None,
+        ),
+        crate::support::suites::materialize_cases("fixture.asking.checks", &suite),
+        false,
+    )
+    .await;
     let receipt = runtime
         .run_cycle_cases(cycle.clone(), CommandContext::default())
         .await;

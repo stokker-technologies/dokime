@@ -20,11 +20,10 @@ import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state
 import { fetchNativeSuites } from "@/lib/api/native-catalog";
 import {
   appendNativeTestCycle,
-  createNativeTestCycle,
   listNativeCycles,
   previewNativeTestCycle,
 } from "@/lib/api/native-planning";
-import type { PreviewTestCycleRequest, StartTestCycleRequest } from "@/lib/types";
+import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 
 /* === Query Keys === */
 
@@ -55,31 +54,14 @@ export function usePreviewTestCycleMutation() {
   });
 }
 
-/** Creates the cycle and leaves it Ready; the operator admits the run. */
-export function useCreateTestCycleMutation() {
-  const session = useNativeSession();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (request: StartTestCycleRequest) =>
-      createNativeTestCycle(session.identity, request),
-    onSuccess: async () => {
-      await Promise.all([
-        invalidateWorkflowResourceQueries(queryClient),
-        queryClient.invalidateQueries({ queryKey: suiteQueryKeys.all }),
-      ]);
-    },
-  });
-}
-
 /** `cycleId` names the cycle the cases join. Every caller states it. */
 export function useAppendTestCycleMutation() {
   const session = useNativeSession();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ cycleId, request }: { cycleId: string; request: StartTestCycleRequest }) =>
-      appendNativeTestCycle(session.identity, cycleId, request),
+    mutationFn: ({ cycleId, selections }: { cycleId: string; selections: TestCycleSelection[] }) =>
+      appendNativeTestCycle(session.identity, cycleId, selections),
     onSuccess: async () => {
       await Promise.all([
         invalidateWorkflowResourceQueries(queryClient),

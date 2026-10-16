@@ -35,9 +35,9 @@ use dokime_contract::operations::planning::{
 /* === Structs === */
 #[derive(Debug, clap::Args)]
 #[group(id = "plan_input")]
-pub(super) struct Args {
+pub(crate) struct Args {
     #[arg(long, conflicts_with_all = ["template", "case_ids", "selections", "max_cases"], help = "Read The Canonical Request JSON Without Flag Overrides.")]
-    pub(super) input_file: Option<PathBuf>,
+    pub(crate) input_file: Option<PathBuf>,
     #[arg(
         long,
         conflicts_with = "case_ids",
@@ -75,7 +75,7 @@ pub(crate) struct Planned {
 
 /* === Implementations === */
 impl Args {
-    pub(super) fn plan(self) -> crate::Result<Planned> {
+    pub(crate) fn plan(self) -> crate::Result<Planned> {
         let mut selections = self
             .selections
             .into_iter()

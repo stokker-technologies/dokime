@@ -147,33 +147,23 @@ impl Operation for Create {
         _: &mut (),
     ) -> Result<harmos::operations::Response<wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
-        if request
-            .plan
-            .as_ref()
-            .is_some_and(|plan| !plan.cycle_id.is_empty())
-        {
-            return Err(Status::invalid_argument(
-                "a new cycle starts its own case numbering",
-            ));
-        }
-        let snapshot = self.runtime.watch_state().latest();
-        let plan = planning::resolve(snapshot.state(), request.plan.take(), &CommandId::new())?;
-        let metadata = request
+        let mut metadata = request
             .metadata
-            .as_ref()
+            .take()
             .ok_or_else(|| Status::invalid_argument("cycle metadata is required"))?;
         value::text(&metadata.label)?;
         if metadata.label.trim().is_empty() {
             return Err(Status::invalid_argument("cycle label is required"));
         }
-        let metadata = canonical::decode_metadata(metadata)?;
+        if metadata.identifier.is_empty() {
+            metadata.identifier = format!("cycle.{}", CommandId::new());
+        }
+        let metadata = canonical::decode_metadata(&metadata)?;
         let id = self
             .runtime
-            .start_cycle(
+            .create_cycle(
                 CycleDefinition {
-                    suite: plan.suite,
                     metadata,
-                    cases: plan.cases,
                     continue_on_failure: request.continue_on_failure,
                 },
                 context,
@@ -257,7 +247,7 @@ impl Operation for Append {
         let snapshot = self.runtime.watch_state().latest();
         let plan = planning::resolve(snapshot.state(), plan, &CommandId::new())?;
         self.runtime
-            .append_cycle_templates(id, plan.suite, plan.cases, context)
+            .append_cycle_cases(id, plan.cases, context)
             .await
             .map_err(status)?;
         Ok((observed(&self.runtime)).into())
