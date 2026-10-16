@@ -705,7 +705,6 @@ pub(crate) async fn native_entry_independent() {
     use dokime::execution::{CycleStatus, TestCycle};
     use dokime::storage::objects::cycle::{self, Cycle};
     use harmos::storage::ObjectVersion;
-    use std::num::NonZeroUsize;
 
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;

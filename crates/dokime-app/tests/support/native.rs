@@ -13,7 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{num::NonZeroUsize, time::Duration};
+use std::time::Duration;
 // Third Party Imports
 // Local Imports
 use dokime::{core::TestExecutionId, execution::saved::ExecutionCheckpoint};

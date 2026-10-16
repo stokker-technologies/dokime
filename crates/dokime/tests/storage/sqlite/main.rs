@@ -10,20 +10,9 @@
 #![cfg(feature = "storage")]
 
 /* === Modules === */
-pub(crate) mod batch;
-pub(crate) mod bootstrap;
 pub(crate) mod catalog;
-pub(crate) mod data;
-pub(crate) mod encoding;
-pub(crate) mod files;
-pub(crate) mod integrity;
-pub(crate) mod managed;
-pub(crate) mod migration;
-pub(crate) mod objects;
+pub(crate) mod contract;
 pub(crate) mod production;
-pub(crate) mod reads;
-pub(crate) mod recovery;
-pub(crate) mod revisions;
 #[path = "../../support/local_storage.rs"]
 pub(crate) mod storage;
 
@@ -76,7 +65,7 @@ pub(crate) async fn refuses_previous_data() {
 
         assert!(matches!(
             State::open(root.path()).await,
-            Err(Error::Schema(found)) if found == version
+            Err(Error::Incompatible(reason)) if reason.contains(&format!("version {version}"))
         ));
         let retained = Connection::open(&path).unwrap();
         assert_eq!(
@@ -106,7 +95,7 @@ pub(crate) async fn refuses_unversioned_schema() {
 
     assert!(matches!(
         State::open(root.path()).await,
-        Err(Error::Conflict(_))
+        Err(Error::Incompatible(_))
     ));
 
     let retained = Connection::open(&path).unwrap();
@@ -155,7 +144,7 @@ pub(crate) async fn refuses_retired_intent() {
     drop(existing);
     assert!(matches!(
         State::open(root.path()).await,
-        Err(Error::Conflict(_))
+        Err(Error::Incompatible(_))
     ));
     let retained = Connection::open(&path).unwrap();
     let claim: (String, i64) = retained
@@ -183,7 +172,7 @@ pub(crate) async fn refuses_attachment_receipts() {
 
     assert!(matches!(
         State::open(root.path()).await,
-        Err(Error::Schema(3))
+        Err(Error::Incompatible(reason)) if reason.contains("version 3")
     ));
 
     let previous = Connection::open(&path).unwrap();

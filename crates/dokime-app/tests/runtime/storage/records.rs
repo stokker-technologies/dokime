@@ -200,7 +200,7 @@ async fn managed_records_kill() {
 
 async fn record_position_writer(root: PathBuf) {
     let executor = Arc::new(BlockingPublishingExecutor::new());
-    let mut settings = config(&root);
+    let settings = config(&root);
     let (_owner, runtime) = started_with_fixture(settings, executor.clone()).await;
     let suite = fixture_suite(&["passed"]);
     register_python_suite(&runtime, suite.clone()).await;

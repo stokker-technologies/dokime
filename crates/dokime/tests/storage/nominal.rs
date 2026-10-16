@@ -24,7 +24,9 @@ use std::{
 
 // Third Party Imports
 use harmos::storage::query::{
-    Query, QueryOutput, RowSlice, Source, StreamSelection,
+    ObjectSelection, ObjectVersions, Query, QueryOutput, RecordSelection, RowSlice, Source,
+    StreamSelection,
+    scalar::ScalarValue,
     transform::{
         FieldPath, Transform,
         aggregate::{Aggregate, Measure},
@@ -35,8 +37,8 @@ use harmos::{Application, DefinitionId, Identified, Message, Runtime, state::Nev
 use sha2::{Digest, Sha256};
 
 // Local Imports
-use super::sqlite::storage::{declared, id, limits, write_batch};
-use dokime::storage::sqlite::{Backend, Limits};
+use super::sqlite::storage::{declared, id, page, rows, write_batch};
+use dokime::storage::sqlite::Backend;
 use dokime::{
     core::{SessionId, Timestamp, Value},
     storage::telemetry::{TelemetryEntry, TypedCodec},
@@ -44,6 +46,7 @@ use dokime::{
 };
 
 /* === Constants === */
+const MAX_BYTES: usize = 1024 * 1024;
 
 /* === Macros === */
 
@@ -120,11 +123,7 @@ impl StoredObject for Subject {
 async fn nominal() {
     // Configure And Start The Production SQLite Adapter
     let root = tempfile::tempdir().unwrap();
-    let settings = Limits {
-        entry_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
-        batch_bytes: NonZeroUsize::new(16 * 1024 * 1024).unwrap(),
-    };
-    let backend = Backend::<Objects>::primary(root.path().to_owned(), settings)
+    let backend = Backend::<Objects>::primary(root.path().to_owned())
         .await
         .unwrap();
     let history = backend.history().clone();
@@ -142,7 +141,7 @@ async fn nominal() {
             id: "execution".into(),
             stopped: false,
         },
-        limits(1).bytes,
+        NonZeroUsize::new(MAX_BYTES).unwrap(),
     )
     .unwrap()
     .schema;
@@ -225,7 +224,7 @@ async fn nominal() {
                 id: "execution".into(),
                 stopped: false,
             },
-            limits(1).bytes,
+            NonZeroUsize::new(MAX_BYTES).unwrap(),
         )
         .unwrap(),
     };
@@ -247,7 +246,7 @@ async fn nominal() {
                 id: "execution".into(),
                 stopped: true,
             },
-            limits(1).bytes,
+            NonZeroUsize::new(MAX_BYTES).unwrap(),
         )
         .unwrap(),
     };
@@ -305,7 +304,7 @@ async fn nominal() {
                         .unwrap(),
                     ),
             ),
-            payload: codec.encode(&typed_entry, limits(1).bytes.get()).unwrap(),
+            payload: codec.encode(&typed_entry, MAX_BYTES).unwrap(),
         },
         stream: typed_stream.clone(),
         sequence: 0,
@@ -366,11 +365,11 @@ async fn nominal() {
 
     // Reopen And Read All Evidence At The Durable Boundary
     let backend = std::sync::Arc::new(
-        Backend::<Objects>::primary(root.path().to_owned(), settings)
+        Backend::<Objects>::primary(root.path().to_owned())
             .await
             .unwrap(),
     );
-    let storage = StorageManager::new(
+    let storage = StorageManager::<Objects>::new(
         StorageBackends {
             primary: backend.clone(),
             state: std::sync::Arc::new(harmos::storage::state::file::FileBackend::new(
@@ -378,7 +377,6 @@ async fn nominal() {
                 backend.history().clone(),
                 dokime::storage::state_settings(&super::sqlite::storage::storage_settings()),
             )),
-            replicas: vec![],
         },
         super::sqlite::storage::storage_settings(),
     )
@@ -388,22 +386,27 @@ async fn nominal() {
         .await
         .unwrap();
     assert_eq!(backend.cursor_saved().await.unwrap(), durable);
-    let snapshot = backend.read_view(&durable).await.unwrap();
-    let view = ReadView::new(id("nominal"), durable.clone(), durable.clone(), snapshot).unwrap();
-    let mut selection = ReadSelection::new(ReadKind::Stream);
-    selection.stream = Some(id("voltage"));
-    let mut cursor = None;
+    let view = backend.open_snapshot(&durable).await.unwrap();
+    let selection = StreamSelection {
+        schema: waveform_schema.clone(),
+        scope: None,
+        item: None,
+        stream: Some(id("voltage")),
+        source_start: None,
+        source_end: None,
+    };
+    let mut after = 0;
     let mut actual = Vec::new();
     loop {
         let page = backend
-            .read_stream(&view, &selection, cursor.as_ref(), limits(31))
+            .read_stream(&view, &selection, page(after, rows(31)))
             .await
             .unwrap();
-        actual.extend(page.entries);
-        cursor = page.next;
-        if cursor.is_none() {
+        let Some(last) = page.last() else {
             break;
-        }
+        };
+        after = last.record.position.sequence;
+        actual.extend(page);
     }
     assert_eq!(actual, waves);
     let mut sums = [0.0f64; 3];
@@ -420,15 +423,21 @@ async fn nominal() {
         let rms = (squares[phase] / samples as f64).sqrt();
         assert!((rms - amplitude / 2.0f64.sqrt()).abs() < 1e-10);
     }
-    let mut typed_selection = ReadSelection::new(ReadKind::Stream);
-    typed_selection.schema = Some(codec.schema().clone());
+    let typed_selection = StreamSelection {
+        schema: codec.schema().clone(),
+        scope: None,
+        item: None,
+        stream: None,
+        source_start: None,
+        source_end: None,
+    };
     let typed_rows = backend
-        .read_stream(&view, &typed_selection, None, limits(8))
+        .read_stream(&view, &typed_selection, page(0, rows(8)))
         .await
         .unwrap();
-    assert_eq!(typed_rows.entries, [typed_row]);
+    assert_eq!(typed_rows, [typed_row]);
     let decoded = codec
-        .decode(&typed_rows.entries[0].record.payload, limits(1).bytes.get())
+        .decode(&typed_rows[0].record.payload, MAX_BYTES)
         .unwrap();
     assert_eq!(decoded.epoch, typed_entry.epoch);
     assert_eq!(decoded.sample.sample_id, typed_entry.sample.sample_id);
@@ -469,12 +478,7 @@ async fn nominal() {
     let mut typed_count = 0;
     while let Some(output) = typed_query.next().await.unwrap() {
         if let QueryOutput::Batch(batch) = output {
-            let entries = dokime::storage::telemetry::decode_batch(
-                &codec,
-                &batch,
-                NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-            )
-            .unwrap();
+            let entries = dokime::storage::telemetry::decode_batch(&codec, &batch).unwrap();
             assert_eq!(entries.len(), 1);
             assert_eq!(
                 entries[0].sample.storage_payload,
@@ -530,7 +534,7 @@ async fn nominal() {
                         .value(batch.as_record_batch(), 0)
                         .unwrap();
                     match rms {
-                        harmos::storage::reduce::ScalarValue::Float(rms) => {
+                        ScalarValue::Float(rms) => {
                             assert!((rms - amplitude / 2.0f64.sqrt()).abs() < 1e-10)
                         }
                         _ => panic!("unexpected RMS type"),
@@ -583,7 +587,7 @@ async fn nominal() {
                     .value(batch.as_record_batch(), row)
                     .unwrap()
                 {
-                    harmos::storage::reduce::ScalarValue::Float(value) => values.push(value),
+                    ScalarValue::Float(value) => values.push(value),
                     _ => panic!("unexpected sorted waveform type"),
                 }
             }
@@ -596,28 +600,38 @@ async fn nominal() {
     let records = backend
         .read_records(
             &view,
-            &ReadSelection::new(ReadKind::Records),
-            None,
-            limits(8),
+            &RecordSelection {
+                schema: waveform_schema.clone(),
+                scope: None,
+                item: None,
+                source_start: None,
+                source_end: None,
+            },
+            page(0, rows(8)),
         )
         .await
         .unwrap();
-    assert_eq!(records.entries, [record]);
+    assert_eq!(records, [record]);
+    let revisions = ObjectSelection {
+        schema: None,
+        key: None,
+        versions: ObjectVersions::Revisions,
+    };
     let objects = backend
-        .read_objects(
-            &view,
-            &ReadSelection::new(ReadKind::Objects),
-            None,
-            limits(8),
-        )
+        .read_objects(&view, &revisions, page(0, rows(8)))
         .await
         .unwrap();
-    assert_eq!(objects.entries, [subject.clone(), stopped.clone()]);
+    assert_eq!(objects, [subject.clone(), stopped.clone()]);
     for (file, expected) in files {
         let mut actual = Vec::new();
         while actual.len() < expected.len() {
             let bytes = backend
-                .read_file(&view, &file, actual.len() as u64, limits(1).bytes)
+                .read_file(
+                    &view,
+                    &file,
+                    actual.len() as u64,
+                    NonZeroUsize::new(MAX_BYTES).unwrap(),
+                )
                 .await
                 .unwrap();
             assert!(!bytes.is_empty());
@@ -626,14 +640,24 @@ async fn nominal() {
         assert_eq!(actual, expected);
         assert!(
             backend
-                .read_file(&view, &file, file.length, limits(1).bytes)
+                .read_file(
+                    &view,
+                    &file,
+                    file.length,
+                    NonZeroUsize::new(MAX_BYTES).unwrap()
+                )
                 .await
                 .unwrap()
                 .is_empty()
         );
         assert!(
             backend
-                .read_file(&view, &file, file.length + 1, limits(1).bytes)
+                .read_file(
+                    &view,
+                    &file,
+                    file.length + 1,
+                    NonZeroUsize::new(MAX_BYTES).unwrap()
+                )
                 .await
                 .is_err()
         );
@@ -648,30 +672,21 @@ async fn nominal() {
         .await
         .unwrap()
     {}
-    assert!(
-        backend
-            .read_object_releases(&view, None, limits(8))
-            .await
-            .unwrap()
-            .entries
-            .is_empty()
-    );
     let pinned = backend
-        .read_objects(
-            &view,
-            &ReadSelection::new(ReadKind::Objects),
-            None,
-            limits(8),
-        )
+        .read_objects(&view, &revisions, page(0, rows(8)))
         .await
         .unwrap();
-    assert_eq!(pinned.entries, [subject, stopped.clone()]);
-    backend.release_view(view.snapshot()).await.unwrap();
+    assert_eq!(
+        pinned,
+        [subject, stopped.clone()],
+        "a pinned snapshot keeps history"
+    );
+    backend.release_snapshot(&view).await.unwrap();
     runtime.stop().await.unwrap();
 
     // The Lifecycle Release Survives Restart And Reclaims Unpinned Revisions
     let backend = std::sync::Arc::new(
-        Backend::<Objects>::primary(root.path().to_owned(), settings)
+        Backend::<Objects>::primary(root.path().to_owned())
             .await
             .unwrap(),
     );
@@ -680,68 +695,22 @@ async fn nominal() {
         .await
         .unwrap()
     {}
-    let snapshot = backend.read_view(&durable).await.unwrap();
-    let current =
-        ReadView::new(id("released"), durable.clone(), durable.clone(), snapshot).unwrap();
-    let mut retained = ReadSelection::new(ReadKind::Objects);
-    retained.history = ReadHistory::Retained;
+    let current = backend.open_snapshot(&durable).await.unwrap();
     let objects = backend
-        .read_objects(&current, &retained, None, limits(8))
+        .read_objects(&current, &revisions, page(0, rows(8)))
         .await
         .unwrap();
-    assert_eq!(objects.entries, [stopped]);
+    assert_eq!(objects, [stopped]);
+    backend.release_snapshot(&current).await.unwrap();
     let releases = backend
-        .read_object_releases(&current, None, limits(8))
+        .local_state()
+        .call(|connection| {
+            connection.query_row("SELECT COUNT(*) FROM storage_object_releases", [], |row| {
+                row.get::<_, i64>(0)
+            })
+        })
         .await
         .unwrap();
-    assert_eq!(releases.entries.len(), 1);
-    assert_eq!(releases.entries[0].through, durable);
-    backend.release_view(current.snapshot()).await.unwrap();
-
-    // Bootstrap A Replica From Pruned History Without Losing Lifecycle Releases
-    let replica_root = tempfile::tempdir().unwrap();
-    let replica = std::sync::Arc::new(
-        Backend::<Objects>::replica(replica_root.path().to_owned(), settings, history.clone())
-            .await
-            .unwrap(),
-    );
-    let mut manager_settings = super::sqlite::storage::storage_settings();
-    manager_settings.replication_shutdown = Duration::from_secs(5);
-    let storage = StorageManager::new(
-        StorageBackends {
-            primary: backend.clone(),
-            state: std::sync::Arc::new(harmos::storage::state::file::FileBackend::new(
-                root.path().to_owned(),
-                backend.history().clone(),
-                dokime::storage::state_settings(&manager_settings),
-            )),
-            replicas: vec![ReplicaTarget {
-                id: id("replica"),
-                backend: replica.clone(),
-            }],
-        },
-        manager_settings,
-    )
-    .unwrap();
-    let runtime = Runtime::<App>::builder((), ())
-        .runtime_with_storage(&storage)
-        .await
-        .unwrap();
-    runtime.stop().await.unwrap();
-    assert_eq!(replica.open().await.unwrap(), durable);
-    let replica_snapshot = replica.read_view(&durable).await.unwrap();
-    let replica_view = ReadView::new(
-        id("replica"),
-        durable.clone(),
-        durable.clone(),
-        replica_snapshot,
-    )
-    .unwrap();
-    let copied = replica
-        .read_object_releases(&replica_view, None, limits(8))
-        .await
-        .unwrap();
-    assert_eq!(copied.entries, releases.entries);
-    replica.release_view(replica_view.snapshot()).await.unwrap();
-    replica.close().await.unwrap();
+    assert_eq!(releases, 1, "the lifecycle release survives restart");
+    backend.close().await.unwrap();
 }

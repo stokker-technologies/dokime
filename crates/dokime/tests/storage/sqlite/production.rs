@@ -25,7 +25,7 @@ use sha2::{Digest, Sha256, digest::common::hazmat::SerializableState};
 
 // Local Imports
 use super::storage::id;
-use dokime::storage::sqlite::{Backend, Limits};
+use dokime::storage::sqlite::Backend;
 
 /* === Constants === */
 
@@ -88,7 +88,7 @@ fn limits() -> ReadLimits {
 
 pub(crate) async fn checkpoint_recovery_fence() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     let metadata = metadata("production");
@@ -102,7 +102,7 @@ pub(crate) async fn checkpoint_recovery_fence() {
     backend.fence_production(&file, 1, 2).await.unwrap();
     assert!(backend.save_production(&checkpoint).await.is_err());
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     let recovered = backend.recover_productions(limits()).await.unwrap();
@@ -133,7 +133,7 @@ pub(crate) async fn checkpoint_recovery_fence() {
     assert!(backend.create_production(&metadata).await.is_err());
     assert!(backend.write_file(&file, 3, b"d").await.is_err());
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     assert_eq!(
@@ -149,7 +149,7 @@ pub(crate) async fn checkpoint_recovery_fence() {
 
 pub(crate) async fn shared_sha_identity() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     let first = metadata("first");
@@ -249,17 +249,10 @@ pub(crate) async fn shared_sha_identity() {
         name.bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
     );
-    let snapshot = backend
-        .read_view(&backend.cursor_saved().await.unwrap())
+    let fixed = backend
+        .open_snapshot(&backend.cursor_saved().await.unwrap())
         .await
         .unwrap();
-    let fixed = ReadView::new(
-        id("fixed"),
-        snapshot.saved.clone(),
-        snapshot.saved.clone(),
-        snapshot.clone(),
-    )
-    .unwrap();
     backend.delete_file(&a).await.unwrap();
     assert!(physical[0].is_file());
     assert!(
@@ -276,24 +269,26 @@ pub(crate) async fn shared_sha_identity() {
         b"same"
     );
     let page = backend
-        .read_files(&fixed, &ReadSelection::new(ReadKind::Files), None, limits())
-        .await
-        .unwrap();
-    assert_eq!(page.entries, [refs[1].clone()]);
-    backend.release_view(&snapshot).await.unwrap();
-    let retained = backend
-        .read_retained_view(
-            &backend.cursor_saved().await.unwrap(),
-            crate::sqlite::storage::storage_settings().query_execution,
+        .read_files(
+            &fixed,
+            &query::FileSelection {
+                scope: None,
+                item: None,
+            },
+            ScanPage {
+                after: 0,
+                rows: bound(8),
+                bytes: bound(32 * 1024),
+            },
         )
         .await
         .unwrap();
-    assert!(retained.coverage.complete_after >= 1);
-    backend.release_view(&retained.snapshot).await.unwrap();
+    assert_eq!(page, [refs[1].clone()]);
+    backend.release_snapshot(&fixed).await.unwrap();
     backend.delete_file(&b).await.unwrap();
     assert!(!physical[0].exists());
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     assert!(backend.create_file(&first).await.is_err());
@@ -302,7 +297,7 @@ pub(crate) async fn shared_sha_identity() {
 
 pub(crate) async fn mutation_receipts_outcomes() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     let receipt = MutationReceipt {
@@ -335,7 +330,7 @@ pub(crate) async fn mutation_receipts_outcomes() {
             .is_err()
     );
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     assert_eq!(
@@ -347,7 +342,7 @@ pub(crate) async fn mutation_receipts_outcomes() {
 
 pub(crate) async fn checkpoints_advance_boundaries() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     let metadata = metadata("boundaries");
@@ -360,7 +355,7 @@ pub(crate) async fn checkpoints_advance_boundaries() {
         backend.save_production(&value).await.unwrap();
     }
     backend.close().await.unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     let recovered = backend.recover_productions(limits()).await.unwrap();
@@ -378,7 +373,7 @@ pub(crate) async fn checkpoints_advance_boundaries() {
 /// a fenced generation, a different identity or bytes past completion refuse.
 pub(crate) async fn late_checkpoints_settle() {
     let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     let bytes = b"abcdef";
@@ -428,62 +423,10 @@ pub(crate) async fn late_checkpoints_settle() {
     backend.save_production(&staged).await.unwrap();
     backend.close().await.unwrap();
 
-    let backend = Backend::<()>::primary(root.path().to_path_buf(), Limits::default())
+    let backend = Backend::<()>::primary(root.path().to_path_buf())
         .await
         .unwrap();
     let recovered = backend.recover_productions(limits()).await.unwrap();
     assert_eq!(recovered, [longer]);
-    backend.close().await.unwrap();
-}
-
-pub(crate) async fn recovery_charges_limits() {
-    let root = tempfile::tempdir().unwrap();
-    let backend = Backend::<()>::primary(
-        root.path().to_path_buf(),
-        Limits {
-            ..Default::default()
-        },
-    )
-    .await
-    .unwrap();
-    let limits = ReadLimits {
-        rows: bound(8),
-        bytes: bound(32 * 1024 * 1024),
-    };
-    assert!(
-        backend
-            .recover_productions(limits)
-            .await
-            .unwrap()
-            .is_empty()
-    );
-    assert!(backend.recover_mutations(limits).await.unwrap().is_empty());
-    let metadata = metadata("small");
-    let file = backend.create_production(&metadata).await.unwrap();
-    let receipt = MutationReceipt {
-        mutation: MutationId {
-            window: id("window"),
-            key: id("small"),
-        },
-        fingerprint: [1; 32],
-        expires_at: SystemTime::now() + Duration::from_secs(60),
-        value: MutationValue::Producer(FileProducer {
-            session: FileSession {
-                history: file.history.clone(),
-                id: file.id.clone(),
-                generation: 1,
-            },
-            length: 0,
-        }),
-    };
-    backend
-        .save_mutations(std::slice::from_ref(&receipt))
-        .await
-        .unwrap();
-    assert_eq!(backend.recover_mutations(limits).await.unwrap(), [receipt]);
-    assert_eq!(
-        backend.recover_productions(limits).await.unwrap(),
-        [checkpoint(metadata, &file, 1, b"")]
-    );
     backend.close().await.unwrap();
 }

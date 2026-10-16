@@ -20,7 +20,7 @@ use std::sync::Arc;
 use harmos::{
     Application, Runtime,
     state::Never,
-    storage::{FileMetadata, ReadLimits, StorageBackends},
+    storage::{FileMetadata, StorageBackends},
 };
 
 // Local Imports
@@ -59,11 +59,7 @@ impl Application for Reader {
 
 pub(crate) async fn report_publication_reopens() {
     let root = tempfile::tempdir().unwrap();
-    let primary = Arc::new(
-        Backend::primary(root.path().to_path_buf(), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().to_path_buf()).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -73,7 +69,6 @@ pub(crate) async fn report_publication_reopens() {
         StorageBackends {
             primary,
             state: recovery,
-            replicas: vec![],
         },
         super::sqlite::storage::storage_settings(),
     )
@@ -141,11 +136,7 @@ pub(crate) async fn report_publication_reopens() {
     drop(publication);
     runtime.stop().await.unwrap();
 
-    let primary = Arc::new(
-        Backend::primary(root.path().to_path_buf(), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().to_path_buf()).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -155,7 +146,6 @@ pub(crate) async fn report_publication_reopens() {
         StorageBackends {
             primary,
             state: recovery,
-            replicas: vec![],
         },
         super::sqlite::storage::storage_settings(),
     )
@@ -164,28 +154,34 @@ pub(crate) async fn report_publication_reopens() {
         .runtime_with_storage(&storage)
         .await
         .unwrap();
+    let published = |owner, report_id| {
+        let storage = storage.clone();
+        async move {
+            dokime::storage::rows::Rows::<harmos::storage::StoredRecord>::open::<reports::Publication>(
+                &storage,
+                storage.cursor_saved(),
+                harmos::storage::query::Source::Records(reports::selection(owner, report_id)),
+            )
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap()
+        }
+    };
     for report_id in [None, Some(file.metadata.id.clone())] {
-        let mut query = reports::query(reports::Owner::Cycle(&owner), report_id);
-        query.options.page = Some(ReadLimits {
-            rows: 1.try_into().unwrap(),
-            bytes: (1024 * 1024).try_into().unwrap(),
-        });
-        let mut history = storage.query(query).await.unwrap();
-        let page = history.next_page().await.unwrap().unwrap();
+        let page = published(reports::Owner::Cycle(&owner), report_id).await;
         assert_eq!(page.len(), 1);
         assert_eq!(page[0].position, receipt);
         let publication = reports::Publication::from_record(&page[0]).unwrap();
         assert_eq!(publication.file().unwrap(), &file);
         assert_eq!(publication.cycle().unwrap().restore().unwrap(), cycle);
         assert_eq!(page[0].item, file.metadata.id);
-        drop(page);
-        assert!(history.next_page().await.unwrap().is_none());
     }
-    let mut absent = storage
-        .query(reports::query(reports::Owner::Cycle(&other), None))
-        .await
-        .unwrap();
-    assert!(absent.next_page().await.unwrap().is_none());
-    drop(absent);
+    assert!(
+        published(reports::Owner::Cycle(&other), None)
+            .await
+            .is_empty()
+    );
     runtime.stop().await.unwrap();
 }

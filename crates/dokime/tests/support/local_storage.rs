@@ -7,6 +7,8 @@
  * ***
  */
 
+// Shared Fixtures For SQLite Backend And Storage Manager Scenarios
+
 /* === Modules === */
 
 /* === Re-Exports === */
@@ -15,8 +17,8 @@
 
 // Standard Library Imports
 use std::{
-    num::{NonZeroU32, NonZeroU64, NonZeroUsize},
-    time::Duration,
+    num::{NonZeroU32, NonZeroUsize},
+    path::Path,
 };
 
 // Third Party Imports
@@ -26,7 +28,7 @@ use harmos::{
         Cardinality,
         graph::{Field, Kind, Schema},
     },
-    storage::*,
+    storage::{query::RecordSelection, *},
 };
 
 // Local Imports
@@ -39,14 +41,72 @@ use dokime::storage::sqlite::Backend;
 /* === Type Aliases === */
 
 /* === Structs === */
+/// One SQLite backend and the history its positions belong to.
+pub(crate) struct Store<C: ObjectCatalog = ()> {
+    pub backend: Backend<C>,
+    pub history: StoreHistory,
+}
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
+impl<C: ObjectCatalog> Store<C> {
+    /// Open and initialize the backend owning `root`.
+    pub(crate) async fn open(root: &Path) -> Self {
+        let backend = Backend::<C>::primary(root.to_path_buf()).await.unwrap();
+        backend.open().await.unwrap();
+        let history = backend.history().clone();
+        Self { backend, history }
+    }
+
+    pub(crate) fn at(&self, sequence: u64) -> StorageCursor {
+        StorageCursor {
+            history: self.history.clone(),
+            sequence,
+        }
+    }
+
+    /// The fixture record schema, written at position one.
+    pub(crate) fn schema(&self) -> StorageSchema {
+        StorageSchema::new(
+            self.at(1),
+            key(),
+            graph(vec![Field {
+                name: "counter".into(),
+                tag: 1,
+                kind: Kind::U64,
+                cardinality: Cardinality::Required,
+            }]),
+        )
+    }
+
+    pub(crate) fn record(&self, sequence: u64) -> StoredRecord {
+        StoredRecord {
+            position: self.at(sequence),
+            schema: key(),
+            scope: Some(id("execution")),
+            item: id(&format!("item-{sequence}")),
+            source: Some(id("charger")),
+            source_time: None,
+            payload: vec![8, sequence as u8],
+        }
+    }
+
+    /// Every fixture record visible at `through`, read in small pages.
+    pub(crate) async fn records(&self, through: u64) -> Vec<StoredRecord> {
+        let snapshot = self.backend.open_snapshot(&self.at(through)).await.unwrap();
+        let records = read_records(&self.backend, &snapshot, rows(2))
+            .await
+            .unwrap();
+        self.backend.release_snapshot(&snapshot).await.unwrap();
+        records
+    }
+}
 
 /* === Public Functions === */
+/// Shipped-shape storage settings sized for scenarios.
 pub fn storage_settings() -> StorageSettings {
     StorageSettings {
         budget: StorageBudget {
@@ -57,89 +117,57 @@ pub fn storage_settings() -> StorageSettings {
             max_active_queries: nonzero(4),
             max_pending_write_batches: nonzero(256),
             max_pending_write_bytes: nonzero(16 * 1024 * 1024),
-            reserved_control_batches: 0,
-            reserved_control_bytes: 0,
         },
         response: StorageResponseSettings {
             batch_rows: nonzero(64),
             batch_bytes: nonzero(64 * 1024),
         },
-        target_batch_bytes: NonZeroUsize::new(128 * 1024).unwrap(),
-        max_batch_bytes: NonZeroUsize::new(256 * 1024).unwrap(),
-        query_page: ReadLimits {
-            rows: NonZeroUsize::new(64).unwrap(),
-            bytes: NonZeroUsize::new(64 * 1024).unwrap(),
-        },
-
-        query_decoded_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-        query_execution: QueryLimits {
-            memory_bytes: NonZeroUsize::new(4 * 1024 * 1024).unwrap(),
-            admission: Admission::Guaranteed,
-            spill_bytes: 0,
-            timeout: Duration::from_secs(5),
-        },
-
-        replication_limits: ReadLimits {
-            rows: NonZeroUsize::new(64).unwrap(),
-            bytes: NonZeroUsize::new(64 * 1024).unwrap(),
-        },
-        replica_lag_positions: NonZeroU64::new(4096).unwrap(),
-        replication_shutdown: Duration::ZERO,
-        max_files: NonZeroUsize::new(8).unwrap(),
-        file_session_timeout: Duration::from_secs(60),
-        max_mutations: NonZeroUsize::new(1024).unwrap(),
-        mutation_memory_bytes: NonZeroUsize::new(1024 * 1024).unwrap(),
-        mutation_retention: Duration::from_secs(300),
-        view_idle_timeout: Duration::from_secs(30),
-        snapshot_bytes: NonZeroUsize::new(4096).unwrap(),
-        write_batch_entries: NonZeroUsize::new(64).unwrap(),
-        object_prune_entries: NonZeroUsize::new(256).unwrap(),
-        write_batch_bytes: NonZeroUsize::new(256 * 1024).unwrap(),
-        flush_interval: Duration::from_millis(100),
-        io_timeout: Duration::from_secs(5),
-        max_retries: 3,
-        retry_base: Duration::from_millis(10),
-        retry_cap: Duration::from_secs(1),
     }
 }
 
-/* === Private Functions === */
-fn nonzero(value: usize) -> NonZeroUsize {
-    NonZeroUsize::new(value).unwrap()
-}
-
-pub(crate) async fn read_all(backend: &Backend<()>, view: &ReadView) -> Vec<StoredRecord> {
-    let selection = ReadSelection::new(ReadKind::Records);
-    let mut cursor = None;
+/// Every record of the fixture schema in `snapshot`, paged ascending.
+pub(crate) async fn read_records<C: ObjectCatalog>(
+    backend: &Backend<C>,
+    snapshot: &BackendSnapshot,
+    rows: NonZeroUsize,
+) -> harmos::Result<Vec<StoredRecord>> {
+    let selection = RecordSelection {
+        schema: key(),
+        scope: None,
+        item: None,
+        source_start: None,
+        source_end: None,
+    };
     let mut records = Vec::new();
+    let mut after = 0;
     loop {
-        let page = backend
-            .read_records(view, &selection, cursor.as_ref(), limits(64))
-            .await
-            .unwrap();
-        records.extend(page.entries);
-        cursor = page.next;
-        if cursor.is_none() {
-            return records;
-        }
+        let entries = backend
+            .read_records(snapshot, &selection, page(after, rows))
+            .await?;
+        let Some(last) = entries.last() else {
+            return Ok(records);
+        };
+        after = last.position.sequence;
+        records.extend(entries);
     }
+}
+
+pub(crate) fn page(after: u64, rows: NonZeroUsize) -> ScanPage {
+    ScanPage {
+        after,
+        rows,
+        bytes: nonzero(64 * 1024),
+    }
+}
+
+pub(crate) fn rows(rows: usize) -> NonZeroUsize {
+    nonzero(rows)
 }
 
 pub(crate) fn id(value: &str) -> Identifier {
     Identifier::new(value).unwrap()
 }
-pub(crate) fn history() -> StoreHistory {
-    StoreHistory {
-        store: id("bench"),
-        epoch: id("run"),
-    }
-}
-pub(crate) fn position(sequence: u64) -> StorageCursor {
-    StorageCursor {
-        history: history(),
-        sequence,
-    }
-}
+
 pub(crate) fn key() -> SchemaKey {
     SchemaKey {
         payload_encoding: harmos::storage::PayloadEncoding::ProtobufV1,
@@ -147,18 +175,7 @@ pub(crate) fn key() -> SchemaKey {
         version: NonZeroU32::new(1).unwrap(),
     }
 }
-pub(crate) fn schema() -> StorageSchema {
-    StorageSchema::new(
-        position(1),
-        key(),
-        graph(vec![Field {
-            name: "counter".into(),
-            tag: 1,
-            kind: Kind::U64,
-            cardinality: Cardinality::Required,
-        }]),
-    )
-}
+
 // A Single-Definition Row Graph For Fixture Schemas
 pub(crate) fn graph(fields: Vec<Field>) -> Schema {
     Schema {
@@ -166,40 +183,19 @@ pub(crate) fn graph(fields: Vec<Field>) -> Schema {
         definitions: vec![fields],
     }
 }
+
 // The Prepared Row Graph Of A Described Message
 pub(crate) fn declared<T: harmos::schema::Described>() -> Schema {
     Schema::from_declaration(T::DEFINITION, &harmos::config::SchemaSettings::default()).unwrap()
 }
-pub(crate) fn record(sequence: u64) -> StoredRecord {
-    StoredRecord {
-        position: position(sequence),
-        schema: key(),
-        scope: Some(id("execution")),
-        item: id(&format!("item-{sequence}")),
-        source: Some(id("charger")),
-        source_time: None,
-        payload: vec![8, sequence as u8],
-    }
-}
-pub(crate) fn limits(rows: usize) -> ReadLimits {
-    ReadLimits {
-        rows: NonZeroUsize::new(rows).unwrap(),
-        bytes: NonZeroUsize::new(65536).unwrap(),
-    }
-}
-pub(crate) async fn view<C: ObjectCatalog>(backend: &Backend<C>, through: u64) -> ReadView {
-    let saved = position(through);
-    ReadView::new(
-        id(&format!("view-{through}")),
-        position(through),
-        saved.clone(),
-        backend.read_view(&saved).await.unwrap(),
-    )
-    .unwrap()
-}
 
 pub(crate) fn write_batch<'a>(parts: &'a [StoragePart<'a>]) -> StorageBatch<'a> {
     StorageBatch::new(parts, NonZeroUsize::new(16 * 1024 * 1024).unwrap()).unwrap()
+}
+
+/* === Private Functions === */
+fn nonzero(value: usize) -> NonZeroUsize {
+    NonZeroUsize::new(value).unwrap()
 }
 
 /* === Tests === */

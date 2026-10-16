@@ -13,14 +13,10 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 // Third Party Imports
-use harmos::{
-    Application, Runtime,
-    state::Never,
-    storage::{StorageBackends, StorageSettings},
-};
+use harmos::{Application, Runtime, state::Never, storage::StorageBackends};
 
 // Local Imports
 use dokime::{
@@ -62,11 +58,7 @@ impl Application for Reader {
 
 pub(crate) async fn materialized_cases_reader() {
     let root = tempfile::tempdir().unwrap();
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -76,12 +68,8 @@ pub(crate) async fn materialized_cases_reader() {
         StorageBackends {
             primary,
             state: recovery,
-            replicas: vec![],
         },
-        StorageSettings {
-            flush_interval: Duration::from_secs(60),
-            ..super::sqlite::storage::storage_settings()
-        },
+        super::sqlite::storage::storage_settings(),
     )
     .unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -106,23 +94,15 @@ pub(crate) async fn materialized_cases_reader() {
     let receipt = storage.write_object(&row).await.unwrap();
     storage.flush_until(&receipt.position).await.unwrap();
     assert_eq!(
-        case::read(
-            &storage,
-            &expected.test_case_id,
-            super::FRAME_BYTES.try_into().unwrap()
-        )
-        .await
-        .unwrap()
-        .as_deref(),
+        case::read(&storage, &expected.test_case_id)
+            .await
+            .unwrap()
+            .as_ref(),
         Some(&expected)
     );
     runtime.stop().await.unwrap();
 
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -132,7 +112,6 @@ pub(crate) async fn materialized_cases_reader() {
         StorageBackends {
             primary,
             state: recovery,
-            replicas: vec![],
         },
         crate::sqlite::storage::storage_settings(),
     )
@@ -142,31 +121,25 @@ pub(crate) async fn materialized_cases_reader() {
         .await
         .unwrap();
     assert_eq!(
-        case::read(
-            &storage,
-            &expected.test_case_id,
-            super::FRAME_BYTES.try_into().unwrap()
-        )
-        .await
-        .unwrap()
-        .as_deref(),
+        case::read(&storage, &expected.test_case_id)
+            .await
+            .unwrap()
+            .as_ref(),
         Some(&expected)
     );
     assert_eq!(
         case::read(
             &storage,
-            &CaseId::from_wire("fixture.absent:1234567890").unwrap(),
-            super::FRAME_BYTES.try_into().unwrap()
+            &CaseId::from_wire("fixture.absent:1234567890").unwrap()
         )
         .await
         .unwrap()
-        .as_deref(),
+        .as_ref(),
         None
     );
     let absent = case::read(
         &storage,
         &CaseId::from_wire("fixture.absent:1234567890").unwrap(),
-        super::FRAME_BYTES.try_into().unwrap(),
     )
     .await
     .unwrap();
@@ -176,11 +149,7 @@ pub(crate) async fn materialized_cases_reader() {
 
 pub(crate) async fn suite_definitions_producer() {
     let root = tempfile::tempdir().unwrap();
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -189,7 +158,6 @@ pub(crate) async fn suite_definitions_producer() {
     let backends = StorageBackends {
         primary,
         state: recovery,
-        replicas: vec![],
     };
     let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -230,11 +198,7 @@ pub(crate) async fn suite_definitions_producer() {
     storage.flush_until(&receipt.position).await.unwrap();
     runtime.stop().await.unwrap();
 
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -243,7 +207,6 @@ pub(crate) async fn suite_definitions_producer() {
     let backends = StorageBackends {
         primary,
         state: recovery,
-        replicas: vec![],
     };
     let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -251,12 +214,11 @@ pub(crate) async fn suite_definitions_producer() {
         .await
         .unwrap();
 
-    let limit = super::FRAME_BYTES.try_into().unwrap();
-    let saved = dokime::storage::objects::suite::read(&storage, "fixture.registration", limit)
+    let saved = dokime::storage::objects::suite::read(&storage, "fixture.registration")
         .await
         .unwrap();
     assert_eq!(saved, Some(expected));
-    let absent = dokime::storage::objects::suite::read(&storage, "fixture.absent", limit)
+    let absent = dokime::storage::objects::suite::read(&storage, "fixture.absent")
         .await
         .unwrap();
     assert!(absent.is_none());
@@ -266,11 +228,7 @@ pub(crate) async fn suite_definitions_producer() {
 
 pub(crate) async fn cycles_reopen_producers() {
     let root = tempfile::tempdir().unwrap();
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -279,7 +237,6 @@ pub(crate) async fn cycles_reopen_producers() {
     let backends = StorageBackends {
         primary,
         state: recovery,
-        replicas: vec![],
     };
     let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -329,11 +286,7 @@ pub(crate) async fn cycles_reopen_producers() {
     storage.flush_until(&receipt.position).await.unwrap();
     runtime.stop().await.unwrap();
 
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -342,7 +295,6 @@ pub(crate) async fn cycles_reopen_producers() {
     let backends = StorageBackends {
         primary,
         state: recovery,
-        replicas: vec![],
     };
     let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -350,61 +302,35 @@ pub(crate) async fn cycles_reopen_producers() {
         .await
         .unwrap();
 
-    let limit = super::FRAME_BYTES.try_into().unwrap();
-    let read_bytes_before = storage.status().read_bytes;
-    let view = storage
-        .view_with_limits(crate::sqlite::storage::storage_settings().query_execution)
-        .await
-        .unwrap();
-    let saved = dokime::storage::objects::cycle::read_in(
+    let saved = dokime::storage::objects::cycle::read(
         &storage,
-        &view,
         &expected.test_cycle_id,
         harmos::storage::ObjectVersion::Latest,
-        limit,
     )
     .await
     .unwrap();
     assert_eq!(
-        saved.as_deref().map(|revision| &revision.value),
+        saved.as_ref().map(|revision| &revision.value),
         Some(&expected)
     );
     assert_eq!(saved.as_ref().unwrap().position, receipt.position);
     assert_eq!(saved.as_ref().unwrap().version, receipt.version);
-    let held_read_bytes = storage.status().read_bytes;
-    assert!(held_read_bytes > read_bytes_before);
-    assert!(
-        held_read_bytes - read_bytes_before
-            >= harmos::MemorySize::memory_size(saved.as_deref().unwrap())
-    );
     let missing = dokime::core::TestCycleId::from_seed("native-missing-cycle");
-    let absent = dokime::storage::objects::cycle::read_in(
+    let absent = dokime::storage::objects::cycle::read(
         &storage,
-        &view,
         &missing,
         harmos::storage::ObjectVersion::Latest,
-        limit,
     )
     .await
     .unwrap();
     assert!(absent.is_none());
-    assert_eq!(storage.status().read_bytes, held_read_bytes);
-    let value_bytes = harmos::MemorySize::memory_size(saved.as_deref().unwrap());
     drop(saved);
-    let released_read_bytes = storage.status().read_bytes;
-    assert!(held_read_bytes - released_read_bytes >= value_bytes);
-    drop(view);
     runtime.stop().await.unwrap();
-    assert_eq!(storage.status().read_bytes, read_bytes_before);
 }
 
 pub(crate) async fn executions_reopen_results() {
     let root = tempfile::tempdir().unwrap();
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -413,7 +339,6 @@ pub(crate) async fn executions_reopen_results() {
     let backends = StorageBackends {
         primary,
         state: recovery,
-        replicas: vec![],
     };
     let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -505,11 +430,7 @@ pub(crate) async fn executions_reopen_results() {
     storage.flush_until(&receipt.position).await.unwrap();
     runtime.stop().await.unwrap();
 
-    let primary = Arc::new(
-        Backend::primary(root.path().join("primary"), Default::default())
-            .await
-            .unwrap(),
-    );
+    let primary = Arc::new(Backend::primary(root.path().join("primary")).await.unwrap());
     let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
         root.path().to_owned(),
         harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
@@ -518,7 +439,6 @@ pub(crate) async fn executions_reopen_results() {
     let backends = StorageBackends {
         primary,
         state: recovery,
-        replicas: vec![],
     };
     let storage = Manager::new(backends, crate::sqlite::storage::storage_settings()).unwrap();
     let runtime = Runtime::<Reader>::builder((), ())
@@ -526,17 +446,10 @@ pub(crate) async fn executions_reopen_results() {
         .await
         .unwrap();
 
-    let limit = super::FRAME_BYTES.try_into().unwrap();
-    let view = storage
-        .view_with_limits(crate::sqlite::storage::storage_settings().query_execution)
-        .await
-        .unwrap();
-    let saved = dokime::storage::objects::execution::read_in(
+    let saved = dokime::storage::objects::execution::read(
         &storage,
-        &view,
         &expected.test_execution_id,
         harmos::storage::ObjectVersion::Latest,
-        limit,
     )
     .await
     .unwrap()
@@ -554,18 +467,15 @@ pub(crate) async fn executions_reopen_results() {
         Value::Integer(i64::MIN)
     );
     let missing = dokime::core::TestExecutionId::from_seed("native-frozen-missing");
-    let absent = dokime::storage::objects::execution::read_in(
+    let absent = dokime::storage::objects::execution::read(
         &storage,
-        &view,
         &missing,
         harmos::storage::ObjectVersion::Latest,
-        limit,
     )
     .await
     .unwrap();
     assert!(absent.is_none());
     drop(saved);
-    drop(view);
     runtime.stop().await.unwrap();
 }
 

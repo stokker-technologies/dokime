@@ -71,7 +71,7 @@ pub(crate) async fn report_save_receipt() {
         report::{CycleReportInput, saved::CapturedExecutionReportInput},
     };
     use harmos::storage::{ObjectVersion, StorageBackends};
-    use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+    use std::sync::Arc;
 
     let reads = crate::support::budgets::story_settings();
     let root = tempfile::tempdir().unwrap();
