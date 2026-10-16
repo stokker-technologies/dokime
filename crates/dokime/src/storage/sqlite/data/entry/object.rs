@@ -109,29 +109,30 @@ pub(super) fn encode(value: &ObjectEntry, length: usize) -> Result<Vec<u8>, Erro
         .checked_sub(PREFIX)
         .and_then(|length| length.checked_sub(value.value.payload.len()))
         .ok_or(Error::Data(
-            "SQLite object frame length differs from preclaim",
+            "SQLite object frame length differs from counted size",
         ))?;
     let size = u32::try_from(metadata)
         .map_err(|_| Error::Data("SQLite object metadata length overflows"))?;
     if check_size(&Header::from(value), metadata)? != metadata {
-        return Err(Error::Data("SQLite object metadata differs from preclaim"));
+        return Err(Error::Data(
+            "SQLite object metadata differs from counted size",
+        ));
     }
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(length)
         .map_err(std::io::Error::other)?;
-    if bytes.capacity() > length {
-        return Err(Error::Data("SQLite object frame capacity exceeds preclaim"));
-    }
     bytes.extend_from_slice(&size.to_le_bytes());
     let mut output = Buffer { bytes, length };
     serde_json::to_writer(&mut output, &Header::from(value))?;
     if output.bytes.len() != PREFIX + metadata {
-        return Err(Error::Data("SQLite object header differs from preclaim"));
+        return Err(Error::Data(
+            "SQLite object header differs from counted size",
+        ));
     }
     output.bytes.extend_from_slice(&value.value.payload);
     if output.bytes.len() != length {
-        return Err(Error::Data("SQLite object frame differs from preclaim"));
+        return Err(Error::Data("SQLite object frame differs from counted size"));
     }
     Ok(output.bytes)
 }
@@ -155,11 +156,6 @@ pub(super) fn decode(bytes: &[u8]) -> Result<ObjectEntry, Error> {
         .payload
         .try_reserve_exact(payload.len())
         .map_err(std::io::Error::other)?;
-    if value.value.payload.capacity() > payload.len() {
-        return Err(Error::Data(
-            "SQLite object payload exceeds decoding admission",
-        ));
-    }
     value.value.payload.extend_from_slice(payload);
     Ok(value)
 }

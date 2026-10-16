@@ -371,9 +371,6 @@ fn encode_counted<T: Serialize>(value: &T, length: usize) -> Result<Vec<u8>, Err
     bytes
         .try_reserve_exact(length)
         .map_err(std::io::Error::other)?;
-    if bytes.capacity() > length {
-        return Err(Error::Data("SQLite entry capacity exceeds its preclaim"));
-    }
     let mut buffer = Buffer { bytes, length };
     serde_json::to_writer(&mut buffer, value)?;
     if buffer.bytes.len() != length {

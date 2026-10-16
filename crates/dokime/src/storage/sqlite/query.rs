@@ -102,8 +102,6 @@ impl Drop for CancellationScope {
 impl Budget {
     pub(crate) fn new(limits: QueryLimits) -> Result<Self, Error> {
         limits.check()?;
-        // All temporary SQLite storage remains in the accounted heap. A larger
-        // caller spill allowance permits this zero-spill implementation too.
         Ok(Self {
             limits,
             remaining: Mutex::new(limits.timeout),
