@@ -222,8 +222,18 @@ impl ExecutionState {
             && let Some(field) =
                 sample_difference(&self.stream_rows[*position], sample, self.local_inputs)
         {
+            let key = (field == "values")
+                .then(|| {
+                    let previous = &self.stream_rows[*position].values;
+                    previous
+                        .keys()
+                        .chain(sample.values.keys())
+                        .find(|key| previous.get(*key) != sample.values.get(*key))
+                })
+                .flatten();
+            let suffix = key.map_or_else(String::new, |key| format!(".{key}"));
             return Err(format!(
-                "sample identity was reused with different admitted contents: {field}"
+                "sample identity was reused with different admitted contents: {field}{suffix}"
             ));
         }
         Ok(())
@@ -1090,7 +1100,7 @@ mod tests {
                 state
                     .validate_sample(&replay)
                     .unwrap_err()
-                    .ends_with(": values")
+                    .ends_with(": values.timestamp")
             );
         }
     }
