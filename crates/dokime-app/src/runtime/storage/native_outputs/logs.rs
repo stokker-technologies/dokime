@@ -77,12 +77,6 @@ impl ExecutionStorage {
         path: &str,
     ) -> Result<()> {
         validate_producer_path(path)?;
-        let permit = self
-            .artifact_admission
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(error)?;
         let ingress_bytes = std::mem::size_of::<TestExecutionId>()
             .checked_add(std::mem::size_of::<String>())
             .and_then(|size| size.checked_add(execution.as_str().len()))
@@ -94,7 +88,6 @@ impl ExecutionStorage {
         let execution = execution.clone();
         let path = path.to_owned();
         tokio::spawn(async move {
-            let _permit = permit;
             let _ingress = ingress;
             let owner = storage
                 .acquisition(&execution)
@@ -153,12 +146,6 @@ impl ExecutionStorage {
         if bytes.len() > CHUNK_BYTES {
             return Err(error("native log append exceeds 64 KiB"));
         }
-        let permit = self
-            .artifact_admission
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(error)?;
         let allowance = std::mem::size_of::<Append>()
             .checked_add(execution.as_str().len())
             .and_then(|size| size.checked_add(path.len()))
@@ -174,7 +161,6 @@ impl ExecutionStorage {
         })?;
         let storage = self.clone();
         tokio::spawn(async move {
-            let _permit = permit;
             let ingress = ingress.value();
             let owner = storage
                 .acquisition(&ingress.execution)
@@ -232,12 +218,6 @@ impl ExecutionStorage {
         interrupted: bool,
     ) -> Result<()> {
         validate_producer_path(path)?;
-        let permit = self
-            .artifact_admission
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(error)?;
         let allowance = std::mem::size_of::<Close>()
             .checked_add(execution.as_str().len())
             .and_then(|size| size.checked_add(path.len()))
@@ -252,7 +232,6 @@ impl ExecutionStorage {
         })?;
         let storage = self.clone();
         tokio::spawn(async move {
-            let _permit = permit;
             let close = ingress.value();
             let owner = storage
                 .acquisition(&close.execution)

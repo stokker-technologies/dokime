@@ -129,12 +129,6 @@ impl ArtifactUpload {
             return Err(error("artifact chunks must not exceed 1 MiB"));
         }
         let storage = self.storage.upgrade().ok_or(Error::ShuttingDown)?;
-        let permit = storage
-            .artifact_admission
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(error)?;
 
         // Preclaim Owned Ingress Before Copying
         let allowance = std::mem::size_of::<Chunk>()
@@ -154,7 +148,6 @@ impl ArtifactUpload {
             .map_err(Error::from)?;
 
         let appended = tokio::spawn(async move {
-            let _permit = permit;
             // Retain The Original Charge And Producer Token Through Admission
             let ingress = chunk.value();
             let upload = &ingress.upload;

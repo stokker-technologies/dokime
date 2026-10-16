@@ -229,12 +229,6 @@ impl ExecutionStorage {
         self: &Arc<Self>,
         execution: &TestExecutionId,
     ) -> Result<QueryValue<Vec<ExecutionFileEntry>>> {
-        let permit = self
-            .artifact_admission
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(error)?;
         let bytes = std::mem::size_of::<InventorySource>()
             .checked_add(execution.as_str().len())
             .and_then(NonZeroUsize::new)
@@ -291,7 +285,6 @@ impl ExecutionStorage {
             let allowance = NonZeroUsize::new(bytes)
                 .ok_or_else(|| error("empty native inventory allowance"))?;
             let physical = move || {
-                let _permit = permit;
                 computation
                     .project_shared(&source, allowance, |source, _| {
                         let mut entries = Vec::new();
@@ -433,12 +426,6 @@ impl ExecutionStorage {
         path: &str,
         selection: FileSelection,
     ) -> Result<Option<QueryValue<ExecutionFileContent>>> {
-        let permit = self
-            .artifact_admission
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(error)?;
         let source_bytes = std::mem::size_of::<FileSource>()
             .checked_add(execution.as_str().len())
             .and_then(|bytes| bytes.checked_add(path.len()))
@@ -494,7 +481,7 @@ impl ExecutionStorage {
             let allowance = content_memory(&source.path, length)?;
             let physical = move || {
                 // Cancellation Releases The Waiter; Accepted Physical Work Keeps Its Owners
-                let _permit = permit;
+
                 computation
                     .project_shared(&source, allowance, |source, _| {
                         let mut bytes = content_bytes(length).map_err(prefix_error)?;
@@ -560,12 +547,6 @@ impl ExecutionStorage {
         execution: &TestExecutionId,
         path: &str,
     ) -> Result<Option<reader::Reader>> {
-        let permit = self
-            .artifact_admission
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(error)?;
         let input_bytes = std::mem::size_of::<String>()
             .checked_add(path.len())
             .and_then(|bytes| bytes.checked_add(execution.memory_size()))
@@ -603,7 +584,6 @@ impl ExecutionStorage {
         let execution = execution.clone();
         let storage = self.clone();
         let open = async move {
-            let _permit = permit;
             computation.check()?;
             let owner = storage.acquisition(&execution).await;
             computation.check()?;
@@ -635,7 +615,6 @@ impl ExecutionStorage {
             reader::Reader::new(
                 preparation,
                 &computation,
-                storage.artifact_admission.clone(),
                 file,
                 &owned_path,
                 observed_size,

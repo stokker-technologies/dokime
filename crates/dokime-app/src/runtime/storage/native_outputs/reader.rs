@@ -17,7 +17,7 @@
 use std::{
     io::{Read, Seek},
     num::NonZeroUsize,
-    sync::{Arc, Mutex},
+    sync::Mutex,
 };
 
 // Third Party Imports
@@ -48,7 +48,6 @@ use dokime::storage::Manager;
 /* === Structs === */
 pub(crate) struct Reader {
     source: SharedQueryValue<Source>,
-    admission: Arc<tokio::sync::Semaphore>,
     offset: u64,
     pending: Option<Pending>,
 }
@@ -84,7 +83,6 @@ impl Reader {
     pub(super) fn new(
         preparation: StorageProductionPreparation,
         computation: &StorageProductionComputation,
-        admission: Arc<tokio::sync::Semaphore>,
         file: std::fs::File,
         path: &str,
         observed_size: u64,
@@ -111,7 +109,6 @@ impl Reader {
         computation.check()?;
         Ok(Self {
             source,
-            admission,
             offset: 0,
             pending: None,
         })
@@ -157,12 +154,6 @@ impl Reader {
             if self.offset == self.source.metadata.size_bytes {
                 return Ok(None);
             }
-            let permit = self
-                .admission
-                .clone()
-                .acquire_owned()
-                .await
-                .map_err(error)?;
             let computation = self.source.computation()?;
             let deadline = computation.deadline();
             let scratch = computation.scratch_bytes();
@@ -171,7 +162,6 @@ impl Reader {
             let length = (source.metadata.size_bytes - offset).min(maximum.get() as u64) as usize;
             let allowance = super::content_memory(&source.metadata.relative_path, length)?;
             let read = move || {
-                let _permit = permit;
                 computation
                     .project_shared(&source, allowance, |source, _| {
                         // Read Directly Into The Final Buffer; No Hidden Async File Buffer.
