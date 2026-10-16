@@ -85,23 +85,6 @@ impl Default for CapacityBackoff {
 }
 
 /* === Public Functions === */
-/// A view under `limits` once the shared read ledger admits it: other readers
-/// release the ledger as they settle, so a refused view backs off for them
-/// within its own deadline instead of failing at once.
-pub(crate) async fn view_when_admitted(
-    storage: &dokime::storage::Manager,
-    limits: harmos::storage::QueryLimits,
-) -> crate::Result<harmos::storage::StorageView> {
-    let deadline = tokio::time::Instant::now() + limits.timeout;
-    let mut backoff = CapacityBackoff::new();
-    loop {
-        match storage.view_with_limits(limits).await.map_err(Error::from) {
-            Err(error) if read_capacity(&error) && backoff.wait_until(deadline).await => {}
-            result => return result,
-        }
-    }
-}
-
 /// Whether a read was refused only because the shared read ledger is full.
 pub(crate) fn read_capacity(error: &Error) -> bool {
     let full = |error: &harmos::Error| {

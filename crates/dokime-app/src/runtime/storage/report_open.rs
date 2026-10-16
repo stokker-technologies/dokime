@@ -139,7 +139,7 @@ impl RuntimeHandle {
         }
         operation.phase("Reading Sealed Report");
         let reads = self.config().storage.interactive;
-        let view = super::record_capture::view_when_admitted(self.storage(), reads).await?;
+        let view = self.storage().view_with_limits(reads).await?;
         let limit = view.decoded_bytes()?;
         let inspection =
             ExecutionView::open(self.storage(), view, id, ObjectVersion::Latest, limit)
