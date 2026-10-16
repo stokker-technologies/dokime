@@ -14,7 +14,9 @@
 // end of saved history. These readers rebuild the stored envelopes from a
 // query's `_storage` columns and re-encode the `payload` column with Harmos'
 // own `encode_payloads`, so domain codecs decode exactly the stored bytes.
-// Replace this module when Harmos serves typed historical pages.
+// A selection whose schema was never written reads as empty: Harmos refuses
+// such a query instead of answering no rows. Replace this module when Harmos
+// serves typed historical pages and answers unwritten schemas with no rows.
 
 /* === Modules === */
 
@@ -58,7 +60,7 @@ use super::{Error, Manager, Result};
 /* === Structs === */
 /// Typed envelopes of one storage query, one Arrow batch at a time.
 pub struct Rows<E> {
-    reader: QueryReader,
+    reader: Option<QueryReader>,
     graph: Arc<Schema>,
     _entry: std::marker::PhantomData<fn() -> E>,
 }
@@ -106,8 +108,13 @@ impl<E: Entry> Rows<E> {
 
     /// Run a prepared query whose output keeps the `_storage` and `payload` columns.
     pub async fn with_query(storage: &Manager, query: Query, graph: Arc<Schema>) -> Result<Self> {
+        let reader = match storage.query(query).await {
+            Ok(reader) => Some(reader),
+            Err(error) if unwritten_schema(&error) => None,
+            Err(error) => return Err(error.into()),
+        };
         Ok(Self {
-            reader: storage.query(query).await?,
+            reader,
             graph,
             _entry: std::marker::PhantomData,
         })
@@ -115,7 +122,16 @@ impl<E: Entry> Rows<E> {
 
     /// The next nonempty batch of entries, or `None` once the query completes.
     pub async fn next(&mut self) -> Result<Option<Vec<E>>> {
-        while let Some(output) = self.reader.next().await? {
+        let Some(reader) = self.reader.as_mut() else {
+            return Ok(None);
+        };
+        loop {
+            let output = match reader.next().await {
+                Ok(Some(output)) => output,
+                Ok(None) => break,
+                Err(error) if unwritten_schema(&error) => break,
+                Err(error) => return Err(error.into()),
+            };
             let QueryOutput::Batch(batch) = output else {
                 continue;
             };
@@ -316,6 +332,16 @@ pub fn graph<T: Described>() -> Result<Arc<Schema>> {
 }
 
 /* === Private Functions === */
+fn unwritten_schema(error: &harmos::Error) -> bool {
+    matches!(
+        error,
+        harmos::Error::InvalidInput {
+            field: "storage schema",
+            reason: "schema is unavailable at requested cursor",
+        }
+    )
+}
+
 fn decode<E: Entry>(batch: &RecordBatch, graph: &Schema) -> Result<Vec<E>> {
     let columns = struct_column(batch, "_storage")?;
     let payload = struct_column(batch, "payload")?;

@@ -120,7 +120,8 @@ pub fn storage_settings() -> StorageSettings {
         },
         response: StorageResponseSettings {
             batch_rows: nonzero(64),
-            batch_bytes: nonzero(64 * 1024),
+            // One Response Batch Holds A Whole Report Publication Record.
+            batch_bytes: nonzero(1024 * 1024),
         },
     }
 }
