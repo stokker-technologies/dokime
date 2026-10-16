@@ -427,12 +427,20 @@ def _layout(roles: dict[str, dict]) -> None:
 def _test_archives(manifest: dict) -> None:
     """The Nextest archives the build job uploaded beside this package."""
     archives = manifest.get("test_archives")
+    local = manifest.get("profile") == "dev" and all(
+        manifest.get(key) is None
+        for key in ("build_job_id", "pipeline_id", "run_attempt")
+    )
+    artifact = archives.get("artifact") if isinstance(archives, dict) else None
+    valid_identity = (
+        artifact is None
+        if local
+        else isinstance(artifact, str)
+        and re.fullmatch(rf"test-archives-{manifest['platform']}-[1-9][0-9]*", artifact)
+    )
     if (
         not isinstance(archives, dict)
-        or not isinstance(archives.get("artifact"), str)
-        or not re.fullmatch(
-            rf"test-archives-{manifest['platform']}-[1-9][0-9]*", archives["artifact"]
-        )
+        or not valid_identity
         or not isinstance(archives.get("files"), list)
         or not archives["files"]
     ):

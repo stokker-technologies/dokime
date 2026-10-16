@@ -776,6 +776,15 @@ def case_development_artifacts(tmp_path: Path) -> None:
     path = package / "manifest.json"
     manifest = json.loads(path.read_text())
     manifest["profile"] = "dev"
+    manifest["pipeline_id"] = None
+    manifest["run_attempt"] = None
+    manifest["build_job_id"] = None
+    manifest["test_archives"]["artifact"] = None
+    checks._test_archives(manifest)
+    with pytest.raises(ValueError, match="archive artifact identity"):
+        checks._test_archives(dict(manifest, pipeline_id="2"))
+    with pytest.raises(ValueError, match="archive artifact identity"):
+        checks._test_archives(dict(manifest, profile="release"))
     removed = {"sdist", "deb", "rpm"}
     for entry in manifest["files"]:
         if entry["role"] in removed:

@@ -168,8 +168,9 @@ def collect(root: Path) -> None:
         staging.rename(destination)
     verify(root)
     export(root)
-    _artifact_output(f"build-{platform()}-{manifest['build_job_id']}")
-    _artifact_output(archives["artifact"], key="archives_artifact_name")
+    if build_job_id is not None:
+        _artifact_output(f"build-{platform()}-{build_job_id}")
+        _artifact_output(archives["artifact"], key="archives_artifact_name")
     if build_profile() == "release":
         stage_assets(
             root, manifest, INSTALLER_ROLES, ASSETS / platform() / "installers"
@@ -280,7 +281,12 @@ def validate(root: Path) -> None:
             for suite in required_suites(platform(), build_profile())
         },
     }
-    example = root / "dist/examples" / platform() / EXAMPLE_REPORT
+    examples = (
+        root / "dist/examples" / platform()
+        if os.environ.get("GITHUB_ACTIONS") == "true"
+        else root / "target/validation/examples"
+    )
+    example = examples / EXAMPLE_REPORT
     if not example.is_file() or example.is_symlink():
         raise ValueError(f"missing acceptance example report: {example}")
     if not example.read_text(encoding="utf-8").strip():
@@ -308,14 +314,19 @@ def validate(root: Path) -> None:
     verify(root)
     export(root)
     test_job_id = manifest["validation"]["test_job_id"]
-    _artifact_output(f"validation-{platform()}-{test_job_id}")
-    stage_assets(
-        root, manifest, INSTALLER_ROLES, ASSETS / platform() / "installers-validated"
-    )
-    _artifact_output(
-        f"installers-validated-{platform()}-{test_job_id}",
-        key="installers_validated_artifact_name",
-    )
+    if test_job_id is not None:
+        _artifact_output(f"validation-{platform()}-{test_job_id}")
+    if build_profile() == "release":
+        stage_assets(
+            root,
+            manifest,
+            INSTALLER_ROLES,
+            ASSETS / platform() / "installers-validated",
+        )
+        _artifact_output(
+            f"installers-validated-{platform()}-{test_job_id}",
+            key="installers_validated_artifact_name",
+        )
 
 
 def export(root: Path) -> None:
@@ -401,7 +412,12 @@ def _test_archives(root: Path, build_job_id: str | None) -> dict:
         )
     if not files:
         raise ValueError("release preparation omitted Nextest archives")
-    return {"artifact": f"test-archives-{platform()}-{build_job_id}", "files": files}
+    artifact = (
+        f"test-archives-{platform()}-{build_job_id}"
+        if build_job_id is not None
+        else None
+    )
+    return {"artifact": artifact, "files": files}
 
 
 def _products(root: Path) -> dict[str, tuple[Path, str]]:
