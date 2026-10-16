@@ -26,7 +26,7 @@ use std::{
 // Third Party Imports
 use harmos::{
     MemorySize,
-    storage::{QueryValue, SharedQueryValue, StorageProductionPreparation, StorageView},
+    storage::{QueryValue, SharedQueryValue, StorageProductionPreparation},
 };
 
 // Local Imports
@@ -77,7 +77,6 @@ enum Source {
     Saved {
         snapshot: CycleSnapshot,
         documents: SharedQueryValue<BTreeMap<DocumentId, Capture>>,
-        executor: tokio::runtime::Handle,
         members: SharedQueryValue<Members>,
     },
     Captured {
@@ -125,8 +124,6 @@ impl HtmlReport {
         let count = captured_members.len();
         let documents = cycle_document(&snapshot)?;
         let memory = manager.prepare_production(allowance(std::mem::size_of::<Self>())?)?;
-        let executor = tokio::runtime::Handle::try_current()
-            .map_err(|error| Error::Operation(error.to_string()))?;
         let bytes = std::mem::size_of::<Members>().saturating_add(count.saturating_mul(
             std::mem::size_of::<SharedQueryValue<CapturedExecutionReportInput>>(),
         ));
@@ -192,7 +189,6 @@ impl HtmlReport {
             source: Source::Saved {
                 snapshot,
                 documents,
-                executor,
                 members: members.try_into_shared()?,
             },
             counted: AtomicUsize::new(0),
@@ -220,15 +216,6 @@ impl HtmlReport {
                 Ok(Computation::Saved(snapshot.view().begin_computation()?))
             }
             Source::Captured { .. } => Ok(Computation::Projection),
-        }
-    }
-
-    pub(super) fn saved_source(&self) -> Result<(&StorageView, &tokio::runtime::Handle)> {
-        match &self.source {
-            Source::Saved {
-                snapshot, executor, ..
-            } => Ok((snapshot.view(), executor)),
-            Source::Captured { .. } => Err(invalid("captured report has no saved view")),
         }
     }
 

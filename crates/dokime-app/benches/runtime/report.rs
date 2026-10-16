@@ -150,7 +150,11 @@ fn fresh_materialization(criterion: &mut Criterion, executor: &tokio::runtime::R
                             latencies.push(latency);
                             assert!(report.report.length > 0);
                             assert!(
-                                runtime.state_read().executions.get(&execution).unwrap().saved.is_none(),
+                                runtime.cycles().await.iter()
+                                    .find(|item| item.test_cycle_id == cycle).unwrap()
+                                    .test_executions.iter()
+                                    .find(|item| item.test_execution_id == execution).unwrap()
+                                    .saved.is_none(),
                                 "inspection must remain unsealed"
                             );
                             // Validate The Published Payload Outside The Timed Region.
