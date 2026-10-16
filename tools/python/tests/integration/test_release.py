@@ -769,6 +769,8 @@ def _release(source: Path) -> Path:
 
 
 def case_development_artifacts(tmp_path: Path) -> None:
+    assert "system-javascript" not in checks.required_suites("windows", "dev")
+    assert "system-javascript" in checks.required_suites("windows", "release")
     root = _release(tmp_path)
     package = root / "linux"
     path = package / "manifest.json"

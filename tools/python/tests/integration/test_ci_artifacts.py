@@ -296,6 +296,7 @@ def case_selected_catalog(
         index = selected.index(platform)
         assert kwargs["require_validation"] is True
         return {
+            "profile": "release",
             "pipeline_id": "17",
             "build_job_id": str(10 + index),
             "validation": {

@@ -124,7 +124,7 @@ def verify_release(directory: Path, commit: str, tag: str, source: Path) -> list
     return manifests
 
 
-def required_suites(platform: str) -> tuple[str, ...]:
+def required_suites(platform: str, profile: str = "release") -> tuple[str, ...]:
     if platform not in PLATFORMS:
         raise ValueError("unknown native validation platform")
     suites = (
@@ -134,7 +134,11 @@ def required_suites(platform: str) -> tuple[str, ...]:
         "acceptance-rust",
         "acceptance-python",
     )
-    return suites + (("system-javascript",) if platform == "windows" else ())
+    if profile not in {"dev", "release"}:
+        raise ValueError("unknown native validation profile")
+    return suites + (
+        ("system-javascript",) if platform == "windows" and profile == "release" else ()
+    )
 
 
 def verify_platform(
@@ -377,7 +381,7 @@ def _artifacts(
         raise ValueError("wheel audit differs from the actual packaged artifact")
     validation = manifest.get("validation")
     if require_validation:
-        suites = set(required_suites(platform))
+        suites = set(required_suites(platform, manifest["profile"]))
         if (
             not isinstance(validation, dict)
             or set(validation.get("suites", [])) != suites

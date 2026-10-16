@@ -132,7 +132,7 @@ def catalog(root: Path) -> None:
         validation = manifest["validation"]
         if manifest["pipeline_id"] != run or validation["pipeline_id"] != run:
             raise ValueError("native jobs belong to different validation runs")
-        expected_lanes = set(required_suites(platform))
+        expected_lanes = set(required_suites(platform, manifest["profile"]))
         lanes = validation.get("lane_job_ids", {})
         if set(lanes) != expected_lanes:
             raise ValueError("native validation omits required split jobs")

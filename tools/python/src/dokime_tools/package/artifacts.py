@@ -218,7 +218,8 @@ def collect_tests(root: Path) -> None:
     inputs_directory = root / "dist/evidence-downloads"
     lanes = sorted(inputs_directory.iterdir()) if inputs_directory.is_dir() else []
     expected = {
-        f"evidence-{platform()}-{suite}" for suite in required_suites(platform())
+        f"evidence-{platform()}-{suite}"
+        for suite in required_suites(platform(), build_profile())
     }
     if {path.name for path in lanes} != expected or any(
         not path.is_dir() or path.is_symlink() for path in lanes
@@ -238,7 +239,7 @@ def validate(root: Path) -> None:
         coverage = verify_proof(root, coverage_directory, manifest)
     evidence = root / ".stkr/tests"
     results = json.loads((evidence / "latest.json").read_text(encoding="utf-8"))
-    for suite in required_suites(platform()):
+    for suite in required_suites(platform(), build_profile()):
         entry = results.get("tests", {}).get(suite, {})
         if (
             entry.get("outcome") != "passed"
@@ -269,14 +270,14 @@ def validate(root: Path) -> None:
     manifest["validation"] = {
         "test_job_id": job_id("test", platform()),
         "pipeline_id": os.environ.get("GITHUB_RUN_ID"),
-        "suites": list(required_suites(platform())),
+        "suites": list(required_suites(platform(), build_profile())),
         "build_manifest_sha256": original_manifest,
         "contract_job_id": job_id(
             f"contracts:prepare:{build_profile()}", platform(), completed=True
         ),
         "lane_job_ids": {
             suite: job_id("test:" + suite.replace("-", ":"), platform(), completed=True)
-            for suite in required_suites(platform())
+            for suite in required_suites(platform(), build_profile())
         },
     }
     example = root / "dist/examples" / platform() / EXAMPLE_REPORT

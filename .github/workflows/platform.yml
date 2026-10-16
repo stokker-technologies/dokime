@@ -526,7 +526,7 @@ jobs:
 
   test_system_javascript:
     name: Test System Javascript (${{ inputs.os }})
-    if: inputs.os == 'windows'
+    if: inputs.os == 'windows' && inputs.authorization == 'release'
     needs: build_release
     runs-on: ${{ inputs.os == 'linux' && github.event_name == 'push' && github.repository == 'stokker-technologies/dokime' && github.ref == 'refs/heads/dev' && 'stokker-local-linux-x64' || inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
     timeout-minutes: 360
@@ -640,7 +640,7 @@ jobs:
 
   test:
     name: Test (${{ inputs.os }})
-    if: ${{ !cancelled() && needs.build_release.result == 'success' && (inputs.os != 'windows' || needs.test_system_javascript.result == 'success') }}
+    if: ${{ !cancelled() && needs.build_release.result == 'success' && (inputs.os != 'windows' || inputs.authorization != 'release' || needs.test_system_javascript.result == 'success') }}
     needs: [build_release, test_integration_javascript, test_integration_rust, test_integration_python, test_acceptance_rust, test_acceptance_python, test_system_javascript, ci_coverage]
     runs-on: ${{ inputs.os == 'linux' && github.event_name == 'push' && github.repository == 'stokker-technologies/dokime' && github.ref == 'refs/heads/dev' && 'stokker-local-linux-x64' || inputs.os == 'linux' && 'ubuntu-24.04' || 'windows-2022' }}
     timeout-minutes: 60
