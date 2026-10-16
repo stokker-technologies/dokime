@@ -43,6 +43,7 @@ import type {
   RecordScope,
   TelemetrySampleRecord,
 } from "@/lib/types";
+import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 import * as plotWire from "../../../.generated/dokime/v1/PlotsMessages/QuerySnapshots/messages_pb";
 import type { Row3 as WatchFrame } from "../../../.generated/dokime/v1/PlotsMessages/Watch/messages_pb";
 import { aggregateMessage } from "./native-aggregate";
@@ -99,7 +100,6 @@ type NativeTelemetrySample = Wire<
 /* === Constants === */
 
 export const NATIVE_PLOT_MAX_REQUESTS = 32;
-export const NATIVE_PLOT_MAX_POINTS = 100_000;
 export const NATIVE_TELEMETRY_MAX_LIMIT = 5_000;
 const MAX_PLOT_TRANSFORMS = 32;
 

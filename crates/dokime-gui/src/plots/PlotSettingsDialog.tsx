@@ -42,9 +42,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { NATIVE_PLOT_MAX_POINTS } from "@/lib/api/native-plots";
 import { useReportDefaults } from "@/lib/application-settings";
 import type { DocumentDownsampleTechnique, DocumentViewPlot } from "@/lib/types";
+import { NATIVE_PLOT_MAX_POINTS } from "@/plots/reduce";
 
 /* === Constants === */
 
@@ -187,7 +187,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
         <p className="text-xs text-muted-foreground">
           {invalid
             ? `Enter between ${MIN_DISPLAY_POINTS} and ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} points, use 0 for every sample, or leave empty for the default.`
-            : "Leave the points empty for the host default, or use 0 for every retained sample."}
+            : `Leave the points empty for the host default, or use 0 for every sample; a long live run is compacted near ${NATIVE_PLOT_MAX_POINTS.toLocaleString()} samples per trace.`}
         </p>
         {error ? (
           <p className="text-sm text-destructive" role="alert">

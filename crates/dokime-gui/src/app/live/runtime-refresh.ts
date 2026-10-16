@@ -61,3 +61,31 @@ export function createRuntimeProjectionRefreshCoordinator(
     },
   };
 }
+
+/**
+ * Coalesce requests into at most one refresh per interval. A refresh runs one
+ * interval after the first request it absorbs, so the last request always has
+ * a refresh that starts after it.
+ */
+export function createThrottledRefresh(
+  refresh: () => void,
+  intervalMs: number,
+): { request(): void; dispose(): void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false;
+
+  return {
+    request(): void {
+      if (disposed || timer !== undefined) return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (!disposed) refresh();
+      }, intervalMs);
+    },
+    dispose(): void {
+      disposed = true;
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+    },
+  };
+}

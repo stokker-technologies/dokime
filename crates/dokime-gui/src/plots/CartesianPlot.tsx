@@ -206,7 +206,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   // sibling card in the same boundary. The plot is built only once the root
   // has been measured.
   const [laidOut, setLaidOut] = useState(false);
-  const renderedSeries = useMemo(() => limitRenderedSeries(series), [series]);
+  const renderedSeries = useMemo(() => limitRenderedSeries(series, cartesian), [series, cartesian]);
   const backendCartesian = useMemo(
     () => usableCartesianFrame(cartesian, renderedSeries, series),
     [cartesian, renderedSeries, series],
@@ -960,14 +960,16 @@ export function liveCartesianXRange(
   cartesian: PlotCartesianFrame | null | undefined,
   windowS: number | null | undefined,
 ): PlotViewportRange | null {
-  const values =
-    cartesian?.series.flatMap((series) => series.x).filter((value) => Number.isFinite(value)) ?? [];
-  if (!values.length) {
-    return null;
+  // A loop, not a spread: a retained frame can exceed the engine's argument limit.
+  let earliest = Number.POSITIVE_INFINITY;
+  let latest = Number.NEGATIVE_INFINITY;
+  for (const series of cartesian?.series ?? []) {
+    for (const value of series.x) {
+      if (!Number.isFinite(value)) continue;
+      if (value < earliest) earliest = value;
+      if (value > latest) latest = value;
+    }
   }
-
-  const latest = Math.max(...values);
-  const earliest = Math.min(...values);
   if (!Number.isFinite(latest) || !Number.isFinite(earliest)) {
     return null;
   }
@@ -1069,12 +1071,21 @@ function intervalRangeData(
   );
 }
 
-export function limitRenderedSeries(series: PlotSeries[]): PlotSeries[] {
+/** The series with the most samples, ranked by the cartesian frame that holds them when present. */
+export function limitRenderedSeries(
+  series: PlotSeries[],
+  cartesian?: PlotCartesianFrame | null,
+): PlotSeries[] {
   if (series.length <= MAX_RENDERED_SERIES) {
     return series;
   }
+  const sampleCount = (item: PlotSeries) => {
+    const frame = cartesian?.series[series.indexOf(item)];
+    return frame ? frame.y.filter((value) => value != null).length : item.points.length;
+  };
+  const counts = new Map(series.map((item) => [item, sampleCount(item)]));
   return [...series]
-    .sort((left, right) => right.points.length - left.points.length)
+    .sort((left, right) => (counts.get(right) ?? 0) - (counts.get(left) ?? 0))
     .slice(0, MAX_RENDERED_SERIES);
 }
 

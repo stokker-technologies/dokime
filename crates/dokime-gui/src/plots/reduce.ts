@@ -8,12 +8,14 @@
  */
 
 /*
- * Time-aware point reduction for live plots.
+ * Time-bucketed point reduction for retained live plots.
  *
- * The host reduces a snapshot with `harmos::signal::lttb`; the live append path
- * reduces the same way here so a frame that grew past its budget between two
- * server snapshots keeps the shape of the signal instead of its last N samples.
- * This module has no application imports so a node test can load it directly.
+ * The host reduces every snapshot and append to the display budget; the client
+ * only compacts the frame it retains once appends have grown it past twice its
+ * capacity. Buckets are equal spans of x, not equal counts, so a frame that is
+ * compacted again and again keeps an even density over time instead of thinning
+ * its oldest samples each time. This module has no application imports so a
+ * node test can load it directly.
  */
 
 /* === Constants === */
@@ -21,91 +23,71 @@
 /** The host display budget when a plot declares none. */
 export const DEFAULT_PLOT_MAX_POINTS = 2_000;
 
-/** Raw samples retained behind the display budget before reduction. */
-export const RAW_RING_FACTOR = 20;
+/** The host's per-plot point ceiling; it also bounds a plot that keeps every sample. */
+export const NATIVE_PLOT_MAX_POINTS = 100_000;
 
 /* === Types === */
 
 export type ReduceTechnique = "auto" | "lttb" | "min_max" | "raw";
 
-export type ReduceOptions = {
-  /** Display budget; `null` keeps every retained sample. */
-  budget: number | null;
-  technique: ReduceTechnique;
-};
+type Values = readonly (number | null | undefined)[];
 
 /* === Public Functions === */
 
 /**
- * The first index kept once the trailing window and the raw cap apply.
+ * The indices one x axis keeps for every series drawn on it, ascending.
  *
- * The window is applied before the cap on purpose: a count-first cut evicts
- * the oldest samples of a decimated snapshot and the visible span drifts
- * below `windowS`. The cap only guards memory for an unbounded window.
+ * Each series is reduced to `budget` on its own and the picks are united with
+ * the first and last samples, so every series stays aligned on the shared x
+ * and the drawn span never shrinks. `null` means nothing is dropped.
  */
-export function retainedStart(x: readonly number[], windowS: number | null, cap: number): number {
-  const length = x.length;
-  if (length === 0) return 0;
-  let start = 0;
-  if (windowS !== null && windowS > 0 && length > 1) {
-    const latest = finiteMax(x);
-    if (latest !== null) {
-      const cutoff = latest - windowS;
-      start = firstAtOrAfter(x, cutoff);
-      if (start >= length) start = length - 1;
-    }
-  }
-  if (cap > 0 && length - start > cap) start = length - cap;
-  return start;
-}
-
-/** Indices kept by the requested technique, in ascending order. */
 export function reduceIndices(
   x: readonly number[],
-  y: readonly (number | null | undefined)[],
-  options: ReduceOptions,
+  series: readonly Values[],
+  budget: number,
+  technique: ReduceTechnique,
 ): number[] | null {
-  const length = Math.min(x.length, y.length);
-  if (options.budget === null || options.technique === "raw" || length <= options.budget) {
-    return null;
+  const length = x.length;
+  if (length <= budget) return null;
+  if (technique === "raw") return strideIndices(x, budget);
+
+  const envelope = technique === "min_max" || (technique === "auto" && length > 4 * budget);
+  // The ends always stay, so compaction never moves where the trace starts or stops.
+  const picked = new Set<number>([0, length - 1]);
+  for (const y of series) {
+    // The envelope leaves room for the two ends; LTTB keeps them itself.
+    const indices = envelope ? minMaxIndices(x, y, budget - 2) : lttbIndices(x, y, budget);
+    for (const index of indices) picked.add(index);
   }
-  if (
-    options.technique === "min_max" ||
-    (options.technique === "auto" && length > 4 * options.budget)
-  ) {
-    return minMaxIndices(y, options.budget);
-  }
-  return lttbIndices(x, y, options.budget);
+  return [...picked].sort((left, right) => left - right);
 }
 
 /**
- * Largest-Triangle-Three-Buckets, the same bucketing as the host's `lttb`:
- * first and last samples are kept, every interior bucket keeps the sample
- * that spans the largest triangle with the previous pick and the next
- * bucket's mean. Samples without a finite y are never picked.
+ * Largest-Triangle-Three-Buckets over equal spans of x: the first and last
+ * samples are kept, every interior bucket keeps the sample that spans the
+ * largest triangle with the previous pick and the next bucket's mean. Samples
+ * without a finite y are never picked; a bucket without one keeps nothing.
  */
-export function lttbIndices(
-  x: readonly number[],
-  y: readonly (number | null | undefined)[],
-  count: number,
-): number[] {
+export function lttbIndices(x: readonly number[], y: Values, count: number): number[] {
   const length = Math.min(x.length, y.length);
   if (length <= count || count < 3) return ascending(length);
 
+  const bounds = spanBuckets(x, 1, length - 1, count - 2);
   const kept: number[] = [0];
-  const bucket = (length - 2) / (count - 2);
   let previous = 0;
 
-  for (let index = 0; index < count - 2; index += 1) {
-    const start = 1 + Math.floor(index * bucket);
-    const end = Math.min(1 + Math.floor((index + 1) * bucket), length - 1);
-    const ahead =
-      index < count - 3 ? Math.min(1 + Math.floor((index + 2) * bucket), length) : length;
+  for (let bucket = 0; bucket < count - 2; bucket += 1) {
+    const start = bounds[bucket];
+    const end = bounds[bucket + 1];
+    if (start >= end) continue;
 
-    const mean = meanOf(x, y, end, ahead) ?? [x[length - 1], finite(y[length - 1])];
+    const mean = meanOf(x, y, end, bounds[bucket + 2] ?? length) ?? [
+      x[length - 1],
+      finite(y[length - 1]),
+    ];
     const previousY = finite(y[previous]);
 
-    let picked = start;
+    let picked = -1;
     let largest = -1;
     for (let candidate = start; candidate < end; candidate += 1) {
       const candidateY = y[candidate];
@@ -116,6 +98,7 @@ export function lttbIndices(
         picked = candidate;
       }
     }
+    if (picked < 0) continue;
 
     kept.push(picked);
     previous = picked;
@@ -126,21 +109,21 @@ export function lttbIndices(
 }
 
 /**
- * Bucketed extrema, the host's `extrema` over `count / 2` buckets: each bucket
- * contributes its lowest and highest finite sample in index order.
+ * Bucketed extrema over `count / 2` equal spans of x: each bucket contributes
+ * its lowest and highest finite sample in index order.
  */
-export function minMaxIndices(y: readonly (number | null | undefined)[], count: number): number[] {
-  const length = y.length;
+export function minMaxIndices(x: readonly number[], y: Values, count: number): number[] {
+  const length = Math.min(x.length, y.length);
   if (length === 0 || count <= 0) return [];
+
   const buckets = Math.max(1, Math.floor(count / 2));
-  const span = Math.max(1, Math.ceil(length / buckets));
+  const bounds = spanBuckets(x, 0, length, buckets);
   const kept: number[] = [];
 
-  for (let base = 0; base < length; base += span) {
-    const limit = Math.min(base + span, length);
+  for (let bucket = 0; bucket < buckets; bucket += 1) {
     let lowest = -1;
     let highest = -1;
-    for (let index = base; index < limit; index += 1) {
+    for (let index = bounds[bucket]; index < bounds[bucket + 1]; index += 1) {
       const value = y[index];
       if (typeof value !== "number" || !Number.isFinite(value)) continue;
       if (lowest < 0 || value < (y[lowest] as number)) lowest = index;
@@ -156,6 +139,46 @@ export function minMaxIndices(y: readonly (number | null | undefined)[], count: 
 
 /* === Private Functions === */
 
+/** The first sample of each of `count` equal spans of x, plus the last sample. */
+function strideIndices(x: readonly number[], count: number): number[] {
+  const length = x.length;
+  const buckets = Math.max(1, count - 1);
+  const bounds = spanBuckets(x, 0, length - 1, buckets);
+  const kept: number[] = [];
+  for (let bucket = 0; bucket < buckets; bucket += 1) {
+    if (bounds[bucket] < bounds[bucket + 1]) kept.push(bounds[bucket]);
+  }
+  kept.push(length - 1);
+  return kept;
+}
+
+/**
+ * Boundaries of `count` equal spans of x over the indices `[from, to)`:
+ * bucket `i` holds the indices `[bounds[i], bounds[i + 1])`. x ascends; a
+ * degenerate span falls back to equal counts.
+ */
+function spanBuckets(x: readonly number[], from: number, to: number, count: number): number[] {
+  const bounds = new Array<number>(count + 1);
+  const first = x[from];
+  const width = (x[to - 1] - first) / count;
+  if (!(width > 0) || !Number.isFinite(width)) {
+    for (let bucket = 0; bucket <= count; bucket += 1) {
+      bounds[bucket] = from + Math.floor((bucket * (to - from)) / count);
+    }
+    return bounds;
+  }
+
+  let index = from;
+  bounds[0] = from;
+  for (let bucket = 1; bucket < count; bucket += 1) {
+    const edge = first + bucket * width;
+    while (index < to && x[index] < edge) index += 1;
+    bounds[bucket] = index;
+  }
+  bounds[count] = to;
+  return bounds;
+}
+
 function ascending(length: number): number[] {
   return Array.from({ length }, (_, index) => index);
 }
@@ -164,27 +187,9 @@ function finite(value: number | null | undefined): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function finiteMax(values: readonly number[]): number | null {
-  let latest: number | null = null;
-  for (const value of values) {
-    if (!Number.isFinite(value)) continue;
-    if (latest === null || value > latest) latest = value;
-  }
-  return latest;
-}
-
-/** The first index whose x is at or after `cutoff`; x is ascending apart from gaps. */
-function firstAtOrAfter(x: readonly number[], cutoff: number): number {
-  for (let index = 0; index < x.length; index += 1) {
-    const value = x[index];
-    if (Number.isFinite(value) && value >= cutoff) return index;
-  }
-  return x.length;
-}
-
 function meanOf(
   x: readonly number[],
-  y: readonly (number | null | undefined)[],
+  y: Values,
   start: number,
   end: number,
 ): [number, number] | null {

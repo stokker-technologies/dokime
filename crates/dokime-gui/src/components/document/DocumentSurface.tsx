@@ -64,7 +64,7 @@ import type {
   TraceabilitySnapshot,
 } from "@/lib/types";
 import { PlotInteractionProvider } from "@/plots/interaction";
-import type { LivePlotStateMap } from "@/plots/live-data";
+import type { LivePlotStateMap } from "@/plots/live-frames";
 
 /* === Types === */
 
@@ -489,7 +489,6 @@ function reportPlotStates(
           plot.plot_id,
           {
             payload,
-            buffer: null,
             cursor: null,
             diagnostics: null,
             revision: 0,

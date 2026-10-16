@@ -69,6 +69,7 @@ import {
   FrozenDocumentConsole,
   useDocumentSurface,
 } from "./DocumentView";
+import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
 import { EditableLabel } from "./EditableLabel";
 import { ExecutionControl } from "./ExecutionControl";
 import { ExecutionParameters } from "./ExecutionParameters";
@@ -181,7 +182,12 @@ export function ExecutionSections({
   const pagePrompts = executionPagePrompts(prompts, executionId);
   const running = execution && isActiveExecutionStatus(execution.status) ? executionId : null;
   const liveScope = live && scope.test_execution_id ? scope : null;
-  const documentError = documentQuery.error;
+  const pane = evidencePaneState({
+    hasDocument: document !== null,
+    error: documentQuery.error,
+    failureReason: documentQuery.failureReason,
+    pending: documentQuery.isPending,
+  });
 
   return (
     <div className="grid min-h-0">
@@ -220,27 +226,30 @@ export function ExecutionSections({
             {parameterRows.length ? <ExecutionParameters rows={parameterRows} /> : null}
           </ExecutionSectionCard>
 
-          {!started ? null : documentError ? (
+          {!started ? null : pane.kind === "failed" ? (
             <ExecutionSectionCard
               action={
                 <Button onClick={() => void documentQuery.refetch()} size="sm" variant="outline">
                   Try Again
                 </Button>
               }
-              empty={
-                documentError instanceof Error
-                  ? documentError.message
-                  : "The document could not be read from the backend."
-              }
+              empty={pane.message}
               title="Evidence Unavailable"
             />
-          ) : documentQuery.isPending && !document ? (
+          ) : pane.kind === "busy" ? (
+            <ExecutionSectionCard empty={BUSY_NOTICE} title="Loading" />
+          ) : pane.kind === "loading" ? (
             <ExecutionSectionCard
               empty="Reading the document for this execution."
               title="Loading"
             />
           ) : (
             <>
+              {pane.staleReason ? (
+                <p className="text-xs text-muted-foreground">
+                  Showing the last evidence read. {pane.staleReason}
+                </p>
+              ) : null}
               {present.has("steps-criteria") ? (
                 <ExecutionSectionCard
                   empty={

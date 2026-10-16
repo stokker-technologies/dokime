@@ -34,6 +34,7 @@ import {
   FrozenDocumentConsole,
   useDocumentSurface,
 } from "./DocumentView";
+import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
 import { PlotWindowControl, usePlotWindow } from "./PlotWindowSlider";
 import { useCycleDocumentQuery } from "./server-state";
 
@@ -71,25 +72,33 @@ export function CycleEvidencePane({
     plotWindowOverridden: plotWindow.overridden,
     traceabilityExportName: null,
   });
-  const documentError = documentQuery.error;
+  const pane = evidencePaneState({
+    hasDocument: document !== null,
+    error: documentQuery.error,
+    failureReason: documentQuery.failureReason,
+    pending: documentQuery.isPending,
+  });
 
   return (
     <div className="grid min-h-0">
       <div className="min-h-0 overflow-y-auto px-4 py-4">
-        {documentError ? (
+        {pane.kind === "failed" ? (
           <PaneNotice
             action={{ label: "Try Again", onClick: () => void documentQuery.refetch() }}
-            message={
-              documentError instanceof Error
-                ? documentError.message
-                : "The document could not be read from the backend."
-            }
+            message={pane.message}
             title="Evidence Unavailable"
           />
-        ) : documentQuery.isPending && !document ? (
+        ) : pane.kind === "busy" ? (
+          <PaneNotice message={BUSY_NOTICE} title="Loading" />
+        ) : pane.kind === "loading" ? (
           <PaneNotice message="Reading the document for this selection." title="Loading" />
         ) : (
           <div className="grid gap-6">
+            {pane.staleReason ? (
+              <p className="text-xs text-muted-foreground">
+                Showing the last evidence read. {pane.staleReason}
+              </p>
+            ) : null}
             <DocumentView
               plotWindowControl={
                 <PlotWindowControl

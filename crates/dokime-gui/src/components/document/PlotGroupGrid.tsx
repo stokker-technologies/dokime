@@ -31,7 +31,7 @@ import { WifiChannelOccupancyPlot } from "@/plots/catalog/WifiChannelOccupancyPl
 import { XyIntervalPlot } from "@/plots/catalog/XyIntervalPlot";
 import { XyLinePlot } from "@/plots/catalog/XyLinePlot";
 import { XyScatterPlot } from "@/plots/catalog/XyScatterPlot";
-import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap } from "@/plots/live-data";
+import { emptyLivePlotState, type LivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
 import { type PlotDisplaySettings, PlotSettingsButton } from "@/plots/PlotSettingsDialog";
 import type { PlotViewportMode } from "@/plots/types";
 import { usePlotPalette } from "@/plots/use-plot-palette";
@@ -310,7 +310,7 @@ function livePlotSpec({
             ? "Stream Error"
             : spec.stateLabel;
   const detail =
-    state.status === "reconnecting"
+    state.status === "reconnecting" && state.payload
       ? "The last samples remain visible while the plot stream reopens."
       : (state.error ??
         (state.status === "loading"

@@ -44,7 +44,8 @@ import type {
   TelemetryStream,
   TraceabilitySnapshot,
 } from "@/lib/types";
-import { type LivePlotStateMap, useLivePlotPayloads } from "@/plots/live-data";
+import { useLivePlotPayloads } from "@/plots/live-data";
+import type { LivePlotStateMap } from "@/plots/live-frames";
 import type { PlotDisplaySettings } from "@/plots/PlotSettingsDialog";
 
 /* === Constants === */
