@@ -93,6 +93,38 @@ pub(crate) async fn execution_save_sealing() {
     drop(running);
     drop(view);
 
+    // Native Reads Use The Requested Batch Size And Shared Storage Admission.
+    let large_path = "large.bin";
+    let large_bytes = vec![0x5a; 96 * 1024];
+    let large_target = handle
+        .execution_file_target(&id, large_path.to_owned(), false, true)
+        .await
+        .unwrap()
+        .unwrap();
+    std::fs::write(&large_target.absolute_path, &large_bytes).unwrap();
+    let mut large_reader = handle
+        .open_execution_file_stream(&id, large_path.to_owned())
+        .await
+        .unwrap()
+        .unwrap();
+    let large_maximum = std::num::NonZeroUsize::new(128 * 1024).unwrap();
+    let content = large_reader
+        .next_chunk(large_maximum)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(content.offset, 0);
+    assert_eq!(content.bytes, large_bytes);
+    drop(content);
+    assert!(
+        large_reader
+            .next_chunk(large_maximum)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    drop(large_reader);
+
     // Resume The Original Live File After Its Viewer Disconnects.
     let path = "follow.bin";
     let target = handle
@@ -203,6 +235,27 @@ pub(crate) async fn execution_save_sealing() {
     drop(handle);
     owner.shutdown().await.unwrap();
     let (mut reopened, handle) = booted(root.path()).await;
+    let mut large_reader = handle
+        .open_execution_file_stream(&id, large_path.to_owned())
+        .await
+        .unwrap()
+        .unwrap();
+    let content = large_reader
+        .next_chunk(large_maximum)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(content.offset, 0);
+    assert_eq!(content.bytes, large_bytes);
+    drop(content);
+    assert!(
+        large_reader
+            .next_chunk(large_maximum)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    drop(large_reader);
     assert!(
         handle
             .cycles()

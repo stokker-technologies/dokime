@@ -24,7 +24,6 @@ use super::saved::SavedOutputFile;
 use crate::{ExecutionFileContent, Result, runtime::storage::native_outputs::reader::Reader};
 
 /* === Constants === */
-const CHUNK_BYTES: usize = 64 * 1024;
 
 /* === Macros === */
 
@@ -127,9 +126,6 @@ impl ExecutionFileStream {
     }
 
     async fn prepare(&mut self, maximum: NonZeroUsize) -> Result<bool> {
-        if maximum.get() > CHUNK_BYTES {
-            return Err(invalid("maximum exceeds 64 KiB").into());
-        }
         if let Some(pending) = &self.pending {
             if pending.maximum != maximum {
                 return Err(invalid("pending chunk has another maximum").into());

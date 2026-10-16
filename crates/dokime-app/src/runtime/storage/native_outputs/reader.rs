@@ -30,7 +30,7 @@ use harmos::{
 use tokio::task::JoinHandle;
 
 // Local Imports
-use super::{COPY_BYTES, content_bytes, error};
+use super::{content_bytes, error};
 use crate::{
     Error, Result,
     execution_runtime::outputs::{
@@ -135,13 +135,6 @@ impl Reader {
         &mut self,
         maximum: NonZeroUsize,
     ) -> Result<Option<QueryValue<ExecutionFileContent>>> {
-        if maximum.get() > COPY_BYTES {
-            return Err(harmos::Error::InvalidInput {
-                field: "native stream chunk",
-                reason: "maximum exceeds 64 KiB",
-            }
-            .into());
-        }
         if let Some(pending) = &self.pending {
             if pending.maximum != maximum {
                 return Err(harmos::Error::InvalidInput {
