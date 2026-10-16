@@ -204,7 +204,9 @@ async fn publish(handle: &dokime_app::RuntimeHandle, id: &Identifier, start: u64
             sample
                 .values
                 .insert("progress".into(), Value::Number(index as f64));
-            sample
+            sample.with_storage_payload(harmos::Message::encode_to_vec(&common::ProgressRow {
+                progress: index as f64,
+            }))
         })
         .collect();
     handle

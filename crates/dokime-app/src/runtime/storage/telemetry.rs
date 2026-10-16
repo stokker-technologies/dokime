@@ -349,7 +349,7 @@ pub(crate) struct CommittedTelemetry {
 impl TelemetryAdmission {
     pub(crate) async fn commit(
         self,
-        sampling: &crate::services::telemetry::Sampling,
+        closure: Option<&crate::services::telemetry::Sampling>,
     ) -> Result<CommittedTelemetry> {
         let bound = NonZeroUsize::new(
             std::mem::size_of::<Vec<bool>>()
@@ -376,7 +376,9 @@ impl TelemetryAdmission {
                 .collect::<Vec<_>>();
             let mut offset = 0;
             while offset < writes.len() {
-                if sampling.measurement_closed(scope).await {
+                if let Some(sampling) = closure
+                    && sampling.measurement_closed(scope).await
+                {
                     break;
                 }
                 let length = match self.storage.stream_batch_len(&writes[offset..]) {
@@ -402,7 +404,7 @@ impl TelemetryAdmission {
                             Err(source) => return Err(source.into()),
                         }
                     }
-                    _ = sampling.wait_measurement_closed(scope) => break,
+                    () = closed(closure, scope) => break,
                 }
                 offset += length;
             }
@@ -672,6 +674,13 @@ pub(crate) fn prepare(
 }
 
 /* === Private Functions === */
+/// Resolves When Live Measurement Of The Scope Closes; Never Without A Closure Owner.
+async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: &str) {
+    match closure {
+        Some(sampling) => sampling.wait_measurement_closed(scope).await,
+        None => std::future::pending().await,
+    }
+}
 fn exhausted() -> harmos::Error {
     harmos::Error::ResourceExhausted {
         resource: "telemetry projection memory",
@@ -806,7 +815,7 @@ mod admission_tests {
                 .unwrap(),
         };
         let result = admission
-            .commit(&crate::services::telemetry::Sampling::default())
+            .commit(Some(&crate::services::telemetry::Sampling::default()))
             .await
             .unwrap();
         assert_eq!(&*result.accepted, &[true, false]);

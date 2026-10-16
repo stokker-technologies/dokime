@@ -55,6 +55,8 @@ pub(crate) struct SampleAdmission {
     rows: Vec<TelemetryRow>,
     delivery: super::leases::LeasedRows,
     _supplied_memory: harmos::storage::StorageProductionPreparation,
+    // A Finishing Provider Writes Its Outcome Under Its Own Quiescence.
+    observes_closure: bool,
 }
 
 pub(crate) struct CapturedPublication {
@@ -73,6 +75,14 @@ enum TelemetryRead {
 /* === Traits === */
 
 /* === Implementations === */
+impl SampleAdmission {
+    /// Admits A Finishing Provider's Outcome Rows Under Its Own Sampling Quiescence.
+    pub(crate) fn within_quiescence(mut self) -> Self {
+        self.observes_closure = false;
+        self
+    }
+}
+
 impl RuntimeHandle {
     pub(crate) async fn publish_telemetry_to_streams(
         &self,
@@ -354,6 +364,7 @@ impl RuntimeHandle {
             accepted,
             rows,
             delivery,
+            observes_closure: true,
         })
     }
 
@@ -381,6 +392,7 @@ impl RuntimeHandle {
             rows,
             _supplied_memory,
             delivery,
+            observes_closure,
         } = admission;
         let fold_bytes = accepted
             .iter()
@@ -412,7 +424,10 @@ impl RuntimeHandle {
                 crate::Error::Operation("telemetry receipt fold memory overflows".into())
             })?;
         let _fold_memory = self.storage().prepare_production(fold_bytes)?;
-        let admitted = execution.commit(&self.sampling()).await?;
+        let sampling = self.sampling();
+        let admitted = execution
+            .commit(observes_closure.then_some(sampling.as_ref()))
+            .await?;
         let mut native = admitted.accepted.iter();
         let mut kept = Vec::with_capacity(accepted.len());
         let mut cursors = BTreeMap::<String, u64>::new();

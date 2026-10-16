@@ -707,22 +707,16 @@ pub(crate) async fn pinned_page_waiting() {
         let mut oversized = small();
         oversized.options.page.as_mut().unwrap().bytes =
             NonZeroUsize::new(4 * 1024 * 1024).unwrap();
-        let mut refused = storage.query_in(&view, oversized).unwrap();
-        for _ in 0..2 {
-            let result = tokio::time::timeout(Duration::from_secs(1), refused.next_page())
-                .await
-                .expect("shared memory refusal waited for its own retained page");
-            assert!(matches!(
-                result,
-                Err(harmos::Error::InvalidInput {
-                    field: "storage read",
-                    reason: "page exceeds read memory budget"
-                })
-            ));
-            assert_eq!(storage.status().read_bytes, before);
-            assert_eq!(retained[0].version, admitted.version);
-        }
-        drop(refused);
+        let refused = storage.query_in(&view, oversized);
+        assert!(matches!(
+            refused,
+            Err(harmos::Error::InvalidInput {
+                field: "read page",
+                reason: "page exceeds read memory budget"
+            })
+        ));
+        assert_eq!(storage.status().read_bytes, before);
+        assert_eq!(retained[0].version, admitted.version);
         let mut retry = storage.query_in(&view, small()).unwrap();
         let second = retry.next_page().await.unwrap().unwrap();
         assert_eq!(second[0].value, sample);

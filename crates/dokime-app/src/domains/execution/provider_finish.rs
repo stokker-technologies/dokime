@@ -440,7 +440,7 @@ impl RuntimeHandle {
         let effects = prepare_finish_effects(&self.state_read(), &finish);
         let finalize_execution_ids = effects.terminal_execution_ids.clone();
         let admission = match self.prepare_sample_admission(&effects.telemetry).await {
-            Ok(admission) => admission,
+            Ok(admission) => admission.within_quiescence(),
             Err(error) => {
                 self.resume_sampling(&quiescence).await;
                 return Err(error);

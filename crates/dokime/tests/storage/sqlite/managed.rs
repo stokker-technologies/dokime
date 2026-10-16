@@ -183,10 +183,13 @@ fn record_write(record: &StoredRecord) -> RecordWrite<'_> {
 }
 
 fn policy() -> StorageSettings {
+    // The state file encodes snapshot payload bytes as a JSON number array.
+    let snapshot_file = 4 * snapshot_policy().max_bytes.get() + 4096;
     StorageSettings {
         flush_interval: Duration::from_secs(60),
         max_retries: 0,
         query_page: limits(1),
+        snapshot_bytes: NonZeroUsize::new(snapshot_file).unwrap(),
         ..crate::sqlite::storage::storage_settings()
     }
 }

@@ -90,13 +90,15 @@ impl dokime_host::HostTelemetryCollector for CountingCollector {
             Timestamp::now_utc(),
             "counting-fixture",
         );
-        sample.values.insert(
-            "cpu_load_percent".to_owned(),
-            dokime::core::Value::from(1.0),
-        );
-
         let host_stream = dokime_host::HostTelemetryStream::try_from(stream)
             .map_err(|error| error.to_string())?;
+        // Each Stream Carries Only Its Declared Row Fields
+        if host_stream == dokime_host::HostTelemetryStream::System {
+            sample.values.insert(
+                "cpu_load_percent".to_owned(),
+                dokime::core::Value::from(1.0),
+            );
+        }
         sample.storage_payload = Some(
             dokime_contract::telemetry::host_telemetry_payload(host_stream, &sample.values)
                 .map_err(|error| error.to_string())?,

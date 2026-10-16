@@ -28,6 +28,12 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 
 /* === Constants === */
+/// Encoded runtime-state snapshot payload, including its embedded journal tail.
+pub(crate) const STATE_SNAPSHOT_BYTES: usize = 1024 * 1024;
+
+/// The state file stores payload bytes as a JSON number array: at most four
+/// characters per byte, plus the cursor and integrity envelope.
+const STATE_SNAPSHOT_FILE_BYTES: usize = 4 * STATE_SNAPSHOT_BYTES + 64 * 1024;
 
 /* === Macros === */
 
@@ -175,7 +181,7 @@ impl StorageSettings {
             mutation_retention: Duration::from_secs(300),
             file_session_timeout: Duration::from_secs(60),
             view_idle_timeout: Duration::from_secs(300),
-            snapshot_bytes: nonzero(1024 * 1024),
+            snapshot_bytes: nonzero(STATE_SNAPSHOT_FILE_BYTES),
             write_batch_entries: nonzero(4096),
             object_prune_entries: nonzero(256),
             write_batch_bytes: maximum_batch,

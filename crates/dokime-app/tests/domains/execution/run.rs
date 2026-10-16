@@ -56,15 +56,6 @@ pub(crate) async fn cycle_exposes_rows() {
     executor.release();
     wait_for_cycle_lifecycle(&runtime, &test_cycle_id, CycleStatus::Completed).await;
 
-    if streamed.is_none() {
-        let evidence = runtime.evidence_snapshot().await.unwrap();
-        let cycles = runtime.cycles().await;
-        eprintln!(
-            "telemetry={} cycles={}",
-            evidence.telemetry.len(),
-            cycles.len()
-        );
-    }
     let streamed = streamed.expect("tracking sample was readable from the durable stream");
     assert_eq!(running.test_executions.len(), 1);
     assert_eq!(running.test_executions[0].status, ExecutionStatus::Running);
