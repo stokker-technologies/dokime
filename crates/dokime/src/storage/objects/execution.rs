@@ -2073,9 +2073,6 @@ impl TryFrom<Output> for crate::execution::saved::ExecutionOutput {
 
 impl Source {
     fn encoding_memory(value: &crate::execution::saved::ExecutionSource) -> Result<usize> {
-        if value.outputs.len() > crate::execution::saved::MAX_OUTPUTS {
-            return Err(Error::Invalid("too many execution outputs"));
-        }
         let evidence = value.evidence_through.memory_size();
         let revision = Revision::encoding_memory(&value.execution)?;
         let context = value.context.memory_size();
@@ -2130,13 +2127,8 @@ impl TryFrom<&crate::execution::saved::ExecutionSource> for Source {
 
 impl Source {
     fn projection_memory(&self) -> Result<usize> {
-        use crate::execution::saved::{
-            ExecutionOutput, ExecutionRevision, ExecutionSource, MAX_OUTPUTS,
-        };
+        use crate::execution::saved::{ExecutionOutput, ExecutionRevision, ExecutionSource};
         use harmos::MemorySize;
-        if self.outputs.len() > MAX_OUTPUTS {
-            return Err(Error::Invalid("too many execution outputs"));
-        }
         let evidence = self.evidence_through.as_ref().ok_or(Error::Invalid(
             "execution source evidence frontier is missing",
         ))?;

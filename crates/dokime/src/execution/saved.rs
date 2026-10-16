@@ -26,7 +26,6 @@ use crate::artifacts::{ArtifactRecord, ArtifactStatus};
 use crate::core::{Metadata, NodeId, TestCycleId, TestExecutionId, Timestamp};
 
 /* === Constants === */
-pub(crate) const MAX_OUTPUTS: usize = 256;
 pub const EXECUTION_CONTEXT_MEDIA_TYPE: &str = "application/vnd.dokime.execution-context+protobuf";
 pub const EXECUTION_CONTEXT_SCHEMA_VERSION: u32 = 1;
 
@@ -413,9 +412,6 @@ pub fn validate_outputs(
     through: &StorageCursor,
     outputs: &[ExecutionOutput],
 ) -> Result<()> {
-    if outputs.len() > MAX_OUTPUTS {
-        return Err(SavedEvidenceError::Invalid("too many execution outputs"));
-    }
     let mut paths = BTreeSet::new();
     let mut files = BTreeSet::new();
     let mut artifacts = BTreeSet::new();
