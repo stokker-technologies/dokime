@@ -1327,10 +1327,12 @@ class Row163(_message.Message):
     def __init__(self, series: _Optional[_Iterable[_Union[Row182, _Mapping]]] = ...) -> None: ...
 
 class Row164(_message.Message):
-    __slots__ = ("series",)
+    __slots__ = ("series", "total")
     SERIES_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_FIELD_NUMBER: _ClassVar[int]
     series: _containers.RepeatedCompositeFieldContainer[Row183]
-    def __init__(self, series: _Optional[_Iterable[_Union[Row183, _Mapping]]] = ...) -> None: ...
+    total: int
+    def __init__(self, series: _Optional[_Iterable[_Union[Row183, _Mapping]]] = ..., total: _Optional[int] = ...) -> None: ...
 
 class Row165(_message.Message):
     __slots__ = ("series",)

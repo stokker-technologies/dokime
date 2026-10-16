@@ -892,6 +892,10 @@ fn execution_prompts_contract() {
         run_scenario(execution::queue::later_cases_start, false, None, false);
     }
     {
+        eprintln!("Scenario: execution::queue::running_queued_counts");
+        run_scenario(execution::queue::running_queued_counts, false, None, false);
+    }
+    {
         eprintln!("Scenario: execution::queue::request_retries_receipt");
         run_scenario(
             execution::queue::request_retries_receipt,

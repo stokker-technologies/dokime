@@ -18,19 +18,21 @@ import * as rpc from "@/lib/rpc/generated/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
 import type {
   CheckpointCursor,
+  ExecutionBrowseCycle,
   ExecutionBrowseEntry,
   ExecutionBrowsePage,
   ExecutionCheckpoint,
 } from "@/lib/types/view-contracts";
 import type { Row19 as GeneratedResultStatus } from "../../../.generated/dokime/v1/ExecutionMessages/GetCycle/messages_pb";
 import type {
-  Row13 as GeneratedExecutionAvailability,
-  Row7 as GeneratedExecutionStatus,
-  Row11 as GeneratedHistoricalExecutionMetadata,
+  Row14 as GeneratedExecutionAvailability,
+  Row15 as GeneratedExecutionBrowseLifecycle,
+  Row8 as GeneratedExecutionStatus,
+  Row12 as GeneratedHistoricalExecutionMetadata,
   Row6 as GeneratedHistoryIssue,
   Row2 as GeneratedNativeExecutionBrowsePage,
-  Row12 as GeneratedNativeExecutionCheckpoint,
-  Row32 as GeneratedNativeStorageCursor,
+  Row13 as GeneratedNativeExecutionCheckpoint,
+  Row35 as GeneratedNativeStorageCursor,
 } from "../../../.generated/dokime/v1/HistoryMessages/BrowseExecutions/messages_pb";
 import type {
   Row3 as GeneratedArtifactFrame,
@@ -56,6 +58,7 @@ import {
   NATIVE_PAGE_SIZE,
   NativeApiLimitError,
   nativeValueObjectToJson,
+  safeNumber,
   timestampIso,
 } from "./native-values";
 
@@ -78,6 +81,7 @@ type CheckpointEvidence = Wire<GeneratedCheckpointEvidence>;
 type CheckpointRecordPage = Wire<GeneratedCheckpointRecordPage>;
 type CheckpointTelemetryPage = Wire<GeneratedCheckpointTelemetryPage>;
 type ExecutionAvailability = Wire<GeneratedExecutionAvailability>;
+type ExecutionBrowseLifecycle = Wire<GeneratedExecutionBrowseLifecycle>;
 type HistoricalExecutionMetadata = Wire<GeneratedHistoricalExecutionMetadata>;
 type HistoryIssue = Wire<GeneratedHistoryIssue>;
 type NativeExecutionBrowsePage = Wire<GeneratedNativeExecutionBrowsePage>;
@@ -240,6 +244,7 @@ export async function fetchNativeExecutionPage(
     omitted_conflicts: page.omittedConflicts,
     issues: page.issues.map(mapIssue),
     omitted_issues: page.omittedIssues,
+    cycles: page.cycles.map(mapBrowseCycle),
   };
 }
 
@@ -289,6 +294,43 @@ function mapBrowseEntry(entry: NativeExecutionBrowsePage["entries"][number]): Ex
     availability: mapAvailability(entry.availability),
     archived: entry.archived,
   };
+}
+
+function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): ExecutionBrowseCycle {
+  const count = (value: bigint, label: string) =>
+    safeNumber(value, `History.BrowseExecutions cycle ${label} count`);
+  return {
+    cycle_id: cycle.cycleId,
+    lifecycle: mapBrowseLifecycle(cycle.lifecycle),
+    result_status: cycle.resultStatus ? mapResultStatus(cycle.resultStatus) : null,
+    case_count: count(cycle.caseCount, "case"),
+    execution_count: count(cycle.executionCount, "execution"),
+    unrun_count: count(cycle.unrunCount, "unrun"),
+    queued_count: count(cycle.queuedCount, "queued"),
+    running_count: count(cycle.runningCount, "running"),
+    passed_count: count(cycle.passedCount, "passed"),
+    failed_count: count(cycle.failedCount, "failed"),
+    blocked_count: count(cycle.blockedCount, "blocked"),
+    started_at: timestampIso(cycle.startedAt),
+    finished_at: timestampIso(cycle.finishedAt),
+  };
+}
+
+function mapBrowseLifecycle(
+  value: ExecutionBrowseLifecycle | undefined,
+): ExecutionBrowseCycle["lifecycle"] {
+  switch (value?.HarmosVariant.case) {
+    case "Running":
+      return "running";
+    case "Interrupted":
+      return "interrupted";
+    case "Uncheckpointed":
+      return "uncheckpointed";
+    case "Completed":
+      return "completed";
+    default:
+      return "pending";
+  }
 }
 
 function mapCheckpoint(checkpoint: NativeExecutionCheckpoint): ExecutionCheckpoint {

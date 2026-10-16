@@ -20,10 +20,14 @@ use tonic::Status;
 // Local Imports
 use super::super::error::detailed;
 use super::super::{execution, value};
+use dokime_app::execution::ResultStatus;
 use dokime_app::runtime::query::execution_history::{
-    ExecutionAvailability, ExecutionBrowseEntry, ExecutionCheckpoint,
+    ExecutionAvailability, ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowseLifecycle,
+    ExecutionCheckpoint,
 };
-use dokime_contract::operations::{checkpoint as checkpoint_wire, history as history_wire};
+use dokime_contract::operations::{
+    checkpoint as checkpoint_wire, execution as execution_wire, history as history_wire,
+};
 
 /* === Constants === */
 const MAX_CHECKPOINT_TOKEN_BYTES: usize = 4096;
@@ -140,6 +144,10 @@ pub(super) fn browse_page(
             message: issue.message.clone(),
         });
     }
+    let mut cycles = exact_slots(page.cycles.len())?;
+    for cycle in &page.cycles {
+        cycles.push(browse_cycle(cycle)?);
+    }
     Ok(history_wire::ExecutionBrowsePage {
         entries,
         next_after_execution_id: page.next.as_ref().map(|id| id.as_str().to_owned()),
@@ -148,6 +156,53 @@ pub(super) fn browse_page(
         omitted_conflicts: page.omitted_conflicts as u32,
         issues,
         omitted_issues: page.omitted_issues as u32,
+        cycles,
+    })
+}
+
+fn browse_cycle(
+    value: &ExecutionBrowseCycle,
+) -> Result<history_wire::ExecutionBrowseCycle, Status> {
+    Ok(history_wire::ExecutionBrowseCycle {
+        cycle_id: value.cycle_id.as_str().to_owned(),
+        lifecycle: match value.lifecycle {
+            ExecutionBrowseLifecycle::Running => history_wire::ExecutionBrowseLifecycle::Running,
+            ExecutionBrowseLifecycle::Interrupted => {
+                history_wire::ExecutionBrowseLifecycle::Interrupted
+            }
+            ExecutionBrowseLifecycle::Pending => history_wire::ExecutionBrowseLifecycle::Pending,
+            ExecutionBrowseLifecycle::Uncheckpointed => {
+                history_wire::ExecutionBrowseLifecycle::Uncheckpointed
+            }
+            ExecutionBrowseLifecycle::Completed => {
+                history_wire::ExecutionBrowseLifecycle::Completed
+            }
+        },
+        result_status: value.result_status.as_ref().map(|status| match status {
+            ResultStatus::Pending => execution_wire::ResultStatus::Pending,
+            ResultStatus::Passed => execution_wire::ResultStatus::Passed,
+            ResultStatus::Failed => execution_wire::ResultStatus::Failed,
+            ResultStatus::Blocked => execution_wire::ResultStatus::Blocked,
+            ResultStatus::Cancelled => execution_wire::ResultStatus::Cancelled,
+        }),
+        case_count: value.case_count as u64,
+        execution_count: value.execution_count as u64,
+        unrun_count: value.unrun_count as u64,
+        queued_count: value.queued_count as u64,
+        running_count: value.running_count as u64,
+        passed_count: value.passed_count as u64,
+        failed_count: value.failed_count as u64,
+        blocked_count: value.blocked_count as u64,
+        started_at: value
+            .started_at
+            .as_ref()
+            .map(value::canonical::timestamp)
+            .transpose()?,
+        finished_at: value
+            .finished_at
+            .as_ref()
+            .map(value::canonical::timestamp)
+            .transpose()?,
     })
 }
 

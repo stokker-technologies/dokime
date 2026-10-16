@@ -14,11 +14,11 @@ pub use dokime::execution::TestCaseStatus as CaseStatus;
 
 /* === Imports === */
 // Standard Library Imports
-
+use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{CycleView, ExecutionStatus, TestExecution};
+use crate::execution::{CycleView, ExecutionStatus, TestCycle, TestExecution};
 use crate::state::RuntimeState;
 use crate::transactions::cycle::{ensure_case_deletable, ensure_case_restartable};
 use crate::transactions::provider::{ensure_case_runnable, planned_attempt};
@@ -42,6 +42,15 @@ pub struct CaseProjection {
     pub attempt_count: u32,
     pub rerun_scheduled: bool,
     pub actions: CaseActions,
+}
+
+/// A cycle's planned cases counted by their latest attempt's projected status.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CaseTally {
+    /// Cases whose latest attempt is running.
+    pub running: u64,
+    /// Cases still waiting to run: planned, undispatched, or admitted but not started.
+    pub queued: u64,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -108,6 +117,25 @@ pub fn case_projection(
         rerun_scheduled: rerun_scheduled(cycle, test_case_id, &attempts),
         actions,
     }
+}
+
+/// Count a cycle's cases by the status their latest attempt projects, in one
+/// pass over the cycle's attempts.
+pub fn case_tally(state: &RuntimeState, cycle: &TestCycle) -> CaseTally {
+    let mut latest = BTreeMap::new();
+    for execution in state.executions_for_cycle(cycle) {
+        latest.insert(&execution.test_case_id, execution);
+    }
+
+    let mut tally = CaseTally::default();
+    for execution in latest.into_values() {
+        match status(Some(execution)) {
+            CaseStatus::Running => tally.running += 1,
+            CaseStatus::Planned | CaseStatus::Queued => tally.queued += 1,
+            _ => {}
+        }
+    }
+    tally
 }
 
 pub fn historical_case_projection(cycle: &CycleView, test_case_id: &CaseId) -> CaseProjection {

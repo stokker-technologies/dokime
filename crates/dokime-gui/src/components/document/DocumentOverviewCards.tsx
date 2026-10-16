@@ -17,4 +17,3 @@ export type { OverviewMetric, OverviewMetricGroup } from "./overview/metric-mode
 export { metricFlowStorageKey } from "./overview/metric-model";
 export { OperatorNotesCard } from "./overview/OperatorNotesCard";
 export { ProgressCard } from "./overview/ProgressCard";
-export { LatestSampleGrid, TelemetryContextCard } from "./overview/TelemetryContextCard";

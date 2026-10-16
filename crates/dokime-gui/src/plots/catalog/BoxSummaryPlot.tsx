@@ -20,7 +20,6 @@ import type { PlotCardSpec } from "@/plots/types";
 type BoxSummaryBucket = {
   key: string;
   label: string;
-  sample_count: number;
   minimum: number;
   q1: number;
   median: number;
@@ -33,7 +32,7 @@ type BoxSummaryBucket = {
 
 export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
   const buckets = plotBoxSummaryBuckets(plot);
-  const totalSamples = buckets.reduce((total, bucket) => total + bucket.sample_count, 0);
+  const totalSamples = plot.analysis?.kind === "box_summary" ? plot.analysis.total : 0;
   const values = buckets
     .flatMap((bucket) => [
       bucket.minimum,
@@ -138,7 +137,6 @@ function plotBoxSummaryBuckets(plot: PlotCardSpec): BoxSummaryBucket[] {
     .map((summary) => ({
       key: summary.key,
       label: summary.label,
-      sample_count: summary.count,
       minimum: summary.lower_whisker,
       maximum: summary.upper_whisker,
       q1: summary.q1,

@@ -747,7 +747,8 @@ fn plot_analysis(
                 })
                 .collect::<Result<_, Status>>()?,
         }),
-        PlotAnalysis::BoxSummary { series } => Analysis::BoxSummary(dokime_contract::operations::plots::PlotBoxSummaryAnalysis {
+        PlotAnalysis::BoxSummary { series, total } => Analysis::BoxSummary(dokime_contract::operations::plots::PlotBoxSummaryAnalysis {
+            total: count(total)?,
             series: series
                 .into_iter()
                 .map(|series| {

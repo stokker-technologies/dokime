@@ -30,9 +30,6 @@ use dokime_gui::native_session::{BackendOwnership, BackendSelection, DesktopSess
 
 /* === Constants === */
 #[cfg(unix)]
-const NOT_READY: &str =
-    "The Dokime backend stopped before reporting readiness; review its diagnostics.";
-#[cfg(unix)]
 const STDERR_LOG_PREFIX: &str = "backend-stderr.";
 
 /* === Macros === */
@@ -466,7 +463,11 @@ pub(crate) async fn failed_start_diagnostics() {
     };
 
     // The Headline And Exit
-    assert_eq!(message, NOT_READY);
+    let not_ready = format!(
+        "The {} backend stopped before reporting readiness; review its diagnostics.",
+        dokime_gui::PRODUCT
+    );
+    assert_eq!(message, not_ready);
     assert_eq!(diagnostics.exit_code, Some(3));
     assert!(diagnostics.exit_status.is_some());
     assert_eq!(diagnostics.executable, executable.display().to_string());

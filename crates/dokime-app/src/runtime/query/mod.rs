@@ -36,7 +36,8 @@ pub use artifacts::{
     RuntimeExecutionFileFrame, RuntimeExecutionFileRead, RuntimeExecutionFileRecord,
 };
 pub use cases::{
-    CaseActions, CaseProjection, CaseStatus, case_projection, historical_case_projection,
+    CaseActions, CaseProjection, CaseStatus, CaseTally, case_projection, case_tally,
+    historical_case_projection,
 };
 pub use cycles::{
     CycleFilter, CycleOrder, CycleOrderKey, CyclePageError, cycle_page, select_cycles,

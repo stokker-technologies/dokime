@@ -151,6 +151,37 @@ pub struct ExecutionBrowsePage {
     pub omitted_conflicts: u32,
     pub issues: Vec<HistoryIssue>,
     pub omitted_issues: u32,
+    // One aggregate per cycle the page's entries belong to, folded over the
+    // whole filtered selection rather than this page, so a client renders a
+    // cycle's totals without loading every page.
+    #[row(
+        description = "One aggregate per cycle the page's entries belong to, folded over the whole filtered selection rather than this page, so a client renders a cycle's totals without loading every page."
+    )]
+    pub cycles: Vec<ExecutionBrowseCycle>,
+}
+
+// Totals of one cycle's executions within a browse selection. Planned
+// executions that never started (`unrun_count`) are held aside: every other
+// count describes only executions that ran. `queued_count` counts executions
+// admitted to run but not yet started; `running_count` counts live running
+// executions. `result_status` is present only once the cycle settled: FAILED
+// when any execution failed, PASSED when every execution passed.
+#[harmos::message]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExecutionBrowseCycle {
+    pub cycle_id: String,
+    pub lifecycle: ExecutionBrowseLifecycle,
+    pub result_status: Option<ResultStatus>,
+    pub case_count: u64,
+    pub execution_count: u64,
+    pub unrun_count: u64,
+    pub queued_count: u64,
+    pub running_count: u64,
+    pub passed_count: u64,
+    pub failed_count: u64,
+    pub blocked_count: u64,
+    pub started_at: Option<Timestamp>,
+    pub finished_at: Option<Timestamp>,
 }
 
 #[harmos::message]
@@ -527,6 +558,20 @@ pub enum ExecutionOrderKey {
     StartedAt,
     FinishedAt,
     Title,
+}
+
+// Where a browsed cycle stands, by precedence: any live running execution,
+// then any interrupted one, then work still pending (or nothing ran), then any
+// execution without a checkpoint; otherwise every execution completed.
+#[harmos::message]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutionBrowseLifecycle {
+    Unspecified,
+    Running,
+    Interrupted,
+    Pending,
+    Uncheckpointed,
+    Completed,
 }
 
 #[harmos::message]

@@ -37,7 +37,7 @@ use dokime_app::execution::{CycleStatus, CycleView, ExecutionStatus};
 use dokime_app::runtime::RuntimeState;
 use dokime_app::runtime::query::{
     CaseProjection, CaseStatus, CycleFilter, CycleOrder, CycleOrderKey, CyclePageError,
-    case_projection, cycle_page, historical_case_projection, select_cycles,
+    case_projection, case_tally, cycle_page, historical_case_projection, select_cycles,
 };
 use dokime_app::{Error, RuntimeHandle};
 use dokime_contract::operations::{common, cursor::Cursor, execution as wire};
@@ -520,6 +520,7 @@ pub(super) fn summary(
     bounds.text(&cursor.stream)?;
     bounds.bytes(canonical::metadata_memory(&cycle.metadata)?)?;
     let suite = cycle_suite(state, cycle, bounds)?;
+    let tally = case_tally(state, cycle);
     Ok(wire::CycleSummary {
         cycle_id: cycle.test_cycle_id.to_string(),
         metadata: Some(canonical::metadata(&cycle.metadata)?),
@@ -549,6 +550,8 @@ pub(super) fn summary(
         updated_at: Some(canonical::timestamp(&cycle.updated_at)?),
         result: cycle.result.as_ref().map(detail::result),
         suite,
+        running_count: tally.running,
+        queued_count: tally.queued,
     })
 }
 

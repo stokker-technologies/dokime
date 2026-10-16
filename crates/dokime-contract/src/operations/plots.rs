@@ -441,6 +441,9 @@ pub struct PlotHistogramBin {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotBoxSummaryAnalysis {
     pub series: Vec<PlotBoxSummary>,
+    // Samples summarized across every box.
+    #[row(description = "Samples summarized across every box.")]
+    pub total: u64,
 }
 
 #[harmos::message]

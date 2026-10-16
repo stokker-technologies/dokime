@@ -332,7 +332,7 @@ impl GitlabDesktopState {
                 version: None,
                 body: None,
                 date: None,
-                message: Some("Dokime is up to date.".to_string()),
+                message: Some(format!("{} is up to date.", crate::PRODUCT)),
             }),
         }
     }

@@ -28,6 +28,9 @@ console = []
 # Local
 dokime-contract = { path = "../../dokime-contract", features = ["descriptors"] }
 
+# Serialization
+serde_json = { workspace = true }
+
 # UI
 tauri-build = { workspace = true, features = [] }
 

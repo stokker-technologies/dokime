@@ -244,7 +244,8 @@ impl StorageRoot {
             Err(TryLockError::WouldBlock) => Err(refusal(
                 Reason::BackendRunning,
                 format!(
-                    "A Dokime backend still holds {}; stop it before {action}.",
+                    "A {} backend still holds {}; stop it before {action}.",
+                    crate::PRODUCT,
                     self.data.display()
                 ),
             )),
