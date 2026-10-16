@@ -28,7 +28,7 @@ use criterion::Criterion;
 use harmos::{Application, Identifier, Message, Runtime, state::Never, storage::*};
 
 // Local Imports
-use dokime::storage::sqlite::{Backend, Limits, StateLimits};
+use dokime::storage::sqlite::{Backend, Limits};
 
 /* === Constants === */
 
@@ -91,7 +91,11 @@ impl Fixture {
         let settings = policy.harmos(Duration::from_millis(10), nz(16 * 1024 * 1024));
         let storage = StorageManager::new(
             StorageBackends {
-                state: Arc::new(backend.state(StateLimits::default())),
+                state: Arc::new(harmos::storage::state::file::FileBackend::new(
+                    root.path().to_owned(),
+                    harmos::storage::StorageBackend::history(backend.as_ref()).clone(),
+                    &settings,
+                )),
                 primary: backend.clone(),
                 replicas: vec![],
             },

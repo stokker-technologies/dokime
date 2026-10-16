@@ -35,7 +35,7 @@ use dokime::core::{
     Timestamp, Value,
 };
 use dokime::storage::{
-    sqlite::{Backend, Limits, StateLimits},
+    sqlite::{Backend, Limits},
     telemetry,
 };
 use dokime::telemetry::TelemetrySample;
@@ -76,17 +76,22 @@ impl Fixture {
                 .await
                 .unwrap(),
         );
-        let recovery = Arc::new(data.state(StateLimits::default()));
+        let settings = dokime_app::config::StorageSettings::default().harmos(
+            Duration::from_secs(60),
+            std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+        );
+        let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            harmos::storage::StorageBackend::history(data.as_ref()).clone(),
+            &settings,
+        ));
         let storage = StorageManager::new(
             StorageBackends {
                 primary: data,
                 state: recovery,
                 replicas: vec![],
             },
-            dokime_app::config::StorageSettings::default().harmos(
-                Duration::from_secs(60),
-                std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
-            ),
+            settings,
         )
         .unwrap();
         let runtime = Runtime::<Bench>::builder((), ())

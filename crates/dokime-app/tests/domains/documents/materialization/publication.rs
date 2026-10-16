@@ -26,11 +26,7 @@ use harmos::storage::{ReadLimits, ReadView, StorageBackend, StorageBackends};
 use crate::support::prelude::*;
 use crate::support::publication::{PublicationBackend, PublicationFault};
 use dokime::execution::saved::ExecutionRevision;
-use dokime::storage::{
-    Backend, Manager,
-    objects::execution::Execution,
-    sqlite::{Limits, StateLimits},
-};
+use dokime::storage::{Backend, Manager, objects::execution::Execution, sqlite::Limits};
 use dokime_app::report::saved::CapturedExecutionReportInput;
 
 /* === Constants === */
@@ -153,14 +149,18 @@ pub(crate) async fn dependency_publication_retry() {
                 .await
                 .unwrap(),
         );
-        let state = Arc::new(primary.state(StateLimits::default()));
         let fault = Arc::new(PublicationFault::new(suffix));
-        let backend = Arc::new(PublicationBackend::new(primary, fault.clone()));
         let mut settings = crate::support::budgets::story_settings().harmos(
             Duration::from_secs(60),
             NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
         );
         settings.max_retries = 0;
+        let state = Arc::new(harmos::storage::state::file::FileBackend::new(
+            root.path().to_owned(),
+            harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+            &settings,
+        ));
+        let backend = Arc::new(PublicationBackend::new(primary, fault.clone()));
         let manager = Manager::new(
             StorageBackends {
                 primary: backend,

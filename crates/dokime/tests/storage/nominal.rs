@@ -36,7 +36,7 @@ use sha2::{Digest, Sha256};
 
 // Local Imports
 use super::sqlite::storage::{declared, id, limits, write_batch};
-use dokime::storage::sqlite::{Backend, Limits, StateLimits};
+use dokime::storage::sqlite::{Backend, Limits};
 use dokime::{
     core::{SessionId, Timestamp, Value},
     storage::telemetry::{TelemetryEntry, TypedCodec},
@@ -375,7 +375,11 @@ async fn nominal() {
     let storage = StorageManager::new(
         StorageBackends {
             primary: backend.clone(),
-            state: std::sync::Arc::new(backend.state(StateLimits::default())),
+            state: std::sync::Arc::new(harmos::storage::state::file::FileBackend::new(
+                root.path().to_owned(),
+                backend.history().clone(),
+                &super::sqlite::storage::storage_settings(),
+            )),
             replicas: vec![],
         },
         super::sqlite::storage::storage_settings(),
@@ -708,7 +712,11 @@ async fn nominal() {
     let storage = StorageManager::new(
         StorageBackends {
             primary: backend.clone(),
-            state: std::sync::Arc::new(backend.state(StateLimits::default())),
+            state: std::sync::Arc::new(harmos::storage::state::file::FileBackend::new(
+                root.path().to_owned(),
+                backend.history().clone(),
+                &manager_settings,
+            )),
             replicas: vec![ReplicaTarget {
                 id: id("replica"),
                 backend: replica.clone(),

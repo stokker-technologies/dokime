@@ -24,7 +24,7 @@ use sha2::Digest;
 use dokime::execution::saved::ExecutionRevision;
 use dokime::execution::{HealthItem, OperatorNote};
 use dokime::records::RecordContract;
-use dokime::storage::sqlite::{Limits, StateLimits};
+use dokime::storage::sqlite::Limits;
 use dokime::storage::{Backend, Manager, objects::execution::Execution};
 use dokime::telemetry::contract::TelemetryContract;
 use dokime_app::report::{CycleReportInput, saved::CapturedExecutionReportInput};
@@ -137,17 +137,22 @@ pub async fn render_annotated(
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(StateLimits::default()));
+    let settings = crate::support::budgets::story_settings().harmos(
+        Duration::from_secs(60),
+        std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+    );
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &settings,
+    ));
     let manager = Manager::new(
         StorageBackends {
             primary,
             state: recovery,
             replicas: vec![],
         },
-        crate::support::budgets::story_settings().harmos(
-            Duration::from_secs(60),
-            std::num::NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
-        ),
+        settings,
     )
     .unwrap();
     let owner = harmos::Runtime::<ReportOwner>::builder((), ())

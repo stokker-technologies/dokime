@@ -50,7 +50,7 @@ impl harmos::Application for ReportReader {
 
 pub(crate) async fn report_save_receipt() {
     use dokime::execution::saved::ExecutionRevision;
-    use dokime::storage::sqlite::{Limits, StateLimits};
+    use dokime::storage::sqlite::Limits;
     use dokime::storage::{
         Backend,
         objects::execution::{self, Execution},
@@ -75,7 +75,15 @@ pub(crate) async fn report_save_receipt() {
             .await
             .unwrap(),
     );
-    let recovery = Arc::new(primary.state(StateLimits::default()));
+    let settings = reads.harmos(
+        Duration::from_secs(60),
+        NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
+    );
+    let recovery = Arc::new(harmos::storage::state::file::FileBackend::new(
+        root.path().to_owned(),
+        harmos::storage::StorageBackend::history(primary.as_ref()).clone(),
+        &settings,
+    ));
     let manager = Manager::new(
         StorageBackends {
             primary,
@@ -83,10 +91,7 @@ pub(crate) async fn report_save_receipt() {
             replicas: vec![],
         },
         // The Runtime Admits Its Configured Execution Read Budget.
-        reads.harmos(
-            Duration::from_secs(60),
-            NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
-        ),
+        settings,
     )
     .unwrap();
     let runtime = harmos::Runtime::<ReportReader>::builder((), ())
