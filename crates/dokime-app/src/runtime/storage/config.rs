@@ -40,10 +40,6 @@ pub struct StorageSettings {
     pub budget: StorageBudget,
     pub request: StorageRequestSettings,
     pub response: StorageResponseSettings,
-    /// Read views the ledger admits at once (Harmos `max_views`).
-    pub max_views: std::num::NonZeroUsize,
-    /// Live followers the ledger admits at once (Harmos `max_followers`).
-    pub max_followers: std::num::NonZeroUsize,
     pub page_rows: std::num::NonZeroUsize,
     pub page_bytes: std::num::NonZeroUsize,
     pub page_rows_ceiling: std::num::NonZeroUsize,
@@ -104,8 +100,6 @@ impl Default for StorageSettings {
                 batch_rows: nonzero(65_536),
                 batch_bytes: batch,
             },
-            max_views: nonzero(256),
-            max_followers: nonzero(256),
             page_rows: nonzero(4096),
             page_bytes: scan,
             page_rows_ceiling: nonzero(65_536),
@@ -145,8 +139,6 @@ impl StorageSettings {
         settings.budget = self.budget;
         settings.request = self.request;
         settings.response = self.response;
-        settings.max_views = self.max_views;
-        settings.max_followers = self.max_followers;
         settings.query_page = harmos::storage::ReadLimits {
             rows: self.page_rows,
             bytes: self.page_bytes,
@@ -196,8 +188,6 @@ impl StorageSettings {
             },
             replica_lag_positions: NonZeroU64::new(4096).unwrap(),
             replication_shutdown: Duration::ZERO,
-            max_views: self.max_views,
-            max_followers: self.max_followers,
             max_files: nonzero(256),
             max_mutations: nonzero(1024),
             mutation_memory_bytes: nonzero(1024 * 1024),

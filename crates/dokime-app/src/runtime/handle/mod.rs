@@ -292,8 +292,6 @@ impl RuntimeHandle {
         ));
         tracing::info!(
             read_pool_bytes = settings.budget.read_memory_bytes.get(),
-            max_views = settings.max_views.get(),
-            max_followers = settings.max_followers.get(),
             "storage read pool sized"
         );
         let backends = harmos::storage::StorageBackends {
