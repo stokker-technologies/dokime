@@ -292,7 +292,7 @@ async fn settled_evidence<T: SidecarTemplate>(
     let mut records = Vec::new();
     let mut samples = Vec::new();
     loop {
-        let reply = workflow.drain(token, cursor).unwrap();
+        let reply = workflow.next(token, cursor).await.unwrap();
         admit_steps(workflow, token, &reply);
         cursor = reply.cursor;
         for record in &reply.records {
@@ -308,9 +308,7 @@ async fn settled_evidence<T: SidecarTemplate>(
             );
             return (records, samples);
         }
-        // TODO(source-hook): an awaitable Workflow drain or change notification.
-        tokio::time::sleep(Duration::from_millis(5)).await;
-    }
+        }
 }
 
 fn connection(resource: &str) -> dokime::records::Record {
@@ -356,7 +354,7 @@ async fn awaited_line<T: SidecarTemplate>(
     prefix: &str,
 ) -> String {
     loop {
-        let reply = workflow.drain(token, *cursor).unwrap();
+        let reply = workflow.next(token, *cursor).await.unwrap();
         admit_steps(workflow, token, &reply);
         *cursor = reply.cursor;
         if let Some(line) = reply
@@ -366,9 +364,7 @@ async fn awaited_line<T: SidecarTemplate>(
         {
             return line.message.clone();
         }
-        // TODO(source-hook): an awaitable Workflow drain or change notification.
-        tokio::time::sleep(Duration::from_millis(5)).await;
-    }
+        }
 }
 
 #[tokio::test(start_paused = true)]
@@ -531,7 +527,7 @@ async fn drain_runtime<T: SidecarTemplate>(
     let mut stopped = false;
     let mut cleanup_logs = 0;
     loop {
-        let reply = workflow.drain(token, cursor).unwrap();
+        let reply = workflow.next(token, cursor).await.unwrap();
         admit_steps(workflow, token, &reply);
         cursor = reply.cursor;
         for record in &reply.records {
@@ -564,9 +560,7 @@ async fn drain_runtime<T: SidecarTemplate>(
             );
             return outcome;
         }
-        // TODO(source-hook): an awaitable Workflow drain or change notification.
-        tokio::time::sleep(Duration::from_millis(5)).await;
-    }
+        }
 }
 
 fn answer<T: SidecarTemplate>(

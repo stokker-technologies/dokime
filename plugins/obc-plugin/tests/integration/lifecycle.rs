@@ -64,7 +64,7 @@ fn start_request(token: &str, sample_count: u64) -> RunExecutionRequest {
     RunExecutionRequest {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
-        test_cycle_id: dokime::core::TestCycleId::from_seed("mini.fixture.cycle").to_string(),
+        test_cycle_id: dokime::core::TestCycleId::from_seed("obc.fixture.cycle").to_string(),
         test_execution_id: dokime::core::TestExecutionId::from_seed(token).to_string(),
         template_identifier: template.metadata.identifier.to_string(),
         workflow: suites::checks::ID.to_owned(),
@@ -96,6 +96,25 @@ fn drain(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch 
     reply
 }
 
+async fn next(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch {
+    let reply = workflow
+        .next(token, cursor)
+        .await
+        .expect("the execution remains drainable");
+    for encoded in &reply.step_begins {
+        let start: dokime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        workflow.admit(
+            token,
+            &StepAdmission {
+                attempt_id: start.attempt_id.to_string(),
+                accepted: true,
+                message: String::new(),
+            },
+        );
+    }
+    reply
+}
+
 async fn drain_until_terminal(
     workflow: &Workflow<Pulse>,
     token: &str,
@@ -103,16 +122,14 @@ async fn drain_until_terminal(
 ) -> Vec<EvidenceBatch> {
     let mut replies = Vec::new();
     loop {
-        let reply = drain(workflow, token, cursor);
+        let reply = next(workflow, token, cursor).await;
         cursor = reply.cursor;
         let terminal = reply.outcome.is_some();
         replies.push(reply);
         if terminal {
             return replies;
         }
-        // TODO(source-hook): an awaitable Workflow drain or change notification.
-        tokio::time::sleep(POLL).await;
-    }
+        }
 }
 
 fn outcome(replies: &[EvidenceBatch]) -> &SidecarExecutionOutcome {
@@ -208,7 +225,7 @@ async fn repeated_cursor_output() {
     let acknowledged = finished.last().expect("the run produced output").cursor;
     let before_terminal = finished.iter().rev().nth(1).map_or(0, |reply| reply.cursor);
 
-    let first = drain(&workflow, "replay", before_terminal);
+    let first = workflow.next("replay", before_terminal).await.unwrap();
     let replayed = drain(&workflow, "replay", before_terminal);
     let empty = drain(&workflow, "replay", acknowledged);
 
@@ -240,7 +257,7 @@ async fn cancellation_measures_criterion() {
     let mut cursor = 0;
     let mut replies = Vec::new();
     loop {
-        let reply = drain(&workflow, "cancelled", cursor);
+        let reply = next(&workflow, "cancelled", cursor).await;
         cursor = reply.cursor;
         assert!(
             reply.outcome.is_none(),
@@ -248,14 +265,12 @@ async fn cancellation_measures_criterion() {
         );
         let started = records(std::slice::from_ref(&reply))
             .iter()
-            .any(|record| record.record_type.as_str() == "mini.run.started");
+            .any(|record| record.record_type.as_str() == "obc.run.started");
         replies.push(reply);
         if started {
             break;
         }
-        // TODO(source-hook): an awaitable Workflow drain or change notification.
-        tokio::time::sleep(POLL).await;
-    }
+        }
     // Cancelling is idempotent: the second request is a successful no-op.
     workflow.cancel("cancelled");
     workflow.cancel("cancelled");

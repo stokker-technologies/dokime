@@ -704,8 +704,7 @@ async fn activation_starts_execution() {
     assert_eq!(probe.stops.load(Ordering::SeqCst), 1);
     assert!(probe.cleaned.load(Ordering::SeqCst));
     let settled = probe.checks.load(Ordering::SeqCst);
-    // TODO(source-hook): an observer event that reports a joined observer has stopped checking.
-    tokio::time::sleep(Duration::from_millis(15)).await;
+    // Shutdown Joins Every Observer Before Returning
     assert_eq!(probe.checks.load(Ordering::SeqCst), settled);
 }
 
@@ -780,8 +779,8 @@ async fn cancellation_drops_cleanup() {
     loop {
         tokio::select! {
             () = probe.entered.notified() => break,
-            () = crate::support::workflow::next_change() => {
-                let batch = workflow.drain("pending", cursor).unwrap();
+            batch = workflow.next("pending", cursor) => {
+                let batch = batch.unwrap();
                 cursor = batch.cursor;
                 for encoded in &batch.step_begins {
                     let start: dokime::execution::StepAttemptStart =

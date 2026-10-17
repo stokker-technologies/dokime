@@ -778,7 +778,7 @@ pub(super) async fn settled<T: dokime::execution::SidecarTemplate>(
     mut cursor: u64,
 ) -> dokime::transport::SidecarExecutionOutcome {
     loop {
-        let batch = workflow.drain(token, cursor).unwrap();
+        let batch = workflow.next(token, cursor).await.unwrap();
         for encoded in &batch.step_begins {
             let start: dokime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             workflow.admit(
@@ -794,7 +794,6 @@ pub(super) async fn settled<T: dokime::execution::SidecarTemplate>(
         if let Some(outcome) = batch.outcome {
             return outcome;
         }
-        crate::support::workflow::next_change().await;
     }
 }
 

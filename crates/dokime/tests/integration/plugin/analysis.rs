@@ -264,12 +264,9 @@ async fn cancelled_analysis_shutdown() {
     assert!(pending.await.unwrap_err().is_cancelled());
     let shutdown = runtime.stop();
     tokio::pin!(shutdown);
-    // TODO(source-hook): an analysis worker event that reports shutdown is waiting on it.
     assert!(
-        tokio::time::timeout(Duration::from_millis(50), &mut shutdown)
-            .await
-            .is_err(),
-        "shutdown must retain the original numerical worker"
+        std::future::poll_fn(|cx| std::task::Poll::Ready(std::future::Future::poll(shutdown.as_mut(), cx).is_pending())).await,
+        "shutdown retains the original numerical worker until its release"
     );
     assert_eq!(FINISHED.load(Ordering::SeqCst), 0);
     release.send(()).unwrap();

@@ -101,10 +101,7 @@ impl ExecutionFixture for QueuedSamples {
             }
             *self.queue.lock().unwrap() = Some(waiting);
             self.ready.send_replace(true);
-            // TODO(source-hook): ExecutionFixtureContext exposes no public cancellation future; this tick polls is_cancelled.
-            while !context.is_cancelled() {
-                tokio::time::sleep(Duration::from_millis(5)).await;
-            }
+            context.cancelled().await;
             // These Are Real Producer-Owned Rows Waiting To Be Submitted, Not Storage-Accepted Rows.
             let waiting = self.queue.lock().unwrap().take().unwrap();
             let receipt = context.publish_telemetry_batch(waiting).await.unwrap();

@@ -133,7 +133,7 @@ async fn run<T: SidecarTemplate + dokime::definition::DeclaredTemplate>()
     let mut cursor = 0;
     let mut frames = Vec::new();
     let result = loop {
-        let frame = engine.drain(&token, cursor).unwrap();
+        let frame = engine.next(&token, cursor).await.unwrap();
         for encoded in &frame.step_begins {
             let start: dokime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             engine.admit(
@@ -151,7 +151,6 @@ async fn run<T: SidecarTemplate + dokime::definition::DeclaredTemplate>()
         if complete {
             break frames;
         }
-        crate::support::workflow::next_change().await;
     };
     let samples = engine.take_local_samples(&token).unwrap();
     engine.shutdown().await;

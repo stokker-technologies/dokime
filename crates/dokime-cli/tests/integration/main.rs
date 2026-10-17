@@ -10,6 +10,7 @@
 // In-process command stories, one module per command domain.
 
 /* === Modules === */
+mod install;
 mod commands;
 
 /* === Re-Exports === */

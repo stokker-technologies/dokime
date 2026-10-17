@@ -181,10 +181,9 @@ impl ExecutionFixture for BlockingPublishingExecutor {
                         "fixture cancelled",
                     ));
                 }
-                // TODO(source-hook): ExecutionFixtureContext::cancelled is crate-private; a public cancellation future would replace this tick.
                 tokio::select! {
                     _ = released.changed() => {},
-                    _ = tokio::time::sleep(Duration::from_millis(10)) => {},
+                    () = context.cancelled() => {},
                 }
             }
 
@@ -235,12 +234,11 @@ impl ExecutionFixture for MemberStopExecutor {
                 .clone();
             activate_fixture_execution(&context, &first).await;
             self.entered.signal();
-            // TODO(source-hook): ExecutionFixtureContext exposes no future for an execution stop or cancellation; this tick polls both.
-            while !context.execution_stop_requested(&first.test_execution_id) {
-                if context.is_cancelled() {
+            tokio::select! {
+                () = context.execution_stopped(&first.test_execution_id) => {},
+                () = context.cancelled() => {
                     return Err(ProviderExecutionFailure::new("cancel", "fixture cancelled"));
                 }
-                tokio::time::sleep(Duration::from_millis(10)).await;
             }
 
             // === Run The Siblings To Completion === //

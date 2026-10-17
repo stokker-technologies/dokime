@@ -10,6 +10,7 @@
 /* === Modules === */
 pub(crate) mod model;
 pub(crate) mod notes;
+pub(crate) mod plots;
 pub(crate) mod publication;
 pub(crate) mod traceability;
 

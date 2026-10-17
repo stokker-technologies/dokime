@@ -636,8 +636,7 @@ async fn instance_opens_resources() {
         probe.samples.load(Ordering::SeqCst),
         probe.auxiliary_samples.load(Ordering::SeqCst),
     );
-    // TODO(source-hook): an observer event that reports a joined stream has stopped sampling.
-    tokio::time::sleep(Duration::from_millis(15)).await;
+    // Shutdown Joins Every Observer Before Returning
     assert_eq!(
         (
             probe.samples.load(Ordering::SeqCst),
@@ -685,12 +684,10 @@ async fn listener_publishes_asked() {
             connected("STALL").encode_to_vec(),
         )
         .unwrap();
-    // On the paused clock the window elapses only once every task is idle.
-    tokio::select! {
-        biased;
-        delivered = &mut invocation => panic!("delivery waits for its listener: {delivered:?}"),
-        () = tokio::time::sleep(Duration::from_millis(100)) => {}
-    }
+    // A Paused Clock Advances Without Turning Pending Delivery Into A Success
+    assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
+    tokio::time::advance(Duration::from_millis(100)).await;
+    assert!(futures_util::FutureExt::now_or_never(&mut invocation).is_none());
     invocation.cancel();
     let cancelled = invocation.await;
     assert!(

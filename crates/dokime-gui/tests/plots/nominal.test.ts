@@ -14,7 +14,7 @@ import { test } from "vitest";
 import {
   formatStatValue,
   formatSummaryValue,
-  nearestDrawnValue,
+  nearestDrawnPoint,
   type SeriesSummary,
   seriesLegendColumns,
   seriesLegendRows,
@@ -444,7 +444,8 @@ test("Series Legend", () => {
     seriesLegendColumns(true, "V").map((column) => column.header),
     [
       "Trace",
-      "Cursor (V)",
+      "X Cursor",
+      "Y Cursor (V)",
       "Count",
       "Min (V)",
       "Max (V)",
@@ -511,30 +512,30 @@ test("Series Legend", () => {
 
   // The Cursor Column Is Blank Until The Pointer Has Been Over The Plot
   assert.deepEqual(
-    rows.map((row) => row.cursor),
-    ["", ""],
+    rows.map((row) => [row.xCursor, row.yCursor]),
+    [["", ""], ["", ""]],
   );
 
   // The Cursor Reads Each Trace's Nearest Drawn Point And Skips Its Gaps
   const x = [0, 1, 2, 3, 4];
   const voltage = [10, 11, null, 13, 14];
   const current = [null, null, null, null, null];
-  assert.equal(nearestDrawnValue(x, voltage, 0.4), 10);
-  assert.equal(nearestDrawnValue(x, voltage, 0.6), 11);
-  assert.equal(nearestDrawnValue(x, voltage, 2.2), 13);
-  assert.equal(nearestDrawnValue(x, voltage, 99), 14);
-  assert.equal(nearestDrawnValue(x, current, 1), null);
-  assert.equal(nearestDrawnValue([3, 0, 2], [30, 0, 20], 0.9), 0);
-  const cursorValues = [nearestDrawnValue(x, voltage, 3.1), nearestDrawnValue(x, current, 3.1)];
+  assert.deepEqual(nearestDrawnPoint(x, voltage, 0.4), { x: 0, y: 10 });
+  assert.deepEqual(nearestDrawnPoint(x, voltage, 0.6), { x: 1, y: 11 });
+  assert.deepEqual(nearestDrawnPoint(x, voltage, 2.2), { x: 3, y: 13 });
+  assert.deepEqual(nearestDrawnPoint(x, voltage, 99), { x: 4, y: 14 });
+  assert.equal(nearestDrawnPoint(x, current, 1), null);
+  assert.deepEqual(nearestDrawnPoint([3, 0, 2], [30, 0, 20], 0.9), { x: 0, y: 0 });
+  const cursorPoints = [nearestDrawnPoint(x, voltage, 3.1), nearestDrawnPoint(x, current, 3.1)];
   const pointed = seriesLegendRows({
-    cursorValues,
+    cursorPoints,
     hidden: new Set(),
     summaries: SUMMARIES,
     traces: TRACES,
   });
   assert.deepEqual(
-    pointed.map((row) => row.cursor),
-    ["13.00", ""],
+    pointed.map((row) => [row.xCursor, row.yCursor]),
+    [["3.00", "13.00"], ["", ""]],
   );
 
   // The Table Dims Only While A Summary Request Is In Flight

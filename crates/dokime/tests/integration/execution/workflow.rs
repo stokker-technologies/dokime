@@ -44,7 +44,6 @@ use dokime::traceability::{TraceabilityRow, TraceabilitySection};
 use dokime::transport::SidecarCriterionStatus;
 use dokime::transport::*;
 
-use crate::support::workflow::next_change;
 
 /* === Constants === */
 const WORKFLOW: &str = "probe.checks";
@@ -59,6 +58,8 @@ const WATCHED_REWRITE: &[u8] = b"rewritten\n";
 const WATCH_SETTLE: Duration = Duration::from_millis(500);
 const INTERVAL_MS: u64 = 5;
 static ARTIFACT_GATE_FILLED: AtomicBool = AtomicBool::new(false);
+static CLEANUP_RELEASE: tokio::sync::Notify = tokio::sync::Notify::const_new();
+static ARTIFACT_GATE_REACHED: tokio::sync::Notify = tokio::sync::Notify::const_new();
 static ARTIFACT_PUSH_FINISHED: AtomicBool = AtomicBool::new(false);
 static INITIALIZATION_RELEASED: AtomicBool = AtomicBool::new(false);
 static EXECUTION_RELEASED: AtomicBool = AtomicBool::new(false);
@@ -572,7 +573,8 @@ impl Probe {
             assert!(flag(ctx.raw_parameters(), "read_context"));
         }
         if flag(ctx.raw_parameters(), "cleanup_wait") {
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            ctx.info("cleanup-waiting");
+            CLEANUP_RELEASE.notified().await;
         }
         if flag(ctx.raw_parameters(), "artifact_directory") {
             // The sweep runs after cleanup, so what teardown writes is evidence
@@ -646,6 +648,7 @@ impl Probe {
                     .map_err(|error| ProbeError::Declined(error.to_string()))?;
             }
             ARTIFACT_GATE_FILLED.store(true, Ordering::Release);
+            ARTIFACT_GATE_REACHED.notify_one();
             writer
                 .write_all(&[1])
                 .map_err(|error| ProbeError::Declined(error.to_string()))?;
@@ -923,7 +926,7 @@ async fn interactive_idle_stop() {
     let mut replies = Vec::new();
     let mut observed = 0;
     while observed < 2 {
-        let reply = drain(&workflow, token, cursor);
+        let reply = next(&workflow, token, cursor).await;
         cursor = reply.cursor;
         assert!(reply.step_begins.is_empty());
         assert!(reply.step_attempts.is_empty());
@@ -936,7 +939,6 @@ async fn interactive_idle_stop() {
         );
         replies.push(reply);
         observed += workflow.take_local_samples(token).unwrap().len();
-        next_change().await;
     }
     workflow.cancel(token);
     replies.extend(drain_from(&workflow, token, None, cursor).await);
@@ -969,7 +971,7 @@ async fn settle_command(
 ) -> CommandExecutionReply {
     workflow.command(command.clone()).unwrap();
     loop {
-        let reply = drain(workflow, &command.execution_token, *cursor);
+        let reply = next(workflow, &command.execution_token, *cursor).await;
         *cursor = reply.cursor;
         if reply.record_subscriptions_settling {
             workflow.settle_records(&command.execution_token);
@@ -979,7 +981,6 @@ async fn settle_command(
         if !matches!(receipt.state.as_str(), "accepted" | "running") {
             return receipt;
         }
-        next_change().await;
     }
 }
 
@@ -1027,6 +1028,19 @@ fn drain<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u64) -
     reply
 }
 
+async fn next<T: SidecarTemplate>(workflow: &Workflow<T>, token: &str, cursor: u64) -> EvidenceBatch {
+    let reply = workflow.next(token, cursor).await.expect("the execution remains retained");
+    for encoded in &reply.step_begins {
+        let start: dokime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        workflow.admit(token, &StepAdmission {
+            attempt_id: start.attempt_id.to_string(),
+            accepted: true,
+            message: String::new(),
+        });
+    }
+    reply
+}
+
 async fn drain_until_terminal(
     workflow: &Workflow<Probe>,
     token: &str,
@@ -1043,7 +1057,7 @@ async fn drain_from(
 ) -> Vec<EvidenceBatch> {
     let mut replies = Vec::new();
     loop {
-        let reply = drain(workflow, token, cursor);
+        let reply = next(workflow, token, cursor).await;
         cursor = reply.cursor;
         if reply.record_subscriptions_settling {
             workflow.settle_records(token);
@@ -1068,31 +1082,28 @@ async fn drain_from(
             );
             return replies;
         }
-        next_change().await;
     }
 }
 
 async fn drain_until_prompt(workflow: &Workflow<Probe>, token: &str) -> (u64, EvidenceBatch) {
     let mut cursor = 0;
     loop {
-        let reply = drain(workflow, token, cursor);
+        let reply = next(workflow, token, cursor).await;
         if !reply.prompt_requests.is_empty() {
             return (cursor, reply);
         }
         cursor = reply.cursor;
-        next_change().await;
     }
 }
 
 async fn drain_until_line(workflow: &Workflow<Probe>, token: &str, message: &str) {
     let mut cursor = 0;
     loop {
-        let reply = drain(workflow, token, cursor);
+        let reply = next(workflow, token, cursor).await;
         cursor = reply.cursor;
         if reply.diagnostics.iter().any(|line| line.message == message) {
             return;
         }
-        next_change().await;
     }
 }
 
@@ -1191,15 +1202,14 @@ async fn unacknowledged_invoke_callback() {
             .unwrap();
         let mut cursor = 0;
         let start = loop {
-            let reply = workflow.drain(token, cursor).unwrap();
+            let reply = workflow.next(token, cursor).await.unwrap();
             cursor = reply.cursor;
             if let Some(encoded) = reply.step_begins.first() {
                 break serde_json::from_str::<dokime::execution::StepAttemptStart>(encoded)
                     .unwrap();
             }
-            next_change().await;
         };
-        tokio::time::sleep(Duration::from_millis(30)).await;
+        tokio::time::advance(Duration::from_millis(30)).await;
         let waiting = workflow.drain(token, cursor).unwrap();
         assert!(waiting.outcome.is_none());
         assert!(waiting.step_attempts.is_empty());
@@ -1259,7 +1269,7 @@ async fn embedded_execution_output() {
     let mut replies = Vec::new();
     let mut cursor = 0;
     loop {
-        let reply = workflow.drain("embedded", cursor).unwrap();
+        let reply = workflow.next("embedded", cursor).await.unwrap();
         cursor = reply.cursor;
         for encoded in &reply.capture_phases {
             let phase: dokime::core::CapturePhase = serde_json::from_str(encoded).unwrap();
@@ -1287,7 +1297,6 @@ async fn embedded_execution_output() {
         if terminal {
             break;
         }
-        next_change().await;
     }
     assert!(outcome(&replies).0.passed, "{:?}", outcome(&replies).0);
     // A repeated cursor re-delivers the terminal outcome.
@@ -2122,7 +2131,7 @@ async fn initialize_cancellation_cleanup() {
         .unwrap();
     let mut cursor = 0;
     loop {
-        let reply = drain(&workflow, "init-cancel", cursor);
+        let reply = next(&workflow, "init-cancel", cursor).await;
         cursor = reply.cursor;
         assert!(reply.phase.is_empty());
         if reply
@@ -2132,7 +2141,6 @@ async fn initialize_cancellation_cleanup() {
         {
             break;
         }
-        next_change().await;
     }
     workflow.cancel("init-cancel");
     let replies = drain_until_terminal(&workflow, "init-cancel", None).await;
@@ -2182,7 +2190,7 @@ async fn cleanup_procedure_failure() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn cleanup_waits_timeout() {
+async fn cleanup_joins_release() {
     let workflow = workflow();
     workflow
         .start(start_request(
@@ -2192,6 +2200,8 @@ async fn cleanup_waits_timeout() {
             }),
         ))
         .unwrap();
+    drain_until_line(&workflow, "cleanup-timeout", "cleanup-waiting").await;
+    CLEANUP_RELEASE.notify_one();
     let replies = drain_until_terminal(&workflow, "cleanup-timeout", None).await;
     let terminal = outcome(&replies).0;
     assert!(terminal.passed, "{terminal:?}");
@@ -2364,17 +2374,15 @@ async fn record_wait_publication() {
     // The host admits a record from somewhere else and pushes it down. Nothing
     // about the delivery names this execution: it carries the scopes the host
     // captured it for, and the engine is what decides that this run is in one.
-    loop {
-        if workflow.deliver_captured(
+    assert_eq!(
+        workflow.deliver_captured(
             &admitted("probe.unit.connected", "gateway", "SN-7"),
             SOURCE,
             &[captured(execution())],
-        ) == 1
-        {
-            break;
-        }
-        next_change().await;
-    }
+        ),
+        1,
+        "admission retains the record before the step begins listening"
+    );
     let replies = drain_until_terminal(&workflow, "awaited", None).await;
 
     let outcome = replies
@@ -2427,9 +2435,7 @@ async fn capture_declared_scope() {
             serde_json::json!({ "await_record": true, "await_record_ms": 5_000, "samples": 1 }),
         ))
         .expect("the execution starts");
-    while !workflow.owns("filtered") {
-        next_change().await;
-    }
+    assert!(workflow.owns("filtered"));
 
     // This sidecar's own record comes back through the host like any other. It
     // is kept for the run's criteria, but handing a step its own words back
@@ -2527,18 +2533,14 @@ async fn artifact_backpressure() {
         .expect("the execution starts");
     let mut cursor = 0;
     loop {
-        let reply = drain(&workflow, token, cursor);
+        let reply = next(&workflow, token, cursor).await;
         cursor = reply.cursor;
         if !reply.step_begins.is_empty() {
             break;
         }
-        next_change().await;
     }
-    while !ARTIFACT_GATE_FILLED.load(Ordering::Acquire) {
-        next_change().await;
-    }
-    // TODO(source-hook): an artifact writer event that reports a push parked at the backlog gate.
-    tokio::time::sleep(Duration::from_millis(150)).await;
+    ARTIFACT_GATE_REACHED.notified().await;
+    assert!(ARTIFACT_GATE_FILLED.load(Ordering::Acquire));
     let blocked = !ARTIFACT_PUSH_FINISHED.load(Ordering::Acquire);
     let first = drain(&workflow, token, cursor);
     let carried_chunks = !first.artifact_chunks.is_empty();

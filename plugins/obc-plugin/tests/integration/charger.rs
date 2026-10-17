@@ -76,7 +76,7 @@ async fn cleanup_drains_input() {
 
     let mut cursor = 0;
     loop {
-        let reply = workflow.drain("finalize", cursor).unwrap();
+        let reply = workflow.next("finalize", cursor).await.unwrap();
         for encoded in &reply.step_begins {
             let start: dokime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
             workflow.admit(
@@ -92,9 +92,7 @@ async fn cleanup_drains_input() {
         if !reply.prompt_requests.is_empty() {
             break;
         }
-        // TODO(source-hook): an awaitable Workflow drain or change notification.
-        tokio::time::sleep(Duration::from_millis(5)).await;
-    }
+        }
 
     // The SDK cancels the waiting execution and joins its sampler before
     // stopping the app; a hang here is caught by the lane deadline.

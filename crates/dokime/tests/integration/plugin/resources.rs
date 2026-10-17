@@ -631,8 +631,8 @@ async fn shutdown_joins_cleanup() {
     loop {
         tokio::select! {
             () = observations.started.notified() => break,
-            () = crate::support::workflow::next_change() => {
-                let batch = workflow.drain("cancelled", cursor).unwrap();
+            batch = workflow.next("cancelled", cursor) => {
+                let batch = batch.unwrap();
                 cursor = batch.cursor;
                 for encoded in &batch.step_begins {
                     let start: dokime::execution::StepAttemptStart =

@@ -391,17 +391,12 @@ impl ExecutionFixture for Gate {
             self.started.notify_one();
             let released = self.release.notified();
             tokio::pin!(released);
-            loop {
-                if context.is_cancelled() {
+            tokio::select! {
+                _ = &mut released => {},
+                () = context.cancelled() => {
                     return Err(dokime_app::transport::ProviderExecutionFailure::new(
-                        "cancel",
-                        "fixture acknowledged cancellation",
+                        "cancel", "fixture acknowledged cancellation",
                     ));
-                }
-                // TODO(source-hook): await a public ExecutionFixtureContext cancellation future instead of polling is_cancelled.
-                tokio::select! {
-                    _ = &mut released => break,
-                    _ = tokio::time::sleep(Duration::from_millis(10)) => {},
                 }
             }
             let outcome = (self.outcome)(cycle);

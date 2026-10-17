@@ -101,7 +101,7 @@ tonic = { workspace = true, features = ["channel"] }
 criterion = { workspace = true }
 
 [[bench]]
-name = "system"
+name = "system-server"
 path = "benches/system/main.rs"
 harness = false
 

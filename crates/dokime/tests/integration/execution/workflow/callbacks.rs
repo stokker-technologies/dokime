@@ -204,7 +204,7 @@ async fn shutdown_joins_owners() {
         loop {
             tokio::select! {
                 _ = foreign.registered.notified() => break,
-                () = next_change() => cursor = drain(&workflow, stage, cursor).cursor,
+                batch = next(&workflow, stage, cursor) => cursor = batch.cursor,
             }
         }
 

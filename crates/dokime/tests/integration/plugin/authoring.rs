@@ -359,7 +359,8 @@ async fn drain_until_terminal(execution: &Workflow<Pulse>) -> Vec<EvidenceBatch>
     let mut cursor = 0;
     loop {
         let reply = execution
-            .drain("authoring", cursor)
+            .next("authoring", cursor)
+            .await
             .expect("the execution remains drainable");
         for encoded in &reply.step_begins {
             let start: dokime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
@@ -378,7 +379,6 @@ async fn drain_until_terminal(execution: &Workflow<Pulse>) -> Vec<EvidenceBatch>
         if terminal {
             return replies;
         }
-        crate::support::workflow::next_change().await;
     }
 }
 

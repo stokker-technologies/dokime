@@ -7,25 +7,23 @@
  * ***
  */
 
-// The one pause between drains of a live execution. `Workflow::drain` is a
-// cursor read with no public wait on the execution's change notification, so
-// every drain loop in these stories pumps through this single site.
+// In-process command stories, one module per command domain.
 
 /* === Modules === */
+
+mod installation;
 
 /* === Re-Exports === */
 
 /* === Imports === */
 
 // Standard Library Imports
-use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
 
 /* === Constants === */
-const POLL: Duration = Duration::from_millis(2);
 
 /* === Macros === */
 
@@ -40,10 +38,6 @@ const POLL: Duration = Duration::from_millis(2);
 /* === Implementations === */
 
 /* === Public Functions === */
-// TODO(source-hook): `Workflow::changed(token)`, a public wait on the execution's `changed` notification.
-pub async fn next_change() {
-    tokio::time::sleep(POLL).await;
-}
 
 /* === Private Functions === */
 

@@ -531,10 +531,7 @@ async fn capture_failure_provider() {
             Box::pin(async move {
                 let _running = Running(&self.cancelled);
                 self.entered.notify_one();
-                // TODO(source-hook): ExecutionFixtureContext exposes no public cancellation future; this tick polls is_cancelled.
-                while !context.is_cancelled() {
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                }
+            context.cancelled().await;
                 Err(dokime::transport::ProviderExecutionFailure::new(
                     "cancel",
                     "fixture cancelled",

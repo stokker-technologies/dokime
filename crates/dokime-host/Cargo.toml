@@ -65,6 +65,6 @@ tempfile = { workspace = true }
 criterion = { workspace = true }
 
 [[bench]]
-name = "integration"
+name = "integration-host"
 path = "benches/integration/main.rs"
 harness = false

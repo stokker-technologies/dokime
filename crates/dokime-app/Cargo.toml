@@ -140,16 +140,16 @@ rusqlite = { workspace = true }
 criterion = { workspace = true }
 
 [[bench]]
-name = "unit"
+name = "unit-app"
 path = "benches/unit/main.rs"
 harness = false
 
 [[bench]]
-name = "integration"
+name = "integration-app"
 path = "benches/integration/main.rs"
 harness = false
 
 [[bench]]
-name = "system"
+name = "system-app"
 path = "benches/system/main.rs"
 harness = false
