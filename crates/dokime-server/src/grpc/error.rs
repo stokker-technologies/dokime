@@ -19,7 +19,6 @@ pub use crate::Error;
 use prost::Message;
 use tonic::Status;
 // Local Imports
-use dokime_domain::operations::evidence as v1;
 use dokime_runtime::plugin::Diagnostic;
 use dokime_runtime::runtime::Error as HostError;
 

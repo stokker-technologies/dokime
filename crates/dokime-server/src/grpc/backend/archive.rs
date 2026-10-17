@@ -16,7 +16,6 @@ use harmos::operations::{Response, StreamOutput};
 use tonic::Status;
 // Local Imports
 use crate::grpc::{bundle, chunked, value::canonical};
-use dokime_domain::operations::backend as wire;
 use dokime_runtime::RuntimeHandle;
 /* === Constants === */
 const CHUNK_BYTES: usize = 64 * 1024;

@@ -66,7 +66,7 @@ impl Operation for Upload {
         Ok(Self { resources, upload: None })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _: &mut (), input: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, _: &mut wire::UploadArtifact, input: &mut Self::Endpoints,
     ) -> Result<Response<dokime_domain::model::content::wire::ArtifactMetadata>, Status> {
         let first = receive_upload_frame(input).await?.ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
         let Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {

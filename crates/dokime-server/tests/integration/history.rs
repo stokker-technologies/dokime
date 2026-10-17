@@ -20,7 +20,7 @@ use super::*;
 use dokime_client::contracts::history::BrowseExecutions;
 use dokime_client::contracts::history::DeleteExecution;
 use dokime_domain::model;
-use {dokime_domain::model::execution::wire::CycleStatus, dokime_runtime::runtime::command::CommandContext};
+use {dokime_runtime::CycleStatus, dokime_runtime::runtime::command::CommandContext};
 
 /* === Constants === */
 const CONTROL_TOKEN: &str = "history-control-token-012345678901234567890";

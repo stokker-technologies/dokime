@@ -23,8 +23,6 @@ use dokime_domain::model::definition::wire as schema;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueType;
-use dokime_domain::model::values::wire as value_wire;
-use dokime_domain::operations::prompts as contract;
 use dokime_runtime::definition::RuntimeCondition;
 use dokime_runtime::domains::prompts;
 use dokime_runtime::expressions::{Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp};

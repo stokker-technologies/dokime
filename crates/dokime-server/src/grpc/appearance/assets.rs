@@ -22,7 +22,6 @@ use tonic::Status;
 // Local Imports
 use super::super::chunked;
 use super::{failure, source_budget};
-use dokime_domain::operations::appearance as wire;
 use dokime_domain::operations::content;
 use dokime_runtime::{RuntimeHandle, domains::installed_plugins::RuntimeInstalledPluginAsset};
 

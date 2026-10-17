@@ -30,7 +30,6 @@ use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::values::ElapsedUnit;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::values::ValueFormat;
-use dokime_domain::model::values::wire;
 
 /* === Constants === */
 

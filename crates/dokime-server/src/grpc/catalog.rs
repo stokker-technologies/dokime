@@ -25,7 +25,6 @@ use tonic::Status;
 use super::value::{self, Budget, canonical};
 use dokime_domain::model::definition::wire as schema;
 use dokime_domain::model::identity::wire as common;
-use dokime_domain::model::values::wire as wire_value;
 use dokime_domain::operations::catalog as wire;
 use dokime_runtime::RuntimeHandle;
 

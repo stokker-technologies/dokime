@@ -23,7 +23,6 @@ use tonic::Status;
 use super::super::{content, value};
 use super::wire;
 use dokime_domain::model::identity::ArtifactId;
-use dokime_domain::operations::content as content_wire;
 use dokime_domain::operations::history;
 use dokime_runtime::RuntimeHandle;
 

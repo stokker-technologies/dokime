@@ -18,7 +18,6 @@
 
 // Local Imports
 use crate::grpc::value::canonical;
-use dokime_domain::operations::appearance as wire;
 use dokime_runtime::domains::installed_plugins::{RuntimeAppearanceFrame, RuntimeThemeFamily};
 use dokime_runtime::domains::{ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
 

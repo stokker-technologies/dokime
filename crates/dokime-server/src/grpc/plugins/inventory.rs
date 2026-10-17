@@ -18,6 +18,7 @@
 
 // Local Imports
 use super::*;
+use dokime_domain::model::plugins::wire as plugins_model;
 use dokime_runtime::state::PluginOwner;
 
 /* === Constants === */
@@ -37,7 +38,7 @@ use dokime_runtime::state::PluginOwner;
 /* === Public Functions === */
 pub(super) fn page(
     runtime: &RuntimeHandle, request: &mut v1::ListAdmittedPlugins, limit: usize, local_only: bool,
-) -> Result<harmos::operations::Response<v1::AdmittedPluginPage>, Status> {
+) -> Result<harmos::operations::Response<plugins_model::AdmittedPluginPage>, Status> {
     let size = page_size(request.page_size)?;
     let snapshot = runtime.watch_state().latest();
     let state = snapshot.state();
@@ -76,18 +77,18 @@ pub(super) fn page(
         if bytes > limit {
             return Err(Status::resource_exhausted("plugin page exceeds response budget"));
         }
-        artifacts.push(v1::AdmittedPlugin {
+        artifacts.push(plugins_model::AdmittedPlugin {
             plugin_id: id.clone(),
             label: label.to_owned(),
             version: artifact.version.clone(),
             enabled: artifact.enabled,
             owner: owner.map(|owner| match owner {
-                PluginOwner::Host => v1::AdmittedPluginOwner::Host(true),
+                PluginOwner::Host => plugins_model::AdmittedPluginOwner::Host(true),
                 PluginOwner::Embedded { generation } => {
-                    v1::AdmittedPluginOwner::Embedded(v1::AdmittedEmbeddedOwner { generation: generation.clone() })
+                    plugins_model::AdmittedPluginOwner::Embedded(plugins_model::AdmittedEmbeddedOwner { generation: generation.clone() })
                 }
                 PluginOwner::Bundle { package, path, installation, content_digest } => {
-                    v1::AdmittedPluginOwner::Bundle(v1::AdmittedBundleOwner {
+                    plugins_model::AdmittedPluginOwner::Bundle(plugins_model::AdmittedBundleOwner {
                         package: package.clone(),
                         path: local_only.then(|| path.clone()),
                         installation_id: installation.clone(),
@@ -98,13 +99,13 @@ pub(super) fn page(
         });
     }
     let next = selected.next().and_then(|_| {
-        artifacts.last().map(|artifact| v1::AdmittedPluginCursor {
+        artifacts.last().map(|artifact| plugins_model::AdmittedPluginCursor {
             epoch: epoch.clone(),
             revision: snapshot.revision(),
             after_plugin_id: artifact.plugin_id.clone(),
         })
     });
-    let reply = v1::AdmittedPluginPage {
+    let reply = plugins_model::AdmittedPluginPage {
         plugins: artifacts,
         next,
         total_count: state.installed_plugins.len() as u64,

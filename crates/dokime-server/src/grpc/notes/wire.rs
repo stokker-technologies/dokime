@@ -26,7 +26,6 @@ use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::identity::wire as common;
-use dokime_domain::operations::notes as contract;
 use dokime_runtime::domains::evidence::notes::{NoteCreation, NotePublication};
 
 /* === Constants === */

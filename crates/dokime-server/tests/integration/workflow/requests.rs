@@ -141,7 +141,7 @@ async fn commands_owner_receipts() {
     let terminal = support::on_state_change(&owner.handle(), async || {
         let response = client.unary::<contracts::execution::GetExecutionCommand>(auth(lookup.clone(), READER)).await;
         if let Err(error) = &response {
-            let request_id = dokime_runtime::CommandId::from_uuid(command.request_id.clone()).unwrap();
+            let request_id = dokime_domain::model::identity::CommandId::from_uuid(command.request_id.clone()).unwrap();
             let original = owner.handle().run_request(&request_id).await;
             panic!("command lookup failed: {error}; original receipt: {original:?}");
         }

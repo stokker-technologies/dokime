@@ -70,12 +70,6 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<dokime_filesystem::Error> for Error {
-    fn from(error: dokime_filesystem::Error) -> Self {
-        std::io::Error::from(error).into()
-    }
-}
-
 impl Error {
     pub fn exit_code(&self) -> ExitCode {
         ExitCode::from(match self {

@@ -18,7 +18,8 @@
 
 // Local Imports
 use super::super::value::canonical;
-use super::{contract as v1, value};
+use super::value;
+use dokime_domain::model::plugins::wire as plugins_model;
 use dokime_runtime::plugins::{PluginEntry, PluginLastBoot, PluginState};
 use harmos::Protobuf;
 use tonic::Status;
@@ -38,11 +39,11 @@ use tonic::Status;
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<v1::PluginInstallation, Status> {
+pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<plugins_model::PluginInstallation, Status> {
     normalize(&mut entry, limit)?;
     let installation = entry.installation;
-    let metadata = entry.metadata.map(|metadata| v1::PluginMetadata {
-        identity: Some(v1::PluginIdentity {
+    let metadata = entry.metadata.map(|metadata| plugins_model::PluginMetadata {
+        identity: Some(plugins_model::PluginIdentity {
             name: metadata.identity.name,
             version: metadata.identity.version,
             description: metadata.identity.description,
@@ -52,7 +53,7 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<v1::PluginIn
         environment_references: metadata
             .environment_references
             .into_iter()
-            .map(|reference| v1::PluginEnvironmentReference {
+            .map(|reference| plugins_model::PluginEnvironmentReference {
                 owner: reference.owner,
                 setting: reference.setting,
                 variable: reference.variable,
@@ -63,22 +64,22 @@ pub(super) fn entry(mut entry: PluginEntry, limit: usize) -> Result<v1::PluginIn
         .last_boot
         .map(|boot| {
             let (at, result) = match boot {
-                PluginLastBoot::Loaded { at } => (at, v1::PluginLastBootResult::Loaded(true)),
-                PluginLastBoot::Failed { error, at } => (at, v1::PluginLastBootResult::Error(error)),
+                PluginLastBoot::Loaded { at } => (at, plugins_model::PluginLastBootResult::Loaded(true)),
+                PluginLastBoot::Failed { error, at } => (at, plugins_model::PluginLastBootResult::Error(error)),
             };
-            Ok::<_, Status>(v1::PluginLastBoot { at: Some(canonical::timestamp(&at)?), result: Some(result) })
+            Ok::<_, Status>(plugins_model::PluginLastBoot { at: Some(canonical::timestamp(&at)?), result: Some(result) })
         })
         .transpose()?;
-    let result = v1::PluginInstallation {
+    let result = plugins_model::PluginInstallation {
         install_id: installation.install_id.to_string(),
         sha256: installation.sha256,
         staged_at: Some(canonical::timestamp(&installation.staged_at)?),
         consented_at: installation.consented_at.as_ref().map(canonical::timestamp).transpose()?,
         state: match installation.state {
-            PluginState::Staged => v1::PluginInstallationState::Staged,
-            PluginState::Installed => v1::PluginInstallationState::Installed,
-            PluginState::Disabled => v1::PluginInstallationState::Disabled,
-            PluginState::RemovalPending => v1::PluginInstallationState::RemovalPending,
+            PluginState::Staged => plugins_model::PluginInstallationState::Staged,
+            PluginState::Installed => plugins_model::PluginInstallationState::Installed,
+            PluginState::Disabled => plugins_model::PluginInstallationState::Disabled,
+            PluginState::RemovalPending => plugins_model::PluginInstallationState::RemovalPending,
         },
         last_boot,
         metadata,
@@ -112,7 +113,7 @@ pub(super) fn normalize(entry: &mut PluginEntry, limit: usize) -> Result<(), Sta
     Ok(())
 }
 pub(super) fn memory(entry: &PluginEntry) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<v1::PluginInstallation>() + 36;
+    let mut bytes = std::mem::size_of::<plugins_model::PluginInstallation>() + 36;
     let mut add = |text: &str| -> Result<(), Status> {
         value::text(text)?;
         bytes = bytes.saturating_add(text.len());
@@ -143,7 +144,7 @@ pub(super) fn memory(entry: &PluginEntry) -> Result<usize, Status> {
     }
     if let Some(metadata) = &entry.metadata {
         bytes = bytes.saturating_add(metadata.owners.len().saturating_mul(4 * std::mem::size_of::<String>())).saturating_add(
-            metadata.environment_references.len().saturating_mul(4 * std::mem::size_of::<v1::PluginEnvironmentReference>()),
+            metadata.environment_references.len().saturating_mul(4 * std::mem::size_of::<plugins_model::PluginEnvironmentReference>()),
         );
     }
     Ok(bytes)

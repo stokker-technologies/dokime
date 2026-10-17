@@ -30,7 +30,6 @@ use crate::grpc::{
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::identity::wire as common;
-use dokime_domain::operations::execution as execution_wire;
 use dokime_domain::operations::history;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::execution_history::ExecutionCheckpointContext;

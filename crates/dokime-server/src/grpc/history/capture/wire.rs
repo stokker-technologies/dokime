@@ -27,10 +27,6 @@ use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::StepStatus;
 use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::execution::snapshot::ExecutionSnapshot;
-use dokime_domain::model::identity::wire as common_wire;
-use dokime_domain::model::values::wire as value_wire;
-use dokime_domain::operations::execution as execution_wire;
-use dokime_domain::operations::history as history_wire;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource, TestCase};
 /* === Constants === */
 

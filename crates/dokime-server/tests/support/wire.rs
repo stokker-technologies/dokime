@@ -17,7 +17,6 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-use std::time::Duration;
 // Third Party Imports
 use tokio::sync::Notify;
 use tonic::{
@@ -123,14 +122,14 @@ impl WireClient {
         Ok(grpc)
     }
 
-    pub async fn unary<O>(&self, request: impl tonic::IntoRequest<O::Request>) -> Result<tonic::Response<O::Response>, tonic::Status>
+    pub async fn unary<O>(&self, request: impl tonic::IntoRequest<O>) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O::Request: harmos::Protobuf + Sync,
+        O: harmos::Protobuf + Sync,
         O::Response: harmos::Protobuf + harmos::MemorySize,
     {
         let request = request.into_request().map(harmos::operations::Response::new);
-        let codec = self.codec::<O::Response, O::Request>()?;
+        let codec = self.codec::<O::Response, O>()?;
         let response = self.grpc().await?.unary(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
         let (value, _claims) = value.into_request().map_err(|error| tonic::Status::data_loss(error.to_string()))?;
@@ -139,17 +138,20 @@ impl WireClient {
 
     // Exercise Both Malformed Wire Types And Well-Formed Unknown Variants.
     pub async fn invalid_enum<O, E>(
-        &self, request: Request<O::Request>, field: &str, unknown_variant: bool,
+        &self, request: Request<O>, field: &str, unknown_variant: bool,
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
         O: contracts::Endpoint,
-        O::Request: harmos::Protobuf + harmos::schema::Described + Sync,
+        O: harmos::Protobuf + harmos::schema::Described + Sync,
         O::Response: harmos::Protobuf + harmos::MemorySize,
         E: harmos::schema::Described,
     {
-        use harmos::schema::Described;
         use prost::encoding::{DecodeContext, WireType, decode_key, encode_key, encode_varint, skip_field};
-        let tag = O::Request::FIELDS.iter().find(|entry| entry.name == field).expect("canonical request declares the enum field").tag;
+        let tag = <O as harmos::schema::Described>::FIELDS
+            .iter()
+            .find(|entry| entry.name == field)
+            .expect("canonical request declares the enum field")
+            .tag;
         let request = request.map(|message| {
             let original = harmos::Protobuf::encode_to_vec(&message);
             let mut remaining = original.as_slice();
@@ -187,18 +189,18 @@ impl WireClient {
     }
 
     pub async fn download<O>(
-        &self, request: impl tonic::IntoRequest<O::Request>,
-    ) -> Result<tonic::Response<WireStream<O::Item>>, tonic::Status>
+        &self, request: impl tonic::IntoRequest<O>,
+    ) -> Result<tonic::Response<WireStream<<O::Output as harmos::operations::Direction>::Item>>, tonic::Status>
     where
-        O: contracts::Endpoint + harmos::operations::OutputDeclaration,
-        O::Request: harmos::Protobuf + Sync,
+        O: contracts::Endpoint,
+        O: harmos::Protobuf + Sync,
         O::Response: harmos::Protobuf + harmos::MemorySize,
-        O::Item: harmos::Protobuf + harmos::MemorySize,
+        <O::Output as harmos::operations::Direction>::Item: harmos::Protobuf + harmos::MemorySize,
     {
         use futures_util::StreamExt;
         use harmos::grpc::OutputEnvelope;
         let request = request.into_request().map(harmos::operations::Response::new);
-        let codec = self.codec::<OutputEnvelope<O::Item, O::Response>, O::Request>()?;
+        let codec = self.codec::<OutputEnvelope<<O::Output as harmos::operations::Direction>::Item, O::Response>, O>()?;
         let response = self.grpc().await?.server_streaming(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, incoming, extensions) = response.into_parts();
         let frames = futures_util::stream::unfold(Some(incoming), |state| async move {
@@ -225,22 +227,22 @@ impl WireClient {
     }
 
     pub async fn upload<O>(
-        &self, request: impl tonic::IntoStreamingRequest<Message = O::Item>,
+        &self, request: impl tonic::IntoStreamingRequest<Message = <O::Input as harmos::operations::Direction>::Item>,
     ) -> Result<tonic::Response<O::Response>, tonic::Status>
     where
-        O: contracts::Endpoint + harmos::operations::InputDeclaration,
-        O::Request: harmos::Protobuf + Sync + Default,
+        O: contracts::Endpoint,
+        O: harmos::Protobuf + Sync + Default,
         O::Response: harmos::Protobuf + harmos::MemorySize,
-        O::Item: harmos::Protobuf + Sync,
+        <O::Input as harmos::operations::Direction>::Item: harmos::Protobuf + Sync,
     {
         use futures_util::StreamExt;
         use harmos::grpc::InputEnvelope;
         use harmos::operations::Response;
         let request = request.into_streaming_request().map(|items| {
-            let opening = futures_util::stream::once(async { Response::new(InputEnvelope::Request(O::Request::default())) });
+            let opening = futures_util::stream::once(async { Response::new(InputEnvelope::Request(O::default())) });
             opening.chain(items.map(|item| Response::new(InputEnvelope::Item(item))))
         });
-        let codec = self.codec::<O::Response, InputEnvelope<O::Request, O::Item>>()?;
+        let codec = self.codec::<O::Response, InputEnvelope<O, <O::Input as harmos::operations::Direction>::Item>>()?;
         let response = self.grpc().await?.client_streaming(request, O::PATH.parse().unwrap(), codec).await?;
         let (metadata, value, extensions) = response.into_parts();
         let (value, _claims) = value.into_request().map_err(|error| tonic::Status::data_loss(error.to_string()))?;

@@ -21,9 +21,6 @@ use tonic::Status;
 use super::super::error::detailed;
 use super::super::{execution, value};
 use dokime_domain::model::execution::result::ResultStatus;
-use dokime_domain::model::execution::wire_checkpoint as checkpoint_wire;
-use dokime_domain::operations::execution as execution_wire;
-use dokime_domain::operations::history as history_wire;
 use dokime_runtime::runtime::query::execution_history::{
     ExecutionAvailability, ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowseLifecycle, ExecutionCheckpoint,
 };

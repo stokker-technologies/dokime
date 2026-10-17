@@ -78,8 +78,8 @@ impl NetworkArgs {
         let address = SocketAddr::new(self.host, self.port);
         let config = if self.allow_remote {
             let certificate =
-                dokime_filesystem::input::read(self.tls_cert.as_deref().ok_or_else(|| input("--tls-cert is required"))?, 1024 * 1024)?;
-            let key = dokime_filesystem::input::read(self.tls_key.as_deref().ok_or_else(|| input("--tls-key is required"))?, 64 * 1024)?;
+                harmos::filesystem::input::read(self.tls_cert.as_deref().ok_or_else(|| input("--tls-cert is required"))?, 1024 * 1024)?;
+            let key = harmos::filesystem::input::read(self.tls_key.as_deref().ok_or_else(|| input("--tls-key is required"))?, 64 * 1024)?;
             Config::remote(address, TlsIdentity::from_pem(certificate, key), grants.ok_or_else(|| input("--auth-file is required"))?)?
         } else {
             let config = Config::local().with_bind_addr(address);
@@ -103,7 +103,7 @@ impl Drop for Grant {
 
 /* === Private Functions === */
 fn read_grants(path: &Path) -> crate::host::Result<Vec<BearerGrant>> {
-    let bytes = Zeroizing::new(dokime_filesystem::input::read(path, 1024 * 1024)?);
+    let bytes = Zeroizing::new(harmos::filesystem::input::read(path, 1024 * 1024)?);
     parse_grants(&bytes)
 }
 

@@ -21,10 +21,6 @@ use crate::grpc::enums::canonical as enums;
 use crate::grpc::value::projection;
 use crate::grpc::value::{self, canonical};
 use dokime_domain::model::identity::wire as common;
-use dokime_domain::model::values::wire as value_wire;
-use dokime_domain::operations::documents;
-use dokime_domain::operations::history;
-use dokime_domain::operations::plots;
 
 /* === Constants === */
 

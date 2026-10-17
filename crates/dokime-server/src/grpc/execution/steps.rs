@@ -22,6 +22,7 @@ use super::*;
 use dokime_domain::model::execution::result::CriterionStatus;
 use dokime_domain::model::execution::result::StepRecord;
 use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::wire as execution_model;
 use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
@@ -35,7 +36,7 @@ struct Page {
     start: usize,
     end: usize,
     observed: Cursor,
-    next: Option<wire::StepPageCursor>,
+    next: Option<execution_model::StepPageCursor>,
 }
 
 /* === Enums === */
@@ -45,35 +46,35 @@ struct Page {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> Result<wire::ListExecutionStepsReply, Status> {
+pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> Result<execution_model::ListExecutionStepsReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let page = page(
         &snapshot,
         &request.execution_id,
         "",
-        wire::StepPageKind::Steps,
+        execution_model::StepPageKind::Steps,
         request.limit,
         request.cursor.as_ref(),
         execution.steps.len(),
     )?;
     let mut bounds = Bounds::new(service.max_message_bytes);
     let count = page.end - page.start;
-    bounds.bytes(count.saturating_mul(std::mem::size_of::<wire::ExecutionStep>()))?;
+    bounds.bytes(count.saturating_mul(std::mem::size_of::<execution_model::ExecutionStep>()))?;
     let mut steps = canonical::slots(count)?;
     for (index, step) in execution.steps[page.start..page.end].iter().enumerate() {
         bounds.text(step.step_id.as_str())?;
         bounds.bytes(metadata_memory(&step.metadata)?)?;
-        steps.push(wire::ExecutionStep {
+        steps.push(execution_model::ExecutionStep {
             step_id: step.step_id.to_string(),
             metadata: Some(metadata(&step.metadata)?),
             status: match step.status {
-                StepStatus::Pending => wire::StepStatus::Pending,
-                StepStatus::Running => wire::StepStatus::Running,
-                StepStatus::Passed => wire::StepStatus::Passed,
-                StepStatus::Failed => wire::StepStatus::Failed,
-                StepStatus::Skipped => wire::StepStatus::Skipped,
-                StepStatus::Cancelled => wire::StepStatus::Cancelled,
+                StepStatus::Pending => execution_model::StepStatus::Pending,
+                StepStatus::Running => execution_model::StepStatus::Running,
+                StepStatus::Passed => execution_model::StepStatus::Passed,
+                StepStatus::Failed => execution_model::StepStatus::Failed,
+                StepStatus::Skipped => execution_model::StepStatus::Skipped,
+                StepStatus::Cancelled => execution_model::StepStatus::Cancelled,
             },
             started_at: step.started_at.as_ref().map(canonical::timestamp).transpose()?,
             finished_at: step.finished_at.as_ref().map(canonical::timestamp).transpose()?,
@@ -83,10 +84,10 @@ pub(super) fn list(service: &Resources, request: &wire::ListExecutionSteps) -> R
             detail: step.detail.as_ref().map(|detail| diagnostic(detail, &mut bounds)).transpose()?,
         });
     }
-    reply(service, wire::ListExecutionStepsReply { steps, next_cursor: page.next, observed_cursor: Some(page.observed) })
+    reply(service, execution_model::ListExecutionStepsReply { steps, next_cursor: page.next, observed_cursor: Some(page.observed) })
 }
 
-pub(super) fn criteria(service: &Resources, request: &wire::ListStepCriteria) -> Result<wire::ListStepCriteriaReply, Status> {
+pub(super) fn criteria(service: &Resources, request: &wire::ListStepCriteria) -> Result<execution_model::ListStepCriteriaReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let step = step(&execution.steps, &request.step_id)?;
@@ -94,7 +95,7 @@ pub(super) fn criteria(service: &Resources, request: &wire::ListStepCriteria) ->
         &snapshot,
         &request.execution_id,
         &request.step_id,
-        wire::StepPageKind::Criteria,
+        execution_model::StepPageKind::Criteria,
         request.limit,
         request.cursor.as_ref(),
         step.criteria.len(),
@@ -102,7 +103,7 @@ pub(super) fn criteria(service: &Resources, request: &wire::ListStepCriteria) ->
     let mut bounds = Bounds::new(service.max_message_bytes);
     let mut budget = value::Budget::new();
     let count = page.end - page.start;
-    bounds.bytes(count.saturating_mul(std::mem::size_of::<wire::StepCriterion>()))?;
+    bounds.bytes(count.saturating_mul(std::mem::size_of::<execution_model::StepCriterion>()))?;
     let mut criteria = canonical::slots(count)?;
     for (index, criterion) in step.criteria[page.start..page.end].iter().enumerate() {
         bounds.text(criterion.criterion_id.as_str())?;
@@ -118,28 +119,28 @@ pub(super) fn criteria(service: &Resources, request: &wire::ListStepCriteria) ->
         if let Some(message) = &criterion.message {
             bounds.text(message)?;
         }
-        criteria.push(wire::StepCriterion {
+        criteria.push(execution_model::StepCriterion {
             criterion_id: criterion.criterion_id.to_string(),
             metadata: Some(metadata(&criterion.metadata)?),
             status: match criterion.status {
-                CriterionStatus::Pending => wire::CriterionStatus::Pending,
-                CriterionStatus::Passed => wire::CriterionStatus::Passed,
-                CriterionStatus::Failed => wire::CriterionStatus::Failed,
-                CriterionStatus::Indeterminate => wire::CriterionStatus::Indeterminate,
-                CriterionStatus::Skipped => wire::CriterionStatus::Skipped,
+                CriterionStatus::Pending => execution_model::CriterionStatus::Pending,
+                CriterionStatus::Passed => execution_model::CriterionStatus::Passed,
+                CriterionStatus::Failed => execution_model::CriterionStatus::Failed,
+                CriterionStatus::Indeterminate => execution_model::CriterionStatus::Indeterminate,
+                CriterionStatus::Skipped => execution_model::CriterionStatus::Skipped,
             },
             observed,
             message: criterion.message.clone(),
             ordinal: (page.start + index) as u64,
         });
     }
-    reply(service, wire::ListStepCriteriaReply { criteria, next_cursor: page.next, observed_cursor: Some(page.observed) })
+    reply(service, execution_model::ListStepCriteriaReply { criteria, next_cursor: page.next, observed_cursor: Some(page.observed) })
 }
 
 /* === Private Functions === */
 fn page(
-    snapshot: &RuntimeStateSnapshot, execution_id: &str, step_id: &str, kind: wire::StepPageKind, limit: u32,
-    given: Option<&wire::StepPageCursor>, len: usize,
+    snapshot: &RuntimeStateSnapshot, execution_id: &str, step_id: &str, kind: execution_model::StepPageKind, limit: u32,
+    given: Option<&execution_model::StepPageCursor>, len: usize,
 ) -> Result<Page, Status> {
     let revision = given
         .map(|cursor| {
@@ -164,7 +165,7 @@ fn page(
     Ok(Page {
         start,
         end,
-        next: (end < len).then(|| wire::StepPageCursor {
+        next: (end < len).then(|| execution_model::StepPageCursor {
             revision: Some(observed.clone()),
             execution_id: execution_id.into(),
             step_id: step_id.into(),

@@ -51,47 +51,67 @@ struct DynamicText {
     value: String,
 }
 
-#[harmos::operation(request = DynamicText, response = DynamicText,
+#[harmos::message]
+#[harmos::operation(response = DynamicText,
     id = "fixture.dynamic.unary", version = 1, policy = DYNAMIC_POLICY,
     visibility = harmos::operations::Visibility::Host,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
-struct DynamicReplacement;
+struct DynamicReplacement {
+    value: String,
+}
 
 struct DynamicReplacementHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-struct DynamicUnary;
+#[harmos::message]
+#[harmos::operation(response = DynamicNumber,
+    id = "fixture.dynamic.unary", version = 1, policy = DYNAMIC_POLICY,
+    visibility = harmos::operations::Visibility::Host,
+    grant = dynamic_grant,
+    grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Unary"))]
+struct DynamicUnary {
+    value: u32,
+}
 
 struct DynamicUnaryHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-#[harmos::operation(request = DynamicNumber, response = DynamicNumber, output = DynamicNumber,
+#[harmos::message]
+#[harmos::operation(response = DynamicNumber, output = DynamicNumber,
     id = "fixture.dynamic.download", version = 1, policy = DYNAMIC_POLICY,
     visibility = harmos::operations::Visibility::Host,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Download"))]
-struct DynamicDownload;
+struct DynamicDownload {
+    value: u32,
+}
 
 struct DynamicDownloadHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-#[harmos::operation(request = DynamicNumber, response = DynamicNumber, input = DynamicNumber,
+#[harmos::message]
+#[harmos::operation(response = DynamicNumber, input = DynamicNumber,
     id = "fixture.dynamic.upload", version = 1, policy = DYNAMIC_POLICY,
     visibility = harmos::operations::Visibility::Host,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Upload"))]
-struct DynamicUpload;
+struct DynamicUpload {
+    value: u32,
+}
 
 struct DynamicUploadHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
 }
 
-#[harmos::operation(request = DynamicNumber, response = DynamicNumber, input = DynamicNumber, output = DynamicNumber,
+#[harmos::message]
+#[harmos::operation(response = DynamicNumber, input = DynamicNumber, output = DynamicNumber,
     id = "fixture.dynamic.duplex", version = 1, policy = DYNAMIC_POLICY,
     visibility = harmos::operations::Visibility::Host,
     grpc(package = "fixture.dynamic.v1", service = "Provider", method = "Duplex"))]
-struct DynamicDuplex;
+struct DynamicDuplex {
+    value: u32,
+}
 
 struct DynamicDuplexHandler {
     calls: Arc<std::sync::atomic::AtomicUsize>,
@@ -114,39 +134,10 @@ impl harmos::operations::Operation for DynamicReplacementHandler {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicText, _: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut DynamicReplacement, _: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<DynamicText>, Self::Error> {
         self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(DynamicText { value: request.value.clone() }.into())
-    }
-}
-
-impl harmos::operations::OperationDeclaration for DynamicUnary {
-    type Request = DynamicNumber;
-    type Response = DynamicNumber;
-    const ID: &'static str = "fixture.dynamic.unary";
-    const POLICY: harmos::operations::OperationPolicy = DYNAMIC_POLICY;
-    const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Host;
-
-    fn visit_wire<V: harmos::operations::WireVisitor>(visitor: V) -> Option<V::Entry> {
-        Some(visitor.unary::<Self>())
-    }
-
-    fn grant(request: &DynamicNumber) -> Option<harmos::plugin::Grant> {
-        match request.value {
-            20 => Some(harmos::plugin::Grant::of(Self::ID, "fixture.allowed")),
-            21 => Some(harmos::plugin::Grant::of(Self::ID, "fixture.refused")),
-            _ => None,
-        }
-    }
-}
-
-impl harmos::operations::WireOperation for DynamicUnary {
-    const VERSION: u32 = 1;
-    const GRPC: Option<harmos::operations::Grpc> = Some(harmos::operations::Grpc::new("fixture.dynamic.v1", "Provider", "Unary"));
-
-    fn visit_grpc<V: harmos::operations::GrpcVisitor>(visitor: V) -> Option<V::Entry> {
-        Some(visitor.unary::<Self>())
     }
 }
 
@@ -162,7 +153,7 @@ impl harmos::operations::Operation for DynamicUnaryHandler {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicNumber, _: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut DynamicUnary, _: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<DynamicNumber>, Self::Error> {
         self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(DynamicNumber { value: request.value + 1 }.into())
@@ -181,7 +172,7 @@ impl harmos::operations::Operation for DynamicDownloadHandler {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicNumber, streams: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut DynamicDownload, streams: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<DynamicNumber>, Self::Error> {
         self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         for value in [request.value + 1, request.value + 2] {
@@ -206,7 +197,7 @@ impl harmos::operations::Operation for DynamicUploadHandler {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicNumber, streams: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut DynamicUpload, streams: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<DynamicNumber>, Self::Error> {
         self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let mut value = request.value;
@@ -229,7 +220,7 @@ impl harmos::operations::Operation for DynamicDuplexHandler {
     }
 
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, request: &mut DynamicNumber, streams: &mut Self::Endpoints,
+        &mut self, _: Self::Context<'a>, request: &mut DynamicDuplex, streams: &mut Self::Endpoints,
     ) -> Result<harmos::operations::Response<DynamicNumber>, Self::Error> {
         self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let mut value = request.value;
@@ -253,12 +244,20 @@ impl contracts::Endpoint for DynamicUnary {
 /* === Public Functions === */
 
 /* === Private Functions === */
+fn dynamic_grant(request: &DynamicUnary) -> Option<harmos::plugin::Grant> {
+    match request.value {
+        20 => Some(harmos::plugin::Grant::of(<DynamicUnary as harmos::operations::OperationDeclaration>::ID, "fixture.allowed")),
+        21 => Some(harmos::plugin::Grant::of(<DynamicUnary as harmos::operations::OperationDeclaration>::ID, "fixture.refused")),
+        _ => None,
+    }
+}
+
 fn bundle() -> Vec<u8> {
     bundle_description("Fixture")
 }
 
 fn bundle_description(description: &str) -> Vec<u8> {
-    use harmos::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+    use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
     let owner = "grpc-plugin";
     let version = "1.0.0";
     let declaration =
@@ -489,14 +488,14 @@ async fn operation_grants_scope() {
         let denied = Client::connect(Target::local(server.local_endpoint()).unwrap(), Some(token), None).await.unwrap();
         assert!(!denied.operations().await.unwrap().iter().any(|entry| entry.owner.as_str() == DYNAMIC_OWNER));
         assert!(denied.call_operation(DynamicUnary::ID, Some(DYNAMIC_OWNER), b"{\"value\":10}", vec![]).await.is_err());
-        let mut request = Request::new(DynamicNumber { value: 10 });
+        let mut request = Request::new(DynamicUnary { value: 10 });
         request.metadata_mut().insert("authorization", format!("Bearer {token}").parse().unwrap());
         assert_eq!(direct.unary::<DynamicUnary>(request).await.unwrap_err().code(), Code::PermissionDenied);
         denied.close_and_wait().await;
     }
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     // A Different Request Schema Must Fail Before Handler Mutation.
-    let malformed = authenticated(harmos::operations::Response::new(DynamicText { value: "wrong-schema".into() }));
+    let malformed = authenticated(harmos::operations::Response::new(DynamicReplacement { value: "wrong-schema".into() }));
     let error = direct
         .grpc()
         .await
@@ -504,7 +503,7 @@ async fn operation_grants_scope() {
         .unary(
             malformed,
             <DynamicUnary as contracts::Endpoint>::PATH.parse().unwrap(),
-            direct.codec::<DynamicNumber, DynamicText>().unwrap(),
+            direct.codec::<DynamicNumber, DynamicReplacement>().unwrap(),
         )
         .await
         .err()
@@ -554,14 +553,14 @@ async fn operation_grants_scope() {
     }
     assert_eq!(calls.load(Ordering::SeqCst), 4);
     // Request-Dependent Grants Must Be Checked Before The Handler Mutates Anything.
-    let mut no_grant = Request::new(DynamicNumber { value: 20 });
+    let mut no_grant = Request::new(DynamicUnary { value: 20 });
     no_grant.metadata_mut().insert("authorization", format!("Bearer {TOKEN}").parse().unwrap());
     assert_eq!(direct.unary::<DynamicUnary>(no_grant).await.unwrap_err().code(), Code::PermissionDenied);
-    let mut wrong_grant = Request::new(DynamicNumber { value: 21 });
+    let mut wrong_grant = Request::new(DynamicUnary { value: 21 });
     wrong_grant.metadata_mut().insert("authorization", format!("Bearer {DYNAMIC_SCOPED_TOKEN}").parse().unwrap());
     assert_eq!(direct.unary::<DynamicUnary>(wrong_grant).await.unwrap_err().code(), Code::PermissionDenied);
     assert_eq!(calls.load(Ordering::SeqCst), 4);
-    let mut matched = Request::new(DynamicNumber { value: 20 });
+    let mut matched = Request::new(DynamicUnary { value: 20 });
     matched.metadata_mut().insert("authorization", format!("Bearer {DYNAMIC_SCOPED_TOKEN}").parse().unwrap());
     assert_eq!(direct.unary::<DynamicUnary>(matched).await.unwrap().into_inner().value, 21);
     assert_eq!(calls.load(Ordering::SeqCst), 5);
@@ -592,7 +591,7 @@ async fn operation_grants_scope() {
     assert_ne!(replacement.generation, original.generation);
     assert!(!replacement.contract.compatible(&original.contract));
     assert!(!original.contract.compatible(&replacement.contract));
-    assert_eq!(direct.unary::<DynamicUnary>(authenticated(DynamicNumber { value: 10 })).await.unwrap_err().code(), Code::InvalidArgument);
+    assert_eq!(direct.unary::<DynamicUnary>(authenticated(DynamicUnary { value: 10 })).await.unwrap_err().code(), Code::InvalidArgument);
     assert!(allowed.call_operation(DynamicUnary::ID, Some(DYNAMIC_OWNER), b"{\"value\":10}", vec![]).await.is_err());
     assert_eq!(calls.load(Ordering::SeqCst), 5, "stale requests must not enter the replacement");
     let replacement = allowed.call_operation(DynamicUnary::ID, Some(DYNAMIC_OWNER), b"{\"value\":\"replacement\"}", vec![]).await.unwrap();

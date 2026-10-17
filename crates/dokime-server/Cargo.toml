@@ -25,7 +25,6 @@ media-native = ["dokime-runtime/media-native"]
 # Local
 dokime-runtime = { path = "../dokime-runtime", features = ["host", "fft"] }
 dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
-dokime-filesystem = { path = "../dokime-filesystem" }
 dokime = { path = "../dokime" }
 
 # Git
@@ -80,10 +79,17 @@ tonic-types = { workspace = true }
 # Local
 dokime-domain = { path = "../dokime-domain", features = ["descriptors"] }
 
+# Git
+harmos = { workspace = true }
+harmos-packaging = { workspace = true, features = ["bindings-proto"] }
+
 [dev-dependencies]
 # Local
 dokime-client = { path = "../dokime-client" }
 dokime-host = { path = "../dokime-host" }
+
+# Git
+harmos-packaging = { workspace = true }
 
 # Error Handling
 anyhow = { workspace = true }

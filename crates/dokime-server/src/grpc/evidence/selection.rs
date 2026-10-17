@@ -21,7 +21,6 @@ use tonic::Status;
 // Local Imports
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::records::evidence::RecordEntry;
-use dokime_domain::operations::evidence as v1;
 
 /* === Constants === */
 pub(super) const MAX_ALTERNATIVES: usize = 64;

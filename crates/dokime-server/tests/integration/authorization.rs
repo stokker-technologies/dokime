@@ -67,7 +67,7 @@ macro_rules! matrix {
             path: $path,
             call: |stream, token| {
                 Box::pin(async move {
-                    let request: <$operation as harmos::operations::OperationDeclaration>::Request =
+                    let request: $operation =
                         matrix!(@request $($request)?);
                     WireClient::new(stream)
                         .$method::<$operation>(credentialed(request, token))
@@ -294,13 +294,13 @@ fn cases() -> impl Iterator<Item = &'static Case> {
 
 fn operation<O>(channel: Channel, token: Option<&'static str>, path: &'static str) -> Refusal
 where
-    O: harmos::operations::OperationDeclaration<Request = dokime_runtime::operations::runtime::Request>,
+    O: harmos::operations::OperationDeclaration + harmos::Protobuf + Default,
     O::Response: harmos::Protobuf + harmos::MemorySize,
 {
     Box::pin(async move {
         use harmos::grpc::{Codec, DecodeSettings, EncodeSettings};
         let bytes = std::num::NonZeroUsize::new(4096).unwrap();
-        let codec = Codec::<O::Response, harmos::operations::Response<dokime_runtime::operations::runtime::Request>>::new(
+        let codec = Codec::<O::Response, harmos::operations::Response<O>>::new(
             DecodeSettings { message_bytes: bytes, retained_bytes: bytes },
             EncodeSettings { message_bytes: bytes, buffer_bytes: bytes },
         )
@@ -309,7 +309,7 @@ where
         client.ready().await.unwrap();
         client
             .unary(
-                credentialed(harmos::operations::Response::new(dokime_runtime::operations::runtime::Request {}), token),
+                credentialed(harmos::operations::Response::new(O::default()), token),
                 tonic::codegen::http::uri::PathAndQuery::from_static(path),
                 codec,
             )

@@ -240,10 +240,10 @@ async fn recording(
     Ok(WireStream { frames: Box::pin(frames) })
 }
 
-async fn recording_refusal<O>(client: &WireClient, request: O::Request) -> tonic::Status
+async fn recording_refusal<O>(client: &WireClient, request: O) -> tonic::Status
 where
-    O: contracts::Endpoint + harmos::operations::OutputDeclaration<Item = model::media::wire::RecordingFrame>,
-    O::Request: harmos::Protobuf + Sync,
+    O: contracts::Endpoint<Output = harmos::operations::Stream<model::media::wire::RecordingFrame>>,
+    O: harmos::Protobuf + Sync,
     O::Response: harmos::Protobuf + harmos::MemorySize,
 {
     match client.download::<O>(authenticated(request)).await {

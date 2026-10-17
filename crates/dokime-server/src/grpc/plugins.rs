@@ -31,6 +31,7 @@ use uuid::Uuid;
 // Local Imports
 use super::value;
 use contract as v1;
+use dokime_domain::model::plugins::wire as plugins_model;
 use dokime_domain::operations::plugins as contract;
 use dokime_runtime::{
     RuntimeHandle,
@@ -86,7 +87,7 @@ impl Resources {
         }
         Ok(output.into())
     }
-    fn entry(&self, mut entry: dokime_runtime::plugins::PluginEntry) -> Result<Response<v1::PluginInstallation>, Status> {
+    fn entry(&self, mut entry: dokime_runtime::plugins::PluginEntry) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         self.runtime.plugin_process_state(&mut entry);
         wire::normalize(&mut entry, self.max_message_bytes)?;
         self.produce(|| wire::entry(entry, self.max_message_bytes))
@@ -106,28 +107,30 @@ impl Operation for ListInstallations {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut v1::ListInstallations, _: &mut Self::Endpoints,
-    ) -> Result<Response<v1::InstallationPage>, Status> {
+    ) -> Result<Response<plugins_model::InstallationPage>, Status> {
         let size = page_size(request.page_size)?;
         let after =
             request.after.take().map(|cursor| Ok::<_, Status>((id(&cursor.after_install_id)?, cursor.manifest_sha256))).transpose()?;
         let page = self.resources.blocking(move |store| store.page(after.as_ref().map(|(id, hash)| (*id, hash.as_str())), size)).await?;
         let mut page = page;
-        let mut required = std::mem::size_of::<v1::InstallationPage>() + 256;
+        let mut required = std::mem::size_of::<plugins_model::InstallationPage>() + 256;
         for entry in &mut page.entries {
             self.resources.runtime.plugin_process_state(entry);
             wire::normalize(entry, self.resources.max_message_bytes)?;
-            required = required.saturating_add(wire::memory(entry)?).saturating_add(3 * std::mem::size_of::<v1::PluginInstallation>());
+            required =
+                required.saturating_add(wire::memory(entry)?).saturating_add(3 * std::mem::size_of::<plugins_model::PluginInstallation>());
         }
         self.resources.produce(|| {
-            Ok(v1::InstallationPage {
+            Ok(plugins_model::InstallationPage {
                 installations: page
                     .entries
                     .into_iter()
                     .map(|entry| wire::entry(entry, self.resources.max_message_bytes))
                     .collect::<Result<_, Status>>()?,
-                next: page
-                    .next
-                    .map(|id| v1::InstallationCursor { manifest_sha256: page.manifest_sha256.clone(), after_install_id: id.to_string() }),
+                next: page.next.map(|id| plugins_model::InstallationCursor {
+                    manifest_sha256: page.manifest_sha256.clone(),
+                    after_install_id: id.to_string(),
+                }),
                 total_count: page.total as u64,
                 manifest_sha256: page.manifest_sha256,
             })
@@ -148,7 +151,7 @@ impl Operation for GetInstallation {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut v1::GetInstallation, _: &mut Self::Endpoints,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
+    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let id = id(&request.install_id)?;
         let entry = self.resources.blocking(move |store| store.get(id)).await?;
         self.resources.entry(entry)
@@ -162,13 +165,13 @@ impl Operation for Stage {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamInput<v1::StagePluginFrame>;
+    type Endpoints = StreamInput<plugins_model::StagePluginFrame>;
     async fn initialize<'ctx>(resources: Arc<Resources>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self { resources })
     }
     async fn run<'a>(
-        &mut self, _: Self::Context<'a>, _request: &mut (), input: &mut Self::Endpoints,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
+        &mut self, _: Self::Context<'a>, _request: &mut v1::Stage, input: &mut Self::Endpoints,
+    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let operation = self.resources.runtime.operation_progress().begin("Installing Plugin");
         operation.phase("Receiving Archive");
         let staged = self.stage(input, &operation).await;
@@ -180,11 +183,11 @@ impl Operation for Stage {
 }
 impl Stage {
     async fn stage(
-        &mut self, input: &mut StreamInput<v1::StagePluginFrame>, operation: &dokime_runtime::runtime::progress::Operation,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
+        &mut self, input: &mut StreamInput<plugins_model::StagePluginFrame>, operation: &dokime_runtime::runtime::progress::Operation,
+    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let permit = self.resources.permit().map_err(reject)?;
         let first = message(input).await?.ok_or_else(|| reject(Status::invalid_argument("stage header is required")))?;
-        let Some(v1::StagePluginFrameFrame::Header(header)) = &first.frame else {
+        let Some(plugins_model::StagePluginFrameFrame::Header(header)) = &first.frame else {
             return Err(reject(Status::invalid_argument("first stage frame must be a header")));
         };
         digest(&header.sha256).map_err(reject)?;
@@ -201,7 +204,7 @@ impl Stage {
         bytes.try_reserve_exact(size_bytes as usize).map_err(|_| reject(Status::resource_exhausted("plugin upload memory unavailable")))?;
         let mut hash = Sha256::new();
         while let Some(frame) = message(input).await? {
-            let Some(v1::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else {
+            let Some(plugins_model::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else {
                 return Err(reject(Status::invalid_argument("only chunks may follow stage header")));
             };
             if chunk.offset != bytes.len() as u64 || chunk.data.is_empty() || chunk.data.len() > 256 * 1024 {
@@ -253,7 +256,7 @@ impl Operation for Consent {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut v1::Consent, _: &mut Self::Endpoints,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
+    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let id = id(&request.install_id)?;
         digest(&request.expected_sha256)?;
         let permit = self.resources.permit()?;
@@ -291,7 +294,7 @@ impl Operation for SetEnabled {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut v1::SetEnabled, _: &mut Self::Endpoints,
-    ) -> Result<Response<v1::PluginInstallation>, Status> {
+    ) -> Result<Response<plugins_model::PluginInstallation>, Status> {
         let id = id(&request.install_id)?;
         let enabled = request.enabled;
         let entry = self
@@ -318,7 +321,7 @@ impl Operation for Remove {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut v1::Remove, _: &mut Self::Endpoints,
-    ) -> Result<Response<v1::RemovePluginReply>, Status> {
+    ) -> Result<Response<plugins_model::RemovePluginReply>, Status> {
         let id = id(&request.install_id)?;
         let entry = self
             .resources
@@ -337,7 +340,9 @@ impl Operation for Remove {
             wire::normalize(entry, self.resources.max_message_bytes)?;
         }
         self.resources.produce(|| {
-            Ok(v1::RemovePluginReply { installation: entry.map(|entry| wire::entry(entry, self.resources.max_message_bytes)).transpose()? })
+            Ok(plugins_model::RemovePluginReply {
+                installation: entry.map(|entry| wire::entry(entry, self.resources.max_message_bytes)).transpose()?,
+            })
         })
     }
 }
@@ -355,7 +360,7 @@ impl Operation for ListAdmittedPlugins {
     }
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, request: &mut v1::ListAdmittedPlugins, _: &mut Self::Endpoints,
-    ) -> Result<Response<v1::AdmittedPluginPage>, Status> {
+    ) -> Result<Response<plugins_model::AdmittedPluginPage>, Status> {
         inventory::page(&self.resources.runtime, request, self.resources.max_message_bytes, self.resources.local_only)
     }
 }
@@ -375,7 +380,9 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize, local_only: bool
 }
 
 /* === Private Functions === */
-async fn message(input: &mut StreamInput<v1::StagePluginFrame>) -> Result<Option<StreamItem<v1::StagePluginFrame>>, Status> {
+async fn message(
+    input: &mut StreamInput<plugins_model::StagePluginFrame>,
+) -> Result<Option<StreamItem<plugins_model::StagePluginFrame>>, Status> {
     tokio::time::timeout(Duration::from_secs(30), input.recv())
         .await
         .map_err(|_| reject(Status::deadline_exceeded("plugin upload idle deadline exceeded")))

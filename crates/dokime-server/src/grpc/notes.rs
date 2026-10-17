@@ -30,8 +30,7 @@ use dokime_domain::model::identity::NoteId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::operations::notes as contract;
 use dokime_runtime::RuntimeHandle;
-use dokime_runtime::domains::evidence::notes::CreateNote;
-use dokime_runtime::domains::evidence::notes::EditNote;
+use dokime_runtime::domains::evidence::notes as evidence;
 use dokime_runtime::domains::evidence::notes::NoteError;
 
 /* === Constants === */
@@ -175,7 +174,7 @@ impl Operation for CreateNote {
         let result = self
             .resources
             .runtime
-            .create_current_note(CreateNote {
+            .create_current_note(evidence::CreateNote {
                 epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
                     .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
                 mutation_id: CommandId::from_uuid(std::mem::take(&mut request.mutation_id))
@@ -209,7 +208,7 @@ impl Operation for EditNote {
         let note = self
             .resources
             .runtime
-            .edit_current_note(EditNote {
+            .edit_current_note(evidence::EditNote {
                 epoch: SessionId::from_uuid(std::mem::take(&mut request.epoch))
                     .map_err(|_| Status::invalid_argument("invalid epoch UUID"))?,
                 note_id: NoteId::from_uuid(std::mem::take(&mut request.note_id))

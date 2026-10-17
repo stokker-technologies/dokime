@@ -49,7 +49,6 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 }
 
 pub(super) fn transfer_chunk_bytes(max_message_bytes: usize) -> usize {
-    use dokime_domain::operations::content as wire;
     // Reserve Both The Wire Envelope And The Retained Stream Frame.
     let chunk = dokime_domain::model::content::wire::ArtifactChunk { offset: u64::MAX, data: Vec::new() };
     let overhead = [

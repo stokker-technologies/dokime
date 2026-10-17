@@ -26,7 +26,6 @@ use tonic::Status;
 use super::bundle;
 use crate::diagnostics_assembly::DiagnosticsSnapshot;
 use dokime_domain::model::identity::wire::Timestamp;
-use dokime_domain::operations::backend as wire;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
 
@@ -50,11 +49,7 @@ impl Collector<'_> {
     async fn health(&self) -> Result<dokime_domain::model::backend::wire::BackendHealth, Status> {
         use dokime_domain::model::runtime::wire::Readiness;
         use dokime_domain::operations::runtime::GetHealth;
-        let instance = self
-            .runtime
-            .operations()
-            .submit_as::<GetHealth>(GetHealth {})
-            .map_err(|_| Status::unavailable("runtime health is unavailable"))?;
+        let instance = self.runtime.operations().submit(GetHealth {}).map_err(|_| Status::unavailable("runtime health is unavailable"))?;
         let health = harmos::grpc::response(instance).await.map_err(|_| Status::unavailable("runtime health is unavailable"))?;
         Ok(dokime_domain::model::backend::wire::BackendHealth {
             backend_id: health.backend_id.clone(),
@@ -99,7 +94,7 @@ impl Collector<'_> {
                     "runtime": encoded(&diagnostics)?,
                 }),
             ),
-            bundle::Part::json("settings/settings-frame.json", { encoded(&self.runtime.settings_frame().await)? }),
+            bundle::Part::json("settings/settings-frame.json", encoded(&self.runtime.settings_frame().await)?),
         ];
         if let Some(path) = source(DiagnosticPathKey::StartupDoctor) {
             parts.push(bundle::Part::file("diagnostics/startup-doctor.json", path, bundle::MAX_LOG_TAIL_BYTES));

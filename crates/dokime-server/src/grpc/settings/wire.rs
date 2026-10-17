@@ -27,7 +27,6 @@ use dokime_domain::model::appearance::HostCardKeyValue;
 use dokime_domain::model::appearance::HostCardMetric;
 use dokime_domain::model::appearance::HostCardTone;
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::operations::settings as wire;
 use dokime_runtime::domains::installed_plugins::RuntimePluginManagementError;
 use dokime_runtime::domains::installed_plugins::RuntimePluginSettings;
 use dokime_runtime::domains::settings::RuntimeSettingsCard;

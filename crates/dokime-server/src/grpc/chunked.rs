@@ -21,7 +21,6 @@ use sha2::{Digest as _, Sha256};
 use std::num::NonZeroUsize;
 use tonic::Status;
 // Local Imports
-use dokime_domain::operations::content as wire;
 use dokime_runtime::runtime::ArtifactReader;
 
 /* === Constants === */

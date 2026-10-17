@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 // Local Imports
 use super::*;
 use dokime_domain::model::execution::result::TestExecution;
+use dokime_domain::model::execution::wire as execution_model;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::identity::wire::Diagnostic;
@@ -98,7 +99,7 @@ pub(crate) fn result(
     }
 }
 
-pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<wire::CaseDetail, Status> {
+pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<execution_model::CaseDetail, Status> {
     let id = cycle_id(&request.cycle_id)?;
     super::value::text(&request.case_id)?;
     let snapshot = service.runtime.watch_state().latest();
@@ -109,13 +110,13 @@ pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<w
         .find(|(_, case)| case.test_case_id.as_str() == request.case_id)
         .ok_or_else(|| Status::not_found("case not found in requested cycle"))?;
     let mut bounds = Bounds::new(service.max_message_bytes);
-    bounds.bytes(std::mem::size_of::<wire::CaseDetail>())?;
+    bounds.bytes(std::mem::size_of::<execution_model::CaseDetail>())?;
     if let Some(suite) = &case.suite {
         bounds.bytes(metadata_memory(suite)?)?;
     }
     reply(
         service,
-        wire::CaseDetail {
+        execution_model::CaseDetail {
             summary: Some(super::case_summary(
                 case,
                 ordinal,
@@ -130,11 +131,11 @@ pub(super) fn get_case(service: &Resources, request: &wire::GetCase) -> Result<w
     )
 }
 
-pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -> Result<wire::ExecutionDetail, Status> {
+pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -> Result<execution_model::ExecutionDetail, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (cycle, ordinal, execution) = execution(snapshot.state(), &request.execution_id)?;
     let mut bounds = Bounds::new(service.max_message_bytes);
-    bounds.bytes(std::mem::size_of::<wire::ExecutionDetail>())?;
+    bounds.bytes(std::mem::size_of::<execution_model::ExecutionDetail>())?;
     bounds.text(cycle.test_cycle_id.as_str())?;
     bounds.text(execution.test_execution_id.as_str())?;
     bounds.text(execution.test_case_id.as_str())?;
@@ -160,7 +161,7 @@ pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -
     let summary = Some(execution_summary(snapshot.state(), execution, ordinal));
     reply(
         service,
-        wire::ExecutionDetail {
+        execution_model::ExecutionDetail {
             summary,
             cycle_id: cycle.test_cycle_id.to_string(),
             scope: Some(canonical::scope(&execution.scope)?),
@@ -172,7 +173,7 @@ pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -
                 .invalidation
                 .as_ref()
                 .map(|invalidation| {
-                    Ok::<_, Status>(wire::ExecutionInvalidation {
+                    Ok::<_, Status>(execution_model::ExecutionInvalidation {
                         previous: Some(canonical::execution_plugin(&invalidation.previous)?),
                         current: invalidation.current.as_ref().map(canonical::execution_plugin).transpose()?,
                     })
@@ -183,11 +184,11 @@ pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -
             result: execution.result.as_ref().map(result),
             input_parameter_count: execution.snapshot.parameters().len() as u64,
             controls: dokime_runtime::runtime::query::execution_controls(snapshot.state(), &execution.test_execution_id).map(|controls| {
-                wire::ExecutionControls {
+                execution_model::ExecutionControls {
                     request_id: controls.request_id.to_string(),
                     mode: match controls.mode {
-                        dokime_domain::model::execution::ExecutionMode::Automatic => wire::ExecutionMode::Automatic,
-                        dokime_domain::model::execution::ExecutionMode::Interactive => wire::ExecutionMode::Interactive,
+                        dokime_domain::model::execution::ExecutionMode::Automatic => execution_model::ExecutionMode::Automatic,
+                        dokime_domain::model::execution::ExecutionMode::Interactive => execution_model::ExecutionMode::Interactive,
                     },
                     paused: controls.paused,
                     stop_requested: controls.stop_requested,
@@ -205,20 +206,24 @@ pub(super) fn get_execution(service: &Resources, request: &wire::GetExecution) -
 
 pub(super) fn list_execution_parameters(
     service: &Resources, request: &wire::ListExecutionParameters,
-) -> Result<wire::ListMaterializedParametersReply, Status> {
+) -> Result<execution_model::ListMaterializedParametersReply, Status> {
     let snapshot = service.runtime.watch_state().latest();
     let (_, _, execution) = execution(snapshot.state(), &request.execution_id)?;
     let selected = match request.set {
-        wire::ExecutionParameterSet::Inputs => execution.snapshot.parameters(),
-        wire::ExecutionParameterSet::Outputs => &execution.output_parameters,
-        wire::ExecutionParameterSet::Unspecified => {
+        execution_model::ExecutionParameterSet::Inputs => execution.snapshot.parameters(),
+        execution_model::ExecutionParameterSet::Outputs => &execution.output_parameters,
+        execution_model::ExecutionParameterSet::Unspecified => {
             return Err(Status::invalid_argument("explicit input/output parameter set is required"));
         }
     };
     let selection = match request.set {
-        wire::ExecutionParameterSet::Inputs => wire::ParameterCursorSelection::ExecutionInputsId(request.execution_id.clone()),
-        wire::ExecutionParameterSet::Outputs => wire::ParameterCursorSelection::ExecutionOutputsId(request.execution_id.clone()),
-        wire::ExecutionParameterSet::Unspecified => unreachable!(),
+        execution_model::ExecutionParameterSet::Inputs => {
+            execution_model::ParameterCursorSelection::ExecutionInputsId(request.execution_id.clone())
+        }
+        execution_model::ExecutionParameterSet::Outputs => {
+            execution_model::ParameterCursorSelection::ExecutionOutputsId(request.execution_id.clone())
+        }
+        execution_model::ExecutionParameterSet::Unspecified => unreachable!(),
     };
     let limit = parameter_page(request.limit, &request.after_name, request.cursor.as_ref(), &snapshot, &selection)?;
     parameters(service, selected, &request.after_name, limit, parameter_cursor(&snapshot, selection))
@@ -250,11 +255,11 @@ pub(super) fn diagnostic(value: &dokime_runtime::plugin::Diagnostic, bounds: &mu
 
 pub(super) fn list_case_parameters(
     service: &Resources, request: &wire::ListCaseParameters,
-) -> Result<wire::ListCaseParametersReply, Status> {
+) -> Result<execution_model::ListCaseParametersReply, Status> {
     let id = cycle_id(&request.cycle_id)?;
     value::text(&request.case_id)?;
     let snapshot = service.runtime.watch_state().latest();
-    let selection = wire::ParameterCursorSelection::PlannedCase(wire::PlannedCaseParameters {
+    let selection = execution_model::ParameterCursorSelection::PlannedCase(execution_model::PlannedCaseParameters {
         cycle_id: request.cycle_id.clone(),
         case_id: request.case_id.clone(),
     });
@@ -276,8 +281,9 @@ fn reply<T: harmos::Protobuf>(service: &Resources, value: T) -> Result<T, Status
 }
 
 fn parameters(
-    service: &Resources, entries: &BTreeMap<String, MaterializedParameter>, after: &str, limit: usize, cursor: wire::ParameterCursor,
-) -> Result<wire::ListMaterializedParametersReply, Status> {
+    service: &Resources, entries: &BTreeMap<String, MaterializedParameter>, after: &str, limit: usize,
+    cursor: execution_model::ParameterCursor,
+) -> Result<execution_model::ListMaterializedParametersReply, Status> {
     if !after.is_empty() && !entries.contains_key(after) {
         return Err(Status::invalid_argument("after name not found in requested parameter set"));
     }
@@ -285,7 +291,7 @@ fn parameters(
     let mut bounds = Bounds::new(service.max_message_bytes);
     let mut budget = value::Budget::new();
     let count = selected.clone().take(limit).count();
-    bounds.bytes(count.saturating_mul(std::mem::size_of::<wire::MaterializedParameter>()))?;
+    bounds.bytes(count.saturating_mul(std::mem::size_of::<execution_model::MaterializedParameter>()))?;
     let mut parameters = canonical::slots(count)?;
     for (name, item) in selected.by_ref().take(limit) {
         bounds.text(name)?;
@@ -305,27 +311,27 @@ fn parameters(
                 super::super::catalog::unit(unit)
             })
             .transpose()?;
-        parameters.push(wire::MaterializedParameter {
+        parameters.push(execution_model::MaterializedParameter {
             name: name.clone(),
             metadata: Some(metadata),
             group_id: item.group_id.as_ref().map(ToString::to_string),
             source: match item.source {
-                ParameterSource::Definition => wire::ParameterSource::Definition,
-                ParameterSource::Traceability => wire::ParameterSource::Traceability,
-                ParameterSource::Environment => wire::ParameterSource::Environment,
-                ParameterSource::Resource => wire::ParameterSource::Resource,
-                ParameterSource::Operator => wire::ParameterSource::Operator,
-                ParameterSource::Runtime => wire::ParameterSource::Runtime,
-                ParameterSource::Telemetry => wire::ParameterSource::Telemetry,
-                ParameterSource::Record => wire::ParameterSource::Record,
-                ParameterSource::Output => wire::ParameterSource::Output,
+                ParameterSource::Definition => execution_model::ParameterSource::Definition,
+                ParameterSource::Traceability => execution_model::ParameterSource::Traceability,
+                ParameterSource::Environment => execution_model::ParameterSource::Environment,
+                ParameterSource::Resource => execution_model::ParameterSource::Resource,
+                ParameterSource::Operator => execution_model::ParameterSource::Operator,
+                ParameterSource::Runtime => execution_model::ParameterSource::Runtime,
+                ParameterSource::Telemetry => execution_model::ParameterSource::Telemetry,
+                ParameterSource::Record => execution_model::ParameterSource::Record,
+                ParameterSource::Output => execution_model::ParameterSource::Output,
             },
             value: Some(canonical::encode(&item.value, &mut budget, 0)?),
             unit,
         });
     }
     let next_after_name = selected.next().is_some().then(|| parameters.last().unwrap().name.clone());
-    reply(service, wire::ListMaterializedParametersReply { parameters, next_after_name, cursor: Some(cursor) })
+    reply(service, execution_model::ListMaterializedParametersReply { parameters, next_after_name, cursor: Some(cursor) })
 }
 
 fn bounded(value: &str, bounds: &mut Bounds) -> Result<String, Status> {
@@ -342,14 +348,14 @@ fn bounded(value: &str, bounds: &mut Bounds) -> Result<String, Status> {
 }
 
 fn parameter_cursor(
-    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot, selection: wire::ParameterCursorSelection,
-) -> wire::ParameterCursor {
-    wire::ParameterCursor { observed: Some(canonical::cursor(snapshot)), selection: Some(selection) }
+    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot, selection: execution_model::ParameterCursorSelection,
+) -> execution_model::ParameterCursor {
+    execution_model::ParameterCursor { observed: Some(canonical::cursor(snapshot)), selection: Some(selection) }
 }
 
 fn parameter_page(
-    limit: u32, after: &str, cursor: Option<&wire::ParameterCursor>, snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
-    selection: &wire::ParameterCursorSelection,
+    limit: u32, after: &str, cursor: Option<&execution_model::ParameterCursor>,
+    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot, selection: &execution_model::ParameterCursorSelection,
 ) -> Result<usize, Status> {
     if let Some(cursor) = cursor {
         if cursor.selection.as_ref() != Some(selection) {
@@ -363,8 +369,8 @@ fn parameter_page(
 }
 
 fn case_parameters(
-    service: &Resources, entries: &BTreeMap<String, Value>, after: &str, limit: usize, cursor: wire::ParameterCursor,
-) -> Result<wire::ListCaseParametersReply, Status> {
+    service: &Resources, entries: &BTreeMap<String, Value>, after: &str, limit: usize, cursor: execution_model::ParameterCursor,
+) -> Result<execution_model::ListCaseParametersReply, Status> {
     if !after.is_empty() && !entries.contains_key(after) {
         return Err(Status::invalid_argument("after name not found in requested case"));
     }
@@ -372,15 +378,15 @@ fn case_parameters(
     let mut bounds = Bounds::new(service.max_message_bytes);
     let mut budget = value::Budget::new();
     let count = selected.clone().take(limit).count();
-    bounds.bytes(count.saturating_mul(std::mem::size_of::<wire::CaseParameter>()))?;
+    bounds.bytes(count.saturating_mul(std::mem::size_of::<execution_model::CaseParameter>()))?;
     let mut parameters = canonical::slots(count)?;
     for (name, item) in selected.by_ref().take(limit) {
         bounds.text(name)?;
         bounds.value(item, 0)?;
-        parameters.push(wire::CaseParameter { name: name.clone(), value: Some(canonical::encode(item, &mut budget, 0)?) });
+        parameters.push(execution_model::CaseParameter { name: name.clone(), value: Some(canonical::encode(item, &mut budget, 0)?) });
     }
     let next_after_name = selected.next().is_some().then(|| parameters.last().unwrap().name.clone());
-    reply(service, wire::ListCaseParametersReply { parameters, next_after_name, cursor: Some(cursor) })
+    reply(service, execution_model::ListCaseParametersReply { parameters, next_after_name, cursor: Some(cursor) })
 }
 
 /* === Tests === */

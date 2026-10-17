@@ -26,7 +26,6 @@ use tonic::Status;
 // Local Imports
 use super::redaction;
 use dokime_domain::model::identity::wire::Timestamp;
-use dokime_domain::operations::backend as wire;
 
 /* === Constants === */
 pub(super) const DEFAULT_REPLAY_LINES: u32 = 500;

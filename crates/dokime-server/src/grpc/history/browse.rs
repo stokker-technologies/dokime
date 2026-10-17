@@ -24,7 +24,6 @@ use tonic::Status;
 use crate::grpc::value::{self, canonical};
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::execution as execution_wire;
 use dokime_domain::operations::history as wire;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::execution_history::{ExecutionBrowsePage, ExecutionBrowseQuery};

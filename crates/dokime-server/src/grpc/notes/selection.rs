@@ -22,7 +22,6 @@ use tonic::Status;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::notes::NoteOwner;
 use dokime_domain::model::execution::wire_cursor::Cursor;
-use dokime_domain::operations::notes as contract;
 use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */

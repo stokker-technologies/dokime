@@ -26,7 +26,6 @@ use crate::grpc::{
     catalog, content,
     value::{self, canonical},
 };
-use dokime_domain::operations::content as content_wire;
 use dokime_domain::operations::history as contract;
 use dokime_runtime::{
     RuntimeHandle,

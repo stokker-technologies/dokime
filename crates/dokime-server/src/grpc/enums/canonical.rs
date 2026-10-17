@@ -17,8 +17,6 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_domain::operations::content;
-use dokime_domain::operations::documents;
 use dokime_domain::operations::plots;
 use dokime_runtime::{
     ExecutionFileContentKind, ExecutionFileStreamState,
@@ -30,9 +28,9 @@ use dokime_runtime::{
 
 /* === Macros === */
 macro_rules! encode {
-    ($name:ident: $native:ident -> $owner:ident::$wire:ident { $($variant:ident),+ $(,)? }) => {
-        pub(in crate::grpc) fn $name(value: &$native) -> $owner::$wire {
-            match value { $($native::$variant => $owner::$wire::$variant,)+ }
+    ($name:ident: $native:ident -> $wire:ty { $($variant:ident),+ $(,)? }) => {
+        pub(in crate::grpc) fn $name(value: &$native) -> $wire {
+            match value { $($native::$variant => <$wire>::$variant,)+ }
         }
     };
 }

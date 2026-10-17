@@ -80,7 +80,7 @@ impl Operation for Health {
     async fn run<'a>(
         &mut self, _: Self::Context<'a>, _: &mut wire::GetHealth, _: &mut (),
     ) -> Result<Response<dokime_domain::model::backend::wire::BackendHealth>, Status> {
-        let instance = self.resources.runtime.operations().submit_as::<native::GetHealth>(native::GetHealth {}).map_err(health_failure)?;
+        let instance = self.resources.runtime.operations().submit(native::GetHealth {}).map_err(health_failure)?;
         let health = harmos::grpc::response(instance).await.map_err(health_failure)?;
         produce(self.resources.maximum, || dokime_domain::model::backend::wire::BackendHealth {
             backend_id: health.backend_id.clone(),
@@ -108,7 +108,7 @@ impl Operation for Availability {
     async fn run<'a>(
         &mut self, context: Self::Context<'a>, _: &mut wire::GetAvailability, _: &mut (),
     ) -> Result<Response<dokime_domain::model::backend::wire::BackendAvailability>, Status> {
-        use harmos::operations::host::{DiscoveredOperation, Operations, OperationsRequest};
+        use harmos::operations::host::{DiscoveredOperation, Operations};
         let maximum = self.resources.maximum;
         let mut methods = Vec::new();
         let mut after = None;
@@ -118,7 +118,7 @@ impl Operation for Availability {
             .saturating_add(self.resources.identity.epoch.len());
         loop {
             let page = context
-                .call_as::<Operations>(OperationsRequest { after: after.clone(), rows: Some(64), bytes: Some(DISCOVERY_PAGE_BYTES) })
+                .call(Operations { after: after.clone(), rows: Some(64), bytes: Some(DISCOVERY_PAGE_BYTES) })
                 .await
                 .map_err(discovery_failure)?;
             read_bytes = read_bytes.saturating_add(page.catalog.len());
@@ -225,7 +225,7 @@ impl Operation for Archive {
 }
 /* === Public Functions === */
 pub(in crate::grpc) async fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
-    let instance = runtime.operations().submit_as::<native::GetIdentity>(native::GetIdentity {})?;
+    let instance = runtime.operations().submit(native::GetIdentity {})?;
     let identity = harmos::grpc::response(instance).await?;
     let identity = produce(maximum, || {
         dokime_domain::model::backend::wire::BackendIdentity {
