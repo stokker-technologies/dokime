@@ -144,13 +144,7 @@ export class NativeNumberValue {
     return this.decimal;
   }
   valueOf(): number {
-    return this.decimal === "nan"
-      ? NaN
-      : this.decimal === "inf"
-        ? Infinity
-        : this.decimal === "-inf"
-          ? -Infinity
-          : Number(this.decimal);
+    return this.decimal === "nan" ? NaN : this.decimal === "inf" ? Infinity : this.decimal === "-inf" ? -Infinity : Number(this.decimal);
   }
 }
 
@@ -182,11 +176,7 @@ function nativeIntegerFromJson(value: NativeIntegerJson | NativeIntegerValue): N
 /** Rehydrate tagged native integers after a persisted JSON round-trip. */
 export function reviveNativeValues(value: unknown): unknown {
   if (isNativeObjectJson(value)) {
-    return new NativeObjectValue(
-      Object.fromEntries(
-        Object.entries(value.fields).map(([key, item]) => [key, reviveNativeValues(item)]),
-      ),
-    );
+    return new NativeObjectValue(Object.fromEntries(Object.entries(value.fields).map(([key, item]) => [key, reviveNativeValues(item)])));
   }
   if (value instanceof NativeIntegerValue) {
     return value;
@@ -201,9 +191,7 @@ export function reviveNativeValues(value: unknown): unknown {
     return value.map(reviveNativeValues);
   }
   if (typeof value === "object" && value !== null) {
-    return Object.fromEntries(
-      Object.entries(value).map(([name, item]) => [name, reviveNativeValues(item)]),
-    );
+    return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, reviveNativeValues(item)]));
   }
   return value;
 }
@@ -267,10 +255,7 @@ export function nativeValueToJson(value?: Value): unknown {
 
 /** Keep authored objects distinct from the reserved scalar projection markers. */
 export function nativeObjectValue(fields: JsonObject): JsonObject | NativeObjectValue {
-  return isDatetimeValue(fields) ||
-    isNativeIntegerJson(fields) ||
-    isNativeNumber(fields) ||
-    isNativeObjectJson(fields)
+  return isDatetimeValue(fields) || isNativeIntegerJson(fields) || isNativeNumber(fields) || isNativeObjectJson(fields)
     ? new NativeObjectValue(fields)
     : fields;
 }
@@ -281,9 +266,7 @@ export function serializedValueToJson(value: SerializedValue): unknown {
 }
 
 export function serializedValueObjectToJson(values: Record<string, SerializedValue>): JsonObject {
-  return Object.fromEntries(
-    Object.entries(values).map(([name, value]) => [name, serializedValue(value, 0)]),
-  );
+  return Object.fromEntries(Object.entries(values).map(([name, value]) => [name, serializedValue(value, 0)]));
 }
 
 function serializedValue(value: SerializedValue, depth: number): unknown {
@@ -302,32 +285,18 @@ function serializedValue(value: SerializedValue, depth: number): unknown {
       const unsigned = value.type === "unsigned";
       const minimum = unsigned ? 0n : -9223372036854775808n;
       const maximum = unsigned ? 18446744073709551615n : 9223372036854775807n;
-      if (integer < minimum || integer > maximum)
-        throw new Error("Stored integer exceeds its declared range.");
+      if (integer < minimum || integer > maximum) throw new Error("Stored integer exceeds its declared range.");
       const number = Number(integer);
-      return !unsigned && Number.isSafeInteger(number)
-        ? number
-        : new NativeIntegerValue(integer, unsigned);
+      return !unsigned && Number.isSafeInteger(number) ? number : new NativeIntegerValue(integer, unsigned);
     }
     case "number": {
       const text = value.value;
       const special = ["nan", "inf", "-inf"].includes(text);
-      if (
-        text.length > 1024 ||
-        (!special && !/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))
-      ) {
+      if (text.length > 1024 || (!special && !/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))) {
         throw new Error("Invalid stored number.");
       }
-      const number =
-        text === "nan"
-          ? NaN
-          : text === "inf"
-            ? Infinity
-            : text === "-inf"
-              ? -Infinity
-              : Number(text);
-      if (!special && !Number.isFinite(number))
-        throw new Error("Stored finite number exceeds its declared range.");
+      const number = text === "nan" ? NaN : text === "inf" ? Infinity : text === "-inf" ? -Infinity : Number(text);
+      if (!special && !Number.isFinite(number)) throw new Error("Stored finite number exceeds its declared range.");
       return new NativeNumberValue(number);
     }
     case "datetime":
@@ -336,12 +305,7 @@ function serializedValue(value: SerializedValue, depth: number): unknown {
       return value.value.map((item) => serializedValue(item, depth + 1));
     case "object":
       return nativeObjectValue(
-        Object.fromEntries(
-          Object.entries(value.value).map(([name, item]) => [
-            name,
-            serializedValue(item, depth + 1),
-          ]),
-        ),
+        Object.fromEntries(Object.entries(value.value).map(([name, item]) => [name, serializedValue(item, depth + 1)])),
       );
     default:
       throw new Error("Unknown portable stored value kind.");
@@ -350,12 +314,10 @@ function serializedValue(value: SerializedValue, depth: number): unknown {
 
 export function nativeValueObjectToJson(value?: Value): JsonObject {
   if (!value) return {};
-  if (value.nodes[0]?.kind?.HarmosVariant.case !== "Object")
-    throw new Error("Native object value has no object root.");
+  if (value.nodes[0]?.kind?.HarmosVariant.case !== "Object") throw new Error("Native object value has no object root.");
   const converted = nativeValueToJson(value);
   if (isNativeObjectJson(converted)) return converted.fields;
-  if (typeof converted !== "object" || converted === null || Array.isArray(converted))
-    throw new Error("Native object value is invalid.");
+  if (typeof converted !== "object" || converted === null || Array.isArray(converted)) throw new Error("Native object value is invalid.");
   return Object.fromEntries(Object.entries(converted));
 }
 
@@ -388,8 +350,7 @@ export function jsonToNativeValue(value: unknown): Value {
       variant = { case: unsigned ? "Unsigned" : "Integer", value: { field0: value } };
     } else if (typeof value === "number") {
       if (Number.isInteger(value) && !Object.is(value, -0)) {
-        if (!Number.isSafeInteger(value))
-          throw new Error("Native integers must be safe JavaScript integers.");
+        if (!Number.isSafeInteger(value)) throw new Error("Native integers must be safe JavaScript integers.");
         const integer = BigInt(value);
         assertIntegerRange(integer);
         variant = { case: "Integer", value: { field0: integer } };
@@ -399,9 +360,7 @@ export function jsonToNativeValue(value: unknown): Value {
       const milliseconds = Date.parse(value.$datetime);
       if (!Number.isFinite(milliseconds)) throw new Error("Invalid native datetime.");
       const seconds = BigInt(Math.floor(milliseconds / 1000));
-      const nanos = match?.[2]
-        ? Number(match[2].padEnd(9, "0"))
-        : (((milliseconds % 1000) + 1000) % 1000) * 1000000;
+      const nanos = match?.[2] ? Number(match[2].padEnd(9, "0")) : (((milliseconds % 1000) + 1000) % 1000) * 1000000;
       variant = { case: "Datetime", value: { field0: { seconds, nanos } } };
     } else if (typeof value === "object" && value !== null) {
       if (containers.has(value)) throw new Error("Native values cannot contain cycles.");
@@ -413,9 +372,7 @@ export function jsonToNativeValue(value: unknown): Value {
         };
       else {
         const fields = isNativeObjectJson(value) ? value.fields : value;
-        const entries = Object.entries(fields).sort(([left], [right]) =>
-          left < right ? -1 : left > right ? 1 : 0,
-        );
+        const entries = Object.entries(fields).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
         variant = {
           case: "Object",
           value: {
@@ -443,9 +400,7 @@ export function metadataJson(metadata?: Metadata): JsonObject {
         label: metadata.label,
         ...(metadata.description !== undefined ? { description: metadata.description } : {}),
         tags: metadata.tags,
-        attributes: Object.fromEntries(
-          metadata.attributes.map(({ key, value }) => [key, nativeValueToJson(value)]),
-        ),
+        attributes: Object.fromEntries(metadata.attributes.map(({ key, value }) => [key, nativeValueToJson(value)])),
         created_at: timestampIso(metadata.createdAt),
         updated_at: timestampIso(metadata.updatedAt),
       }
@@ -468,17 +423,7 @@ export function nativeEvidenceScope(scope?: RecordScope | null): EvidenceScope |
 }
 
 export function recordScopeFromNative(
-  scope?: Pick<
-    EvidenceScope,
-    | "sessionId"
-    | "cycleId"
-    | "caseId"
-    | "executionId"
-    | "stepId"
-    | "criterionId"
-    | "templateId"
-    | "suiteId"
-  >,
+  scope?: Pick<EvidenceScope, "sessionId" | "cycleId" | "caseId" | "executionId" | "stepId" | "criterionId" | "templateId" | "suiteId">,
 ): RecordScope | null {
   if (!scope) return null;
   return {
@@ -502,9 +447,7 @@ export function enumTail<Label extends string>(
 ): Label {
   const member = value?.HarmosVariant.case;
   if (!member || member === "Unspecified") return fallback;
-  return (
-    overrides?.[member] ?? (member.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase() as Label)
-  );
+  return overrides?.[member] ?? (member.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase() as Label);
 }
 
 export function mapNativeSeverity(value?: Wire<NativeSeverity>): Severity {
@@ -569,20 +512,12 @@ function mapNativeElapsedUnit(unit?: NativeElapsedUnit): ElapsedUnit {
 }
 
 export function timestampIso(timestamp?: Timestamp): string | null {
-  if (
-    !timestamp ||
-    !Number.isInteger(timestamp.nanos) ||
-    timestamp.nanos < 0 ||
-    timestamp.nanos >= 1_000_000_000
-  )
-    return null;
+  if (!timestamp || !Number.isInteger(timestamp.nanos) || timestamp.nanos < 0 || timestamp.nanos >= 1_000_000_000) return null;
   const milliseconds = Number(timestamp.seconds) * 1_000 + Math.floor(timestamp.nanos / 1_000_000);
   const date = new Date(milliseconds);
   if (!Number.isFinite(date.valueOf())) return null;
   const iso = date.toISOString();
-  return timestamp.nanos % 1_000_000 === 0
-    ? iso
-    : `${iso.slice(0, iso.lastIndexOf("."))}.${String(timestamp.nanos).padStart(9, "0")}Z`;
+  return timestamp.nanos % 1_000_000 === 0 ? iso : `${iso.slice(0, iso.lastIndexOf("."))}.${String(timestamp.nanos).padStart(9, "0")}Z`;
 }
 
 export function durationSeconds(start?: Timestamp, finish?: Timestamp): number | null {
@@ -594,8 +529,7 @@ export function durationSeconds(start?: Timestamp, finish?: Timestamp): number |
 
 export function safeNumber(value: bigint, label: string): number {
   const number = Number(value);
-  if (!Number.isSafeInteger(number) || number < 0)
-    throw new NativeApiLimitError(label, String(value));
+  if (!Number.isSafeInteger(number) || number < 0) throw new NativeApiLimitError(label, String(value));
   return number;
 }
 
@@ -628,16 +562,11 @@ export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string>
   // memory for every upload and download by copying content that is
   // already bounded at up to 256 MiB.
   const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join(
-    "",
-  );
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 /** Run independent native reads with a bridge-safe, deterministic concurrency bound. */
-export async function mapBounded<T, R>(
-  values: readonly T[],
-  operation: (value: T, index: number) => Promise<R>,
-): Promise<R[]> {
+export async function mapBounded<T, R>(values: readonly T[], operation: (value: T, index: number) => Promise<R>): Promise<R[]> {
   const result = new Array<R>(values.length);
   let next = 0;
   async function worker() {
@@ -647,8 +576,6 @@ export async function mapBounded<T, R>(
       result[index] = await operation(values[index], index);
     }
   }
-  await Promise.all(
-    Array.from({ length: Math.min(NATIVE_MAX_CONCURRENT_READS, values.length) }, () => worker()),
-  );
+  await Promise.all(Array.from({ length: Math.min(NATIVE_MAX_CONCURRENT_READS, values.length) }, () => worker()));
   return result;
 }

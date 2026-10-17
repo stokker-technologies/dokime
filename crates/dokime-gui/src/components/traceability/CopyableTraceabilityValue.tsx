@@ -49,11 +49,7 @@ export function CopyableTraceabilityValue({ value: rawValue }: CopyableTraceabil
       </TooltipTrigger>
       {/* A short value is fully visible; the tooltip then only says what the
           click does. A long one may be truncated, so it is repeated in full. */}
-      <TooltipContent
-        align="end"
-        className="max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal break-all text-left"
-        side="top"
-      >
+      <TooltipContent align="end" className="max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal break-all text-left" side="top">
         {long ? `Copy: ${value}` : "Copy to clipboard"}
       </TooltipContent>
     </Tooltip>

@@ -7,13 +7,7 @@
  * ***
  */
 
-import type {
-  DocumentStatistic,
-  JsonObject,
-  Metadata,
-  MetricPresentation,
-  MetricState,
-} from "../types";
+import type { DocumentStatistic, JsonObject, Metadata, MetricPresentation, MetricState } from "../types";
 import type { ValueFormat } from "./format";
 import type {
   DocumentAxisScale,
@@ -32,15 +26,7 @@ import type {
 
 export type DocumentDataExpression = JsonObject;
 
-export type DocumentFilterOperator =
-  | "eq"
-  | "ne"
-  | "gt"
-  | "gte"
-  | "lt"
-  | "lte"
-  | "contains"
-  | "exists";
+export type DocumentFilterOperator = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists";
 
 export type DocumentFilter = {
   expression: DocumentDataExpression;

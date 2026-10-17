@@ -85,9 +85,7 @@ export function PluginSettingsSurface({ pluginId: sectionId }: PluginSettingsSur
             ) : pluginId ? null : (
               <SettingsCard title="Settings">
                 <SettingsRow label="Status">
-                  <span className="text-sm text-muted-foreground">
-                    This plugin contributes no settings.
-                  </span>
+                  <span className="text-sm text-muted-foreground">This plugin contributes no settings.</span>
                 </SettingsRow>
               </SettingsCard>
             )}
@@ -150,9 +148,7 @@ function PluginDetailCard({ pluginId }: { pluginId: string }) {
     return (
       <SettingsCard title="Settings">
         <SettingsRow label="Status">
-          <span className="text-sm text-muted-foreground">
-            This program changed. Reload Plugins to view its current settings.
-          </span>
+          <span className="text-sm text-muted-foreground">This program changed. Reload Plugins to view its current settings.</span>
         </SettingsRow>
       </SettingsCard>
     );

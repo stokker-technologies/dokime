@@ -26,12 +26,7 @@ import { toast } from "sonner";
 /* === Local Imports === */
 
 import { useOperatorArtifactUploadMutation } from "@/components/artifact-upload-mutation";
-import {
-  type EditorParameterRow,
-  editorProblemCount,
-  editorRow,
-  seedEditorRows,
-} from "@/components/parameter-editor/model";
+import { type EditorParameterRow, editorProblemCount, editorRow, seedEditorRows } from "@/components/parameter-editor/model";
 import { ParameterEditor } from "@/components/parameter-editor/ParameterEditor";
 import {
   buildPayload,
@@ -42,39 +37,15 @@ import {
   titleCaseIdentifier,
 } from "@/components/start-cycle-form-model";
 import { apiSelection } from "@/components/suite-picker/model";
-import {
-  useAppendTestCycleMutation,
-  usePreviewTestCycleMutation,
-} from "@/components/suite-picker/server-state";
+import { useAppendTestCycleMutation, usePreviewTestCycleMutation } from "@/components/suite-picker/server-state";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import {
-  caseAppend,
-  caseDeltas,
-  NO_ACTIVE_CYCLE,
-  summaryNeeded,
-} from "@/features/library/template-dialog-model";
-import type {
-  FileDefinition,
-  PreviewTestCycleResponse,
-  SuiteTemplateEntry,
-  TestCycleSelection,
-  TestSuiteEntry,
-} from "@/lib/types";
+import { caseAppend, caseDeltas, NO_ACTIVE_CYCLE, summaryNeeded } from "@/features/library/template-dialog-model";
+import type { FileDefinition, PreviewTestCycleResponse, SuiteTemplateEntry, TestCycleSelection, TestSuiteEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import {
-  useParameterOverridesStatus,
-  useParameterOverridesStore,
-} from "@/stores/parameter-overrides-store";
+import { useParameterOverridesStatus, useParameterOverridesStore } from "@/stores/parameter-overrides-store";
 
 /* === Constants === */
 
@@ -102,15 +73,7 @@ type DialogStep = "parameters" | "summary";
 
 /* === Components === */
 
-export function TemplateDialog({
-  cycleId,
-  cycleLabel,
-  onNewCycle,
-  onOpenChange,
-  open,
-  suite,
-  template,
-}: TemplateDialogProps) {
+export function TemplateDialog({ cycleId, cycleLabel, onNewCycle, onOpenChange, open, suite, template }: TemplateDialogProps) {
   const navigate = useNavigate();
   const touch = useTouchDensity();
   const templateId = template.template_id;
@@ -119,12 +82,8 @@ export function TemplateDialog({
   const { ready: parametersReady, error: parametersError } = useParameterOverridesStatus();
   const overrides = useParameterOverridesStore((state) => state.overrides[templateId]);
   const setParameterOverride = useParameterOverridesStore((state) => state.setParameterOverride);
-  const resetParameterOverride = useParameterOverridesStore(
-    (state) => state.resetParameterOverride,
-  );
-  const clearTemplateOverrides = useParameterOverridesStore(
-    (state) => state.clearTemplateOverrides,
-  );
+  const resetParameterOverride = useParameterOverridesStore((state) => state.resetParameterOverride);
+  const clearTemplateOverrides = useParameterOverridesStore((state) => state.clearTemplateOverrides);
 
   /* Seeded once per opening: the persisted override where there is one, the
      registered default otherwise. Row state lives above the step switch so
@@ -174,9 +133,7 @@ export function TemplateDialog({
     setError(null);
     const definition = rows.find((row) => row.name === name)?.definition;
     if (!definition) return;
-    setRows((current) =>
-      current.map((row) => (row.name === name ? editorRow(row.definition, raw) : row)),
-    );
+    setRows((current) => current.map((row) => (row.name === name ? editorRow(row.definition, raw) : row)));
     /* Typing a value back to its registered default is not an override: a
        stored copy of the default would silently outrank a later change to it. */
     if (definition && raw === registeredParameterRaw(definition)) {
@@ -191,9 +148,7 @@ export function TemplateDialog({
     const definition = rows.find((row) => row.name === name)?.definition;
     if (!definition) return;
     setRows((current) =>
-      current.map((row) =>
-        row.name === name ? editorRow(row.definition, registeredParameterRaw(row.definition)) : row,
-      ),
+      current.map((row) => (row.name === name ? editorRow(row.definition, registeredParameterRaw(row.definition)) : row)),
     );
     resetParameterOverride(templateId, definition.parameter_id);
   }
@@ -201,20 +156,14 @@ export function TemplateDialog({
   function resetAll() {
     if (fileRows.some((row) => row.uploading)) return;
     setError(null);
-    setRows((current) =>
-      current.map((row) => editorRow(row.definition, registeredParameterRaw(row.definition))),
-    );
+    setRows((current) => current.map((row) => editorRow(row.definition, registeredParameterRaw(row.definition))));
     clearTemplateOverrides(templateId);
     setFileRows(initialFileRows(template));
   }
 
   async function uploadFile(definition: FileDefinition, file: File | undefined) {
     if (!file) return;
-    setFileRows((current) =>
-      current.map((row) =>
-        row.name === definition.name ? { ...row, error: null, uploading: true } : row,
-      ),
-    );
+    setFileRows((current) => current.map((row) => (row.name === definition.name ? { ...row, error: null, uploading: true } : row)));
     try {
       const artifact = await uploadArtifact({
         description: definition.description ?? undefined,
@@ -226,19 +175,11 @@ export function TemplateDialog({
         mediaType: file.type || "application/octet-stream",
       });
       setFileRows((current) =>
-        current.map((row) =>
-          row.name === definition.name
-            ? { ...row, error: null, path: artifact.path, uploading: false }
-            : row,
-        ),
+        current.map((row) => (row.name === definition.name ? { ...row, error: null, path: artifact.path, uploading: false } : row)),
       );
     } catch (failure: unknown) {
       setFileRows((current) =>
-        current.map((row) =>
-          row.name === definition.name
-            ? { ...row, error: messageOf(failure), uploading: false }
-            : row,
-        ),
+        current.map((row) => (row.name === definition.name ? { ...row, error: messageOf(failure), uploading: false } : row)),
       );
     }
   }
@@ -306,11 +247,7 @@ export function TemplateDialog({
             <div role="status">
               {parametersError ?? "Loading remembered parameters…"}
               {parametersError ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => void useParameterOverridesStore.persist.rehydrate()}
-                >
+                <Button type="button" variant="ghost" onClick={() => void useParameterOverridesStore.persist.rehydrate()}>
                   Retry
                 </Button>
               ) : null}
@@ -323,9 +260,7 @@ export function TemplateDialog({
               onChangeRaw={changeRaw}
               onFileChange={(definition, file) => void uploadFile(definition, file)}
               onFilePathChange={(name, path) =>
-                setFileRows((current) =>
-                  current.map((row) => (row.name === name ? { ...row, error: null, path } : row)),
-                )
+                setFileRows((current) => current.map((row) => (row.name === name ? { ...row, error: null, path } : row)))
               }
               onResetAll={resetAll}
               onResetFile={(name) =>
@@ -334,9 +269,7 @@ export function TemplateDialog({
                     row.name === name && !row.uploading
                       ? {
                           ...row,
-                          path:
-                            template.file_definitions.find((definition) => definition.name === name)
-                              ?.default ?? "",
+                          path: template.file_definitions.find((definition) => definition.name === name)?.default ?? "",
                           error: null,
                         }
                       : row,
@@ -349,18 +282,10 @@ export function TemplateDialog({
           </fieldset>
         </div>
       ) : (
-        <SummaryStep
-          preview={preview}
-          rows={rows}
-          target={cycleLabel ?? cycleId ?? ""}
-          title={title}
-        />
+        <SummaryStep preview={preview} rows={rows} target={cycleLabel ?? cycleId ?? ""} title={title} />
       )}
       {append ? null : (
-        <div
-          className="mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border bg-muted/50 px-3 py-2"
-          role="status"
-        >
+        <div className="mx-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border bg-muted/50 px-3 py-2" role="status">
           <p className="text-sm text-muted-foreground">{NO_ACTIVE_CYCLE}</p>
           <Button onClick={onNewCycle} size="sm" type="button" variant="outline">
             New Cycle
@@ -403,12 +328,7 @@ export function TemplateDialog({
           ) : null}
         </span>
       ) : (
-        <Button
-          className="h-9 w-full"
-          disabled={busy || !preview || !append}
-          onClick={() => void finishAndAdd()}
-          type="button"
-        >
+        <Button className="h-9 w-full" disabled={busy || !preview || !append} onClick={() => void finishAndAdd()} type="button">
           Finish And Add
         </Button>
       )}
@@ -430,8 +350,7 @@ export function TemplateDialog({
       </div>
       <StepIndicator step={step} />
       <span className="sr-only">
-        Step {step === "parameters" ? 1 : 2} of 2:{" "}
-        {step === "parameters" ? "Parameters" : "Summary"}
+        Step {step === "parameters" ? 1 : 2} of 2: {step === "parameters" ? "Parameters" : "Summary"}
       </span>
     </>
   );
@@ -465,9 +384,7 @@ export function TemplateDialog({
       >
         <DialogHeader className="items-center gap-2 text-center">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">
-            Edit this template's parameters, then review the cases it generates.
-          </DialogDescription>
+          <DialogDescription className="sr-only">Edit this template's parameters, then review the cases it generates.</DialogDescription>
           {heading}
         </DialogHeader>
         {body}
@@ -504,31 +421,13 @@ function StepIndicator({ step }: { step: DialogStep }) {
   );
 }
 
-function StepSlot({
-  done,
-  entry,
-  step,
-}: {
-  done: boolean;
-  entry: (typeof STEP_LABELS)[number] | undefined;
-  step: DialogStep;
-}) {
+function StepSlot({ done, entry, step }: { done: boolean; entry: (typeof STEP_LABELS)[number] | undefined; step: DialogStep }) {
   if (!entry) return null;
   const current = entry.key === step;
   return (
     <li className="flex items-center justify-center gap-1.5">
       {done ? <Check aria-hidden className="size-3.5 text-primary" /> : null}
-      <span
-        className={cn(
-          current
-            ? "font-semibold text-primary"
-            : done
-              ? "text-foreground"
-              : "text-muted-foreground",
-        )}
-      >
-        {entry.label}
-      </span>
+      <span className={cn(current ? "font-semibold text-primary" : done ? "text-foreground" : "text-muted-foreground")}>{entry.label}</span>
     </li>
   );
 }
@@ -575,16 +474,11 @@ function SummaryStep({
               className="grid min-h-[var(--list-row-height)] grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-center gap-3 border-b border-border/60 py-1.5"
               key={item.case_id}
             >
-              <span className="min-w-0 text-sm font-medium">
-                {ordinals ? `${title} ${index + 1}` : title}
-              </span>
+              <span className="min-w-0 text-sm font-medium">{ordinals ? `${title} ${index + 1}` : title}</span>
               <span className="flex min-w-0 flex-wrap items-center gap-1">
                 {deltas.length ? (
                   deltas.map((delta) => (
-                    <span
-                      className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                      key={delta}
-                    >
+                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground" key={delta}>
                       {delta}
                     </span>
                   ))

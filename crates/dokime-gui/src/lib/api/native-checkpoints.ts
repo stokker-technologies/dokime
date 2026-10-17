@@ -54,13 +54,7 @@ import type {
 } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointRecords/messages_pb";
 import type { Row2 as GeneratedCheckpointTelemetryPage } from "../../../.generated/dokime/v1/HistoryMessages/ListCheckpointTelemetry/messages_pb";
 import type { Row4 as GeneratedExecutionFileWindow } from "../../../.generated/dokime/v1/HistoryMessages/ReadCheckpointOutput/messages_pb";
-import {
-  NATIVE_PAGE_SIZE,
-  NativeApiLimitError,
-  nativeValueObjectToJson,
-  safeNumber,
-  timestampIso,
-} from "./native-values";
+import { NATIVE_PAGE_SIZE, NativeApiLimitError, nativeValueObjectToJson, safeNumber, timestampIso } from "./native-values";
 
 type NativeExecutionCheckpoint = Wire<GeneratedNativeExecutionCheckpoint>;
 type NativeStorageCursor = Wire<GeneratedNativeStorageCursor>;
@@ -113,23 +107,15 @@ export function checkpointKey(checkpoint: CheckpointReference | NativeExecutionC
   const evidenceCursor = checkpointCursor(checkpoint.evidenceThrough);
   const position = cursorKey(positionCursor);
   const evidence = cursorKey(evidenceCursor);
-  if (
-    position[0] !== evidence[0] ||
-    position[1] !== evidence[1] ||
-    evidenceCursor.sequence > positionCursor.sequence
-  ) {
+  if (position[0] !== evidence[0] || position[1] !== evidence[1] || evidenceCursor.sequence > positionCursor.sequence) {
     throw new Error("Checkpoint evidence differs from inspected history.");
   }
-  const version = Array.from(checkpoint.version, (byte) => byte.toString(16).padStart(2, "0")).join(
-    "",
-  );
+  const version = Array.from(checkpoint.version, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return JSON.stringify([checkpoint.executionIdentifier, position, version, evidence]);
 }
 
 /** The cursor narrowed to its validated fields; throws when it is absent or out of bounds. */
-function checkpointCursor(
-  cursor: CheckpointReference["position"] | NativeStorageCursor | undefined,
-): CheckpointCursor {
+function checkpointCursor(cursor: CheckpointReference["position"] | NativeStorageCursor | undefined): CheckpointCursor {
   if (
     !cursor?.history?.store ||
     !cursor.history.epoch ||
@@ -156,20 +142,12 @@ function nativeCheckpoint(checkpoint: CheckpointReference): NativeExecutionCheck
   return checkpoint;
 }
 
-function assertActive(
-  session: SessionIdentity,
-  signal: AbortSignal | undefined,
-  operation: string,
-): void {
+function assertActive(session: SessionIdentity, signal: AbortSignal | undefined, operation: string): void {
   if (signal?.aborted) throw new Error(`${operation} was cancelled.`);
   if (!session.isCurrent()) throw new Error(`${operation} lost its owning connection.`);
 }
 
-function assertCheckpoint(
-  actual: NativeExecutionCheckpoint | undefined,
-  expected: CheckpointReference,
-  operation: string,
-): void {
+function assertCheckpoint(actual: NativeExecutionCheckpoint | undefined, expected: CheckpointReference, operation: string): void {
   if (!actual || checkpointKey(actual) !== checkpointKey(expected)) {
     throw new Error(`${operation} returned a different checkpoint.`);
   }
@@ -259,9 +237,7 @@ export async function deleteNativeExecution(
   local_complete: boolean;
 }> {
   if (!requestIdentifier || new TextEncoder().encode(requestIdentifier).byteLength > 256) {
-    throw new Error(
-      "History.DeleteExecution requires a request identifier of 1 to 256 UTF-8 bytes.",
-    );
+    throw new Error("History.DeleteExecution requires a request identifier of 1 to 256 UTF-8 bytes.");
   }
 
   assertActive(session, undefined, "History.DeleteExecution");
@@ -297,8 +273,7 @@ function mapBrowseEntry(entry: NativeExecutionBrowsePage["entries"][number]): Ex
 }
 
 function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): ExecutionBrowseCycle {
-  const count = (value: bigint, label: string) =>
-    safeNumber(value, `History.BrowseExecutions cycle ${label} count`);
+  const count = (value: bigint, label: string) => safeNumber(value, `History.BrowseExecutions cycle ${label} count`);
   return {
     cycle_id: cycle.cycleId,
     label: cycle.label ?? null,
@@ -317,9 +292,7 @@ function mapBrowseCycle(cycle: NativeExecutionBrowsePage["cycles"][number]): Exe
   };
 }
 
-function mapBrowseLifecycle(
-  value: ExecutionBrowseLifecycle | undefined,
-): ExecutionBrowseCycle["lifecycle"] {
+function mapBrowseLifecycle(value: ExecutionBrowseLifecycle | undefined): ExecutionBrowseCycle["lifecycle"] {
   switch (value?.HarmosVariant.case) {
     case "Running":
       return "running";
@@ -373,16 +346,7 @@ function mapExecutionMetadata(metadata: HistoricalExecutionMetadata) {
 
 export function executionStatusLabel(
   status: ExecutionStatus | undefined,
-):
-  | "skipped"
-  | "invalidated"
-  | "pending"
-  | "running"
-  | "passed"
-  | "failed"
-  | "blocked"
-  | "cancelled"
-  | "interrupted" {
+): "skipped" | "invalidated" | "pending" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "interrupted" {
   switch (status?.HarmosVariant.case) {
     case "Skipped":
       return "skipped";
@@ -405,9 +369,7 @@ export function executionStatusLabel(
   }
 }
 
-function mapResultStatus(
-  status: ResultStatus | undefined,
-): "pending" | "passed" | "failed" | "blocked" | "cancelled" {
+function mapResultStatus(status: ResultStatus | undefined): "pending" | "passed" | "failed" | "blocked" | "cancelled" {
   switch (status?.HarmosVariant.case) {
     case "Passed":
       return "passed";
@@ -422,9 +384,7 @@ function mapResultStatus(
   }
 }
 
-function mapAvailability(
-  value: ExecutionAvailability | undefined,
-): ExecutionBrowseEntry["availability"] {
+function mapAvailability(value: ExecutionAvailability | undefined): ExecutionBrowseEntry["availability"] {
   switch (value?.HarmosVariant.case) {
     case "Live":
       return "live";
@@ -497,10 +457,7 @@ export async function fetchNativeCheckpointRecords(
     throw new NativeApiLimitError("History.ListCheckpointRecords", "pagination did not advance");
   }
   if (reply.records.some((row) => !row.epoch || !row.record)) {
-    throw new NativeApiLimitError(
-      "History.ListCheckpointRecords",
-      "record source identity is missing",
-    );
+    throw new NativeApiLimitError("History.ListCheckpointRecords", "record source identity is missing");
   }
   return reply;
 }
@@ -524,13 +481,9 @@ export async function fetchNativeCheckpointTelemetry(
   });
   assertActive(session, signal, "History.ListCheckpointTelemetry");
   assertCheckpoint(reply.checkpoint, checkpoint, "History.ListCheckpointTelemetry");
-  if (reply.table !== table)
-    throw new Error("History.ListCheckpointTelemetry returned another table.");
+  if (reply.table !== table) throw new Error("History.ListCheckpointTelemetry returned another table.");
   if (reply.rows.some((row) => !row.epoch || !row.sample || row.sample.stream !== table)) {
-    throw new NativeApiLimitError(
-      "History.ListCheckpointTelemetry",
-      "sample source identity differs",
-    );
+    throw new NativeApiLimitError("History.ListCheckpointTelemetry", "sample source identity differs");
   }
   if (reply.nextAfter !== undefined && reply.nextAfter === after) {
     throw new NativeApiLimitError("History.ListCheckpointTelemetry", "pagination did not advance");
@@ -561,17 +514,9 @@ export async function readNativeCheckpointOutput(
 ): Promise<ExecutionFileWindow> {
   const offset = options.offset ?? 0n;
   const maxBytes = options.maxBytes ?? NATIVE_CHECKPOINT_WINDOW_BYTES;
-  if (offset < 0n)
-    throw new NativeApiLimitError("History.ReadCheckpointOutput", "offset is negative");
-  if (
-    !Number.isSafeInteger(maxBytes) ||
-    maxBytes < 0 ||
-    maxBytes > NATIVE_CHECKPOINT_WINDOW_BYTES
-  ) {
-    throw new NativeApiLimitError(
-      "History.ReadCheckpointOutput",
-      `max_bytes must be between 0 and ${NATIVE_CHECKPOINT_WINDOW_BYTES}`,
-    );
+  if (offset < 0n) throw new NativeApiLimitError("History.ReadCheckpointOutput", "offset is negative");
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > NATIVE_CHECKPOINT_WINDOW_BYTES) {
+    throw new NativeApiLimitError("History.ReadCheckpointOutput", `max_bytes must be between 0 and ${NATIVE_CHECKPOINT_WINDOW_BYTES}`);
   }
   if (!relativePath || relativePath.includes("\0")) {
     throw new Error("History.ReadCheckpointOutput requires a relative path.");
@@ -590,10 +535,7 @@ export async function readNativeCheckpointOutput(
   if (content.relativePath !== relativePath || content.offset !== offset) {
     throw new Error("History.ReadCheckpointOutput returned a different window.");
   }
-  if (
-    content.data.byteLength > maxBytes ||
-    content.observedSizeBytes < content.offset + BigInt(content.data.byteLength)
-  ) {
+  if (content.data.byteLength > maxBytes || content.observedSizeBytes < content.offset + BigInt(content.data.byteLength)) {
     throw new NativeApiLimitError("History.ReadCheckpointOutput", "invalid response window");
   }
   return content;
@@ -612,8 +554,7 @@ export async function downloadNativeCheckpointArtifact(
   artifactId: string,
   signal?: AbortSignal,
 ): Promise<NativeCheckpointArtifact> {
-  if (!artifactId.trim())
-    throw new Error("History.DownloadCheckpointArtifact requires an artifact id.");
+  if (!artifactId.trim()) throw new Error("History.DownloadCheckpointArtifact requires an artifact id.");
   assertActive(session, signal, "History.DownloadCheckpointArtifact");
   let reader: NativeStream<ArtifactFrame> | undefined;
   let release: (() => void) | undefined;
@@ -632,11 +573,7 @@ export async function downloadNativeCheckpointArtifact(
     });
     assertActive(session, signal, "History.DownloadCheckpointArtifact");
     release = session.own(() => void cancelReader().catch(() => undefined));
-    return await assembleCheckpointArtifact(
-      reader,
-      artifactId,
-      () => !signal?.aborted && session.isCurrent(),
-    );
+    return await assembleCheckpointArtifact(reader, artifactId, () => !signal?.aborted && session.isCurrent());
   } finally {
     signal?.removeEventListener("abort", abort);
     await cancelReader().catch(() => undefined);
@@ -661,11 +598,7 @@ async function assembleCheckpointArtifact(
     if (complete) throw new Error("History.DownloadCheckpointArtifact continued after completion.");
     switch (frame.payload?.HarmosVariant.case) {
       case "Metadata": {
-        if (
-          metadata ||
-          !frame.payload.HarmosVariant.value.field0 ||
-          frame.payload.HarmosVariant.value.field0.artifactId !== artifactId
-        ) {
+        if (metadata || !frame.payload.HarmosVariant.value.field0 || frame.payload.HarmosVariant.value.field0.artifactId !== artifactId) {
           throw new Error("History.DownloadCheckpointArtifact metadata identity is invalid.");
         }
         metadata = frame.payload.HarmosVariant.value.field0;
@@ -673,8 +606,7 @@ async function assembleCheckpointArtifact(
         break;
       }
       case "Chunk": {
-        if (!metadata)
-          throw new Error("History.DownloadCheckpointArtifact sent data before metadata.");
+        if (!metadata) throw new Error("History.DownloadCheckpointArtifact sent data before metadata.");
         const chunk = frame.payload.HarmosVariant.value.field0;
         if (!chunk) throw new Error("Artifact chunk payload is missing.");
         if (chunk.offset !== expectedOffset) {
@@ -682,18 +614,14 @@ async function assembleCheckpointArtifact(
         }
         total += BigInt(chunk.data.byteLength);
         if (total > BigInt(NATIVE_CHECKPOINT_ARTIFACT_BYTES)) {
-          throw new NativeApiLimitError(
-            "History.DownloadCheckpointArtifact",
-            "artifact is too large",
-          );
+          throw new NativeApiLimitError("History.DownloadCheckpointArtifact", "artifact is too large");
         }
         chunks.push(chunk.data);
         expectedOffset = total;
         break;
       }
       case "Complete": {
-        if (!metadata)
-          throw new Error("History.DownloadCheckpointArtifact completed before metadata.");
+        if (!metadata) throw new Error("History.DownloadCheckpointArtifact completed before metadata.");
         const completion = frame.payload.HarmosVariant.value.field0;
         if (!completion) throw new Error("Artifact completion payload is missing.");
         completionSize = completion.sizeBytes;
@@ -755,9 +683,7 @@ export function checkpointFileLabel(file: ExecutionFileMetadata): string {
   return `${file.relativePath} · ${file.sizeBytes.toString()} bytes · ${fileStateLabel(file.state)}`;
 }
 
-export function checkpointFileKind(
-  kind: ExecutionFileKind | undefined,
-): "text" | "binary" | "media" | "unknown" {
+export function checkpointFileKind(kind: ExecutionFileKind | undefined): "text" | "binary" | "media" | "unknown" {
   switch (kind?.HarmosVariant.case) {
     case "Text":
       return "text";

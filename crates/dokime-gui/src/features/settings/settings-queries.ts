@@ -21,9 +21,7 @@ import { fetchNativeSettingsFrame } from "@/lib/api/native-settings";
 export const settingsQueryKeys = {
   all: ["settings"] as const,
   frame: (generation?: string) =>
-    generation
-      ? ([...settingsQueryKeys.all, "frame", generation] as const)
-      : ([...settingsQueryKeys.all, "frame"] as const),
+    generation ? ([...settingsQueryKeys.all, "frame", generation] as const) : ([...settingsQueryKeys.all, "frame"] as const),
 };
 
 /* === Hooks === */

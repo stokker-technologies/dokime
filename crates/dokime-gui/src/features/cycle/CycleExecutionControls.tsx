@@ -63,21 +63,13 @@ const CONTROL_REPORT: Record<ControlAction, string> = {
 
 /* === Components === */
 
-export function CycleExecutionControls({
-  cycleId,
-  selection,
-  onSelectExecution,
-}: CycleExecutionControlsProps) {
+export function CycleExecutionControls({ cycleId, selection, onSelectExecution }: CycleExecutionControlsProps) {
   const commands = useCycleCommands(cycleId);
   const rerunCase = useRerunCase(cycleId);
   const detail = useCycleDetailQuery(cycleId).data;
-  const rows = useMemo(
-    () => buildCycleExecutionRows(buildCycleCases(detail?.plan ?? null), detail?.executions ?? []),
-    [detail],
-  );
+  const rows = useMemo(() => buildCycleExecutionRows(buildCycleCases(detail?.plan ?? null), detail?.executions ?? []), [detail]);
   const row = selectedCycleRow(rows, selection);
-  const started =
-    row?.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null;
+  const started = row?.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null;
   const detailQuery = useExecutionDetailQuery(started?.test_execution_id ?? null, Boolean(started));
   if (!row?.execution) return null;
 
@@ -160,10 +152,7 @@ export function CycleExecutionControls({
       ) : null}
       {/* A member of a cycle run pauses with its cycle; only an
           execution-addressed run offers its own Pause and Resume. */}
-      {!controls ||
-      !(
-        set.includes("Pause Execution") || set.includes("Resume Execution")
-      ) ? null : controls.paused ? (
+      {!controls || !(set.includes("Pause Execution") || set.includes("Resume Execution")) ? null : controls.paused ? (
         <Button
           className={PAGE_BAR_CONTROL_CLASS}
           disabled={!controls.canResume || commands.resumeExecution.isPending}

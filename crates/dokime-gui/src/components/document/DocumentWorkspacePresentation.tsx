@@ -20,10 +20,7 @@ import { type ReactNode, useCallback } from "react";
 /* === Local Imports === */
 
 import { DocumentCardContentView } from "@/components/document/DocumentSurfaceView";
-import {
-  type DocumentBlockChrome,
-  DocumentViewRenderer,
-} from "@/components/document/DocumentViewRenderer";
+import { type DocumentBlockChrome, DocumentViewRenderer } from "@/components/document/DocumentViewRenderer";
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import type { MediaGalleryArtifact } from "@/components/media-gallery-model";
 import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJsonDialog";
@@ -93,9 +90,7 @@ type ReportDocumentWorkspaceViewProps = DocumentWorkspaceViewBaseProps & {
   reportTelemetry: Record<string, TelemetryStream> | null;
 };
 
-export type DocumentWorkspaceViewProps =
-  | LiveDocumentWorkspaceViewProps
-  | ReportDocumentWorkspaceViewProps;
+export type DocumentWorkspaceViewProps = LiveDocumentWorkspaceViewProps | ReportDocumentWorkspaceViewProps;
 
 /* === Components === */
 
@@ -124,10 +119,7 @@ export function DocumentWorkspacePresentation(props: DocumentWorkspaceViewProps)
     <DocumentViewRenderer
       cardAction={(card) =>
         card.kind === "traceability" ? (
-          <TraceabilityJsonDialog
-            exportName={props.traceabilityExportName}
-            traceability={props.traceability}
-          />
+          <TraceabilityJsonDialog exportName={props.traceabilityExportName} traceability={props.traceability} />
         ) : null
       }
       cardChrome={props.cardChrome}
@@ -139,13 +131,9 @@ export function DocumentWorkspacePresentation(props: DocumentWorkspaceViewProps)
       renderCard={(card, section) => {
         const contentProps = {
           ...documentCardContentProps(props, card, section, livePlotStates),
-          ...(props.renderMode === "live" && props.onPlotSettingsChange
-            ? { onPlotSettingsChange: props.onPlotSettingsChange }
-            : {}),
+          ...(props.renderMode === "live" && props.onPlotSettingsChange ? { onPlotSettingsChange: props.onPlotSettingsChange } : {}),
         };
-        return props.renderCardContent
-          ? props.renderCardContent(contentProps)
-          : <DocumentCardContentView {...contentProps} />;
+        return props.renderCardContent ? props.renderCardContent(contentProps) : <DocumentCardContentView {...contentProps} />;
       }}
     />
   );
@@ -196,14 +184,9 @@ function documentCardContentProps(
   };
 }
 
-export function visibleDocumentPlots(
-  sections: DocumentViewSection[],
-  cardFilter: (card: DocumentViewCard) => boolean,
-) {
+export function visibleDocumentPlots(sections: DocumentViewSection[], cardFilter: (card: DocumentViewCard) => boolean) {
   return sections.flatMap((section) =>
-    section.cards
-      .filter((card) => card.kind === "plots" && cardFilter(card))
-      .flatMap((card) => card.plots),
+    section.cards.filter((card) => card.kind === "plots" && cardFilter(card)).flatMap((card) => card.plots),
   );
 }
 

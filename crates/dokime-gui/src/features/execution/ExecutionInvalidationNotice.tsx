@@ -17,10 +17,7 @@ export function ExecutionInvalidationNotice({ execution }: { execution: TestExec
   if (execution?.status !== "invalidated") return null;
   const reason = execution.invalidation;
   return (
-    <div
-      role="status"
-      className="grid gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm"
-    >
+    <div role="status" className="grid gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
       <div>
         <Badge variant="warning">Invalidated</Badge>
       </div>
@@ -32,9 +29,7 @@ export function ExecutionInvalidationNotice({ execution }: { execution: TestExec
           : "The plugin required by this execution changed or is no longer available."}
       </p>
       <p>This execution ended without a result. Its recorded evidence is preserved.</p>
-      <p className="text-muted-foreground">
-        Run this case again in a new execution when the required plugin is available.
-      </p>
+      <p className="text-muted-foreground">Run this case again in a new execution when the required plugin is available.</p>
     </div>
   );
 }

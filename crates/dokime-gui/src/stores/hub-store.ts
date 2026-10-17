@@ -32,9 +32,7 @@ type HubStoreState = {
 };
 
 /** The fields the runtime stream updates on every frame. */
-export type BackendOperationsPatch = Partial<
-  Pick<HubStoreState, "connection" | "error" | "lastStreamFrameAt" | "operations">
->;
+export type BackendOperationsPatch = Partial<Pick<HubStoreState, "connection" | "error" | "lastStreamFrameAt" | "operations">>;
 
 type HubStore = HubStoreState & {
   resetHubStore: () => void;

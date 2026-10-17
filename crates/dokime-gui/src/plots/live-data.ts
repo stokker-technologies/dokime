@@ -14,25 +14,12 @@ import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "rea
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import {
-  type NativePlotStream,
-  openNativePlotStream,
-  type PlotPayloadRequestInput,
-} from "@/lib/api/native-plots";
+import { type NativePlotStream, openNativePlotStream, type PlotPayloadRequestInput } from "@/lib/api/native-plots";
 import { NativeApiLimitError } from "@/lib/api/native-values";
 import { summaryInFlight } from "@/lib/statistics";
-import type {
-  DocumentDownsampleTechnique,
-  DocumentViewPlot,
-  PlotPayloadStreamMessage,
-  RecordScope,
-} from "@/lib/types";
+import type { DocumentDownsampleTechnique, DocumentViewPlot, PlotPayloadStreamMessage, RecordScope } from "@/lib/types";
 import { applyPlotMessages, emptyLivePlotState, type LivePlotStateMap } from "@/plots/live-frames";
-import {
-  DEFAULT_PLOT_MAX_POINTS,
-  NATIVE_PLOT_MAX_POINTS,
-  type ReduceTechnique,
-} from "@/plots/reduce";
+import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS, type ReduceTechnique } from "@/plots/reduce";
 import { type SummaryWindow, useSummaryWindowStore } from "@/stores/summary-window-store";
 
 /* === Constants === */
@@ -77,16 +64,10 @@ export function useLivePlotPayloads({
   // draws: the stream reopens for it while the drawn frame stays on screen.
   const summaryWindows = useSummaryWindowStore((store) => store.windows);
   const summaryKey = useMemo(
-    () =>
-      JSON.stringify(
-        Object.fromEntries(plots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]])),
-      ),
+    () => JSON.stringify(Object.fromEntries(plots.map((plot) => [plot.plot_id, summaryWindows[plot.plot_id]]))),
     [plots, summaryWindows],
   );
-  const requestedSummaryWindows = useMemo(
-    () => JSON.parse(summaryKey) as Record<string, SummaryWindow | undefined>,
-    [summaryKey],
-  );
+  const requestedSummaryWindows = useMemo(() => JSON.parse(summaryKey) as Record<string, SummaryWindow | undefined>, [summaryKey]);
   const scopeFields = useMemo(
     () => ({
       test_case_id: scope?.test_case_id ?? null,
@@ -112,20 +93,11 @@ export function useLivePlotPayloads({
   const scopeKey = useMemo(() => recordScopeKey(scopeFields), [scopeFields]);
   const requestScope = useMemo(() => cloneRecordScope(scopeFields), [scopeFields]);
   const scopeWindowKey = useMemo(
-    () =>
-      [scopeKey, windowS === undefined ? "plot-default" : windowS === null ? "all" : windowS].join(
-        "|",
-      ),
+    () => [scopeKey, windowS === undefined ? "plot-default" : windowS === null ? "all" : windowS].join("|"),
     [scopeKey, windowS],
   );
-  const dataKey = useMemo(
-    () => [plotRequestKey, scopeWindowKey].join("|"),
-    [plotRequestKey, scopeWindowKey],
-  );
-  const _descriptorKey = useMemo(
-    () => [dataKey, streamEnabled ? "enabled" : "disabled"].join("|"),
-    [dataKey, streamEnabled],
-  );
+  const dataKey = useMemo(() => [plotRequestKey, scopeWindowKey].join("|"), [plotRequestKey, scopeWindowKey]);
+  const _descriptorKey = useMemo(() => [dataKey, streamEnabled ? "enabled" : "disabled"].join("|"), [dataKey, streamEnabled]);
 
   const plotsRef = useRef(plots);
   plotsRef.current = plots;
@@ -159,10 +131,7 @@ export function useLivePlotPayloads({
         return Object.fromEntries(
           activePlots.map((plot) => {
             const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
-            return [
-              plot.plot_id,
-              currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot,
-            ];
+            return [plot.plot_id, currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot];
           }),
         );
       });
@@ -173,10 +142,7 @@ export function useLivePlotPayloads({
         Object.fromEntries(
           activePlots.map((plot) => {
             const currentPlot = current[plot.plot_id] ?? emptyLivePlotState();
-            return [
-              plot.plot_id,
-              currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot,
-            ];
+            return [plot.plot_id, currentPlot.payload ? { ...currentPlot, status: "stale" as const } : currentPlot];
           }),
         ),
       );
@@ -195,9 +161,7 @@ export function useLivePlotPayloads({
         summaryWindow: requestedSummaryWindows[plot.plot_id] ?? null,
       }),
     );
-    const techniques: TechniqueByPlot = Object.fromEntries(
-      activePlots.map((plot) => [plot.plot_id, reduceTechnique(plot.downsample)]),
-    );
+    const techniques: TechniqueByPlot = Object.fromEntries(activePlots.map((plot) => [plot.plot_id, reduceTechnique(plot.downsample)]));
     let active = true;
     let stream: NativePlotStream | null = null;
     let releaseStream: (() => void) | undefined;
@@ -209,9 +173,7 @@ export function useLivePlotPayloads({
     commit((current) =>
       Object.fromEntries(
         activePlots.map((plot) => {
-          const currentPlot = dataChanged
-            ? emptyLivePlotState()
-            : (current[plot.plot_id] ?? emptyLivePlotState());
+          const currentPlot = dataChanged ? emptyLivePlotState() : (current[plot.plot_id] ?? emptyLivePlotState());
           return [
             plot.plot_id,
             {
@@ -288,9 +250,7 @@ export function useLivePlotPayloads({
         return;
       }
       const terminal = error instanceof NativeApiLimitError;
-      console.error(
-        `Plot stream failed (${grpcStatusCode(error) ?? "no status"}): ${errorMessage(error)}`,
-      );
+      console.error(`Plot stream failed (${grpcStatusCode(error) ?? "no status"}): ${errorMessage(error)}`);
       commit((current) =>
         Object.fromEntries(
           activePlots.map((plot) => [
@@ -313,11 +273,7 @@ export function useLivePlotPayloads({
       reopenTimer = window.setTimeout(() => {
         reopenTimer = null;
         // The reopened watch resends snapshots from its own revision origin.
-        commit((current) =>
-          Object.fromEntries(
-            Object.entries(current).map(([plotId, plot]) => [plotId, { ...plot, revision: 0 }]),
-          ),
-        );
+        commit((current) => Object.fromEntries(Object.entries(current).map(([plotId, plot]) => [plotId, { ...plot, revision: 0 }])));
         void consumeStream();
       }, reopenDelayMs);
       reopenDelayMs = Math.min(reopenDelayMs * 2, RECONNECT_MAX_MS);
@@ -374,9 +330,7 @@ export function useLivePlotPayloads({
               : {
                   ...plot,
                   status: "error" as const,
-                  error:
-                    plot.error ??
-                    `No plot frame arrived within ${FIRST_FRAME_TIMEOUT_MS / 1_000} s.`,
+                  error: plot.error ?? `No plot frame arrived within ${FIRST_FRAME_TIMEOUT_MS / 1_000} s.`,
                 },
           ]),
         ),
@@ -402,16 +356,7 @@ export function useLivePlotPayloads({
       clearScheduledFlush(flushFrameRef, flushTimerRef);
       pendingMessagesRef.current = [];
     };
-  }, [
-    dataKey,
-    requestedSummaryWindows,
-    requestScope?.test_cycle_id,
-    enabled,
-    requestScope,
-    windowS,
-    pageVisible,
-    nativeSession,
-  ]);
+  }, [dataKey, requestedSummaryWindows, requestScope?.test_cycle_id, enabled, requestScope, windowS, pageVisible, nativeSession]);
 
   return state;
 }
@@ -468,11 +413,7 @@ export function displayPointBudget(displayPoints: number | null | undefined): nu
 
 /* === Private Functions === */
 
-function applyMessagesById(
-  current: LivePlotStateMap,
-  messages: PlotPayloadStreamMessage[],
-  techniques: TechniqueByPlot,
-): LivePlotStateMap {
+function applyMessagesById(current: LivePlotStateMap, messages: PlotPayloadStreamMessage[], techniques: TechniqueByPlot): LivePlotStateMap {
   const messagesByPlot = new Map<string, PlotPayloadStreamMessage[]>();
   for (const message of messages) {
     const plotMessages = messagesByPlot.get(message.plot_id);
@@ -578,15 +519,10 @@ function errorMessage(error: unknown): string {
 function grpcStatusCode(error: unknown): number | null {
   if (!error || typeof error !== "object") return null;
   const candidate = error as { kind?: unknown; detail?: { code?: unknown } };
-  return candidate.kind === "grpc" && typeof candidate.detail?.code === "number"
-    ? candidate.detail.code
-    : null;
+  return candidate.kind === "grpc" && typeof candidate.detail?.code === "number" ? candidate.detail.code : null;
 }
 
-function clearScheduledFlush(
-  flushFrameRef: MutableRefObject<number | null>,
-  flushTimerRef: MutableRefObject<number | null>,
-): void {
+function clearScheduledFlush(flushFrameRef: MutableRefObject<number | null>, flushTimerRef: MutableRefObject<number | null>): void {
   if (flushFrameRef.current !== null) {
     window.cancelAnimationFrame(flushFrameRef.current);
     flushFrameRef.current = null;

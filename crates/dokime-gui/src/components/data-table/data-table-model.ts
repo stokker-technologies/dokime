@@ -138,15 +138,10 @@ export function facetText(meta: DataTableColumnMeta | undefined, value: unknown)
 }
 
 /** One readable line per active filter, for the chip that clears it. */
-export function filterSummary(
-  filter: ColumnFiltersState[number],
-  meta: DataTableColumnMeta | undefined,
-): string {
+export function filterSummary(filter: ColumnFiltersState[number], meta: DataTableColumnMeta | undefined): string {
   const name = meta?.label ?? filter.id;
   if (!Array.isArray(filter.value)) return `${name}: “${String(filter.value)}”`;
 
   const values = filter.value.map((value) => facetText(meta, value));
-  return values.length > 2
-    ? `${name}: ${values.slice(0, 2).join(", ")} +${values.length - 2}`
-    : `${name}: ${values.join(", ")}`;
+  return values.length > 2 ? `${name}: ${values.slice(0, 2).join(", ")} +${values.length - 2}` : `${name}: ${values.join(", ")}`;
 }

@@ -71,8 +71,7 @@ export function PlotWindowSlider({
   onIndexChange: (index: number) => void;
 }) {
   const [draftIndex, setDraftIndex] = useState(index);
-  const draftOption =
-    PLOT_WINDOW_OPTIONS[draftIndex] ?? option ?? PLOT_WINDOW_OPTIONS[DEFAULT_PLOT_WINDOW_INDEX];
+  const draftOption = PLOT_WINDOW_OPTIONS[draftIndex] ?? option ?? PLOT_WINDOW_OPTIONS[DEFAULT_PLOT_WINDOW_INDEX];
   const title = plotWindowTitle(elapsedUnit);
   const detail = plotWindowDetail(draftOption, elapsedUnit);
 
@@ -117,31 +116,17 @@ export function PlotWindowSlider({
  * the window it was drawn with: saying so is honest, offering a slider that
  * changes nothing is not.
  */
-export function PlotWindowControl({
-  elapsedUnit,
-  live,
-  window,
-}: {
-  elapsedUnit: string | null;
-  live: boolean;
-  window: PlotWindowState;
-}) {
+export function PlotWindowControl({ elapsedUnit, live, window }: { elapsedUnit: string | null; live: boolean; window: PlotWindowState }) {
   if (!live) {
     return (
       <span className="text-xs text-muted-foreground">
-        {elapsedUnit ? "Elapsed window" : "Plot window"}{" "}
-        {plotWindowValueLabel(window.option, elapsedUnit)}
+        {elapsedUnit ? "Elapsed window" : "Plot window"} {plotWindowValueLabel(window.option, elapsedUnit)}
       </span>
     );
   }
   return (
     <div className="w-56 xl:w-80">
-      <PlotWindowSlider
-        elapsedUnit={elapsedUnit}
-        index={window.index}
-        onIndexChange={window.choose}
-        option={window.option}
-      />
+      <PlotWindowSlider elapsedUnit={elapsedUnit} index={window.index} onIndexChange={window.choose} option={window.option} />
     </div>
   );
 }
@@ -180,22 +165,12 @@ export function plotWindowTitle(elapsedUnit: string | null | undefined): string 
   return elapsedUnit ? "Elapsed Window" : "Plot Window";
 }
 
-export function plotWindowValueLabel(
-  option: PlotWindowOption,
-  elapsedUnit: string | null | undefined,
-): string {
-  return elapsedUnit && option.value !== null
-    ? elapsedWindowLabel(option.value, elapsedUnit)
-    : option.label;
+export function plotWindowValueLabel(option: PlotWindowOption, elapsedUnit: string | null | undefined): string {
+  return elapsedUnit && option.value !== null ? elapsedWindowLabel(option.value, elapsedUnit) : option.label;
 }
 
-export function plotWindowDetail(
-  option: PlotWindowOption,
-  elapsedUnit: string | null | undefined,
-): string {
-  return elapsedUnit && option.value !== null
-    ? `last ${elapsedWindowLabel(option.value, elapsedUnit)} of elapsed time`
-    : option.detail;
+export function plotWindowDetail(option: PlotWindowOption, elapsedUnit: string | null | undefined): string {
+  return elapsedUnit && option.value !== null ? `last ${elapsedWindowLabel(option.value, elapsedUnit)} of elapsed time` : option.detail;
 }
 
 /* === Private Functions === */

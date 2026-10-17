@@ -9,15 +9,7 @@
 
 /* === External Imports === */
 
-import {
-  Activity,
-  CircleUser,
-  Info,
-  type LucideIcon,
-  PackagePlus,
-  Palette,
-  Settings,
-} from "lucide-react";
+import { Activity, CircleUser, Info, type LucideIcon, PackagePlus, Palette, Settings } from "lucide-react";
 
 /* === Types === */
 

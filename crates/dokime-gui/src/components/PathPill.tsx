@@ -28,13 +28,7 @@ type PathPillProps = {
 
 /* === Components === */
 
-export function PathPill({
-  value,
-  align = "left",
-  copy = true,
-  compact = false,
-  onOpen,
-}: PathPillProps) {
+export function PathPill({ value, align = "left", copy = true, compact = false, onOpen }: PathPillProps) {
   const action = `${compact ? "size-4" : "size-5"} grid shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40`;
 
   async function copyPath() {

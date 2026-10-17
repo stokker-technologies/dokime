@@ -16,13 +16,7 @@ import type uPlot from "uplot";
 
 import { StatsSummaryTable } from "@/components/StatsSummaryTable";
 import { formatNumber, formatTime, type TimeFormatOrigin } from "@/lib/format";
-import {
-  nearestDrawnPoint,
-  type SeriesSummary,
-  seriesLegendColumns,
-  seriesLegendRows,
-  toggleTrace,
-} from "@/lib/statistics";
+import { nearestDrawnPoint, type SeriesSummary, seriesLegendColumns, seriesLegendRows, toggleTrace } from "@/lib/statistics";
 import type {
   DocumentAxisScale,
   DocumentPlotStyle,
@@ -207,17 +201,10 @@ export const CartesianPlot = memo(function CartesianPlot({
   // has been measured.
   const [laidOut, setLaidOut] = useState(false);
   const renderedSeries = useMemo(() => limitRenderedSeries(series, cartesian), [series, cartesian]);
-  const backendCartesian = useMemo(
-    () => usableCartesianFrame(cartesian, renderedSeries, series),
-    [cartesian, renderedSeries, series],
-  );
-  const chartFrame = useMemo(
-    () => (backendCartesian ? chartFrameFromCartesian(backendCartesian) : null),
-    [backendCartesian],
-  );
+  const backendCartesian = useMemo(() => usableCartesianFrame(cartesian, renderedSeries, series), [cartesian, renderedSeries, series]);
+  const chartFrame = useMemo(() => (backendCartesian ? chartFrameFromCartesian(backendCartesian) : null), [backendCartesian]);
   const seriesKey = useMemo(
-    () =>
-      renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}`).join("|"),
+    () => renderedSeries.map((item) => `${series.indexOf(item)}:${item.key}:${item.label}`).join("|"),
     [renderedSeries, series],
   );
   const colorsKey = colors.join("|");
@@ -234,10 +221,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     runStartedAt: runStartedAt ?? null,
     cycleStartedAt: cycleStartedAt ?? null,
   });
-  const intervalRanges = useMemo(
-    () => intervalRangeData(renderedSeries, { xScale, yScale }),
-    [renderedSeries, xScale, yScale],
-  );
+  const intervalRanges = useMemo(() => intervalRangeData(renderedSeries, { xScale, yScale }), [renderedSeries, xScale, yScale]);
   const yReferenceValues = useMemo(
     () => referenceYValues(referenceLines, referenceBands, yScale),
     [referenceBands, referenceLines, yScale],
@@ -245,12 +229,9 @@ export const CartesianPlot = memo(function CartesianPlot({
   const yReferenceKey = yReferenceValues.join("|");
   const hasData = Boolean(chartFrame && chartFrame.pointCount > 0);
   const hasTimeline =
-    renderedSeries.some((item) => item.points.length > 0) ||
-    Boolean(backendCartesian?.series.some((item) => item.x.length > 0));
+    renderedSeries.some((item) => item.points.length > 0) || Boolean(backendCartesian?.series.some((item) => item.x.length > 0));
   const frameError =
-    (cartesian != null || hasTimeline) && !backendCartesian
-      ? "The plot data could not be rendered. Reload the plot to try again."
-      : null;
+    (cartesian != null || hasTimeline) && !backendCartesian ? "The plot data could not be rendered. Reload the plot to try again." : null;
   const displayError = plotLoadError ?? frameError;
   const chartMode = chartFrame?.mode ?? null;
   const dataSignature = chartFrame?.signature ?? null;
@@ -258,10 +239,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   // Structural, not per-sample: crossing the render limit switches the point
   // mark style, everything below it is a plain data update.
   const densePoints = renderedPointCount > POINT_MARK_RENDER_LIMIT;
-  const liveXRange = useMemo(
-    () => liveCartesianXRange(backendCartesian, liveWindowS),
-    [backendCartesian, liveWindowS],
-  );
+  const liveXRange = useMemo(() => liveCartesianXRange(backendCartesian, liveWindowS), [backendCartesian, liveWindowS]);
 
   useEffect(() => {
     let cancelled = false;
@@ -308,11 +286,7 @@ export const CartesianPlot = memo(function CartesianPlot({
     const fallbackSeriesColor = themeColors.palette[0] ?? themeColors.foreground;
     const resolvedSeriesColors = renderedSeries.map((item) => {
       const index = series.indexOf(item);
-      return resolvePlotCssColor(
-        colors[index] ?? themeColors.palette[index % themeColors.palette.length],
-        root,
-        fallbackSeriesColor,
-      );
+      return resolvePlotCssColor(colors[index] ?? themeColors.palette[index % themeColors.palette.length], root, fallbackSeriesColor);
     });
     const faceted = chartFrame.mode === "faceted";
     const chartHeight = 230;
@@ -334,22 +308,15 @@ export const CartesianPlot = memo(function CartesianPlot({
     };
     const xAxisValues: uPlot.Axis.Values | undefined = xElapsedUnit
       ? (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
-          splits.map((split) =>
-            split == null ? "" : formatElapsedTick(split, xElapsedUnit, foundIncr),
-          )
+          splits.map((split) => (split == null ? "" : formatElapsedTick(split, xElapsedUnit, foundIncr)))
       : timeAxis
         ? xFormat
-          ? (_plot, splits) =>
-              splits.map((split) => (split == null ? "" : formatTime(split, xFormat, timeOrigin)))
+          ? (_plot, splits) => splits.map((split) => (split == null ? "" : formatTime(split, xFormat, timeOrigin)))
           : undefined
         : (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
-            splits.map((split) =>
-              split == null ? "" : formatNumber(split, xFormat, { increment: foundIncr }),
-            );
+            splits.map((split) => (split == null ? "" : formatNumber(split, xFormat, { increment: foundIncr })));
     const yAxisValues: uPlot.Axis.Values = (_plot, splits, _axisIdx, _foundSpace, foundIncr) =>
-      splits.map((split) =>
-        split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr }),
-      );
+      splits.map((split) => (split == null ? "" : formatNumber(split, yFormat, { increment: foundIncr })));
     const seriesLegendValue =
       (format: ValueFormat | null): uPlot.Series.Value =>
       (_plot, rawValue) =>
@@ -361,10 +328,8 @@ export const CartesianPlot = memo(function CartesianPlot({
       hooks: {
         setSelect: [
           (plot) => {
-            const held = heldViewport(
-              plot.select,
-              { width: plot.over.clientWidth, height: plot.over.clientHeight },
-              (position, axis) => plot.posToVal(position, axis),
+            const held = heldViewport(plot.select, { width: plot.over.clientWidth, height: plot.over.clientHeight }, (position, axis) =>
+              plot.posToVal(position, axis),
             );
             if (!held) return;
             heldRangeRef.current = held;
@@ -395,11 +360,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         ],
         draw: [
           (plot) => {
-            drawIntervalRanges(
-              plot,
-              intervalRangesRef.current,
-              resolvedSeriesColors[0] ?? fallbackSeriesColor,
-            );
+            drawIntervalRanges(plot, intervalRangesRef.current, resolvedSeriesColors[0] ?? fallbackSeriesColor);
             drawMarkers(plot, markersRef.current, root, themeColors.foreground);
             drawReferenceLines(plot, referenceLinesRef.current, root, themeColors.foreground);
           },
@@ -431,10 +392,7 @@ export const CartesianPlot = memo(function CartesianPlot({
                   paddedYRange(
                     dataMin,
                     dataMax,
-                    [
-                      ...yReferenceValues,
-                      ...intervalRangesRef.current.flatMap((range) => [range.low, range.high]),
-                    ],
+                    [...yReferenceValues, ...intervalRangesRef.current.flatMap((range) => [range.low, range.high])],
                     yScale,
                   )
               : undefined,
@@ -468,8 +426,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           ? null
           : xElapsedUnit
             ? {
-                value: (_plot, rawValue) =>
-                  rawValue == null ? "--" : formatElapsedTick(rawValue, xElapsedUnit),
+                value: (_plot, rawValue) => (rawValue == null ? "--" : formatElapsedTick(rawValue, xElapsedUnit)),
               }
             : {},
         ...renderedSeries.map((item, index) => ({
@@ -486,13 +443,7 @@ export const CartesianPlot = memo(function CartesianPlot({
           width: lineWidth,
           points: faceted ? { show: false } : { show: showPoints, size: pointSize },
           paths: faceted
-            ? facetedSeriesPaths(
-                style,
-                showPoints,
-                pointSize,
-                resolvedSeriesColors[index] ?? fallbackSeriesColor,
-                themeColors.background,
-              )
+            ? facetedSeriesPaths(style, showPoints, pointSize, resolvedSeriesColors[index] ?? fallbackSeriesColor, themeColors.background)
             : style === "step"
               ? uPlotConstructor.paths.stepped?.({ align: 1 })
               : undefined,
@@ -516,16 +467,12 @@ export const CartesianPlot = memo(function CartesianPlot({
       onViewportChangeRef.current?.(null);
     }
     if (heldRangeRef.current) {
-      applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () =>
-        setLiveXScale(plot, liveXRange, xScale, timeAxis),
-      );
+      applyHeldViewport(plot, heldRangeRef.current, chartFrame.data, () => setLiveXScale(plot, liveXRange, xScale, timeAxis));
     }
     renderedSeries.forEach((item, index) => {
       if (hiddenTracesRef.current.has(item.key)) plot.setSeries(index + 1, { show: false });
     });
-    setTraceColors((current) =>
-      current.join("|") === resolvedSeriesColors.join("|") ? current : resolvedSeriesColors,
-    );
+    setTraceColors((current) => (current.join("|") === resolvedSeriesColors.join("|") ? current : resolvedSeriesColors));
     plotRef.current = plot;
     dataSignatureRef.current = dataSignature;
     resetKeyRef.current = resetKey;
@@ -631,10 +578,7 @@ export const CartesianPlot = memo(function CartesianPlot({
   const legendRows = useMemo(() => {
     if (!legend) return null;
     const frame = backendCartesian;
-    const cursorPoints =
-      live && cursorX !== null && frame
-        ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursorX))
-        : null;
+    const cursorPoints = live && cursorX !== null && frame ? frame.series.map((item) => nearestDrawnPoint(item.x, item.y, cursorX)) : null;
     return seriesLegendRows({
       cursorPoints,
       hidden: hiddenTraces,
@@ -645,17 +589,7 @@ export const CartesianPlot = memo(function CartesianPlot({
         color: traceColors[index] ?? colors[series.indexOf(item)] ?? "currentColor",
       })),
     });
-  }, [
-    backendCartesian,
-    colors,
-    cursorX,
-    hiddenTraces,
-    legend,
-    live,
-    renderedSeries,
-    series,
-    traceColors,
-  ]);
+  }, [backendCartesian, colors, cursorX, hiddenTraces, legend, live, renderedSeries, series, traceColors]);
   const legendColumns = useMemo(() => seriesLegendColumns(live, unit), [live, unit]);
 
   useEffect(() => {
@@ -727,9 +661,7 @@ export const CartesianPlot = memo(function CartesianPlot({
             "The stream is active, but this signal is unavailable in the selected window.",
           )
         : plotPlaceholderText({ stateLabel, stateDetail });
-    return (
-      <PlotPlaceholder actions={actions} description={description} title={title} {...placeholder} />
-    );
+    return <PlotPlaceholder actions={actions} description={description} title={title} {...placeholder} />;
   }
 
   return (
@@ -737,12 +669,8 @@ export const CartesianPlot = memo(function CartesianPlot({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <strong className="block truncate">{title}</strong>
-          {description ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-          ) : null}
-          {contextSummary ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{contextSummary}</p>
-          ) : null}
+          {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
+          {contextSummary ? <p className="mt-0.5 text-xs text-muted-foreground">{contextSummary}</p> : null}
         </div>
         <div className="flex items-center gap-2">
           {actions}
@@ -766,19 +694,14 @@ export const CartesianPlot = memo(function CartesianPlot({
           <span className="text-xs text-muted-foreground">
             {renderedPointCount} points
             {downsampledLabel(renderedSeries)}
-            {series.length > renderedSeries.length
-              ? ` - ${renderedSeries.length} of ${series.length} series`
-              : ""}
+            {series.length > renderedSeries.length ? ` - ${renderedSeries.length} of ${series.length} series` : ""}
             {unit ? ` - ${unit}` : ""}
             {xScale === "log" || yScale === "log" ? " - log" : ""}
             {badge ? ` - ${badge}` : ""}
           </span>
         </div>
       </div>
-      <div
-        ref={rootRef}
-        className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden"
-      />
+      <div ref={rootRef} className="min-h-[230px] min-w-0 max-w-full overflow-hidden [&_.uplot]:max-w-full [&_.uplot]:overflow-hidden" />
       {legend && legendRows ? (
         <StatsSummaryTable
           legend={{
@@ -860,10 +783,7 @@ function measureTextWidth(text: string, font: string): number {
  * is sized from the lines uPlot is about to draw.
  */
 function xAxisGutter(values: string[] | null | undefined, font: string): number {
-  const lines = (values ?? []).reduce(
-    (most, value) => Math.max(most, value ? value.split("\n").length : 1),
-    1,
-  );
+  const lines = (values ?? []).reduce((most, value) => Math.max(most, value ? value.split("\n").length : 1), 1);
   const size = X_AXIS_TICK_ROOM + Math.ceil(lines * plotFontPx(font) * AXIS_LINE_GAP);
   return Math.min(X_AXIS_MAX_GUTTER, Math.max(X_AXIS_MIN_GUTTER, size));
 }
@@ -872,9 +792,7 @@ function xAxisGutter(values: string[] | null | undefined, font: string): number 
 function xAxisRightPad(plot: uPlot, font: string): number {
   const values = (plot?.axes?.[0] as { _values?: string[] } | undefined)?._values ?? [];
   const last = values.at(-1) ?? "";
-  const widest = last
-    .split("\n")
-    .reduce((width, line) => Math.max(width, measureTextWidth(line, font)), 0);
+  const widest = last.split("\n").reduce((width, line) => Math.max(width, measureTextWidth(line, font)), 0);
   return Math.max(X_AXIS_MIN_RIGHT_PAD, Math.ceil(widest / 2) + 2);
 }
 
@@ -893,14 +811,8 @@ function plotFontPx(font: string): number {
  * plus its tick marks and gap.
  */
 function yAxisGutter(values: string[] | null | undefined, font: string): number {
-  const widest = (values ?? []).reduce(
-    (width, value) => Math.max(width, value ? measureTextWidth(value, font) : 0),
-    0,
-  );
-  return Math.min(
-    Y_AXIS_MAX_GUTTER,
-    Math.max(Y_AXIS_MIN_GUTTER, Math.ceil(widest) + Y_AXIS_LABEL_PADDING),
-  );
+  const widest = (values ?? []).reduce((width, value) => Math.max(width, value ? measureTextWidth(value, font) : 0), 0);
+  return Math.min(Y_AXIS_MAX_GUTTER, Math.max(Y_AXIS_MIN_GUTTER, Math.ceil(widest) + Y_AXIS_LABEL_PADDING));
 }
 
 /* === Private Functions === */
@@ -913,10 +825,7 @@ export function usableCartesianFrame(
   if (!cartesian || !Array.isArray(cartesian.series)) {
     return null;
   }
-  if (
-    cartesian.series.length !== allSeries.length ||
-    !cartesian.series.every((series) => series.x.length === series.y.length)
-  ) {
+  if (cartesian.series.length !== allSeries.length || !cartesian.series.every((series) => series.x.length === series.y.length)) {
     return null;
   }
 
@@ -942,14 +851,8 @@ function chartFrameFromCartesian(cartesian: PlotCartesianFrame): ChartFrame {
   return {
     data:
       cartesian.mode === "faceted"
-        ? ([
-            null,
-            ...cartesian.series.map((series) => [series.x, series.y]),
-          ] as unknown as uPlot.AlignedData)
-        : ([
-            cartesian.series[0]?.x ?? [],
-            ...cartesian.series.map((series) => series.y),
-          ] as uPlot.AlignedData),
+        ? ([null, ...cartesian.series.map((series) => [series.x, series.y])] as unknown as uPlot.AlignedData)
+        : ([cartesian.series[0]?.x ?? [], ...cartesian.series.map((series) => series.y)] as uPlot.AlignedData),
     mode: cartesian.mode,
     pointCount: cartesian.point_count,
     signature: cartesian.signature,
@@ -998,12 +901,7 @@ export function liveCartesianXRange(
  * explicit range one ulp wide gives uPlot an increment its tick loop cannot
  * advance by, and that loop pushes splits until the array overflows.
  */
-function setLiveXScale(
-  plot: uPlot,
-  range: PlotViewportRange | null,
-  xScale: DocumentAxisScale,
-  timeAxis: boolean,
-): void {
+function setLiveXScale(plot: uPlot, range: PlotViewportRange | null, xScale: DocumentAxisScale, timeAxis: boolean): void {
   if (!timeAxis || !range || !isUsableSpan(range.min, range.max)) {
     return;
   }
@@ -1018,12 +916,7 @@ function setLiveXScale(
  * an axis the drag left alone keeps ranging with the data, then each held
  * axis is set back, and an unheld x axis follows the run on a live surface.
  */
-function applyHeldViewport(
-  plot: uPlot,
-  held: HeldViewport,
-  data: uPlot.AlignedData,
-  followX: () => void,
-): void {
+function applyHeldViewport(plot: uPlot, held: HeldViewport, data: uPlot.AlignedData, followX: () => void): void {
   plot.setData(data, true);
   if (held.x) plot.setScale("x", held.x);
   else followX();
@@ -1044,10 +937,7 @@ function plotFailureMessage(error: unknown): string {
   return `The plot could not be drawn: ${text}`;
 }
 
-function intervalRangeData(
-  series: PlotSeries[],
-  scales: { xScale: DocumentAxisScale; yScale: DocumentAxisScale },
-): IntervalRange[] {
+function intervalRangeData(series: PlotSeries[], scales: { xScale: DocumentAxisScale; yScale: DocumentAxisScale }): IntervalRange[] {
   return series.flatMap((item) =>
     item.points
       .map((point, index) => {
@@ -1072,10 +962,7 @@ function intervalRangeData(
 }
 
 /** The series with the most samples, ranked by the cartesian frame that holds them when present. */
-export function limitRenderedSeries(
-  series: PlotSeries[],
-  cartesian?: PlotCartesianFrame | null,
-): PlotSeries[] {
+export function limitRenderedSeries(series: PlotSeries[], cartesian?: PlotCartesianFrame | null): PlotSeries[] {
   if (series.length <= MAX_RENDERED_SERIES) {
     return series;
   }
@@ -1084,9 +971,7 @@ export function limitRenderedSeries(
     return frame ? frame.y.filter((value) => value != null).length : item.points.length;
   };
   const counts = new Map(series.map((item) => [item, sampleCount(item)]));
-  return [...series]
-    .sort((left, right) => (counts.get(right) ?? 0) - (counts.get(left) ?? 0))
-    .slice(0, MAX_RENDERED_SERIES);
+  return [...series].sort((left, right) => (counts.get(right) ?? 0) - (counts.get(left) ?? 0)).slice(0, MAX_RENDERED_SERIES);
 }
 
 /**
@@ -1238,10 +1123,7 @@ function facetedSeriesPaths(
   };
 }
 
-function facetedSeriesData(
-  plot: uPlot,
-  seriesIdx: number,
-): [number[], Array<number | null>] | null {
+function facetedSeriesData(plot: uPlot, seriesIdx: number): [number[], Array<number | null>] | null {
   const data = plot.data[seriesIdx] as unknown;
   if (!Array.isArray(data) || !Array.isArray(data[0]) || !Array.isArray(data[1])) {
     return null;
@@ -1308,12 +1190,7 @@ function drawMarkers(plot: uPlot, markers: PlotMarker[], element: Element, fallb
   ctx.restore();
 }
 
-function drawReferenceLines(
-  plot: uPlot,
-  lines: DocumentReferenceLine[],
-  element: Element,
-  fallbackColor: string,
-) {
+function drawReferenceLines(plot: uPlot, lines: DocumentReferenceLine[], element: Element, fallbackColor: string) {
   const { ctx, bbox } = plot;
   const bottom = bbox.top + bbox.height;
   const right = bbox.left + bbox.width;
@@ -1346,12 +1223,7 @@ function drawReferenceLines(
   ctx.restore();
 }
 
-function drawReferenceBands(
-  plot: uPlot,
-  bands: DocumentReferenceBand[],
-  element: Element,
-  fallbackColor: string,
-) {
+function drawReferenceBands(plot: uPlot, bands: DocumentReferenceBand[], element: Element, fallbackColor: string) {
   const { ctx, bbox } = plot;
   const bottomEdge = bbox.top + bbox.height;
   const rightEdge = bbox.left + bbox.width;
@@ -1381,11 +1253,7 @@ function drawReferenceBands(
   ctx.restore();
 }
 
-function referenceYValues(
-  lines: DocumentReferenceLine[],
-  bands: DocumentReferenceBand[],
-  yScale: DocumentAxisScale,
-): number[] {
+function referenceYValues(lines: DocumentReferenceLine[], bands: DocumentReferenceBand[], yScale: DocumentAxisScale): number[] {
   const values = [
     ...lines.filter((line) => line.axis === "y").map((line) => line.value),
     ...bands.filter((band) => band.axis === "y").flatMap((band) => [band.min, band.max]),

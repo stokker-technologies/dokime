@@ -68,10 +68,7 @@ const MEAN_MS_ALIAS = "mean_ms";
  * Counting `duration_ms` rather than the rows means a step still running, and
  * therefore without a duration, is not counted as a sample of itself.
  */
-export async function fetchNativeStepDurations(
-  session: SessionIdentity,
-  templateId: string,
-): Promise<StepDurationStatistics> {
+export async function fetchNativeStepDurations(session: SessionIdentity, templateId: string): Promise<StepDurationStatistics> {
   const reply = await rpc.queryAggregate(session, {
     aggregates: [
       {
@@ -145,9 +142,7 @@ function columnIndex(reply: AggregateReply, name: string): number {
 }
 
 function textOf(value?: Value): string | null {
-  return value?.nodes[0]?.kind?.HarmosVariant.case === "Text"
-    ? value.nodes[0].kind.HarmosVariant.value.field0
-    : null;
+  return value?.nodes[0]?.kind?.HarmosVariant.case === "Text" ? value.nodes[0].kind.HarmosVariant.value.field0 : null;
 }
 
 function numberOf(value?: Value): number | null {

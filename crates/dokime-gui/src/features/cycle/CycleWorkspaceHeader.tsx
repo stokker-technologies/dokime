@@ -26,16 +26,7 @@
 
 /* === External Imports === */
 
-import {
-  Archive,
-  ArchiveRestore,
-  Copy,
-  Ellipsis,
-  FileText,
-  Plus,
-  RotateCcw,
-  Settings2,
-} from "lucide-react";
+import { Archive, ArchiveRestore, Copy, Ellipsis, FileText, Plus, RotateCcw, Settings2 } from "lucide-react";
 import { type ComponentProps, Fragment, type ReactNode } from "react";
 
 /* === Local Imports === */
@@ -119,13 +110,7 @@ export type CycleWorkspaceHeaderProps = {
 
 /* === Components === */
 
-export function CycleWorkspaceHeader({
-  identity,
-  live = true,
-  menu,
-  onRename,
-  prompts,
-}: CycleWorkspaceHeaderProps) {
+export function CycleWorkspaceHeader({ identity, live = true, menu, onRename, prompts }: CycleWorkspaceHeaderProps) {
   return (
     <section aria-label="Execution Cockpit" className="grid min-w-0 border-b bg-background">
       {/* One row on the shell's bar token: its bottom edge lines up with the
@@ -162,9 +147,7 @@ export function CycleWorkspaceHeader({
         {live && menu ? <NodeMenu menu={menu} /> : <span />}
       </div>
 
-      {live && prompts ? (
-        <div className="min-w-0 px-[var(--shell-inset)] pb-3">{prompts}</div>
-      ) : null}
+      {live && prompts ? <div className="min-w-0 px-[var(--shell-inset)] pb-3">{prompts}</div> : null}
     </section>
   );
 }

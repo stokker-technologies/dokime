@@ -95,18 +95,18 @@ export function StatusBar(props: StatusBarProps) {
   if (props.live === false) return <FrozenStatusBar status={props.frozen.status} />;
   return (
     <StatusBarFrame>
-        <div className="flex min-w-0 items-stretch justify-between gap-6 px-[var(--shell-inset)]">
-          <div className="flex min-w-0 items-stretch gap-6">
-            <BackendItem />
-            <StorageItem />
-          </div>
-          <div className="flex min-w-0 items-stretch gap-6">
-            <OperationsItem />
-            <AttentionItem />
-            <ActivityItem />
-            <ConsoleItem />
-          </div>
+      <div className="flex min-w-0 items-stretch justify-between gap-6 px-[var(--shell-inset)]">
+        <div className="flex min-w-0 items-stretch gap-6">
+          <BackendItem />
+          <StorageItem />
         </div>
+        <div className="flex min-w-0 items-stretch gap-6">
+          <OperationsItem />
+          <AttentionItem />
+          <ActivityItem />
+          <ConsoleItem />
+        </div>
+      </div>
     </StatusBarFrame>
   );
 }
@@ -132,9 +132,7 @@ function ConsoleItem() {
     <button
       aria-label={drawer.open ? "Close Console" : "Open Console"}
       className={cn(statusItemClassName, "gap-1.5", unseen > 0 ? "text-warning" : null)}
-      onClick={() =>
-        setConsoleState(drawer.open ? { open: false } : { lastOpenedAt: Date.now(), open: true })
-      }
+      onClick={() => setConsoleState(drawer.open ? { open: false } : { lastOpenedAt: Date.now(), open: true })}
       type="button"
     >
       <SquareTerminal className="size-3.5" />
@@ -177,9 +175,7 @@ export function OperationsItem() {
         type="button"
       >
         <span className="truncate font-medium text-foreground">{label}</span>
-        <span className="truncate">
-          {summary.kind === "many" ? shown.label : operationPhaseLabel(shown)}
-        </span>
+        <span className="truncate">{summary.kind === "many" ? shown.label : operationPhaseLabel(shown)}</span>
         <OperationBar operation={shown} />
       </PopoverTrigger>
       <PopoverContent align="end" className="grid w-80 gap-3 text-xs" side="top">
@@ -192,12 +188,7 @@ export function OperationsItem() {
                 {operationPercent(operation) === null ? "" : `${operationPercent(operation)}%`}
               </span>
             </span>
-            <span
-              className={cn(
-                "truncate",
-                operation.status === "failed" ? "text-destructive" : "text-muted-foreground",
-              )}
-            >
+            <span className={cn("truncate", operation.status === "failed" ? "text-destructive" : "text-muted-foreground")}>
               {operation.failure ?? operationPhaseLabel(operation)}
             </span>
             <OperationBar operation={operation} />
@@ -269,11 +260,7 @@ function StorageItem() {
   return (
     <StatusReadout
       tone="neutral"
-      value={
-        enabled === undefined
-          ? "Storage Unknown"
-          : `${enabled} ${enabled === 1 ? "Source" : "Sources"} Enabled`
-      }
+      value={enabled === undefined ? "Storage Unknown" : `${enabled} ${enabled === 1 ? "Source" : "Sources"} Enabled`}
     />
   );
 }
@@ -289,9 +276,7 @@ function AttentionItem() {
       label: prompt.title,
       open: () => {
         const cycleId = prompt.scope?.test_cycle_id;
-        void (cycleId
-          ? navigate({ params: { cycleId }, to: "/cycles/$cycleId" })
-          : navigate({ to: "/cycles" }));
+        void (cycleId ? navigate({ params: { cycleId }, to: "/cycles/$cycleId" }) : navigate({ to: "/cycles" }));
       },
     })),
     ...(artifacts.data ?? [])
@@ -334,9 +319,7 @@ function AttentionItem() {
 function ActivityItem() {
   const navigate = useNavigate();
   const cycles = useCyclesQuery();
-  const active = (cycles.data ?? []).filter((cycle) =>
-    ACTIVE_CYCLE_STATUSES.includes(cycle.status?.HarmosVariant.case ?? ""),
-  );
+  const active = (cycles.data ?? []).filter((cycle) => ACTIVE_CYCLE_STATUSES.includes(cycle.status?.HarmosVariant.case ?? ""));
 
   if (!active.length) {
     return <StatusReadout tone="neutral" value="No Active Cycles" />;
@@ -347,9 +330,7 @@ function ActivityItem() {
       className={cn(statusItemClassName, "text-success")}
       onClick={() => {
         const only = active.length === 1 ? active[0] : undefined;
-        void (only
-          ? navigate({ params: { cycleId: only.cycleId }, to: "/cycles/$cycleId" })
-          : navigate({ to: "/cycles" }));
+        void (only ? navigate({ params: { cycleId: only.cycleId }, to: "/cycles/$cycleId" }) : navigate({ to: "/cycles" }));
       }}
       type="button"
     >
@@ -358,15 +339,7 @@ function ActivityItem() {
   );
 }
 
-function StatusReadout({
-  title,
-  tone,
-  value,
-}: {
-  title?: string;
-  tone: "neutral" | "good" | "warn" | "bad";
-  value: ReactNode;
-}) {
+function StatusReadout({ title, tone, value }: { title?: string; tone: "neutral" | "good" | "warn" | "bad"; value: ReactNode }) {
   return (
     <span className={cn(statusItemClassName, "cursor-default", toneClassName(tone))} title={title}>
       {value}

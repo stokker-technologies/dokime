@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Shared Footer Geometry, Sidebar Toggle And Frozen Status.
  */
@@ -27,14 +26,11 @@ import { useSidebarState } from "./use-sidebar-state";
 
 // Local Imports
 
-
 /* === Re-Exports === */
 
 /* === Constants === */
 
-
 /* === Types === */
-
 
 /* === Components === */
 export function StatusBarFrame({ children }: { children: ReactNode }) {
@@ -60,9 +56,7 @@ export function StatusBarFrame({ children }: { children: ReactNode }) {
               {sidebar.collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top">
-            {sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          </TooltipContent>
+          <TooltipContent side="top">{sidebar.collapsed ? "Expand Sidebar" : "Collapse Sidebar"}</TooltipContent>
         </Tooltip>
       </div>
       {children}
@@ -73,19 +67,17 @@ export function StatusBarFrame({ children }: { children: ReactNode }) {
 export function FrozenStatusBar({ status }: { status: CycleLifecycle }) {
   return (
     <StatusBarFrame>
-        <div className="flex min-w-0 items-center justify-end gap-6 px-[var(--shell-inset)]">
-          <Badge className={STATUS_PILL_CLASS} variant={cycleStatusVariant(status)}>
-            {cycleStatusLabel(status)}
-          </Badge>
-        </div>
+      <div className="flex min-w-0 items-center justify-end gap-6 px-[var(--shell-inset)]">
+        <Badge className={STATUS_PILL_CLASS} variant={cycleStatusVariant(status)}>
+          {cycleStatusLabel(status)}
+        </Badge>
+      </div>
     </StatusBarFrame>
   );
 }
 
-
 /* === Hooks === */
 
 /* === Public Functions === */
-
 
 /* === Private Functions === */

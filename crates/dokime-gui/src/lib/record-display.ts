@@ -39,10 +39,7 @@ export function recordToneShellClass(tone: RecordTone, className?: string): stri
   );
 }
 
-export function mapRecordDisplay(
-  display: RecordDisplaySource | null | undefined,
-  severity: string,
-): RecordDisplay {
+export function mapRecordDisplay(display: RecordDisplaySource | null | undefined, severity: string): RecordDisplay {
   return {
     icon: recordIconKey(display?.icon),
     tone: recordTone(display?.tone, severity),
@@ -107,11 +104,7 @@ export function isDatetimeValue(value: unknown): value is DatetimeValue {
     return false;
   }
   const keys = Object.keys(value as Record<string, unknown>);
-  return (
-    keys.length === 1 &&
-    keys[0] === "$datetime" &&
-    typeof (value as Record<string, unknown>).$datetime === "string"
-  );
+  return keys.length === 1 && keys[0] === "$datetime" && typeof (value as Record<string, unknown>).$datetime === "string";
 }
 
 /**
@@ -124,19 +117,12 @@ export function formatRecordValue(value: unknown, format?: ValueFormat | null): 
   value = numericValue(value) ?? value;
   if (isDatetimeValue(value)) {
     const epochSeconds = Date.parse(value.$datetime) / 1000;
-    return Number.isFinite(epochSeconds)
-      ? formatTime(epochSeconds, format ?? null, {})
-      : value.$datetime;
+    return Number.isFinite(epochSeconds) ? formatTime(epochSeconds, format ?? null, {}) : value.$datetime;
   }
   if (typeof value === "number" && Number.isFinite(value)) {
     return formatNumber(value, format ?? null);
   }
-  if (
-    isRecord(value) &&
-    value.__dokime_native_integer__ === true &&
-    typeof value.decimal === "string"
-  )
-    return value.decimal;
+  if (isRecord(value) && value.__dokime_native_integer__ === true && typeof value.decimal === "string") return value.decimal;
   if (value === null || value === undefined) {
     return "-";
   }

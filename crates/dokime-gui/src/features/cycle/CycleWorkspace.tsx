@@ -34,14 +34,7 @@ import { toast } from "sonner";
 
 import { useExecutionProgress } from "@/app/live/use-execution-progress";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { TestExecution } from "@/lib/types";
@@ -52,11 +45,7 @@ import { CycleEvidencePane } from "./CycleEvidencePane";
 import { CyclePromptBanner } from "./CyclePromptBanner";
 import { CycleReportButton } from "./CycleReportButton";
 import { CycleRunControls } from "./CycleRunControls";
-import {
-  type ArchiveAction,
-  CycleWorkspaceHeader,
-  type ExecutionMenu,
-} from "./CycleWorkspaceHeader";
+import { type ArchiveAction, CycleWorkspaceHeader, type ExecutionMenu } from "./CycleWorkspaceHeader";
 import {
   useCycleCommands,
   useCycleDetailQuery,
@@ -101,14 +90,7 @@ type PendingConfirm = { kind: "stop" } | null;
 
 /* === Components === */
 
-export function CycleWorkspace({
-  cycleId,
-  caseId,
-  executionId,
-  view,
-  live = true,
-  onSelectionChange,
-}: CycleWorkspaceProps) {
+export function CycleWorkspace({ cycleId, caseId, executionId, view, live = true, onSelectionChange }: CycleWorkspaceProps) {
   const navigate = useNavigate();
   const detailQuery = useCycleDetailQuery(cycleId);
   const runtimeQuery = useCycleRuntimeShellQuery(cycleId);
@@ -125,25 +107,18 @@ export function CycleWorkspace({
   const executions = useMemo(() => detailQuery.data?.executions ?? [], [detailQuery.data]);
   const cases = useMemo(() => buildCycleCases(plan), [plan]);
   const rows = useMemo(() => buildCycleExecutionRows(cases, executions), [cases, executions]);
-  const selection = useMemo<CycleSelection>(
-    () => ({ caseId, executionId, view }),
-    [caseId, executionId, view],
-  );
+  const selection = useMemo<CycleSelection>(() => ({ caseId, executionId, view }), [caseId, executionId, view]);
   const selectedRow = selectedCycleRow(rows, selection);
   const finished = finishedCaseCount(cases);
   const status = plan?.test_cycle.status ?? "planned";
   const activeExecutionId =
-    plan?.test_cycle.current_test_execution_id ??
-    executions.find((execution) => execution.status === "running")?.test_execution_id ??
-    null;
+    plan?.test_cycle.current_test_execution_id ?? executions.find((execution) => execution.status === "running")?.test_execution_id ?? null;
   const progress = useExecutionProgress(activeExecutionId);
   /* Only prompts whose owner still runs are offered: a prompt never outlives
      its execution, here as in the runtime that settles it. */
   const prompts = useMemo(() => {
     if (!live) return [];
-    const statuses = new Map(
-      executions.map((execution) => [execution.test_execution_id, execution.status]),
-    );
+    const statuses = new Map(executions.map((execution) => [execution.test_execution_id, execution.status]));
     return answerablePrompts(promptsQuery.data ?? [], {
       cycleEnded: isCycleTerminal(status),
       executionActive: (id) => {
@@ -153,9 +128,7 @@ export function CycleWorkspace({
     });
   }, [executions, live, promptsQuery.data, status]);
   const activity = useMemo(() => {
-    const activeRow = rows.find(
-      (row) => row.execution?.test_execution_id === progress?.testExecutionId,
-    );
+    const activeRow = rows.find((row) => row.execution?.test_execution_id === progress?.testExecutionId);
     if (!progress || !activeRow) return null;
     const step = progressStepLabel(progress.stepId, progress.phase);
     return `${activeRow.case.label} · ${step} ${progress.completed}/${progress.total}`;
@@ -173,9 +146,7 @@ export function CycleWorkspace({
   const cycleTitle = plan?.test_cycle.title ?? null;
   const reportSubject = useMemo(() => {
     if (selectedLabel !== null) {
-      return selectedExecutionId
-        ? { executionId: selectedExecutionId, label: selectedLabel }
-        : null;
+      return selectedExecutionId ? { executionId: selectedExecutionId, label: selectedLabel } : null;
     }
     return cycleTitle !== null ? { executionId: null, label: cycleTitle } : null;
   }, [cycleTitle, selectedExecutionId, selectedLabel]);
@@ -186,15 +157,9 @@ export function CycleWorkspace({
     () =>
       live ? (
         <div className="grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]">
-          {executionSelected ? null : (
-            <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} />
-          )}
+          {executionSelected ? null : <CycleRunControls cycleId={cycleId} onStop={() => setConfirm({ kind: "stop" })} />}
           {reportSubject ? (
-            <CycleReportButton
-              cycleId={cycleId}
-              executionId={reportSubject.executionId}
-              label={reportSubject.label}
-            />
+            <CycleReportButton cycleId={cycleId} executionId={reportSubject.executionId} label={reportSubject.label} />
           ) : null}
           {/* Focus names its exit in text: the bar is the only chrome left,
               and Escape is a shortcut, not the way out. */}
@@ -248,15 +213,7 @@ export function CycleWorkspace({
         : null;
     previousActive.current = activeExecutionId;
     if (target) onSelectionChange({ executionId: target });
-  }, [
-    activeExecutionId,
-    executionId,
-    followActive,
-    live,
-    onSelectionChange,
-    selectedStatus,
-    selection,
-  ]);
+  }, [activeExecutionId, executionId, followActive, live, onSelectionChange, selectedStatus, selection]);
 
   /* A command reports what happened, not what was attempted: the operator
      needs the outcome and, when it failed, what the backend said. */
@@ -275,11 +232,7 @@ export function CycleWorkspace({
       );
   };
   /* Archive and Unarchive say what they did; neither changes the lifecycle. */
-  const archiveAction = (
-    archived: boolean,
-    terminal: boolean,
-    commit: (next: boolean) => Promise<unknown>,
-  ): ArchiveAction => ({
+  const archiveAction = (archived: boolean, terminal: boolean, commit: (next: boolean) => Promise<unknown>): ArchiveAction => ({
     archived,
     onToggle: () =>
       run(
@@ -304,11 +257,7 @@ export function CycleWorkspace({
     return (
       <WorkspaceNotice
         action={{ label: "Try Again", onClick: () => void detailQuery.refetch() }}
-        message={
-          detailQuery.error instanceof Error
-            ? detailQuery.error.message
-            : "The cycle could not be read from the backend."
-        }
+        message={detailQuery.error instanceof Error ? detailQuery.error.message : "The cycle could not be read from the backend."}
         title="Cycle Unavailable"
       />
     );
@@ -330,19 +279,14 @@ export function CycleWorkspace({
     const executionMenu: ExecutionMenu = {
       kind: "execution",
       archive: selectedRow.execution
-        ? archiveAction(
-            Boolean(selectedRow.execution.archived),
-            isTerminalExecutionStatus(selectedRow.execution.status),
-            (archived) =>
-              commands.archiveExecution.mutateAsync({
-                archived,
-                executionId: selectedRow.execution?.test_execution_id ?? "",
-              }),
+        ? archiveAction(Boolean(selectedRow.execution.archived), isTerminalExecutionStatus(selectedRow.execution.status), (archived) =>
+            commands.archiveExecution.mutateAsync({
+              archived,
+              executionId: selectedRow.execution?.test_execution_id ?? "",
+            }),
           )
         : null,
-      onOpenReport: selectedRow.execution
-        ? () => openReport(selectedRow.execution?.test_execution_id ?? null)
-        : null,
+      onOpenReport: selectedRow.execution ? () => openReport(selectedRow.execution?.test_execution_id ?? null) : null,
       onRerun:
         selectedRow.execution && isTerminalExecutionStatus(selectedRow.execution.status)
           ? () =>
@@ -351,10 +295,7 @@ export function CycleWorkspace({
                 if (created) onSelectionChange({ executionId: created });
               })
           : null,
-      rerunRefusal:
-        selectedRow.case.actions && !selectedRow.case.actions.schedule_rerun
-          ? caseActionTooltip(selectedRow.case)
-          : undefined,
+      rerunRefusal: selectedRow.case.actions && !selectedRow.case.actions.schedule_rerun ? caseActionTooltip(selectedRow.case) : undefined,
     };
     return (
       <div className="grid min-h-0">
@@ -397,16 +338,10 @@ export function CycleWorkspace({
           title: plan.test_cycle.title,
         }}
         live={live}
-        onRename={
-          plan.test_cycle.sealed || plan.test_cycle.archived
-            ? undefined
-            : (label) => commands.renameCycle.mutateAsync(label)
-        }
+        onRename={plan.test_cycle.sealed || plan.test_cycle.archived ? undefined : (label) => commands.renameCycle.mutateAsync(label)}
         menu={{
-          archive: archiveAction(
-            Boolean(plan.test_cycle.archived),
-            isCycleTerminal(status),
-            (archived) => commands.archiveCycle.mutateAsync(archived),
+          archive: archiveAction(Boolean(plan.test_cycle.archived), isCycleTerminal(status), (archived) =>
+            commands.archiveCycle.mutateAsync(archived),
           ),
           followActive,
           kind: "cycle",
@@ -426,24 +361,16 @@ export function CycleWorkspace({
         prompts={<CyclePromptBanner prompts={prompts} />}
       />
 
-      <CycleEvidencePane
-        cycleId={cycleId}
-        live={live}
-        plan={plan}
-        snapshot={runtimeQuery.data ?? null}
-      />
+      <CycleEvidencePane cycleId={cycleId} live={live} plan={plan} snapshot={runtimeQuery.data ?? null} />
 
       <RuntimePolicyDialog
         continueOnFailure={plan.test_cycle.continue_on_failure}
         onOpenChange={setPolicyOpen}
         onSubmit={(value) =>
-          run(
-            { done: "Runtime policy updated", failed: "The runtime policy could not be updated." },
-            async () => {
-              await commands.updatePolicy.mutateAsync(value);
-              setPolicyOpen(false);
-            },
-          )
+          run({ done: "Runtime policy updated", failed: "The runtime policy could not be updated." }, async () => {
+            await commands.updatePolicy.mutateAsync(value);
+            setPolicyOpen(false);
+          })
         }
         open={live && policyOpen}
       />
@@ -463,9 +390,7 @@ export function CycleWorkspace({
             <Button
               onClick={() => {
                 setConfirm(null);
-                run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () =>
-                  commands.stopCycle.mutateAsync(),
-                );
+                run({ done: "Cycle stopping", failed: "The cycle could not be stopped." }, () => commands.stopCycle.mutateAsync());
               }}
               variant="danger"
             >
@@ -535,15 +460,7 @@ function RuntimePolicyDialog({
   );
 }
 
-function WorkspaceNotice({
-  action,
-  message,
-  title,
-}: {
-  action?: { label: string; onClick: () => void };
-  message: string;
-  title: string;
-}) {
+function WorkspaceNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (
     <div className="grid justify-items-center gap-3 px-4 py-16 text-center">
       <h1 className="font-heading text-lg font-semibold">{title}</h1>

@@ -60,12 +60,7 @@ export function AccountUpdatesSection() {
     <>
       <SettingsCard title="Account">
         <SettingsRow description={accountLabel} label="GitLab">
-          <Button
-            disabled={!desktop}
-            onClick={() => setDialogOpen(true)}
-            size="sm"
-            variant="outline"
-          >
+          <Button disabled={!desktop} onClick={() => setDialogOpen(true)} size="sm" variant="outline">
             <LogIn />
             {auth?.signedIn ? "Manage" : "Sign In"}
           </Button>
@@ -77,23 +72,14 @@ export function AccountUpdatesSection() {
           <span className="font-mono text-sm">v{__APP_VERSION__}</span>
         </SettingsRow>
         <SettingsRow description="Check GitLab releases for a newer desktop build." label="Updates">
-          <Button
-            disabled={!desktop}
-            onClick={() => setDialogOpen(true)}
-            size="sm"
-            variant="outline"
-          >
+          <Button disabled={!desktop} onClick={() => setDialogOpen(true)} size="sm" variant="outline">
             <RefreshCw />
             Check For Updates
           </Button>
         </SettingsRow>
       </SettingsCard>
 
-      {!desktop ? (
-        <p className="text-xs text-muted-foreground">
-          Sign-in and desktop updates are available in the desktop app.
-        </p>
-      ) : null}
+      {!desktop ? <p className="text-xs text-muted-foreground">Sign-in and desktop updates are available in the desktop app.</p> : null}
 
       <DesktopUpdateDialog onOpenChange={setDialogOpen} open={dialogOpen} />
     </>

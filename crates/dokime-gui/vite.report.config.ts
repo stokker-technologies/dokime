@@ -18,9 +18,7 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 
 /* === Constants === */
 
-const packageJson = JSON.parse(
-  readFileSync(new URL("./package.json", import.meta.url), "utf8"),
-) as { version?: string };
+const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version?: string };
 const appVersion = packageJson.version ?? "dev";
 
 export default defineConfig({

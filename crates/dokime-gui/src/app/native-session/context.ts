@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Connection Context Values And Hooks, Independent Of The Desktop Owner.
  */
@@ -23,7 +22,6 @@ import { createContext, useContext } from "react";
 import type { AppearanceResource } from "@/lib/rpc/appearance";
 import type { ConnectedSession, NativeSession } from "./session";
 
-
 /* === Re-Exports === */
 
 /* === Constants === */
@@ -31,14 +29,11 @@ export const Controller = createContext<NativeSession | null>(null);
 export const Connection = createContext<ConnectedSession | null>(null);
 export const Appearance = createContext<NativeAppearanceState | null>(null);
 
-
-
 /* === Types === */
 type NativeAppearanceState = {
   resource: AppearanceResource | null;
   refresh(): void;
 };
-
 
 /* === Classes === */
 
@@ -64,8 +59,6 @@ export function useNativeAppearance() {
 export function useRefreshNativeAppearance() {
   return useContext(Appearance)?.refresh ?? (() => undefined);
 }
-
-
 
 /* === Private Functions === */
 

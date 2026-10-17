@@ -47,9 +47,7 @@ function frame(
 
 test("Operation Progress", () => {
   // One Running Operation Shows Its Label, Phase And Determinate Progress
-  const summary = summarizeOperations(
-    operationsFromFrame([frame("a", "Running", { fraction: 0.426 })]),
-  );
+  const summary = summarizeOperations(operationsFromFrame([frame("a", "Running", { fraction: 0.426 })]));
   assert.ok(summary.kind === "single");
   assert.equal(summary.operation.label, "Operation a");
   assert.equal(operationPhaseLabel(summary.operation), "Materializing Evidence");
@@ -62,10 +60,7 @@ test("Operation Progress", () => {
   assert.equal(operationPhaseLabel(indeterminate), "Starting");
 
   // Fractions Outside Zero To One Are Clamped
-  const [over, under] = operationsFromFrame([
-    frame("a", "Running", { fraction: 1.7 }),
-    frame("b", "Running", { fraction: -0.2 }),
-  ]);
+  const [over, under] = operationsFromFrame([frame("a", "Running", { fraction: 1.7 }), frame("b", "Running", { fraction: -0.2 })]);
   assert.equal(operationPercent(over), 100);
   assert.equal(operationPercent(under), 0);
 });
@@ -96,18 +91,14 @@ test("Operation Summary", () => {
   const finished = summarizeOperations(operationsFromFrame([frame("a", "Finished")]));
   assert.ok(finished.kind === "single");
   assert.equal(operationPhaseLabel(finished.operation), "Done");
-  const failed = summarizeOperations(
-    operationsFromFrame([{ ...frame("b", "Failed"), failure: "report does not fit" }]),
-  );
+  const failed = summarizeOperations(operationsFromFrame([{ ...frame("b", "Failed"), failure: "report does not fit" }]));
   assert.ok(failed.kind === "single");
   assert.equal(failed.operation.status, "failed");
   assert.equal(failed.operation.failure, "report does not fit");
   assert.equal(operationPhaseLabel(failed.operation), "Failed");
 
   // A Running Operation Outranks One That Settled
-  const outranked = summarizeOperations(
-    operationsFromFrame([frame("done", "Finished"), frame("busy", "Running")]),
-  );
+  const outranked = summarizeOperations(operationsFromFrame([frame("done", "Finished"), frame("busy", "Running")]));
   assert.ok(outranked.kind === "single");
   assert.equal(outranked.operation.id, "busy");
 });

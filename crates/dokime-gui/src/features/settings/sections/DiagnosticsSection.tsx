@@ -15,31 +15,17 @@ import { toast } from "sonner";
 
 /* === Local Imports === */
 
-import {
-  useNativeSessionController,
-  useNativeSessionOptional,
-} from "@/app/native-session/context";
+import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDiagnosticsQuery } from "@/features/cycle/server-state";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsPathField } from "@/features/settings/SettingsPathField";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import {
-  STORAGE_RESET_CONFIRMATION,
-  storageResetAvailable,
-  storageResetConfirmed,
-} from "@/features/settings/storage-reset-model";
+import { STORAGE_RESET_CONFIRMATION, storageResetAvailable, storageResetConfirmed } from "@/features/settings/storage-reset-model";
 import { saveNativeDiagnosticsBundle } from "@/lib/api/native-delivery";
 import { collectDiagnosticsBundle, diagnosticsBundleSupported } from "@/lib/api/native-diagnostics";
 import { useApplicationSettings } from "@/lib/application-settings";
@@ -135,19 +121,14 @@ export function DiagnosticsSection() {
     directory: runtime.storage_root,
   });
   const rootPaths = runtime.path_conventions.filter(
-    (convention) =>
-      convention.scope === "root" &&
-      convention.absolute_path !== null &&
-      convention.key !== "collect_bundle",
+    (convention) => convention.scope === "root" && convention.absolute_path !== null && convention.key !== "collect_bundle",
   );
 
   return (
     <>
       <SettingsCard title="Server">
         <SettingsRow label="Status">
-          <Badge className={startupBadgeClass(runtime.startup_doctor.status)}>
-            {startupLabel(runtime.startup_doctor.status)}
-          </Badge>
+          <Badge className={startupBadgeClass(runtime.startup_doctor.status)}>{startupLabel(runtime.startup_doctor.status)}</Badge>
         </SettingsRow>
         <SettingsRow label="Version">
           <span className="font-mono text-sm">v{server.version}</span>
@@ -169,27 +150,17 @@ export function DiagnosticsSection() {
         <SettingsRow label="Installed Plugins">
           <span className="text-sm text-muted-foreground">
             {counts.test_suites} suites
-            {counts.installed_plugin_errors
-              ? ` · ${counts.installed_plugin_errors} errors`
-              : " · no errors"}
+            {counts.installed_plugin_errors ? ` · ${counts.installed_plugin_errors} errors` : " · no errors"}
           </span>
         </SettingsRow>
       </SettingsCard>
 
-      <SettingsCard
-        description="Where this installation keeps its state, on the machine running the backend."
-        title="Paths"
-      >
+      <SettingsCard description="Where this installation keeps its state, on the machine running the backend." title="Paths">
         <SettingsRow label="Storage Root">
           <SettingsPathField openable={openable} value={runtime.storage_root} />
         </SettingsRow>
         {rootPaths.map((convention) => (
-          <SettingsRow
-            key={convention.key}
-            label={
-              pathConventionLabels[convention.key as Exclude<DiagnosticPathKey, "collect_bundle">]
-            }
-          >
+          <SettingsRow key={convention.key} label={pathConventionLabels[convention.key as Exclude<DiagnosticPathKey, "collect_bundle">]}>
             <SettingsPathField openable={openable} value={convention.absolute_path} />
           </SettingsRow>
         ))}
@@ -201,10 +172,7 @@ export function DiagnosticsSection() {
       </SettingsCard>
 
       {resettable ? (
-        <SettingsCard
-          description="Shown only in development builds that own their local backend."
-          title="Development"
-        >
+        <SettingsCard description="Shown only in development builds that own their local backend." title="Development">
           <StorageResetRow directory={runtime.storage_root} />
         </SettingsCard>
       ) : null}
@@ -259,12 +227,7 @@ export function DiagnosticsBundleRow() {
   }
 
   const button = (
-    <Button
-      disabled={!supported || !session || busy}
-      onClick={() => void download()}
-      size="sm"
-      variant="outline"
-    >
+    <Button disabled={!supported || !session || busy} onClick={() => void download()} size="sm" variant="outline">
       <Download data-icon="inline-start" />
       {busy ? "Collecting\u2026" : "Download Bundle"}
     </Button>
@@ -332,8 +295,8 @@ function StorageResetRow({ directory }: { directory: string }) {
             <DialogHeader>
               <DialogTitle>Reset Local Storage</DialogTitle>
               <DialogDescription>
-                Every cycle, execution, record and file in this directory is permanently deleted.
-                The backend then restarts on the empty directory. This cannot be undone.
+                Every cycle, execution, record and file in this directory is permanently deleted. The backend then restarts on the empty
+                directory. This cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <code className="block rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 font-mono text-xs break-all text-destructive">
@@ -341,16 +304,9 @@ function StorageResetRow({ directory }: { directory: string }) {
             </code>
             <div className="grid gap-2">
               <label className="text-sm" htmlFor={inputId}>
-                Type <span className="font-mono font-semibold">{STORAGE_RESET_CONFIRMATION}</span>{" "}
-                to confirm.
+                Type <span className="font-mono font-semibold">{STORAGE_RESET_CONFIRMATION}</span> to confirm.
               </label>
-              <Input
-                autoComplete="off"
-                id={inputId}
-                onChange={(event) => setTyped(event.target.value)}
-                spellCheck={false}
-                value={typed}
-              />
+              <Input autoComplete="off" id={inputId} onChange={(event) => setTyped(event.target.value)} spellCheck={false} value={typed} />
             </div>
             <DialogFooter className="gap-2">
               <Button onClick={() => change(false)} type="button" variant="outline">

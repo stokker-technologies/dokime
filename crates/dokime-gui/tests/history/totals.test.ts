@@ -12,19 +12,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { groupExecutions } from "@/features/explore/explore-data-source";
-import type {
-  ExecutionBrowseCycle,
-  ExecutionBrowseEntry,
-  ExecutionBrowsePage,
-} from "@/lib/types/view-contracts";
+import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage } from "@/lib/types/view-contracts";
 
 /* === Fixture === */
 
-function entry(
-  executionId: string,
-  status: string,
-  startedAt: string | null,
-): ExecutionBrowseEntry {
+function entry(executionId: string, status: string, startedAt: string | null): ExecutionBrowseEntry {
   return {
     metadata: {
       execution_id: executionId,
@@ -63,10 +55,7 @@ function totals(overrides: Partial<ExecutionBrowseCycle> = {}): ExecutionBrowseC
   };
 }
 
-function page(
-  entries: ExecutionBrowseEntry[],
-  cycles: ExecutionBrowseCycle[],
-): ExecutionBrowsePage {
+function page(entries: ExecutionBrowseEntry[], cycles: ExecutionBrowseCycle[]): ExecutionBrowsePage {
   return {
     entries,
     next: null,
@@ -83,11 +72,7 @@ function page(
 
 test("Backend Cycle Totals", () => {
   // Totals Cover The Whole Selection, Not The Loaded Entries
-  const loaded = [
-    entry("run-1", "running", "2026-10-16T08:00:00Z"),
-    entry("run-2", "pending", null),
-    entry("plan-1", "skipped", null),
-  ];
+  const loaded = [entry("run-1", "running", "2026-10-16T08:00:00Z"), entry("run-2", "pending", null), entry("plan-1", "skipped", null)];
   const [cycle] = groupExecutions([page(loaded, [totals()])]);
   assert.equal(cycle.target.id, "cycle-a");
   assert.equal(cycle.title, "Charger Suite");

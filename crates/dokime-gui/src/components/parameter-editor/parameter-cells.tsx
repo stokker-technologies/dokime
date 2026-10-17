@@ -45,13 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -66,12 +60,7 @@ import {
 } from "@/lib/parameter-parser";
 import type { FileDefinition, ParameterDefinition } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import {
-  type EditorParameterRow,
-  isExpandedParameter,
-  parameterChoiceList,
-  parameterValueType,
-} from "./model";
+import { type EditorParameterRow, isExpandedParameter, parameterChoiceList, parameterValueType } from "./model";
 
 /* === Constants === */
 
@@ -105,13 +94,7 @@ const EXPRESSION_REFERENCE: { example: string; result: string; syntax: string }[
 /* === Components === */
 
 /** The value control for one parameter row. */
-export function ParameterValueCell({
-  row,
-  onChange,
-}: {
-  row: EditorParameterRow;
-  onChange: (raw: string) => void;
-}) {
+export function ParameterValueCell({ row, onChange }: { row: EditorParameterRow; onChange: (raw: string) => void }) {
   const { definition } = row;
   const inputId = parameterInputId(definition.parameter_id);
   const invalid = !row.parsed.ok;
@@ -120,14 +103,7 @@ export function ParameterValueCell({
     case "boolean":
       return <BooleanCell inputId={inputId} raw={row.raw} onChange={onChange} />;
     case "list":
-      return (
-        <ListChipsCell
-          definition={definition}
-          invalid={invalid}
-          raw={row.raw}
-          onChange={onChange}
-        />
-      );
+      return <ListChipsCell definition={definition} invalid={invalid} raw={row.raw} onChange={onChange} />;
     case "segmented":
       return (
         <SegmentedCell
@@ -138,14 +114,7 @@ export function ParameterValueCell({
         />
       );
     case "select":
-      return (
-        <SelectCell
-          choices={parameterChoiceList(definition)}
-          inputId={inputId}
-          raw={row.raw}
-          onChange={onChange}
-        />
-      );
+      return <SelectCell choices={parameterChoiceList(definition)} inputId={inputId} raw={row.raw} onChange={onChange} />;
     case "wifi":
       return (
         <WifiChannelCell
@@ -222,23 +191,11 @@ export function TextCell({
 }
 
 /** A Switch at the value column's left edge with the state word beside it. */
-export function BooleanCell({
-  inputId,
-  raw,
-  onChange,
-}: {
-  inputId: string;
-  raw: string;
-  onChange: (raw: string) => void;
-}) {
+export function BooleanCell({ inputId, raw, onChange }: { inputId: string; raw: string; onChange: (raw: string) => void }) {
   const checked = raw.trim().toLowerCase() === "true";
   return (
     <div className={cn("flex items-center gap-2", CELL_HEIGHT)}>
-      <Switch
-        checked={checked}
-        id={inputId}
-        onCheckedChange={(next) => onChange(next ? "true" : "false")}
-      />
+      <Switch checked={checked} id={inputId} onCheckedChange={(next) => onChange(next ? "true" : "false")} />
       <Label className="text-sm text-muted-foreground" htmlFor={inputId}>
         {checked ? "On" : "Off"}
       </Label>
@@ -352,9 +309,7 @@ export function ListChipsCell({
   raw: string;
   onChange: (raw: string) => void;
 }) {
-  const elementType = (
-    definition.list?.element_type ?? parameterValueType(definition)
-  ).toLowerCase();
+  const elementType = (definition.list?.element_type ?? parameterValueType(definition)).toLowerCase();
   const label = definition.label ?? definition.name;
   /* Only an expanded list makes a case per candidate; a single list is one
      case whatever its chips say. */
@@ -369,9 +324,7 @@ export function ListChipsCell({
   function replace(chip: ListChip, values: unknown[]) {
     write(
       candidates.map((candidate, position) =>
-        position === chip.candidate
-          ? candidate.flatMap((value, index) => (index === chip.index ? values : [value]))
-          : candidate,
+        position === chip.candidate ? candidate.flatMap((value, index) => (index === chip.index ? values : [value])) : candidate,
       ),
     );
   }
@@ -384,11 +337,7 @@ export function ListChipsCell({
   function commit(chip: ListChip, text: string) {
     const expanded = expandChipValue(text, elementType);
     if (expanded && expands && (candidates[chip.candidate]?.length ?? 0) === 1) {
-      write(
-        candidates.flatMap((candidate, position) =>
-          position === chip.candidate ? expanded.map((value) => [value]) : [candidate],
-        ),
-      );
+      write(candidates.flatMap((candidate, position) => (position === chip.candidate ? expanded.map((value) => [value]) : [candidate])));
       return;
     }
     if (expanded) {
@@ -412,10 +361,7 @@ export function ListChipsCell({
     >
       {chips.map((chip, position) => (
         <span
-          className={cn(
-            "inline-flex h-6 items-center gap-0.5 rounded-md border bg-muted/40 pl-2",
-            "[[data-density=touch]_&]:h-7",
-          )}
+          className={cn("inline-flex h-6 items-center gap-0.5 rounded-md border bg-muted/40 pl-2", "[[data-density=touch]_&]:h-7")}
           key={`${definition.name}-${chip.candidate}-${chip.index}`}
         >
           <input
@@ -454,11 +400,7 @@ export function ListChipsCell({
         aria-label={`Add ${label} value`}
         className="size-6 [[data-density=touch]_&]:size-11"
         onClick={() =>
-          write(
-            expands
-              ? [...candidates, [emptyListItem(elementType)]]
-              : [[...(candidates[0] ?? []), emptyListItem(elementType)]],
-          )
+          write(expands ? [...candidates, [emptyListItem(elementType)]] : [[...(candidates[0] ?? []), emptyListItem(elementType)]])
         }
         size="icon-xs"
         type="button"
@@ -493,11 +435,7 @@ export function ExpressionReferencePopover() {
           <CircleHelp aria-hidden />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-[min(38rem,calc(100vw-2rem))]"
-        data-testid="expression-reference"
-      >
+      <PopoverContent align="end" className="w-[min(38rem,calc(100vw-2rem))]" data-testid="expression-reference">
         <div className="grid gap-2">
           <p className="font-heading text-sm font-semibold">Expression Reference</p>
           {/* Three content-sized columns: a result list reads as one line, never
@@ -506,18 +444,14 @@ export function ExpressionReferencePopover() {
             {EXPRESSION_REFERENCE.map((entry) => (
               <div className="contents" key={entry.syntax}>
                 <dt className="font-mono whitespace-nowrap text-foreground">{entry.syntax}</dt>
-                <dd className="font-mono whitespace-nowrap text-muted-foreground">
-                  {entry.example}
-                </dd>
-                <dd className="font-mono whitespace-nowrap tabular-nums text-muted-foreground">
-                  {entry.result}
-                </dd>
+                <dd className="font-mono whitespace-nowrap text-muted-foreground">{entry.example}</dd>
+                <dd className="font-mono whitespace-nowrap tabular-nums text-muted-foreground">{entry.result}</dd>
               </div>
             ))}
           </dl>
           <p className="text-xs text-muted-foreground">
-            Cartesian parameters cross: every combination of the expanded lists becomes a case,
-            while zip parameters advance together, one case per position.
+            Cartesian parameters cross: every combination of the expanded lists becomes a case, while zip parameters advance together, one
+            case per position.
           </p>
         </div>
       </PopoverContent>
@@ -543,9 +477,7 @@ export function FileValueCell({
   return (
     <div className={cn("flex items-center gap-2", CELL_HEIGHT)}>
       <Input
-        aria-invalid={
-          Boolean(row.error) || (definition.required && !(chosen || definition.default?.trim()))
-        }
+        aria-invalid={Boolean(row.error) || (definition.required && !(chosen || definition.default?.trim()))}
         aria-label={`${label} path`}
         className={cn("min-w-0 flex-1 font-mono text-xs", CELL_HEIGHT)}
         disabled={row.uploading}
@@ -640,11 +572,7 @@ export function WifiChannelCell({
   }
 
   function selectWhere(predicate: (choice: WifiChannelChoice) => boolean) {
-    setSelected(
-      Array.from(
-        new Set<string>([...selected, ...choices.filter(predicate).map((choice) => choice.value)]),
-      ),
-    );
+    setSelected(Array.from(new Set<string>([...selected, ...choices.filter(predicate).map((choice) => choice.value)])));
   }
 
   return (
@@ -667,25 +595,13 @@ export function WifiChannelCell({
       <DialogContent className="max-h-[min(88vh,46rem)] overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="px-4 pt-4">
           <DialogTitle>WiFi Channel</DialogTitle>
-          <DialogDescription>
-            Select auto-band options or explicit streams for generated WiFi cases.
-          </DialogDescription>
+          <DialogDescription>Select auto-band options or explicit streams for generated WiFi cases.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap gap-2 px-4">
-          <Button
-            onClick={() => selectWhere((choice) => choice.band === "2.4 GHz")}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
+          <Button onClick={() => selectWhere((choice) => choice.band === "2.4 GHz")} size="sm" type="button" variant="outline">
             Select 2.4 GHz
           </Button>
-          <Button
-            onClick={() => selectWhere((choice) => choice.band === "5 GHz")}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
+          <Button onClick={() => selectWhere((choice) => choice.band === "5 GHz")} size="sm" type="button" variant="outline">
             Select 5 GHz
           </Button>
           <Button onClick={() => onChange("")} size="sm" type="button" variant="ghost">
@@ -703,18 +619,14 @@ export function WifiChannelCell({
               title="Auto"
             />
             <WifiChannelGroup
-              choices={choices.filter(
-                (choice) => choice.mode !== "auto" && choice.band === "2.4 GHz",
-              )}
+              choices={choices.filter((choice) => choice.mode !== "auto" && choice.band === "2.4 GHz")}
               inputId={inputId}
               onToggle={toggle}
               selected={selected}
               title="2.4 GHz Streams"
             />
             <WifiChannelGroup
-              choices={choices.filter(
-                (choice) => choice.mode !== "auto" && choice.band === "5 GHz",
-              )}
+              choices={choices.filter((choice) => choice.mode !== "auto" && choice.band === "5 GHz")}
               inputId={inputId}
               onToggle={toggle}
               selected={selected}
@@ -770,11 +682,7 @@ export function WifiChannelGroup({
               htmlFor={choiceId}
               key={choice.value}
             >
-              <Checkbox
-                checked={checked}
-                id={choiceId}
-                onCheckedChange={(next) => onToggle(choice, next)}
-              />
+              <Checkbox checked={checked} id={choiceId} onCheckedChange={(next) => onToggle(choice, next)} />
               <span className="min-w-0">
                 <span className="block truncate font-medium">{choice.label}</span>
                 {choice.band ? (

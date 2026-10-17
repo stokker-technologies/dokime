@@ -69,19 +69,11 @@ function applySystemColorMode(): void {
 }
 
 function systemColorMode(): ResolvedTheme {
-  return typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function appearanceFrame(value: unknown): RuntimeAppearanceFrame | null {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("themes" in value) ||
-    !Array.isArray((value as { themes: unknown }).themes)
-  ) {
+  if (typeof value !== "object" || value === null || !("themes" in value) || !Array.isArray((value as { themes: unknown }).themes)) {
     return null;
   }
   return value as RuntimeAppearanceFrame;
@@ -91,10 +83,7 @@ function brandFromFrame(frame: RuntimeAppearanceFrame): Brand {
   const label = frame.app_name?.trim() || defaultBrand.label;
   // Reports embed their checkpoint's image bytes, including when opened from disk.
   const embeddedLogo =
-    frame.logo &&
-    /^data:image\/(?:png|jpeg|gif|webp|svg\+xml|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/]+=*$/.test(
-      frame.logo.url,
-    );
+    frame.logo && /^data:image\/(?:png|jpeg|gif|webp|svg\+xml|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/]+=*$/.test(frame.logo.url);
   if (frame.logo && embeddedLogo) {
     return {
       label,

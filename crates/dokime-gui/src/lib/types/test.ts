@@ -223,15 +223,7 @@ export type PreviewTestCycleResponse = {
 export type TestCycle = {
   test_cycle_id: string;
   title: string;
-  status:
-    | "planned"
-    | "running"
-    | "paused"
-    | "stopping"
-    | "completed"
-    | "failed"
-    | "stopped"
-    | "interrupted";
+  status: "planned" | "running" | "paused" | "stopping" | "completed" | "failed" | "stopped" | "interrupted";
   case_count: number;
   queue_count: number;
   current_test_execution_id?: string | null;
@@ -305,9 +297,7 @@ export type ExecutionQueueItem = {
 export type ExecutionPluginIdentity = {
   source: string;
   version?: string;
-  implementation:
-    | { kind: "bundle"; content_digest: string }
-    | { kind: "embedded"; generation: string };
+  implementation: { kind: "bundle"; content_digest: string } | { kind: "embedded"; generation: string };
 };
 
 export type ExecutionInvalidation = {

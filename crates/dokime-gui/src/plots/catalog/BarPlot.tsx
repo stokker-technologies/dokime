@@ -36,13 +36,7 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
 
   if (!bars.length) {
     return (
-      <PlotPlaceholder
-        title={plot.title}
-        {...plotPlaceholderText(
-          plot,
-          "No categorical samples are available in the selected window.",
-        )}
-      />
+      <PlotPlaceholder title={plot.title} {...plotPlaceholderText(plot, "No categorical samples are available in the selected window.")} />
     );
   }
 
@@ -73,14 +67,9 @@ export function BarPlot({ plot }: { plot: PlotCardSpec }) {
                   backgroundColor: bar.color,
                 }}
               />
-              <span
-                className="absolute inset-y-0 w-px bg-foreground"
-                style={{ left: `${baseline}%` }}
-              />
+              <span className="absolute inset-y-0 w-px bg-foreground" style={{ left: `${baseline}%` }} />
             </div>
-            <span className="whitespace-nowrap text-right text-xs font-semibold tabular-nums">
-              {formatBarValue(bar.value, plot.unit)}
-            </span>
+            <span className="whitespace-nowrap text-right text-xs font-semibold tabular-nums">{formatBarValue(bar.value, plot.unit)}</span>
           </div>
         ))}
       </div>

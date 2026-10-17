@@ -50,16 +50,7 @@ export type DataSource =
 
 /* One member of the Harmos aggregate vocabulary by its display name; a
    percentile is `p` and a whole rank from 0 to 100. */
-export type Aggregate =
-  | "count"
-  | "sum"
-  | "mean"
-  | "median"
-  | "min"
-  | "max"
-  | "rms"
-  | "std"
-  | `p${number}`;
+export type Aggregate = "count" | "sum" | "mean" | "median" | "min" | "max" | "rms" | "std" | `p${number}`;
 
 export type DataTransform =
   | { type: "aggregate"; aggregate: Aggregate }
@@ -425,14 +416,7 @@ export type TelemetrySummaryDefinition_Serialize = {
   groups: TelemetrySummaryGroupDefinition_Serialize[];
 };
 
-export type TelemetrySummaryFormat =
-  | "auto"
-  | "number"
-  | "percent"
-  | "duration"
-  | "distance"
-  | "status"
-  | "text";
+export type TelemetrySummaryFormat = "auto" | "number" | "percent" | "duration" | "distance" | "status" | "text";
 
 export type TelemetrySummaryGroupDefinition_Serialize = {
   metadata: Metadata;

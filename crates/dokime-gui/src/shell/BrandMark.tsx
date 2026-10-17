@@ -23,13 +23,7 @@ export function BrandMark({ className }: { className?: string }) {
   const { logo, label } = useBrand();
 
   if (logo.kind === "image") {
-    return (
-      <img
-        alt={logo.alt ?? label}
-        className={cn("h-7 w-auto shrink-0", className)}
-        src={logo.src}
-      />
-    );
+    return <img alt={logo.alt ?? label} className={cn("h-7 w-auto shrink-0", className)} src={logo.src} />;
   }
 
   return (

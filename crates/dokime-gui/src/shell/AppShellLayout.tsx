@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Shared Application And Frozen Report Frame; Resourceful Regions Are Supplied.
  */
@@ -29,14 +28,11 @@ import { PageChromeProvider, usePageChromeState } from "./page-chrome";
 
 // Local Imports
 
-
 /* === Re-Exports === */
 
 /* === Constants === */
 /** The four destinations, which have nothing above them to go back to. */
 const TOP_LEVEL = new Set(["/cycles", "/library", "/history", "/settings"]);
-
-
 
 /* === Types === */
 export type FrozenShell = {
@@ -57,7 +53,6 @@ type AppShellLayoutProps = {
   menuBar?: ReactNode;
   console?: ReactNode;
 };
-
 
 /* === Components === */
 export function AppShellLayout(props: AppShellLayoutProps) {
@@ -95,9 +90,7 @@ function AppFrame({ children, frozen, menuBar, sidebar, statusBar, console }: Ap
     <div
       className={cn(
         "fixed inset-0 grid h-dvh overflow-hidden bg-background text-foreground",
-        frozen
-          ? "grid-rows-[minmax(0,1fr)_auto]"
-          : "grid-rows-[var(--menu-bar-height)_minmax(0,1fr)_auto]",
+        frozen ? "grid-rows-[minmax(0,1fr)_auto]" : "grid-rows-[var(--menu-bar-height)_minmax(0,1fr)_auto]",
       )}
       style={{ fontSize: "var(--shell-text-base)" }}
     >
@@ -112,9 +105,7 @@ function AppFrame({ children, frozen, menuBar, sidebar, statusBar, console }: Ap
           {/* overflow-anchor:none — live plot canvases redraw at stream rate
               inside this region; native scroll anchoring reacts to those
               mutations until Chrome disables it and the viewport drifts. */}
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto [overflow-anchor:none]">
-            {children}
-          </main>
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto [overflow-anchor:none]">{children}</main>
           {/* The console sits above the status bar and spans the main column,
               so the evidence shortens rather than the window growing. A frozen
               report has no drawer: its records belong to each case section. */}
@@ -152,9 +143,7 @@ function PageBar({ focused, frozen }: { focused: boolean; frozen: FrozenShell | 
       <div className="flex min-w-0 items-center gap-[var(--shell-gap)]">
         {heading ? (
           <>
-            <span className="flex size-[var(--control-height)] shrink-0 items-center justify-center">
-              {frozen ? null : <BackButton />}
-            </span>
+            <span className="flex size-[var(--control-height)] shrink-0 items-center justify-center">{frozen ? null : <BackButton />}</span>
             <h1 className="min-w-0 truncate font-heading font-semibold tracking-wide">{title}</h1>
           </>
         ) : null}
@@ -169,7 +158,6 @@ function PageBar({ focused, frozen }: { focused: boolean; frozen: FrozenShell | 
 }
 
 /* === Public Functions === */
-
 
 /**
  * What a frozen report's page bar says: what the file is, and when it was
@@ -237,10 +225,8 @@ function useParentRoute(): string | null {
   return null;
 }
 
-
 /* === Hooks === */
 
 /* === Public Functions === */
-
 
 /* === Private Functions === */

@@ -61,10 +61,7 @@ export async function fetchNativeRecords(
     records.push(...reply.records);
     if (reply.replayComplete) break;
     if (!reply.scanned || !reply.through) {
-      throw new NativeApiLimitError(
-        "Evidence.ListRecords",
-        "replay page did not include continuation cursors",
-      );
+      throw new NativeApiLimitError("Evidence.ListRecords", "replay page did not include continuation cursors");
     }
     if (sameCursor(reply.scanned, after) && sameCursor(reply.through, through)) {
       throw new NativeApiLimitError("Evidence.ListRecords", "replay cursors did not advance");
@@ -195,9 +192,5 @@ export function mapNativeRecord(record: CapturedRecord): HubRecord {
 }
 
 function sameCursor(left?: Cursor, right?: Cursor): boolean {
-  return (
-    left?.epoch === right?.epoch &&
-    left?.stream === right?.stream &&
-    left?.position === right?.position
-  );
+  return left?.epoch === right?.epoch && left?.stream === right?.stream && left?.position === right?.position;
 }

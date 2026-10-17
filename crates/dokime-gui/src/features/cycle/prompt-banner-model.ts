@@ -84,10 +84,7 @@ export function highestPromptLevel(prompts: readonly RankedPrompt[]): PromptLeve
  * execution's prompt lives while that execution runs, a cycle's until the
  * cycle ends.
  */
-export function answerablePrompts<T extends ScopedPrompt>(
-  prompts: readonly T[],
-  owners: PromptOwners,
-): T[] {
+export function answerablePrompts<T extends ScopedPrompt>(prompts: readonly T[], owners: PromptOwners): T[] {
   return prompts.filter((prompt) => {
     const executionId = prompt.scope?.test_execution_id;
     return executionId ? owners.executionActive(executionId) : !owners.cycleEnded;

@@ -73,13 +73,7 @@ const CycleSnapshotContext = createContext<CycleSnapshotSource | null>(null);
  * Puts one frozen cycle in reach of the workspace's hooks. Present exactly
  * when the surface renders with `live={false}`.
  */
-export function CycleSnapshotProvider({
-  children,
-  source,
-}: {
-  children: ReactNode;
-  source: CycleSnapshotSource;
-}) {
+export function CycleSnapshotProvider({ children, source }: { children: ReactNode; source: CycleSnapshotSource }) {
   return <CycleSnapshotContext.Provider value={source}>{children}</CycleSnapshotContext.Provider>;
 }
 

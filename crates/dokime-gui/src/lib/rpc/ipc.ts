@@ -8,14 +8,7 @@
    arrive on a Tauri channel, released in batches of acknowledged credit. */
 
 /* === External Imports === */
-import {
-  create,
-  type DescMessage,
-  fromBinary,
-  type MessageInitShape,
-  type MessageShape,
-  toBinary,
-} from "@bufbuild/protobuf";
+import { create, type DescMessage, fromBinary, type MessageInitShape, type MessageShape, toBinary } from "@bufbuild/protobuf";
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 /* === Local Imports === */
@@ -50,9 +43,7 @@ const headers = {
   stream: "dokime-rpc-stream",
   credit: "dokime-rpc-credit",
 } as const;
-const descriptor = Uint8Array.from(descriptorSha256.match(/../g) ?? [], (byte) =>
-  Number.parseInt(byte, 16),
-);
+const descriptor = Uint8Array.from(descriptorSha256.match(/../g) ?? [], (byte) => Number.parseInt(byte, 16));
 const text = new TextDecoder("utf-8", { fatal: true });
 
 /* === Public Functions === */
@@ -86,20 +77,11 @@ export function requestBytes(session: SessionIdentity, payload: Uint8Array): Uin
   return result;
 }
 
-export function responseBytes(
-  session: SessionIdentity,
-  value: ArrayBuffer,
-  minimum: number,
-): Uint8Array {
+export function responseBytes(session: SessionIdentity, value: ArrayBuffer, minimum: number): Uint8Array {
   current(session);
-  if (
-    !(value instanceof ArrayBuffer) ||
-    value.byteLength < minimum ||
-    value.byteLength > maxFrameBytes + 25
-  )
+  if (!(value instanceof ArrayBuffer) || value.byteLength < minimum || value.byteLength > maxFrameBytes + 25)
     fail({ kind: "invalid_request" });
-  if (new DataView(value).getBigUint64(0, true) !== integer(session.generation))
-    fail({ kind: "session", detail: { kind: "superseded" } });
+  if (new DataView(value).getBigUint64(0, true) !== integer(session.generation)) fail({ kind: "session", detail: { kind: "superseded" } });
   return new Uint8Array(value);
 }
 
@@ -111,12 +93,10 @@ export async function unary<I extends DescMessage, O extends DescMessage>(
   request: MessageInitShape<I>,
   timeoutMs = 10_000,
 ): Promise<MessageShape<O>> {
-  const reply = await invokeOwned<ArrayBuffer>(
-    session,
-    "rpc",
-    requestBytes(session, toBinary(input, create(input, request))),
-    { [headers.path]: path, [headers.deadline]: String(timeoutMs) },
-  );
+  const reply = await invokeOwned<ArrayBuffer>(session, "rpc", requestBytes(session, toBinary(input, create(input, request))), {
+    [headers.path]: path,
+    [headers.deadline]: String(timeoutMs),
+  });
   return fromBinary(output, responseBytes(session, reply, 8).subarray(8));
 }
 
@@ -129,13 +109,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
   envelope?: DescMessage,
   timeoutMs = 86_400_000,
 ): Promise<NativeStream<MessageShape<O>>> {
-  const call = await openCall(
-    path,
-    session,
-    toBinary(input, create(input, request)),
-    false,
-    timeoutMs,
-  );
+  const call = await openCall(path, session, toBinary(input, create(input, request)), false, timeoutMs);
   let ended = false;
   let reading = false;
   let completion = false;
@@ -157,8 +131,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
              settles, as a unary reply is. */
           current(session);
           if (payload === undefined) {
-            if (envelope && !completion)
-              throw new Error("Backend closed without operation completion.");
+            if (envelope && !completion) throw new Error("Backend closed without operation completion.");
             ended = true;
             return { done: true, value: undefined };
           }
@@ -202,15 +175,8 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
   /* A client-streaming operation opens with its request, then carries items;
      the generated client sends a default request and hands the first item
      here, so callers write items only. */
-  const frame = (value: { case: "request" | "item"; value: unknown }) =>
-    toBinary(envelope, create(envelope, { value } as never));
-  const call = await openCall(
-    path,
-    session,
-    frame({ case: "request", value: {} }),
-    true,
-    timeoutMs,
-  );
+  const frame = (value: { case: "request" | "item"; value: unknown }) => toBinary(envelope, create(envelope, { value } as never));
+  const call = await openCall(path, session, frame({ case: "request", value: {} }), true, timeoutMs);
   let inputClosed = false;
   let settled = false;
   let writing = false;
@@ -260,8 +226,7 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
       const payload = await call.next();
       if (payload === undefined) throw new Error("Backend returned no client-stream reply.");
       const response = fromBinary(output, payload);
-      if ((await call.next()) !== undefined)
-        throw new Error("Backend returned multiple client-stream replies.");
+      if ((await call.next()) !== undefined) throw new Error("Backend returned multiple client-stream replies.");
       settled = true;
       return response;
     } catch (error) {
@@ -279,13 +244,7 @@ export async function openClientStream<I extends DescMessage, O extends DescMess
 }
 
 /* === Private Functions === */
-async function openCall(
-  path: string,
-  session: SessionIdentity,
-  opening: Uint8Array,
-  keepInput: boolean,
-  timeoutMs: number,
-): Promise<Call> {
+async function openCall(path: string, session: SessionIdentity, opening: Uint8Array, keepInput: boolean, timeoutMs: number): Promise<Call> {
   const generation = integer(session.generation);
   const frames: Uint8Array[] = [];
   let wake: (() => void) | undefined;
@@ -296,17 +255,12 @@ async function openCall(
     frames.push(new Uint8Array(message));
     wake?.();
   });
-  const reply = await invokeOwned<ArrayBuffer>(
-    session,
-    "rpc_stream_open",
-    requestBytes(session, opening),
-    {
-      [headers.path]: path,
-      [headers.deadline]: String(timeoutMs),
-      [headers.channel]: channel.toJSON(),
-      [headers.input]: keepInput ? "open" : "closed",
-    },
-  );
+  const reply = await invokeOwned<ArrayBuffer>(session, "rpc_stream_open", requestBytes(session, opening), {
+    [headers.path]: path,
+    [headers.deadline]: String(timeoutMs),
+    [headers.channel]: channel.toJSON(),
+    [headers.input]: keepInput ? "open" : "closed",
+  });
   const opened = responseBytes(session, reply, 16);
   if (opened.byteLength !== 16) fail({ kind: "invalid_request" });
   const stream = String(new DataView(opened.buffer).getBigUint64(8, true));

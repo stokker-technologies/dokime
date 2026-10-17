@@ -16,20 +16,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  fetchNativeArtifactText,
-  followNativeExecutionFile,
-  readNativeExecutionFileWindow,
-} from "@/lib/api/native-content";
+import { fetchNativeArtifactText, followNativeExecutionFile, readNativeExecutionFileWindow } from "@/lib/api/native-content";
 import { formatArtifactSize } from "@/lib/artifact-tree";
 import { artifactLabel } from "@/lib/dashboard";
 import {
@@ -82,14 +72,7 @@ const GRPC_STATUS_NAMES = [
 
 type TextViewerArtifact = Pick<
   ArtifactRecord,
-  | "artifact_id"
-  | "downloadHref"
-  | "href"
-  | "label"
-  | "path"
-  | "scope"
-  | "size_bytes"
-  | "stream_state"
+  "artifact_id" | "downloadHref" | "href" | "label" | "path" | "scope" | "size_bytes" | "stream_state"
 >;
 
 type TextArtifactViewerProps = {
@@ -166,9 +149,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
   const streamed = shouldFollowArtifact(artifact);
   // Follow defaults to the file's own state; a reader's toggle holds for that file only.
   const fileKey = `${executionId ?? ""}\u0000${artifactId ?? ""}\u0000${path ?? ""}`;
-  const [followChoice, setFollowChoice] = useState<{ fileKey: string; follow: boolean } | null>(
-    null,
-  );
+  const [followChoice, setFollowChoice] = useState<{ fileKey: string; follow: boolean } | null>(null);
   const follow = followChoice?.fileKey === fileKey ? followChoice.follow : streamed;
   const [text, setText] = useState("");
   const [truncated, setTruncated] = useState(false);
@@ -202,11 +183,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
 
     const readStatic = async () => {
       const connected = requireSession(session);
-      const content = await fetchNativeArtifactText(
-        { ...connected.identity, own: connected.own },
-        artifactId,
-        signal,
-      );
+      const content = await fetchNativeArtifactText({ ...connected.identity, own: connected.own }, artifactId, signal);
       if (signal.aborted) return;
       const bytes = new TextEncoder().encode(content).length;
       setText(content.slice(0, TEXT_FILE_BUFFER_MAX_CHARS));
@@ -217,8 +194,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
     const readPages = async (execution: string) => {
       const connected = requireSession(session);
       const page = await pageExecutionFile(
-        (offset, maxBytes) =>
-          readNativeExecutionFileWindow(connected.identity, execution, path, offset, maxBytes),
+        (offset, maxBytes) => readNativeExecutionFileWindow(connected.identity, execution, path, offset, maxBytes),
         { budgetBytes: TEXT_FILE_PREVIEW_BUDGET_BYTES },
       );
       if (signal.aborted) return;
@@ -241,9 +217,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
     const readFollowing = async (execution: string) => {
       const connected = requireSession(session);
       const previous = cursorRef.current;
-      let cursor = resumable(previous)
-        ? connectingFollowCursor(previous.identity, previous.offset)
-        : connectingFollowCursor();
+      let cursor = resumable(previous) ? connectingFollowCursor(previous.identity, previous.offset) : connectingFollowCursor();
       // A fresh follow may jump once to the tail; a resume continues its text.
       let tailJump = !resumable(previous);
       if (tailJump) {
@@ -275,11 +249,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
               break;
             }
             tailJump = false;
-            setStatus(
-              cursor.phase === "producing"
-                ? { kind: "live", bytes: cursor.offset }
-                : { kind: "loading" },
-            );
+            setStatus(cursor.phase === "producing" ? { kind: "live", bytes: cursor.offset } : { kind: "loading" });
           } else if (event.kind === "chunk") {
             const decoded = decoder.decode(event.data, { stream: true });
             setText((current) => appendBoundedText(current, decoded));
@@ -430,10 +400,7 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
         </DialogHeader>
         <div className="grid min-h-0 gap-0">
           {status.kind === "error" ? (
-            <div
-              className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive"
-              role="alert"
-            >
+            <div className="border-b bg-destructive/10 px-4 py-2 text-sm text-destructive" role="alert">
               {status.message}
             </div>
           ) : null}
@@ -455,19 +422,9 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
             data-testid="text-artifact-status"
           >
             <span className="min-w-0 truncate" data-state={status.kind}>
-              {status.kind === "error"
-                ? describeStatus(status)
-                : `${describeStatus(status)} · ${language.toUpperCase()}`}
+              {status.kind === "error" ? describeStatus(status) : `${describeStatus(status)} · ${language.toUpperCase()}`}
             </span>
-            <span>
-              {copyStatus === "copied"
-                ? "Copied"
-                : copyStatus === "failed"
-                  ? "Copy Failed"
-                  : truncated
-                    ? "Truncated"
-                    : ""}
-            </span>
+            <span>{copyStatus === "copied" ? "Copied" : copyStatus === "failed" ? "Copy Failed" : truncated ? "Truncated" : ""}</span>
           </footer>
         </div>
       </DialogContent>
@@ -475,24 +432,10 @@ export function TextArtifactViewer({ artifact, open, onOpenChange }: TextArtifac
   );
 }
 
-function TextLine({
-  index,
-  language,
-  line,
-  wrap,
-}: {
-  index: number;
-  language: TextArtifactLanguage;
-  line: string;
-  wrap: boolean;
-}) {
+function TextLine({ index, language, line, wrap }: { index: number; language: TextArtifactLanguage; line: string; wrap: boolean }) {
   return (
     <div
-      className={
-        wrap
-          ? "grid grid-cols-[4.5rem_minmax(0,1fr)] hover:bg-muted/25"
-          : "grid grid-cols-[4.5rem_max-content] hover:bg-muted/25"
-      }
+      className={wrap ? "grid grid-cols-[4.5rem_minmax(0,1fr)] hover:bg-muted/25" : "grid grid-cols-[4.5rem_max-content] hover:bg-muted/25"}
     >
       <span
         aria-hidden="true"
@@ -501,20 +444,12 @@ function TextLine({
       >
         {index + 1}
       </span>
-      <code
-        className={
-          wrap
-            ? "block min-h-5 whitespace-pre-wrap break-words px-3"
-            : "block min-h-5 whitespace-pre px-3"
-        }
-      >
-        {occurrenceKeys(highlightTextLine(line, language), tokenSignature).map(
-          ({ key, value: token }) => (
-            <span className={tokenClassName(token.kind)} key={key}>
-              {token.text}
-            </span>
-          ),
-        )}
+      <code className={wrap ? "block min-h-5 whitespace-pre-wrap break-words px-3" : "block min-h-5 whitespace-pre px-3"}>
+        {occurrenceKeys(highlightTextLine(line, language), tokenSignature).map(({ key, value: token }) => (
+          <span className={tokenClassName(token.kind)} key={key}>
+            {token.text}
+          </span>
+        ))}
       </code>
     </div>
   );

@@ -23,13 +23,7 @@
 import type { DocumentNode } from "@/lib/document-contracts";
 import type { DocumentCapturePayload } from "@/lib/document-normalizer";
 import type { ReportPayload } from "@/lib/report-types";
-import type {
-  ArtifactRecord,
-  HubRecord,
-  StepExecutionRecord,
-  TestCyclePlan,
-  TestExecution,
-} from "@/lib/types";
+import type { ArtifactRecord, HubRecord, StepExecutionRecord, TestCyclePlan, TestExecution } from "@/lib/types";
 
 /* === Constants === */
 
@@ -239,11 +233,7 @@ function reportDocument(executionId: string | null): DocumentCapturePayload {
       layout: {
         nodes: [
           documentSectionNode("cycle.events", "Records", "cycle.events.timeline"),
-          documentSectionNode(
-            "cycle.traceability.artifacts",
-            "Artifacts",
-            "cycle.traceability.artifacts",
-          ),
+          documentSectionNode("cycle.traceability.artifacts", "Artifacts", "cycle.traceability.artifacts"),
         ],
       },
       metadata: documentMetadata("default", FIXTURE_CYCLE_TITLE),

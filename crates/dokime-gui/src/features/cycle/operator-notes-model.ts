@@ -30,9 +30,7 @@ export type NoteDraft =
   | { mode: "adding"; markdown: string; tab: NoteEditorTab }
   | { mode: "editing"; noteId: string; original: string; markdown: string; tab: NoteEditorTab };
 
-export type NoteSubmission =
-  | { kind: "create"; markdown: string }
-  | { kind: "edit"; noteId: string; markdown: string };
+export type NoteSubmission = { kind: "create"; markdown: string } | { kind: "edit"; noteId: string; markdown: string };
 
 /* === Constants === */
 

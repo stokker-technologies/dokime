@@ -30,15 +30,7 @@ type RunCommandPanelProps = {
 
 /* === Components === */
 
-export function RunCommandPanel({
-  onPause,
-  onRerun,
-  onRestart,
-  onResume,
-  onStart,
-  onStop,
-  state,
-}: RunCommandPanelProps) {
+export function RunCommandPanel({ onPause, onRerun, onRestart, onResume, onStart, onStop, state }: RunCommandPanelProps) {
   if (state.kind === "none") {
     return null;
   }
@@ -46,12 +38,7 @@ export function RunCommandPanel({
   if (state.kind === "start") {
     return (
       <div className="control-buttons flex w-full flex-col gap-2">
-        <Button
-          className="h-11 w-full"
-          disabled={!state.runtimeReady}
-          onClick={onStart}
-          variant="default"
-        >
+        <Button className="h-11 w-full" disabled={!state.runtimeReady} onClick={onStart} variant="default">
           <Play data-icon="inline-start" />
           {state.runtimeReady ? "Start" : "Runtime unavailable"}
         </Button>
@@ -67,20 +54,11 @@ export function RunCommandPanel({
           <Square data-icon="inline-start" />
           Stop
         </Button>
-        <Button
-          className="h-10 w-full"
-          onClick={state.paused ? onResume : onPause}
-          variant={state.paused ? "default" : "outline"}
-        >
+        <Button className="h-10 w-full" onClick={state.paused ? onResume : onPause} variant={state.paused ? "default" : "outline"}>
           {state.paused ? <Play data-icon="inline-start" /> : <Pause data-icon="inline-start" />}
           {state.paused ? "Resume" : "Pause"}
         </Button>
-        <Button
-          className="h-10 w-full"
-          disabled={!state.canRestart || !state.runtimeReady}
-          onClick={onRestart}
-          variant="outline"
-        >
+        <Button className="h-10 w-full" disabled={!state.canRestart || !state.runtimeReady} onClick={onRestart} variant="outline">
           <RotateCcw data-icon="inline-start" />
           Restart
         </Button>
@@ -111,12 +89,7 @@ export function RunCommandPanel({
   if (state.kind === "rerun") {
     return (
       <div className="control-buttons flex w-full flex-col gap-2">
-        <Button
-          className="h-11 w-full"
-          disabled={!state.runtimeReady}
-          onClick={onRerun}
-          variant="outline"
-        >
+        <Button className="h-11 w-full" disabled={!state.runtimeReady} onClick={onRerun} variant="outline">
           <TimerReset data-icon="inline-start" />
           {state.runtimeReady ? "Re-run" : "Runtime unavailable"}
         </Button>

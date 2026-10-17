@@ -24,16 +24,8 @@ import { useEffect, useRef, useState } from "react";
 // Local Imports
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { Button } from "@/components/ui/button";
-import {
-  invalidateWorkflowDocuments,
-  invalidateWorkflowResourceQueries,
-} from "@/features/cycle/server-state";
-import {
-  captureNativePhoto,
-  captureNativeScreenshot,
-  type NativeAudioRecording,
-  startNativeAudioRecording,
-} from "@/lib/api/native-media";
+import { invalidateWorkflowDocuments, invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
+import { captureNativePhoto, captureNativeScreenshot, type NativeAudioRecording, startNativeAudioRecording } from "@/lib/api/native-media";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { RecordScope } from "@/lib/types";
 
@@ -58,10 +50,7 @@ export function MediaCaptureControls({ scope }: MediaCaptureControlsProps) {
   return session ? <CaptureControls identity={session.identity} scope={scope} /> : null;
 }
 
-function CaptureControls({
-  identity,
-  scope,
-}: MediaCaptureControlsProps & { identity: SessionIdentity }) {
+function CaptureControls({ identity, scope }: MediaCaptureControlsProps & { identity: SessionIdentity }) {
   const queryClient = useQueryClient();
   const recording = useRef<NativeAudioRecording | null>(null);
   const stopRequested = useRef(false);
@@ -80,20 +69,14 @@ function CaptureControls({
   );
 
   async function refresh() {
-    await Promise.all([
-      invalidateWorkflowResourceQueries(queryClient),
-      invalidateWorkflowDocuments(queryClient),
-    ]);
+    await Promise.all([invalidateWorkflowResourceQueries(queryClient), invalidateWorkflowDocuments(queryClient)]);
   }
 
   async function capture(kind: "screenshot" | "photo") {
     setActivity(kind);
     setStatus(null);
     try {
-      const name =
-        kind === "screenshot"
-          ? await captureNativeScreenshot(identity, scope)
-          : await captureNativePhoto(identity, scope);
+      const name = kind === "screenshot" ? await captureNativeScreenshot(identity, scope) : await captureNativePhoto(identity, scope);
       setStatus(`Saved ${name}`);
       await refresh();
     } catch (error) {
@@ -132,23 +115,11 @@ function CaptureControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b pb-3">
-      <Button
-        disabled={busy}
-        size="sm"
-        type="button"
-        variant="outline"
-        onClick={() => void capture("screenshot")}
-      >
+      <Button disabled={busy} size="sm" type="button" variant="outline" onClick={() => void capture("screenshot")}>
         <Monitor data-icon="inline-start" />
         {activity === "screenshot" ? "Capturing" : "Screenshot"}
       </Button>
-      <Button
-        disabled={busy}
-        size="sm"
-        type="button"
-        variant="outline"
-        onClick={() => void capture("photo")}
-      >
+      <Button disabled={busy} size="sm" type="button" variant="outline" onClick={() => void capture("photo")}>
         <Camera data-icon="inline-start" />
         {activity === "photo" ? "Capturing" : "Photo"}
       </Button>
@@ -168,13 +139,7 @@ function CaptureControls({
           </span>
         </Button>
       ) : (
-        <Button
-          disabled={busy}
-          size="sm"
-          type="button"
-          variant="outline"
-          onClick={() => void startRecording()}
-        >
+        <Button disabled={busy} size="sm" type="button" variant="outline" onClick={() => void startRecording()}>
           <Mic data-icon="inline-start" />
           Record Audio
         </Button>

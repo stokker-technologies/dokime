@@ -65,14 +65,7 @@ import { toast } from "sonner";
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,17 +109,12 @@ export type CycleSidebarActions = {
   deleteCase: (caseId: string) => Promise<unknown>;
 };
 
-
-
 export type CycleSidebarCasesViewProps = {
   detailQuery: CycleSidebarState;
   actions?: CycleSidebarActions;
   cycleId: string;
   selection: CycleSelection;
-} & (
-  | { live?: true; onSelect?: undefined }
-  | { live: false; onSelect: (selection: CycleSelection) => void }
-);
+} & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
 
 type GlyphTone = "running" | "success" | "danger" | "warning" | "muted";
 
@@ -154,14 +142,7 @@ const LONG_PRESS_MS = 500;
 
 /* === Components === */
 
-export function CycleSidebarCasesView({
-  cycleId,
-  detailQuery,
-  actions,
-  live = true,
-  onSelect,
-  selection,
-}: CycleSidebarCasesViewProps) {
+export function CycleSidebarCasesView({ cycleId, detailQuery, actions, live = true, onSelect, selection }: CycleSidebarCasesViewProps) {
   const navigate = useNavigate();
   const followActive = useSelectionStore((state) => state.followActive);
   const [pendingDelete, setPendingDelete] = useState<CycleExecutionRow | null>(null);
@@ -175,9 +156,7 @@ export function CycleSidebarCasesView({
   /* A stale selection selects the cycle, so exactly one row is ever selected. */
   const selectedKey = selectedCycleRow(rows, selection)?.key ?? null;
   const activeExecutionId =
-    plan?.test_cycle.current_test_execution_id ??
-    executions.find((execution) => execution.status === "running")?.test_execution_id ??
-    null;
+    plan?.test_cycle.current_test_execution_id ?? executions.find((execution) => execution.status === "running")?.test_execution_id ?? null;
   const following = live && followActive && isFollowing(selection, activeExecutionId);
 
   const report = (outcome: { done: string; failed: string }, action: () => Promise<unknown>) => {
@@ -250,9 +229,7 @@ export function CycleSidebarCasesView({
         case "Enter":
         case " ":
           event.preventDefault();
-          current
-            .querySelector<HTMLButtonElement>(":scope > div button[data-tree-select]")
-            ?.click();
+          current.querySelector<HTMLButtonElement>(":scope > div button[data-tree-select]")?.click();
           break;
         default:
       }
@@ -293,11 +270,7 @@ export function CycleSidebarCasesView({
                 tabIndex={-1}
                 type="button"
               >
-                {expanded ? (
-                  <ChevronDown className="size-4" />
-                ) : (
-                  <ChevronRight className="size-4" />
-                )}
+                {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
               </button>
               <StatusGlyph glyph={cycleGlyph(plan.test_cycle.status)} />
               <button
@@ -311,10 +284,7 @@ export function CycleSidebarCasesView({
                 {plan.test_cycle.title}
               </button>
               <span aria-hidden />
-              <span
-                className="text-right text-xs text-muted-foreground tabular-nums"
-                title={`${finished} of ${total} cases finished`}
-              >
+              <span className="text-right text-xs text-muted-foreground tabular-nums" title={`${finished} of ${total} cases finished`}>
                 {finished}/{total}
               </span>
               <span aria-hidden />
@@ -326,11 +296,7 @@ export function CycleSidebarCasesView({
                 {detailQuery.isError ? (
                   <TreeNotice
                     action={{ label: "Try Again", onClick: () => void detailQuery.refetch?.() }}
-                    message={
-                      detailQuery.error instanceof Error
-                        ? detailQuery.error.message
-                        : "The cycle's cases could not be read."
-                    }
+                    message={detailQuery.error instanceof Error ? detailQuery.error.message : "The cycle's cases could not be read."}
                     title="Cases Unavailable"
                   />
                 ) : rows.length === 0 ? (
@@ -339,8 +305,7 @@ export function CycleSidebarCasesView({
                       live
                         ? {
                             label: "Add Cases",
-                            onClick: () =>
-                              void navigate({ search: { appendTo: cycleId }, to: "/library" }),
+                            onClick: () => void navigate({ search: { appendTo: cycleId }, to: "/library" }),
                           }
                         : undefined
                     }
@@ -350,34 +315,24 @@ export function CycleSidebarCasesView({
                 ) : (
                   rows.map((row) => (
                     <ExecutionTreeRow
-                      following={
-                        following &&
-                        row.execution !== null &&
-                        row.execution.test_execution_id === activeExecutionId
-                      }
+                      following={following && row.execution !== null && row.execution.test_execution_id === activeExecutionId}
                       key={row.key}
                       live={live}
                       onDelete={setPendingDelete}
                       onRerun={() =>
-                        report(
-                          { done: "Case Re-Run Started", failed: "Case Re-Run Failed" },
-                          async () => {
-                            const created = await liveActions(actions).rerunCase(row.case.caseId);
-                            if (created) select({ executionId: created });
-                          },
-                        )
+                        report({ done: "Case Re-Run Started", failed: "Case Re-Run Failed" }, async () => {
+                          const created = await liveActions(actions).rerunCase(row.case.caseId);
+                          if (created) select({ executionId: created });
+                        })
                       }
                       onRun={() =>
-                        report(
-                          { done: "Execution Started", failed: "Execution Could Not Start" },
-                          () => {
-                            const execution = row.execution;
-                            if (!execution || !isPlannedExecution(execution.status)) {
-                              throw new Error("No unstarted execution is available.");
-                            }
-                            return liveActions(actions).runCase(execution.test_execution_id);
-                          },
-                        )
+                        report({ done: "Execution Started", failed: "Execution Could Not Start" }, () => {
+                          const execution = row.execution;
+                          if (!execution || !isPlannedExecution(execution.status)) {
+                            throw new Error("No unstarted execution is available.");
+                          }
+                          return liveActions(actions).runCase(execution.test_execution_id);
+                        })
                       }
                       onSelect={() => select(cycleRowSelection(row))}
                       row={row}
@@ -391,11 +346,7 @@ export function CycleSidebarCasesView({
         ) : detailQuery.isError ? (
           <TreeNotice
             action={{ label: "Try Again", onClick: () => void detailQuery.refetch?.() }}
-            message={
-              detailQuery.error instanceof Error
-                ? detailQuery.error.message
-                : "The cycle could not be read."
-            }
+            message={detailQuery.error instanceof Error ? detailQuery.error.message : "The cycle could not be read."}
             title="Cycle Unavailable"
           />
         ) : (
@@ -403,10 +354,7 @@ export function CycleSidebarCasesView({
         )}
       </ul>
 
-      <Dialog
-        onOpenChange={(open) => !open && setPendingDelete(null)}
-        open={live && pendingDelete !== null}
-      >
+      <Dialog onOpenChange={(open) => !open && setPendingDelete(null)} open={live && pendingDelete !== null}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Case</DialogTitle>
@@ -473,8 +421,7 @@ function ExecutionTreeRow({
   const reason = caseActionTooltip(row.case);
   const allowed = (key: "delete" | "run" | "schedule_rerun") => actions === null || actions[key];
   const glyph = rowGlyph(row);
-  const label =
-    row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run Of #${row.rerunOf}`;
+  const label = row.rerunOf === null ? row.case.label : `${row.case.label} · Re-Run Of #${row.rerunOf}`;
   const [menuOpen, setMenuOpen] = useState(false);
   const press = useLongPress(() => setMenuOpen(true));
   const menu = live && row.newest;
@@ -494,12 +441,7 @@ function ExecutionTreeRow({
       {...(menu ? press : {})}
     >
       <div
-        className={cn(
-          ROW_GRID,
-          "pl-[var(--tree-indent)]",
-          rowTone(selected),
-          following && "shadow-[inset_2px_0_0_var(--color-primary)]",
-        )}
+        className={cn(ROW_GRID, "pl-[var(--tree-indent)]", rowTone(selected), following && "shadow-[inset_2px_0_0_var(--color-primary)]")}
       >
         <span aria-hidden />
         <StatusGlyph glyph={glyph} />
@@ -512,9 +454,7 @@ function ExecutionTreeRow({
           type="button"
         >
           {row.case.label}
-          {row.rerunOf === null ? null : (
-            <span className="text-xs text-muted-foreground"> Re-Run Of #{row.rerunOf}</span>
-          )}
+          {row.rerunOf === null ? null : <span className="text-xs text-muted-foreground"> Re-Run Of #{row.rerunOf}</span>}
         </button>
         {/* Run Again is the one row command an operator reaches for after a
             case ends, so it is a visible target, not a menu item. */}
@@ -554,11 +494,7 @@ function ExecutionTreeRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48" side="right">
-              <DropdownMenuItem
-                disabled={!allowed("run")}
-                onSelect={onRun}
-                title={allowed("run") ? undefined : reason}
-              >
+              <DropdownMenuItem disabled={!allowed("run")} onSelect={onRun} title={allowed("run") ? undefined : reason}>
                 <Play />
                 Run Case
               </DropdownMenuItem>
@@ -592,9 +528,7 @@ function StatusGlyph({ glyph }: { glyph: Glyph }) {
         aria-hidden
         className={cn(
           TONE_CLASS[glyph.tone],
-          dot
-            ? "size-2 fill-current [[data-density=touch]_&]:size-2.5"
-            : "size-3.5 [[data-density=touch]_&]:size-4.5",
+          dot ? "size-2 fill-current [[data-density=touch]_&]:size-2.5" : "size-3.5 [[data-density=touch]_&]:size-4.5",
           glyph.spin && "animate-spin",
         )}
       />
@@ -603,15 +537,7 @@ function StatusGlyph({ glyph }: { glyph: Glyph }) {
   );
 }
 
-function TreeNotice({
-  action,
-  message,
-  title,
-}: {
-  action?: { label: string; onClick: () => void };
-  message: string;
-  title: string;
-}) {
+function TreeNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (
     <li className="grid gap-1.5 py-3 pr-2 pl-[calc(2.5rem+var(--tree-indent))]" role="none">
       <p className="font-heading text-xs font-semibold">{title}</p>
@@ -631,9 +557,7 @@ function TreeNotice({
 
 /** The selected row's ground, full width; otherwise a hover ground only. */
 function rowTone(selected: boolean): string {
-  return selected
-    ? "bg-primary/10 text-primary"
-    : "text-foreground/90 hover:bg-muted hover:text-foreground";
+  return selected ? "bg-primary/10 text-primary" : "text-foreground/90 hover:bg-muted hover:text-foreground";
 }
 
 /** Open a menu after a touch rests on the row; any movement cancels it. */

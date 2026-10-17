@@ -289,8 +289,7 @@ async function startBackend(work, evidence, endpoint, label = "backend") {
     "backend listening",
     () => {
       if (child.startupError) throw child.startupError;
-      if (child.exitCode !== null)
-        throw new Error(`Native backend exited during startup: ${child.exitCode}`);
+      if (child.exitCode !== null) throw new Error(`Native backend exited during startup: ${child.exitCode}`);
       return listening(backend.endpoint);
     },
     180000,
@@ -319,15 +318,11 @@ async function startSession(work, endpoint, evidence) {
        Tauri's path API, which reads xdg-user-dirs rather than the
        `XDG_DOWNLOAD_DIR` environment variable. Without this file the throwaway
        home has no Downloads folder and the command fails before it writes. */
-    await writeFile(
-      join(home, "config", "user-dirs.dirs"),
-      `XDG_DOWNLOAD_DIR="${downloads}"\nXDG_DOCUMENTS_DIR="${downloads}"\n`,
-    );
+    await writeFile(join(home, "config", "user-dirs.dirs"), `XDG_DOWNLOAD_DIR="${downloads}"\nXDG_DOCUMENTS_DIR="${downloads}"\n`);
   }
 
   const port = await unusedPort();
-  const driver =
-    process.env.DOKIME_E2E_DRIVER ?? (windows ? "msedgedriver.exe" : "WebKitWebDriver");
+  const driver = process.env.DOKIME_E2E_DRIVER ?? (windows ? "msedgedriver.exe" : "WebKitWebDriver");
   driverProcess = spawn(driver, ["--host=127.0.0.1", `--port=${port}`], {
     detached: true,
     env: {
@@ -364,9 +359,7 @@ async function startSession(work, endpoint, evidence) {
     });
     const result = (await response.json()).value;
     if (!response.ok || result?.error) {
-      throw new Error(
-        `WebDriver ${path}: ${result?.error ?? response.status}: ${result?.message ?? ""}`,
-      );
+      throw new Error(`WebDriver ${path}: ${result?.error ?? response.status}: ${result?.message ?? ""}`);
     }
     return result;
   }
@@ -415,10 +408,8 @@ async function startSession(work, endpoint, evidence) {
     queue = queued.catch(() => undefined);
     return queued;
   };
-  session.execute = (script, args = []) =>
-    session.request("POST", "/execute/sync", { args, script });
-  session.executeAsync = (script, args = []) =>
-    session.request("POST", "/execute/async", { args, script });
+  session.execute = (script, args = []) => session.request("POST", "/execute/sync", { args, script });
+  session.executeAsync = (script, args = []) => session.request("POST", "/execute/async", { args, script });
   session.url = () => session.request("GET", "/url");
   session.location = async () => new URL(await session.url());
   session.text = async () => {
@@ -427,8 +418,7 @@ async function startSession(work, endpoint, evidence) {
   };
   session.find = (using, value) => session.request("POST", "/element", { using, value });
   session.findAll = (using, value) => session.request("POST", "/elements", { using, value });
-  session.textOf = (element) =>
-    session.execute("return arguments[0].innerText || arguments[0].textContent || '';", [element]);
+  session.textOf = (element) => session.execute("return arguments[0].innerText || arguments[0].textContent || '';", [element]);
   /**
    * Click as a pointer would, and only fall back when something covers the
    * control. A transient toast overlays the bottom of the page for a few
@@ -459,8 +449,7 @@ async function startSession(work, endpoint, evidence) {
   };
   session.clickNamed = async (role, name, options) =>
     session.click(await until(`${role} ${name}`, () => session.named(role, name, options)));
-  session.clickCss = async (selector) =>
-    session.click(await until(selector, () => session.find("css selector", selector)));
+  session.clickCss = async (selector) => session.click(await until(selector, () => session.find("css selector", selector)));
   session.exists = async (role, name) => {
     try {
       await session.named(role, name, { enabled: false });
@@ -527,8 +516,7 @@ async function startSession(work, endpoint, evidence) {
       [key],
     );
   };
-  session.resize = (width, height) =>
-    session.request("POST", "/window/rect", { height, width, x: 0, y: 0 });
+  session.resize = (width, height) => session.request("POST", "/window/rect", { height, width, x: 0, y: 0 });
   session.viewport = () => session.execute("return [window.innerWidth, window.innerHeight]");
   session.screenshot = async (label) => {
     const bytes = await session.request("GET", "/screenshot");
@@ -570,19 +558,10 @@ async function startSession(work, endpoint, evidence) {
     `);
   /** The connected shell, which a full reload has to reach again. */
   session.connected = () =>
-    until(
-      "connected shell",
-      () =>
-        session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"),
-      180000,
-    );
+    until("connected shell", () => session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"), 180000);
   session.load = async (url) => {
     await session.request("POST", "/url", { url });
-    await until(
-      `load ${url}`,
-      async () => (await session.execute("return document.body.innerText.length")) > 20,
-      120000,
-    );
+    await until(`load ${url}`, async () => (await session.execute("return document.body.innerText.length")) > 20, 120000);
   };
   /**
    * Go to a route by loading it.
@@ -595,11 +574,7 @@ async function startSession(work, endpoint, evidence) {
     await session.load(path.startsWith("file:") ? path : session.origin + path);
     if (path.startsWith("file:")) return;
     await session.connected();
-    await until(
-      `route ${path}`,
-      async () => (await session.location()).pathname === new URL(session.origin + path).pathname,
-      30000,
-    );
+    await until(`route ${path}`, async () => (await session.location()).pathname === new URL(session.origin + path).pathname, 30000);
     await installSaveTap(session);
   };
   session.close = async () => {
@@ -663,11 +638,7 @@ async function sizeViewport(session, target) {
  * answers with the path, so the gate lets it run and reads the folder.
  */
 async function installSaveTap(session) {
-  await until(
-    "Tauri IPC bridge",
-    () => session.execute("return typeof globalThis.__TAURI_INTERNALS__?.invoke === 'function'"),
-    60000,
-  );
+  await until("Tauri IPC bridge", () => session.execute("return typeof globalThis.__TAURI_INTERNALS__?.invoke === 'function'"), 60000);
   const state = await session.execute(`
     globalThis.__dokimeSavedDocuments = globalThis.__dokimeSavedDocuments ?? [];
     globalThis.__dokimeInvokes = globalThis.__dokimeInvokes ?? [];
@@ -774,10 +745,7 @@ async function installSaveTap(session) {
       reason: 'window.fetch did not keep the shim',
     };
   `);
-  assert.ok(
-    state?.installed,
-    `The save tap did not take on window.fetch (${JSON.stringify(state)})`,
-  );
+  assert.ok(state?.installed, `The save tap did not take on window.fetch (${JSON.stringify(state)})`);
 }
 
 async function drainSavedDocuments(session) {
@@ -798,9 +766,7 @@ async function drainSavedDocuments(session) {
       );
     }
     if (base64.length !== document.length) {
-      throw new Error(
-        `The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`,
-      );
+      throw new Error(`The tapped ${document.filename} transferred ${base64.length} of ${document.length} characters`);
     }
     const target = join(session.downloads, document.filename);
     await writeFile(target, Buffer.from(base64, "base64"));
@@ -863,9 +829,7 @@ async function setDensity(session, variant) {
   await session.clickNamed("radio", variant.density === "touch" ? "Touch" : "Comfortable");
   await until(
     `density ${variant.density}`,
-    async () =>
-      (await session.execute("return document.documentElement.dataset.density")) ===
-      variant.density,
+    async () => (await session.execute("return document.documentElement.dataset.density")) === variant.density,
     20000,
   );
   await sizeViewport(session, variant);
@@ -969,9 +933,7 @@ async function runUntil(session, description, check, timeout) {
     await answerPendingPrompts(session);
     await delay(1200);
   }
-  throw new Error(
-    `Timed out: ${description}. The application said: ${announcement || "nothing at all"}`,
-  );
+  throw new Error(`Timed out: ${description}. The application said: ${announcement || "nothing at all"}`);
 }
 
 /* Journeys */
@@ -1027,11 +989,7 @@ async function openMenu(session, name, attempts = 2) {
   let last;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await session.clickNamed("button", name);
-    const menu = await until(
-      `the ${name} menu`,
-      () => session.find("css selector", "[role=menu]"),
-      8000,
-    ).catch((failure) => {
+    const menu = await until(`the ${name} menu`, () => session.find("css selector", "[role=menu]"), 8000).catch((failure) => {
       last = failure;
       return null;
     });
@@ -1076,16 +1034,12 @@ async function caseRowText(session, fragment) {
 
 /** Whatever a transient notification is saying right now. */
 async function toastText(session) {
-  return session.execute(
-    "return [...document.querySelectorAll('[data-sonner-toast]')].map((toast) => toast.innerText).join(' | ');",
-  );
+  return session.execute("return [...document.querySelectorAll('[data-sonner-toast]')].map((toast) => toast.innerText).join(' | ');");
 }
 
 /** The sidebar's case rows as one string, which is where status lives. */
 function sidebarText(session) {
-  return session.execute(
-    "const nav = document.querySelector('nav[aria-label=Navigation]'); return nav ? nav.innerText : '';",
-  );
+  return session.execute("const nav = document.querySelector('nav[aria-label=Navigation]'); return nav ? nav.innerText : '';");
 }
 
 /**
@@ -1120,18 +1074,11 @@ async function startupJourney(session, notes) {
   for (const heading of ["Cycles", "Needs Attention", "Active", "Recent"]) {
     assert.ok(hasText(body, heading), `Cycles home must render "${heading}"`);
   }
-  for (const empty of [
-    "Nothing Is Waiting On You",
-    "No Cycle Is Running",
-    "No Cycles Loaded Yet",
-  ]) {
+  for (const empty of ["Nothing Is Waiting On You", "No Cycle Is Running", "No Cycles Loaded Yet"]) {
     assert.ok(hasText(body, empty), `An empty group must state "${empty}"`);
   }
   assert.ok(await session.exists("button", "New Cycle"), "Cycles home must offer New Cycle");
-  assert.ok(
-    await session.find("css selector", "nav[aria-label=Navigation]"),
-    "The shell must render the sidebar",
-  );
+  assert.ok(await session.find("css selector", "nav[aria-label=Navigation]"), "The shell must render the sidebar");
 }
 
 /**
@@ -1145,20 +1092,14 @@ async function startupJourney(session, notes) {
 async function libraryJourney(session) {
   await session.goto("/library");
   await until("suite rows", async () => hasText(await session.text(), PROTECTION_SUITE), 60000);
-  assert.ok(
-    hasText(await session.text(), "No cycle is active"),
-    "Without an active cycle the Library must say so",
-  );
+  assert.ok(hasText(await session.text(), "No cycle is active"), "Without an active cycle the Library must say so");
 
   /* New Cycle opens a dialog titled by the moment it opened. */
   await session.clickNamed("button", "New Cycle");
   await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
   const title = await session.execute("return document.querySelector('#new-cycle-title').value");
   assert.ok(title.trim().length > 0, "New Cycle must prefill its title");
-  assert.ok(
-    hasText(await session.text(), "Continue after a failed case"),
-    "New Cycle must state its failure policy",
-  );
+  assert.ok(hasText(await session.text(), "Continue after a failed case"), "New Cycle must state its failure policy");
   await session.clickNamed("button", "Create Cycle");
   const appendTo = await until(
     "appendTo in the URL",
@@ -1171,25 +1112,15 @@ async function libraryJourney(session) {
   );
   await until(
     "new cycle dialog closed",
-    async () =>
-      (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     30000,
   );
-  assert.ok(
-    hasText(await session.text(), "Cases materialized here are added to"),
-    "With an active cycle the Library must name it",
-  );
-  assert.ok(
-    await session.exists("button", "Open Cycle"),
-    "With an active cycle the page bar action must become Open Cycle",
-  );
+  assert.ok(hasText(await session.text(), "Cases materialized here are added to"), "With an active cycle the Library must name it");
+  assert.ok(await session.exists("button", "Open Cycle"), "With an active cycle the page bar action must become Open Cycle");
 
   await session.clickNamed("button", PROTECTION_SUITE);
   await until("expanded suite", async () => hasText(await session.text(), "Configure"), 30000);
-  assert.ok(
-    hasText(await session.text(), "Template"),
-    "An expanded suite must state its template count",
-  );
+  assert.ok(hasText(await session.text(), "Template"), "An expanded suite must state its template count");
 
   /* The row itself opens the dialog; Configure is the same outcome named. */
   await session.clickNamed("button", "Configure");
@@ -1197,20 +1128,12 @@ async function libraryJourney(session) {
   const step1 = await session.text();
   assert.ok(hasText(step1, "Parameters"), "Step 1 must be Parameters");
   assert.ok(hasText(step1, "Summary"), "The step indicator must name Summary");
-  assert.ok(
-    hasText(step1, "Values you change are remembered for this template."),
-    "Step 1 must state that edits persist",
-  );
-  await until("parameter grid", () =>
-    session.find("css selector", "[data-testid=parameter-editor-grid]"),
-  );
+  assert.ok(hasText(step1, "Values you change are remembered for this template."), "Step 1 must state that edits persist");
+  await until("parameter grid", () => session.find("css selector", "[data-testid=parameter-editor-grid]"));
   assert.ok(await session.exists("button", "Reset All"), "The parameter step must carry Reset All");
 
   /* A number edit reveals that row's Reset affordance and its gilt rule. */
-  const number = await session.find(
-    "css selector",
-    `[data-testid="parameter-input-${NUMBER_PARAMETER}"]`,
-  );
+  const number = await session.find("css selector", `[data-testid="parameter-input-${NUMBER_PARAMETER}"]`);
   await session.type(number, "60");
   await delay(500);
   const edited = await until("edited row reset", () =>
@@ -1235,14 +1158,8 @@ async function libraryJourney(session) {
     );
   const before = await until("list chips", chips);
   assert.ok(before.length >= 1, "A list parameter must render its values as chips");
-  await session.clickCss(
-    `[data-testid="parameter-chips-${LIST_PARAMETER}"] button[aria-label^="Add "]`,
-  );
-  await until(
-    "added chip",
-    async () => ((await chips()) ?? []).length === before.length + 1,
-    15000,
-  );
+  await session.clickCss(`[data-testid="parameter-chips-${LIST_PARAMETER}"] button[aria-label^="Add "]`);
+  await until("added chip", async () => ((await chips()) ?? []).length === before.length + 1, 15000);
   await session.execute(
     `const cell = document.querySelector('[data-testid="parameter-chips-' + arguments[0] + '"]');
      const input = [...cell.querySelectorAll('input')].at(-1);
@@ -1268,9 +1185,7 @@ async function libraryJourney(session) {
 
   /* The expression reference is a popover, reachable beside the value. */
   await session.clickNamed("button", "List Expression Help");
-  const reference = await until("expression reference", () =>
-    session.find("css selector", "[data-testid=expression-reference]"),
-  );
+  const reference = await until("expression reference", () => session.find("css selector", "[data-testid=expression-reference]"));
   const referenceText = await session.textOf(reference);
   for (const syntax of ["a, b, c", "1..5", "linspace(start, stop, n)"]) {
     assert.ok(hasText(referenceText, syntax), `The reference must document ${syntax}`);
@@ -1283,10 +1198,7 @@ async function libraryJourney(session) {
   await until("summary step", async () => hasText(await session.text(), "Finish And Add"), 60000);
   const summary = await session.text();
   assert.ok(hasText(summary, "Target Cycle"), "The summary must name the active cycle");
-  assert.ok(
-    hasText(summary, title.trim()) || hasText(summary, appendTo),
-    "The summary target must be the cycle New Cycle created",
-  );
+  assert.ok(hasText(summary, title.trim()) || hasText(summary, appendTo), "The summary target must be the cycle New Cycle created");
   assert.ok(/\d+ Cases?/.test(normalize(summary)), "The summary must state the case count");
   const deltas = await session.execute(`
     const list = document.querySelector('[data-testid="summary-cases"]');
@@ -1300,46 +1212,29 @@ async function libraryJourney(session) {
   await session.clickNamed("button", "Finish And Add");
   await until(
     "first add finished",
-    async () =>
-      (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     60000,
   );
-  assert.equal(
-    (await session.location()).searchParams.get("appendTo"),
-    appendTo,
-    "Adding cases must keep the active cycle",
-  );
+  assert.equal((await session.location()).searchParams.get("appendTo"), appendTo, "Adding cases must keep the active cycle");
 
   /* A second template joins the same cycle, so the run has a prompt in it. */
   await settle(session);
   await session.clickNamed("button", STARTUP_SUITE);
-  await until(
-    "startup template",
-    async () => hasText(await session.text(), STARTUP_TEMPLATE),
-    30000,
-  );
+  await until("startup template", async () => hasText(await session.text(), STARTUP_TEMPLATE), 30000);
   await session.clickCss('[data-testid="suite-template-mini.charger.startup.sequence"] button');
   await until("second dialog", () => session.find("css selector", "[role=dialog]"), 30000);
   await session.clickNamed("button", "Next");
   await until("second summary", async () => hasText(await session.text(), "Finish And Add"), 60000);
-  assert.ok(
-    hasText(await session.text(), "Target Cycle"),
-    "The second summary must name the same active cycle",
-  );
+  assert.ok(hasText(await session.text(), "Target Cycle"), "The second summary must name the same active cycle");
   await session.clickNamed("button", "Finish And Add");
   await until(
     "second add finished",
-    async () =>
-      (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
+    async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
     60000,
   );
 
   await session.clickNamed("button", "Open Cycle");
-  await until(
-    "cycle workspace",
-    async () => (await session.location()).pathname === `/cycles/${appendTo}`,
-    30000,
-  );
+  await until("cycle workspace", async () => (await session.location()).pathname === `/cycles/${appendTo}`, 30000);
   return appendTo;
 }
 
@@ -1371,13 +1266,9 @@ async function cycleJourney(session, cycleId) {
   if (!hasText(sidebar, "Planned") && !hasText(sidebar, "Queued")) {
     defect(
       "cycle/case-status",
-      `No case of a cycle that has never run reads as planned or queued work. The rows read ${JSON.stringify(
-        [
-          ...new Set(
-            normalize(sidebar).match(/Planned|Queued|Not Run|Skipped|Passed|Failed|Running/g) ?? [],
-          ),
-        ],
-      )}.`,
+      `No case of a cycle that has never run reads as planned or queued work. The rows read ${JSON.stringify([
+        ...new Set(normalize(sidebar).match(/Planned|Queued|Not Run|Skipped|Passed|Failed|Running/g) ?? []),
+      ])}.`,
     );
   }
 
@@ -1393,21 +1284,12 @@ async function cycleJourney(session, cycleId) {
   );
   /* The cycle page carries the cycle's progress, status and run controls:
      select the cycle node, then come back to the measuring case. */
-  await session.execute(
-    "document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();",
-  );
-  await until(
-    "the cycle page",
-    async () => (await session.location()).searchParams.get("view") === "cycle",
-    10000,
-  );
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await until("the cycle page", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
   const header = await session.text();
   assert.ok(/\d+ of \d+ cases finished/.test(normalize(header)), "The header must state progress");
   assert.ok(hasText(header, "Ready"), "A materialized cycle must render its Ready status");
-  assert.ok(
-    await session.exists("button", "Cycle Actions"),
-    "The header must carry the overflow menu",
-  );
+  assert.ok(await session.exists("button", "Cycle Actions"), "The header must carry the overflow menu");
   /* Start Cycle is the redesign's promise on a Ready cycle. Two things can
      deny it: a header that does not offer it, and a backend that refuses the
      admission. Either way the cases still have to run for everything behind
@@ -1420,11 +1302,7 @@ async function cycleJourney(session, cycleId) {
        workspace toasts every command's outcome with the backend's own text,
        and a refused run is a refusal to state here rather than five silent
        minutes later. */
-    const answer = await until(
-      "the run admission's answer",
-      async () => (await toastText(session)) || null,
-      45000,
-    ).catch(() => "");
+    const answer = await until("the run admission's answer", async () => (await toastText(session)) || null, 45000).catch(() => "");
     /* Silence is not an admission. A command that announced nothing at all is
        the failure this gate exists to catch, so it takes the same route as a
        stated refusal rather than waiting five minutes on an effect nothing
@@ -1455,15 +1333,9 @@ async function cycleJourney(session, cycleId) {
     for (const fragment of [PROTECTION_TEMPLATE, STARTUP_TEMPLATE]) {
       if (await startCaseFromItsRow(session, fragment)) started.push(fragment);
     }
-    assert.ok(
-      started.length > 0,
-      "Run Case on a row must start a case when Start Cycle does not run one",
-    );
+    assert.ok(started.length > 0, "Run Case on a row must start a case when Start Cycle does not run one");
     if (started.length < 2) {
-      defect(
-        "cycle/run-case",
-        `Run Case started only ${JSON.stringify(started)}; the other case stayed where it was.`,
-      );
+      defect("cycle/run-case", `Run Case started only ${JSON.stringify(started)}; the other case stayed where it was.`);
     }
   }
 
@@ -1493,10 +1365,7 @@ async function cycleJourney(session, cycleId) {
       60000,
     ).catch(() => false);
     if (!opened) {
-      defect(
-        "cycle/open-report",
-        `Open Report did not open a report while the cycle ran: ${await toastText(session).catch(() => "")}`,
-      );
+      defect("cycle/open-report", `Open Report did not open a report while the cycle ran: ${await toastText(session).catch(() => "")}`);
     }
     await closeAnyMenu(session);
     assert.equal(
@@ -1542,19 +1411,10 @@ async function cycleJourney(session, cycleId) {
   );
 
   /* The Startup Prompt Was A Warning Banner With Counts In Header And Navigation. */
-  const startupSighting = promptSightings.find((seen) =>
-    seen.cards.some((card) => hasText(card.text, STARTUP_PROMPT)),
-  );
-  assert.ok(
-    startupSighting,
-    `The prompt banner must show "${STARTUP_PROMPT}" before it is answered`,
-  );
+  const startupSighting = promptSightings.find((seen) => seen.cards.some((card) => hasText(card.text, STARTUP_PROMPT)));
+  assert.ok(startupSighting, `The prompt banner must show "${STARTUP_PROMPT}" before it is answered`);
   const startupCard = startupSighting.cards.find((card) => hasText(card.text, STARTUP_PROMPT));
-  assert.equal(
-    startupCard.level,
-    "warning",
-    "The OBC plugin's startup prompt must render at its declared Warning level",
-  );
+  assert.equal(startupCard.level, "warning", "The OBC plugin's startup prompt must render at its declared Warning level");
   /* The cycle cockpit offers a card with its kind and Respond; the execution
      page prints the prompt open, under its own "Run Paused" line. */
   const inlinePrompt = /Run Paused/.test(startupCard.text) && !/Respond/.test(startupCard.text);
@@ -1567,31 +1427,17 @@ async function cycleJourney(session, cycleId) {
     `The prompt banner must sit at the top of the workspace, not at ${startupSighting.bannerTop}px`,
   );
   if (!inlinePrompt) {
-    assert.match(
-      startupSighting.header ?? "",
-      /\d+ prompts? waiting/,
-      "The cycle header must count the open prompts",
-    );
+    assert.match(startupSighting.header ?? "", /\d+ prompts? waiting/, "The cycle header must count the open prompts");
   }
-  assert.match(
-    startupSighting.navigation ?? "",
-    /^\d+$/,
-    "The Cycles navigation entry must count the open prompts",
-  );
+  assert.match(startupSighting.navigation ?? "", /^\d+$/, "The Cycles navigation entry must count the open prompts");
 
-  assert.ok(
-    listened,
-    "the native application consumes live bridge stream updates while the execution is active",
-  );
+  assert.ok(listened, "the native application consumes live bridge stream updates while the execution is active");
   assert.equal(
     await session.execute("return globalThis.__dokimeNetwork ?? 0"),
     0,
     "the WebView reaches its backend only through the IPC bridge",
   );
-  await session.dump(
-    `listening-${cycleId}`,
-    await session.execute("return globalThis.__dokimeStreams"),
-  );
+  await session.dump(`listening-${cycleId}`, await session.execute("return globalThis.__dokimeStreams"));
 
   /* Each execution row selects its own evidence directly. */
   const executionRowsBefore = await session.execute(`
@@ -1620,10 +1466,7 @@ async function cycleJourney(session, cycleId) {
     60000,
   );
   assert.match(normalize(evidence), /Execution \d+/i);
-  assert.ok(
-    !(await session.exists("button", "Choose Attempt")),
-    "Execution selection belongs to the list",
-  );
+  assert.ok(!(await session.exists("button", "Choose Attempt")), "Execution selection belongs to the list");
 
   /* A Re-Run Appends A New Row And Preserves The Earlier Evidence. */
   await session.clickNamed("button", "Re-Run Case");
@@ -1632,21 +1475,13 @@ async function cycleJourney(session, cycleId) {
     async () => {
       const location = await session.location();
       const id = location.searchParams.get("executionId");
-      const count = await session.execute(
-        "return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;",
-      );
-      return id && id !== selection.executionId && count === executionRowsBefore.count + 1
-        ? id
-        : null;
+      const count = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
+      return id && id !== selection.executionId && count === executionRowsBefore.count + 1 ? id : null;
     },
     60000,
   );
   assert.notEqual(rerunId, selection.executionId, "Re-Run must create a distinct execution");
-  assert.match(
-    await sidebarText(session),
-    /Re-Run Of #\d+/,
-    "The new row must name its previous execution",
-  );
+  assert.match(await sidebarText(session), /Re-Run Of #\d+/, "The new row must name its previous execution");
   /* Plot Settings Persist In The Native Frozen Document. */
   const settingsTrigger = await until(
     "per-plot settings",
@@ -1654,11 +1489,7 @@ async function cycleJourney(session, cycleId) {
     30000,
   );
   await session.click(settingsTrigger);
-  const settingsDialog = await until(
-    "plot settings dialog",
-    () => session.find("css selector", "[role=dialog]"),
-    15000,
-  );
+  const settingsDialog = await until("plot settings dialog", () => session.find("css selector", "[role=dialog]"), 15000);
   assert.match(await session.textOf(settingsDialog), /Display Points|Reduction/);
   const pointsInput = await session.find("css selector", "[role=dialog] input[type=number]");
   await session.type(pointsInput, "2500");
@@ -1678,8 +1509,7 @@ async function cycleJourney(session, cycleId) {
   await session.click(persistedTrigger);
   const persistedPoints = await until(
     "persisted display point budget",
-    () =>
-      session.execute("return document.querySelector('[role=dialog] input[type=number]')?.value;"),
+    () => session.execute("return document.querySelector('[role=dialog] input[type=number]')?.value;"),
     15000,
   );
   assert.equal(persistedPoints, "2500", "The backend must retain the plot budget after remounting");
@@ -1703,8 +1533,7 @@ async function cycleJourney(session, cycleId) {
   );
   await until(
     "original execution remains selectable",
-    async () =>
-      (await session.location()).searchParams.get("executionId") === selection.executionId,
+    async () => (await session.location()).searchParams.get("executionId") === selection.executionId,
     30000,
   );
 
@@ -1712,24 +1541,14 @@ async function cycleJourney(session, cycleId) {
      serializes the flag as `focus=true`; `focusSearchSchema` also accepts the
      `focus=1` a person would type, so both spellings are the flag. */
   await session.clickNamed("button", "Focus");
-  await until(
-    "focus flag set",
-    async () => ["1", "true"].includes((await session.location()).searchParams.get("focus")),
-    20000,
-  );
+  await until("focus flag set", async () => ["1", "true"].includes((await session.location()).searchParams.get("focus")), 20000);
   assert.ok(await session.exists("button", "Leave Focus"), "Focus view must say how to leave it");
   await session.clickNamed("button", "Leave Focus");
-  await until(
-    "focus flag cleared",
-    async () => (await session.location()).searchParams.get("focus") !== "1",
-    20000,
-  );
+  await until("focus flag cleared", async () => (await session.location()).searchParams.get("focus") !== "1", 20000);
 
   /* The console: scopes follow the route, Escape closes the drawer. */
   await session.clickNamed("button", "Open Console");
-  const drawer = await until("console drawer", () =>
-    session.find("css selector", "section[aria-label=Console]"),
-  );
+  const drawer = await until("console drawer", () => session.find("css selector", "section[aria-label=Console]"));
   const consoleText = await session.textOf(drawer);
   for (const scope of ["Instance", "Cycle", "Execution"]) {
     assert.ok(hasText(consoleText, scope), `The console must offer the ${scope} scope`);
@@ -1750,9 +1569,7 @@ async function cycleJourney(session, cycleId) {
      closed, which made every later control in this journey unclickable. */
   await session.clickCss("section[aria-label=Console] [data-slot=select-trigger]");
   await delay(600);
-  const levels = await session.execute(
-    "return [...document.querySelectorAll('[role=option]')].map((item) => item.innerText.trim());",
-  );
+  const levels = await session.execute("return [...document.querySelectorAll('[role=option]')].map((item) => item.innerText.trim());");
   for (const level of ["Trace", "Info", "Error"]) {
     assert.ok(levels.includes(level), `The level selector must offer ${level} (got ${levels})`);
   }
@@ -1761,10 +1578,7 @@ async function cycleJourney(session, cycleId) {
   await session.key("Escape");
   await until(
     "console closed by Escape",
-    async () =>
-      (await session.execute(
-        "return document.querySelectorAll('section[aria-label=Console]').length",
-      )) === 0,
+    async () => (await session.execute("return document.querySelectorAll('section[aria-label=Console]').length")) === 0,
     20000,
   );
   /* A modal layer that closed must give the page back. Stating it here names
@@ -1779,20 +1593,11 @@ async function cycleJourney(session, cycleId) {
      clearing and changes nothing but the archive mark. The trigger is pressed again if the first press produced no menu: a real
      WebView occasionally drops the pointer sequence a dropdown opens on, and
      one silent miss is not a product defect. A second miss is, and fails. */
-  await session.execute(
-    "document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();",
-  );
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
   await until("the cycle page", () => session.exists("button", "Cycle Actions"), 10000);
   const menu = await openMenu(session, "Cycle Actions");
   const items = await session.textOf(menu);
-  for (const item of [
-    "Copy Cycle",
-    "Add Cases",
-    "Runtime Policy",
-    "Follow Active",
-    "Open Report",
-    "Archive",
-  ]) {
+  for (const item of ["Copy Cycle", "Add Cases", "Runtime Policy", "Follow Active", "Open Report", "Archive"]) {
     assert.ok(hasText(items, item), `The overflow menu must offer ${item}`);
   }
   for (const item of ["Download Bundle", "Write Report", "Open Folder", "Clear Cycle"]) {
@@ -1872,47 +1677,25 @@ async function executionStopJourney(session, cycleId) {
       queued,
       "A queued execution the operator selected must stay selected while another runs",
     );
-    assert.ok(
-      hasText(await session.text(), "This case has not run yet"),
-      "A queued execution shows its planned parameters",
-    );
+    assert.ok(hasText(await session.text(), "This case has not run yet"), "A queued execution shows its planned parameters");
   }
-  await session.execute(
-    "document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();",
-  );
-  await until(
-    "the cycle selection",
-    async () => (await session.location()).searchParams.get("view") === "cycle",
-    10000,
-  );
+  await session.execute("document.querySelector('nav[aria-label=Navigation] li[data-level=overview] button[data-tree-select]').click();");
+  await until("the cycle selection", async () => (await session.location()).searchParams.get("view") === "cycle", 10000);
   await session.execute(`
     const row = [...document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]')]
       .find((candidate) => /\bRunning\b/.test(candidate.innerText));
     row?.querySelector('button').click();
   `);
-  assert.ok(
-    !(await session.exists("button", "Stop Cycle")),
-    "The execution page carries the execution's controls, not the cycle's",
-  );
-  assert.ok(
-    !(await session.exists("button", "Stop")),
-    "No unscoped Stop may sit beside a selected execution",
-  );
+  assert.ok(!(await session.exists("button", "Stop Cycle")), "The execution page carries the execution's controls, not the cycle's");
+  assert.ok(!(await session.exists("button", "Stop")), "No unscoped Stop may sit beside a selected execution");
   await until("Stop Execution", () => session.exists("button", "Stop Execution"), 30000);
 
   // === Stop Only That Execution === //
 
   await session.clickNamed("button", "Stop Execution");
-  await until(
-    "the stop acknowledgement",
-    async () => /Execution Stop Requested/.test(await toastText(session)),
-    20000,
-  );
+  await until("the stop acknowledgement", async () => /Execution Stop Requested/.test(await toastText(session)), 20000);
   const header = normalize(await session.text());
-  assert.ok(
-    !/Stopping Cycle|\bStopping\b/.test(header),
-    "Stopping one execution must not put the cycle into Stopping",
-  );
+  assert.ok(!/Stopping Cycle|\bStopping\b/.test(header), "Stopping one execution must not put the cycle into Stopping");
 
   // === Siblings Finish And The Stopped Row Settles === //
 
@@ -1927,14 +1710,8 @@ async function executionStopJourney(session, cycleId) {
   );
   const rows = await sidebarText(session);
   const stoppedRow = await caseRowText(session, running);
-  assert.ok(
-    /\bStopped\b/.test(stoppedRow),
-    `The stopped execution must read Stopped: ${stoppedRow}`,
-  );
-  assert.ok(
-    /\b(Passed|Failed|Blocked)\b/.test(rows),
-    "Sibling executions must still reach a recorded outcome",
-  );
+  assert.ok(/\bStopped\b/.test(stoppedRow), `The stopped execution must read Stopped: ${stoppedRow}`);
+  assert.ok(/\b(Passed|Failed|Blocked)\b/.test(rows), "Sibling executions must still reach a recorded outcome");
   return copyId;
 }
 
@@ -1961,25 +1738,13 @@ async function cyclesHomeJourney(session) {
     "The Archived view must say when nothing is archived",
   );
   await session.clickNamed("button", "Archived");
-  await until(
-    "default view",
-    async () => !hasText(await session.text(), "No Archived Cycles"),
-    20000,
-  );
+  await until("default view", async () => !hasText(await session.text(), "No Archived Cycles"), 20000);
 
   const filter = await session.find("css selector", "input[aria-label='Filter Cycles']");
   await session.type(filter, "zzz-no-such-cycle");
-  await until(
-    "filter excludes every row",
-    async () => hasText(await session.text(), "No Cycles Match This Filter"),
-    20000,
-  );
+  await until("filter excludes every row", async () => hasText(await session.text(), "No Cycles Match This Filter"), 20000);
   await session.type(filter, "");
-  await until(
-    "filter cleared",
-    async () => !hasText(await session.text(), "No Cycles Match This Filter"),
-    20000,
-  );
+  await until("filter cleared", async () => !hasText(await session.text(), "No Cycles Match This Filter"), 20000);
   assert.ok(
     await session.execute(
       `return [...document.querySelectorAll('button')].some((button) =>
@@ -2005,16 +1770,8 @@ async function historyJourney(session) {
   assert.ok(hasText(await session.text(), "History"), "The page bar must name History");
   const rows = await session.findAll("css selector", "tbody tr");
   await session.click(rows[0]);
-  await until(
-    "history detail",
-    async () => (await session.location()).pathname.startsWith("/history/"),
-    30000,
-  );
-  await until(
-    "inspectable checkpoint",
-    async () => hasText(await session.text(), "Inspect checkpoint"),
-    60000,
-  );
+  await until("history detail", async () => (await session.location()).pathname.startsWith("/history/"), 30000);
+  await until("inspectable checkpoint", async () => hasText(await session.text(), "Inspect checkpoint"), 60000);
   /* Each case also carries a pre-dispatch placeholder execution with no
      evidence behind it, so the checkpoint to inspect is a finished one. */
   await session.execute(`
@@ -2038,11 +1795,7 @@ async function historyJourney(session) {
     if (!inspect) throw new Error('No finished execution in this history detail');
     inspect.click();
   `);
-  await until(
-    "captured execution",
-    async () => hasText(await session.text(), "Recorded Steps"),
-    60000,
-  );
+  await until("captured execution", async () => hasText(await session.text(), "Recorded Steps"), 60000);
   const captured = await session.text();
   assert.ok(hasText(captured, "Recorded status"), "The checkpoint must state its recorded status");
   for (const view of ["Records", "Telemetry", "Files", "Context"]) {
@@ -2052,9 +1805,7 @@ async function historyJourney(session) {
   await until(
     "captured records",
     async () => {
-      const section = await session
-        .find("css selector", "section[aria-label='Captured records']")
-        .catch(() => null);
+      const section = await session.find("css selector", "section[aria-label='Captured records']").catch(() => null);
       if (!section) return false;
       return !hasText(await session.textOf(section), "No execution records at this checkpoint.");
     },
@@ -2064,11 +1815,7 @@ async function historyJourney(session) {
   await until("captured context", async () => hasText(await session.text(), "Notes At Capture"));
 
   await session.clickNamed("button", "Back");
-  await until(
-    "back to history",
-    async () => (await session.location()).pathname === "/history",
-    20000,
-  );
+  await until("back to history", async () => (await session.location()).pathname === "/history", 20000);
 }
 
 /** Settings: every section, and the rows the redesign promises in each. */
@@ -2093,31 +1840,24 @@ async function settingsJourney(session, notes, work) {
       60000,
     );
     assert.ok(hasText(body, "Settings"), `The ${id} page bar must name Settings`);
-    const rows = await session.execute(
-      "return document.querySelectorAll('main section, main dl > div').length",
-    );
+    const rows = await session.execute("return document.querySelectorAll('main section, main dl > div').length");
     assert.ok(rows > 0, `The ${id} section must render rows`);
   }
 
   /* Appearance: the density radios autosave, with no Save button anywhere. */
   await session.goto("/settings/appearance");
   await until("appearance", async () => hasText(await session.text(), "Density"), 60000);
-  assert.ok(
-    !(await session.exists("button", "Save")),
-    "Settings autosave; no section may carry a Save button",
-  );
+  assert.ok(!(await session.exists("button", "Save")), "Settings autosave; no section may carry a Save button");
   await session.clickNamed("radio", "Touch");
   await until(
     "touch density applied",
-    async () =>
-      (await session.execute("return document.documentElement.dataset.density")) === "touch",
+    async () => (await session.execute("return document.documentElement.dataset.density")) === "touch",
     20000,
   );
   await session.clickNamed("radio", "Comfortable");
   await until(
     "comfortable density applied",
-    async () =>
-      (await session.execute("return document.documentElement.dataset.density")) === "comfortable",
+    async () => (await session.execute("return document.documentElement.dataset.density")) === "comfortable",
     20000,
   );
 
@@ -2160,11 +1900,7 @@ async function settingsJourney(session, notes, work) {
     },
     20000,
   );
-  await until(
-    "policy restart requirement",
-    async () => hasText(await session.text(), "Restart the connected backend"),
-    20000,
-  );
+  await until("policy restart requirement", async () => hasText(await session.text(), "Restart the connected backend"), 20000);
   await session.goto("/settings/appearance");
   await session.goto("/settings/general");
   await until("saved backend policy reread", () =>
@@ -2176,14 +1912,8 @@ async function settingsJourney(session, notes, work) {
 
   /* Plugins: rows with a Settings button, and the plugin page behind it. */
   await session.goto("/settings/plugins");
-  await until(
-    "the plugins section",
-    async () => hasText(await session.text(), "Install A Plugin"),
-    60000,
-  );
-  const rows = await session.execute(
-    `return document.querySelectorAll('button[aria-label="Plugin Settings"]').length`,
-  );
+  await until("the plugins section", async () => hasText(await session.text(), "Install A Plugin"), 60000);
+  const rows = await session.execute(`return document.querySelectorAll('button[aria-label="Plugin Settings"]').length`);
   const configurable = await session.execute(
     `return [...document.querySelectorAll('button[aria-label="Plugin Settings"]')].filter(
        (button) => !button.disabled,
@@ -2194,10 +1924,7 @@ async function settingsJourney(session, notes, work) {
        `--plugin`, and the section has to say where its plugins came from
        rather than leaving the list unexplained. */
     assert.ok(
-      hasText(
-        await session.text(),
-        "Loaded from the launch configuration; managed outside the installation store.",
-      ),
+      hasText(await session.text(), "Loaded from the launch configuration; managed outside the installation store."),
       "With no installed plugin the Plugins section must still name the loaded ones",
     );
     notes.push(
@@ -2206,21 +1933,10 @@ async function settingsJourney(session, notes, work) {
   }
   if (configurable) {
     await session.clickNamed("button", "Plugin Settings");
-    await until(
-      "plugin page",
-      async () => (await session.location()).pathname.startsWith("/settings/plugins/"),
-      30000,
-    );
-    assert.ok(
-      hasText(await session.text(), "Plugins"),
-      "The plugin page must carry its breadcrumb",
-    );
+    await until("plugin page", async () => (await session.location()).pathname.startsWith("/settings/plugins/"), 30000);
+    assert.ok(hasText(await session.text(), "Plugins"), "The plugin page must carry its breadcrumb");
     await session.clickNamed("button", "Back");
-    await until(
-      "back to plugins",
-      async () => (await session.location()).pathname === "/settings/plugins",
-      20000,
-    );
+    await until("back to plugins", async () => (await session.location()).pathname === "/settings/plugins", 20000);
   } else {
     notes.push("settings: no installed plugin declares settings, so the plugin page stayed shut");
   }
@@ -2254,9 +1970,7 @@ async function settingsJourney(session, notes, work) {
     },
     120000,
   ).catch((failure) => {
-    throw new Error(
-      `${failure.message}. The application said: ${announcement || "nothing at all"}`,
-    );
+    throw new Error(`${failure.message}. The application said: ${announcement || "nothing at all"}`);
   });
   assert.match(basename(bundle), /^dokime-diagnostics-.*\.zip$/);
   const retained = join(session.downloads, basename(bundle));
@@ -2287,9 +2001,7 @@ async function reportJourney(session, cycleId) {
     },
     300000,
   ).catch((failure) => {
-    throw new Error(
-      `${failure.message}. The application said: ${announcement || "nothing at all"}`,
-    );
+    throw new Error(`${failure.message}. The application said: ${announcement || "nothing at all"}`);
   });
 
   /* wry unwraps `http::Uri::from_str(webview.uri())` for every IPC message,
@@ -2321,14 +2033,7 @@ async function reportJourney(session, cycleId) {
     for (const budget of [8000, 20000, 45000]) {
       const rendered = await promisify(execFile)(
         chrome,
-        [
-          "--headless=new",
-          "--disable-gpu",
-          "--no-sandbox",
-          `--virtual-time-budget=${budget}`,
-          "--dump-dom",
-          served,
-        ],
+        ["--headless=new", "--disable-gpu", "--no-sandbox", `--virtual-time-budget=${budget}`, "--dump-dom", served],
         { maxBuffer: 64 * 1024 * 1024 },
       );
       dom = rendered.stdout;
@@ -2339,14 +2044,8 @@ async function reportJourney(session, cycleId) {
   }
   const report = dom.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, " ");
   assert.ok(hasText(report, "Frozen Report"), "The report's page bar must name what the file is");
-  assert.ok(
-    /Frozen Report .{0,3} Generated/.test(normalize(report)),
-    "The report must state when it was generated",
-  );
-  assert.ok(
-    !/\bStart\b|Run Again|Pause|Stop\b/.test(report),
-    "A frozen report renders no run controls",
-  );
+  assert.ok(/Frozen Report .{0,3} Generated/.test(normalize(report)), "The report must state when it was generated");
+  assert.ok(!/\bStart\b|Run Again|Pause|Stop\b/.test(report), "A frozen report renders no run controls");
   assert.ok(hasText(report, "Records"), "The report renders its records section");
 }
 
@@ -2378,9 +2077,7 @@ async function touchJourney(session, cycleId) {
     await session.clickNamed("button", "Collapse Sidebar");
   }
   await until("collapsed rail", () => session.exists("button", "Expand Sidebar"), 20000);
-  const railChildren = await session.execute(
-    "return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;",
-  );
+  const railChildren = await session.execute("return document.querySelectorAll('nav[aria-label=Navigation] li[data-level=case]').length;");
   assert.equal(railChildren, 0, "A collapsed rail must hide its children");
 
   /* The sidebar tree is the one execution switcher: expanding the rail
@@ -2410,10 +2107,7 @@ async function touchJourney(session, cycleId) {
         : null;
     `),
   );
-  assert.ok(
-    share >= 80,
-    `At touch the dialog must be a full-width sheet (measured ${share}% of the viewport)`,
-  );
+  assert.ok(share >= 80, `At touch the dialog must be a full-width sheet (measured ${share}% of the viewport)`);
   await session.key("Escape");
   await delay(500);
 
@@ -2461,17 +2155,11 @@ async function journey(name, run) {
     if (session && !session.closed) {
       try {
         const shot = await session.screenshot(`failure-${name}`);
-        await writeFile(
-          join(evidence, `failure-${name}.txt`),
-          await session.text().catch(() => session.lastBody ?? ""),
-        );
+        await writeFile(join(evidence, `failure-${name}.txt`), await session.text().catch(() => session.lastBody ?? ""));
         /* What the application asked the shell to do, and how long each call
            took: a journey that waits on something that never answers says so
            here and nowhere else. */
-        await writeFile(
-          join(evidence, `invokes-${name}.json`),
-          JSON.stringify(await drainInvokeLedger(session), null, 2),
-        );
+        await writeFile(join(evidence, `invokes-${name}.json`), JSON.stringify(await drainInvokeLedger(session), null, 2));
         process.stdout.write(`   evidence: ${shot}\n`);
       } catch {
         // A dead WebView has no DOM left to photograph.
@@ -2502,9 +2190,7 @@ async function sha256(path) {
 
 async function installWindowsCandidate() {
   if (process.env.DOKIME_E2E_DISPOSABLE_WINDOWS !== "1") {
-    throw new Error(
-      "Installer acceptance requires a disposable interactive Windows account: set DOKIME_E2E_DISPOSABLE_WINDOWS=1 there.",
-    );
+    throw new Error("Installer acceptance requires a disposable interactive Windows account: set DOKIME_E2E_DISPOSABLE_WINDOWS=1 there.");
   }
   if (configuredOrigin || process.env.DOKIME_E2E_SHELL || process.env.DOKIME_E2E_BACKEND) {
     throw new Error(
@@ -2512,35 +2198,20 @@ async function installWindowsCandidate() {
     );
   }
   const installer = process.env.DOKIME_E2E_INSTALLER;
-  if (!installer || !existsSync(installer))
-    throw new Error("DOKIME_E2E_INSTALLER must name the candidate NSIS installer.");
+  if (!installer || !existsSync(installer)) throw new Error("DOKIME_E2E_INSTALLER must name the candidate NSIS installer.");
   const checks = [
     ["installer", installer, process.env.DOKIME_E2E_INSTALLER_SHA256],
     ["shell", join(work, "installation", "dokime-gui.exe"), process.env.DOKIME_E2E_SHELL_SHA256],
-    [
-      "backend",
-      join(work, "installation", "dokime-server.exe"),
-      process.env.DOKIME_E2E_BACKEND_SHA256,
-    ],
+    ["backend", join(work, "installation", "dokime-server.exe"), process.env.DOKIME_E2E_BACKEND_SHA256],
     ["cli", join(work, "installation", "dokime.exe"), process.env.DOKIME_E2E_CLI_SHA256],
   ];
   for (const [label, , expected] of checks) {
-    if (!/^[a-f0-9]{64}$/.test(expected ?? ""))
-      throw new Error(`Missing candidate SHA-256 for ${label}.`);
+    if (!/^[a-f0-9]{64}$/.test(expected ?? "")) throw new Error(`Missing candidate SHA-256 for ${label}.`);
   }
-  if (
-    !process.env.DOKIME_E2E_PLUGIN ||
-    !/^[a-f0-9]{64}$/.test(process.env.DOKIME_E2E_PLUGIN_SHA256 ?? "")
-  ) {
-    throw new Error(
-      "Windows acceptance requires the candidate OBC fixture path and DOKIME_E2E_PLUGIN_SHA256.",
-    );
+  if (!process.env.DOKIME_E2E_PLUGIN || !/^[a-f0-9]{64}$/.test(process.env.DOKIME_E2E_PLUGIN_SHA256 ?? "")) {
+    throw new Error("Windows acceptance requires the candidate OBC fixture path and DOKIME_E2E_PLUGIN_SHA256.");
   }
-  assert.equal(
-    await sha256(pluginBundle),
-    process.env.DOKIME_E2E_PLUGIN_SHA256,
-    "the fixture matches the selected candidate",
-  );
+  assert.equal(await sha256(pluginBundle), process.env.DOKIME_E2E_PLUGIN_SHA256, "the fixture matches the selected candidate");
   assert.equal(await sha256(installer), checks[0][2], "installer matches the selected candidate");
   installation = join(work, "installation");
   installerAttempted = true;
@@ -2592,9 +2263,7 @@ async function stopBackend() {
   if (owned.child.startupError) throw owned.child.startupError;
   owned.child.stdin.end();
   const exited =
-    owned.child.exitCode === null
-      ? once(owned.child, "exit")
-      : Promise.resolve([owned.child.exitCode, owned.child.signalCode]);
+    owned.child.exitCode === null ? once(owned.child, "exit") : Promise.resolve([owned.child.exitCode, owned.child.signalCode]);
   const timer = new AbortController();
   try {
     const [code, signal] = await Promise.race([
@@ -2625,11 +2294,7 @@ async function ownedStartupJourney() {
   assert.ok(await listening(status.connection.endpoint), "the native companion is listening");
   await session.screenshot("owned-startup");
   await closeSession();
-  await until(
-    "owned backend drains on window close",
-    async () => !(await listening(status.connection.endpoint)),
-    30000,
-  );
+  await until("owned backend drains on window close", async () => !(await listening(status.connection.endpoint)), 30000);
   await writeFile(join(evidence, "owned-startup.json"), JSON.stringify(status, null, 2));
 }
 
@@ -2638,16 +2303,10 @@ async function restartJourney() {
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
   `);
-  assert.ok(
-    previous.connection?.backend?.epoch,
-    "the first native connection reports its backend epoch",
-  );
+  assert.ok(previous.connection?.backend?.epoch, "the first native connection reports its backend epoch");
   const endpoint = backend.endpoint;
   await closeSession();
-  assert.ok(
-    await listening(endpoint),
-    "closing the attached shell leaves its backend alive",
-  );
+  assert.ok(await listening(endpoint), "closing the attached shell leaves its backend alive");
   await stopBackend();
   backend = await startBackend(work, evidence, endpoint, "backend-restart");
   session = await startSession(work, endpoint, evidence);
@@ -2656,10 +2315,7 @@ async function restartJourney() {
     const done = arguments[arguments.length - 1];
     globalThis.__TAURI_INTERNALS__.invoke('desktop_session_status').then(done, (error) => done({error: String(error)}));
   `);
-  assert.ok(
-    current.connection?.backend?.epoch,
-    "the restarted native connection reports its backend epoch",
-  );
+  assert.ok(current.connection?.backend?.epoch, "the restarted native connection reports its backend epoch");
   assert.notEqual(
     current.connection.backend.epoch,
     previous.connection.backend.epoch,
@@ -2667,11 +2323,7 @@ async function restartJourney() {
   );
   assert.equal(current.ownership, "attached");
   await session.goto("/history");
-  await until(
-    "saved evidence survives native restart",
-    async () => (await session.findAll("css selector", "tbody tr")).length > 0,
-    60000,
-  );
+  await until("saved evidence survives native restart", async () => (await session.findAll("css selector", "tbody tr")).length > 0, 60000);
   await setDensity(session, densities.desktop);
   const cycle = await libraryJourney(session);
   await cycleJourney(session, cycle);
@@ -2687,11 +2339,7 @@ async function writeJunit() {
         return code >= 32 || code === 9 || code === 10 || code === 13;
       })
       .join("")
-      .replace(
-        /[&<>"']/g,
-        (character) =>
-          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character],
-      );
+      .replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[character]);
   const cases = [...results];
   for (const failure of failures) {
     const existing = cases.find((result) => result.name === failure.name);
@@ -2706,7 +2354,9 @@ async function writeJunit() {
     .join("\n");
   const outcome = failed.length
     ? `<failure message="${escapeXml(`${failed.length} scene(s) failed`)}">${escapeXml(detail)}</failure>`
-    : skipped ? "<skipped/>" : "";
+    : skipped
+      ? "<skipped/>"
+      : "";
   const story = `<testcase classname="dokime.native.${process.platform}" name="Desktop Backend Walkthrough" time="${seconds}">${outcome}<system-out>${escapeXml(detail)}</system-out></testcase>`;
   await mkdir(dirname(resolve(options.junit)), { recursive: true });
   await writeFile(
@@ -2722,7 +2372,14 @@ async function serveDevelopmentAssets() {
   const origin = new URL(configuredOrigin ?? "http://127.0.0.1:5173");
   assert.equal(origin.protocol, "http:");
   assert.equal(origin.hostname, "127.0.0.1", "the development frontend stays on loopback");
-  const types = { ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
+  const types = {
+    ".html": "text/html",
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+  };
   frontendServer = http.createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, origin).pathname);
@@ -2747,10 +2404,8 @@ async function serveDevelopmentAssets() {
 }
 
 async function main() {
-  if (!windows && process.platform !== "linux")
-    throw new Error("Native acceptance requires Windows WebView2 or Linux WebKitGTK.");
-  if (releaseValidation && selectedJourneys.size)
-    throw new Error("Installed release validation requires every maintained journey.");
+  if (!windows && process.platform !== "linux") throw new Error("Native acceptance requires Windows WebView2 or Linux WebKitGTK.");
+  if (releaseValidation && selectedJourneys.size) throw new Error("Installed release validation requires every maintained journey.");
   if (!windows && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new Error("Driving the native WebView needs a running display session.");
   }
@@ -2769,8 +2424,7 @@ async function main() {
     ["the desktop shell", shellBinary],
     ["the OBC charger plugin bundle", pluginBundle],
   ]) {
-    if (!existsSync(path))
-      throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
+    if (!existsSync(path)) throw new Error(`Missing ${label} at ${path}. Use the same candidate's prepared artifacts.`);
   }
 
   if (windows) {
@@ -2851,9 +2505,12 @@ try {
   for (const [name, cleanup] of [
     ["shell shutdown", closeSession],
     ["backend shutdown", stopBackend],
-    ["frontend shutdown", async () => {
-      if (frontendServer?.listening) await new Promise((done) => frontendServer.close(done));
-    }],
+    [
+      "frontend shutdown",
+      async () => {
+        if (frontendServer?.listening) await new Promise((done) => frontendServer.close(done));
+      },
+    ],
   ]) {
     try {
       await cleanup();
@@ -2862,24 +2519,14 @@ try {
     }
   }
   if (driverProcess)
-    await terminate(driverProcess).catch((error) =>
-      failures.push({ kind: "failure", name: "shell cleanup", reason: error.message }),
-    );
+    await terminate(driverProcess).catch((error) => failures.push({ kind: "failure", name: "shell cleanup", reason: error.message }));
   if (backend) {
-    await terminate(backend.child).catch((error) =>
-      failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }),
-    );
-    await backend.log
-      .close()
-      .catch((error) =>
-        failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }),
-      );
+    await terminate(backend.child).catch((error) => failures.push({ kind: "failure", name: "backend cleanup", reason: error.message }));
+    await backend.log.close().catch((error) => failures.push({ kind: "failure", name: "backend log cleanup", reason: error.message }));
   }
   if (installerAttempted) {
     try {
-      const uninstallers = (await readdir(installation)).filter((name) =>
-        /^uninstall.*\.exe$/i.test(name),
-      );
+      const uninstallers = (await readdir(installation)).filter((name) => /^uninstall.*\.exe$/i.test(name));
       assert.equal(uninstallers.length, 1, "the candidate installs its native uninstaller");
       await promisify(execFile)(join(installation, uninstallers[0]), ["/S", `_?=${installation}`], {
         windowsVerbatimArguments: true,
@@ -2905,9 +2552,7 @@ if (failures.length) {
   for (const kind of ["defect", "failure"]) {
     const group = failures.filter((entry) => entry.kind === kind);
     if (!group.length) continue;
-    process.stdout.write(
-      `\n${group.length} ${kind === "defect" ? "product defect(s)" : "journey failure(s)"}:\n`,
-    );
+    process.stdout.write(`\n${group.length} ${kind === "defect" ? "product defect(s)" : "journey failure(s)"}:\n`);
     for (const entry of group) process.stdout.write(`  - ${entry.name}: ${entry.reason}\n`);
   }
   process.stdout.write(`\nEvidence: ${evidence}\n`);
@@ -2915,6 +2560,5 @@ if (failures.length) {
 } else {
   process.stdout.write(`\nNative WebView: ${passedJourneys.join(", ")} passed.\n`);
   process.stdout.write(`Evidence: ${evidence}\n`);
-  if (!process.env.DOKIME_E2E_KEEP && !options.junit)
-    await rm(evidence, { force: true, recursive: true });
+  if (!process.env.DOKIME_E2E_KEEP && !options.junit) await rm(evidence, { force: true, recursive: true });
 }

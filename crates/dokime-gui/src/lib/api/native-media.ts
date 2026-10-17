@@ -42,19 +42,13 @@ export type NativeAudioRecording = {
 /* === Public Functions === */
 
 /** Capture the primary display as `screenshots/<timestamp>.png`; returns the artifact name. */
-export async function captureNativeScreenshot(
-  session: SessionIdentity,
-  scope: RecordScope,
-): Promise<string> {
+export async function captureNativeScreenshot(session: SessionIdentity, scope: RecordScope): Promise<string> {
   const artifact = await rpc.mediaScreenshot(session, { scope: uploadScope(scope) });
   return artifact.filename;
 }
 
 /** Capture one frame of the first camera as `photos/<timestamp>.jpg`; returns the artifact name. */
-export async function captureNativePhoto(
-  session: SessionIdentity,
-  scope: RecordScope,
-): Promise<string> {
+export async function captureNativePhoto(session: SessionIdentity, scope: RecordScope): Promise<string> {
   const artifact = await rpc.mediaPhoto(session, { scope: uploadScope(scope) });
   return artifact.filename;
 }

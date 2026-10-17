@@ -24,20 +24,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatNumber } from "@/lib/format";
-import {
-  type PromptValue,
-  type PromptValues,
-  promptFieldDefault,
-  promptFieldError,
-} from "@/lib/prompts";
+import { type PromptValue, type PromptValues, promptFieldDefault, promptFieldError } from "@/lib/prompts";
 import type { PromptField, PromptRequest } from "@/lib/types";
 import { occurrenceKeys } from "@/lib/utils";
 
@@ -54,14 +43,7 @@ type PromptPanelProps = {
 
 /* === Components === */
 
-export function PromptPanel({
-  prompt,
-  submittingAction = null,
-  values,
-  emergencyAction,
-  onAction,
-  onValueChange,
-}: PromptPanelProps) {
+export function PromptPanel({ prompt, submittingAction = null, values, emergencyAction, onAction, onValueChange }: PromptPanelProps) {
   if (!prompt) {
     return null;
   }
@@ -84,20 +66,9 @@ export function PromptPanel({
   );
 }
 
-function StatusPromptDialog({
-  emergencyAction,
-  prompt,
-}: {
-  emergencyAction?: ReactNode;
-  prompt: PromptRequest;
-}) {
+function StatusPromptDialog({ emergencyAction, prompt }: { emergencyAction?: ReactNode; prompt: PromptRequest }) {
   return (
-    <div
-      aria-live="polite"
-      aria-labelledby="active-prompt-title"
-      className="grid min-w-0 gap-4"
-      role="status"
-    >
+    <div aria-live="polite" aria-labelledby="active-prompt-title" className="grid min-w-0 gap-4" role="status">
       <div className="flex min-w-0 gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <LoaderCircle className="animate-spin" size={18} />
@@ -108,26 +79,16 @@ function StatusPromptDialog({
             {prompt.title}
           </strong>
           {prompt.message ? (
-            <p className="whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {prompt.message}
-            </p>
+            <p className="whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">{prompt.message}</p>
           ) : null}
         </div>
       </div>
-      {emergencyAction ? (
-        <div className="flex justify-end border-t pt-3">{emergencyAction}</div>
-      ) : null}
+      {emergencyAction ? <div className="flex justify-end border-t pt-3">{emergencyAction}</div> : null}
     </div>
   );
 }
 
-function VerificationPromptDialog({
-  emergencyAction,
-  prompt,
-}: {
-  emergencyAction?: ReactNode;
-  prompt: PromptRequest;
-}) {
+function VerificationPromptDialog({ emergencyAction, prompt }: { emergencyAction?: ReactNode; prompt: PromptRequest }) {
   return (
     <section aria-labelledby="active-prompt-title" className="grid min-w-0 gap-4">
       <div className="flex min-w-0 gap-3">
@@ -140,9 +101,7 @@ function VerificationPromptDialog({
             {prompt.title}
           </strong>
           {prompt.message ? (
-            <p className="whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {prompt.message}
-            </p>
+            <p className="whitespace-pre-line text-sm text-muted-foreground [overflow-wrap:anywhere]">{prompt.message}</p>
           ) : null}
         </div>
       </div>
@@ -151,9 +110,7 @@ function VerificationPromptDialog({
         <p className="text-xs font-bold uppercase text-muted-foreground">Required Condition</p>
         <p className="mt-1 text-sm font-medium">{verificationConditionLabel(prompt)}</p>
       </div>
-      {emergencyAction ? (
-        <div className="flex justify-end border-t pt-3">{emergencyAction}</div>
-      ) : null}
+      {emergencyAction ? <div className="flex justify-end border-t pt-3">{emergencyAction}</div> : null}
     </section>
   );
 }
@@ -164,21 +121,12 @@ function verificationConditionLabel(prompt: PromptRequest) {
     return "Verification condition";
   }
   if (condition.kind === "record") {
-    const detailLabels = Object.entries(condition.details ?? {}).map(
-      ([key, value]) => `${key}=${String(value)}`,
-    );
-    return detailLabels.length
-      ? `${condition.record_type} with ${detailLabels.join(", ")}`
-      : condition.record_type;
+    const detailLabels = Object.entries(condition.details ?? {}).map(([key, value]) => `${key}=${String(value)}`);
+    return detailLabels.length ? `${condition.record_type} with ${detailLabels.join(", ")}` : condition.record_type;
   }
   const unit = condition.unit ? ` ${condition.unit}` : "";
-  const tolerance =
-    condition.operator === "within"
-      ? ` +/- ${promptNumber(condition.tolerance ?? 0.5)}${unit}`
-      : "";
-  return `${condition.stream}.${condition.field} ${operatorLabel(
-    condition.operator,
-  )} ${promptNumber(condition.target)}${unit}${tolerance}`;
+  const tolerance = condition.operator === "within" ? ` +/- ${promptNumber(condition.tolerance ?? 0.5)}${unit}` : "";
+  return `${condition.stream}.${condition.field} ${operatorLabel(condition.operator)} ${promptNumber(condition.target)}${unit}${tolerance}`;
 }
 
 function operatorLabel(operator: string) {
@@ -203,9 +151,7 @@ function operatorLabel(operator: string) {
 /* A verification threshold reads as up to three decimals; a number the payload
  * cannot express reads as a dash rather than as empty space. */
 function promptNumber(value: number): string {
-  return Number.isFinite(value)
-    ? formatNumber(value, { kind: "normal", max_fraction_digits: 3 })
-    : "-";
+  return Number.isFinite(value) ? formatNumber(value, { kind: "normal", max_fraction_digits: 3 }) : "-";
 }
 
 function PromptDialog({
@@ -223,9 +169,7 @@ function PromptDialog({
   onAction: (action: string) => void;
   onValueChange: (field: PromptField, value: PromptValue) => void;
 }) {
-  const fieldErrors = Object.fromEntries(
-    prompt.fields.map((field) => [field.name, promptFieldError(field, values[field.name])]),
-  );
+  const fieldErrors = Object.fromEntries(prompt.fields.map((field) => [field.name, promptFieldError(field, values[field.name])]));
   const invalidFields = Object.values(fieldErrors).some(Boolean);
 
   return (
@@ -247,17 +191,10 @@ function PromptDialog({
         <div className="grid gap-3">
           {prompt.fields.map((field) => (
             <div className="grid gap-1.5" key={field.name}>
-              <Label
-                className="text-xs font-bold uppercase text-muted-foreground"
-                htmlFor={promptFieldId(field)}
-              >
+              <Label className="text-xs font-bold uppercase text-muted-foreground" htmlFor={promptFieldId(field)}>
                 {field.label}
               </Label>
-              <PromptFieldControl
-                field={field}
-                value={values[field.name]}
-                onChange={onValueChange}
-              />
+              <PromptFieldControl field={field} value={values[field.name]} onChange={onValueChange} />
               {fieldErrors[field.name] ? (
                 <p className="text-xs text-destructive" role="status">
                   {fieldErrors[field.name]}
@@ -275,10 +212,7 @@ function PromptDialog({
             <Button
               key={action.id}
               variant={action.emphasis}
-              disabled={
-                submittingAction !== null ||
-                (invalidFields && !["cancel", "abort"].includes(action.id))
-              }
+              disabled={submittingAction !== null || (invalidFields && !["cancel", "abort"].includes(action.id))}
               onClick={() => onAction(action.id)}
             >
               {submittingAction === action.id ? "Submitting..." : action.label}
@@ -380,11 +314,7 @@ function PromptFieldControl({
   }
   if (field.kind === "choice") {
     return (
-      <Select
-        value={String(resolvedValue)}
-        disabled={field.readonly}
-        onValueChange={(next) => onChange(field, next)}
-      >
+      <Select value={String(resolvedValue)} disabled={field.readonly} onValueChange={(next) => onChange(field, next)}>
         <SelectTrigger className="w-full" id={promptFieldId(field)}>
           <SelectValue />
         </SelectTrigger>
@@ -458,11 +388,7 @@ function MultiplePromptFieldControl({
       {occurrenceKeys(entries, (entry) => entry).map(({ key, value: entry }, index) => (
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2" key={`${field.name}-${key}`}>
           {field.kind === "choice" ? (
-            <Select
-              value={entry}
-              disabled={field.readonly}
-              onValueChange={(next) => updateEntry(index, next)}
-            >
+            <Select value={entry} disabled={field.readonly} onValueChange={(next) => updateEntry(index, next)}>
               <SelectTrigger
                 aria-label={`${field.label} entry ${index + 1}`}
                 className="w-full"
@@ -502,14 +428,7 @@ function MultiplePromptFieldControl({
           </Button>
         </div>
       ))}
-      <Button
-        className="justify-self-start"
-        disabled={field.readonly}
-        size="sm"
-        type="button"
-        variant="outline"
-        onClick={addEntry}
-      >
+      <Button className="justify-self-start" disabled={field.readonly} size="sm" type="button" variant="outline" onClick={addEntry}>
         <Plus size={14} />
         Add Entry
       </Button>

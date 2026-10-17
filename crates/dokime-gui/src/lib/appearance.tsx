@@ -22,10 +22,7 @@ import { isReportBuild } from "@/lib/ui-mode";
 
 /* === Types === */
 
-import type {
-  RuntimeAppearanceFrame,
-  ThemeModePolicy as RuntimeThemeModePolicy,
-} from "@/lib/types/view-contracts";
+import type { RuntimeAppearanceFrame, ThemeModePolicy as RuntimeThemeModePolicy } from "@/lib/types/view-contracts";
 
 export type {
   RuntimeAppearanceFrame,
@@ -62,9 +59,7 @@ export const appearanceQueryKey = ["appearance"] as const;
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const nativeResource = useNativeAppearance();
   const appearance = useMemo<Appearance>(() => {
-    const frame = nativeResource
-      ? appearanceFrameFromNative(nativeResource)
-      : defaultAppearanceFrame;
+    const frame = nativeResource ? appearanceFrameFromNative(nativeResource) : defaultAppearanceFrame;
     return { ...frame, themes: frame.themes ?? [] };
   }, [nativeResource]);
   const brand = useMemo(() => brandFromAppearance(appearance), [appearance]);
@@ -157,15 +152,11 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
           }
         : undefined,
       light: {
-        variables: Object.fromEntries(
-          (theme.light?.variables ?? []).map(({ key, value }) => [key, value]),
-        ),
+        variables: Object.fromEntries((theme.light?.variables ?? []).map(({ key, value }) => [key, value])),
         plot_palette: [...(theme.light?.plotPalette ?? [])],
       },
       dark: {
-        variables: Object.fromEntries(
-          (theme.dark?.variables ?? []).map(({ key, value }) => [key, value]),
-        ),
+        variables: Object.fromEntries((theme.dark?.variables ?? []).map(({ key, value }) => [key, value])),
         plot_palette: [...(theme.dark?.plotPalette ?? [])],
       },
     })),
@@ -177,9 +168,7 @@ function appearanceFrameFromNative(resource: AppearanceResource): RuntimeAppeara
   };
 }
 
-function nativeModePolicy(
-  policy: AppearanceResource["appearance"]["modePolicy"],
-): RuntimeThemeModePolicy {
+function nativeModePolicy(policy: AppearanceResource["appearance"]["modePolicy"]): RuntimeThemeModePolicy {
   switch (policy?.HarmosVariant.case) {
     case "ForceSystem":
       return "force_system";

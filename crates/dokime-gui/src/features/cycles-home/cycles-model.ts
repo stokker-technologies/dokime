@@ -74,10 +74,7 @@ const STATUS_LABELS: Record<CycleRow["status"], string> = {
 
 /* === Public Functions === */
 
-export function cycleRows(
-  cycles: CycleSummary[],
-  attentionByCycleId: ReadonlyMap<string, number>,
-): CycleRow[] {
+export function cycleRows(cycles: CycleSummary[], attentionByCycleId: ReadonlyMap<string, number>): CycleRow[] {
   return cycles.map((cycle) => ({
     attentionCount: attentionByCycleId.get(cycle.cycleId) ?? 0,
     caseCount: Number(cycle.caseCount),
@@ -107,13 +104,9 @@ export function cycleRows(
 export function groupCycleRows(rows: CycleRow[], filtered = false): CycleGroup[] {
   const attention = rows.filter((row) => row.attentionCount > 0 || row.status === "Blocked");
   const attentionIds = new Set(attention.map((row) => row.cycleId));
-  const active = rows.filter(
-    (row) => !attentionIds.has(row.cycleId) && ACTIVE_STATUSES.includes(row.status),
-  );
+  const active = rows.filter((row) => !attentionIds.has(row.cycleId) && ACTIVE_STATUSES.includes(row.status));
   const activeIds = new Set(active.map((row) => row.cycleId));
-  const recent = rows.filter(
-    (row) => !attentionIds.has(row.cycleId) && !activeIds.has(row.cycleId),
-  );
+  const recent = rows.filter((row) => !attentionIds.has(row.cycleId) && !activeIds.has(row.cycleId));
 
   return [
     {
@@ -190,9 +183,7 @@ function finishedCases(cycle: CycleSummary): number {
   const result = cycle.result;
   if (!result) return 0;
   const ended = result.passed + result.failed + result.blocked;
-  return SEALED_STATUSES.includes(cycle.status?.HarmosVariant.case ?? "")
-    ? ended + result.skipped
-    : ended;
+  return SEALED_STATUSES.includes(cycle.status?.HarmosVariant.case ?? "") ? ended + result.skipped : ended;
 }
 
 function isoOrNull(milliseconds: number | null): string | null {

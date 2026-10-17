@@ -46,9 +46,7 @@ test("Summary Skip", () => {
 });
 
 test("Append Requires Cycle", () => {
-  const selections: TestCycleSelection[] = [
-    { parameters: { current: [16] }, suite_id: "suite.charger", template_id: "charge" },
-  ];
+  const selections: TestCycleSelection[] = [{ parameters: { current: [16] }, suite_id: "suite.charger", template_id: "charge" }];
 
   // Without An Active Cycle Nothing Is Added
   assert.equal(caseAppend(undefined, selections), null);

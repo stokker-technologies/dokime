@@ -24,8 +24,7 @@ export type HistoryArchiveView = "Unarchived" | "Archived" | "All";
 
 export const exploreQueryKeys = {
   all: ["explore"] as const,
-  history: (text = "", archive: HistoryArchiveView = "Unarchived") =>
-    ["explore", "executions", { archive, text }] as const,
+  history: (text = "", archive: HistoryArchiveView = "Unarchived") => ["explore", "executions", { archive, text }] as const,
 };
 
 /* === Query Hooks === */
@@ -60,8 +59,7 @@ export function useExploreHistoryQuery(text = "", archive: HistoryArchiveView = 
   const query = useInfiniteQuery({
     queryKey: exploreQueryKeys.history(needle, archive),
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam, signal }) =>
-      fetchExecutionPage(session.identity, pageParam, signal, selection),
+    queryFn: ({ pageParam, signal }) => fetchExecutionPage(session.identity, pageParam, signal, selection),
     getNextPageParam: (page) => page.next ?? undefined,
     staleTime: 30_000,
   });

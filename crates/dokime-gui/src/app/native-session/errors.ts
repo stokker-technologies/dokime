@@ -6,10 +6,8 @@ import { backupFailure } from "./storage-backup-model";
 export function connectionError(error: unknown): string {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
-  if (!error || typeof error !== "object" || !("kind" in error))
-    return "The backend could not be reached.";
-  if ((error.kind === "connection" || error.kind === "archived") && "error" in error)
-    return connectionError(error.error);
+  if (!error || typeof error !== "object" || !("kind" in error)) return "The backend could not be reached.";
+  if ((error.kind === "connection" || error.kind === "archived") && "error" in error) return connectionError(error.error);
   if ("message" in error && typeof error.message === "string") return error.message;
   switch (error.kind) {
     case "local_backend_unavailable":
@@ -43,10 +41,8 @@ export function connectionError(error: unknown): string {
 export function startupDiagnostics(error: unknown): BackendDiagnostics | null {
   const backup = backupFailure(error);
   if (backup) return startupDiagnostics(backup.error);
-  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "startup")
-    return null;
-  if (!("diagnostics" in error) || !error.diagnostics || typeof error.diagnostics !== "object")
-    return null;
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "startup") return null;
+  if (!("diagnostics" in error) || !error.diagnostics || typeof error.diagnostics !== "object") return null;
   return error.diagnostics as BackendDiagnostics;
 }
 

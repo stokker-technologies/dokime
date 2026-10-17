@@ -18,11 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
 import { fetchNativeSuites } from "@/lib/api/native-catalog";
-import {
-  appendNativeTestCycle,
-  listNativeCycles,
-  previewNativeTestCycle,
-} from "@/lib/api/native-planning";
+import { appendNativeTestCycle, listNativeCycles, previewNativeTestCycle } from "@/lib/api/native-planning";
 import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 
 /* === Query Keys === */
@@ -30,8 +26,7 @@ import type { PreviewTestCycleRequest, TestCycleSelection } from "@/lib/types";
 export const suiteQueryKeys = {
   all: ["suite"] as const,
   cycleLabel: (cycleId: string) => [...suiteQueryKeys.all, "cycle-label", cycleId] as const,
-  preview: (request: PreviewTestCycleRequest) =>
-    [...suiteQueryKeys.all, "preview", request] as const,
+  preview: (request: PreviewTestCycleRequest) => [...suiteQueryKeys.all, "preview", request] as const,
   suites: () => [...suiteQueryKeys.all, "suites"] as const,
 };
 
@@ -49,8 +44,7 @@ export function useTestSuitesQuery() {
 export function usePreviewTestCycleMutation() {
   const session = useNativeSession();
   return useMutation({
-    mutationFn: (request: PreviewTestCycleRequest) =>
-      previewNativeTestCycle(session.identity, request),
+    mutationFn: (request: PreviewTestCycleRequest) => previewNativeTestCycle(session.identity, request),
   });
 }
 
@@ -63,10 +57,7 @@ export function useAppendTestCycleMutation() {
     mutationFn: ({ cycleId, selections }: { cycleId: string; selections: TestCycleSelection[] }) =>
       appendNativeTestCycle(session.identity, cycleId, selections),
     onSuccess: async () => {
-      await Promise.all([
-        invalidateWorkflowResourceQueries(queryClient),
-        queryClient.invalidateQueries({ queryKey: suiteQueryKeys.all }),
-      ]);
+      await Promise.all([invalidateWorkflowResourceQueries(queryClient), queryClient.invalidateQueries({ queryKey: suiteQueryKeys.all })]);
     },
   });
 }

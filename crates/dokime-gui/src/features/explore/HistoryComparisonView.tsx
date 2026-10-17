@@ -82,23 +82,14 @@ export function HistoryComparisonView({ cycles, onBack }: HistoryComparisonViewP
           <ArrowLeft />
           History Library
         </Button>
-        <span className="text-sm text-muted-foreground">
-          {cycles.length >= 2 ? `Comparing ${cycles.length} entries` : "Comparison"}
-        </span>
+        <span className="text-sm text-muted-foreground">{cycles.length >= 2 ? `Comparing ${cycles.length} entries` : "Comparison"}</span>
       </div>
 
       {cycles.length < 2 ? (
-        <p className="p-[var(--shell-inset)] text-sm text-muted-foreground">
-          Select at least two entries in the library to compare them.
-        </p>
+        <p className="p-[var(--shell-inset)] text-sm text-muted-foreground">Select at least two entries in the library to compare them.</p>
       ) : (
         <>
-          <DataTable
-            columns={columns}
-            data={COMPARISON_ROWS}
-            emptyText="Nothing to compare."
-            getRowId={rowLabel}
-          />
+          <DataTable columns={columns} data={COMPARISON_ROWS} emptyText="Nothing to compare." getRowId={rowLabel} />
           <p className="px-[var(--shell-inset)] py-[var(--shell-gap)] text-xs text-muted-foreground">
             Comparison covers the summary metrics above.
           </p>

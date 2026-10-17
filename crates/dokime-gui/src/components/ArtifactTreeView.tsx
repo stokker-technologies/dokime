@@ -68,14 +68,8 @@ type ArtifactTreeViewProps = ArtifactTreeProps & {
 /* === Components === */
 
 export function ArtifactTreeView({ artifacts, emptyMessage, runDir, actions, renderTextPreview }: ArtifactTreeViewProps) {
-  const visibleArtifacts = useMemo(
-    () => visibleArtifactInputs(artifacts, runDir),
-    [artifacts, runDir],
-  );
-  const tree = useMemo(
-    () => buildArtifactTree(visibleArtifacts, runDir),
-    [visibleArtifacts, runDir],
-  );
+  const visibleArtifacts = useMemo(() => visibleArtifactInputs(artifacts, runDir), [artifacts, runDir]);
+  const tree = useMemo(() => buildArtifactTree(visibleArtifacts, runDir), [visibleArtifacts, runDir]);
 
   if (!visibleArtifacts.length) {
     return <ArtifactEmptyState message={emptyMessage} />;
@@ -83,7 +77,6 @@ export function ArtifactTreeView({ artifacts, emptyMessage, runDir, actions, ren
 
   return <ArtifactFileBrowser actions={actions} tree={tree} renderTextPreview={renderTextPreview} />;
 }
-
 
 function ArtifactFileBrowser({
   actions,
@@ -139,10 +132,7 @@ function ArtifactFileBrowser({
 
   return (
     <>
-      <div
-        className="artifact-tree overflow-hidden rounded-md border bg-background text-sm"
-        data-testid="artifact-tree"
-      >
+      <div className="artifact-tree overflow-hidden rounded-md border bg-background text-sm" data-testid="artifact-tree">
         <header className="grid min-h-8 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b bg-muted/35 px-2.5 py-1.5 text-xs">
           <strong>Explorer</strong>
           <span className="text-muted-foreground">
@@ -174,15 +164,11 @@ function ArtifactFileBrowser({
               level={0}
               nativeDownloadEnabled={actions !== undefined}
               nativeDownloadBusy={downloadingArtifactId !== null}
-              nativeDownloadError={
-                downloadError?.artifactId === artifact.artifact_id ? downloadError.message : null
-              }
+              nativeDownloadError={downloadError?.artifactId === artifact.artifact_id ? downloadError.message : null}
               nativeOpenEnabled={actions !== undefined}
               nativePreviewEnabled={actions !== undefined && renderTextPreview !== undefined}
               nativeOpenBusy={openingArtifactId !== null}
-              nativeOpenError={
-                openError?.artifactId === artifact.artifact_id ? openError.message : null
-              }
+              nativeOpenError={openError?.artifactId === artifact.artifact_id ? openError.message : null}
               onOpenTextArtifact={setSelectedTextArtifact}
               onOpenArtifact={openArtifact}
               onDownloadArtifact={downloadArtifact}
@@ -248,11 +234,7 @@ function ArtifactFolder({
         ) : (
           <ChevronRight className="text-muted-foreground" size={14} />
         )}
-        {expanded ? (
-          <FolderOpen className="text-muted-foreground" size={15} />
-        ) : (
-          <Folder className="text-muted-foreground" size={15} />
-        )}
+        {expanded ? <FolderOpen className="text-muted-foreground" size={15} /> : <Folder className="text-muted-foreground" size={15} />}
         <span className="min-w-0 truncate font-medium">{folder.name}</span>
         <span className="text-xs text-muted-foreground">{count}</span>
       </button>
@@ -282,18 +264,10 @@ function ArtifactFolder({
               level={level + 1}
               nativeDownloadEnabled={nativeDownloadEnabled}
               nativeDownloadBusy={nativeDownloadBusy && nativeDownloadError === null}
-              nativeDownloadError={
-                nativeDownloadError?.artifactId === artifact.artifact_id
-                  ? nativeDownloadError.message
-                  : null
-              }
+              nativeDownloadError={nativeDownloadError?.artifactId === artifact.artifact_id ? nativeDownloadError.message : null}
               nativeOpenEnabled={nativeOpenEnabled}
               nativeOpenBusy={nativeOpenBusy && nativeOpenError === null}
-              nativeOpenError={
-                nativeOpenError?.artifactId === artifact.artifact_id
-                  ? nativeOpenError.message
-                  : null
-              }
+              nativeOpenError={nativeOpenError?.artifactId === artifact.artifact_id ? nativeOpenError.message : null}
               nativePreviewEnabled={nativePreviewEnabled}
               onOpenTextArtifact={onOpenTextArtifact}
               onOpenArtifact={onOpenArtifact}
@@ -336,26 +310,18 @@ function ArtifactFile({
   const fileLabel = artifactLabel(artifact.label);
   const size = formatArtifactSize(artifact.size_bytes);
   const primaryHref = artifact.href ?? artifact.downloadHref ?? null;
-  const secondaryHref =
-    artifact.downloadHref && artifact.downloadHref !== primaryHref ? artifact.downloadHref : null;
+  const secondaryHref = artifact.downloadHref && artifact.downloadHref !== primaryHref ? artifact.downloadHref : null;
   const opensLocalFile = isLocalFileHref(primaryHref);
   /* The in-page preview reads the file through the backend. A frozen report
      has no backend and carries the bytes in the row's own href, so there the
      row stays a link rather than offering a viewer that cannot read. */
   const previewText = nativePreviewEnabled && isPreviewableTextArtifact(artifact);
   const nativeTransfer =
-    !primaryHref &&
-    (artifact.group_id !== "execution-files" ||
-      Boolean(artifact.scope?.test_execution_id?.trim() && artifact.path.trim()));
-  const title = [artifact.fileName, fileLabel, artifact.description, artifact.displayPath, size]
-    .filter(Boolean)
-    .join("\n");
+    !primaryHref && (artifact.group_id !== "execution-files" || Boolean(artifact.scope?.test_execution_id?.trim() && artifact.path.trim()));
+  const title = [artifact.fileName, fileLabel, artifact.description, artifact.displayPath, size].filter(Boolean).join("\n");
 
   return (
-    <div
-      className="grid min-h-7 grid-cols-[minmax(0,1fr)_auto] items-center gap-1"
-      style={{ paddingLeft: `${level * 16 + 28}px` }}
-    >
+    <div className="grid min-h-7 grid-cols-[minmax(0,1fr)_auto] items-center gap-1" style={{ paddingLeft: `${level * 16 + 28}px` }}>
       {previewText ? (
         <button
           aria-label={[artifact.fileName, fileLabel].filter(Boolean).join(" ")}
@@ -395,10 +361,7 @@ function ArtifactFile({
           <span className="text-xs tabular-nums text-muted-foreground">{size}</span>
         </button>
       ) : (
-        <div
-          className="grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-md px-2 py-1"
-          title={title}
-        >
+        <div className="grid min-h-7 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 rounded-md px-2 py-1" title={title}>
           <ArtifactIcon mediaType={artifact.media_type} />
           <span className="min-w-0 truncate">{artifact.fileName}</span>
           <span className="text-xs tabular-nums text-muted-foreground">{size}</span>
@@ -408,9 +371,7 @@ function ArtifactFile({
       {nativeDownloadEnabled && nativeTransfer ? (
         <span className="flex items-center gap-0.5">
           <Button
-            aria-label={
-              nativeDownloadError ? `Retry download ${fileLabel}` : `Download ${fileLabel}`
-            }
+            aria-label={nativeDownloadError ? `Retry download ${fileLabel}` : `Download ${fileLabel}`}
             className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             disabled={nativeDownloadBusy || nativeOpenBusy}
             size="icon-sm"
@@ -453,10 +414,7 @@ function ArtifactIcon({ mediaType }: { mediaType?: string | null }) {
   return <Boxes className="shrink-0" size={16} />;
 }
 
-function visibleArtifactInputs(
-  artifacts: ArtifactTreeInput[],
-  runDir?: string | null,
-): ArtifactTreeInput[] {
+function visibleArtifactInputs(artifacts: ArtifactTreeInput[], runDir?: string | null): ArtifactTreeInput[] {
   const visible = artifacts.filter((artifact) => !isMediaArtifact(artifact));
   const deduped = new Map<string, ArtifactTreeInput>();
   visible.forEach((artifact) => {
@@ -468,9 +426,7 @@ function visibleArtifactInputs(
 }
 
 function folderFileCount(folder: ArtifactTreeFolder): number {
-  return (
-    folder.files.length + folder.folders.reduce((total, child) => total + folderFileCount(child), 0)
-  );
+  return folder.files.length + folder.folders.reduce((total, child) => total + folderFileCount(child), 0);
 }
 
 /* === Re-Exports === */

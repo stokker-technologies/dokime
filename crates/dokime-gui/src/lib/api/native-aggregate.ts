@@ -27,9 +27,7 @@ type UnitMember = "Count" | "Sum" | "Mean" | "Median" | "Min" | "Max" | "Rms" | 
 
 /** The init shape of any generated Harmos aggregate message. */
 export type AggregateMessage = {
-  HarmosVariant:
-    | { case: UnitMember; value: Record<string, never> }
-    | { case: "Percentile"; value: { rank: number } };
+  HarmosVariant: { case: UnitMember; value: Record<string, never> } | { case: "Percentile"; value: { rank: number } };
 };
 
 /** What a decoded generated aggregate message exposes. */

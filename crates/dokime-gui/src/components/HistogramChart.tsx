@@ -36,14 +36,7 @@ type HistogramChartProps = {
 
 /* === Components === */
 
-export function HistogramChart({
-  title,
-  distribution,
-  unit,
-  xTitle,
-  format = null,
-  sampleLabel = "samples",
-}: HistogramChartProps) {
+export function HistogramChart({ title, distribution, unit, xTitle, format = null, sampleLabel = "samples" }: HistogramChartProps) {
   const [activeBinIndex, setActiveBinIndex] = useState<number | null>(null);
 
   if (!distribution.count) {
@@ -64,10 +57,7 @@ export function HistogramChart({
       </div>
       <div className="grid min-w-0 gap-2">
         <span className="text-[0.65rem] text-muted-foreground">{HISTOGRAM_COUNT_LABEL}</span>
-        <div
-          className="relative grid h-24 items-end gap-1"
-          style={{ gridTemplateColumns: `repeat(${bins.length}, minmax(0, 1fr))` }}
-        >
+        <div className="relative grid h-24 items-end gap-1" style={{ gridTemplateColumns: `repeat(${bins.length}, minmax(0, 1fr))` }}>
           {activeBinIndex !== null ? (
             <span
               className="pointer-events-none absolute bottom-0 top-0 w-px bg-foreground/60"
@@ -78,11 +68,7 @@ export function HistogramChart({
           ) : null}
           {bins.map((bin, index) => (
             <button
-              aria-label={`${formatHistogramValue(bin.min, unit, format)} to ${formatHistogramValue(
-                bin.max,
-                unit,
-                format,
-              )}: ${bin.count}`}
+              aria-label={`${formatHistogramValue(bin.min, unit, format)} to ${formatHistogramValue(bin.max, unit, format)}: ${bin.count}`}
               className="grid h-full min-w-0 items-end text-left"
               key={bin.slot}
               type="button"
@@ -99,10 +85,7 @@ export function HistogramChart({
             </button>
           ))}
         </div>
-        <div
-          className="grid gap-1"
-          style={{ gridTemplateColumns: `repeat(${bins.length}, minmax(0, 1fr))` }}
-        >
+        <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${bins.length}, minmax(0, 1fr))` }}>
           {bins.map((bin) => (
             <span
               className="block truncate text-center text-[0.65rem] text-muted-foreground"
@@ -113,11 +96,7 @@ export function HistogramChart({
             </span>
           ))}
         </div>
-        {xTitle ? (
-          <span className="truncate text-center text-[0.65rem] text-muted-foreground">
-            {xTitle}
-          </span>
-        ) : null}
+        {xTitle ? <span className="truncate text-center text-[0.65rem] text-muted-foreground">{xTitle}</span> : null}
         <span className="min-h-5 text-xs text-muted-foreground">
           {activeBin
             ? `${formatHistogramValue(activeBin.min, unit, format)} - ${formatHistogramValue(
@@ -134,11 +113,7 @@ export function HistogramChart({
 
 /* === Private Functions === */
 
-function formatHistogramValue(
-  value: number | undefined,
-  unit: string,
-  format: ValueFormat | null,
-): string {
+function formatHistogramValue(value: number | undefined, unit: string, format: ValueFormat | null): string {
   if (value === undefined || !Number.isFinite(value)) {
     return "-";
   }

@@ -37,9 +37,7 @@ export function RuntimeSection({ connection, diagnostics, layout, snapshot }: Ru
   const artifacts = snapshot?.installed_plugins ?? [];
   const readyArtifacts = artifacts.filter((artifact) => artifact.ready).length;
   const failedArtifacts = artifacts.filter((artifact) => artifact.status === "failed").length;
-  const artifactSummary = artifacts.length
-    ? `${readyArtifacts}/${artifacts.length} artifacts ready`
-    : "Artifacts ready";
+  const artifactSummary = artifacts.length ? `${readyArtifacts}/${artifacts.length} artifacts ready` : "Artifacts ready";
   const process = diagnostics?.server.process;
   const runStartedAt = snapshot?.run.started_at ?? null;
   const runFinishedAt = snapshot?.run.finished_at ?? null;
@@ -91,25 +89,16 @@ export function RuntimeSection({ connection, diagnostics, layout, snapshot }: Ru
         <div className="grid gap-2 sm:grid-cols-2">
           {artifacts.length ? (
             artifacts.map((artifact) => (
-              <div
-                className="grid gap-1 rounded-md border bg-muted/20 p-3 text-sm"
-                key={artifact.artifact_id}
-              >
+              <div className="grid gap-1 rounded-md border bg-muted/20 p-3 text-sm" key={artifact.artifact_id}>
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <strong className="truncate">{artifact.artifact_id}</strong>
-                  <Badge variant={artifact.ready ? "outline" : "secondary"}>
-                    {artifact.status}
-                  </Badge>
+                  <Badge variant={artifact.ready ? "outline" : "secondary"}>{artifact.status}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {artifact.runtime} · {artifact.domain_registrations} domain registrations
                   {artifact.cache_hit ? " · cache hit" : ""}
                 </p>
-                {artifact.last_error ? (
-                  <p className="text-xs text-destructive [overflow-wrap:anywhere]">
-                    {artifact.last_error}
-                  </p>
-                ) : null}
+                {artifact.last_error ? <p className="text-xs text-destructive [overflow-wrap:anywhere]">{artifact.last_error}</p> : null}
               </div>
             ))
           ) : (
@@ -140,17 +129,7 @@ function RuntimeMetric({
         <span className="text-xs font-bold uppercase">{label}</span>
         {icon}
       </div>
-      <strong
-        className={
-          tone === "bad"
-            ? "text-destructive"
-            : tone === "warn"
-              ? "text-warning"
-              : tone === "good"
-                ? "text-success"
-                : ""
-        }
-      >
+      <strong className={tone === "bad" ? "text-destructive" : tone === "warn" ? "text-warning" : tone === "good" ? "text-success" : ""}>
         {value}
       </strong>
       <span className="text-xs text-muted-foreground">{detail}</span>

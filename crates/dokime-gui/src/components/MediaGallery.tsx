@@ -17,8 +17,13 @@ import { downloadNativeArtifact, nativeContentSession, openNativeArtifact } from
 import { prepareNativeMedia } from "@/lib/api/native-delivery";
 import { isReportBuild } from "@/lib/ui-mode";
 import {
-  type MediaArtifactCandidate, type MediaPreviewState, type MediaGalleryProps,
-  artifactContentKey, mediaBlobType, isNativeArtifactSource, mediaArtifactSource,
+  type MediaArtifactCandidate,
+  type MediaPreviewState,
+  type MediaGalleryProps,
+  artifactContentKey,
+  mediaBlobType,
+  isNativeArtifactSource,
+  mediaArtifactSource,
 } from "./media-gallery-model";
 import { MediaGallerySurface, useMediaGallery } from "./MediaGalleryView";
 
@@ -56,19 +61,20 @@ export function MediaGallery({ artifacts, emptyMessage, runDir }: MediaGalleryPr
       model={model}
       emptyMessage={emptyMessage}
       preview={preview}
-      actions={session ? {
-        open: (artifact) => openNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
-        download: (artifact) => downloadNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
-      } : undefined}
+      actions={
+        session
+          ? {
+              open: (artifact) => openNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
+              download: (artifact) => downloadNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
+            }
+          : undefined
+      }
     />
   );
 }
 
 /* === Hooks === */
-function useNativeMediaUrls(
-  artifacts: MediaArtifactCandidate[],
-  requestedIds: ReadonlySet<string>,
-): MediaPreviewState {
+function useNativeMediaUrls(artifacts: MediaArtifactCandidate[], requestedIds: ReadonlySet<string>): MediaPreviewState {
   const session = useNativeSessionOptional();
   const [, redraw] = useState(0);
   const entriesRef = useRef(new Map<string, MediaUrlEntry>());
@@ -118,11 +124,7 @@ function useNativeMediaUrls(
         continue;
       }
       const existingEntry = entriesRef.current.get(request.artifact.artifact_id);
-      if (
-        existingEntry &&
-        existingEntry.key === request.key &&
-        existingEntry.generation === request.generation
-      ) {
+      if (existingEntry && existingEntry.key === request.key && existingEntry.generation === request.generation) {
         continue;
       }
       if (requestsRef.current.has(request.artifact.artifact_id)) continue;
@@ -172,8 +174,7 @@ function useNativeMediaUrls(
             errorsRef.current.set(request.artifact.artifact_id, {
               generation: request.generation,
               key: request.key,
-              message:
-                error instanceof Error ? error.message : "Unable to load this media preview.",
+              message: error instanceof Error ? error.message : "Unable to load this media preview.",
             });
             redraw((value) => value + 1);
           }
@@ -359,13 +360,8 @@ function useNativeMediaUrls(
   );
 
   return {
-    errors: Object.fromEntries(
-      [...errorsRef.current].map(([artifactId, error]) => [artifactId, error.message]),
-    ),
+    errors: Object.fromEntries([...errorsRef.current].map(([artifactId, error]) => [artifactId, error.message])),
     retry,
-    urls: Object.fromEntries(
-      [...entriesRef.current].map(([artifactId, entry]) => [artifactId, entry.url]),
-    ),
+    urls: Object.fromEntries([...entriesRef.current].map(([artifactId, entry]) => [artifactId, entry.url])),
   };
 }
-

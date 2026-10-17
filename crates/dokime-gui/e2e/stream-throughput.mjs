@@ -47,8 +47,7 @@ const workspace = resolve(gui, "../..");
 const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
 const backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(targetRoot, "debug/dokime-server");
 const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
-const pluginBundle =
-  process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
+const pluginBundle = process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
 const origin = process.platform === "win32" ? "http://tauri.localhost" : "tauri://localhost";
 const STREAM = "mini.charger.startup.samples";
 const TEMPLATE = "Power Up the Charger";
@@ -186,8 +185,7 @@ async function startSession(work, endpoint) {
       signal: AbortSignal.timeout(300000),
     });
     const result = (await response.json()).value;
-    if (!response.ok || result?.error)
-      throw new Error(`${path}: ${result?.message ?? response.status}`);
+    if (!response.ok || result?.error) throw new Error(`${path}: ${result?.message ?? response.status}`);
     return result;
   }
   await until("WebDriver", () => request("GET", "/status"));
@@ -203,10 +201,8 @@ async function startSession(work, endpoint) {
   await request("POST", `/session/${id}/timeouts`, { script: 600000 });
   return {
     driver,
-    execute: (script, args = []) =>
-      request("POST", `/session/${id}/execute/sync`, { script, args }),
-    executeAsync: (script, args = []) =>
-      request("POST", `/session/${id}/execute/async`, { script, args }),
+    execute: (script, args = []) => request("POST", `/session/${id}/execute/sync`, { script, args }),
+    executeAsync: (script, args = []) => request("POST", `/session/${id}/execute/async`, { script, args }),
     close: () => request("DELETE", `/session/${id}`).catch(() => undefined),
   };
 }
@@ -325,15 +321,12 @@ function percentile(values, fraction) {
 }
 
 function summarize(frames, seconds) {
-  const latencies = frames
-    .filter((frame) => Number.isFinite(frame.generated))
-    .map((frame) => frame.arrived - frame.generated);
+  const latencies = frames.filter((frame) => Number.isFinite(frame.generated)).map((frame) => frame.arrived - frame.generated);
   const xs = frames.map((frame) => frame.x).filter(Number.isFinite);
   // Rows are counted by how far the plotted sample axis advanced: each row is
   // one simulated step, so the advance divided by the step is rows delivered.
   const rows = xs.length > 1 ? Math.round((Math.max(...xs) - xs[0]) / STEP_S) : 0;
-  const span =
-    frames.length > 1 ? (frames.at(-1).arrived - frames[0].arrived) / 1000 : Number(seconds);
+  const span = frames.length > 1 ? (frames.at(-1).arrived - frames[0].arrived) / 1000 : Number(seconds);
   const kinds = {};
   for (const frame of frames) kinds[frame.kind] = (kinds[frame.kind] ?? 0) + 1;
   return {

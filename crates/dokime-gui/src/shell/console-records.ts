@@ -21,15 +21,9 @@ import { useStore } from "zustand";
 /* === Local Imports === */
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { openTraceStream, type TraceLevel } from "@/lib/api/native-logs";
-import {
-  consoleBufferKey,
-  consoleRecordsStore,
-  type ConsoleRecords,
-  EMPTY_CONSOLE_BUFFER,
-} from "./console-buffer";
+import { consoleBufferKey, consoleRecordsStore, type ConsoleRecords, EMPTY_CONSOLE_BUFFER } from "./console-buffer";
 
 /* === Constants === */
-
 
 /* === Hooks === */
 export function useConsoleRecords({
@@ -46,10 +40,7 @@ export function useConsoleRecords({
   const session = useNativeSessionOptional();
   const generation = session?.identity.generation ?? null;
   const key = consoleBufferKey({ cycleId, executionId, level });
-  const buffer = useStore(
-    consoleRecordsStore,
-    (state) => state.buffers.get(key) ?? EMPTY_CONSOLE_BUFFER,
-  );
+  const buffer = useStore(consoleRecordsStore, (state) => state.buffers.get(key) ?? EMPTY_CONSOLE_BUFFER);
 
   useEffect(() => {
     consoleRecordsStore.getState().bindSession(generation);
@@ -140,36 +131,18 @@ export function useConsoleRecords({
 
 /* === Private Functions === */
 function grpcCode(error: unknown): number | undefined {
-  if (
-    !error ||
-    typeof error !== "object" ||
-    !("kind" in error) ||
-    error.kind !== "grpc" ||
-    !("detail" in error)
-  )
-    return undefined;
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "grpc" || !("detail" in error)) return undefined;
   const detail = error.detail;
-  return detail && typeof detail === "object" && "code" in detail && typeof detail.code === "number"
-    ? detail.code
-    : undefined;
+  return detail && typeof detail === "object" && "code" in detail && typeof detail.code === "number" ? detail.code : undefined;
 }
 
 function unavailable(error: unknown): boolean {
-  if (
-    !error ||
-    typeof error !== "object" ||
-    !("kind" in error) ||
-    error.kind !== "session" ||
-    !("detail" in error)
-  )
-    return false;
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "session" || !("detail" in error)) return false;
   const detail = error.detail;
   return (
     !!detail &&
     typeof detail === "object" &&
     "kind" in detail &&
-    (detail.kind === "permission_denied" ||
-      detail.kind === "unauthenticated" ||
-      detail.kind === "authentication_required")
+    (detail.kind === "permission_denied" || detail.kind === "unauthenticated" || detail.kind === "authentication_required")
   );
 }

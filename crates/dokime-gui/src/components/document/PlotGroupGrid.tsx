@@ -13,11 +13,7 @@ import { memo, type ReactNode, useMemo } from "react";
 
 /* === Local Imports === */
 
-import {
-  documentPlotGroupDescription,
-  documentPlotSpec,
-  type PlotCardSpec,
-} from "@/lib/document-plots";
+import { documentPlotGroupDescription, documentPlotSpec, type PlotCardSpec } from "@/lib/document-plots";
 import type { DocumentViewPlot, JsonObject, TelemetryStream } from "@/lib/types";
 import { AnalysisResult } from "@/plots/AnalysisResult";
 import { BarPlot } from "@/plots/catalog/BarPlot";
@@ -97,9 +93,7 @@ export const LivePlotGroupGrid = memo(function LivePlotGroupGrid({
     return <>{cards}</>;
   }
 
-  const description =
-    documentPlots.find((plot) => plot.description)?.description ??
-    documentPlotGroupDescription(title);
+  const description = documentPlots.find((plot) => plot.description)?.description ?? documentPlotGroupDescription(title);
   return (
     <section className="grid gap-2">
       <div>
@@ -151,19 +145,13 @@ const LivePlotCard = memo(function LivePlotCard({
     [descriptor, parameters, plotPalette, position, state, telemetry, title],
   );
   const PlotSettingsButton = usePlotSettingsEditor();
-  const actions = onPlotSettingsChange && PlotSettingsButton ? (
-    <PlotSettingsButton
-      plot={descriptor}
-      onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)}
-    />
-  ) : undefined;
+  const actions =
+    onPlotSettingsChange && PlotSettingsButton ? (
+      <PlotSettingsButton plot={descriptor} onSubmit={(settings) => onPlotSettingsChange(descriptor.plot_id, settings)} />
+    ) : undefined;
 
   return (
-    <div
-      className={plotCardClassName(plot)}
-      data-live-mounted="true"
-      data-plot-id={descriptor.plot_id}
-    >
+    <div className={plotCardClassName(plot)} data-live-mounted="true" data-plot-id={descriptor.plot_id}>
       {plotElement(plot, resetKey, viewportMode, actions)}
     </div>
   );
@@ -177,17 +165,10 @@ function plotCardClassName(plot: PlotCardSpec): string {
   if (plot.plotType === "bar") {
     return `${baseClassName} min-h-0`;
   }
-  return plotHasNumericSamples(plot) || isChartLikePlot(plot)
-    ? `${baseClassName} min-h-[18rem]`
-    : `${baseClassName} min-h-44`;
+  return plotHasNumericSamples(plot) || isChartLikePlot(plot) ? `${baseClassName} min-h-[18rem]` : `${baseClassName} min-h-44`;
 }
 
-function plotElement(
-  plot: PlotCardSpec,
-  resetKey?: string,
-  viewportMode: PlotViewportMode = "fit",
-  actions?: ReactNode,
-) {
+function plotElement(plot: PlotCardSpec, resetKey?: string, viewportMode: PlotViewportMode = "fit", actions?: ReactNode) {
   if (plot.computed)
     return (
       <AnalysisResult
@@ -211,49 +192,19 @@ function plotElement(
     return <BarPlot plot={plot} />;
   }
   if (plot.plotType === "xy_scatter") {
-    return (
-      <XyScatterPlot
-        actions={actions}
-        plot={plot}
-        resetKey={resetKey}
-        viewportMode={viewportMode}
-      />
-    );
+    return <XyScatterPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "xy_line") {
-    return (
-      <XyLinePlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />
-    );
+    return <XyLinePlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "xy_interval") {
-    return (
-      <XyIntervalPlot
-        actions={actions}
-        plot={plot}
-        resetKey={resetKey}
-        viewportMode={viewportMode}
-      />
-    );
+    return <XyIntervalPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "trajectory") {
-    return (
-      <TrajectoryPlot
-        actions={actions}
-        plot={plot}
-        resetKey={resetKey}
-        viewportMode={viewportMode}
-      />
-    );
+    return <TrajectoryPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "frequency_series") {
-    return (
-      <FrequencySeriesPlot
-        actions={actions}
-        plot={plot}
-        resetKey={resetKey}
-        viewportMode={viewportMode}
-      />
-    );
+    return <FrequencySeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   }
   if (plot.plotType === "histogram") {
     return <HistogramSeriesPlot plot={plot} />;
@@ -262,14 +213,7 @@ function plotElement(
     return <BoxSummarySeriesPlot plot={plot} />;
   }
   if (plot.plotType === "time_series")
-    return (
-      <TimeSeriesPlot
-        actions={actions}
-        plot={plot}
-        resetKey={resetKey}
-        viewportMode={viewportMode}
-      />
-    );
+    return <TimeSeriesPlot actions={actions} plot={plot} resetKey={resetKey} viewportMode={viewportMode} />;
   return <p role="alert">Unsupported document plot type: {plot.plotType}</p>;
 }
 
@@ -335,11 +279,7 @@ function livePlotSpec({
 function plotHasNumericSamples(plot: PlotCardSpec): boolean {
   return plot.series.some((series) =>
     series.points.some(
-      (point) =>
-        Number.isFinite(point.y) ||
-        Number.isFinite(point.z) ||
-        Number.isFinite(point.low) ||
-        Number.isFinite(point.high),
+      (point) => Number.isFinite(point.y) || Number.isFinite(point.z) || Number.isFinite(point.low) || Number.isFinite(point.high),
     ),
   );
 }

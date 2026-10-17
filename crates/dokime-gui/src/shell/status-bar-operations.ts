@@ -52,18 +52,14 @@ export type OperationFrame = {
 /* === Public Functions === */
 
 /** The operations of one runtime state frame, in the order the backend sent. */
-export function operationsFromFrame(
-  frames: readonly OperationFrame[] | undefined,
-): BackendOperation[] {
+export function operationsFromFrame(frames: readonly OperationFrame[] | undefined): BackendOperation[] {
   return (frames ?? []).map((frame) => ({
     failure: frame.failure ?? null,
     fraction: fractionOf(frame.fraction),
     id: frame.operationId,
     label: frame.label,
     phase: frame.phase,
-    startedAtMs: frame.startedAt
-      ? Number(frame.startedAt.seconds) * 1_000 + Math.floor(frame.startedAt.nanos / 1_000_000)
-      : null,
+    startedAtMs: frame.startedAt ? Number(frame.startedAt.seconds) * 1_000 + Math.floor(frame.startedAt.nanos / 1_000_000) : null,
     status: statusOf(frame.status?.HarmosVariant.case),
   }));
 }
@@ -127,9 +123,6 @@ function statusOf(member: string | undefined): BackendOperationStatus {
 
 function longestRunning(running: readonly BackendOperation[]): BackendOperation {
   return running.reduce((longest, operation) =>
-    (operation.startedAtMs ?? Number.POSITIVE_INFINITY) <
-    (longest.startedAtMs ?? Number.POSITIVE_INFINITY)
-      ? operation
-      : longest,
+    (operation.startedAtMs ?? Number.POSITIVE_INFINITY) < (longest.startedAtMs ?? Number.POSITIVE_INFINITY) ? operation : longest,
   );
 }

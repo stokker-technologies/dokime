@@ -32,11 +32,7 @@ import {
   cycleRows,
   groupCycleRows,
 } from "@/features/cycles-home/cycles-model";
-import {
-  cyclesHomeQueryKeys,
-  useCyclesQuery,
-  usePendingPromptsQuery,
-} from "@/features/cycles-home/cycles-queries";
+import { cyclesHomeQueryKeys, useCyclesQuery, usePendingPromptsQuery } from "@/features/cycles-home/cycles-queries";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { setNativeCycleArchived } from "@/lib/api/native-execution";
 import { compactAgeLabel } from "@/lib/time-format";
@@ -100,18 +96,11 @@ export function CyclesHome() {
     return counts;
   }, [prompts.data]);
 
-  const rows = useMemo(
-    () => cycleRows(cycles.data ?? [], attentionByCycleId),
-    [attentionByCycleId, cycles.data],
-  );
+  const rows = useMemo(() => cycleRows(cycles.data ?? [], attentionByCycleId), [attentionByCycleId, cycles.data]);
   const groups = useMemo(() => {
     const filtered = selection.trim().length > 0;
-    const grouped = showArchived
-      ? archivedCycleGroups(rows, filtered)
-      : groupCycleRows(rows, filtered);
-    return frozenIds.length
-      ? grouped.map((group) => ({ ...group, rows: applyFrozenOrder(group.rows, frozenIds) }))
-      : grouped;
+    const grouped = showArchived ? archivedCycleGroups(rows, filtered) : groupCycleRows(rows, filtered);
+    return frozenIds.length ? grouped.map((group) => ({ ...group, rows: applyFrozenOrder(group.rows, frozenIds) })) : grouped;
   }, [frozenIds, rows, selection, showArchived]);
 
   // Row order is frozen while the pointer is down so a refresh cannot move the
@@ -130,12 +119,7 @@ export function CyclesHome() {
   }, []);
 
   return (
-    <div
-      className="grid content-start gap-6 p-[var(--shell-inset)]"
-      onPointerCancel={release}
-      onPointerDown={freeze}
-      onPointerUp={release}
-    >
+    <div className="grid content-start gap-6 p-[var(--shell-inset)]" onPointerCancel={release} onPointerDown={freeze} onPointerUp={release}>
       {/* A toolbar row: its controls are centred with the bar's own air above
           and below, and the same 12px gap every other bar uses. */}
       <div className="flex flex-wrap items-center justify-between gap-[var(--bar-gap)] py-[var(--bar-pad-y)]">
@@ -216,20 +200,13 @@ function CycleGroupSection({
   const heading = (
     <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-[var(--bar-gap)]">
       <p className="flex items-baseline gap-2">
-        <span
-          className="font-heading text-lg font-semibold tracking-wide"
-          id={`cycle-group-${group.id}`}
-        >
+        <span className="font-heading text-lg font-semibold tracking-wide" id={`cycle-group-${group.id}`}>
           {group.title}
         </span>
-        <span className="font-mono text-sm tabular-nums text-muted-foreground">
-          {group.rows.length}
-        </span>
+        <span className="font-mono text-sm tabular-nums text-muted-foreground">{group.rows.length}</span>
       </p>
       {group.rows.length ? null : (
-        <span className="truncate text-right text-sm text-muted-foreground">
-          {loading ? "Loading Cycles" : group.emptyText}
-        </span>
+        <span className="truncate text-right text-sm text-muted-foreground">{loading ? "Loading Cycles" : group.emptyText}</span>
       )}
     </div>
   );
@@ -274,10 +251,7 @@ function rowId(row: CycleRow): string {
 
 /** The five columns every group shares; `now` ages the Updated column. The
     Archived view adds Unarchive as the last column. */
-function cycleColumns(
-  now: number,
-  onUnarchive: ((cycleId: string) => void) | null,
-): DataTableColumns<CycleRow> {
+function cycleColumns(now: number, onUnarchive: ((cycleId: string) => void) | null): DataTableColumns<CycleRow> {
   const column = dataTableColumns<CycleRow>();
   const unarchive = onUnarchive
     ? [
@@ -330,10 +304,7 @@ function cycleColumns(
     }),
     column.accessor("finishedCount", {
       cell: ({ row }) => (
-        <span
-          className="font-mono text-xs tabular-nums text-muted-foreground"
-          title="Cases finished, of the cases this cycle plans"
-        >
+        <span className="font-mono text-xs tabular-nums text-muted-foreground" title="Cases finished, of the cases this cycle plans">
           {row.original.finishedCount} / {row.original.caseCount}
         </span>
       ),
@@ -342,10 +313,7 @@ function cycleColumns(
     }),
     column.accessor((row) => row.updatedAtMs ?? undefined, {
       cell: ({ row }) => (
-        <span
-          className="font-mono text-xs tabular-nums text-muted-foreground"
-          title={instantsLabel(row.original)}
-        >
+        <span className="font-mono text-xs tabular-nums text-muted-foreground" title={instantsLabel(row.original)}>
           {relativeUpdatedLabel(row.original.updatedAtIso, now)}
         </span>
       ),

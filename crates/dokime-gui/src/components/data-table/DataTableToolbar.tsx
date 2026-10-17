@@ -40,13 +40,7 @@ type DataTableToolbarProps = {
 
 /* === Components === */
 
-export function DataTableToolbar({
-  actions,
-  filters,
-  onClear,
-  onClearAll,
-  search,
-}: DataTableToolbarProps) {
+export function DataTableToolbar({ actions, filters, onClear, onClearAll, search }: DataTableToolbarProps) {
   if (!search && !actions && !filters.length) {
     return null;
   }
@@ -69,9 +63,7 @@ export function DataTableToolbar({
           ) : (
             <span />
           )}
-          {actions ? (
-            <div className="flex items-center gap-[var(--shell-gap)]">{actions}</div>
-          ) : null}
+          {actions ? <div className="flex items-center gap-[var(--shell-gap)]">{actions}</div> : null}
         </div>
       ) : null}
 

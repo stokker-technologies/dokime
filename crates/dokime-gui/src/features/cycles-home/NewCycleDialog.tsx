@@ -18,25 +18,13 @@ import { type FormEvent, useEffect, useState } from "react";
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateCycleMutation } from "@/features/cycles-home/cycles-queries";
-import {
-  initialNewCycleForm,
-  type NewCycleForm,
-  newCycleFormError,
-  newCycleRequest,
-} from "@/features/cycles-home/new-cycle-form";
+import { initialNewCycleForm, type NewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 
 /* === Types === */
 
@@ -88,9 +76,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
         <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
           <DialogHeader>
             <DialogTitle>New Cycle</DialogTitle>
-            <DialogDescription>
-              The cycle starts empty. Add cases to it from the Library.
-            </DialogDescription>
+            <DialogDescription>The cycle starts empty. Add cases to it from the Library.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="new-cycle-title">Title</Label>
@@ -124,12 +110,7 @@ export function NewCycleDialog({ onCreated, onOpenChange, open }: NewCycleDialog
             </p>
           ) : null}
           <DialogFooter>
-            <Button
-              disabled={create.isPending}
-              onClick={() => onOpenChange(false)}
-              type="button"
-              variant="outline"
-            >
+            <Button disabled={create.isPending} onClick={() => onOpenChange(false)} type="button" variant="outline">
               Cancel
             </Button>
             <Button disabled={create.isPending} type="submit">

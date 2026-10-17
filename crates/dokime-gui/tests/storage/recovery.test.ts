@@ -128,10 +128,10 @@ test("Backup Progress", () => {
 test("Backup Failure", () => {
   // A Failure After Archiving Names The Kept Archive
   const inner = { kind: "storage_reset", reason: "failed", message: "denied" };
-  assert.deepEqual(
-    backupFailure({ kind: "archived", archive: "/data-backup-20261015T120000Z.zip", error: inner }),
-    { archive: "/data-backup-20261015T120000Z.zip", error: inner },
-  );
+  assert.deepEqual(backupFailure({ kind: "archived", archive: "/data-backup-20261015T120000Z.zip", error: inner }), {
+    archive: "/data-backup-20261015T120000Z.zip",
+    error: inner,
+  });
 
   // A Failure Before Archiving Names No Archive
   for (const error of [

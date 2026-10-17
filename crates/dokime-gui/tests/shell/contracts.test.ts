@@ -44,10 +44,7 @@ function isFile(value: unknown): value is DescFile {
 
 beforeAll(async () => {
   // The `prepare:contracts` Task Generates The Bindings These Stories Read
-  assert.ok(
-    existsSync(descriptors),
-    `${descriptors} is missing; run \`mise run prepare:contracts\``,
-  );
+  assert.ok(existsSync(descriptors), `${descriptors} is missing; run \`mise run prepare:contracts\``);
   sources = generatedSources(descriptors);
   sources.set(facadePath, readFileSync(resolve(gui, facadePath), "utf8"));
 
@@ -77,11 +74,7 @@ test("Canonical Bindings", () => {
         const path = `/${service.typeName}/${method.name}`;
         assert.ok(facade.includes(JSON.stringify(path)), `Missing canonical method: ${path}`);
         const call =
-          method.methodKind === "client_streaming"
-            ? "openClientStream"
-            : method.methodKind === "server_streaming"
-              ? "openStream"
-              : "unary";
+          method.methodKind === "client_streaming" ? "openClientStream" : method.methodKind === "server_streaming" ? "openStream" : "unary";
         assert.ok(facade.includes(`=> ${call}(${JSON.stringify(path)},`), path);
       }
     }

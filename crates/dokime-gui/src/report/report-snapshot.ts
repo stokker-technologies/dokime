@@ -62,12 +62,9 @@ export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource
 
   return {
     artifacts,
-    document: (executionId) =>
-      executionId === null ? cycleDocument : (documents.get(executionId) ?? null),
+    document: (executionId) => (executionId === null ? cycleDocument : (documents.get(executionId) ?? null)),
     executionFiles: (executionId) =>
-      executionId === null
-        ? []
-        : artifacts.filter((artifact) => artifact.scope?.test_execution_id === executionId),
+      executionId === null ? [] : artifacts.filter((artifact) => artifact.scope?.test_execution_id === executionId),
     executions: payload.test_executions,
     generatedAt: payload.generated_at ?? null,
     health: snapshot?.health ?? [],
@@ -83,17 +80,13 @@ export function cycleSnapshotSource(payload: ReportPayload): CycleSnapshotSource
     records: snapshot?.records ?? [],
     runtimeShell: runtimeShell(snapshot),
     traceability: (executionId) =>
-      (executionId === null
-        ? payload.snapshot?.traceability
-        : caseRuns.get(executionId)?.traceability) ?? null,
+      (executionId === null ? payload.snapshot?.traceability : caseRuns.get(executionId)?.traceability) ?? null,
   };
 }
 
 /* === Private Functions === */
 
-function materialize(
-  document: Parameters<typeof mapDocumentCapture>[0] | undefined,
-): DocumentViewPayload | null {
+function materialize(document: Parameters<typeof mapDocumentCapture>[0] | undefined): DocumentViewPayload | null {
   return document ? mapDocumentCapture(document) : null;
 }
 

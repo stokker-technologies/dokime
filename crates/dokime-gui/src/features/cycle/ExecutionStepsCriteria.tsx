@@ -23,12 +23,7 @@ import { LoaderCircle } from "lucide-react";
 
 /* === Local Imports === */
 
-import {
-  StepFailure,
-  sortedStepRecords,
-  stepBadgeVariant,
-  stepRecordLabel,
-} from "@/components/document/StepRecordsCard";
+import { StepFailure, sortedStepRecords, stepBadgeVariant, stepRecordLabel } from "@/components/document/StepRecordsCard";
 import { Badge } from "@/components/ui/badge";
 import { formatDuration } from "@/lib/format";
 import type { StepExecutionRecord } from "@/lib/types";
@@ -59,15 +54,7 @@ export function ExecutionStepsCriteria({ steps, criteria }: ExecutionStepsCriter
 
 /* === Private Components === */
 
-function RecordColumn({
-  empty,
-  records,
-  title,
-}: {
-  empty: string;
-  records: StepExecutionRecord[];
-  title: string;
-}) {
+function RecordColumn({ empty, records, title }: { empty: string; records: StepExecutionRecord[]; title: string }) {
   const ordered = sortedStepRecords(records);
   const ordinalWidth = Math.max(2, String(ordered.length).length);
 
@@ -97,35 +84,20 @@ function RecordColumn({
 function RecordRow({ ordinal, record }: { ordinal: string; record: StepExecutionRecord }) {
   const duration = record.record_type === "step" ? formatDuration(record.duration_s) : "";
   const message =
-    record.record_type === "criterion" && typeof record.result.details.message === "string"
-      ? record.result.details.message
-      : null;
+    record.record_type === "criterion" && typeof record.result.details.message === "string" ? record.result.details.message : null;
 
   return (
     <li className="col-span-4 grid min-w-0 grid-cols-subgrid items-baseline py-1 text-[0.8125rem] leading-5">
       <span className="text-xs text-muted-foreground tabular-nums">
-        {record.status === "running" ? (
-          <LoaderCircle aria-label="Running" className="inline animate-spin" size={12} />
-        ) : (
-          ordinal
-        )}
+        {record.status === "running" ? <LoaderCircle aria-label="Running" className="inline animate-spin" size={12} /> : ordinal}
       </span>
       <div className="min-w-0">
-        <span className="block font-medium [overflow-wrap:break-word]">
-          {stepRecordLabel(record, false)}
-        </span>
-        {message ? (
-          <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">
-            {message}
-          </span>
-        ) : null}
+        <span className="block font-medium [overflow-wrap:break-word]">{stepRecordLabel(record, false)}</span>
+        {message ? <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{message}</span> : null}
         {record.detail ? <StepFailure detail={record.detail} /> : null}
       </div>
       <span className="text-xs text-muted-foreground tabular-nums">{duration}</span>
-      <Badge
-        className={`${LIST_STATUS_PILL_CLASS} capitalize`}
-        variant={stepBadgeVariant(record.status)}
-      >
+      <Badge className={`${LIST_STATUS_PILL_CLASS} capitalize`} variant={stepBadgeVariant(record.status)}>
         {record.status}
       </Badge>
     </li>

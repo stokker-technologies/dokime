@@ -28,25 +28,15 @@ type SettingsCardProps = {
 /* === Components === */
 
 /** A grouped settings card: an optional header, a divided body of rows, and an optional footer. */
-export function SettingsCard({
-  children,
-  className,
-  description,
-  footer,
-  title,
-}: SettingsCardProps) {
+export function SettingsCard({ children, className, description, footer, title }: SettingsCardProps) {
   return (
     /* A column, so a card stretched to its grid row grows its body and keeps
        the footer on the row's bottom edge. */
-    <section
-      className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card", className)}
-    >
+    <section className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card", className)}>
       {title || description ? (
         <header className="border-b px-4 py-3">
           {title ? <h2 className="text-sm font-semibold">{title}</h2> : null}
-          {description ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-          ) : null}
+          {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
         </header>
       ) : null}
       <div className="flex-1 divide-y">{children}</div>

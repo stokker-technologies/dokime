@@ -193,10 +193,7 @@ export type ExecutionBrowsePage = {
   cycles: ExecutionBrowseCycle[];
 };
 
-export type ExecutionCheckpoint = Pick<
-  NativeExecutionCheckpoint,
-  "executionIdentifier" | "version"
-> & {
+export type ExecutionCheckpoint = Pick<NativeExecutionCheckpoint, "executionIdentifier" | "version"> & {
   position: CheckpointCursor;
   evidenceThrough: CheckpointCursor;
 };
@@ -285,15 +282,7 @@ export type InstalledPluginErrorRecord = {
   recorded_at: Timestamp;
 };
 
-export type InstalledPluginPhase =
-  | "entrypoint"
-  | "action"
-  | "sidecar"
-  | "provider"
-  | "initialize"
-  | "run"
-  | "finalize"
-  | "interrupt";
+export type InstalledPluginPhase = "entrypoint" | "action" | "sidecar" | "provider" | "initialize" | "run" | "finalize" | "interrupt";
 
 export type Metadata = {
   uuid?: string;
@@ -450,9 +439,7 @@ export type PluginIdentity = {
   description: string;
 };
 
-export type PluginLastBoot =
-  | { state: "loaded"; at: Timestamp }
-  | { state: "failed"; error: string; at: Timestamp };
+export type PluginLastBoot = { state: "loaded"; at: Timestamp } | { state: "failed"; error: string; at: Timestamp };
 
 export type PluginMetadata = {
   identity: PluginIdentity;
@@ -535,13 +522,7 @@ export type RuntimeSettingsCard = {
   order: number;
 };
 
-export type RuntimeSettingsCardState =
-  | "ready"
-  | "disabled"
-  | "disconnected"
-  | "stale"
-  | "error"
-  | "permission_denied";
+export type RuntimeSettingsCardState = "ready" | "disabled" | "disconnected" | "stale" | "error" | "permission_denied";
 
 export type RuntimeSettingsFrame = {
   sections: RuntimeSettingsSection[];
@@ -556,9 +537,7 @@ export type RuntimeSettingsSection = {
   order: number;
 };
 
-export type RuntimeSettingsSectionOwner =
-  | { kind: "app" }
-  | { kind: "installed_plugin"; plugin_id: Identifier };
+export type RuntimeSettingsSectionOwner = { kind: "app" } | { kind: "installed_plugin"; plugin_id: Identifier };
 
 export type RuntimeThemeFamily = {
   plugin_id: Identifier;
@@ -572,9 +551,7 @@ export type RuntimeThemeFamily = {
   dark: ThemeVariant;
 };
 
-export type SecretReference =
-  | { kind: "environment"; variable: string }
-  | { kind: "stored_credential"; credential_id: string };
+export type SecretReference = { kind: "environment"; variable: string } | { kind: "stored_credential"; credential_id: string };
 
 export type SecretSetting = {
   id: string;
@@ -607,10 +584,7 @@ export type Settings = {
   contributions?: SettingsEntry[];
 };
 
-export type SettingsCardRefreshPolicy =
-  | { kind: "manual" }
-  | { kind: "cached"; max_age_ms: number }
-  | { kind: "on_demand" };
+export type SettingsCardRefreshPolicy = { kind: "manual" } | { kind: "cached"; max_age_ms: number } | { kind: "on_demand" };
 
 export type SettingsEntry =
   | ({
@@ -687,12 +661,4 @@ export type Timestamp = string;
 
 export type TraceId = string;
 
-export type Value =
-  | "Null"
-  | boolean
-  | number
-  | number
-  | null
-  | string
-  | Value[]
-  | { [key in string]: Value };
+export type Value = "Null" | boolean | number | number | null | string | Value[] | { [key in string]: Value };

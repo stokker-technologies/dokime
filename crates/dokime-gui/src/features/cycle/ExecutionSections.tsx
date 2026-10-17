@@ -38,20 +38,9 @@ import { ArtifactTree } from "@/components/ArtifactTree";
 import { OperatorNotesContent } from "@/components/document/OperatorNotesContent";
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
-import type {
-  HubLiveState,
-  PromptRequest,
-  RecordScope,
-  TestCyclePlan,
-  TestExecution,
-} from "@/lib/types";
+import type { HubLiveState, PromptRequest, RecordScope, TestCyclePlan, TestExecution } from "@/lib/types";
 import type { ExecutionMenu } from "./CycleWorkspaceHeader";
-import {
-  type CycleExecutionRow,
-  type CycleSelection,
-  isActiveExecutionStatus,
-  isUnstartedExecution,
-} from "./cycle-workspace-model";
+import { type CycleExecutionRow, type CycleSelection, isActiveExecutionStatus, isUnstartedExecution } from "./cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
 import { evidencePaneState } from "./document-query-model";
 import { ExecutionControl } from "./ExecutionControl";
@@ -99,8 +88,7 @@ export function ExecutionSections({
   onSelectExecution,
 }: ExecutionSectionsProps) {
   const plotWindow = usePlotWindow();
-  const started =
-    row.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null;
+  const started = row.execution && !isUnstartedExecution(row.execution.status) ? row.execution : null;
   const scope = useMemo<RecordScope>(
     () =>
       started
@@ -131,9 +119,7 @@ export function ExecutionSections({
     noteElapsedStart: started?.started_at ?? plan?.test_cycle.started_at ?? null,
     plotWindow: plotWindow.option,
     plotWindowOverridden: plotWindow.overridden,
-    traceabilityExportName: plan
-      ? { cycleLabel: plan.test_cycle.title, executionOrdinal: row.ordinal }
-      : null,
+    traceabilityExportName: plan ? { cycleLabel: plan.test_cycle.title, executionOrdinal: row.ordinal } : null,
   });
 
   const executionId = row.execution?.test_execution_id ?? null;
@@ -148,15 +134,39 @@ export function ExecutionSections({
   });
   return (
     <ExecutionSectionsView
-      plan={plan} row={row} live={live} titlePrefix={titlePrefix} label={label}
-      onRename={onRename} menu={menu} started={started} surface={surface} pane={pane}
-      plotWindow={plotWindow} onRetry={() => void documentQuery.refetch()}
+      plan={plan}
+      row={row}
+      live={live}
+      titlePrefix={titlePrefix}
+      label={label}
+      onRename={onRename}
+      menu={menu}
+      started={started}
+      surface={surface}
+      pane={pane}
+      plotWindow={plotWindow}
+      onRetry={() => void documentQuery.refetch()}
       documentView={DocumentView}
-      control={live ? <ExecutionControl cycleId={cycleId} executionId={running}
-        onSelectExecution={onSelectExecution} prompts={pagePrompts} selection={selection} /> : null}
+      control={
+        live ? (
+          <ExecutionControl
+            cycleId={cycleId}
+            executionId={running}
+            onSelectExecution={onSelectExecution}
+            prompts={pagePrompts}
+            selection={selection}
+          />
+        ) : null
+      }
       notesContent={live ? <OperatorNotesContent notes={surface.view.notes} scope={liveScope} /> : undefined}
-      mediaContent={live ? <>{liveScope ? <MediaCaptureControls scope={liveScope} /> : null}
-        {surface.shared.mediaArtifacts.length ? <MediaGallery artifacts={surface.shared.mediaArtifacts} emptyMessage="" /> : null}</> : undefined}
+      mediaContent={
+        live ? (
+          <>
+            {liveScope ? <MediaCaptureControls scope={liveScope} /> : null}
+            {surface.shared.mediaArtifacts.length ? <MediaGallery artifacts={surface.shared.mediaArtifacts} emptyMessage="" /> : null}
+          </>
+        ) : undefined
+      }
       artifactsContent={live ? <ArtifactTree artifacts={surface.shared.artifacts} emptyMessage="" /> : undefined}
     />
   );

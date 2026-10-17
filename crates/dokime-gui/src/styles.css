@@ -340,10 +340,7 @@
   width: var(--control-height);
 }
 
-:root[data-density="touch"]
-  :is([data-slot="input"], [data-slot="select-trigger"], [data-slot="toggle-group-item"]):not(
-    [class*="h-["]
-  ) {
+:root[data-density="touch"] :is([data-slot="input"], [data-slot="select-trigger"], [data-slot="toggle-group-item"]):not([class*="h-["]) {
   height: var(--control-height);
 }
 

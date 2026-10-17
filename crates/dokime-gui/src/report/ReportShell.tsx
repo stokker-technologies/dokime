@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Frozen Snapshot Composition Of The Shared Shell Frames.
  */
@@ -25,8 +24,6 @@ import { useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import { AppShellLayout, type FrozenShell } from "@/shell/AppShellLayout";
 import { SidebarFrame } from "@/shell/SidebarFrame";
 import { FrozenStatusBar } from "@/shell/StatusBarFrame";
-
-
 
 /* === Re-Exports === */
 
@@ -64,7 +61,6 @@ export function ReportShell({ children, frozen }: { children: ReactNode; frozen:
     </AppShellLayout>
   );
 }
-
 
 /* === Hooks === */
 

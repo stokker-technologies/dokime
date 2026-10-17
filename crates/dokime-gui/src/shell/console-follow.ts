@@ -35,9 +35,6 @@ export const FOLLOW_SLACK_PX = 22;
 /* === Public Functions === */
 
 /** Whether the list shows its last row, give or take `slack` pixels. */
-export function consoleTailPinned(
-  { clientHeight, scrollHeight, scrollTop }: ScrollMetrics,
-  slack: number = FOLLOW_SLACK_PX,
-): boolean {
+export function consoleTailPinned({ clientHeight, scrollHeight, scrollTop }: ScrollMetrics, slack: number = FOLLOW_SLACK_PX): boolean {
   return scrollHeight - scrollTop - clientHeight <= slack;
 }

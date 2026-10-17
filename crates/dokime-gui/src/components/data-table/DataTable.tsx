@@ -33,14 +33,7 @@ import {
   filterSummary,
 } from "@/components/data-table/data-table-model";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 /* === Constants === */
@@ -102,10 +95,7 @@ export function DataTable<TData extends RowData>({
     return [select, ...filtered];
   }, [columns, selection]);
 
-  const initialState = useMemo(
-    () => ({ sorting: defaultSort ? [defaultSort] : [] }),
-    [defaultSort],
-  );
+  const initialState = useMemo(() => ({ sorting: defaultSort ? [defaultSort] : [] }), [defaultSort]);
 
   const table = useTable({
     columns: resolvedColumns,
@@ -124,8 +114,7 @@ export function DataTable<TData extends RowData>({
     id: filter.id,
     text: filterSummary(filter, table.getColumn(filter.id)?.columnDef.meta),
   }));
-  const emptyMessage =
-    data.length > 0 && activeFilters.length ? "No rows match these filters." : emptyText;
+  const emptyMessage = data.length > 0 && activeFilters.length ? "No rows match these filters." : emptyText;
 
   function activate(event: MouseEvent<HTMLTableRowElement>, row: TData) {
     const control = (event.target as Element).closest(INNER_CONTROL);
@@ -152,11 +141,7 @@ export function DataTable<TData extends RowData>({
         search={search}
       />
 
-      <Table
-        aria-label={ariaLabel}
-        className="table-fixed"
-        containerClassName={stickyHeader ? "overflow-visible" : undefined}
-      >
+      <Table aria-label={ariaLabel} className="table-fixed" containerClassName={stickyHeader ? "overflow-visible" : undefined}>
         <TableHeader className={cn(stickyHeader && "[&_tr]:border-b-0")}>
           {table.getHeaderGroups().map((group) => (
             <TableRow className="hover:bg-transparent" key={group.id}>
@@ -166,21 +151,14 @@ export function DataTable<TData extends RowData>({
                 return (
                   <TableHead
                     aria-sort={
-                      sorted === "asc"
-                        ? "ascending"
-                        : sorted === "desc"
-                          ? "descending"
-                          : header.column.getCanSort()
-                            ? "none"
-                            : undefined
+                      sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : header.column.getCanSort() ? "none" : undefined
                     }
                     className={cn(
                       "h-[var(--table-row-height)] pt-0 pb-px",
                       EDGE_CELL,
                       meta?.width,
                       meta?.align === "end" && "text-right",
-                      stickyHeader &&
-                        "sticky top-0 z-10 bg-[var(--table-surface)] shadow-[inset_0_-1px_0_var(--border)]",
+                      stickyHeader && "sticky top-0 z-10 bg-[var(--table-surface)] shadow-[inset_0_-1px_0_var(--border)]",
                     )}
                     key={header.id}
                   >
@@ -226,11 +204,7 @@ export function DataTable<TData extends RowData>({
                       ) : meta?.truncate ? (
                         <div
                           className="truncate"
-                          title={
-                            typeof value === "string" || typeof value === "number"
-                              ? String(value)
-                              : undefined
-                          }
+                          title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}
                         >
                           {content}
                         </div>
@@ -245,10 +219,7 @@ export function DataTable<TData extends RowData>({
           })}
           {rows.length === 0 ? (
             <TableRow className="hover:bg-transparent">
-              <TableCell
-                className="h-24 px-[var(--table-inset)] text-center whitespace-normal text-muted-foreground"
-                colSpan={columnCount}
-              >
+              <TableCell className="h-24 px-[var(--table-inset)] text-center whitespace-normal text-muted-foreground" colSpan={columnCount}>
                 {emptyMessage}
               </TableCell>
             </TableRow>

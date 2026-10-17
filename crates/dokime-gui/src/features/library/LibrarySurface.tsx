@@ -15,22 +15,14 @@ import { useMemo, useState } from "react";
 
 /* === Local Imports === */
 
-import {
-  filterTestSuites,
-  selectionDraftKey,
-  templateSelectionId,
-} from "@/components/suite-picker/model";
+import { filterTestSuites, selectionDraftKey, templateSelectionId } from "@/components/suite-picker/model";
 import { SuiteTags } from "@/components/suite-picker/SuiteTags";
 import { useCycleLabelQuery, useTestSuitesQuery } from "@/components/suite-picker/server-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
-import {
-  CatalogIdentifier,
-  pluginSearchText,
-  SuiteProvenance,
-} from "@/features/library/CatalogIdentity";
+import { CatalogIdentifier, pluginSearchText, SuiteProvenance } from "@/features/library/CatalogIdentity";
 import { TemplateDialog } from "@/features/library/TemplateDialog";
 import { TemplateStepTimeline } from "@/features/library/TemplateStepTimeline";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
@@ -56,13 +48,11 @@ type OpenTemplate = {
    the action sit on the same verticals down the whole list. A row's second
    line puts the identifier under the label and the plugin provenance under the
    tags, on those same columns. */
-const ROW_COLUMNS =
-  "grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-x-[var(--shell-gap)] gap-y-0.5";
+const ROW_COLUMNS = "grid grid-cols-[minmax(0,1fr)_7rem_auto_auto] items-center gap-x-[var(--shell-gap)] gap-y-0.5";
 
 /* Within the title column the name takes the width and the identifier sits
    right-aligned on the same row. */
-const TITLE_COLUMNS =
-  "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-[var(--shell-gap)]";
+const TITLE_COLUMNS = "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-[var(--shell-gap)]";
 
 /* A template's title column starts on the suite label's text edge (after the
    chevron, size-4 + gap-2), not under the chevron. */
@@ -83,10 +73,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   const cycleLabelQuery = useCycleLabelQuery(appendTo);
   const suites = suitesQuery.data ?? null;
   const pluginsQuery = useInstalledPluginsQuery();
-  const plugins = useMemo(
-    () => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])),
-    [pluginsQuery.data],
-  );
+  const plugins = useMemo(() => new Map((pluginsQuery.data ?? []).map((plugin) => [plugin.plugin_id, plugin])), [pluginsQuery.data]);
 
   const [suiteSearch, setSuiteSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -105,11 +92,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
           Open Cycle
         </Button>
       ) : (
-        <Button
-          className="h-[var(--control-height)]"
-          onClick={() => setCreating(true)}
-          type="button"
-        >
+        <Button className="h-[var(--control-height)]" onClick={() => setCreating(true)} type="button">
           New Cycle
         </Button>
       ),
@@ -119,10 +102,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
   usePageChrome({ actions, title: "Library" });
 
   const suiteRows = useMemo(
-    () =>
-      filterTestSuites(suites ?? [], suiteSearch, (suite) =>
-        pluginSearchText(plugins.get(suite.source), brand.label),
-      ),
+    () => filterTestSuites(suites ?? [], suiteSearch, (suite) => pluginSearchText(plugins.get(suite.source), brand.label)),
     [brand.label, plugins, suiteSearch, suites],
   );
   const hasSearch = suiteSearch.trim().length > 0;
@@ -131,13 +111,10 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
     <div className="grid content-start gap-4 p-[var(--shell-inset)]">
       {appendTo ? (
         <p className="text-muted-foreground">
-          Cases materialized here are added to{" "}
-          <span className="text-foreground">{cycleLabelQuery.data ?? appendTo}</span>.
+          Cases materialized here are added to <span className="text-foreground">{cycleLabelQuery.data ?? appendTo}</span>.
         </p>
       ) : (
-        <p className="text-muted-foreground">
-          No cycle is active. Create one, or add cases from a cycle, to materialize templates.
-        </p>
+        <p className="text-muted-foreground">No cycle is active. Create one, or add cases from a cycle, to materialize templates.</p>
       )}
 
       <section aria-labelledby="library-suites" className="grid gap-2">
@@ -146,10 +123,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
             Suites
           </h2>
           <div className="relative w-full sm:w-80">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
+            <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-label="Filter Templates"
               className="h-[var(--bar-control-height)] pl-8"
@@ -167,9 +141,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         ) : suites === null ? (
           <p className="text-muted-foreground">Loading suites…</p>
         ) : suiteRows.length === 0 ? (
-          <p className="text-muted-foreground">
-            No suite matches this filter. Search by name, tag, identifier, or plugin.
-          </p>
+          <p className="text-muted-foreground">No suite matches this filter. Search by name, tag, identifier, or plugin.</p>
         ) : (
           <ul className="grid gap-4">
             {suiteRows.map(({ members, suite }) => {
@@ -193,10 +165,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                         }
                         type="button"
                       >
-                        <ChevronRight
-                          aria-hidden
-                          className={`size-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                        />
+                        <ChevronRight aria-hidden className={`size-4 shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
                         <span className="truncate font-medium">{suite.name}</span>
                       </button>
                       <CatalogIdentifier subject="suite" value={suite.suite_id} />
@@ -206,11 +175,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                     </Badge>
                     <SuiteTags tags={suite.tags} />
                     <span />
-                    <SuiteProvenance
-                      className="col-start-3"
-                      plugin={plugins.get(suite.source)}
-                      source={suite.source}
-                    />
+                    <SuiteProvenance className="col-start-3" plugin={plugins.get(suite.source)} source={suite.source} />
                   </div>
 
                   {isExpanded ? (
@@ -233,23 +198,15 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
                               >
                                 {template.name}
                               </button>
-                              {template.identifier ? (
-                                <CatalogIdentifier subject="template" value={template.identifier} />
-                              ) : null}
+                              {template.identifier ? <CatalogIdentifier subject="template" value={template.identifier} /> : null}
                             </div>
                             <span />
                             <SuiteTags tags={template.tags} />
                             <span />
                           </div>
                           {/* One paragraph, then the full-width timeline. */}
-                          {template.description ? (
-                            <p className="min-w-0 text-xs text-muted-foreground">
-                              {template.description}
-                            </p>
-                          ) : null}
-                          {template.steps.length ? (
-                            <TemplateStepTimeline template={template} />
-                          ) : null}
+                          {template.description ? <p className="min-w-0 text-xs text-muted-foreground">{template.description}</p> : null}
+                          {template.steps.length ? <TemplateStepTimeline template={template} /> : null}
                           {/* The action closes the block: Configure names the
                               outcome for anyone scanning for a verb. */}
                           <div className="flex justify-end">
@@ -278,10 +235,7 @@ export function LibrarySurface({ appendTo }: LibrarySurfaceProps) {
         <TemplateDialog
           cycleId={appendTo}
           cycleLabel={cycleLabelQuery.data}
-          key={selectionDraftKey(
-            openTemplate.suite.suite_id,
-            templateSelectionId(openTemplate.template),
-          )}
+          key={selectionDraftKey(openTemplate.suite.suite_id, templateSelectionId(openTemplate.template))}
           onOpenChange={(next) => {
             if (!next) setOpenTemplate(null);
           }}

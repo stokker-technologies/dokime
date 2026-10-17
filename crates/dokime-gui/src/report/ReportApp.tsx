@@ -14,12 +14,7 @@
 
 /* === External Imports === */
 
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterProvider,
-} from "@tanstack/react-router";
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 /* === Local Imports === */

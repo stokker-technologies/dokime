@@ -31,11 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import {
-  fetchStorageSources,
-  reorderStorageSources,
-  setStorageSourceEnabled,
-} from "@/lib/api/native-storage-settings";
+import { fetchStorageSources, reorderStorageSources, setStorageSourceEnabled } from "@/lib/api/native-storage-settings";
 
 /* === Constants === */
 
@@ -45,17 +41,13 @@ const NO_SOURCES: StorageSource[] = [];
 
 type StorageSource = Awaited<ReturnType<typeof fetchStorageSources>>[number];
 
-type Change =
-  | { kind: "enabled"; identifier: string; enabled: boolean }
-  | { kind: "order"; identifiers: string[] };
+type Change = { kind: "enabled"; identifier: string; enabled: boolean } | { kind: "order"; identifiers: string[] };
 
 /* === Components === */
 
 export function StorageSourcesCard() {
   const session = useNativeSessionOptional();
-  return session ? (
-    <ConnectedStorageSources key={session.identity.generation} session={session} />
-  ) : null;
+  return session ? <ConnectedStorageSources key={session.identity.generation} session={session} /> : null;
 }
 
 /* === Private Components === */
@@ -116,18 +108,11 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
               aria-label={`${row.original.enabled ? "Disable" : "Enable"} ${label}`}
               checked={row.original.enabled}
               disabled={locked || isPending}
-              onCheckedChange={(enabled) =>
-                mutate({ kind: "enabled", identifier: row.original.identifier, enabled })
-              }
+              onCheckedChange={(enabled) => mutate({ kind: "enabled", identifier: row.original.identifier, enabled })}
             />
-            <span className="text-muted-foreground">
-              {row.original.enabled ? "Enabled" : "Disabled"}
-            </span>
+            <span className="text-muted-foreground">{row.original.enabled ? "Enabled" : "Disabled"}</span>
             {changedIdentifier === row.original.identifier ? (
-              <span
-                className="text-xs text-muted-foreground"
-                role={isPending ? "status" : undefined}
-              >
+              <span className="text-xs text-muted-foreground" role={isPending ? "status" : undefined}>
                 {isPending ? "Saving" : isSuccess ? "Saved" : null}
               </span>
             ) : null}
@@ -171,9 +156,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
       meta: { label: "Priority", width: "w-24" },
     });
 
-    return (
-      sources.length > 1 ? [source, state, priority] : [source, state]
-    ) as DataTableColumns<StorageSource>;
+    return (sources.length > 1 ? [source, state, priority] : [source, state]) as DataTableColumns<StorageSource>;
   }, [canEnable, canReorder, changedIdentifier, isPending, isSuccess, mutate, sources]);
 
   return (
@@ -223,9 +206,7 @@ function ConnectedStorageSources({ session }: { session: ConnectedSession }) {
       ) : null}
 
       {/* An unavailable feature is a note, not a row with an empty value. */}
-      <p className="px-4 py-3 text-xs text-muted-foreground [[data-density=touch]_&]:px-6">
-        Remote synchronization is not available yet.
-      </p>
+      <p className="px-4 py-3 text-xs text-muted-foreground [[data-density=touch]_&]:px-6">Remote synchronization is not available yet.</p>
     </SettingsCard>
   );
 }

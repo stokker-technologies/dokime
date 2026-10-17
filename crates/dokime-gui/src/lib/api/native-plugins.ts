@@ -17,22 +17,13 @@ import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
 import type { PluginEntry } from "@/lib/types/view-contracts";
 import type { NativeContentSession } from "./native-content";
-import {
-  NATIVE_MAX_PAGES,
-  NATIVE_PAGE_SIZE,
-  NativeApiLimitError,
-  safeNumber,
-  sha256Hex,
-  timestampIso,
-} from "./native-values";
+import { NATIVE_MAX_PAGES, NATIVE_PAGE_SIZE, NativeApiLimitError, safeNumber, sha256Hex, timestampIso } from "./native-values";
 
 /* === Types === */
 
 type PluginInstallation = Wire<Awaited<ReturnType<typeof rpc.pluginsGetInstallation>>>;
 type PluginInstallationState = PluginInstallation["state"];
-type AdmittedPlugin = Wire<
-  Awaited<ReturnType<typeof rpc.pluginsListAdmittedPlugins>>["plugins"][number]
->;
+type AdmittedPlugin = Wire<Awaited<ReturnType<typeof rpc.pluginsListAdmittedPlugins>>["plugins"][number]>;
 
 /* === Plugin installations === */
 
@@ -52,11 +43,7 @@ export async function listNativePlugins(session: SessionIdentity): Promise<Plugi
       manifestSha256: response.next.manifestSha256,
       afterInstallId: response.next.afterInstallId,
     };
-    if (
-      after &&
-      after.manifestSha256 === next.manifestSha256 &&
-      after.afterInstallId === next.afterInstallId
-    ) {
+    if (after && after.manifestSha256 === next.manifestSha256 && after.afterInstallId === next.afterInstallId) {
       throw new NativeApiLimitError("Plugins.ListInstallations", "cursor did not advance");
     }
     after = next;
@@ -65,17 +52,11 @@ export async function listNativePlugins(session: SessionIdentity): Promise<Plugi
   throw new NativeApiLimitError("Plugins.ListInstallations", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export async function getNativePlugin(
-  session: SessionIdentity,
-  installId: string,
-): Promise<PluginEntry> {
+export async function getNativePlugin(session: SessionIdentity, installId: string): Promise<PluginEntry> {
   return mapPluginInstallation(await rpc.pluginsGetInstallation(session, { installId }));
 }
 
-export async function consentNativePlugin(
-  session: SessionIdentity,
-  installId: string,
-): Promise<PluginEntry> {
+export async function consentNativePlugin(session: SessionIdentity, installId: string): Promise<PluginEntry> {
   const current = await rpc.pluginsGetInstallation(session, { installId });
   const installation = await rpc.pluginsConsent(session, {
     installId,
@@ -84,18 +65,11 @@ export async function consentNativePlugin(
   return mapPluginInstallation(installation);
 }
 
-export async function removeNativePlugin(
-  session: SessionIdentity,
-  installId: string,
-): Promise<void> {
+export async function removeNativePlugin(session: SessionIdentity, installId: string): Promise<void> {
   await rpc.pluginsRemove(session, { installId });
 }
 
-export async function setNativePluginEnabled(
-  session: SessionIdentity,
-  installId: string,
-  enabled: boolean,
-): Promise<PluginEntry> {
+export async function setNativePluginEnabled(session: SessionIdentity, installId: string, enabled: boolean): Promise<PluginEntry> {
   return mapPluginInstallation(await rpc.pluginsSetEnabled(session, { installId, enabled }));
 }
 
@@ -148,11 +122,7 @@ export function formatStagePluginBytes(bytes: number): string {
 }
 
 /** Stage an inert plugin archive; activation remains a separate consent command. */
-export async function stageNativePlugin(
-  session: NativeContentSession,
-  file: File,
-  options: StagePluginOptions = {},
-): Promise<PluginEntry> {
+export async function stageNativePlugin(session: NativeContentSession, file: File, options: StagePluginOptions = {}): Promise<PluginEntry> {
   const onProgress = options.onProgress;
   const bounds = { ...DEFAULT_STAGE_STALL_MS, ...options.stallBoundsMs };
 
@@ -213,9 +183,7 @@ export async function stageNativePlugin(
 
     onProgress?.({ phase: "finishing" });
     const openedStream = stream;
-    return mapPluginInstallation(
-      await withInvoke("finishing", bounds.finish, cancel, () => openedStream.finish()),
-    );
+    return mapPluginInstallation(await withInvoke("finishing", bounds.finish, cancel, () => openedStream.finish()));
   } finally {
     await cancel().catch(() => undefined);
     release?.();
@@ -227,10 +195,7 @@ const NATIVE_PLUGIN_CHUNK_BYTES = 256 * 1024;
 
 async function readPluginBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
   if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > NATIVE_PLUGIN_BYTES) {
-    throw new NativeApiLimitError(
-      "Plugins.Stage",
-      `plugin archive must be between 1 and ${NATIVE_PLUGIN_BYTES} bytes`,
-    );
+    throw new NativeApiLimitError("Plugins.Stage", `plugin archive must be between 1 and ${NATIVE_PLUGIN_BYTES} bytes`);
   }
   return new Uint8Array(await file.arrayBuffer());
 }
@@ -268,12 +233,7 @@ async function withPhase<T>(label: string, run: () => Promise<T>): Promise<T> {
  * with a phase-tagged "stalled after N s" message instead of leaving the
  * caller's "Inspecting …" spinning forever.
  */
-async function withInvoke<T>(
-  label: string,
-  timeoutMs: number,
-  cancel: () => Promise<void>,
-  run: () => Promise<T>,
-): Promise<T> {
+async function withInvoke<T>(label: string, timeoutMs: number, cancel: () => Promise<void>, run: () => Promise<T>): Promise<T> {
   try {
     return await withTimeout(run(), timeoutMs);
   } catch (error) {
@@ -296,9 +256,7 @@ function stagingFailure(label: string, error: unknown): Error {
 
 /* === Admitted Plugins === */
 
-export async function listNativeAdmittedPlugins(
-  session: SessionIdentity,
-): Promise<RuntimeInstalledPluginRecord[]> {
+export async function listNativeAdmittedPlugins(session: SessionIdentity): Promise<RuntimeInstalledPluginRecord[]> {
   const artifacts: AdmittedPlugin[] = [];
   let after: { epoch: string; revision: bigint; afterPluginId: string } | undefined;
 
@@ -315,21 +273,13 @@ export async function listNativeAdmittedPlugins(
       revision: response.next.revision,
       afterPluginId: response.next.afterPluginId,
     };
-    if (
-      after &&
-      after.epoch === next.epoch &&
-      after.revision === next.revision &&
-      after.afterPluginId === next.afterPluginId
-    ) {
+    if (after && after.epoch === next.epoch && after.revision === next.revision && after.afterPluginId === next.afterPluginId) {
       throw new NativeApiLimitError("Plugins.ListAdmittedPlugins", "cursor did not advance");
     }
     after = next;
   }
 
-  throw new NativeApiLimitError(
-    "Plugins.ListAdmittedPlugins",
-    `more than ${NATIVE_MAX_PAGES} pages`,
-  );
+  throw new NativeApiLimitError("Plugins.ListAdmittedPlugins", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
 /* === Mapping === */
@@ -356,9 +306,7 @@ function mapPluginInstallation(installation: PluginInstallation): PluginEntry {
                 description: installation.metadata.identity.description,
               }
             : (() => {
-                throw new Error(
-                  `Native plugin ${installation.installId} metadata has no identity.`,
-                );
+                throw new Error(`Native plugin ${installation.installId} metadata has no identity.`);
               })(),
           owners: installation.metadata.owners,
           size_bytes: safeNumber(installation.metadata.sizeBytes, "Plugins plugin size"),

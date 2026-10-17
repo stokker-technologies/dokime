@@ -95,9 +95,7 @@ function Diagnostics({ issues, truncated }: { issues: HistoryIssue[]; truncated:
   return (
     <div role="status" className="text-sm text-amber-600">
       {issues.map((issue) => (
-        <p key={`${issue.source ?? "history"}:${issue.dataset ?? "dataset"}:${issue.message}`}>
-          {issue.message}
-        </p>
+        <p key={`${issue.source ?? "history"}:${issue.dataset ?? "dataset"}:${issue.message}`}>{issue.message}</p>
       ))}
       {truncated && <p>Additional source issues were omitted.</p>}
     </div>
@@ -115,21 +113,11 @@ function Pager({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={cursors.length === 1}
-        onClick={() => setCursors(cursors.slice(0, -1))}
-      >
+      <Button size="sm" variant="outline" disabled={cursors.length === 1} onClick={() => setCursors(cursors.slice(0, -1))}>
         Previous page
       </Button>
       <span className="text-xs">Page {cursors.length}</span>
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={!next}
-        onClick={() => next && setCursors([...cursors, next])}
-      >
+      <Button size="sm" variant="outline" disabled={!next} onClick={() => next && setCursors([...cursors, next])}>
         Next page
       </Button>
     </div>
@@ -158,10 +146,7 @@ function Records({ checkpoint, session }: SessionProps) {
         const text = nativeRecordText(record);
         const message = record.message ?? record.error?.message ?? "";
         return (
-          <details
-            className="min-w-0 rounded border p-2 text-sm"
-            key={`${row.epoch}:${record.sequence.toString()}:${record.recordId}`}
-          >
+          <details className="min-w-0 rounded border p-2 text-sm" key={`${row.epoch}:${record.sequence.toString()}:${record.recordId}`}>
             <summary className="cursor-pointer break-words">
               <span className="text-muted-foreground">
                 {text.timestamp} · {text.severity} · {row.epoch}
@@ -202,8 +187,7 @@ function Telemetry({ checkpoint, session }: SessionProps) {
             >
               {query.data.telemetryTables.map((item) => (
                 <option key={item.table} value={item.table}>
-                  {item.schema?.metadata?.label || item.schema?.stream || item.table} · v
-                  {item.schema?.schemaVersion ?? "?"}
+                  {item.schema?.metadata?.label || item.schema?.stream || item.table} · v{item.schema?.schemaVersion ?? "?"}
                 </option>
               ))}
             </select>
@@ -245,13 +229,8 @@ function TelemetryRows({ checkpoint, session, table }: SessionProps & { table: s
         const sample = row.sample;
         if (!row.epoch || !sample) throw new Error("Captured sample source identity is missing.");
         return (
-          <div
-            key={`${row.epoch}:${row.ordinal}:${sample.sampleId}`}
-            className="min-w-0 border-b pb-2 text-sm"
-          >
-            <p className="text-muted-foreground">
-              {timestampIso(sample.timestamp) ?? "Unknown time"}
-            </p>
+          <div key={`${row.epoch}:${row.ordinal}:${sample.sampleId}`} className="min-w-0 border-b pb-2 text-sm">
+            <p className="text-muted-foreground">{timestampIso(sample.timestamp) ?? "Unknown time"}</p>
             <ValueObjectView value={sample.values} />
             {sample.summary && (
               <details className="mt-2">
@@ -328,20 +307,12 @@ function Files({ checkpoint, session }: SessionProps) {
           {checkpointFileLabel(file)}
         </Button>
       ))}
-      {selected && (
-        <FilePreview key={selected} checkpoint={checkpoint} session={session} path={selected} />
-      )}
+      {selected && <FilePreview key={selected} checkpoint={checkpoint} session={session} path={selected} />}
       <h3 className="font-medium">Attachments</h3>
       {!query.data.artifacts.length && <p>No attachments.</p>}
       {query.data.artifacts.map((artifact) =>
         artifact.state?.HarmosVariant.case === "Complete" ? (
-          <Download
-            key={artifact.artifactId}
-            checkpoint={checkpoint}
-            session={session}
-            id={artifact.artifactId}
-            name={artifact.filename}
-          />
+          <Download key={artifact.artifactId} checkpoint={checkpoint} session={session} id={artifact.artifactId} name={artifact.filename} />
         ) : (
           <p key={artifact.artifactId}>
             {artifact.filename} · {artifactStateLabel(artifact.state)}
@@ -355,13 +326,7 @@ function Files({ checkpoint, session }: SessionProps) {
 function FilePreview({ checkpoint, session, path }: SessionProps & { path: string }) {
   const [offset, setOffset] = useState<bigint>(0n);
   const query = useQuery({
-    queryKey: [
-      "checkpoint-output",
-      session.generation,
-      checkpointKey(checkpoint),
-      path,
-      offset.toString(),
-    ],
+    queryKey: ["checkpoint-output", session.generation, checkpointKey(checkpoint), path, offset.toString()],
     queryFn: ({ signal }) => readCheckpointOutput(session, checkpoint, path, offset, signal),
     staleTime: Infinity,
     gcTime: 0,
@@ -375,8 +340,8 @@ function FilePreview({ checkpoint, session, path }: SessionProps & { path: strin
   return (
     <section className="grid min-w-0 gap-2" aria-label="File preview">
       <p className="break-all text-sm">
-        {path} · {kind} · {checkpointFileState(file.state)} · bytes {file.offset.toString()}–
-        {end.toString()} of {file.observedSizeBytes.toString()}
+        {path} · {kind} · {checkpointFileState(file.state)} · bytes {file.offset.toString()}–{end.toString()} of{" "}
+        {file.observedSizeBytes.toString()}
       </p>
       <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs">
         {kind === "text"
@@ -418,9 +383,7 @@ function Context({ checkpoint, session }: SessionProps) {
   const context = query.data;
   return (
     <div className="grid min-w-0 gap-3">
-      <h3 className="font-medium">
-        {context.cycle?.cycle?.metadata?.label ?? "Execution context"}
-      </h3>
+      <h3 className="font-medium">{context.cycle?.cycle?.metadata?.label ?? "Execution context"}</h3>
       <h4 className="text-sm font-medium">Notes At Capture</h4>
       {!context.notes.length && <p>No notes captured.</p>}
       {context.notes.map((note) => (
@@ -451,11 +414,7 @@ function Context({ checkpoint, session }: SessionProps) {
       {context.executionDocuments.map((document, index) => {
         const presentation = document.presentation;
         return (
-          <p
-            key={
-              presentation?.documentId || presentation?.metadata?.identifier || `document-${index}`
-            }
-          >
+          <p key={presentation?.documentId || presentation?.metadata?.identifier || `document-${index}`}>
             {presentation?.metadata?.label || presentation?.documentId || "Captured document"}
           </p>
         );
@@ -485,13 +444,7 @@ function severityLabel(value: Severity | undefined): string {
 
 function formatStructured(value: unknown): string {
   try {
-    return (
-      JSON.stringify(
-        value,
-        (_key, item: unknown) => (typeof item === "bigint" ? item.toString() : item),
-        2,
-      ) ?? ""
-    );
+    return JSON.stringify(value, (_key, item: unknown) => (typeof item === "bigint" ? item.toString() : item), 2) ?? "";
   } catch {
     return String(value);
   }

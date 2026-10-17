@@ -47,10 +47,7 @@ export function useExecutionProgress(testExecutionId: string | null): LiveExecut
     const connect = async () => {
       if (!active || !session.identity.isCurrent()) return;
       try {
-        stream = await openNativeExecutionProgressStream(
-          { ...session.identity, own: session.own },
-          testExecutionId,
-        );
+        stream = await openNativeExecutionProgressStream({ ...session.identity, own: session.own }, testExecutionId);
         for await (const frame of stream) {
           if (!active || !session.identity.isCurrent()) break;
           const value = frame.progress;
@@ -64,10 +61,7 @@ export function useExecutionProgress(testExecutionId: string | null): LiveExecut
                   completed: safeNumber(value.completed, "execution progress completed"),
                   total: safeNumber(value.total, "execution progress total"),
                   elapsedMs: safeNumber(value.elapsedMs, "execution progress elapsed"),
-                  remainingMs:
-                    value.remainingMs === undefined
-                      ? null
-                      : safeNumber(value.remainingMs, "execution progress ETA"),
+                  remainingMs: value.remainingMs === undefined ? null : safeNumber(value.remainingMs, "execution progress ETA"),
                 },
           );
         }

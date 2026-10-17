@@ -19,10 +19,14 @@ export function ArtifactTree(props: ArtifactTreeProps) {
   return (
     <ArtifactTreeView
       {...props}
-      actions={session ? {
-        open: (artifact) => openNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
-        download: (artifact) => downloadNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
-      } : undefined}
+      actions={
+        session
+          ? {
+              open: (artifact) => openNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
+              download: (artifact) => downloadNativeArtifact(nativeContentSession(session.identity, session.own), artifact),
+            }
+          : undefined
+      }
       renderTextPreview={(artifact, onOpenChange) => (
         <TextArtifactViewer artifact={artifact} open={artifact !== null} onOpenChange={onOpenChange} />
       )}

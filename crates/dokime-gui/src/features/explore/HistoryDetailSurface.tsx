@@ -13,31 +13,15 @@ import { useState } from "react";
 import { useNativeSession } from "@/app/native-session/context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  checkpointKey,
-  deleteNativeExecution,
-  executionStatusLabel,
-} from "@/lib/api/native-checkpoints";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { checkpointKey, deleteNativeExecution, executionStatusLabel } from "@/lib/api/native-checkpoints";
 import { mapStepStatus } from "@/lib/api/native-planning";
 import { downloadNativeCycleReport, openNativeReport } from "@/lib/api/native-reports";
 import { timestampIso } from "@/lib/api/native-values";
 import type { ExecutionBrowseEntry } from "@/lib/types/view-contracts";
 import { usePageChrome } from "@/shell/page-chrome";
 import { CheckpointEvidence } from "./CheckpointEvidence";
-import {
-  type ExploreEntry,
-  type ExploreTarget,
-  exploreEntryKey,
-  unrunCaption,
-} from "./explore-contracts";
+import { type ExploreEntry, type ExploreTarget, exploreEntryKey, unrunCaption } from "./explore-contracts";
 import { fetchCheckpoint } from "./explore-data-source";
 import { exploreQueryKeys, useExploreHistoryQuery } from "./explore-queries";
 
@@ -59,9 +43,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
   const query = useExploreHistoryQuery("", "All");
   const session = useNativeSession();
   const queryClient = useQueryClient();
-  const entry = query.data?.find(
-    (cycle) => exploreEntryKey(cycle.target) === exploreEntryKey(target),
-  );
+  const entry = query.data?.find((cycle) => exploreEntryKey(cycle.target) === exploreEntryKey(target));
   /* A link can name a planned case that was never run — the rows never offer
      one, but a bookmark, a report or a copied URL can. It is not missing
      history; there is nothing behind it, and the cycle it belongs to is. */
@@ -76,10 +58,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
 
   // The page bar carries the title, so the surface never repeats it.
   usePageChrome({
-    title:
-      selected?.metadata.title ??
-      entry?.title ??
-      (target.kind === "cycle" ? `Cycle ${target.id}` : `Execution ${target.id}`),
+    title: selected?.metadata.title ?? entry?.title ?? (target.kind === "cycle" ? `Cycle ${target.id}` : `Execution ${target.id}`),
   });
 
   function retryKey(execution: ExecutionBrowseEntry): string {
@@ -99,11 +78,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
 
     let receipt: Awaited<ReturnType<typeof deleteNativeExecution>>;
     try {
-      receipt = await deleteNativeExecution(
-        session.identity,
-        execution.checkpoint,
-        requestIdentifier,
-      );
+      receipt = await deleteNativeExecution(session.identity, execution.checkpoint, requestIdentifier);
     } catch (error: unknown) {
       if (!session.identity.isCurrent()) return;
       setDeleteError(error instanceof Error ? error.message : String(error));
@@ -158,15 +133,10 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
           <section aria-label="Case never run" className="grid gap-2 rounded-md border p-3">
             <h2 className="font-medium">This case was never run</h2>
             <p className="max-w-[var(--prose-measure)] text-sm text-muted-foreground">
-              {unrun.metadata.title} was planned and never started, so this execution has no
-              acquisition, no steps and no records behind it.
+              {unrun.metadata.title} was planned and never started, so this execution has no acquisition, no steps and no records behind it.
             </p>
             {unrunCycleId && onOpenCycle ? (
-              <Button
-                className="justify-self-start px-0"
-                onClick={() => onOpenCycle(unrunCycleId)}
-                variant="link"
-              >
+              <Button className="justify-self-start px-0" onClick={() => onOpenCycle(unrunCycleId)} variant="link">
                 Open the cycle it belongs to
               </Button>
             ) : null}
@@ -179,22 +149,11 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
           >
             <div className="min-w-0">
               <h2 className="font-medium">{execution.metadata.title}</h2>
-              <p className="break-all text-xs text-muted-foreground">
-                {execution.metadata.execution_id}
-              </p>
+              <p className="break-all text-xs text-muted-foreground">{execution.metadata.execution_id}</p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline">
-                {execution.availability === "interrupted"
-                  ? "Interrupted"
-                  : execution.metadata.status}
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!execution.checkpoint}
-                onClick={() => setSelected(execution)}
-              >
+              <Badge variant="outline">{execution.availability === "interrupted" ? "Interrupted" : execution.metadata.status}</Badge>
+              <Button variant="outline" size="sm" disabled={!execution.checkpoint} onClick={() => setSelected(execution)}>
                 Inspect checkpoint
               </Button>
               {isDeletableExecution(execution) ? (
@@ -222,21 +181,13 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
             {unrunCaption(entry.unrun_count)}
           </p>
         ) : null}
-        {!query.isPending && !query.isError && !entry && !unrun ? (
-          <p>No executions found in the loaded history.</p>
-        ) : null}
+        {!query.isPending && !query.isError && !entry && !unrun ? <p>No executions found in the loaded history.</p> : null}
         {query.hasNextPage ? (
-          <Button
-            variant="outline"
-            disabled={query.isFetchingNextPage}
-            onClick={() => void query.fetchNextPage()}
-          >
+          <Button variant="outline" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
             {query.isFetchingNextPage ? "Loading…" : "Load more executions"}
           </Button>
         ) : null}
-        {selected?.checkpoint ? (
-          <CheckpointInspection key={checkpointKey(selected.checkpoint)} entry={selected} />
-        ) : null}
+        {selected?.checkpoint ? <CheckpointInspection key={checkpointKey(selected.checkpoint)} entry={selected} /> : null}
       </div>
       <Dialog
         open={deleteTarget !== null}
@@ -251,21 +202,17 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
           <DialogHeader>
             <DialogTitle>Delete Execution</DialogTitle>
             <DialogDescription>
-              Permanently delete {deleteTarget?.metadata.title ?? "this execution"} from history
-              across configured sources? This cannot be undone.
+              Permanently delete {deleteTarget?.metadata.title ?? "this execution"} from history across configured sources? This cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           {deleteTarget?.checkpoint && deleteRetries[retryKey(deleteTarget)] ? (
-            <p className="text-sm text-muted-foreground">
-              Retry this deletion to confirm its result.
-            </p>
+            <p className="text-sm text-muted-foreground">Retry this deletion to confirm its result.</p>
           ) : null}
           {deleteError ? (
             <div className="grid gap-1" role="alert">
               <p>Unable to delete this execution: {deleteError}</p>
-              <p className="text-sm text-muted-foreground">
-                Resolve the issue, then retry deletion.
-              </p>
+              <p className="text-sm text-muted-foreground">Resolve the issue, then retry deletion.</p>
             </div>
           ) : null}
           <DialogFooter>
@@ -279,11 +226,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              disabled={deletePending || !deleteTarget}
-              onClick={() => void confirmDeletion()}
-            >
+            <Button variant="destructive" disabled={deletePending || !deleteTarget} onClick={() => void confirmDeletion()}>
               {deletePending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : null}
               {deletePending
                 ? "Deleting…"
@@ -299,10 +242,7 @@ function SessionHistoryDetail({ target, onBack, onOpenCycle }: HistoryDetailProp
 }
 
 /** The planned-but-never-started execution one direct link names, if any. */
-function findUnrunExecution(
-  entries: ExploreEntry[] | undefined,
-  executionId: string,
-): ExecutionBrowseEntry | null {
+function findUnrunExecution(entries: ExploreEntry[] | undefined, executionId: string): ExecutionBrowseEntry | null {
   for (const entry of entries ?? []) {
     const found = entry.unrun.find((execution) => execution.metadata.execution_id === executionId);
     if (found) return found;
@@ -351,12 +291,9 @@ function CheckpointInspection({ entry }: { entry: ExecutionBrowseEntry }) {
   }
   return (
     <section className="grid gap-3 rounded-md border bg-card p-4" aria-label="Captured execution">
-      <h2 className="font-semibold">
-        {query.data.document?.cycle?.metadata?.label ?? entry.metadata.title}
-      </h2>
+      <h2 className="font-semibold">{query.data.document?.cycle?.metadata?.label ?? entry.metadata.title}</h2>
       <p className="break-all text-xs text-muted-foreground">
-        Checkpoint{" "}
-        {(query.data.checkpoint?.position?.sequence ?? checkpoint?.position.sequence)?.toString()}
+        Checkpoint {(query.data.checkpoint?.position?.sequence ?? checkpoint?.position.sequence)?.toString()}
       </p>
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         <div>
@@ -405,10 +342,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
     setBusy(true);
     try {
       setError(null);
-      const report = await downloadNativeCycleReport(
-        { ...session.identity, own: session.own },
-        cycleId,
-      );
+      const report = await downloadNativeCycleReport({ ...session.identity, own: session.own }, cycleId);
       await openNativeReport(report, session.identity);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : String(error));
@@ -420,11 +354,7 @@ function CycleReportActions({ cycleId }: { cycleId: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button disabled={busy} onClick={() => void openReport()} size="sm" variant="outline">
-        {busy ? (
-          <Loader2 className="animate-spin" data-icon="inline-start" />
-        ) : (
-          <FileText data-icon="inline-start" />
-        )}
+        {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <FileText data-icon="inline-start" />}
         {busy ? "Opening…" : "Open Report"}
       </Button>
       {error ? <span className="text-xs text-destructive">{error}</span> : null}

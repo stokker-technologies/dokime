@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Portable Media Gallery Values And Pure Artifact Computations.
  */
@@ -23,30 +22,12 @@ import type { MediaArtifactKind } from "@/lib/media";
 import type { ArtifactSource } from "@/lib/desktop/delivery";
 import type { RecordScope } from "@/lib/types";
 
-
-
 /* === Re-Exports === */
 
 /* === Constants === */
-const SAFE_IMAGE_TYPES = new Set([
-  "image/avif",
-  "image/bmp",
-  "image/gif",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-]);
+const SAFE_IMAGE_TYPES = new Set(["image/avif", "image/bmp", "image/gif", "image/jpeg", "image/png", "image/webp"]);
 const SAFE_VIDEO_TYPES = new Set(["video/mp4", "video/mpeg", "video/ogg", "video/webm"]);
-const SAFE_AUDIO_TYPES = new Set([
-  "audio/flac",
-  "audio/mp4",
-  "audio/mpeg",
-  "audio/ogg",
-  "audio/wav",
-  "audio/webm",
-]);
-
-
+const SAFE_AUDIO_TYPES = new Set(["audio/flac", "audio/mp4", "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm"]);
 
 /* === Types === */
 export type MediaGalleryArtifact = {
@@ -86,8 +67,6 @@ export type MediaPreviewState = {
   retry(artifactId: string): void;
   urls: Record<string, string>;
 };
-
-
 
 /* === Classes === */
 
@@ -147,8 +126,6 @@ export function mediaArtifactSource(artifact: MediaGalleryArtifact): ArtifactSou
   }
   return { kind: "artifact", artifactId: artifact.artifact_id };
 }
-
-
 
 /* === Private Functions === */
 

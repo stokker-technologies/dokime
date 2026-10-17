@@ -28,13 +28,7 @@
 /* === External Imports === */
 
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  History as HistoryIcon,
-  Library,
-  ListChecks,
-  type LucideIcon,
-  Settings,
-} from "lucide-react";
+import { History as HistoryIcon, Library, ListChecks, type LucideIcon, Settings } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect, useRef } from "react";
 
 /* === Local Imports === */
@@ -93,7 +87,9 @@ export function Sidebar(props: SidebarProps) {
         <ul className="grid min-h-0 content-start gap-0.5 overflow-y-auto px-[var(--shell-gap)] pt-2 pb-2">
           <CycleSidebarCases selection={props.selection} cycleId={props.cycleId} live={false} onSelect={props.onSelect} />
         </ul>
-      ) : <DestinationTree />}
+      ) : (
+        <DestinationTree />
+      )}
     </SidebarFrame>
   );
 }
@@ -117,9 +113,7 @@ function DestinationTree() {
 
   const cycleId = cycleIdOfPathname(pathname);
   const onSettings = isCurrent(pathname, "/settings");
-  const settingsSection = onSettings
-    ? (SETTINGS_SECTION_ROUTE.exec(pathname)?.[1] ?? DEFAULT_SETTINGS_SECTION)
-    : null;
+  const settingsSection = onSettings ? (SETTINGS_SECTION_ROUTE.exec(pathname)?.[1] ?? DEFAULT_SETTINGS_SECTION) : null;
 
   // The one read is the shared query of the surface it describes, so the tree
   // adds no traffic beyond the destination the operator is actually in.
@@ -137,9 +131,7 @@ function DestinationTree() {
     return 0;
   };
 
-  const activeIndex = DESTINATIONS.findIndex((destination) =>
-    isCurrent(pathname, destination.prefix),
-  );
+  const activeIndex = DESTINATIONS.findIndex((destination) => isCurrent(pathname, destination.prefix));
   const active = activeIndex >= 0 ? (DESTINATIONS[activeIndex] ?? null) : null;
 
   const destinationRow = (destination: Destination) => {
@@ -173,9 +165,7 @@ function DestinationTree() {
         <TooltipTrigger asChild>{row}</TooltipTrigger>
         <TooltipContent side="right">
           {childCountLabel(destination, childCount(destination))}
-          {destination.to === "/cycles" && pendingPrompts.length > 0
-            ? ` · ${pendingPromptCountLabel(pendingPrompts.length)}`
-            : null}
+          {destination.to === "/cycles" && pendingPrompts.length > 0 ? ` · ${pendingPromptCountLabel(pendingPrompts.length)}` : null}
         </TooltipContent>
       </Tooltip>
     );
@@ -189,9 +179,7 @@ function DestinationTree() {
         key={section.id}
         label={section.label}
         level="overview"
-        onSelect={() =>
-          void navigate({ params: { section: section.id }, to: "/settings/$section" })
-        }
+        onSelect={() => void navigate({ params: { section: section.id }, to: "/settings/$section" })}
         title={section.label}
       />
     ));
@@ -207,10 +195,7 @@ function DestinationTree() {
         <li className={cn("flex flex-col gap-0.5", children ? "min-h-0" : "shrink-0")}>
           <ul className="shrink-0">{destinationRow(active)}</ul>
           {children ? (
-            <ChildRegion
-              offsets={scrollOffsets}
-              storageKey={active.to === "/cycles" ? `cycles:${cycleId}` : active.to}
-            >
+            <ChildRegion offsets={scrollOffsets} storageKey={active.to === "/cycles" ? `cycles:${cycleId}` : active.to}>
               {children}
             </ChildRegion>
           ) : null}

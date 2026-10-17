@@ -34,10 +34,7 @@ import { IdentitySection } from "@/features/settings/sections/IdentitySection";
 import { PluginSettingsSection } from "@/features/settings/sections/PluginSettingsSection";
 import { PluginsSection } from "@/features/settings/sections/PluginsSection";
 import type { RuntimeSettingsFrame } from "@/features/settings/settings-contracts";
-import {
-  DEFAULT_SETTINGS_SECTION,
-  type SettingsSectionId,
-} from "@/features/settings/settings-sections";
+import { DEFAULT_SETTINGS_SECTION, type SettingsSectionId } from "@/features/settings/settings-sections";
 import { useSettingsSections } from "@/features/settings/use-settings-sections";
 import { usePageChrome } from "@/shell/page-chrome";
 
@@ -55,10 +52,7 @@ type SettingsSurfaceProps = {
  * title and the Back chevron, so this surface adds no second header and no
  * close action of its own: an X closes a window, not a panel.
  */
-export function SettingsSurface({
-  close,
-  section = DEFAULT_SETTINGS_SECTION,
-}: SettingsSurfaceProps) {
+export function SettingsSurface({ close, section = DEFAULT_SETTINGS_SECTION }: SettingsSurfaceProps) {
   const settings = useSettingsSections();
   const frame = settings.frame;
   const meta = settings.sections.find((entry) => entry.id === section);
@@ -86,13 +80,7 @@ export function SettingsSurface({
            in the one settings grid. */
         <div className="p-[var(--shell-inset)]">
           <SettingsGrid>
-            <SectionContent
-              frame={frame}
-              loadError={settings.error}
-              loading={settings.loading}
-              retry={settings.retry}
-              section={section}
-            />
+            <SectionContent frame={frame} loadError={settings.error} loading={settings.loading} retry={settings.retry} section={section} />
           </SettingsGrid>
         </div>
       )}

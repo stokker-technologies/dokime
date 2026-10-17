@@ -112,14 +112,7 @@ test("Record Buffers", () => {
   replay.getState().receive(CYCLE_PAGE, page(1, 4), 0n);
   replay.getState().rewind(CYCLE_PAGE);
   replay.getState().receive(CYCLE_PAGE, page(3, 6), 0n);
-  assert.deepEqual(ids(buffer(replay, CYCLE_PAGE)), [
-    "trace-1",
-    "trace-2",
-    "trace-3",
-    "trace-4",
-    "trace-5",
-    "trace-6",
-  ]);
+  assert.deepEqual(ids(buffer(replay, CYCLE_PAGE)), ["trace-1", "trace-2", "trace-3", "trace-4", "trace-5", "trace-6"]);
 
   // A Page From Another Epoch Replaces The Rows
   const epochs = sessionStore();
@@ -167,7 +160,5 @@ test("Buffer Retention", () => {
   }
   const keys = [...scopes.getState().buffers.keys()];
   assert.equal(keys.length, RETAINED_BUFFERS);
-  assert.ok(
-    !keys.includes(consoleBufferKey({ cycleId: "cycle-0", executionId: null, level: "info" })),
-  );
+  assert.ok(!keys.includes(consoleBufferKey({ cycleId: "cycle-0", executionId: null, level: "info" })));
 });

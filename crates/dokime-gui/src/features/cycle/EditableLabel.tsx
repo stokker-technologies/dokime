@@ -27,14 +27,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  CLOSED_LABEL_DRAFT,
-  type LabelDraft,
-  labelEditorKey,
-  openLabelEdit,
-  refuseLabel,
-  updateLabelText,
-} from "./label-editor-model";
+import { CLOSED_LABEL_DRAFT, type LabelDraft, labelEditorKey, openLabelEdit, refuseLabel, updateLabelText } from "./label-editor-model";
 
 /* === Types === */
 
@@ -64,11 +57,7 @@ export function EditableLabel({ label, prefix = "", subject, onRename }: Editabl
     setSaving(true);
     onRename(next)
       .then(() => setDraft(CLOSED_LABEL_DRAFT))
-      .catch((error: unknown) =>
-        setDraft((current) =>
-          refuseLabel(current, error instanceof Error ? error.message : String(error)),
-        ),
-      )
+      .catch((error: unknown) => setDraft((current) => refuseLabel(current, error instanceof Error ? error.message : String(error))))
       .finally(() => setSaving(false));
   };
   const press = (key: string) => {
@@ -117,12 +106,7 @@ export function EditableLabel({ label, prefix = "", subject, onRename }: Editabl
           <Check />
         </Button>
         {draft.error ? (
-          <p
-            aria-live="polite"
-            className="min-w-0 truncate text-xs text-destructive"
-            id="label-editor-error"
-            title={draft.error}
-          >
+          <p aria-live="polite" className="min-w-0 truncate text-xs text-destructive" id="label-editor-error" title={draft.error}>
             {draft.error}
           </p>
         ) : (

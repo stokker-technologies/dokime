@@ -5,14 +5,7 @@
    its WebView reaches the backend only through the shell's IPC bridge. */
 
 /* === External Imports === */
-import {
-  create,
-  type DescMessage,
-  fromBinary,
-  type MessageInitShape,
-  type MessageShape,
-  toBinary,
-} from "@bufbuild/protobuf";
+import { create, type DescMessage, fromBinary, type MessageInitShape, type MessageShape, toBinary } from "@bufbuild/protobuf";
 
 /* === Local Imports === */
 import type { BackendLimits } from "../desktop/connection";
@@ -104,11 +97,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
   const payload = toBinary(input, create(input, request));
   if (payload.length > requestLimit) throw normalizeRpcError({ kind: "limit_exceeded" });
   const cancellation = new AbortController();
-  const signal = AbortSignal.any([
-    connection.cancellation.signal,
-    cancellation.signal,
-    AbortSignal.timeout(timeoutMs),
-  ]);
+  const signal = AbortSignal.any([connection.cancellation.signal, cancellation.signal, AbortSignal.timeout(timeoutMs)]);
   const headers: Record<string, string> = {
     "content-type": "application/grpc-web+proto",
     "x-grpc-web": "1",
@@ -196,8 +185,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
           const header = await read(5, true);
           if (!header) {
             if (!finalStatus) throw new Error("Backend closed without a final gRPC status.");
-            if (envelope && !operationCompletion)
-              throw new Error("Backend closed without operation completion.");
+            if (envelope && !operationCompletion) throw new Error("Backend closed without operation completion.");
             ended = true;
             reader.releaseLock();
             return { done: true, value: undefined };
@@ -224,8 +212,7 @@ export async function openStream<I extends DescMessage, O extends DescMessage>(
             finalStatus = true;
             continue;
           }
-          if (header[0] !== 0 || operationCompletion)
-            throw new Error("Invalid gRPC-web response frame.");
+          if (header[0] !== 0 || operationCompletion) throw new Error("Invalid gRPC-web response frame.");
           if (!envelope) return { done: false, value: fromBinary(output, payload) };
           const decoded = fromBinary(envelope, payload) as unknown as {
             value: { case: string; value: MessageShape<O> };
@@ -284,8 +271,7 @@ function frame(payload: Uint8Array): Uint8Array<ArrayBuffer> {
 }
 function status(headers: Headers): void {
   const value = headers.get("grpc-status");
-  if (!value || !/^(?:[0-9]|1[0-6])$/.test(value))
-    throw new Error("Missing or invalid final gRPC status.");
+  if (!value || !/^(?:[0-9]|1[0-6])$/.test(value)) throw new Error("Missing or invalid final gRPC status.");
   const code = Number(value);
   if (code === 0) return;
   let message = headers.get("grpc-message") ?? "";

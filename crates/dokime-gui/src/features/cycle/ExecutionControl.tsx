@@ -52,13 +52,7 @@ export type ExecutionControlProps = {
 
 /* === Components === */
 
-export function ExecutionControl({
-  cycleId,
-  executionId,
-  prompts,
-  selection,
-  onSelectExecution,
-}: ExecutionControlProps) {
+export function ExecutionControl({ cycleId, executionId, prompts, selection, onSelectExecution }: ExecutionControlProps) {
   const ordered = useMemo(() => orderPendingPrompts(prompts), [prompts]);
   const [first, ...waiting] = ordered;
   const progress = useExecutionProgress(executionId);
@@ -95,30 +89,20 @@ export function ExecutionControl({
         {progressShown ? (
           <div className="grid min-w-0 gap-1.5">
             <p className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 text-xs">
-              <span className="truncate">
-                {progressStepLabel(progressShown.stepId, progressShown.phase)}
-              </span>
+              <span className="truncate">{progressStepLabel(progressShown.stepId, progressShown.phase)}</span>
               <span className="text-muted-foreground tabular-nums">
                 {progressShown.completed}/{progressShown.total}
               </span>
             </p>
             <Progress
               aria-label="Execution Progress"
-              value={
-                progressShown.total > 0 ? (progressShown.completed / progressShown.total) * 100 : 0
-              }
+              value={progressShown.total > 0 ? (progressShown.completed / progressShown.total) * 100 : 0}
             />
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {first ? "The run waits on the prompt above." : "No step in progress."}
-          </p>
+          <p className="text-sm text-muted-foreground">{first ? "The run waits on the prompt above." : "No step in progress."}</p>
         )}
-        <CycleExecutionControls
-          cycleId={cycleId}
-          onSelectExecution={onSelectExecution}
-          selection={selection}
-        />
+        <CycleExecutionControls cycleId={cycleId} onSelectExecution={onSelectExecution} selection={selection} />
       </div>
     </ExecutionSectionCard>
   );
@@ -137,8 +121,7 @@ function OpenPrompt({ prompt }: { prompt: PromptRequest }) {
       correlationId: prompt.correlation_id,
       values: promptResponseValues(prompt, values),
     });
-  const changeValue = (field: PromptField, value: PromptValue) =>
-    setValues((current) => ({ ...current, [field.name]: value }));
+  const changeValue = (field: PromptField, value: PromptValue) => setValues((current) => ({ ...current, [field.name]: value }));
 
   return (
     <div className="grid min-w-0 gap-3">
@@ -146,15 +129,11 @@ function OpenPrompt({ prompt }: { prompt: PromptRequest }) {
         onAction={submit}
         onValueChange={changeValue}
         prompt={prompt}
-        submittingAction={
-          responseMutation.isPending ? (responseMutation.variables?.action ?? null) : null
-        }
+        submittingAction={responseMutation.isPending ? (responseMutation.variables?.action ?? null) : null}
         values={values}
       />
       {responseMutation.isError ? (
-        <p className="text-sm text-destructive">
-          The response was not accepted. Check the values and submit again.
-        </p>
+        <p className="text-sm text-destructive">The response was not accepted. Check the values and submit again.</p>
       ) : null}
     </div>
   );

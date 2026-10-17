@@ -64,8 +64,7 @@ const backendBinary = process.env.DOKIME_SHOTS_BACKEND ?? join(root, "target/deb
 
 const shellBinary = process.env.DOKIME_SHOTS_SHELL ?? join(root, "target/debug/dokime-gui");
 
-const pluginBundle =
-  process.env.DOKIME_SHOTS_PLUGIN ?? join(root, "target/debug/plugins/obc-plugin.dokime");
+const pluginBundle = process.env.DOKIME_SHOTS_PLUGIN ?? join(root, "target/debug/plugins/obc-plugin.dokime");
 
 const screenshots = join(root, "screenshots");
 
@@ -260,8 +259,7 @@ async function startSession(work, endpoint) {
     queue = queued.catch(() => undefined);
     return queued;
   };
-  session.execute = (script, args = []) =>
-    session.request("POST", "/execute/sync", { args, script });
+  session.execute = (script, args = []) => session.request("POST", "/execute/sync", { args, script });
   session.location = async () => new URL(await session.request("GET", "/url"));
   session.path = async () => (await session.location()).pathname;
   session.text = () => session.execute("return document.body.innerText");
@@ -284,16 +282,14 @@ async function startSession(work, endpoint) {
       `//${tag}[(normalize-space(.) = ${literal} or .//span[normalize-space(.) = ${literal}] or @aria-label = ${literal}) and not(@disabled)]`,
     );
   };
-  session.clickNamed = async (role, name) =>
-    session.clickElement(await until(`${role} ${name}`, () => session.named(role, name)));
+  session.clickNamed = async (role, name) => session.clickElement(await until(`${role} ${name}`, () => session.named(role, name)));
   /** Some controls, like Cycle Actions, are icon-only: their name never joins `body.innerText`. */
   session.exists = async (role, name) =>
     session
       .named(role, name)
       .then(() => true)
       .catch(() => false);
-  session.rect = (width, height) =>
-    session.request("POST", "/window/rect", { height, width, x: 0, y: 0 });
+  session.rect = (width, height) => session.request("POST", "/window/rect", { height, width, x: 0, y: 0 });
   session.viewport = () => session.execute("return [window.innerWidth, window.innerHeight]");
   session.close = async () => {
     if (session.closed) return;
@@ -304,12 +300,7 @@ async function startSession(work, endpoint) {
     }
   };
   session.connected = () =>
-    until(
-      "connected shell",
-      () =>
-        session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"),
-      180000,
-    );
+    until("connected shell", () => session.execute("return Boolean(document.querySelector('nav[aria-label=Navigation]'));"), 180000);
   /**
    * Go to a route by loading it.
    *
@@ -319,17 +310,9 @@ async function startSession(work, endpoint) {
    */
   session.goto = async (path) => {
     await session.request("POST", "/url", { url: appOrigin + path });
-    await until(
-      `load ${path}`,
-      async () => (await session.execute("return document.body.innerText.length")) > 20,
-      120000,
-    );
+    await until(`load ${path}`, async () => (await session.execute("return document.body.innerText.length")) > 20, 120000);
     await session.connected();
-    await until(
-      `route ${path}`,
-      async () => (await session.path()) === new URL(appOrigin + path).pathname,
-      30000,
-    );
+    await until(`route ${path}`, async () => (await session.path()) === new URL(appOrigin + path).pathname, 30000);
     await delay(900);
   };
 
@@ -383,15 +366,7 @@ async function shoot(session, name, variant) {
   const bytes = await session.request("GET", "/screenshot");
   await writeFile(target, Buffer.from(bytes, "base64"));
   // The panel renders at a device pixel ratio of two; publish the logical size.
-  await run("magick", [
-    target,
-    "-strip",
-    "-resize",
-    `${variant.width}x${variant.height}`,
-    "-define",
-    "png:compression-level=9",
-    target,
-  ]);
+  await run("magick", [target, "-strip", "-resize", `${variant.width}x${variant.height}`, "-define", "png:compression-level=9", target]);
   console.log(`captured ${target}`);
   return target;
 }
@@ -506,11 +481,7 @@ async function createCycle(session) {
   await session.clickNamed("button", "New Cycle");
   await until("new cycle dialog", () => session.find("css selector", "#new-cycle-title"), 30000);
   await session.clickNamed("button", "Create Cycle");
-  return until(
-    "the created cycle",
-    async () => (await session.location()).searchParams.get("appendTo"),
-    120000,
-  );
+  return until("the created cycle", async () => (await session.location()).searchParams.get("appendTo"), 120000);
 }
 
 /**
@@ -543,18 +514,9 @@ async function materialize(session, { capture, duration, suite }) {
   }
 
   await session.clickNamed("button", "Next");
-  await until(
-    "summary step",
-    async () => (await session.text()).includes("Finish And Add"),
-    120000,
-  );
+  await until("summary step", async () => (await session.text()).includes("Finish And Add"), 120000);
   await session.clickNamed("button", "Finish And Add");
-  await until(
-    "cases added",
-    async () =>
-      (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0,
-    120000,
-  );
+  await until("cases added", async () => (await session.execute("return document.querySelectorAll('[role=dialog]').length")) === 0, 120000);
   return appendTo;
 }
 
@@ -613,11 +575,7 @@ async function capture(session) {
 
   /* Cycles: the home, with the groups holding real work. */
   await session.goto("/cycles");
-  await until(
-    "cycle rows",
-    async () => /Completed|Failed|Stopped/.test(await session.text()),
-    120000,
-  );
+  await until("cycle rows", async () => /Completed|Failed|Stopped/.test(await session.text()), 120000);
   await delay(1500);
   await assertNoPersonalData(session, "cycles");
   await shoot(session, "cycles", desktop);
@@ -646,9 +604,7 @@ async function setDensity(session, variant) {
   await session.clickNamed("radio", variant.density === "touch" ? "Touch" : "Comfortable");
   await until(
     `density ${variant.density}`,
-    async () =>
-      (await session.execute("return document.documentElement.dataset.density")) ===
-      variant.density,
+    async () => (await session.execute("return document.documentElement.dataset.density")) === variant.density,
     20000,
   );
   await sizeViewport(session, variant);
@@ -692,11 +648,7 @@ async function selectFirstCase(session) {
     if (!rows.length) throw new Error('No case row to select');
     rows[0].querySelector('button').click();
   `);
-  await until(
-    "a selected case",
-    async () => (await session.location()).searchParams.get("caseId"),
-    30000,
-  );
+  await until("a selected case", async () => (await session.location()).searchParams.get("caseId"), 30000);
   await delay(1500);
 }
 
@@ -735,17 +687,11 @@ async function openHistoryDetail(session) {
   await session.clickElement(row);
   await until(
     "history detail",
-    async () =>
-      (await session.path()).startsWith("/history/") &&
-      /Inspect checkpoint/i.test(await session.text()),
+    async () => (await session.path()).startsWith("/history/") && /Inspect checkpoint/i.test(await session.text()),
     120000,
   );
   await session.clickNamed("button", "Inspect checkpoint");
-  await until(
-    "captured execution",
-    async () => /Recorded Steps/i.test(await session.text()),
-    60000,
-  );
+  await until("captured execution", async () => /Recorded Steps/i.test(await session.text()), 60000);
   await session.clickNamed("button", "Records");
   await delay(2000);
 }

@@ -34,14 +34,7 @@ export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
   const buckets = plotBoxSummaryBuckets(plot);
   const totalSamples = plot.analysis?.kind === "box_summary" ? plot.analysis.total : 0;
   const values = buckets
-    .flatMap((bucket) => [
-      bucket.minimum,
-      bucket.q1,
-      bucket.median,
-      bucket.q3,
-      bucket.maximum,
-      ...bucket.outliers,
-    ])
+    .flatMap((bucket) => [bucket.minimum, bucket.q1, bucket.median, bucket.q3, bucket.maximum, ...bucket.outliers])
     .filter(isNumber);
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -71,10 +64,7 @@ export function BoxSummarySeriesPlot({ plot }: { plot: PlotCardSpec }) {
             className="grid min-h-14 min-w-0 grid-cols-[minmax(6.5rem,10rem)_minmax(10rem,1fr)_max-content] items-center gap-3"
             key={bucket.key}
           >
-            <span
-              className="min-w-0 truncate text-xs font-semibold tabular-nums"
-              title={bucket.label}
-            >
+            <span className="min-w-0 truncate text-xs font-semibold tabular-nums" title={bucket.label}>
               {bucket.label}
             </span>
             <div className="relative h-12 min-w-0 overflow-hidden rounded-md bg-background ring-1 ring-border">

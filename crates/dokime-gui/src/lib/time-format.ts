@@ -36,11 +36,7 @@ export function parseTimestampMs(timestamp: string | null | undefined): number |
   return parsed;
 }
 
-export function compactElapsedLabel(
-  startedAt: string | null | undefined,
-  now: number,
-  finishedAt?: string | null,
-): string {
+export function compactElapsedLabel(startedAt: string | null | undefined, now: number, finishedAt?: string | null): string {
   const started = parseTimestampMs(startedAt);
   if (started === null) {
     return "-";
@@ -77,11 +73,7 @@ export function relativeAgeLabel(timestamp: string | null | undefined, now: numb
   return `${Math.floor(hours / 24)} d ago`;
 }
 
-export function elapsedLabel(
-  startedAt: string | null | undefined,
-  now: number,
-  finishedAt?: string | null,
-): string {
+export function elapsedLabel(startedAt: string | null | undefined, now: number, finishedAt?: string | null): string {
   const started = parseTimestampMs(startedAt);
   if (started === null) {
     return "-";

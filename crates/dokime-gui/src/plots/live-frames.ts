@@ -33,12 +33,7 @@ import type {
   PlotSeries,
 } from "@/lib/types";
 import { xValue } from "@/plots/axis";
-import {
-  DEFAULT_PLOT_MAX_POINTS,
-  NATIVE_PLOT_MAX_POINTS,
-  type ReduceTechnique,
-  reduceIndices,
-} from "@/plots/reduce";
+import { DEFAULT_PLOT_MAX_POINTS, NATIVE_PLOT_MAX_POINTS, type ReduceTechnique, reduceIndices } from "@/plots/reduce";
 
 /* === Constants === */
 
@@ -152,12 +147,7 @@ export function retainFrame(payload: PlotPayload, technique: ReduceTechnique): P
  * changed (mode, series set, or no cartesian frame) starts over from the
  * update, since its samples cannot line up with the retained ones.
  */
-export function appendFrame(
-  current: PlotPayload,
-  update: PlotPayload,
-  revision: number,
-  technique: ReduceTechnique,
-): PlotPayload {
+export function appendFrame(current: PlotPayload, update: PlotPayload, revision: number, technique: ReduceTechnique): PlotPayload {
   const base = current.cartesian;
   const delta = update.cartesian;
   if (!base || !delta || base.mode !== delta.mode || !sameSeries(current.series, update.series)) {
@@ -290,15 +280,11 @@ function pushAll<T>(target: T[], values: readonly T[]) {
 }
 
 function sameSeries(current: readonly PlotSeries[], update: readonly PlotSeries[]): boolean {
-  return (
-    current.length === update.length &&
-    current.every((item, index) => item.key === update[index].key)
-  );
+  return current.length === update.length && current.every((item, index) => item.key === update[index].key);
 }
 
 function trimMarkers(markers: PlotMarker[], windowS: number | null): PlotMarker[] {
-  const byBudget =
-    markers.length > MAX_RETAINED_MARKERS ? markers.slice(-MAX_RETAINED_MARKERS) : markers;
+  const byBudget = markers.length > MAX_RETAINED_MARKERS ? markers.slice(-MAX_RETAINED_MARKERS) : markers;
   if (!windowS || byBudget.length < 2) return byBudget;
 
   let latest = Number.NEGATIVE_INFINITY;

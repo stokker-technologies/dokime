@@ -26,13 +26,7 @@ type PlotPlaceholderProps = PlotPlaceholderText & {
 /* === Components === */
 
 /** The centred box every plot shows in place of a chart it cannot draw yet. */
-export function PlotPlaceholder({
-  actions,
-  description,
-  detail,
-  label,
-  title,
-}: PlotPlaceholderProps) {
+export function PlotPlaceholder({ actions, description, detail, label, title }: PlotPlaceholderProps) {
   return (
     <div
       className="plot-empty relative grid min-h-44 place-content-center gap-2 rounded-md bg-muted/20 p-4 text-center text-muted-foreground"

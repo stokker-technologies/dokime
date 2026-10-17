@@ -15,10 +15,7 @@ import { type ComponentProps, useState } from "react";
 /* === Local Imports === */
 
 import { DocumentCard } from "@/components/document/DocumentCard";
-import {
-  DocumentEmbeddedBlock,
-  DocumentEmbeddedEmptyState,
-} from "@/components/document/DocumentEmbeddedContent";
+import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatDuration } from "@/lib/format";
@@ -58,13 +55,7 @@ export function StepRecordsCard({
   title = "Steps",
 }: StepRecordsCardProps) {
   return (
-    <DocumentCard
-      contentClassName="p-3"
-      eyebrow={eyebrow}
-      icon={<ListChecks size={20} />}
-      layout={layout}
-      title={title}
-    >
+    <DocumentCard contentClassName="p-3" eyebrow={eyebrow} icon={<ListChecks size={20} />} layout={layout} title={title}>
       <StepRecordList records={records} emptyMessage={emptyMessage} maxItems={maxItems} />
     </DocumentCard>
   );
@@ -80,10 +71,7 @@ export function StepRecordList({
   maxItems?: number | null;
 }) {
   const sortedRecords = sortedStepRecords(records);
-  const visibleRecords =
-    maxItems === null || maxItems === undefined
-      ? sortedRecords
-      : sortedRecords.slice(0, Math.max(0, maxItems));
+  const visibleRecords = maxItems === null || maxItems === undefined ? sortedRecords : sortedRecords.slice(0, Math.max(0, maxItems));
   const orderWidth = Math.max(2, String(visibleRecords.length).length);
   const showRecordType = hasMixedRecordTypes(visibleRecords);
 
@@ -112,17 +100,10 @@ export function StepRecordList({
               <span className="block min-w-0 font-medium leading-tight [overflow-wrap:break-word]">
                 {stepRecordLabel(record, showRecordType)}
               </span>
-              {duration ? (
-                <span className="mt-0.5 block text-[0.72rem] leading-tight text-muted-foreground">
-                  {duration}
-                </span>
-              ) : null}
+              {duration ? <span className="mt-0.5 block text-[0.72rem] leading-tight text-muted-foreground">{duration}</span> : null}
               {record.detail ? <StepFailure detail={record.detail} /> : null}
             </div>
-            <Badge
-              className="justify-self-end text-[0.72rem] capitalize"
-              variant={stepBadgeVariant(record.status)}
-            >
+            <Badge className="justify-self-end text-[0.72rem] capitalize" variant={stepBadgeVariant(record.status)}>
               {record.status}
             </Badge>
           </DocumentEmbeddedBlock>
@@ -141,24 +122,15 @@ export function StepRecordList({
  */
 export function StepFailure({ detail }: { detail: StepFailureDetail }) {
   const [open, setOpen] = useState(false);
-  const hasStory =
-    detail.chain.length > 0 ||
-    detail.location.length > 0 ||
-    detail.span_trace.length > 0 ||
-    detail.backtrace.length > 0;
+  const hasStory = detail.chain.length > 0 || detail.location.length > 0 || detail.span_trace.length > 0 || detail.backtrace.length > 0;
 
   return (
     <Collapsible onOpenChange={setOpen} open={open}>
-      <p className="mt-1 text-[0.72rem] leading-snug text-destructive [overflow-wrap:anywhere]">
-        {detail.message}
-      </p>
+      <p className="mt-1 text-[0.72rem] leading-snug text-destructive [overflow-wrap:anywhere]">{detail.message}</p>
       {hasStory ? (
         <>
           <CollapsibleTrigger className="mt-1 inline-flex items-center gap-1 text-[0.7rem] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <ChevronDown
-              className={open ? "rotate-180 transition-transform" : "transition-transform"}
-              size={12}
-            />
+            <ChevronDown className={open ? "rotate-180 transition-transform" : "transition-transform"} size={12} />
             {open ? "Hide details" : "Show details"}
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -168,11 +140,7 @@ export function StepFailure({ detail }: { detail: StepFailureDetail }) {
                   {detail.chain.map((cause) => `caused by: ${cause}`).join("\n")}
                 </span>
               ) : null}
-              {detail.location ? (
-                <span className="text-muted-foreground [overflow-wrap:anywhere]">
-                  at {detail.location}
-                </span>
-              ) : null}
+              {detail.location ? <span className="text-muted-foreground [overflow-wrap:anywhere]">at {detail.location}</span> : null}
               {detail.span_trace.length ? (
                 <span className="text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-line">
                   {detail.span_trace.map((span) => `in ${span}`).join("\n")}
@@ -197,10 +165,7 @@ export function sortedStepRecords(records: StepExecutionRecord[]): StepExecution
   const executionStarts = new Map<string, number>();
   for (const record of records) {
     const started = sortableTimestamp(record.started_at);
-    executionStarts.set(
-      record.test_execution_id,
-      Math.min(executionStarts.get(record.test_execution_id) ?? started, started),
-    );
+    executionStarts.set(record.test_execution_id, Math.min(executionStarts.get(record.test_execution_id) ?? started, started));
   }
   return [...records].sort((left, right) => {
     if (left.test_execution_id !== right.test_execution_id) {
@@ -217,8 +182,7 @@ export function sortedStepRecords(records: StepExecutionRecord[]): StepExecution
       return orderDelta;
     }
 
-    const recordTypeDelta =
-      RECORD_TYPE_ORDER[left.record_type] - RECORD_TYPE_ORDER[right.record_type];
+    const recordTypeDelta = RECORD_TYPE_ORDER[left.record_type] - RECORD_TYPE_ORDER[right.record_type];
     if (recordTypeDelta !== 0) {
       return recordTypeDelta;
     }

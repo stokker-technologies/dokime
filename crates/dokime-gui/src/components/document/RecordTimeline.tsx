@@ -31,20 +31,9 @@ import { useMemo, useState } from "react";
 import { RecordDetailsDialog } from "@/components/RecordDetailsDialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { recordMessage, recordTitle } from "@/lib/dashboard";
-import {
-  recordClockLabel,
-  recordLevelLabel,
-  recordLevelVariant,
-  recordToneRowClass,
-} from "@/lib/record-display";
+import { recordClockLabel, recordLevelLabel, recordLevelVariant, recordToneRowClass } from "@/lib/record-display";
 import type { HubRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -101,13 +90,9 @@ export function RecordTimeline({
         if (!matcher) {
           return true;
         }
-        return [
-          record.record_type,
-          record.source,
-          recordTitle(record),
-          recordMessage(record),
-          stringifyRecordDetails(record.details),
-        ].some((value) => matcher.test(value));
+        return [record.record_type, record.source, recordTitle(record), recordMessage(record), stringifyRecordDetails(record.details)].some(
+          (value) => matcher.test(value),
+        );
       });
   }, [recordType, records, query]);
 
@@ -134,11 +119,7 @@ export function RecordTimeline({
               />
             </div>
             <Select onValueChange={setRecordType} value={recordType}>
-              <SelectTrigger
-                aria-label="Record Type"
-                className={cn(FILTER_CONTROL_CLASS, "w-full bg-background")}
-                id={recordTypeId}
-              >
+              <SelectTrigger aria-label="Record Type" className={cn(FILTER_CONTROL_CLASS, "w-full bg-background")} id={recordTypeId}>
                 <SelectValue placeholder="All Records" />
               </SelectTrigger>
               <SelectContent>
@@ -173,10 +154,7 @@ export function RecordTimeline({
             {visibleRecords.map((record) => {
               return (
                 <li
-                  className={cn(
-                    "border-b border-l-2 border-b-border/60 last:border-b-0",
-                    recordToneRowClass(record.display.tone),
-                  )}
+                  className={cn("border-b border-l-2 border-b-border/60 last:border-b-0", recordToneRowClass(record.display.tone))}
                   key={record.record_id}
                 >
                   <button
@@ -191,10 +169,7 @@ export function RecordTimeline({
                     <time className="truncate text-muted-foreground" dateTime={record.timestamp}>
                       {recordClockLabel(record.timestamp)}
                     </time>
-                    <Badge
-                      className="h-4 justify-self-start px-1 text-[0.65rem]"
-                      variant={recordLevelVariant(record.level)}
-                    >
+                    <Badge className="h-4 justify-self-start px-1 text-[0.65rem]" variant={recordLevelVariant(record.level)}>
                       {recordLevelLabel(record.level)}
                     </Badge>
                     <span className="truncate text-muted-foreground">{record.source}</span>
@@ -207,9 +182,7 @@ export function RecordTimeline({
           </ol>
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            {live && (query.trim() || recordType !== "all")
-              ? "No records match the current filters."
-              : "No records yet."}
+            {live && (query.trim() || recordType !== "all") ? "No records match the current filters." : "No records yet."}
           </p>
         )}
       </div>

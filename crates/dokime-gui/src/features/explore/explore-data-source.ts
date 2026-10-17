@@ -25,18 +25,8 @@ type CheckpointContext = Awaited<ReturnType<typeof fetchNativeCheckpointContext>
 type ExecutionFileWindow = Awaited<ReturnType<typeof readNativeCheckpointOutput>>;
 
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type {
-  ExecutionBrowseCycle,
-  ExecutionBrowseEntry,
-  ExecutionBrowsePage,
-  ExecutionCheckpoint,
-} from "@/lib/types/view-contracts";
-import {
-  type ExploreEntry,
-  type ExploreTarget,
-  exploreEntryKey,
-  isUnrunExecution,
-} from "./explore-contracts";
+import type { ExecutionBrowseCycle, ExecutionBrowseEntry, ExecutionBrowsePage, ExecutionCheckpoint } from "@/lib/types/view-contracts";
+import { type ExploreEntry, type ExploreTarget, exploreEntryKey, isUnrunExecution } from "./explore-contracts";
 
 export function fetchExecutionPage(
   session: SessionIdentity,
@@ -46,11 +36,7 @@ export function fetchExecutionPage(
 ): Promise<ExecutionBrowsePage> {
   return fetchNativeExecutionPage(session, after, signal, selection);
 }
-export function fetchCheckpoint(
-  session: SessionIdentity,
-  checkpoint: ExecutionCheckpoint,
-  signal?: AbortSignal,
-) {
+export function fetchCheckpoint(session: SessionIdentity, checkpoint: ExecutionCheckpoint, signal?: AbortSignal) {
   return fetchNativeCheckpointDocument(session, checkpoint, signal);
 }
 export function fetchCheckpointEvidence(
@@ -91,19 +77,11 @@ export function readCheckpointOutput(
   offset: bigint,
   signal?: AbortSignal,
 ): Promise<ExecutionFileWindow> {
-  return readNativeCheckpointOutput(
-    session,
-    checkpoint,
-    relativePath,
-    { offset, maxBytes: 64 * 1024 },
-    signal,
-  );
+  return readNativeCheckpointOutput(session, checkpoint, relativePath, { offset, maxBytes: 64 * 1024 }, signal);
 }
 /** The one suite label every entry of this cycle agrees on, or its identifier. */
 function suiteTitle(entries: ExecutionBrowseEntry[], cycleId: string): string {
-  const labels = new Set(
-    entries.flatMap((entry) => (entry.metadata.suite_label ? [entry.metadata.suite_label] : [])),
-  );
+  const labels = new Set(entries.flatMap((entry) => (entry.metadata.suite_label ? [entry.metadata.suite_label] : [])));
   const [only] = [...labels];
   return labels.size === 1 && only ? only : `Cycle ${cycleId}`;
 }
@@ -159,10 +137,7 @@ export function groupExecutions(pages: ExecutionBrowsePage[]): ExploreEntry[] {
         started_at: started,
         finished_at: finished,
         updated_at: finished ?? started ?? "",
-        duration_s:
-          started && finished
-            ? Math.max(0, (Date.parse(finished) - Date.parse(started)) / 1000)
-            : null,
+        duration_s: started && finished ? Math.max(0, (Date.parse(finished) - Date.parse(started)) / 1000) : null,
         source: { id: "storage", label: "Storage", kind: "storage" },
         /* Only what ran is history. The planned cases that never started are
            held aside: they carry no acquisition, so listing them would state
@@ -174,7 +149,6 @@ export function groupExecutions(pages: ExecutionBrowsePage[]): ExploreEntry[] {
     })
     .sort(
       (left, right) =>
-        right.updated_at.localeCompare(left.updated_at) ||
-        exploreEntryKey(left.target).localeCompare(exploreEntryKey(right.target)),
+        right.updated_at.localeCompare(left.updated_at) || exploreEntryKey(left.target).localeCompare(exploreEntryKey(right.target)),
     );
 }

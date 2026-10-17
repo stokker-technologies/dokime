@@ -21,13 +21,7 @@ import {
   documentCardLayoutStyle,
   documentNodeHasCards,
 } from "@/lib/document-layout";
-import type {
-  DocumentViewCard,
-  DocumentViewNode,
-  DocumentViewPayload,
-  DocumentViewSection,
-  Metadata,
-} from "@/lib/types";
+import type { DocumentViewCard, DocumentViewNode, DocumentViewPayload, DocumentViewSection, Metadata } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /* === Constants === */
@@ -36,9 +30,7 @@ import { cn } from "@/lib/utils";
  * A control a surface places in one section's header, by section id — the
  * live plot window beside the plots it scales. Absent, headers are plain.
  */
-export const DocumentSectionActionContext = createContext<(sectionId: string) => ReactNode>(
-  () => null,
-);
+export const DocumentSectionActionContext = createContext<(sectionId: string) => ReactNode>(() => null);
 
 /* === Types === */
 
@@ -87,15 +79,9 @@ export function DocumentViewRenderer({
     return sectionChrome === "card" && chrome === "normal" ? "embedded" : chrome;
   };
   const cardMap = new Map(document?.cards.map((card) => [card.card_id, card]) ?? []);
-  const layoutNodes = (document?.layout.nodes ?? []).filter((node) =>
-    documentNodeHasCards(node, cardMap, cardFilter),
-  );
+  const layoutNodes = (document?.layout.nodes ?? []).filter((node) => documentNodeHasCards(node, cardMap, cardFilter));
   if (!document) {
-    const notice = (
-      <p className="text-sm text-muted-foreground">
-        No document has been resolved for the selected scope yet.
-      </p>
-    );
+    const notice = <p className="text-sm text-muted-foreground">No document has been resolved for the selected scope yet.</p>;
     return notice;
   }
 
@@ -152,12 +138,7 @@ function DocumentLayoutNodeBlock({
     }
 
     return (
-      <DocumentViewBlock
-        action={cardAction?.(card)}
-        card={card}
-        chrome={resolvedCardChrome(card)}
-        key={card.card_id}
-      >
+      <DocumentViewBlock action={cardAction?.(card)} card={card} chrome={resolvedCardChrome(card)} key={card.card_id}>
         {renderCard(card, parent)}
       </DocumentViewBlock>
     );
@@ -218,13 +199,7 @@ function DocumentLayoutNodeBlock({
   );
 }
 
-export function DocumentViewBlock({
-  action,
-  card,
-  children,
-  chrome = "normal",
-  contentClassName,
-}: DocumentViewBlockProps) {
+export function DocumentViewBlock({ action, card, children, chrome = "normal", contentClassName }: DocumentViewBlockProps) {
   const showHeader = chrome !== "flat";
   return (
     <section
@@ -243,9 +218,7 @@ export function DocumentViewBlock({
           {/* An eyebrow that only repeats the title below it introduces the
               same card twice. */}
           {sameLabel(documentCardEyebrow(card), card.title) ? null : (
-            <p className="text-xs font-bold uppercase text-muted-foreground">
-              {documentCardEyebrow(card)}
-            </p>
+            <p className="text-xs font-bold uppercase text-muted-foreground">{documentCardEyebrow(card)}</p>
           )}
           {action ? (
             /* The control shares the title's row and keeps its height, so a
@@ -258,9 +231,7 @@ export function DocumentViewBlock({
             <h5 className="truncate text-sm font-semibold">{card.title}</h5>
           )}
           {card.metadata?.description ? (
-            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {card.metadata.description}
-            </p>
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{card.metadata.description}</p>
           ) : null}
         </header>
       ) : null}
@@ -293,9 +264,7 @@ function DocumentSectionBlock({
             <SectionAction sectionId={section.metadata.identifier} />
           </div>
           {section.metadata.description ? (
-            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {section.metadata.description}
-            </p>
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{section.metadata.description}</p>
           ) : null}
         </CardHeader>
         <CardContent className="grid gap-4 p-4">{children}</CardContent>
@@ -315,9 +284,7 @@ function DocumentSectionBlock({
             <SectionAction sectionId={section.metadata.identifier} />
           </div>
           {section.metadata.description ? (
-            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {section.metadata.description}
-            </p>
+            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{section.metadata.description}</p>
           ) : null}
         </header>
         {children}
@@ -333,9 +300,7 @@ function DocumentSectionBlock({
           <SectionAction sectionId={section.metadata.identifier} />
         </div>
         {section.metadata.description ? (
-          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-            {section.metadata.description}
-          </p>
+          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{section.metadata.description}</p>
         ) : null}
       </header>
       {children}
@@ -343,10 +308,7 @@ function DocumentSectionBlock({
   );
 }
 
-function sectionChromeFor(
-  section: DocumentViewSection,
-  defaultChrome: DocumentSectionChrome,
-): DocumentSectionChrome {
+function sectionChromeFor(section: DocumentViewSection, defaultChrome: DocumentSectionChrome): DocumentSectionChrome {
   if (defaultChrome !== "plain") {
     return defaultChrome;
   }

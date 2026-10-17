@@ -46,12 +46,7 @@ import {
   updateLabelText,
 } from "@/features/cycle/label-editor-model";
 import { archivedCycleGroups, type CycleRow } from "@/features/cycles-home/cycles-model";
-import {
-  EMPTY_TITLE_ERROR,
-  initialNewCycleForm,
-  newCycleFormError,
-  newCycleRequest,
-} from "@/features/cycles-home/new-cycle-form";
+import { EMPTY_TITLE_ERROR, initialNewCycleForm, newCycleFormError, newCycleRequest } from "@/features/cycles-home/new-cycle-form";
 import { defaultCycleLabel } from "@/lib/time-format";
 import { reportFixturePayload } from "@/report/report-fixture";
 import { focusPresentation } from "@/shell/focus-mode";
@@ -108,10 +103,7 @@ test("Node Menus", () => {
 
   // A Saved Report Is Named After Its Cycle Or Execution
   assert.equal(reportFilename("Charger Soak"), "Charger Soak.html");
-  assert.equal(
-    reportFilename("Execution 1 · OBC / Reconnection"),
-    "Execution 1 · OBC - Reconnection.html",
-  );
+  assert.equal(reportFilename("Execution 1 · OBC / Reconnection"), "Execution 1 · OBC - Reconnection.html");
   assert.equal(reportFilename(' a:b*c? "d" '), "a-b-c- -d.html");
   assert.equal(reportFilename("..."), "report.html");
 
@@ -140,10 +132,7 @@ test("Execution Controls", () => {
     stopRequested: false,
   } as unknown as NonNullable<RunControl>;
   assert.deepEqual(executionControlSet("running", running), ["Stop Execution"]);
-  assert.deepEqual(executionControlSet("running", { ...running, canPause: true }), [
-    "Pause Execution",
-    "Stop Execution",
-  ]);
+  assert.deepEqual(executionControlSet("running", { ...running, canPause: true }), ["Pause Execution", "Stop Execution"]);
   assert.deepEqual(executionControlSet("passed", null), ["Re-Run"]);
   assert.deepEqual(executionControlSet("failed", null), ["Re-Run"]);
   assert.deepEqual(executionControlSet("running", null), []);
@@ -238,15 +227,9 @@ test("Execution Rows", () => {
       ["case:third", false],
     ],
   );
-  const lifecycles = [
-    "completed",
-    "failed",
-    "stopped",
-    "interrupted",
-    "running",
-    "stopping",
-    "planned",
-  ] as Parameters<typeof isCycleTerminal>[0][];
+  const lifecycles = ["completed", "failed", "stopped", "interrupted", "running", "stopping", "planned"] as Parameters<
+    typeof isCycleTerminal
+  >[0][];
   assert.deepEqual(lifecycles.map(isCycleTerminal), [true, true, true, true, false, false, false]);
   assert.deepEqual(
     rerunnableCaseIds([
@@ -274,29 +257,20 @@ test("Follow Active", () => {
   assert.equal(follow({ view: "cycle" }), null, "the cycle is a selection of its own");
   assert.equal(follow({ caseId: "unrun" }), null);
   assert.equal(follow({ executionId: "ten" }), null, "already on the active one");
-  assert.equal(
-    follow({ executionId: "ten" }, { active: "eleven" }),
-    "eleven",
-    "a following selection moves on with the runtime",
-  );
+  assert.equal(follow({ executionId: "ten" }, { active: "eleven" }), "eleven", "a following selection moves on with the runtime");
   assert.equal(
     follow({ executionId: "three" }, { active: "eleven", selectedEnded: true }),
     "eleven",
     "the selected execution ending resumes following",
   );
-  assert.equal(
-    followSelection({ active: null, previousActive: null, selectedEnded: false, selection: {} }),
-    null,
-  );
+  assert.equal(followSelection({ active: null, previousActive: null, selectedEnded: false, selection: {} }), null);
 
   // Following Reads The Selection Against The Active Execution
   assert.equal(isFollowing({}, "ten"), true);
   assert.equal(isFollowing({ executionId: "ten" }, "ten"), true);
   assert.equal(isFollowing({ executionId: "twelve" }, "ten"), false);
   assert.equal(isFollowing({ view: "cycle" }, "ten"), false);
-  const statuses = ["planned", "created", "running", "passed"] as Parameters<
-    typeof isUnstartedExecution
-  >[0][];
+  const statuses = ["planned", "created", "running", "passed"] as Parameters<typeof isUnstartedExecution>[0][];
   assert.deepEqual(statuses.map(isUnstartedExecution), [true, true, false, false]);
 });
 
@@ -417,12 +391,14 @@ test("New Cycle Form", () => {
   assert.equal(newCycleFormError({ ...form, title: "   " }), EMPTY_TITLE_ERROR);
 
   // The Request Trims Its Text And Omits A Blank Description
-  assert.deepEqual(
-    newCycleRequest({ continueOnFailure: false, description: "  ", title: "  Bench A  " }),
-    { continueOnFailure: false, description: undefined, label: "Bench A" },
-  );
-  assert.deepEqual(
-    newCycleRequest({ continueOnFailure: true, description: " Night run ", title: "Bench B" }),
-    { continueOnFailure: true, description: "Night run", label: "Bench B" },
-  );
+  assert.deepEqual(newCycleRequest({ continueOnFailure: false, description: "  ", title: "  Bench A  " }), {
+    continueOnFailure: false,
+    description: undefined,
+    label: "Bench A",
+  });
+  assert.deepEqual(newCycleRequest({ continueOnFailure: true, description: " Night run ", title: "Bench B" }), {
+    continueOnFailure: true,
+    description: "Night run",
+    label: "Bench B",
+  });
 });

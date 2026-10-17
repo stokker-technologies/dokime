@@ -17,21 +17,12 @@ import { type ComponentType, type ReactNode, useCallback } from "react";
 
 // Local Imports
 
-
-import {
-  type DocumentBlockChrome,
-  DocumentSectionActionContext,
-} from "@/components/document/DocumentViewRenderer";
+import { type DocumentBlockChrome, DocumentSectionActionContext } from "@/components/document/DocumentViewRenderer";
 import { DocumentWorkspacePresentation, type DocumentWorkspaceViewProps } from "@/components/document/DocumentWorkspacePresentation";
 
 import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 
-
-
-import type {
-  DocumentViewCard,
-  DocumentViewSection,
-} from "@/lib/types";
+import type { DocumentViewCard, DocumentViewSection } from "@/lib/types";
 
 import { elapsedColumnUnit } from "@/plots/axis";
 import { FrozenConsole } from "@/shell/ConsoleDrawerView";
@@ -66,9 +57,7 @@ export function DocumentViewPresentation({
   const { options, shared, view } = surface;
   /* The plot window belongs to the plots it scales: the first section that
      holds a windowed card carries it in its header. */
-  const windowedSectionId =
-    view.sections.find((section) => documentHasWindowedCards([section]))?.metadata.identifier ??
-    null;
+  const windowedSectionId = view.sections.find((section) => documentHasWindowedCards([section]))?.metadata.identifier ?? null;
   const sectionAction = useCallback(
     (sectionId: string) => (sectionId === windowedSectionId ? plotWindowControl : null),
     [plotWindowControl, windowedSectionId],
@@ -107,9 +96,7 @@ export function DocumentViewPresentation({
 
 /** The frozen console a report prints after the document it belongs to. */
 export function FrozenDocumentConsole({ surface }: { surface: DocumentSurface }) {
-  return surface.options.live ? null : (
-    <FrozenConsole records={surface.view.records} />
-  );
+  return surface.options.live ? null : <FrozenConsole records={surface.view.records} />;
 }
 
 /* === Public Functions === */
@@ -140,9 +127,7 @@ export function documentWindowElapsedUnit(sections: DocumentViewSection[]): stri
 
 /** Does any visible card in `sections` honour the live plot window? */
 export function documentHasWindowedCards(sections: DocumentViewSection[]): boolean {
-  return sections.some((section) =>
-    section.cards.some((card) => isDocumentSurfaceCard(card) && card.kind === "plots"),
-  );
+  return sections.some((section) => section.cards.some((card) => isDocumentSurfaceCard(card) && card.kind === "plots"));
 }
 
 /* === Private Functions === */

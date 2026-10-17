@@ -45,12 +45,7 @@ export type CycleEvidencePaneProps = {
 
 /* === Components === */
 
-export function CycleEvidencePane({
-  cycleId,
-  live = true,
-  plan,
-  snapshot,
-}: CycleEvidencePaneProps) {
+export function CycleEvidencePane({ cycleId, live = true, plan, snapshot }: CycleEvidencePaneProps) {
   const plotWindow = usePlotWindow();
   const scope = useMemo<RecordScope>(() => ({ test_cycle_id: cycleId }), [cycleId]);
   const documentQuery = useCycleDocumentQuery(cycleId, true);
@@ -74,8 +69,16 @@ export function CycleEvidencePane({
     pending: documentQuery.isPending,
   });
 
-  return <CycleEvidenceView live={live} surface={surface} pane={pane} plotWindow={plotWindow}
-    onRetry={() => void documentQuery.refetch()} documentView={DocumentView} />;
+  return (
+    <CycleEvidenceView
+      live={live}
+      surface={surface}
+      pane={pane}
+      plotWindow={plotWindow}
+      onRetry={() => void documentQuery.refetch()}
+      documentView={DocumentView}
+    />
+  );
 }
 
 /* === Private Functions === */

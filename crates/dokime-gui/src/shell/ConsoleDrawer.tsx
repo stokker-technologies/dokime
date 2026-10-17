@@ -50,12 +50,8 @@ export function ConsoleDrawer(props: ConsoleDrawerProps) {
   return <ConnectedConsole cycleId={props.cycleId} executionId={props.executionId} />;
 }
 
-
 /* === Private Components === */
-function ConnectedConsole({ cycleId, executionId }: {
-  cycleId: string | null;
-  executionId: string | null;
-}) {
+function ConnectedConsole({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
   const drawer = useUiStore((state) => state.console);
   const scope = resolvedConsoleScope(drawer.scope, cycleId, executionId);
   const streamed = useConsoleRecords({

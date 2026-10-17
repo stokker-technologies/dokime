@@ -51,15 +51,7 @@ type Props = {
  * full-width fields. The schema carries no groups today, so there are no group
  * eyebrows to draw; when `SettingsEntry` gains one, the eyebrow goes here.
  */
-export function InstalledPluginSettingsForm({
-  schema,
-  values,
-  discovered,
-  onSubmit,
-  onSaveSecret,
-  savingSecret,
-  bindings,
-}: Props) {
+export function InstalledPluginSettingsForm({ schema, values, discovered, onSubmit, onSaveSecret, savingSecret, bindings }: Props) {
   // The draft starts from the discovered values written over the saved ones, so
   // a field the plugin filled in shows what it found. Nothing is confirmed
   // twice: a change writes itself, debounced for text and at once for a switch
@@ -69,12 +61,7 @@ export function InstalledPluginSettingsForm({
   latest.current = draft;
   useEffect(() => setDraft({ ...values, ...discovered }), [values, discovered]);
   const fields = schema.contributions ?? [];
-  if (!fields.length)
-    return (
-      <p className="px-4 py-3 text-sm text-muted-foreground">
-        This program has no configurable settings.
-      </p>
-    );
+  if (!fields.length) return <p className="px-4 py-3 text-sm text-muted-foreground">This program has no configurable settings.</p>;
 
   /* One field's write is the whole values map with that field replaced: the
      mutation takes the map, and the row that changed is the one that reports. */
@@ -102,9 +89,7 @@ export function InstalledPluginSettingsForm({
         />
       ))}
       {(bindings.missing_required ?? []).length > 0 && (
-        <p className="px-4 pt-3 text-xs text-destructive">
-          Missing required secrets: {(bindings.missing_required ?? []).join(", ")}
-        </p>
+        <p className="px-4 pt-3 text-xs text-destructive">Missing required secrets: {(bindings.missing_required ?? []).join(", ")}</p>
       )}
     </div>
   );
@@ -134,13 +119,7 @@ function SettingField({
   let control: ReactNode;
   switch (field.kind) {
     case "boolean":
-      control = (
-        <Switch
-          id={id}
-          checked={typeof value === "boolean" ? value : field.default}
-          onCheckedChange={onCommit}
-        />
-      );
+      control = <Switch id={id} checked={typeof value === "boolean" ? value : field.default} onCheckedChange={onCommit} />;
       break;
     case "text_area":
       control = (
@@ -172,9 +151,7 @@ function SettingField({
           max={field.max ?? undefined}
           step={field.step ?? "any"}
           value={typeof value === "number" ? value : (field.default ?? "")}
-          onChange={(event) =>
-            onChange(event.target.value === "" ? undefined : event.target.valueAsNumber)
-          }
+          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.valueAsNumber)}
         />
       );
       break;
@@ -254,9 +231,7 @@ function SecretField({
         value={kind}
         onChange={(event) =>
           onChange(
-            event.target.value === "environment"
-              ? { kind: "environment", variable: "" }
-              : { kind: "stored_credential", credential_id: "" },
+            event.target.value === "environment" ? { kind: "environment", variable: "" } : { kind: "stored_credential", credential_id: "" },
           )
         }
       >
@@ -267,9 +242,7 @@ function SecretField({
         id={id}
         autoComplete="off"
         placeholder={kind === "environment" ? "ENVIRONMENT_VARIABLE" : "Stored credential ID"}
-        value={
-          reference?.kind === "environment" ? reference.variable : (reference?.credential_id ?? "")
-        }
+        value={reference?.kind === "environment" ? reference.variable : (reference?.credential_id ?? "")}
         onChange={(event) =>
           onChange(
             event.target.value === ""

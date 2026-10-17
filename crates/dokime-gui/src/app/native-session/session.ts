@@ -70,19 +70,14 @@ export class NativeSession {
   async backupResetLocalStorage(archive: string): Promise<void> {
     await this.connect(() => this.controls.backupResetLocalStorage(archive), true, archive);
   }
-  private async connect(
-    start: () => Promise<DesktopSessionSnapshot>,
-    reset: boolean,
-    archive: string | null = null,
-  ): Promise<void> {
+  private async connect(start: () => Promise<DesktopSessionSnapshot>, reset: boolean, archive: string | null = null): Promise<void> {
     const revision = this.invalidate();
     this.publish({ phase: "connecting", reset, archive });
     try {
       const snapshot = await start();
       if (revision !== this.revision) return;
       const backend = snapshot.connection.backend;
-      if (snapshot.connection.phase !== "connected" || !backend)
-        throw new Error("Native connection did not negotiate a backend");
+      if (snapshot.connection.phase !== "connected" || !backend) throw new Error("Native connection did not negotiate a backend");
       const queryClient = createDokimeQueryClient();
       const disposers = new Set<() => void>();
       const session: ConnectedSession = {

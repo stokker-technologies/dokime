@@ -21,11 +21,7 @@
 
 import { type EditorParameterRow, parameterValueType } from "@/components/parameter-editor/model";
 import { formatPreview, titleCaseIdentifier } from "@/components/start-cycle-form-model";
-import type {
-  ParameterDefinition,
-  PreviewTestCycleResponse,
-  TestCycleSelection,
-} from "@/lib/types";
+import type { ParameterDefinition, PreviewTestCycleResponse, TestCycleSelection } from "@/lib/types";
 
 /* === Types === */
 
@@ -38,19 +34,13 @@ export const NO_ACTIVE_CYCLE = "Cases join the active cycle. Open a cycle or cre
 /* === Public Functions === */
 
 /** The append the dialog performs: into the active cycle, or `null` without one. */
-export function caseAppend(
-  activeCycleId: string | null | undefined,
-  selections: TestCycleSelection[],
-): CaseAppend | null {
+export function caseAppend(activeCycleId: string | null | undefined, selections: TestCycleSelection[]): CaseAppend | null {
   const cycleId = activeCycleId?.trim();
   return cycleId ? { cycleId, selections } : null;
 }
 
 /** Whether the preview has anything to review before the cases are added. */
-export function summaryNeeded(
-  preview: Pick<PreviewTestCycleResponse, "cases">,
-  rows: EditorParameterRow[],
-): boolean {
+export function summaryNeeded(preview: Pick<PreviewTestCycleResponse, "cases">, rows: EditorParameterRow[]): boolean {
   if (preview.cases.length !== 1) return true;
   return preview.cases.some((item) => caseDeltas(item.parameters, rows).length > 0);
 }
@@ -64,10 +54,7 @@ export function summaryNeeded(
  * parameter the preview names but the template does not define is dropped
  * rather than printed as a raw key.
  */
-export function caseDeltas(
-  parameters: Record<string, unknown>,
-  rows: EditorParameterRow[],
-): string[] {
+export function caseDeltas(parameters: Record<string, unknown>, rows: EditorParameterRow[]): string[] {
   const deltas: string[] = [];
   for (const row of rows) {
     if (!(row.name in parameters)) continue;
@@ -90,7 +77,5 @@ function valueText(value: unknown, valueType: string): string {
 /** The registered value, formatted the same way a case's value is. */
 function registeredValueText(definition: ParameterDefinition, valueType: string): string {
   const single = (definition.expansion?.kind ?? "single") === "single";
-  return single && definition.list
-    ? valueText(definition.values[0], valueType)
-    : valueText(definition.values, valueType);
+  return single && definition.list ? valueText(definition.values[0], valueType) : valueText(definition.values, valueType);
 }

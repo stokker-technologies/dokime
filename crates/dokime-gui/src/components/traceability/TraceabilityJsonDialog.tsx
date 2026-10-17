@@ -18,22 +18,11 @@ import { toast } from "sonner";
 import { useNativeSessionOptional } from "@/app/native-session/context";
 import { copyTraceabilityText } from "@/components/traceability/clipboard";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { saveNativeDocument } from "@/lib/api/native-delivery";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import {
-  type TraceabilityExportName,
-  traceabilityJson,
-  traceabilityJsonFilename,
-} from "@/lib/traceability";
+import { type TraceabilityExportName, traceabilityJson, traceabilityJsonFilename } from "@/lib/traceability";
 import type { TraceabilitySnapshot } from "@/lib/types";
 import { isReportBuild } from "@/lib/ui-mode";
 
@@ -97,16 +86,9 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
           <DialogTitle>Traceability JSON</DialogTitle>
           <DialogDescription className="truncate">{filename}</DialogDescription>
         </DialogHeader>
-        <pre className="min-h-0 overflow-auto rounded-md border bg-muted/30 p-3 font-mono text-xs leading-5">
-          {json}
-        </pre>
+        <pre className="min-h-0 overflow-auto rounded-md border bg-muted/30 p-3 font-mono text-xs leading-5">{json}</pre>
         <DialogFooter className="gap-2">
-          <Button
-            onClick={() => void copyTraceabilityText(json)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
+          <Button onClick={() => void copyTraceabilityText(json)} size="sm" type="button" variant="outline">
             <Copy data-icon="inline-start" />
             Copy
           </Button>
@@ -127,11 +109,7 @@ export function TraceabilityJsonDialog({ exportName, traceability }: Traceabilit
  * browser download in the frozen report. Resolves quietly when the operator
  * cancels the picker; throws when neither route is available.
  */
-async function saveTraceabilityJson(
-  json: string,
-  filename: string,
-  session: SessionIdentity | null,
-): Promise<void> {
+async function saveTraceabilityJson(json: string, filename: string, session: SessionIdentity | null): Promise<void> {
   if (isReportBuild()) {
     browserDownload(json, filename);
     return;

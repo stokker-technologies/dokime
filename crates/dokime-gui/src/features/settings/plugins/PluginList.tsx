@@ -23,13 +23,7 @@ import { PackagePlus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { PluginTable, type PluginTableRow } from "@/features/settings/plugins/PluginTable";
 import { formatArtifactSize } from "@/lib/artifact-tree";
 import { useBrand } from "@/lib/brand";
@@ -75,10 +69,7 @@ export function PluginList({
             <PackagePlus />
           </EmptyMedia>
           <EmptyTitle>No Installed Plugins</EmptyTitle>
-          <EmptyDescription>
-            Drop a .dokime bundle above to inspect it and review its declared identity before
-            install.
-          </EmptyDescription>
+          <EmptyDescription>Drop a .dokime bundle above to inspect it and review its declared identity before install.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );
@@ -146,11 +137,7 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
   if (entry.state === "removal_pending") {
     return {
       label: entry.consented_at === null ? "Cleanup pending" : "Removal pending",
-      reason: entry.active
-        ? `Active until ${brandLabel} restarts.`
-        : entry.last_boot?.state === "failed"
-          ? entry.last_boot.error
-          : null,
+      reason: entry.active ? `Active until ${brandLabel} restarts.` : entry.last_boot?.state === "failed" ? entry.last_boot.error : null,
       variant: "warning",
     };
   }
@@ -165,8 +152,7 @@ export function statusPresentation(entry: PluginEntry, brandLabel: string): Stat
     };
   }
   if (entry.active) return { label: "Active", reason: null, variant: "success" };
-  if (entry.boot_error)
-    return { label: "Failed", reason: entry.boot_error, variant: "destructive" };
+  if (entry.boot_error) return { label: "Failed", reason: entry.boot_error, variant: "destructive" };
   return { label: "Disabled", reason: null, variant: "outline" };
 }
 

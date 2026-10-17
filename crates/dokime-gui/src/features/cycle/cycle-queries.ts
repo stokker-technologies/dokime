@@ -137,15 +137,12 @@ export function useCycleCommands(cycleId: string) {
   const invalidateAll = () => invalidateWorkflowResourceQueries(queryClient);
   const readReport = (executionId: string | null): Promise<NativeReportHtml> => {
     const owner = { ...session().identity, own: session().own };
-    return executionId
-      ? downloadNativeExecutionReport(owner, executionId)
-      : downloadNativeCycleReport(owner, cycleId);
+    return executionId ? downloadNativeExecutionReport(owner, executionId) : downloadNativeCycleReport(owner, cycleId);
   };
 
   return {
     archiveCycle: useMutation({
-      mutationFn: (archived: boolean) =>
-        setNativeCycleArchived(session().identity, cycleId, archived),
+      mutationFn: (archived: boolean) => setNativeCycleArchived(session().identity, cycleId, archived),
       onSettled: invalidateAll,
     }),
     archiveExecution: useMutation({
@@ -169,18 +166,13 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     deleteCase: useMutation({
-      mutationFn: (caseId: string) =>
-        deleteNativeTestCycleCases(session().identity, cycleId, [caseId]),
+      mutationFn: (caseId: string) => deleteNativeTestCycleCases(session().identity, cycleId, [caseId]),
       onSettled: invalidateAll,
     }),
     /* Saves the report Open Report would open, named after its node. */
     downloadReport: useMutation({
       mutationFn: async ({ executionId, label }: { executionId: string | null; label: string }) =>
-        downloadNativeReport(
-          await readReport(executionId),
-          reportFilename(label),
-          session().identity,
-        ),
+        downloadNativeReport(await readReport(executionId), reportFilename(label), session().identity),
     }),
     /* The report the cycle, or one execution, has now: the runtime renders
        one from the run so far, reads the sealed one, or renders the sealed
@@ -194,13 +186,11 @@ export function useCycleCommands(cycleId: string) {
       },
     }),
     pauseExecution: useMutation({
-      mutationFn: (executionId: string) =>
-        pauseNativeTestExecution(session().identity, executionId),
+      mutationFn: (executionId: string) => pauseNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
     resumeExecution: useMutation({
-      mutationFn: (executionId: string) =>
-        resumeNativeTestExecution(session().identity, executionId),
+      mutationFn: (executionId: string) => resumeNativeTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
     stopExecution: useMutation({
@@ -216,8 +206,7 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     runCase: useMutation({
-      mutationFn: (executionId: string) =>
-        runNativeQueuedTestExecution(session().identity, executionId),
+      mutationFn: (executionId: string) => runNativeQueuedTestExecution(session().identity, executionId),
       onSettled: invalidateAll,
     }),
     runQueued: useMutation({
@@ -225,8 +214,7 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     rerunCycle: useMutation({
-      mutationFn: (caseIds: readonly string[]) =>
-        rerunNativeTestCycle(session().identity, cycleId, caseIds),
+      mutationFn: (caseIds: readonly string[]) => rerunNativeTestCycle(session().identity, cycleId, caseIds),
       onSettled: invalidateAll,
     }),
     scheduleRerun: useMutation({
@@ -238,8 +226,7 @@ export function useCycleCommands(cycleId: string) {
       onSettled: invalidateAll,
     }),
     updatePolicy: useMutation({
-      mutationFn: (continueOnFailure: boolean) =>
-        updateNativeTestCyclePolicy(session().identity, cycleId, continueOnFailure),
+      mutationFn: (continueOnFailure: boolean) => updateNativeTestCyclePolicy(session().identity, cycleId, continueOnFailure),
       onSettled: invalidateAll,
     }),
   };
@@ -261,9 +248,7 @@ export function useRerunCase(cycleId: string) {
   return {
     pending: commands.scheduleRerun.isPending,
     rerun: async (caseId: string): Promise<string | null> => {
-      const known = new Set(
-        (detailQuery.data?.executions ?? []).map((execution) => execution.test_execution_id),
-      );
+      const known = new Set((detailQuery.data?.executions ?? []).map((execution) => execution.test_execution_id));
       await commands.scheduleRerun.mutateAsync(caseId);
       const refreshed = await detailQuery.refetch();
       return createdExecutionId(refreshed?.data?.executions ?? [], caseId, known);

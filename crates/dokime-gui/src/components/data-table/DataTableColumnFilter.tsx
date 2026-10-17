@@ -36,9 +36,7 @@ type DataTableColumnFilterProps<TData extends RowData> = {
 
 /* === Components === */
 
-export function DataTableColumnFilter<TData extends RowData>({
-  column,
-}: DataTableColumnFilterProps<TData>) {
+export function DataTableColumnFilter<TData extends RowData>({ column }: DataTableColumnFilterProps<TData>) {
   const meta = column.columnDef.meta;
   const label = meta?.label ?? column.id;
   const value = column.getFilterValue();
@@ -90,13 +88,7 @@ export function DataTableColumnFilter<TData extends RowData>({
 
 /* === Private Components === */
 
-function FacetOptions<TData extends RowData>({
-  column,
-  picked,
-}: {
-  column: Column<DataTableFeatures, TData, unknown>;
-  picked: unknown[];
-}) {
+function FacetOptions<TData extends RowData>({ column, picked }: { column: Column<DataTableFeatures, TData, unknown>; picked: unknown[] }) {
   const idPrefix = useId();
   const meta = column.columnDef.meta;
   const options = [...column.getFacetedUniqueValues().entries()]
@@ -104,9 +96,7 @@ function FacetOptions<TData extends RowData>({
     .sort((left, right) => left.text.localeCompare(right.text));
 
   function toggle(value: unknown) {
-    const next = picked.includes(value)
-      ? picked.filter((current) => current !== value)
-      : [...picked, value];
+    const next = picked.includes(value) ? picked.filter((current) => current !== value) : [...picked, value];
     column.setFilterValue(next.length ? next : undefined);
   }
 
@@ -122,17 +112,11 @@ function FacetOptions<TData extends RowData>({
             htmlFor={`${idPrefix}-${index}`}
             className="flex min-h-[var(--control-height)] cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-muted"
           >
-            <Checkbox
-              checked={picked.includes(option.value)}
-              id={`${idPrefix}-${index}`}
-              onCheckedChange={() => toggle(option.value)}
-            />
+            <Checkbox checked={picked.includes(option.value)} id={`${idPrefix}-${index}`} onCheckedChange={() => toggle(option.value)} />
             <span className="min-w-0 flex-1 truncate" title={option.text}>
               {option.text}
             </span>
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {option.count}
-            </span>
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">{option.count}</span>
           </label>
         </li>
       ))}

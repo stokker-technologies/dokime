@@ -33,16 +33,7 @@ type DocumentCardProps = {
 
 /* === Components === */
 
-export function DocumentCard({
-  children,
-  title,
-  className,
-  contentClassName,
-  description,
-  eyebrow,
-  icon,
-  layout,
-}: DocumentCardProps) {
+export function DocumentCard({ children, title, className, contentClassName, description, eyebrow, icon, layout }: DocumentCardProps) {
   return (
     <Card
       className={cn("document-card overflow-hidden rounded-lg py-0", className)}
@@ -52,9 +43,7 @@ export function DocumentCard({
     >
       <CardHeader className="min-h-16 border-b px-4 py-3">
         <div className="min-w-0">
-          {eyebrow ? (
-            <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">{eyebrow}</p>
-          ) : null}
+          {eyebrow ? <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">{eyebrow}</p> : null}
           <CardTitle className="truncate text-lg">{title}</CardTitle>
           {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
         </div>

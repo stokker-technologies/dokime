@@ -30,8 +30,7 @@ const DOKIME_TOAST_CLASSES = {
   warning: "border-warning bg-popover",
   info: "border-info bg-popover",
   loading: "border-border bg-muted",
-  actionButton:
-    "shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-1.5 text-primary-foreground",
+  actionButton: "shrink-0 whitespace-nowrap rounded-md bg-primary px-3 py-1.5 text-primary-foreground",
   cancelButton: "rounded-md bg-secondary px-2 py-1 text-secondary-foreground",
   closeButton:
     "absolute top-2 right-2 grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-popover-foreground [&>svg]:size-3.5",

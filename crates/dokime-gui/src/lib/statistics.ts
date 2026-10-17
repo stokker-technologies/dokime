@@ -118,14 +118,7 @@ export function seriesLegendRows({
   return traces.map((trace, index) => {
     const summary = byKey.get(trace.key);
     const cells = Object.fromEntries(
-      SERIES_STATISTICS.map(([id]) => [
-        id,
-        id === "count"
-          ? summary
-            ? String(summary.count)
-            : "-"
-          : formatSummaryValue(summary?.[id]),
-      ]),
+      SERIES_STATISTICS.map(([id]) => [id, id === "count" ? (summary ? String(summary.count) : "-") : formatSummaryValue(summary?.[id])]),
     ) as Record<SeriesStatistic, string>;
     const cursor = cursorPoints?.[index];
     return {

@@ -24,11 +24,7 @@ export function useApplicationTheme(): ApplicationTheme {
   return native ?? browser;
 }
 
-
 /* === Components === */
-export function ApplicationThemeProvider({ children, value }: {
-  children: ReactNode;
-  value: ApplicationTheme;
-}) {
+export function ApplicationThemeProvider({ children, value }: { children: ReactNode; value: ApplicationTheme }) {
   return <NativeTheme.Provider value={value}>{children}</NativeTheme.Provider>;
 }

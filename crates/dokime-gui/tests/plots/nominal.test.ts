@@ -32,12 +32,7 @@ import {
 } from "@/plots/histogram-axes";
 import { histogramBars } from "@/plots/histogram-bins";
 import { applyPlotMessages, emptyLivePlotState, type LivePlotState } from "@/plots/live-frames";
-import {
-  NO_NUMERIC_SAMPLES,
-  plotPlaceholderText,
-  plotUnavailableText,
-  WAITING_FOR_SAMPLES,
-} from "@/plots/plot-placeholder";
+import { NO_NUMERIC_SAMPLES, plotPlaceholderText, plotUnavailableText, WAITING_FOR_SAMPLES } from "@/plots/plot-placeholder";
 import { lttbIndices, minMaxIndices, NATIVE_PLOT_MAX_POINTS, reduceIndices } from "@/plots/reduce";
 import { heldViewport, PLOT_DRAG_OPTIONS } from "@/plots/viewport";
 
@@ -117,11 +112,7 @@ function hostFrame(
   } as unknown as PlotPayload;
 }
 
-function streamMessage(
-  kind: PlotPayloadStreamMessage["kind"],
-  revision: number,
-  payload: PlotPayload,
-): PlotPayloadStreamMessage {
+function streamMessage(kind: PlotPayloadStreamMessage["kind"], revision: number, payload: PlotPayload): PlotPayloadStreamMessage {
   return {
     kind,
     revision,
@@ -245,14 +236,8 @@ test("LTTB Reduction", () => {
   const budget = 10;
   const moderateX = autoX.slice(0, 40);
   const moderateY = autoY.slice(0, 40);
-  assert.deepEqual(
-    reduceIndices(moderateX, [moderateY], budget, "auto"),
-    reduceIndices(moderateX, [moderateY], budget, "lttb"),
-  );
-  assert.deepEqual(
-    reduceIndices(autoX, [autoY], budget, "auto"),
-    reduceIndices(autoX, [autoY], budget, "min_max"),
-  );
+  assert.deepEqual(reduceIndices(moderateX, [moderateY], budget, "auto"), reduceIndices(moderateX, [moderateY], budget, "lttb"));
+  assert.deepEqual(reduceIndices(autoX, [autoY], budget, "auto"), reduceIndices(autoX, [autoY], budget, "min_max"));
 });
 
 test("Retention Window", () => {
@@ -260,11 +245,7 @@ test("Retention Window", () => {
   /* 300 s at 10 Hz into a 60 s window: the front is evicted as the run moves. */
   const opening = pulse(10);
   const snapshot = hostFrame(opening.x, [opening.y], { windowS: 60 });
-  let state = applyPlotMessages(
-    emptyLivePlotState(),
-    [streamMessage("snapshot", 1, snapshot)],
-    "auto",
-  );
+  let state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, snapshot)], "auto");
   state = appendPulses(state, 300, 10, { windowS: 60, startS: 1 });
   const x = state.payload?.cartesian?.series[0].x ?? [];
   const span = x[x.length - 1] - x[0];
@@ -276,11 +257,7 @@ test("Frame Retention", () => {
   // A Snapshot Keeps One Representation: The Cartesian Frame
   const start = pulse(50);
   const snapshot = hostFrame(start.x, [start.y, start.y], { maxPoints: 100 });
-  let state = applyPlotMessages(
-    emptyLivePlotState(),
-    [streamMessage("snapshot", 1, snapshot)],
-    "auto",
-  );
+  let state = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, snapshot)], "auto");
   assert.equal(state.payload?.cartesian?.signature, "host");
   assert.ok(state.payload?.series.every((series) => series.points.length === 0));
 
@@ -328,11 +305,7 @@ test("Frame Retention", () => {
 
   // A Plot That Keeps Every Sample Is Still Bounded By The Host Ceiling
   const raw = hostFrame([0], [[0]], { maxPoints: 0 });
-  let unbudgeted = applyPlotMessages(
-    emptyLivePlotState(),
-    [streamMessage("snapshot", 1, raw)],
-    "auto",
-  );
+  let unbudgeted = applyPlotMessages(emptyLivePlotState(), [streamMessage("snapshot", 1, raw)], "auto");
   unbudgeted = appendPulses(unbudgeted, 130, 1_000, { maxPoints: 0, startS: 1 });
   const kept = unbudgeted.payload?.cartesian?.series[0].x.length ?? 0;
   assert.equal(unbudgeted.status, "live");
@@ -442,18 +415,7 @@ test("Series Legend", () => {
   // A Live Legend Lists The Trace, The Cursor And The Statistics With The Unit In Each Header
   assert.deepEqual(
     seriesLegendColumns(true, "V").map((column) => column.header),
-    [
-      "Trace",
-      "X Cursor",
-      "Y Cursor (V)",
-      "Count",
-      "Min (V)",
-      "Max (V)",
-      "Mean (V)",
-      "Median (V)",
-      "Std (V)",
-      "Rms (V)",
-    ],
+    ["Trace", "X Cursor", "Y Cursor (V)", "Count", "Min (V)", "Max (V)", "Mean (V)", "Median (V)", "Std (V)", "Rms (V)"],
   );
 
   // A Report Legend Omits The Cursor Column
@@ -513,7 +475,10 @@ test("Series Legend", () => {
   // The Cursor Column Is Blank Until The Pointer Has Been Over The Plot
   assert.deepEqual(
     rows.map((row) => [row.xCursor, row.yCursor]),
-    [["", ""], ["", ""]],
+    [
+      ["", ""],
+      ["", ""],
+    ],
   );
 
   // The Cursor Reads Each Trace's Nearest Drawn Point And Skips Its Gaps
@@ -535,7 +500,10 @@ test("Series Legend", () => {
   });
   assert.deepEqual(
     pointed.map((row) => [row.xCursor, row.yCursor]),
-    [["3.00", "13.00"], ["", ""]],
+    [
+      ["3.00", "13.00"],
+      ["", ""],
+    ],
   );
 
   // The Table Dims Only While A Summary Request Is In Flight

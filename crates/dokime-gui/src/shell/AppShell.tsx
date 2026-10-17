@@ -20,9 +20,7 @@ import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 
 /* === Types === */
-export type AppShellProps =
-  | { children: ReactNode; live?: true }
-  | { children: ReactNode; live: false; frozen: FrozenShell };
+export type AppShellProps = { children: ReactNode; live?: true } | { children: ReactNode; live: false; frozen: FrozenShell };
 
 /* === Components === */
 export function AppShell(props: AppShellProps) {
@@ -33,9 +31,9 @@ export function AppShell(props: AppShellProps) {
       frozen={frozen}
       menuBar={frozen ? null : <MenuBar />}
       console={frozen ? null : <RoutedConsoleDrawer />}
-      sidebar={frozen ? (
-        <Sidebar selection={frozen.selection} cycleId={frozen.cycleId} live={false} onSelect={frozen.onSelect} />
-      ) : <Sidebar />}
+      sidebar={
+        frozen ? <Sidebar selection={frozen.selection} cycleId={frozen.cycleId} live={false} onSelect={frozen.onSelect} /> : <Sidebar />
+      }
       statusBar={frozen ? <StatusBar frozen={frozen} live={false} /> : <StatusBar />}
     >
       {props.children}

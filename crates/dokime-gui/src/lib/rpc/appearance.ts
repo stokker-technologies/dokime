@@ -46,13 +46,8 @@ export async function loadAppearance(session: SessionIdentity): Promise<Appearan
   let logoUrl: string | null = null;
   if (appearance.logo) {
     const expected = appearance.logo.asset;
-    if (!expected?.reference || expected.sizeBytes > maxAssetBytes || expected.sizeBytes < 0n)
-      invalid();
-    if (
-      !expected.contentType.startsWith("image/") ||
-      !/^[a-f0-9]{64}$/.test(expected.reference.sha256)
-    )
-      invalid();
+    if (!expected?.reference || expected.sizeBytes > maxAssetBytes || expected.sizeBytes < 0n) invalid();
+    if (!expected.contentType.startsWith("image/") || !/^[a-f0-9]{64}$/.test(expected.reference.sha256)) invalid();
     const bytes = new Uint8Array(new ArrayBuffer(Number(expected.sizeBytes)));
     const download = await rpc.contentDownloadAppearanceAsset(session, {
       reference: {

@@ -45,11 +45,7 @@ export interface CaptureAssembly {
 /* === Public Functions === */
 export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
   const sources = new Set(capture.sources);
-  if (
-    sources.size !== capture.sources.length ||
-    sources.size > 4096 ||
-    capture.bindings.length > 4096
-  ) {
+  if (sources.size !== capture.sources.length || sources.size > 4096 || capture.bindings.length > 4096) {
     throw new Error("Captured document sources or bindings exceed their contract");
   }
   const cards = new Map<string, { source_id: string; card: DocumentViewCard }>();
@@ -65,8 +61,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
   let count = 0;
   let work = 0;
   function assemble(nodes: DeclaredNode[], suffixes: string[], depth: number): DocumentViewNode[] {
-    if (depth > 32 && nodes.length > 0)
-      throw new Error("Captured document depth exceeds its budget");
+    if (depth > 32 && nodes.length > 0) throw new Error("Captured document depth exceeds its budget");
     const result: DocumentViewNode[] = [];
     const suffix = suffixes.map((part) => `.${part}`).join("");
     for (const node of nodes) {
@@ -74,8 +69,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
       if (node.type === "card") {
         const id = node.card_id + suffix;
         const binding = cards.get(id);
-        if (!binding || binding.source_id !== node.card_id)
-          throw new Error(`Captured card binding is missing or mismatched: ${id}`);
+        if (!binding || binding.source_id !== node.card_id) throw new Error(`Captured card binding is missing or mismatched: ${id}`);
         usedCards.add(id);
         if (++count > 4096) throw new Error("Captured document expansion exceeds its budget");
         result.push({ ...node, card_id: id });
@@ -91,12 +85,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
       const failedSection = capture.sections.get(id);
       const failed = unavailableReason(failedSection?.unavailable);
       if (failed) {
-        if (
-          !failedSection?.metadata ||
-          !node.repeat ||
-          instances.length !== 0 ||
-          usedSections.has(id)
-        ) {
+        if (!failedSection?.metadata || !node.repeat || instances.length !== 0 || usedSections.has(id)) {
           throw new Error("Unavailable repeat has instances or duplicate identity");
         }
         usedSections.add(id);
@@ -114,25 +103,14 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
       for (const instance of instances) {
         if (++work > 4096 * 32) throw new Error("Captured document assembly exceeds its budget");
         if (instance.suffix !== null) {
-          if (!instance.suffix || suffixesSeen.has(instance.suffix))
-            throw new Error("Captured repeat suffix is empty or duplicated");
+          if (!instance.suffix || suffixesSeen.has(instance.suffix)) throw new Error("Captured repeat suffix is empty or duplicated");
           suffixesSeen.add(instance.suffix);
         }
-        const children = assemble(
-          node.children,
-          instance.suffix === null ? suffixes : [...suffixes, instance.suffix],
-          depth + 1,
-        );
+        const children = assemble(node.children, instance.suffix === null ? suffixes : [...suffixes, instance.suffix], depth + 1);
         if (children.length === 0) continue;
         const section = capture.sections.get(instance.node_id);
-        if (
-          !section?.metadata ||
-          unavailableReason(section.unavailable) ||
-          usedSections.has(instance.node_id)
-        )
-          throw new Error(
-            `Captured section identity is missing or duplicated: ${instance.node_id}`,
-          );
+        if (!section?.metadata || unavailableReason(section.unavailable) || usedSections.has(instance.node_id))
+          throw new Error(`Captured section identity is missing or duplicated: ${instance.node_id}`);
         usedSections.add(instance.node_id);
         if (++count > 4096) throw new Error("Captured document expansion exceeds its budget");
         result.push({
@@ -146,11 +124,7 @@ export function assembleCapture(capture: CaptureAssembly): DocumentViewPayload {
     return result;
   }
   const layout = { nodes: assemble(capture.nodes, [], 1) };
-  if (
-    usedCards.size !== cards.size ||
-    usedRepeats.size !== capture.repeats.size ||
-    usedSections.size !== capture.sections.size
-  ) {
+  if (usedCards.size !== cards.size || usedRepeats.size !== capture.repeats.size || usedSections.size !== capture.sections.size) {
     throw new Error("Captured document contains unreferenced binding or section identities");
   }
   return documentView(

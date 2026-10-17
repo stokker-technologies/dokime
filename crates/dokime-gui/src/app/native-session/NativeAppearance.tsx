@@ -22,15 +22,11 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
       const dark =
         appearance.modePolicy?.HarmosVariant.case === "ForceDark" ||
         (appearance.modePolicy?.HarmosVariant.case !== "ForceLight" &&
-          (appearance.modePolicy?.HarmosVariant.case === "ForceSystem" || preference === "system"
-            ? media.matches
-            : preference === "dark"));
+          (appearance.modePolicy?.HarmosVariant.case === "ForceSystem" || preference === "system" ? media.matches : preference === "dark"));
       document.documentElement.classList.toggle("dark", dark);
       document.documentElement.classList.toggle("light", !dark);
       document.documentElement.style.colorScheme = dark ? "dark" : "light";
-      const selected = appearance.themeFamilyLocked
-        ? appearance.activeTheme
-        : (preferredFamily ?? appearance.activeTheme);
+      const selected = appearance.themeFamilyLocked ? appearance.activeTheme : (preferredFamily ?? appearance.activeTheme);
       const family =
         appearance.themes.find((theme) => theme.themeId === selected) ??
         appearance.themes.find((theme) => theme.themeId === appearance.activeTheme) ??
@@ -40,12 +36,8 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
       applyThemeVariables({
         ...Object.fromEntries((family?.variables ?? []).map(({ key, value }) => [key, value])),
         ...Object.fromEntries((variant?.variables ?? []).map(({ key, value }) => [key, value])),
-        ...themeCornerRadiusVariables(
-          radii && { ...radii, "2xl": radii.twoXl, "3xl": radii.threeXl, "4xl": radii.fourXl },
-        ),
-        ...Object.fromEntries(
-          (variant?.plotPalette ?? []).map((color, index) => [`chart-${index + 1}`, color]),
-        ),
+        ...themeCornerRadiusVariables(radii && { ...radii, "2xl": radii.twoXl, "3xl": radii.threeXl, "4xl": radii.fourXl }),
+        ...Object.fromEntries((variant?.plotPalette ?? []).map((color, index) => [`chart-${index + 1}`, color])),
       });
       applyThemeStylesheet(family?.stylesheet);
     };
@@ -54,12 +46,8 @@ export function NativeAppearance({ resource }: { resource: AppearanceResource | 
     /* Density has one writer: the store, applied by `ThemeController`. A
        second `applyDensity` here re-ran on every settings refetch and undid
        whatever the current density was between the cleanup and the reapply. */
-    useUiStore
-      .getState()
-      .setUiState({ density: settings.data?.appearance.density ?? "comfortable" });
-    const title =
-      (appearance.titleTemplate ?? "{app}").replaceAll("{app}", appearance.appName).trim() ||
-      defaultBrand.label;
+    useUiStore.getState().setUiState({ density: settings.data?.appearance.density ?? "comfortable" });
+    const title = (appearance.titleTemplate ?? "{app}").replaceAll("{app}", appearance.appName).trim() || defaultBrand.label;
     document.title = title;
     void commands.desktopSetTitle(title).catch(() => {});
     return () => {

@@ -132,9 +132,7 @@ const initialUiStoreState: UiStoreState = {
 const persistedConsoleSchema = z
   .object({
     height: z.number().min(120).max(900).catch(INITIAL_CONSOLE_STATE.height),
-    level: z
-      .enum(["trace", "debug", "info", "warning", "error"])
-      .catch(INITIAL_CONSOLE_STATE.level),
+    level: z.enum(["trace", "debug", "info", "warning", "error"]).catch(INITIAL_CONSOLE_STATE.level),
     scope: z.enum(["instance", "cycle", "execution"]).catch(INITIAL_CONSOLE_STATE.scope),
   })
   .catch({
@@ -206,9 +204,7 @@ export const useUiStore = create<UiStore>()(
     }),
     {
       merge: (persisted, current) => {
-        const parsed = persistedUiStateSchema.safeParse(
-          (persisted as { density?: unknown; theme?: unknown }) ?? {},
-        );
+        const parsed = persistedUiStateSchema.safeParse((persisted as { density?: unknown; theme?: unknown }) ?? {});
         if (!parsed.success) {
           return current;
         }

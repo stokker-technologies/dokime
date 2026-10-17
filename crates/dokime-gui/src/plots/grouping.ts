@@ -9,13 +9,7 @@
 
 /* === Local Imports === */
 
-import type {
-  DocumentReferenceLine,
-  DocumentViewPlot,
-  PlotPayload,
-  TelemetryStream,
-  ValueFormat,
-} from "@/lib/types";
+import type { DocumentReferenceLine, DocumentViewPlot, PlotPayload, TelemetryStream, ValueFormat } from "@/lib/types";
 import { isRecord } from "@/lib/utils";
 import { elapsedColumnUnit } from "@/plots/axis";
 import { plotColor } from "@/plots/colors";
@@ -118,10 +112,7 @@ export function documentPlotSpec({
  * payload that carries no declaration at all, and only affirmatively; see
  * `elapsedColumnUnit`.
  */
-export function resolvedElapsedUnit(
-  plot: DocumentViewPlot,
-  xFormat: ValueFormat | null,
-): string | null {
+export function resolvedElapsedUnit(plot: DocumentViewPlot, xFormat: ValueFormat | null): string | null {
   if (plot.plot_type !== "time_series" || xFormat) return null;
   const declared = plot.x_axis;
   if (declared) return declared.kind === "elapsed" ? declared.unit : null;
@@ -299,10 +290,7 @@ function plotContextSummary({
     ]);
   }
   if (stream === "host.wifi.latency") {
-    return compactContext([
-      textContext("Host", latest.wifi_latency_host),
-      textContext("Probe", latest.probe_status),
-    ]);
+    return compactContext([textContext("Host", latest.wifi_latency_host), textContext("Probe", latest.probe_status)]);
   }
   if (stream === "host.bluetooth") {
     return compactContext([
@@ -324,13 +312,7 @@ function placeholderSeries(keys: string[], plot: DocumentViewPlot): PlotPayload[
   }));
 }
 
-function labelSeries({
-  plot,
-  series,
-}: {
-  plot: DocumentViewPlot;
-  series: PlotPayload["series"];
-}): PlotPayload["series"] {
+function labelSeries({ plot, series }: { plot: DocumentViewPlot; series: PlotPayload["series"] }): PlotPayload["series"] {
   if (plot.series_by) {
     return series;
   }
@@ -422,10 +404,7 @@ function plotState({
   };
 }
 
-function latestSample(
-  telemetry: Record<string, TelemetryStream> | null | undefined,
-  stream: string,
-) {
+function latestSample(telemetry: Record<string, TelemetryStream> | null | undefined, stream: string) {
   const samples = telemetry?.[stream]?.samples ?? [];
   return samples[samples.length - 1];
 }

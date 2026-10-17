@@ -17,14 +17,7 @@
 
 /* === Local Imports === */
 
-import type {
-  CaseActions,
-  ExecutionQueueItem,
-  TestCase,
-  TestCycle,
-  TestCyclePlan,
-  TestExecution,
-} from "@/lib/types";
+import type { CaseActions, ExecutionQueueItem, TestCase, TestCycle, TestCyclePlan, TestExecution } from "@/lib/types";
 
 /* === Types === */
 
@@ -121,12 +114,7 @@ export type NodeMenuItem =
   | "Re-Run";
 
 /** One control of the execution page's page-bar group, in its order. */
-export type ExecutionControl =
-  | "Start"
-  | "Re-Run"
-  | "Pause Execution"
-  | "Resume Execution"
-  | "Stop Execution";
+export type ExecutionControl = "Start" | "Re-Run" | "Pause Execution" | "Resume Execution" | "Stop Execution";
 
 /** The page bar's Download Report button as it stands. */
 export type ReportDownloadState = {
@@ -172,23 +160,12 @@ export const LIST_STATUS_PILL_CLASS = `w-[var(--pill-width)] ${STATUS_PILL_CLASS
  * QUEUED, which are work the cycle still owes, and `unknown`, which is a
  * captured grouping stating nothing about the case at all.
  */
-const FINISHED_CASE_STATES: ReadonlySet<CaseState> = new Set([
-  "passed",
-  "failed",
-  "blocked",
-  "stopped",
-  "interrupted",
-  "skipped",
-]);
+const FINISHED_CASE_STATES: ReadonlySet<CaseState> = new Set(["passed", "failed", "blocked", "stopped", "interrupted", "skipped"]);
 
 /** The two pre-dispatch states: no attempt at all, and one not yet dispatched. */
 const QUEUED_CASE_STATES: ReadonlySet<CaseState> = new Set(["planned", "queued"]);
 
-const ACTIVE_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set([
-  "running",
-  "waiting_for_prompt",
-  "finalizing",
-]);
+const ACTIVE_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set(["running", "waiting_for_prompt", "finalizing"]);
 
 /** The execution states an attempt ends in, and so the ones Run Again follows. */
 const TERMINAL_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Set([
@@ -201,12 +178,7 @@ const TERMINAL_EXECUTION_STATUSES: ReadonlySet<TestExecution["status"]> = new Se
 ]);
 
 /** The cycle states a whole run ends in, and so the ones Run Again follows. */
-const TERMINAL_CYCLE_STATUSES: ReadonlySet<CycleLifecycle> = new Set([
-  "completed",
-  "failed",
-  "stopped",
-  "interrupted",
-]);
+const TERMINAL_CYCLE_STATUSES: ReadonlySet<CycleLifecycle> = new Set(["completed", "failed", "stopped", "interrupted"]);
 
 /* === Public Functions === */
 
@@ -238,12 +210,7 @@ export function isCycleSelection(selection: CycleSelection): boolean {
  * ends. Landing with nothing selected follows the active execution, and so
  * does a selection that was following when the runtime moved on.
  */
-export function followSelection({
-  selection,
-  active,
-  previousActive,
-  selectedEnded,
-}: FollowState): string | null {
+export function followSelection({ selection, active, previousActive, selectedEnded }: FollowState): string | null {
   if (!active || selection.executionId === active) return null;
   if (isCycleSelection(selection) || selection.caseId) return null;
   if (!selection.executionId) return active;
@@ -275,9 +242,7 @@ export function isCycleTerminal(status: CycleLifecycle): boolean {
  * mutation itself refuses.
  */
 export function rerunnableCaseIds(cases: readonly CycleCase[]): string[] {
-  return cases
-    .filter((item) => item.actions === null || item.actions.schedule_rerun)
-    .map((item) => item.caseId);
+  return cases.filter((item) => item.actions === null || item.actions.schedule_rerun).map((item) => item.caseId);
 }
 
 /**
@@ -323,19 +288,12 @@ export function buildCycleCases(plan: TestCyclePlan | null): CycleCase[] {
  * execution re-runs the previous execution of its case; the runtime states no
  * other linkage. Executions of a case the plan does not carry are not listed.
  */
-export function buildCycleExecutionRows(
-  cases: readonly CycleCase[],
-  executions: readonly TestExecution[],
-): CycleExecutionRow[] {
+export function buildCycleExecutionRows(cases: readonly CycleCase[], executions: readonly TestExecution[]): CycleExecutionRow[] {
   const byId = new Map(cases.map((item) => [item.caseId, item]));
   const ordered = executions
     .filter((execution) => byId.has(execution.case_id))
     .map((execution, position) => ({ execution, position }))
-    .sort(
-      (left, right) =>
-        left.execution.attempt_index - right.execution.attempt_index ||
-        left.position - right.position,
-    );
+    .sort((left, right) => left.execution.attempt_index - right.execution.attempt_index || left.position - right.position);
 
   const rows: CycleExecutionRow[] = [];
   const previous = new Map<string, CycleExecutionRow>();
@@ -370,42 +328,27 @@ export function buildCycleExecutionRows(
 }
 
 /** The row a selection names, or null for the overview or a stale selection. */
-export function selectedCycleRow(
-  rows: readonly CycleExecutionRow[],
-  selection: CycleSelection,
-): CycleExecutionRow | null {
+export function selectedCycleRow(rows: readonly CycleExecutionRow[], selection: CycleSelection): CycleExecutionRow | null {
   if (selection.executionId) {
     return rows.find((row) => row.execution?.test_execution_id === selection.executionId) ?? null;
   }
   if (selection.caseId) {
-    return (
-      rows.find((row) => row.execution === null && row.case.caseId === selection.caseId) ?? null
-    );
+    return rows.find((row) => row.execution === null && row.case.caseId === selection.caseId) ?? null;
   }
   return null;
 }
 
 /** The selection that names `row`: its execution, or its case while it has none. */
 export function cycleRowSelection(row: CycleExecutionRow): CycleSelection {
-  return row.execution
-    ? { executionId: row.execution.test_execution_id }
-    : { caseId: row.case.caseId };
+  return row.execution ? { executionId: row.execution.test_execution_id } : { caseId: row.case.caseId };
 }
 
 /**
  * The execution a re-run of `caseId` created: the first of that case that was
  * not known before the re-run was requested.
  */
-export function createdExecutionId(
-  executions: readonly TestExecution[],
-  caseId: string,
-  known: ReadonlySet<string>,
-): string | null {
-  return (
-    executions.find(
-      (execution) => execution.case_id === caseId && !known.has(execution.test_execution_id),
-    )?.test_execution_id ?? null
-  );
+export function createdExecutionId(executions: readonly TestExecution[], caseId: string, known: ReadonlySet<string>): string | null {
+  return executions.find((execution) => execution.case_id === caseId && !known.has(execution.test_execution_id))?.test_execution_id ?? null;
 }
 
 /** The pill a row shows: its execution's own status, or its case's without one. */
@@ -452,10 +395,7 @@ export function archiveRefusal(terminal: boolean): string | undefined {
  * ended attempt; Pause or Resume and Stop to one an execution-addressed run
  * controls, as the runtime's own `controls` admit.
  */
-export function executionControlSet(
-  status: TestExecution["status"],
-  controls: TestExecution["controls"],
-): ExecutionControl[] {
+export function executionControlSet(status: TestExecution["status"], controls: TestExecution["controls"]): ExecutionControl[] {
   if (isUnstartedExecution(status)) return ["Start"];
   const set: ExecutionControl[] = [];
   if (isTerminalExecutionStatus(status) && !controls) set.push("Re-Run");
@@ -477,9 +417,7 @@ export function reportDownloadState(saving: boolean): ReportDownloadState {
 
 /** The file a saved report is offered as, named after its cycle or execution. */
 export function reportFilename(label: string): string {
-  const name = Array.from(label, (char) =>
-    char.charCodeAt(0) < 32 || UNSAFE_FILENAME_CHARACTERS.includes(char) ? "-" : char,
-  )
+  const name = Array.from(label, (char) => (char.charCodeAt(0) < 32 || UNSAFE_FILENAME_CHARACTERS.includes(char) ? "-" : char))
     .join("")
     .replace(/\s+/g, " ")
     .replace(/^[\s.-]+|[\s.-]+$/g, "");
@@ -512,9 +450,7 @@ export function cycleStatusLabel(status: CycleLifecycle): string {
   }
 }
 
-export function cycleStatusVariant(
-  status: CycleLifecycle,
-): "default" | "secondary" | "success" | "warning" | "destructive" | "outline" {
+export function cycleStatusVariant(status: CycleLifecycle): "default" | "secondary" | "success" | "warning" | "destructive" | "outline" {
   switch (status) {
     case "running":
       return "default";
@@ -597,10 +533,7 @@ export function executionStatusVariant(
  * start. Pause, Resume and Stop stay the lifecycle's own: they act on the
  * cycle, not on a case, and no case projection speaks for them.
  */
-export function runControlAvailability(
-  status: CycleLifecycle,
-  startableCases: number,
-): RunControlAvailability {
+export function runControlAvailability(status: CycleLifecycle, startableCases: number): RunControlAvailability {
   switch (status) {
     case "running":
       return { run: false, pause: true, resume: false, stop: true };
@@ -622,11 +555,7 @@ export function runControlAvailability(
  * the runtime refuses keeps it, disabled, carrying that refusal — which is the
  * explanation a hidden button cannot give.
  */
-export function runControlVisibility(
-  status: CycleLifecycle,
-  startableCases: number,
-  refused = false,
-): RunControlVisibility {
+export function runControlVisibility(status: CycleLifecycle, startableCases: number, refused = false): RunControlVisibility {
   const lifecycleOffersRun = !isCycleInFlight(status);
   return {
     pauseResume: status === "running" ? "pause" : status === "paused" ? "resume" : null,
@@ -688,13 +617,7 @@ export function caseActionTooltip(item: CycleCase): string | undefined {
  */
 export function cycleRunRefusal(cases: readonly CycleCase[]): string | null {
   if (startableCaseCount(cases) > 0) return null;
-  const reasons = [
-    ...new Set(
-      cases
-        .filter((item) => isQueuedCase(item))
-        .flatMap((item) => item.actions?.unavailable_reasons ?? []),
-    ),
-  ];
+  const reasons = [...new Set(cases.filter((item) => isQueuedCase(item)).flatMap((item) => item.actions?.unavailable_reasons ?? []))];
   return reasons.length ? reasons.join(" ") : null;
 }
 
@@ -730,9 +653,7 @@ export function caseStatusLabel(status: CaseState): string {
   }
 }
 
-export function caseStatusVariant(
-  status: CaseState,
-): "default" | "secondary" | "success" | "warning" | "destructive" | "outline" {
+export function caseStatusVariant(status: CaseState): "default" | "secondary" | "success" | "warning" | "destructive" | "outline" {
   switch (status) {
     case "passed":
       return "success";

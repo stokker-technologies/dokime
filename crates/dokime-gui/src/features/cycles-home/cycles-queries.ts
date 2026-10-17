@@ -18,12 +18,7 @@ import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tan
 
 import { useNativeSession } from "@/app/native-session/context";
 import { invalidateWorkflowResourceQueries } from "@/features/cycle/server-state";
-import {
-  createNativeTestCycle,
-  listNativeCycles,
-  type NativeCycleSelection,
-  type NewCycleRequest,
-} from "@/lib/api/native-planning";
+import { createNativeTestCycle, listNativeCycles, type NativeCycleSelection, type NewCycleRequest } from "@/lib/api/native-planning";
 import { fetchNativePendingPrompts } from "@/lib/api/native-prompts";
 import type { Wire } from "@/lib/rpc/canonical";
 import type { PromptRequest } from "@/lib/types";
@@ -48,14 +43,8 @@ export type CyclesQuerySelection = {
 export const cyclesHomeQueryKeys = {
   all: ["cycles-home"] as const,
   cycles: (generation: string, selection: CyclesQuerySelection = {}) =>
-    [
-      ...cyclesHomeQueryKeys.all,
-      "cycles",
-      generation,
-      { archived: selection.archived ?? false, text: selection.text ?? "" },
-    ] as const,
-  pendingPrompts: (generation: string) =>
-    [...cyclesHomeQueryKeys.all, "pending-prompts", generation] as const,
+    [...cyclesHomeQueryKeys.all, "cycles", generation, { archived: selection.archived ?? false, text: selection.text ?? "" }] as const,
+  pendingPrompts: (generation: string) => [...cyclesHomeQueryKeys.all, "pending-prompts", generation] as const,
 };
 
 /* === Constants === */
@@ -74,9 +63,7 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
       text: selection.text?.trim() ?? "",
       statuses: [],
       archive: {
-        HarmosVariant: selection.archived
-          ? { case: "Archived", value: {} }
-          : { case: "Unarchived", value: {} },
+        HarmosVariant: selection.archived ? { case: "Archived", value: {} } : { case: "Unarchived", value: {} },
       },
     },
     order: { key: { HarmosVariant: { case: "UpdatedAt", value: {} } }, descending: true },
@@ -92,9 +79,7 @@ export function cycleListSelection(selection: CyclesQuerySelection): NativeCycle
  * bar counts, and a bar that inherited the home's filter box would report an
  * activity count of whatever the operator happened to be typing.
  */
-export function useCyclesQuery(
-  selection: CyclesQuerySelection = {},
-): UseQueryResult<CycleSummary[]> {
+export function useCyclesQuery(selection: CyclesQuerySelection = {}): UseQueryResult<CycleSummary[]> {
   const session = useNativeSession();
   const archived = selection.archived ?? false;
   const text = selection.text ?? "";

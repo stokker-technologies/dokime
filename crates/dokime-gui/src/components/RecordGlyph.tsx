@@ -74,13 +74,7 @@ const RECORD_ICONS: Record<RecordDisplay["icon"], LucideIcon> = {
 
 /* === Public Functions === */
 
-export function RecordGlyph({
-  className,
-  display,
-}: {
-  className?: string;
-  display: RecordDisplay;
-}) {
+export function RecordGlyph({ className, display }: { className?: string; display: RecordDisplay }) {
   const Icon = RECORD_ICONS[display.icon] ?? Clock3;
 
   return (

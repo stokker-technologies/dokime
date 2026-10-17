@@ -60,9 +60,7 @@ export function DocumentMetricGroup({
         >
           <GripVertical size={14} />
         </button>
-        <p className="min-w-0 truncate text-xs font-bold uppercase text-muted-foreground">
-          {title}
-        </p>
+        <p className="min-w-0 truncate text-xs font-bold uppercase text-muted-foreground">{title}</p>
       </div>
       <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,9.5rem),1fr))]">
         {metrics.map((metric) => (

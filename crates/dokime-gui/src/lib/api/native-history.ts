@@ -33,9 +33,7 @@ type ResultStatus = NonNullable<CycleSummary["result"]>["status"];
  * queued counts included, into the view model consumed by the original cycle
  * selector/sidebar.
  */
-export async function fetchNativeCycleHistory(
-  session: SessionIdentity,
-): Promise<CycleHistorySummary[]> {
+export async function fetchNativeCycleHistory(session: SessionIdentity): Promise<CycleHistorySummary[]> {
   const cycles = await listNativeCycles(session);
   return cycles.map(mapCycleHistorySummary).sort(compareCycleHistorySummary);
 }
@@ -46,9 +44,7 @@ function mapCycleHistorySummary(cycle: CycleSummary): CycleHistorySummary {
   const caseCount = safeNumber(cycle.caseCount, "Execution.ListCycles case count");
   const executionCount = safeNumber(cycle.executionCount, "Execution.ListCycles execution count");
   const result = cycle.result;
-  const terminal = ["Completed", "Failed", "Blocked", "Stopped"].includes(
-    cycle.status?.HarmosVariant.case ?? "",
-  );
+  const terminal = ["Completed", "Failed", "Blocked", "Stopped"].includes(cycle.status?.HarmosVariant.case ?? "");
   const startedAt = timestampIso(cycle.startedAt);
   const updatedAt = timestampIso(cycle.updatedAt) ?? timestampIso(cycle.createdAt) ?? "";
   const finishedAt = terminal ? updatedAt || null : null;

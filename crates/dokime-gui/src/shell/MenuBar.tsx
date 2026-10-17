@@ -22,10 +22,7 @@ import { toast } from "sonner";
 
 /* === Local Imports === */
 
-import {
-  useNativeSessionController,
-  useNativeSessionOptional,
-} from "@/app/native-session/context";
+import { useNativeSessionController, useNativeSessionOptional } from "@/app/native-session/context";
 import {
   Menubar,
   MenubarCheckboxItem,
@@ -40,11 +37,7 @@ import {
 } from "@/components/ui/menubar";
 import { NewCycleDialog } from "@/features/cycles-home/NewCycleDialog";
 import { useAppearance } from "@/lib/appearance";
-import {
-  applicationSettingsError,
-  useApplicationSettings,
-  useSaveAppearance,
-} from "@/lib/application-settings";
+import { applicationSettingsError, useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
 import { useApplicationTheme } from "@/lib/application-theme";
 import { isTauriDesktop } from "@/lib/desktop-open";
 import type { DensityPreference, ThemeModePreference } from "@/lib/theme";
@@ -106,12 +99,8 @@ function LiveMenus() {
           <MenubarSeparator />
           <MenubarItem onSelect={() => void navigate({ to: "/settings" })}>Settings…</MenubarItem>
           {session || desktop ? <MenubarSeparator /> : null}
-          {session ? (
-            <MenubarItem onSelect={() => void controller.disconnect()}>Sign Out</MenubarItem>
-          ) : null}
-          {desktop ? (
-            <MenubarItem onSelect={() => void closeDesktopWindow()}>Quit</MenubarItem>
-          ) : null}
+          {session ? <MenubarItem onSelect={() => void controller.disconnect()}>Sign Out</MenubarItem> : null}
+          {desktop ? <MenubarItem onSelect={() => void closeDesktopWindow()}>Quit</MenubarItem> : null}
         </MenubarContent>
       </MenubarMenu>
 
@@ -119,11 +108,7 @@ function LiveMenus() {
         <MenuTrigger>View</MenuTrigger>
         <MenubarContent>
           <MenubarItem onSelect={sidebar.toggle}>Toggle Sidebar</MenubarItem>
-          <MenubarCheckboxItem
-            checked={focused}
-            disabled={cycleId === null}
-            onCheckedChange={(next) => setFocused(next === true)}
-          >
+          <MenubarCheckboxItem checked={focused} disabled={cycleId === null} onCheckedChange={(next) => setFocused(next === true)}>
             Focus Mode
           </MenubarCheckboxItem>
           <MenubarCheckboxItem
@@ -146,20 +131,10 @@ function LiveMenus() {
       <MenubarMenu>
         <MenuTrigger>Help</MenuTrigger>
         <MenubarContent>
-          <MenubarItem
-            onSelect={() =>
-              void navigate({ params: { section: "diagnostics" }, to: "/settings/$section" })
-            }
-          >
+          <MenubarItem onSelect={() => void navigate({ params: { section: "diagnostics" }, to: "/settings/$section" })}>
             Diagnostics
           </MenubarItem>
-          <MenubarItem
-            onSelect={() =>
-              void navigate({ params: { section: "about" }, to: "/settings/$section" })
-            }
-          >
-            About
-          </MenubarItem>
+          <MenubarItem onSelect={() => void navigate({ params: { section: "about" }, to: "/settings/$section" })}>About</MenubarItem>
         </MenubarContent>
       </MenubarMenu>
 
@@ -203,13 +178,7 @@ function LiveDensityGroup() {
     );
   };
 
-  return (
-    <DensityGroup
-      disabled={desktop && (!settings.data || save.isPending)}
-      onChange={choose}
-      value={density}
-    />
-  );
+  return <DensityGroup disabled={desktop && (!settings.data || save.isPending)} onChange={choose} value={density} />;
 }
 
 /** Theme mode, under the same locks as the Appearance settings. */
@@ -238,10 +207,7 @@ function DensityGroup({
   return (
     <>
       <MenubarLabel className="text-xs text-muted-foreground">Density</MenubarLabel>
-      <MenubarRadioGroup
-        onValueChange={(next) => onChange(next as DensityPreference)}
-        value={value}
-      >
+      <MenubarRadioGroup onValueChange={(next) => onChange(next as DensityPreference)} value={value}>
         {DENSITY_OPTIONS.map((option) => (
           <MenubarRadioItem disabled={disabled} key={option.value} value={option.value}>
             {option.label}
@@ -264,10 +230,7 @@ function ThemeGroup({
   return (
     <>
       <MenubarLabel className="text-xs text-muted-foreground">Theme</MenubarLabel>
-      <MenubarRadioGroup
-        onValueChange={(next) => onChange(next as ThemeModePreference)}
-        value={value}
-      >
+      <MenubarRadioGroup onValueChange={(next) => onChange(next as ThemeModePreference)} value={value}>
         {THEME_OPTIONS.map((option) => (
           <MenubarRadioItem disabled={disabled} key={option.value} value={option.value}>
             {option.label}
@@ -280,11 +243,7 @@ function ThemeGroup({
 
 /** A trigger that fills the row's height, as a system menu bar's titles do. */
 function MenuTrigger({ children }: { children: string }) {
-  return (
-    <MenubarTrigger className="h-full rounded-none px-3 font-normal [font-size:inherit]">
-      {children}
-    </MenubarTrigger>
-  );
+  return <MenubarTrigger className="h-full rounded-none px-3 font-normal [font-size:inherit]">{children}</MenubarTrigger>;
 }
 
 /* === Private Functions === */

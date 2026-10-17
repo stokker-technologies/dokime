@@ -19,16 +19,10 @@
 
 /* === Types === */
 
-export type LabelDraft =
-  | { mode: "closed" }
-  | { mode: "editing"; original: string; text: string; error: string | null };
+export type LabelDraft = { mode: "closed" } | { mode: "editing"; original: string; text: string; error: string | null };
 
 /** What a key does to an open draft: save it, drop it, refuse it, or nothing. */
-export type LabelKeyAction =
-  | { kind: "save"; label: string }
-  | { kind: "cancel" }
-  | { kind: "refuse"; error: string }
-  | { kind: "none" };
+export type LabelKeyAction = { kind: "save"; label: string } | { kind: "cancel" } | { kind: "refuse"; error: string } | { kind: "none" };
 
 /* === Constants === */
 

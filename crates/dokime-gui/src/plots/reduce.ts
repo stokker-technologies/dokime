@@ -81,10 +81,7 @@ export function lttbIndices(x: readonly number[], y: Values, count: number): num
     const end = bounds[bucket + 1];
     if (start >= end) continue;
 
-    const mean = meanOf(x, y, end, bounds[bucket + 2] ?? length) ?? [
-      x[length - 1],
-      finite(y[length - 1]),
-    ];
+    const mean = meanOf(x, y, end, bounds[bucket + 2] ?? length) ?? [x[length - 1], finite(y[length - 1])];
     const previousY = finite(y[previous]);
 
     let picked = -1;
@@ -187,12 +184,7 @@ function finite(value: number | null | undefined): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function meanOf(
-  x: readonly number[],
-  y: Values,
-  start: number,
-  end: number,
-): [number, number] | null {
+function meanOf(x: readonly number[], y: Values, start: number, end: number): [number, number] | null {
   let count = 0;
   let sumX = 0;
   let sumY = 0;

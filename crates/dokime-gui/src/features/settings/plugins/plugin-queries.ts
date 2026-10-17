@@ -31,9 +31,7 @@ import {
 export const pluginQueryKeys = {
   all: ["settings", "plugins"] as const,
   list: (generation?: string) =>
-    generation
-      ? ([...pluginQueryKeys.all, "list", generation] as const)
-      : ([...pluginQueryKeys.all, "list"] as const),
+    generation ? ([...pluginQueryKeys.all, "list", generation] as const) : ([...pluginQueryKeys.all, "list"] as const),
 };
 
 /* === Hooks === */

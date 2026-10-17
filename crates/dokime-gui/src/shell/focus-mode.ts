@@ -83,9 +83,7 @@ export function useFocusMode(): FocusMode {
       const cycleId = cycleIdOfPathname(state.location.pathname);
       return {
         cycleId,
-        focused:
-          cycleId !== null &&
-          focusSearchSchema.parse((state.location.search as { focus?: unknown }).focus) === true,
+        focused: cycleId !== null && focusSearchSchema.parse((state.location.search as { focus?: unknown }).focus) === true,
       };
     },
   });

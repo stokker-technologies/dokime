@@ -20,10 +20,7 @@ import { type ReactNode, useState } from "react";
 
 /* === Local Imports === */
 
-import {
-  DocumentEmbeddedBlock,
-  DocumentEmbeddedEmptyState,
-} from "@/components/document/DocumentEmbeddedContent";
+import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
 import { MarkdownText } from "@/components/MarkdownText";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,16 +80,7 @@ export function EditableOperatorNotes({ notes, pending, failure, onReset, onSubm
     if (!submission) return;
     onSubmit(submission, () => setDraft(CLOSED_NOTE_DRAFT));
   };
-  const editor = (
-    <NoteEditor
-      draft={draft}
-      failure={failure}
-      onCancel={close}
-      onChange={setDraft}
-      onSubmit={submit}
-      pending={pending}
-    />
-  );
+  const editor = <NoteEditor draft={draft} failure={failure} onCancel={close} onChange={setDraft} onSubmit={submit} pending={pending} />;
 
   return (
     <div className="grid gap-3">
@@ -209,9 +197,7 @@ function NoteList({
             <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
               <span className="normal-case text-foreground">{note.author || "Operator"}</span>
               <time dateTime={note.timestamp}>{timeOfDayLabel(note.timestamp)}</time>
-              {note.elapsed_since_start_label ? (
-                <span title="Elapsed since test start">T+{note.elapsed_since_start_label}</span>
-              ) : null}
+              {note.elapsed_since_start_label ? <span title="Elapsed since test start">T+{note.elapsed_since_start_label}</span> : null}
               {onEdit ? (
                 <Button
                   aria-label="Edit note"

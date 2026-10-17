@@ -13,16 +13,8 @@ import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tansta
 
 /* === Local Imports === */
 
-import {
-  useNativeSession,
-  useNativeSessionOptional,
-} from "@/app/native-session/context";
-import {
-  createNativeNote,
-  editNativeNote,
-  fetchNativeHealth,
-  fetchNativeNotes,
-} from "@/lib/api/native-annotations";
+import { useNativeSession, useNativeSessionOptional } from "@/app/native-session/context";
+import { createNativeNote, editNativeNote, fetchNativeHealth, fetchNativeNotes } from "@/lib/api/native-annotations";
 import { fetchNativeArtifacts, fetchNativeExecutionFiles } from "@/lib/api/native-content";
 import { fetchNativeDocument, mapNativeDocument } from "@/lib/api/native-documents";
 import { fetchNativeCycleRecords, fetchNativeRecords } from "@/lib/api/native-evidence";
@@ -63,34 +55,22 @@ export const workflowQueryKeys = {
   all: ["workflow"] as const,
   artifacts: () => [...workflowQueryKeys.all, "artifacts"] as const,
   cycleDetails: () => [...workflowQueryKeys.all, "cycles", "detail"] as const,
-  cycleDetail: (cycleId: string | null = null) =>
-    [...workflowQueryKeys.all, "cycles", "detail", cycleId ?? "current"] as const,
-  cycleRecords: (cycleId: string | null) =>
-    [...workflowQueryKeys.all, "cycles", "records", cycleId ?? ""] as const,
+  cycleDetail: (cycleId: string | null = null) => [...workflowQueryKeys.all, "cycles", "detail", cycleId ?? "current"] as const,
+  cycleRecords: (cycleId: string | null) => [...workflowQueryKeys.all, "cycles", "records", cycleId ?? ""] as const,
   cycleHistory: () => [...workflowQueryKeys.all, "cycles", "history"] as const,
   diagnostics: () => [...workflowQueryKeys.all, "diagnostics"] as const,
   records: (limit = 500) => [...workflowQueryKeys.all, "records", { limit }] as const,
-  executionDocument: ({
-    cycleId,
-    executionId,
-  }: {
-    cycleId: string | null;
-    executionId: string | null;
-  }) =>
+  executionDocument: ({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) =>
     [...workflowQueryKeys.all, "documents", "execution", cycleId ?? "", executionId ?? ""] as const,
   executionDetails: () => [...workflowQueryKeys.all, "execution-detail"] as const,
-  executionDetail: (executionId: string | null = null) =>
-    [...workflowQueryKeys.all, "execution-detail", executionId ?? ""] as const,
-  executionFiles: (executionId: string | null) =>
-    [...workflowQueryKeys.all, "execution-files", executionId ?? ""] as const,
+  executionDetail: (executionId: string | null = null) => [...workflowQueryKeys.all, "execution-detail", executionId ?? ""] as const,
+  executionFiles: (executionId: string | null) => [...workflowQueryKeys.all, "execution-files", executionId ?? ""] as const,
   health: () => [...workflowQueryKeys.all, "health"] as const,
   notes: () => [...workflowQueryKeys.all, "notes"] as const,
   prompts: () => [...workflowQueryKeys.all, "prompts"] as const,
   runtimeShell: () => [...workflowQueryKeys.all, "runtime-shell"] as const,
   traceability: (scope?: RecordScope | null) =>
-    scope
-      ? ([...workflowQueryKeys.all, "traceability", scope] as const)
-      : ([...workflowQueryKeys.all, "traceability"] as const),
+    scope ? ([...workflowQueryKeys.all, "traceability", scope] as const) : ([...workflowQueryKeys.all, "traceability"] as const),
 };
 
 /* === Private Functions === */
@@ -215,11 +195,7 @@ export function useExecutionDetailQuery(executionId: string | null, enabled: boo
     queryKey: [...workflowQueryKeys.executionDetail(executionId), generationOf(session)],
     staleTime: 1_000,
   });
-  return snapshot
-    ? frozenQuery(
-        snapshot.executions.find((item) => item.test_execution_id === executionId) ?? undefined,
-      )
-    : query;
+  return snapshot ? frozenQuery(snapshot.executions.find((item) => item.test_execution_id === executionId) ?? undefined) : query;
 }
 
 export function useCycleRecordsQuery(cycleId: string | null, enabled = true) {
@@ -249,13 +225,7 @@ export function useExecutionFilesQuery(executionId: string | null, enabled: bool
   return snapshot ? frozenQuery(snapshot.executionFiles(executionId)) : query;
 }
 
-export function useExecutionDocumentQuery({
-  cycleId,
-  executionId,
-}: {
-  cycleId: string | null;
-  executionId: string | null;
-}) {
+export function useExecutionDocumentQuery({ cycleId, executionId }: { cycleId: string | null; executionId: string | null }) {
   const snapshot = useCycleSnapshotSource();
   const session = useNativeSessionOptional();
   const query = useQuery({
@@ -271,10 +241,7 @@ export function useExecutionDocumentQuery({
         },
         signal,
       ).then((document) => mapNativeDocument(document)),
-    queryKey: [
-      ...workflowQueryKeys.executionDocument({ cycleId, executionId }),
-      generationOf(session),
-    ],
+    queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId }), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
@@ -304,10 +271,7 @@ export function useCycleDocumentQuery(cycleId: string | null, enabled: boolean) 
         },
         signal,
       ).then((document) => mapNativeDocument(document)),
-    queryKey: [
-      ...workflowQueryKeys.executionDocument({ cycleId, executionId: null }),
-      generationOf(session),
-    ],
+    queryKey: [...workflowQueryKeys.executionDocument({ cycleId, executionId: null }), generationOf(session)],
     gcTime: EVIDENCE_GC_MS,
     retry: documentRetry,
     retryDelay: documentRetryDelay,
@@ -335,23 +299,14 @@ export async function invalidateWorkflowResourceQueries(queryClient: QueryClient
 export async function invalidateRuntimeProjectionQueries(queryClient: QueryClient) {
   const keepActiveRefetch = { cancelRefetch: false } as const;
   await Promise.all([
-    queryClient.invalidateQueries(
-      { queryKey: workflowQueryKeys.cycleDetails() },
-      keepActiveRefetch,
-    ),
-    queryClient.invalidateQueries(
-      { queryKey: workflowQueryKeys.executionDetails() },
-      keepActiveRefetch,
-    ),
+    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.cycleDetails() }, keepActiveRefetch),
+    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.executionDetails() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.records() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.prompts() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.health() }, keepActiveRefetch),
     queryClient.invalidateQueries({ queryKey: workflowQueryKeys.artifacts() }, keepActiveRefetch),
-    queryClient.invalidateQueries(
-      { queryKey: workflowQueryKeys.traceability() },
-      keepActiveRefetch,
-    ),
+    queryClient.invalidateQueries({ queryKey: workflowQueryKeys.traceability() }, keepActiveRefetch),
   ]);
 }
 
@@ -361,10 +316,7 @@ export async function invalidateRuntimeProjectionQueries(queryClient: QueryClien
  * rather than on every runtime cursor.
  */
 export async function invalidateRuntimeDocuments(queryClient: QueryClient) {
-  await queryClient.invalidateQueries(
-    { queryKey: [...workflowQueryKeys.all, "documents"] },
-    { cancelRefetch: false },
-  );
+  await queryClient.invalidateQueries({ queryKey: [...workflowQueryKeys.all, "documents"] }, { cancelRefetch: false });
 }
 
 export async function invalidateWorkflowDocuments(queryClient: QueryClient) {
@@ -385,9 +337,7 @@ export function usePromptResponseMutation() {
       respondNativePrompt(session.identity, correlationId, action, values),
     onSuccess: async (_data, variables) => {
       queryClient.setQueryData(workflowQueryKeys.prompts(), (current: unknown) =>
-        Array.isArray(current)
-          ? current.filter((item) => item?.correlation_id !== variables.correlationId)
-          : current,
+        Array.isArray(current) ? current.filter((item) => item?.correlation_id !== variables.correlationId) : current,
       );
       await queryClient.invalidateQueries({ queryKey: workflowQueryKeys.prompts() });
     },
@@ -399,8 +349,7 @@ export function useAddNoteMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ scope, text }: AddNoteVariables) =>
-      createNativeNote(session.identity, nativeEpoch(session), text, scope),
+    mutationFn: ({ scope, text }: AddNoteVariables) => createNativeNote(session.identity, nativeEpoch(session), text, scope),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() }),
@@ -415,8 +364,7 @@ export function useEditNoteMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ noteId, text }: EditNoteVariables) =>
-      editNativeNote(session.identity, nativeEpoch(session), noteId, text),
+    mutationFn: ({ noteId, text }: EditNoteVariables) => editNativeNote(session.identity, nativeEpoch(session), noteId, text),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: workflowQueryKeys.notes() });
     },

@@ -15,25 +15,14 @@ import type { ReactNode } from "react";
 
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { useAutosave } from "@/features/settings/settings-autosave";
 import { useAppearance } from "@/lib/appearance";
-import {
-  type Appearance,
-  applicationSettingsError,
-  useApplicationSettings,
-  useSaveAppearance,
-} from "@/lib/application-settings";
+import { type Appearance, applicationSettingsError, useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
 import { useApplicationTheme } from "@/lib/application-theme";
 import { useBrand } from "@/lib/brand";
 import { isTauriDesktop } from "@/lib/desktop-open";
@@ -59,10 +48,7 @@ export function AppearanceSection() {
 function DesktopAppearanceSection() {
   const query = useApplicationSettings();
   const save = useSaveAppearance();
-  const autosave = useAutosave<Partial<Appearance>>(
-    (patch) => save.mutateAsync(patch),
-    applicationSettingsError,
-  );
+  const autosave = useAutosave<Partial<Appearance>>((patch) => save.mutateAsync(patch), applicationSettingsError);
 
   return (
     <AppearanceControls
@@ -128,27 +114,17 @@ function AppearanceControls({
           >
             {MODE_OPTIONS.map((option) => (
               <div className="flex items-center gap-2" key={option.value}>
-                <RadioGroupItem
-                  disabled={modeControlDisabled}
-                  id={`appearance-mode-${option.value}`}
-                  value={option.value}
-                />
+                <RadioGroupItem disabled={modeControlDisabled} id={`appearance-mode-${option.value}`} value={option.value} />
                 <Label htmlFor={`appearance-mode-${option.value}`}>{option.label}</Label>
               </div>
             ))}
           </RadioGroup>
         </SettingsRow>
         {showThemeFamilySelector && (
-          <SettingsRow
-            description="Choose a registered theme family."
-            label="Theme Family"
-            status={status}
-          >
+          <SettingsRow description="Choose a registered theme family." label="Theme Family" status={status}>
             <Select
               disabled={disabled}
-              onValueChange={(value) =>
-                save ? save({ themeFamily: value }) : setUiState({ themeFamily: value })
-              }
+              onValueChange={(value) => (save ? save({ themeFamily: value }) : setUiState({ themeFamily: value }))}
               value={selectedThemeFamily}
             >
               <SelectTrigger className="w-32 sm:w-56">
@@ -189,10 +165,7 @@ function AppearanceControls({
       </SettingsCard>
 
       <SettingsCard title="Brand">
-        <SettingsRow
-          description={appearance.organization?.name ?? `The identity shown in the shell.`}
-          label="Logo And Name"
-        >
+        <SettingsRow description={appearance.organization?.name ?? `The identity shown in the shell.`} label="Logo And Name">
           <div className="flex items-center gap-2">
             <BrandMark />
             <span className="font-heading text-sm font-medium">{brand.label}</span>

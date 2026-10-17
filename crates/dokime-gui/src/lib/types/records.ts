@@ -50,14 +50,7 @@ export type RecordDisplay = {
 
 export type ContractValidationMode = "strict" | "prototype";
 
-export type ContractValueType =
-  | "number"
-  | "integer"
-  | "string"
-  | "boolean"
-  | "datetime"
-  | "object"
-  | "array";
+export type ContractValueType = "number" | "integer" | "string" | "boolean" | "datetime" | "object" | "array";
 
 export type HubRecord = {
   record_id: string;

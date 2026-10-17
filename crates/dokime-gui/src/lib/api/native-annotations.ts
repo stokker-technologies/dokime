@@ -37,10 +37,7 @@ type NotePublication = Wire<Awaited<ReturnType<typeof rpc.notesCreateNote>>>["pu
 
 /* === Public API === */
 
-export async function fetchNativeNotes(
-  session: SessionIdentity,
-  scope: RecordScope,
-): Promise<OperatorNote[]> {
+export async function fetchNativeNotes(session: SessionIdentity, scope: RecordScope): Promise<OperatorNote[]> {
   const selection = annotationSelection(scope);
   const notes: NativeOperatorNote[] = [];
   let afterId = "";
@@ -64,10 +61,7 @@ export async function fetchNativeNotes(
   throw new NativeApiLimitError("Notes.ListNotes", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export async function fetchNativeHealth(
-  session: SessionIdentity,
-  scope: RecordScope,
-): Promise<HealthItem[]> {
+export async function fetchNativeHealth(session: SessionIdentity, scope: RecordScope): Promise<HealthItem[]> {
   const selection = annotationSelection(scope);
   const items: NativeHealthItem[] = [];
   let afterId = "";
@@ -123,12 +117,7 @@ export async function createNativeNote(
   };
 }
 
-export async function editNativeNote(
-  session: SessionIdentity,
-  epoch: string,
-  noteId: string,
-  text: string,
-): Promise<OperatorNote> {
+export async function editNativeNote(session: SessionIdentity, epoch: string, noteId: string, text: string): Promise<OperatorNote> {
   const message = text.trim();
   if (!message) throw new Error("A note cannot be empty.");
   const reply = await rpc.notesEditNote(session, { epoch, noteId, message });
@@ -152,8 +141,7 @@ function mapNativeNote(note: NativeOperatorNote): OperatorNote {
 
 function mapNativeHealth(item: NativeHealthItem): HealthItem {
   const createdAt = timestampIso(item.observedAt);
-  if (!createdAt)
-    throw new Error(`Native health item ${item.healthItemId} has no valid observation timestamp.`);
+  if (!createdAt) throw new Error(`Native health item ${item.healthItemId} has no valid observation timestamp.`);
   return {
     health_id: item.healthItemId,
     level: mapNativeSeverity(item.severity),

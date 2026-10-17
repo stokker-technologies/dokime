@@ -92,10 +92,7 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
     // A disabled control swallows pointer events, so the reason it is
     // disabled has to live on the wrapper.
     cell: ({ row }) => (
-      <span
-        className="flex items-center"
-        title={row.original.onOpenSettings ? "Plugin Settings" : "No settings"}
-      >
+      <span className="flex items-center" title={row.original.onOpenSettings ? "Plugin Settings" : "No settings"}>
         <Button
           aria-label="Plugin Settings"
           disabled={!row.original.onOpenSettings}
@@ -113,9 +110,7 @@ const COLUMNS: DataTableColumns<PluginTableRow> = column.columns([
     meta: { label: "Settings", width: "w-24" },
   }),
   column.display({
-    cell: ({ row }) => (
-      <span className="flex items-center justify-end gap-2">{row.original.trailing}</span>
-    ),
+    cell: ({ row }) => <span className="flex items-center justify-end gap-2">{row.original.trailing}</span>,
     header: () => <span className="sr-only">Actions</span>,
     id: "actions",
     meta: { align: "end", label: "Actions", width: "w-44" },

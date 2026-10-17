@@ -42,10 +42,7 @@ import { CycleSidebarCasesView } from "./CycleSidebarCasesView";
 export type CycleSidebarCasesProps = {
   cycleId: string;
   selection: CycleSelection;
-} & (
-  | { live?: true; onSelect?: undefined }
-  | { live: false; onSelect: (selection: CycleSelection) => void }
-);
+} & ({ live?: true; onSelect?: undefined } | { live: false; onSelect: (selection: CycleSelection) => void });
 
 /* === Components === */
 export function CycleSidebarCases(props: CycleSidebarCasesProps) {

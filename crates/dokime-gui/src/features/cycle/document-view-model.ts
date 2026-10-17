@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Pure Document Evidence Selection And Shared Surface Projection.
  */
@@ -26,14 +25,19 @@ import { scopeVisibleIn } from "@/lib/scope";
 import { elapsedLabel } from "@/lib/time-format";
 import type { TraceabilityExportName } from "@/lib/traceability";
 import type {
-  ArtifactRecord, DocumentViewPayload, HealthItem, HubLiveState, HubRecord,
-  OperatorNote, RecordScope, TestExecution, TraceabilitySnapshot,
+  ArtifactRecord,
+  DocumentViewPayload,
+  HealthItem,
+  HubLiveState,
+  HubRecord,
+  OperatorNote,
+  RecordScope,
+  TestExecution,
+  TraceabilitySnapshot,
 } from "@/lib/types";
 import { mergeParameterContexts, plotContextTelemetrySnapshot, uniqueArtifacts } from "./model-document";
 import type { FrozenPlotPayloads } from "./snapshot-source";
 import type { PlotWindowOption } from "./PlotWindowSlider";
-
-
 
 /* === Re-Exports === */
 
@@ -80,7 +84,6 @@ export type DocumentEvidence = {
 
 export type DocumentSurface = ReturnType<typeof documentSurface>;
 
-
 /* === Classes === */
 
 /* === Public Functions === */
@@ -96,20 +99,25 @@ export function documentView(options: DocumentViewOptions, evidence: DocumentEvi
   const stepRecords = steps.filter((item) => item.record_type === "step");
   const criterionRecords = steps.filter((item) => item.record_type === "criterion");
   const streams = liveSnapshot ? Object.values(liveSnapshot.telemetry) : [];
-  const stampedNotes = noteElapsedStart ? notes.map((note) => {
-    const noteTime = Date.parse(note.timestamp);
-    return {
-      ...note,
-      elapsed_since_start_label: Number.isFinite(noteTime)
-        ? elapsedLabel(noteElapsedStart, noteTime)
-        : null,
-    };
-  }) : notes;
+  const stampedNotes = noteElapsedStart
+    ? notes.map((note) => {
+        const noteTime = Date.parse(note.timestamp);
+        return {
+          ...note,
+          elapsed_since_start_label: Number.isFinite(noteTime) ? elapsedLabel(noteElapsedStart, noteTime) : null,
+        };
+      })
+    : notes;
   const plots = mainCards.filter((block) => block.kind === "plots").flatMap((block) => block.plots);
   return {
-    artifacts, criterionRecords, health, records,
+    artifacts,
+    criterionRecords,
+    health,
+    records,
     reportPayloads: evidence.reportPayloads,
-    stepRecords, streams, traceability: evidence.traceability,
+    stepRecords,
+    streams,
+    traceability: evidence.traceability,
     notes: stampedNotes,
     parameterContext: mergeParameterContexts(parameters.case, parameters.execution),
     plotContextTelemetry: plotContextTelemetrySnapshot(liveSnapshot, plots),
@@ -117,11 +125,7 @@ export function documentView(options: DocumentViewOptions, evidence: DocumentEvi
   };
 }
 
-export function documentSurface(
-  options: DocumentSurfaceOptions,
-  view: ReturnType<typeof documentView>,
-  nativeAvailable: boolean,
-) {
+export function documentSurface(options: DocumentSurfaceOptions, view: ReturnType<typeof documentView>, nativeAvailable: boolean) {
   const artifacts = view.artifacts.map((artifact) => {
     const localHref = localArtifactHref(artifact.path);
     return {
@@ -159,7 +163,6 @@ export function documentSurface(
   };
   return { options, shared, view };
 }
-
 
 /* === Private Functions === */
 

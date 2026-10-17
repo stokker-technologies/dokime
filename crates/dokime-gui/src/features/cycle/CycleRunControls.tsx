@@ -50,8 +50,7 @@ export type CycleRunControlsProps = {
 export const PAGE_BAR_CONTROL_CLASS = "h-[var(--bar-control-height)] px-3";
 
 /** The controls' row: one grid row, `--bar-gap` apart. */
-export const PAGE_BAR_CONTROLS_CLASS =
-  "grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]";
+export const PAGE_BAR_CONTROLS_CLASS = "grid auto-cols-max grid-flow-col items-center gap-x-[var(--bar-gap)]";
 
 /* === Components === */
 
@@ -69,8 +68,7 @@ export function CycleRunControls({ cycleId, onStop }: CycleRunControlsProps) {
   const visibility = runControlVisibility(status, startable, refusal !== null);
   const terminal = isCycleTerminal(status);
   const rerunCases = rerunnableCaseIds(cases);
-  const runAgainRefusal =
-    rerunCases.length === 0 ? "No case of this cycle can be run again." : null;
+  const runAgainRefusal = rerunCases.length === 0 ? "No case of this cycle can be run again." : null;
 
   /* A command reports what happened, not what was attempted. */
   const run = (report: { done: string; failed: string }, action: () => Promise<unknown>) => {
@@ -91,9 +89,7 @@ export function CycleRunControls({ cycleId, onStop }: CycleRunControlsProps) {
           className={PAGE_BAR_CONTROL_CLASS}
           disabled={commands.runQueued.isPending || !availability.run}
           onClick={() =>
-            run({ done: "Queued cases started", failed: "The queued cases could not start." }, () =>
-              commands.runQueued.mutateAsync(),
-            )
+            run({ done: "Queued cases started", failed: "The queued cases could not start." }, () => commands.runQueued.mutateAsync())
           }
           title={availability.run ? undefined : (refusal ?? undefined)}
           variant="default"
@@ -107,11 +103,7 @@ export function CycleRunControls({ cycleId, onStop }: CycleRunControlsProps) {
           aria-label="Pause Cycle"
           className={PAGE_BAR_CONTROL_CLASS}
           disabled={commands.pauseCycle.isPending || !availability.pause}
-          onClick={() =>
-            run({ done: "Cycle paused", failed: "The cycle could not be paused." }, () =>
-              commands.pauseCycle.mutateAsync(),
-            )
-          }
+          onClick={() => run({ done: "Cycle paused", failed: "The cycle could not be paused." }, () => commands.pauseCycle.mutateAsync())}
           variant="outline"
         >
           <Pause data-icon="inline-start" />
@@ -123,9 +115,7 @@ export function CycleRunControls({ cycleId, onStop }: CycleRunControlsProps) {
           className={PAGE_BAR_CONTROL_CLASS}
           disabled={commands.resumeCycle.isPending || !availability.resume}
           onClick={() =>
-            run({ done: "Cycle resumed", failed: "The cycle could not be resumed." }, () =>
-              commands.resumeCycle.mutateAsync(),
-            )
+            run({ done: "Cycle resumed", failed: "The cycle could not be resumed." }, () => commands.resumeCycle.mutateAsync())
           }
           variant="outline"
         >

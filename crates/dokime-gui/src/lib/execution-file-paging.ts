@@ -15,12 +15,7 @@
 
 /* === Local Imports === */
 
-import type {
-  ExecutionFileFollowEvent,
-  ExecutionFileIdentity,
-  ExecutionFileLifecycle,
-  ExecutionFileReadWindow,
-} from "@/lib/types";
+import type { ExecutionFileFollowEvent, ExecutionFileIdentity, ExecutionFileLifecycle, ExecutionFileReadWindow } from "@/lib/types";
 
 /* === Constants === */
 
@@ -29,10 +24,7 @@ export const EXECUTION_FILE_WINDOW_BYTES = 64 * 1024;
 
 /* === Types === */
 
-export type ReadExecutionFileWindow = (
-  offset: number,
-  maxBytes: number,
-) => Promise<ExecutionFileReadWindow>;
+export type ReadExecutionFileWindow = (offset: number, maxBytes: number) => Promise<ExecutionFileReadWindow>;
 
 /** The contiguous bytes one paged read retained, and why it stopped. */
 export type ExecutionFilePage = {
@@ -126,10 +118,7 @@ export async function pageExecutionFile(
 }
 
 /** A cursor that has accepted nothing yet; a resume carries its identity. */
-export function connectingFollowCursor(
-  identity: ExecutionFileIdentity | null = null,
-  offset = 0,
-): ExecutionFileFollowCursor {
+export function connectingFollowCursor(identity: ExecutionFileIdentity | null = null, offset = 0): ExecutionFileFollowCursor {
   return { identity, offset, availableLength: offset, phase: "connecting" };
 }
 
@@ -137,10 +126,7 @@ export function connectingFollowCursor(
  * Accept one follow frame, or refuse it. A refusal is a protocol failure the
  * viewer reports; it is never retried silently.
  */
-export function advanceFollowCursor(
-  cursor: ExecutionFileFollowCursor,
-  event: ExecutionFileFollowEvent,
-): ExecutionFileFollowCursor {
+export function advanceFollowCursor(cursor: ExecutionFileFollowCursor, event: ExecutionFileFollowEvent): ExecutionFileFollowCursor {
   switch (event.kind) {
     case "metadata": {
       if (cursor.phase !== "connecting") {
@@ -163,11 +149,7 @@ export function advanceFollowCursor(
       if (cursor.phase === "connecting") {
         throw new Error("follow sent data before its metadata");
       }
-      if (
-        event.offset !== cursor.offset ||
-        event.data.byteLength === 0 ||
-        event.data.byteLength > EXECUTION_FILE_WINDOW_BYTES
-      ) {
+      if (event.offset !== cursor.offset || event.data.byteLength === 0 || event.data.byteLength > EXECUTION_FILE_WINDOW_BYTES) {
         throw new Error("follow chunks are empty, oversized or not contiguous");
       }
       const offset = cursor.offset + event.data.byteLength;

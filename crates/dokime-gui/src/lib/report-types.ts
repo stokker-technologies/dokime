@@ -10,14 +10,7 @@
 /* === Local Imports === */
 
 import type { DocumentCapturePayload } from "./document-normalizer";
-import type {
-  HubSnapshot,
-  PlotPayload,
-  ResolvedCycleSummary,
-  TestCyclePlan,
-  TestExecution,
-  TraceabilitySnapshot,
-} from "./types";
+import type { HubSnapshot, PlotPayload, ResolvedCycleSummary, TestCyclePlan, TestExecution, TraceabilitySnapshot } from "./types";
 
 /* === Types === */
 

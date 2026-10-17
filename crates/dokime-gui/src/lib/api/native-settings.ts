@@ -34,29 +34,19 @@ type SettingsSection = SettingsFrame["sections"][number];
 type SettingsCard = SettingsFrame["cards"][number];
 type SettingsCardState = SettingsCard["state"];
 type HostCardTone = NonNullable<
-  Extract<
-    NonNullable<NonNullable<SettingsCard["body"]>["blocks"][number]["kind"]>["HarmosVariant"],
-    { case: "Status" }
-  >["value"]["field0"]
+  Extract<NonNullable<NonNullable<SettingsCard["body"]>["blocks"][number]["kind"]>["HarmosVariant"], { case: "Status" }>["value"]["field0"]
 >["tone"];
 type PluginRuntimeSettings = Wire<Awaited<ReturnType<typeof rpc.settingsGetPluginSettings>>>;
 type SettingContribution = NonNullable<PluginRuntimeSettings["settings"]>["contributions"][number];
 type NativeSecretReference = NonNullable<
-  Extract<
-    NonNullable<SettingContribution["kind"]>["HarmosVariant"],
-    { case: "SecretReference" }
-  >["value"]["field0"]
+  Extract<NonNullable<SettingContribution["kind"]>["HarmosVariant"], { case: "SecretReference" }>["value"]["field0"]
 >["default"];
-type CredentialBackendKind = NonNullable<
-  NonNullable<PluginRuntimeSettings["credentialBindings"]>["bindings"][number]["value"]
->["backend"];
+type CredentialBackendKind = NonNullable<NonNullable<PluginRuntimeSettings["credentialBindings"]>["bindings"][number]["value"]>["backend"];
 type SettingValues = LegacyPluginRuntimeSettings["values"];
 
 /* === Settings frame === */
 
-export async function fetchNativeSettingsFrame(
-  session: SessionIdentity,
-): Promise<RuntimeSettingsFrame> {
+export async function fetchNativeSettingsFrame(session: SessionIdentity): Promise<RuntimeSettingsFrame> {
   const frame = await rpc.settingsGetSettings(session, {});
   return {
     sections: frame.sections.map(mapSettingsSection),
@@ -68,9 +58,7 @@ export async function fetchNativeSettingsFrame(
 
 export type NativePluginRuntimeSettings = PluginRuntimeSettings;
 
-export function mapNativePluginRuntimeSettings(
-  settings: NativePluginRuntimeSettings,
-): LegacyPluginRuntimeSettings {
+export function mapNativePluginRuntimeSettings(settings: NativePluginRuntimeSettings): LegacyPluginRuntimeSettings {
   return {
     settings: {
       contributions: settings.settings?.contributions.map(mapSettingContribution) ?? [],
@@ -100,11 +88,7 @@ export async function getNativePluginSettings(session: SessionIdentity, pluginId
   return mapNativePluginRuntimeSettings(await rpc.settingsGetPluginSettings(session, { pluginId }));
 }
 
-export async function updateNativePluginSettings(
-  session: SessionIdentity,
-  pluginId: string,
-  values: SettingValues,
-) {
+export async function updateNativePluginSettings(session: SessionIdentity, pluginId: string, values: SettingValues) {
   return mapNativePluginRuntimeSettings(
     await rpc.settingsUpdatePluginSettings(session, {
       pluginId,
@@ -113,15 +97,8 @@ export async function updateNativePluginSettings(
   );
 }
 
-export async function updateNativePluginCredential(
-  session: SessionIdentity,
-  pluginId: string,
-  credentialId: string,
-  secret: string,
-) {
-  return mapNativePluginRuntimeSettings(
-    await rpc.settingsUpdatePluginCredential(session, { pluginId, credentialId, secret }),
-  );
+export async function updateNativePluginCredential(session: SessionIdentity, pluginId: string, credentialId: string, secret: string) {
+  return mapNativePluginRuntimeSettings(await rpc.settingsUpdatePluginCredential(session, { pluginId, credentialId, secret }));
 }
 
 /* === Mapping === */
@@ -157,9 +134,7 @@ function mapSettingsCard(card: SettingsCard): RuntimeSettingsCard {
   };
 }
 
-function mapHostCardBlock(
-  block: NonNullable<SettingsCard["body"]>["blocks"][number],
-): HostCardBlock {
+function mapHostCardBlock(block: NonNullable<SettingsCard["body"]>["blocks"][number]): HostCardBlock {
   const variant = block.kind?.HarmosVariant;
   switch (variant?.case) {
     case "Text": {
@@ -290,10 +265,7 @@ function mapSettingContribution(contribution: SettingContribution): SettingsEntr
 
 function mapSecretReference(
   reference?: NativeSecretReference,
-):
-  | { kind: "environment"; variable: string }
-  | { kind: "stored_credential"; credential_id: string }
-  | null {
+): { kind: "environment"; variable: string } | { kind: "stored_credential"; credential_id: string } | null {
   if (!reference) return null;
   if (reference.kind?.HarmosVariant.case === "Environment")
     return { kind: "environment", variable: reference.kind.HarmosVariant.value.field0 ?? "" };
@@ -305,9 +277,7 @@ function mapSecretReference(
   throw new Error("Native settings returned a secret reference without a kind.");
 }
 
-function mapRefreshPolicy(
-  policy: NonNullable<SettingsCard["refresh"]>,
-): RuntimeSettingsCard["refresh"] {
+function mapRefreshPolicy(policy: NonNullable<SettingsCard["refresh"]>): RuntimeSettingsCard["refresh"] {
   const variant = policy.policy?.HarmosVariant;
   switch (variant?.case) {
     case "Manual":
@@ -327,9 +297,7 @@ function mapRefreshPolicy(
   }
 }
 
-function mapHostCardTone(
-  tone: HostCardTone,
-): "neutral" | "info" | "success" | "warning" | "danger" {
+function mapHostCardTone(tone: HostCardTone): "neutral" | "info" | "success" | "warning" | "danger" {
   switch (tone?.HarmosVariant.case) {
     case "Neutral":
       return "neutral";
@@ -365,9 +333,7 @@ function mapSettingsCardState(state: SettingsCardState): RuntimeSettingsCard["st
   }
 }
 
-function mapCredentialBackend(
-  backend: CredentialBackendKind,
-): "os_keyring" | "memory" | "local_file" {
+function mapCredentialBackend(backend: CredentialBackendKind): "os_keyring" | "memory" | "local_file" {
   switch (backend?.HarmosVariant.case) {
     case "OsKeyring":
       return "os_keyring";

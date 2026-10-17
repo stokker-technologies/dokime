@@ -26,9 +26,7 @@ const transport = process.env.DOKIME_TRANSPORT === "grpc-web" ? "grpc-web" : "ip
 const apiHttpTarget = `http://127.0.0.1:${apiPort}`;
 const apiWsTarget = `ws://127.0.0.1:${apiPort}`;
 const projectRoot = fileURLToPath(new URL(".", import.meta.url));
-const packageJson = JSON.parse(
-  readFileSync(new URL("./package.json", import.meta.url), "utf8"),
-) as { version?: string };
+const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version?: string };
 const appVersion = packageJson.version ?? "dev";
 const backendUnavailableWarningTimes = new Map<string, number>();
 const backendUnavailableWarningIntervalMs = 15_000;
@@ -61,10 +59,7 @@ function shouldWarnBackendUnavailable(url: string) {
 }
 
 function configureApiProxy(proxy: {
-  on: (
-    event: "error",
-    callback: (error: NodeJS.ErrnoException, req?: { url?: string }) => void,
-  ) => void;
+  on: (event: "error", callback: (error: NodeJS.ErrnoException, req?: { url?: string }) => void) => void;
 }) {
   proxy.on("error", (error, req) => {
     const url = req?.url ?? "/api";
@@ -145,11 +140,7 @@ export default defineConfig(() => ({
             }
             return undefined;
           }
-          if (
-            id.includes("/src/features/report/") ||
-            id.includes("/src/components/document/") ||
-            id.includes("/src/plots/")
-          ) {
+          if (id.includes("/src/features/report/") || id.includes("/src/components/document/") || id.includes("/src/plots/")) {
             return "document-surface";
           }
           return undefined;

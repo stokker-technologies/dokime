@@ -43,14 +43,7 @@ const NUMERIC_TYPES = new Set(["int", "integer", "float", "number"]);
  * How a value cell is drawn. One kind per parameter, decided once so the cell
  * component stays a switch rather than a chain of conditions.
  */
-export type ParameterCellKind =
-  | "boolean"
-  | "list"
-  | "number"
-  | "segmented"
-  | "select"
-  | "text"
-  | "wifi";
+export type ParameterCellKind = "boolean" | "list" | "number" | "segmented" | "select" | "text" | "wifi";
 
 export type EditorParameterRow = {
   definition: ParameterDefinition;
@@ -89,9 +82,7 @@ export function parameterCellKind(definition: ParameterDefinition): ParameterCel
   if (choices.length) {
     // An expanded choice takes several values at once, so it always uses the
     // multi-select segmented control; a Select cannot express that.
-    return isExpandedParameter(definition) || choices.length <= SEGMENTED_CHOICE_LIMIT
-      ? "segmented"
-      : "select";
+    return isExpandedParameter(definition) || choices.length <= SEGMENTED_CHOICE_LIMIT ? "segmented" : "select";
   }
   if (BOOLEAN_TYPES.has(valueType)) {
     return "boolean";
@@ -137,28 +128,17 @@ export function editorRow(definition: ParameterDefinition, raw: string): EditorP
  * Seed every row of a template: the persisted override when the operator has
  * one, otherwise the registered default.
  */
-export function seedEditorRows(
-  template: SuiteTemplateEntry,
-  overrides: ParameterOverrides[string] | undefined,
-): EditorParameterRow[] {
+export function seedEditorRows(template: SuiteTemplateEntry, overrides: ParameterOverrides[string] | undefined): EditorParameterRow[] {
   return template.parameter_definitions.map((definition) => {
     const override = overrides?.[definition.parameter_id];
-    const row = editorRow(
-      definition,
-      typeof override === "string"
-        ? override
-        : (override?.raw ?? registeredParameterRaw(definition)),
-    );
+    const row = editorRow(definition, typeof override === "string" ? override : (override?.raw ?? registeredParameterRaw(definition)));
     if (
       override !== undefined &&
-      (typeof override === "string" ||
-        override.valueType !== parameterValueType(definition) ||
-        override.unit !== (definition.unit ?? null))
+      (typeof override === "string" || override.valueType !== parameterValueType(definition) || override.unit !== (definition.unit ?? null))
     ) {
       row.parsed = {
         ok: false,
-        error:
-          "Review this remembered value: its type or unit changed or was not recorded. Edit it or reset to the default.",
+        error: "Review this remembered value: its type or unit changed or was not recorded. Edit it or reset to the default.",
       };
     }
     return row;
@@ -187,10 +167,7 @@ export function groupEditorRows(rows: EditorParameterRow[]): EditorGroup[] {
  * "kOhm". Three characters is the floor: a narrower column reads as a typo.
  */
 export function unitColumnCharacters(rows: EditorParameterRow[]): number {
-  return rows.reduce(
-    (widest, row) => Math.max(widest, (row.definition.unit?.trim() ?? "").length),
-    3,
-  );
+  return rows.reduce((widest, row) => Math.max(widest, (row.definition.unit?.trim() ?? "").length), 3);
 }
 
 export function isEditedRow(row: EditorParameterRow): boolean {
@@ -214,20 +191,12 @@ export function acceptsExpressions(row: EditorParameterRow): boolean {
 }
 
 /** The problems the operator must clear before Next is offered. */
-export function editorProblemCount(
-  rows: EditorParameterRow[],
-  fileRows: FileRowState[],
-  fileDefinitions: FileDefinition[],
-): number {
+export function editorProblemCount(rows: EditorParameterRow[], fileRows: FileRowState[], fileDefinitions: FileDefinition[]): number {
   return (
     rows.filter((row) => !row.parsed.ok).length +
     fileDefinitions.filter((definition) => {
       const row = fileRows.find((candidate) => candidate.name === definition.name);
-      return (
-        Boolean(row?.error) ||
-        Boolean(row?.uploading) ||
-        (definition.required && !(row?.path.trim() || definition.default?.trim()))
-      );
+      return Boolean(row?.error) || Boolean(row?.uploading) || (definition.required && !(row?.path.trim() || definition.default?.trim()));
     }).length
   );
 }

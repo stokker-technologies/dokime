@@ -38,14 +38,9 @@ export function diagnosticsBundleSupported(): boolean {
   return typeof rpc.backendCollectDiagnostics === "function";
 }
 
-export async function collectDiagnosticsBundle(
-  session: SessionIdentity,
-): Promise<DiagnosticsBundle> {
+export async function collectDiagnosticsBundle(session: SessionIdentity): Promise<DiagnosticsBundle> {
   if (!diagnosticsBundleSupported()) {
-    throw new NativeApiUnsupportedError(
-      "Collect diagnostics",
-      "Backend.CollectDiagnostics (not available on this backend)",
-    );
+    throw new NativeApiUnsupportedError("Collect diagnostics", "Backend.CollectDiagnostics (not available on this backend)");
   }
   const reader = await rpc.backendCollectDiagnostics(session, {});
   let filename = "";
@@ -72,9 +67,7 @@ export async function collectDiagnosticsBundle(
           // The offsets are declared, so a gap or a replay is a corrupt
           // archive rather than something to stitch over.
           if (chunk.offset !== expectedOffset) {
-            throw new Error(
-              `Backend.CollectDiagnostics delivered chunk ${chunk.offset} where ${expectedOffset} was due.`,
-            );
+            throw new Error(`Backend.CollectDiagnostics delivered chunk ${chunk.offset} where ${expectedOffset} was due.`);
           }
           chunks.push(chunk.data);
           total += chunk.data.byteLength;

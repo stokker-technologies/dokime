@@ -77,10 +77,7 @@ function prompt(id: string, level: string, createdAt: string): RankedPrompt {
 }
 
 /** A server that refuses any window over the contract bound, as the backend does. */
-function boundedServer(
-  content: Uint8Array,
-  { state = "finalized", shrinkTo = Number.POSITIVE_INFINITY } = {},
-) {
+function boundedServer(content: Uint8Array, { state = "finalized", shrinkTo = Number.POSITIVE_INFINITY } = {}) {
   const requests: { offset: number; maxBytes: number }[] = [];
   const read = async (offset: number, maxBytes: number): Promise<ExecutionFileReadWindow> => {
     requests.push({ offset, maxBytes });
@@ -116,24 +113,11 @@ test("Page Sections", () => {
   }
 
   // The Sections Follow Page Order Whatever Order The Document Authored
-  const sections = executionDocumentSections(
-    cards("traceability", "plots", "records", "criteria", "media", "notes", "artifacts", "steps"),
-  );
-  assert.deepEqual(sections, [
-    "steps-criteria",
-    "notes",
-    "media",
-    "artifacts",
-    "report",
-    "records",
-    "traceability",
-  ]);
+  const sections = executionDocumentSections(cards("traceability", "plots", "records", "criteria", "media", "notes", "artifacts", "steps"));
+  assert.deepEqual(sections, ["steps-criteria", "notes", "media", "artifacts", "report", "records", "traceability"]);
 
   // A Section The Document Leaves Out Stays Out
-  assert.deepEqual(executionDocumentSections(cards("steps", "records")), [
-    "steps-criteria",
-    "records",
-  ]);
+  assert.deepEqual(executionDocumentSections(cards("steps", "records")), ["steps-criteria", "records"]);
 
   // The Execution Page Answers Its Own Prompts And The Cycle's, Not Another Execution's
   const prompts = [
@@ -313,14 +297,10 @@ test("File Follow", () => {
     availableLength: 10,
     offset: 0,
   });
-  assert.throws(() =>
-    advanceFollowCursor(connectingFollowCursor(), { kind: "chunk", offset: 0, data: bytes(1) }),
-  );
+  assert.throws(() => advanceFollowCursor(connectingFollowCursor(), { kind: "chunk", offset: 0, data: bytes(1) }));
   assert.throws(() => advanceFollowCursor(started, { kind: "chunk", offset: 5, data: bytes(1) }));
   assert.throws(() => advanceFollowCursor(started, { kind: "chunk", offset: 0, data: bytes(0) }));
-  assert.throws(() =>
-    advanceFollowCursor(started, { kind: "terminal", phase: "abandoned", length: 3, sha256: null }),
-  );
+  assert.throws(() => advanceFollowCursor(started, { kind: "terminal", phase: "abandoned", length: 3, sha256: null }));
   assert.throws(() =>
     advanceFollowCursor(connectingFollowCursor(IDENTITY, 10), {
       kind: "metadata",
@@ -359,20 +339,14 @@ test("Prompt Ordering", () => {
   );
 
   // An Unreadable Timestamp Sorts Last Within Its Level
-  const unreadable = orderPendingPrompts([
-    prompt("broken", "warning", "not a time"),
-    prompt("dated", "warning", "2026-10-13T08:00:00Z"),
-  ]);
+  const unreadable = orderPendingPrompts([prompt("broken", "warning", "not a time"), prompt("dated", "warning", "2026-10-13T08:00:00Z")]);
   assert.deepEqual(
     unreadable.map((item) => item.correlation_id),
     ["dated", "broken"],
   );
 
   // Ordering Leaves The Pending List It Was Given Untouched
-  const pending = [
-    prompt("info", "info", "2026-10-13T08:00:00Z"),
-    prompt("error", "error", "2026-10-13T08:00:00Z"),
-  ];
+  const pending = [prompt("info", "info", "2026-10-13T08:00:00Z"), prompt("error", "error", "2026-10-13T08:00:00Z")];
   orderPendingPrompts(pending);
   assert.deepEqual(
     pending.map((item) => item.correlation_id),
@@ -384,10 +358,7 @@ test("Prompt Answering", () => {
   // A Count Is Coloured By Its Most Urgent Prompt And Reads As A Phrase
   assert.equal(highestPromptLevel([]), null);
   assert.equal(
-    highestPromptLevel([
-      prompt("info", "info", "2026-10-13T08:00:00Z"),
-      prompt("warning", "warning", "2026-10-13T08:00:00Z"),
-    ]),
+    highestPromptLevel([prompt("info", "info", "2026-10-13T08:00:00Z"), prompt("warning", "warning", "2026-10-13T08:00:00Z")]),
     "warning",
   );
   assert.equal(pendingPromptCountLabel(1), "1 prompt waiting");
@@ -403,11 +374,7 @@ test("Prompt Answering", () => {
     correlation_id: id,
     scope: { test_execution_id: executionId },
   });
-  const pending: Owned[] = [
-    scoped("running", "one"),
-    scoped("interrupted", "two"),
-    { correlation_id: "cycle" },
-  ];
+  const pending: Owned[] = [scoped("running", "one"), scoped("interrupted", "two"), { correlation_id: "cycle" }];
   const owners = (cycleEnded: boolean) => ({
     cycleEnded,
     executionActive: (executionId: string) => executionId === "one",

@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Shared Frozen And Live Gallery Presentation; Media Resources Are Supplied.
  */
@@ -17,38 +16,27 @@
 // Standard Library Imports
 
 // Third Party Imports
-import {
-  AudioLines,
-  Download,
-  ExternalLink,
-  Image as ImageIcon,
-  Search,
-  Video,
-} from "lucide-react";
+import { AudioLines, Download, ExternalLink, Image as ImageIcon, Search, Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { artifactDisplayPath, formatArtifactSize } from "@/lib/artifact-tree";
 import { artifactLabel } from "@/lib/dashboard";
 import { type MediaArtifactKind, mediaArtifactKind } from "@/lib/media";
 
 import {
-  type MediaGalleryArtifact, type MediaGalleryProps, type MediaArtifactCandidate,
-  type ResolvedMediaGalleryArtifact, type MediaPreviewState, isNativeArtifactSource,
+  type MediaGalleryArtifact,
+  type MediaGalleryProps,
+  type MediaArtifactCandidate,
+  type ResolvedMediaGalleryArtifact,
+  type MediaPreviewState,
+  isNativeArtifactSource,
 } from "./media-gallery-model";
 
-
 // Local Imports
-
 
 /* === Re-Exports === */
 
@@ -61,14 +49,18 @@ export type MediaActions = {
 };
 export type MediaGalleryModel = ReturnType<typeof useMediaGallery>;
 
-
 /* === Components === */
 export function MediaGalleryView({ artifacts, emptyMessage, runDir }: MediaGalleryProps) {
   const model = useMediaGallery(artifacts, runDir);
   return <MediaGallerySurface model={model} emptyMessage={emptyMessage} />;
 }
 
-export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
+export function MediaGallerySurface({
+  model,
+  emptyMessage,
+  actions,
+  preview,
+}: {
   model: MediaGalleryModel;
   emptyMessage: string;
   actions?: MediaActions;
@@ -124,26 +116,17 @@ export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
   const resolvedMedia = useMemo(
     () =>
       media.map((artifact) => {
-        const nativeTransfer =
-          actions !== undefined &&
-          !artifact.href &&
-          !artifact.downloadHref &&
-          isNativeArtifactSource(artifact);
+        const nativeTransfer = actions !== undefined && !artifact.href && !artifact.downloadHref && isNativeArtifactSource(artifact);
         return {
           ...artifact,
-          href:
-            artifact.href ??
-            artifact.downloadHref ??
-            preview?.urls[artifact.artifact_id] ??
-            null,
+          href: artifact.href ?? artifact.downloadHref ?? preview?.urls[artifact.artifact_id] ?? null,
           downloadHref: artifact.downloadHref ?? artifact.href ?? null,
           nativeTransfer,
         };
       }),
     [media, preview?.urls, actions],
   );
-  const selectedArtifact =
-    resolvedMedia.find((artifact) => artifact.artifact_id === selectedArtifactId) ?? null;
+  const selectedArtifact = resolvedMedia.find((artifact) => artifact.artifact_id === selectedArtifactId) ?? null;
 
   if (!media.length) {
     return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
@@ -151,10 +134,7 @@ export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
 
   return (
     <>
-      <div
-        className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2"
-        data-testid="media-gallery"
-      >
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2" data-testid="media-gallery">
         {resolvedMedia.map((artifact) => (
           <MediaGalleryCard
             artifact={artifact}
@@ -163,15 +143,9 @@ export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
             onNativeOpen={() => void openArtifact(artifact)}
             onNativeDownload={() => void downloadArtifact(artifact)}
             nativeOpenBusy={nativeOpenArtifactId === artifact.artifact_id}
-            nativeOpenError={
-              nativeOpenError?.artifactId === artifact.artifact_id ? nativeOpenError.message : null
-            }
+            nativeOpenError={nativeOpenError?.artifactId === artifact.artifact_id ? nativeOpenError.message : null}
             nativeDownloadBusy={nativeDownloadArtifactId === artifact.artifact_id}
-            nativeDownloadError={
-              nativeDownloadError?.artifactId === artifact.artifact_id
-                ? nativeDownloadError.message
-                : null
-            }
+            nativeDownloadError={nativeDownloadError?.artifactId === artifact.artifact_id ? nativeDownloadError.message : null}
             onRetry={() => preview?.retry(artifact.artifact_id)}
             previewError={preview?.errors[artifact.artifact_id] ?? null}
             onVisibilityChange={markVisible}
@@ -203,21 +177,10 @@ export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
                     />
                   ) : selectedArtifact.kind === "audio" ? (
                     // biome-ignore lint/a11y/useMediaCaption: operator audio recordings have no caption sidecars.
-                    <audio
-                      className="w-full"
-                      controls
-                      preload="metadata"
-                      src={selectedArtifact.href}
-                    />
+                    <audio className="w-full" controls preload="metadata" src={selectedArtifact.href} />
                   ) : (
                     // biome-ignore lint/a11y/useMediaCaption: artifact videos do not have caption sidecars in the current media contract.
-                    <video
-                      autoPlay
-                      className="max-h-[70vh] w-full"
-                      controls
-                      preload="metadata"
-                      src={selectedArtifact.href}
-                    />
+                    <video autoPlay className="max-h-[70vh] w-full" controls preload="metadata" src={selectedArtifact.href} />
                   )
                 ) : selectedArtifact.nativeTransfer && mediaBlobType(selectedArtifact) ? (
                   <div className="grid justify-items-center gap-3 p-8 text-center text-sm text-muted-foreground">
@@ -227,30 +190,19 @@ export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
                       <p>Loading media preview…</p>
                     )}
                     {preview?.errors[selectedArtifact.artifact_id] ? (
-                      <Button
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                        onClick={() => preview?.retry(selectedArtifact.artifact_id)}
-                      >
+                      <Button size="sm" type="button" variant="outline" onClick={() => preview?.retry(selectedArtifact.artifact_id)}>
                         Retry preview
                       </Button>
                     ) : null}
                   </div>
                 ) : (
-                  <p className="p-8 text-center text-sm text-muted-foreground">
-                    Preview unavailable for this media artifact.
-                  </p>
+                  <p className="p-8 text-center text-sm text-muted-foreground">Preview unavailable for this media artifact.</p>
                 )}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm text-muted-foreground">
-                  {selectedArtifact.group_label
-                    ? artifactLabel(selectedArtifact.group_label)
-                    : "Media artifact"}
-                  {selectedArtifact.size_bytes
-                    ? ` • ${formatArtifactSize(selectedArtifact.size_bytes)}`
-                    : ""}
+                  {selectedArtifact.group_label ? artifactLabel(selectedArtifact.group_label) : "Media artifact"}
+                  {selectedArtifact.size_bytes ? ` • ${formatArtifactSize(selectedArtifact.size_bytes)}` : ""}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {selectedArtifact.href && !selectedArtifact.nativeTransfer ? (
@@ -273,8 +225,7 @@ export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
                     <>
                       <Button
                         disabled={
-                          nativeOpenArtifactId === selectedArtifact.artifact_id ||
-                          nativeDownloadArtifactId === selectedArtifact.artifact_id
+                          nativeOpenArtifactId === selectedArtifact.artifact_id || nativeDownloadArtifactId === selectedArtifact.artifact_id
                         }
                         size="sm"
                         type="button"
@@ -282,14 +233,11 @@ export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
                         onClick={() => void openArtifact(selectedArtifact)}
                       >
                         <ExternalLink data-icon="inline-start" size={14} />
-                        {nativeOpenArtifactId === selectedArtifact.artifact_id
-                          ? "Opening…"
-                          : "Open"}
+                        {nativeOpenArtifactId === selectedArtifact.artifact_id ? "Opening…" : "Open"}
                       </Button>
                       <Button
                         disabled={
-                          nativeOpenArtifactId === selectedArtifact.artifact_id ||
-                          nativeDownloadArtifactId === selectedArtifact.artifact_id
+                          nativeOpenArtifactId === selectedArtifact.artifact_id || nativeDownloadArtifactId === selectedArtifact.artifact_id
                         }
                         size="sm"
                         type="button"
@@ -297,9 +245,7 @@ export function MediaGallerySurface({ model, emptyMessage, actions, preview }: {
                         onClick={() => void downloadArtifact(selectedArtifact)}
                       >
                         <Download data-icon="inline-start" size={14} />
-                        {nativeDownloadArtifactId === selectedArtifact.artifact_id
-                          ? "Saving…"
-                          : "Download"}
+                        {nativeDownloadArtifactId === selectedArtifact.artifact_id ? "Saving…" : "Download"}
                       </Button>
                     </>
                   ) : null}
@@ -351,19 +297,15 @@ function MediaGalleryCard({
   const [imagePreviewFailed, setImagePreviewFailed] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
   const title = mediaArtifactTitle(artifact);
-  const meta = artifact.group_label
-    ? artifactLabel(artifact.group_label)
-    : formatArtifactSize(artifact.size_bytes);
-  const showImagePreview =
-    artifact.kind === "image" && Boolean(artifact.href) && !imagePreviewFailed;
+  const meta = artifact.group_label ? artifactLabel(artifact.group_label) : formatArtifactSize(artifact.size_bytes);
+  const showImagePreview = artifact.kind === "image" && Boolean(artifact.href) && !imagePreviewFailed;
 
   useEffect(() => {
     const element = cardRef.current;
     if (!element || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      ([entry]) => onVisibilityChange(artifact.artifact_id, entry?.isIntersecting ?? false),
-      { rootMargin: "160px" },
-    );
+    const observer = new IntersectionObserver(([entry]) => onVisibilityChange(artifact.artifact_id, entry?.isIntersecting ?? false), {
+      rootMargin: "160px",
+    });
     observer.observe(element);
     return () => observer.disconnect();
   }, [artifact.artifact_id, onVisibilityChange]);
@@ -406,28 +348,15 @@ function MediaGalleryCard({
             <h3 className="line-clamp-2 break-all text-xs font-semibold" title={title}>
               {title}
             </h3>
-            <p
-              className="truncate text-[0.7rem] text-muted-foreground"
-              title={artifact.displayPath}
-            >
+            <p className="truncate text-[0.7rem] text-muted-foreground" title={artifact.displayPath}>
               {artifact.displayPath}
             </p>
           </div>
         </div>
         <div className="flex min-w-0 items-center justify-between gap-2">
-          {meta ? (
-            <span className="truncate text-[0.7rem] text-muted-foreground">{meta}</span>
-          ) : (
-            <span />
-          )}
+          {meta ? <span className="truncate text-[0.7rem] text-muted-foreground">{meta}</span> : <span />}
           {previewError ? (
-            <Button
-              className="h-auto px-1 py-0 text-[0.68rem]"
-              size="sm"
-              type="button"
-              variant="ghost"
-              onClick={onRetry}
-            >
+            <Button className="h-auto px-1 py-0 text-[0.68rem]" size="sm" type="button" variant="ghost" onClick={onRetry}>
               Retry
             </Button>
           ) : null}
@@ -479,23 +408,13 @@ function MediaGalleryCard({
   );
 }
 
-function MediaKindIcon({
-  className,
-  kind,
-  size,
-}: {
-  className: string;
-  kind: MediaArtifactKind;
-  size: number;
-}) {
+function MediaKindIcon({ className, kind, size }: { className: string; kind: MediaArtifactKind; size: number }) {
   if (kind === "image") return <ImageIcon className={className} size={size} />;
   if (kind === "audio") return <AudioLines className={className} size={size} />;
   return <Video className={className} size={size} />;
 }
 
-function mediaArtifactTitle(
-  artifact: Pick<ResolvedMediaGalleryArtifact, "displayPath" | "label">,
-): string {
+function mediaArtifactTitle(artifact: Pick<ResolvedMediaGalleryArtifact, "displayPath" | "label">): string {
   return artifact.displayPath.split("/").filter(Boolean).at(-1) ?? artifactLabel(artifact.label);
 }
 
@@ -507,7 +426,6 @@ function isResolvedMediaArtifact(
 ): artifact is MediaArtifactCandidate {
   return artifact.kind !== null;
 }
-
 
 /* === Hooks === */
 export function useMediaGallery(artifacts: MediaGalleryArtifact[], runDir?: string | null) {
@@ -535,16 +453,13 @@ export function useMediaGallery(artifacts: MediaGalleryArtifact[], runDir?: stri
   }, []);
   const requestedArtifactIds = useMemo(() => {
     const requested = new Set(
-      media
-        .filter((artifact) => visibleArtifactIds.has(artifact.artifact_id))
-        .map((artifact) => artifact.artifact_id),
+      media.filter((artifact) => visibleArtifactIds.has(artifact.artifact_id)).map((artifact) => artifact.artifact_id),
     );
     if (selectedArtifactId) requested.add(selectedArtifactId);
     return requested;
   }, [media, selectedArtifactId, visibleArtifactIds]);
   return { media, selectedArtifactId, setSelectedArtifactId, markVisible, requestedArtifactIds };
 }
-
 
 /* === Public Functions === */
 

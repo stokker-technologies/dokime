@@ -39,14 +39,7 @@ export type ExecutionSectionCardProps = {
 
 /* === Components === */
 
-export function ExecutionSectionCard({
-  title,
-  action,
-  children,
-  className,
-  description,
-  empty = null,
-}: ExecutionSectionCardProps) {
+export function ExecutionSectionCard({ title, action, children, className, description, empty = null }: ExecutionSectionCardProps) {
   const titleId = useId();
 
   return (
@@ -59,23 +52,11 @@ export function ExecutionSectionCard({
         <h2 className="truncate font-heading text-base leading-6 font-semibold" id={titleId}>
           {title}
         </h2>
-        {action ? (
-          <div className="grid auto-cols-max grid-flow-col items-center">{action}</div>
-        ) : (
-          <span />
-        )}
-        {description ? (
-          <div className="col-span-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
-            {description}
-          </div>
-        ) : null}
+        {action ? <div className="grid auto-cols-max grid-flow-col items-center">{action}</div> : <span />}
+        {description ? <div className="col-span-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">{description}</div> : null}
       </header>
       {children}
-      {empty ? (
-        <p className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-          {empty}
-        </p>
-      ) : null}
+      {empty ? <p className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">{empty}</p> : null}
     </section>
   );
 }

@@ -61,9 +61,7 @@ export function documentCaptureFixture(input: CaptureFixture): DocumentCapture_S
     },
     selection: { scope: {} },
     cards: input.bindings,
-    sections: Object.fromEntries(
-      Object.entries(input.sections ?? {}).map(([id, metadata]) => [id, { metadata }]),
-    ),
+    sections: Object.fromEntries(Object.entries(input.sections ?? {}).map(([id, metadata]) => [id, { metadata }])),
     repeats: {},
     warnings: [],
   };

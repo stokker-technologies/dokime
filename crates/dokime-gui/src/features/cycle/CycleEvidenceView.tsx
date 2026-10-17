@@ -24,8 +24,12 @@
 import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import type { DocumentSurface } from "./document-view-model";
-import { DocumentViewPresentation, type DocumentViewProps,
-  documentWindowElapsedUnit, FrozenDocumentConsole } from "./DocumentViewPresentation";
+import {
+  DocumentViewPresentation,
+  type DocumentViewProps,
+  documentWindowElapsedUnit,
+  FrozenDocumentConsole,
+} from "./DocumentViewPresentation";
 import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
 import { PlotWindowControl, usePlotWindow } from "./PlotWindowSlider";
 
@@ -42,8 +46,14 @@ export type CycleEvidenceViewProps = {
 
 /* === Components === */
 
-export function CycleEvidenceView({ live, surface, pane, plotWindow, onRetry,
-  documentView: DocumentContent = DocumentViewPresentation }: CycleEvidenceViewProps) {
+export function CycleEvidenceView({
+  live,
+  surface,
+  pane,
+  plotWindow,
+  onRetry,
+  documentView: DocumentContent = DocumentViewPresentation,
+}: CycleEvidenceViewProps) {
   return (
     <div className="grid min-h-0">
       <div className="min-h-0 overflow-y-auto px-4 py-4">
@@ -59,18 +69,10 @@ export function CycleEvidenceView({ live, surface, pane, plotWindow, onRetry,
           <PaneNotice message="Reading the document for this selection." title="Loading" />
         ) : (
           <div className="grid gap-6">
-            {pane.staleReason ? (
-              <p className="text-xs text-muted-foreground">
-                Showing the last evidence read. {pane.staleReason}
-              </p>
-            ) : null}
+            {pane.staleReason ? <p className="text-xs text-muted-foreground">Showing the last evidence read. {pane.staleReason}</p> : null}
             <DocumentContent
               plotWindowControl={
-                <PlotWindowControl
-                  elapsedUnit={documentWindowElapsedUnit(surface.view.sections)}
-                  live={live}
-                  window={plotWindow}
-                />
+                <PlotWindowControl elapsedUnit={documentWindowElapsedUnit(surface.view.sections)} live={live} window={plotWindow} />
               }
               surface={surface}
             />
@@ -84,15 +86,7 @@ export function CycleEvidenceView({ live, surface, pane, plotWindow, onRetry,
 
 /* === Private Components === */
 
-function PaneNotice({
-  action,
-  message,
-  title,
-}: {
-  action?: { label: string; onClick: () => void };
-  message: string;
-  title: string;
-}) {
+function PaneNotice({ action, message, title }: { action?: { label: string; onClick: () => void }; message: string; title: string }) {
   return (
     <div className="grid justify-items-start gap-2 py-8">
       <p className="font-heading text-sm font-semibold">{title}</p>

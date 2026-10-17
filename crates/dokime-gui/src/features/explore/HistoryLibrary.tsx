@@ -15,19 +15,10 @@ import { useMemo } from "react";
 /* === Local Imports === */
 
 import { DataTable } from "@/components/data-table/DataTable";
-import {
-  type DataTableColumns,
-  type DataTableSelection,
-  dataTableColumns,
-} from "@/components/data-table/data-table-model";
+import { type DataTableColumns, type DataTableSelection, dataTableColumns } from "@/components/data-table/data-table-model";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  type ExploreEntry,
-  type ExploreSource,
-  type ExploreTarget,
-  exploreEntryKey,
-} from "@/features/explore/explore-contracts";
+import { type ExploreEntry, type ExploreSource, type ExploreTarget, exploreEntryKey } from "@/features/explore/explore-contracts";
 import { cn } from "@/lib/utils";
 
 /* === Types === */
@@ -59,9 +50,7 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
     meta: { label: "Execution / Cycle", primary: true },
   }),
   column.accessor("failed_count", {
-    cell: ({ row }) => (
-      <ResultPills failed={row.original.failed_count} passed={row.original.passed_count} />
-    ),
+    cell: ({ row }) => <ResultPills failed={row.original.failed_count} passed={row.original.passed_count} />,
     header: "Result",
     meta: { label: "Result", width: "w-36" },
   }),
@@ -83,9 +72,7 @@ const COLUMNS: DataTableColumns<ExploreEntry> = column.columns([
     meta: { filter: "facet", label: "Source", width: "w-36" },
   }),
   column.accessor((entry) => Date.parse(entry.updated_at) || undefined, {
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">{formatDate(row.original.updated_at)}</span>
-    ),
+    cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatDate(row.original.updated_at)}</span>,
     header: "Updated",
     id: "updated",
     meta: { align: "end", label: "Updated", width: "w-28" },
@@ -121,10 +108,7 @@ export function HistoryLibrary({
   /* No client-side narrowing: `filter.text` is matched server-side against an
      entry's title, its execution identifier and its suite label, so the rows
      that arrived are the rows that matched. The table only renders the box. */
-  const search = useMemo(
-    () => ({ label: "Filter Executions", onChange: onQueryChange, value: query }),
-    [onQueryChange, query],
-  );
+  const search = useMemo(() => ({ label: "Filter Executions", onChange: onQueryChange, value: query }), [onQueryChange, query]);
   const selection = useMemo<DataTableSelection<ExploreEntry>>(
     () => ({
       isSelected: (entry) => selectedIds.has(entryKey(entry)),
@@ -188,9 +172,7 @@ export function HistoryLibrary({
       title={selectedIds.size < 2 ? "Select at least two entries to compare" : undefined}
     >
       <GitCompare />
-      {selectedIds.size < 2
-        ? `Compare (Select ${2 - selectedIds.size} More)`
-        : `Compare Selected (${selectedIds.size})`}
+      {selectedIds.size < 2 ? `Compare (Select ${2 - selectedIds.size} More)` : `Compare Selected (${selectedIds.size})`}
     </Button>
   );
 
@@ -204,9 +186,7 @@ export function HistoryLibrary({
       }
       columns={columns}
       data={cycles}
-      emptyText={
-        loading ? "Loading history…" : archived ? "No archived history." : "No history matches."
-      }
+      emptyText={loading ? "Loading history…" : archived ? "No archived history." : "No history matches."}
       getRowId={entryKey}
       onRowClick={(entry) => onOpenEntry(entry.target)}
       search={search}
@@ -222,9 +202,7 @@ function EntryTitle({ entry }: { entry: ExploreEntry }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       <span className="truncate">{entry.title}</span>
-      {entry.target.kind === "execution" ? (
-        <Badge variant="outline">Standalone Execution</Badge>
-      ) : null}
+      {entry.target.kind === "execution" ? <Badge variant="outline">Standalone Execution</Badge> : null}
     </span>
   );
 }
@@ -233,9 +211,7 @@ function ResultPills({ failed, passed }: { failed: number; passed: number }) {
   return (
     <div className="flex items-center gap-1.5 text-xs font-medium">
       <span className="text-success">{passed} passed</span>
-      <span className={cn(failed > 0 ? "text-destructive" : "text-muted-foreground")}>
-        {failed} failed
-      </span>
+      <span className={cn(failed > 0 ? "text-destructive" : "text-muted-foreground")}>{failed} failed</span>
     </div>
   );
 }

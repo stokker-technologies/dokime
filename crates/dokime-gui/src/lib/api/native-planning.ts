@@ -120,10 +120,7 @@ export type NewCycleRequest = {
  * Planning and AppendPlannedCases, and running a cycle without cases is
  * refused, so nothing here observes run activity.
  */
-export async function createNativeTestCycle(
-  session: SessionIdentity,
-  request: NewCycleRequest,
-): Promise<{ cycleId: string }> {
+export async function createNativeTestCycle(session: SessionIdentity, request: NewCycleRequest): Promise<{ cycleId: string }> {
   const created = await rpc.executionCreateCycle(session, {
     metadata: {
       identifier: "",
@@ -160,10 +157,7 @@ export async function appendNativeTestCycle(
 }
 
 /** The cycle's plan, or `null` when the backend no longer holds that cycle. */
-export async function fetchNativeTestCyclePlan(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<TestCyclePlan | null> {
+export async function fetchNativeTestCyclePlan(session: SessionIdentity, cycleId: string): Promise<TestCyclePlan | null> {
   const summaries = await listNativeCycles(session);
   const summary = summaries.find((candidate) => candidate.cycleId === cycleId);
   if (!summary) return null;
@@ -182,10 +176,7 @@ export async function fetchNativeTestCyclePlan(
  * vector is still a separate read, for the surfaces that list attempts
  * themselves.
  */
-async function assembleNativeCyclePlan(
-  session: SessionIdentity,
-  summary: CycleSummary,
-): Promise<TestCyclePlan> {
+async function assembleNativeCyclePlan(session: SessionIdentity, summary: CycleSummary): Promise<TestCyclePlan> {
   const cases = await listNativeCases(session, summary.cycleId);
   if (summary.caseCount > BigInt(cases.length))
     throw new NativeApiLimitError(
@@ -205,20 +196,13 @@ async function assembleNativeCyclePlan(
      them, and each case's template is read from the suite it came from. */
   const suiteIds = [...new Set(caseDetails.flatMap((item) => item.detail.suite?.identifier || []))];
   const suites = await mapBounded(suiteIds, (suiteId) => fetchNativeSuite(session, suiteId));
-  const mappedCases = caseDetails.map((entry) =>
-    mapNativeCase(entry.item, entry.detail, entry.parameters),
-  );
-  const queue = caseDetails.map((entry, index) =>
-    mapQueueItem(summary, entry.detail.summary ?? entry.item, index),
-  );
+  const mappedCases = caseDetails.map((entry) => mapNativeCase(entry.item, entry.detail, entry.parameters));
+  const queue = caseDetails.map((entry, index) => mapQueueItem(summary, entry.detail.summary ?? entry.item, index));
   /* The case the cycle is on, as the case projection states it: exactly one
      case can be RUNNING, and its own latest attempt is the live one. */
   const active = queue.find((item) => item.status === "running") ?? null;
-  const templates = suites.flatMap(
-    (suite) => suite?.members.map((template) => mapTemplateMetadata(template)) ?? [],
-  );
-  const generatedAt =
-    timestampIso(summary.createdAt) ?? timestampIso(summary.updatedAt) ?? nowIso();
+  const templates = suites.flatMap((suite) => suite?.members.map((template) => mapTemplateMetadata(template)) ?? []);
+  const generatedAt = timestampIso(summary.createdAt) ?? timestampIso(summary.updatedAt) ?? nowIso();
   return {
     test_cycle: {
       test_cycle_id: summary.cycleId,
@@ -245,11 +229,7 @@ async function assembleNativeCyclePlan(
   };
 }
 
-function mapNativeCase(
-  item: CaseSummary,
-  detail: CaseDetail,
-  parameters: { name: string; value?: Value }[],
-): TestCase {
+function mapNativeCase(item: CaseSummary, detail: CaseDetail, parameters: { name: string; value?: Value }[]): TestCase {
   const summary = detail.summary ?? item;
   return {
     suite_id: summary.suiteId,
@@ -267,11 +247,7 @@ function mapNativeCase(
   };
 }
 
-export function mapNativeExecutionSummary(
-  item: ExecutionSummary,
-  cases: TestCase[],
-  cycle: CycleSummary,
-): TestExecution {
+export function mapNativeExecutionSummary(item: ExecutionSummary, cases: TestCase[], cycle: CycleSummary): TestExecution {
   const testCase = cases.find((candidate) => candidate.case_id === item.caseId);
   return {
     archived: item.archived,
@@ -321,11 +297,7 @@ function mapTemplateMetadata(template: SuiteTemplateEntry): TestTemplateMetadata
  * is the position at this cursor rather than an identity, which is why it is
  * passed in rather than read back.
  */
-function mapQueueItem(
-  summary: CycleSummary,
-  item: CaseSummary,
-  ordinal: number,
-): ExecutionQueueItem {
+function mapQueueItem(summary: CycleSummary, item: CaseSummary, ordinal: number): ExecutionQueueItem {
   return {
     queue_item_id: item.caseId,
     test_cycle_id: summary.cycleId,
@@ -335,10 +307,7 @@ function mapQueueItem(
     repeat_index: 0,
     status: mapCaseStatus(item.status),
     current_test_execution_id: item.latestExecutionId ?? null,
-    current_test_execution_status:
-      item.latestExecutionStatus === undefined
-        ? null
-        : mapExecutionStatus(item.latestExecutionStatus),
+    current_test_execution_status: item.latestExecutionStatus === undefined ? null : mapExecutionStatus(item.latestExecutionStatus),
     attempt_count: item.attemptCount,
     rerun_scheduled: item.rerunScheduled,
     actions: mapCaseActions(item.actions),
@@ -381,14 +350,9 @@ async function nativeSelectionPlan(
     const suite = suites.find((item) => item.suite_id === selection.suite_id);
     if (!suite) throw new Error(`Suite ${selection.suite_id} is no longer registered.`);
     const template = suite.members.find(
-      (candidate) =>
-        candidate.template_id === selection.template_id ||
-        candidate.metadata.identifier === selection.template_id,
+      (candidate) => candidate.template_id === selection.template_id || candidate.metadata.identifier === selection.template_id,
     );
-    if (!template)
-      throw new Error(
-        `Template ${selection.template_id} is no longer registered in ${suite.name}.`,
-      );
+    if (!template) throw new Error(`Template ${selection.template_id} is no longer registered in ${suite.name}.`);
     return {
       suiteId: suite.suite_id,
       templateId: template.template_id,
@@ -399,18 +363,14 @@ async function nativeSelectionPlan(
         key,
         value: {
           kind: {
-            HarmosVariant:
-              value === null
-                ? { case: "Clear" as const, value: {} }
-                : { case: "Value" as const, value: { field0: value } },
+            HarmosVariant: value === null ? { case: "Clear" as const, value: {} } : { case: "Value" as const, value: { field0: value } },
           },
         },
       })),
     };
   });
   const maxCases = request.max_cases ?? NATIVE_CASE_LIMIT;
-  if (maxCases < 1 || maxCases > NATIVE_CASE_LIMIT)
-    throw new NativeApiLimitError("Planning.SelectionPlan", `max_cases ${maxCases}`);
+  if (maxCases < 1 || maxCases > NATIVE_CASE_LIMIT) throw new NativeApiLimitError("Planning.SelectionPlan", `max_cases ${maxCases}`);
   return {
     selections: nativeSelections,
     maxCases,
@@ -428,9 +388,7 @@ export type NativeRunAdmission = { commandId: string; jobId: string | null };
  * issues; raising it verbatim is what lets the workspace tell the operator
  * why, rather than leaving a control that did nothing.
  */
-export function ensureNativeRunAccepted(
-  reply: Wire<Awaited<ReturnType<typeof rpc.executionRunCycle>>>,
-): NativeRunAdmission {
+export function ensureNativeRunAccepted(reply: Wire<Awaited<ReturnType<typeof rpc.executionRunCycle>>>): NativeRunAdmission {
   if (reply.outcome?.HarmosVariant.case === "Accepted") {
     const accepted = reply.outcome.HarmosVariant.value.field0;
     if (!accepted) throw new Error("Native run admission has no accepted payload.");
@@ -465,10 +423,7 @@ export type NativeCycleSelection = {
 };
 
 /** Every page of Execution.ListCycles under one unchanged selection. */
-export async function listNativeCycles(
-  session: SessionIdentity,
-  selection: NativeCycleSelection = {},
-): Promise<CycleSummary[]> {
+export async function listNativeCycles(session: SessionIdentity, selection: NativeCycleSelection = {}): Promise<CycleSummary[]> {
   const result: CycleSummary[] = [];
   let afterCycleId = "";
   let cursor: Cursor | undefined;
@@ -491,18 +446,14 @@ export async function listNativeCycles(
     result.push(...reply.cycles);
     const next = reply.nextAfterCycleId;
     if (!next) return result;
-    if (next === afterCycleId)
-      throw new NativeApiLimitError("Execution.ListCycles", `cursor did not advance at ${next}`);
+    if (next === afterCycleId) throw new NativeApiLimitError("Execution.ListCycles", `cursor did not advance at ${next}`);
     afterCycleId = next;
     cursor = reply.cursor;
   }
   throw new NativeApiLimitError("Execution.ListCycles", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export async function listNativeCases(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<CaseSummary[]> {
+export async function listNativeCases(session: SessionIdentity, cycleId: string): Promise<CaseSummary[]> {
   const result: CaseSummary[] = [];
   let afterCaseId = "";
   let cursor: Cursor | undefined;
@@ -516,18 +467,14 @@ export async function listNativeCases(
     result.push(...reply.cases);
     const next = reply.nextAfterCaseId;
     if (!next) return result;
-    if (next === afterCaseId)
-      throw new NativeApiLimitError("Execution.ListCases", `cursor did not advance at ${next}`);
+    if (next === afterCaseId) throw new NativeApiLimitError("Execution.ListCases", `cursor did not advance at ${next}`);
     afterCaseId = next;
     cursor = reply.cursor;
   }
   throw new NativeApiLimitError("Execution.ListCases", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export async function listNativeExecutions(
-  session: SessionIdentity,
-  cycleId: string,
-): Promise<ExecutionSummary[]> {
+export async function listNativeExecutions(session: SessionIdentity, cycleId: string): Promise<ExecutionSummary[]> {
   const result: ExecutionSummary[] = [];
   let afterExecutionId = "";
   let cursor: Cursor | undefined;
@@ -541,22 +488,14 @@ export async function listNativeExecutions(
     result.push(...reply.executions);
     const next = reply.nextAfterExecutionId;
     if (!next) return result;
-    if (next === afterExecutionId)
-      throw new NativeApiLimitError(
-        "Execution.ListExecutions",
-        `cursor did not advance at ${next}`,
-      );
+    if (next === afterExecutionId) throw new NativeApiLimitError("Execution.ListExecutions", `cursor did not advance at ${next}`);
     afterExecutionId = next;
     cursor = reply.cursor;
   }
   throw new NativeApiLimitError("Execution.ListExecutions", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export async function listNativeCaseParameters(
-  session: SessionIdentity,
-  cycleId: string,
-  caseId: string,
-) {
+export async function listNativeCaseParameters(session: SessionIdentity, cycleId: string, caseId: string) {
   const result: { name: string; value?: Value }[] = [];
   let afterName = "";
   let cursor: ParameterCursor | undefined;
@@ -571,23 +510,14 @@ export async function listNativeCaseParameters(
     result.push(...reply.parameters);
     const next = reply.nextAfterName;
     if (!next) return result;
-    if (next === afterName)
-      throw new NativeApiLimitError(
-        "Execution.ListCaseParameters",
-        `cursor did not advance at ${next}`,
-      );
+    if (next === afterName) throw new NativeApiLimitError("Execution.ListCaseParameters", `cursor did not advance at ${next}`);
     afterName = next;
     cursor = reply.cursor;
   }
-  throw new NativeApiLimitError(
-    "Execution.ListCaseParameters",
-    `more than ${NATIVE_MAX_PAGES} pages`,
-  );
+  throw new NativeApiLimitError("Execution.ListCaseParameters", `more than ${NATIVE_MAX_PAGES} pages`);
 }
 
-export function mapCycleStatus(
-  status: CycleStatus | undefined,
-): TestCyclePlan["test_cycle"]["status"] {
+export function mapCycleStatus(status: CycleStatus | undefined): TestCyclePlan["test_cycle"]["status"] {
   switch (status?.HarmosVariant.case) {
     case "Running":
       return "running";
@@ -711,9 +641,7 @@ export function mapStepStatus(status: StepStatus | undefined): StepExecutionReco
   }
 }
 
-export function mapCriterionStatus(
-  status: CriterionStatus | undefined,
-): StepExecutionRecord["status"] {
+export function mapCriterionStatus(status: CriterionStatus | undefined): StepExecutionRecord["status"] {
   switch (status?.HarmosVariant.case) {
     case "Passed":
       return "passed";

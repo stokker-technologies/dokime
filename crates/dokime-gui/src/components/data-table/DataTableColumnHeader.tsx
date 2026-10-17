@@ -30,9 +30,7 @@ type DataTableColumnHeaderProps<TData extends RowData> = {
 
 /* === Components === */
 
-export function DataTableColumnHeader<TData extends RowData>({
-  header,
-}: DataTableColumnHeaderProps<TData>) {
+export function DataTableColumnHeader<TData extends RowData>({ header }: DataTableColumnHeaderProps<TData>) {
   const column = header.column;
   const meta = column.columnDef.meta;
   const sorted = column.getIsSorted();
@@ -46,9 +44,7 @@ export function DataTableColumnHeader<TData extends RowData>({
   );
 
   return (
-    <div
-      className={cn("flex min-w-0 items-center gap-1", meta?.align === "end" && "flex-row-reverse")}
-    >
+    <div className={cn("flex min-w-0 items-center gap-1", meta?.align === "end" && "flex-row-reverse")}>
       {column.getCanSort() ? (
         <button
           className="inline-flex min-w-0 items-center gap-1 rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
@@ -56,10 +52,7 @@ export function DataTableColumnHeader<TData extends RowData>({
           type="button"
         >
           {name}
-          <SortGlyph
-            aria-hidden
-            className={cn("size-3 shrink-0", sorted ? "text-foreground" : "opacity-40")}
-          />
+          <SortGlyph aria-hidden className={cn("size-3 shrink-0", sorted ? "text-foreground" : "opacity-40")} />
         </button>
       ) : (
         name

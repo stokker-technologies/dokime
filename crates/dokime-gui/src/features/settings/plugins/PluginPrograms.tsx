@@ -63,9 +63,7 @@ export function PluginPrograms({ programs }: { programs: RuntimeInstalledPluginR
 
   const sectionOf = (program: RuntimeInstalledPluginRecord): string | null =>
     (settings.frame?.sections ?? []).find(
-      (candidate) =>
-        candidate.owner.kind === "installed_plugin" &&
-        candidate.owner.plugin_id === program.plugin_id,
+      (candidate) => candidate.owner.kind === "installed_plugin" && candidate.owner.plugin_id === program.plugin_id,
     )?.section_id ?? null;
 
   const rows = programs.map((program): PluginTableRow => {
@@ -73,9 +71,7 @@ export function PluginPrograms({ programs }: { programs: RuntimeInstalledPluginR
     return {
       key: programKey(program),
       name: program.label,
-      onOpenSettings: pluginId
-        ? () => void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" })
-        : undefined,
+      onOpenSettings: pluginId ? () => void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" }) : undefined,
       source: programSource(program, brand.label),
     };
   });

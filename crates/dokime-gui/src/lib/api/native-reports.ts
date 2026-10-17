@@ -17,15 +17,8 @@ import { isTauriDesktop } from "@/lib/desktop-open";
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { NativeStream, SessionIdentity } from "@/lib/rpc/transport";
-import type {
-  Row8 as Metadata,
-  Row3 as ReportFrame,
-} from "../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb";
-import {
-  NATIVE_HTML_DOCUMENT_BYTES,
-  openNativeDocument,
-  saveNativeDocument,
-} from "./native-delivery";
+import type { Row8 as Metadata, Row3 as ReportFrame } from "../../../.generated/dokime/v1/ReportsMessages/DownloadCycleReport/messages_pb";
+import { NATIVE_HTML_DOCUMENT_BYTES, openNativeDocument, saveNativeDocument } from "./native-delivery";
 import { NativeApiLimitError, NativeApiUnsupportedError } from "./native-values";
 
 /* === Canonical Types === */
@@ -44,9 +37,7 @@ export interface NativeReportSession extends SessionIdentity {
 }
 
 /** Which report a stream must deliver. */
-type ReportSubject =
-  | { cycleId: string; identifier: string }
-  | { executionId: string; identifier: string };
+type ReportSubject = { cycleId: string; identifier: string } | { executionId: string; identifier: string };
 
 const CYCLE_REPORT = "cycle.summary";
 const EXECUTION_REPORT = "execution.report";
@@ -57,11 +48,7 @@ export interface NativeReportHtml {
   html: string;
 }
 
-function assertActive(
-  session: SessionIdentity,
-  signal: AbortSignal | undefined,
-  operation: string,
-): void {
+function assertActive(session: SessionIdentity, signal: AbortSignal | undefined, operation: string): void {
   if (signal?.aborted) throw new Error(`${operation} was cancelled.`);
   if (!session.isCurrent()) throw new Error(`${operation} lost its owning connection.`);
 }
@@ -69,11 +56,7 @@ function assertActive(
 /* === Verified On-Demand Report Stream === */
 
 /** The report a cycle has right now: sealed, regenerated, or current. */
-export function downloadNativeCycleReport(
-  session: NativeReportSession,
-  cycleId: string,
-  signal?: AbortSignal,
-): Promise<NativeReportHtml> {
+export function downloadNativeCycleReport(session: NativeReportSession, cycleId: string, signal?: AbortSignal): Promise<NativeReportHtml> {
   if (!cycleId.trim()) throw new Error("Reports.DownloadCycleReport requires a cycle identifier.");
   return streamReport(
     session,
@@ -127,12 +110,7 @@ async function streamReport(
     reader = await open();
     assertActive(session, signal, operation);
     release = session.own(() => void cancelReader().catch(() => undefined));
-    return await assembleReportHtml(
-      reader,
-      operation,
-      subject,
-      () => !signal?.aborted && session.isCurrent(),
-    );
+    return await assembleReportHtml(reader, operation, subject, () => !signal?.aborted && session.isCurrent());
   } finally {
     signal?.removeEventListener("abort", abort);
     await cancelReader().catch(() => undefined);
@@ -157,8 +135,7 @@ async function assembleReportHtml(
     if (!active()) throw new Error(`${operation} was cancelled.`);
     if (complete) throw new Error(`${operation} continued after completion.`);
     const payload = frame.payload?.HarmosVariant;
-    if (!payload?.case || !payload.value.field0)
-      throw new Error(`${operation} contained an incomplete frame.`);
+    if (!payload?.case || !payload.value.field0) throw new Error(`${operation} contained an incomplete frame.`);
     switch (payload.case) {
       case "Report":
         if (!payload.value.field0) throw new Error("Transfer frame payload is missing.");
@@ -214,8 +191,7 @@ async function assembleReportHtml(
 
 function sameSubject(report: ReportMetadata, subject: ReportSubject): boolean {
   if (report.identifier !== subject.identifier) return false;
-  if ("cycleId" in subject)
-    return report.testCycleId === subject.cycleId && !report.testExecutionId;
+  if ("cycleId" in subject) return report.testCycleId === subject.cycleId && !report.testExecutionId;
   return report.testExecutionId === subject.executionId;
 }
 
@@ -232,11 +208,7 @@ function hex(bytes: Uint8Array): string {
 /* === Report delivery entrypoints === */
 
 /** Open a verified report through the native cache and OS opener. */
-export async function openNativeReport(
-  resource: NativeReportHtml,
-  session?: SessionIdentity,
-  filename?: string,
-): Promise<boolean> {
+export async function openNativeReport(resource: NativeReportHtml, session?: SessionIdentity, filename?: string): Promise<boolean> {
   if (!session) throw new Error("Reports.OpenReport requires a connected native session.");
   return openNativeDocument(session, {
     kind: "html_report",
@@ -252,10 +224,7 @@ export async function downloadNativeReport(
   session?: SessionIdentity,
 ): Promise<boolean> {
   if (!isTauriDesktop()) {
-    throw new NativeApiUnsupportedError(
-      "Save report",
-      "desktop_save_document (native file picker)",
-    );
+    throw new NativeApiUnsupportedError("Save report", "desktop_save_document (native file picker)");
   }
   if (!session) throw new Error("Reports.SaveReport requires a connected native session.");
   return saveNativeDocument(session, {

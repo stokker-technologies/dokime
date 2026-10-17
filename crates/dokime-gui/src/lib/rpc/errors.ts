@@ -4,10 +4,7 @@ import type { ConnectionError } from "../desktop/connection";
 import type { ArtifactDeliveryError, DeliveryStage } from "../desktop/delivery";
 import type { RpcError } from "../desktop/rpc";
 
-const connectionErrorMessages: Record<
-  Exclude<ConnectionError["kind"], "invalid_target" | "execution_rejected">,
-  string
-> = {
+const connectionErrorMessages: Record<Exclude<ConnectionError["kind"], "invalid_target" | "execution_rejected">, string> = {
   credentials_unavailable: "No saved access token is available. Enter a token to connect.",
   authentication_required: "The backend requires a valid access token.",
   unauthenticated: "The backend requires a valid access token.",
@@ -61,10 +58,7 @@ function rpcMessage(error: RpcError): string {
     case "session":
       return connectionMessage(error.detail);
     case "grpc":
-      return (
-        error.detail.message.trim() ||
-        `The native backend returned gRPC status ${error.detail.code}.`
-      );
+      return error.detail.message.trim() || `The native backend returned gRPC status ${error.detail.code}.`;
     case "invalid_request":
       return "The native RPC request was invalid.";
     case "incompatible_descriptor":

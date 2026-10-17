@@ -22,14 +22,7 @@
 /* === External Imports === */
 
 import { Check } from "lucide-react";
-import {
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useId,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useState, useSyncExternalStore } from "react";
 
 /* === Local Imports === */
 
@@ -38,22 +31,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { defaultBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
-import type {
-  BackendProfiles,
-  ConnectionCredentials,
-  ConnectionTarget,
-} from "@/lib/desktop/connection";
+import type { BackendProfiles, ConnectionCredentials, ConnectionTarget } from "@/lib/desktop/connection";
 import type { DesktopLaunch } from "@/lib/desktop/session";
 import { BrandMark } from "@/shell/BrandMark";
 import { connectionError, startupDiagnostics } from "./errors";
 import { useNativeSessionController } from "./context";
 import { StartupDiagnostics } from "./StartupDiagnostics";
-import {
-  BACKUP_RESET_LABEL,
-  backupFailure,
-  backupResetAvailable,
-  backupSteps,
-} from "./storage-backup-model";
+import { BACKUP_RESET_LABEL, backupFailure, backupResetAvailable, backupSteps } from "./storage-backup-model";
 
 /* === Constants === */
 
@@ -73,13 +57,7 @@ const RESET_PHASES = ["stopping", "deleting", "starting"] as const;
 
 /* === Components === */
 
-export function ConnectionScreen({
-  launch,
-  launchError,
-}: {
-  launch: DesktopLaunch | null;
-  launchError?: unknown;
-}) {
+export function ConnectionScreen({ launch, launchError }: { launch: DesktopLaunch | null; launchError?: unknown }) {
   const profileId = useId();
   const caId = useId();
   const credentialId = useId();
@@ -174,8 +152,7 @@ export function ConnectionScreen({
     const target: ConnectionTarget = value.startsWith("http://")
       ? { kind: "local", endpoint: value }
       : { kind: "remote", endpoint: value, caCertificatePem: ca.trim() || null };
-    const credentials: ConnectionCredentials =
-      credential === "bearer" ? { kind: "bearer", token, remember } : { kind: credential };
+    const credentials: ConnectionCredentials = credential === "bearer" ? { kind: "bearer", token, remember } : { kind: credential };
     setToken("");
     void owner.select({
       kind: "attach",
@@ -256,24 +233,15 @@ export function ConnectionScreen({
             {offerBackup && (
               <div className="grid w-full gap-2">
                 <div className="grid w-full grid-cols-2 gap-3">
-                  <Button
-                    className="w-full"
-                    onClick={() => void backupReset(false)}
-                    variant="destructive"
-                  >
+                  <Button className="w-full" onClick={() => void backupReset(false)} variant="destructive">
                     {BACKUP_RESET_LABEL}
                   </Button>
-                  <Button
-                    className="w-full"
-                    onClick={() => void backupReset(true)}
-                    variant="outline"
-                  >
+                  <Button className="w-full" onClick={() => void backupReset(true)} variant="outline">
                     Choose Backup Location
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Archives the local data directory into a zip beside it, then empties it and starts
-                  the backend again.
+                  Archives the local data directory into a zip beside it, then empties it and starts the backend again.
                 </p>
                 {backupError && (
                   <p className="text-sm text-destructive" role="alert">
@@ -304,9 +272,7 @@ export function ConnectionScreen({
                 ) : null}
 
                 <form className="grid w-full gap-3 text-left" onSubmit={submit}>
-                  <h2 className="text-center font-heading text-lg font-semibold">
-                    Attach To A Backend
-                  </h2>
+                  <h2 className="text-center font-heading text-lg font-semibold">Attach To A Backend</h2>
                   <Field htmlFor={endpointId} label="Endpoint">
                     <Input
                       id={endpointId}
@@ -318,11 +284,7 @@ export function ConnectionScreen({
                     />
                   </Field>
                   <Field htmlFor={identityId} label="Expected Backend ID (Optional)">
-                    <Input
-                      id={identityId}
-                      onChange={(event) => setIdentity(event.target.value)}
-                      value={identity}
-                    />
+                    <Input id={identityId} onChange={(event) => setIdentity(event.target.value)} value={identity} />
                   </Field>
                   <Field htmlFor={credentialId} label="Credentials">
                     <select
@@ -352,19 +314,13 @@ export function ConnectionScreen({
                         />
                       </Field>
                       <label className="col-span-full flex items-center justify-center gap-2 text-sm">
-                        <input
-                          checked={remember}
-                          onChange={(event) => setRemember(event.target.checked)}
-                          type="checkbox"
-                        />
+                        <input checked={remember} onChange={(event) => setRemember(event.target.checked)} type="checkbox" />
                         Save Token in System Keyring
                       </label>
                     </>
                   )}
                   <details className="text-sm">
-                    <summary className="cursor-pointer text-center text-muted-foreground">
-                      Custom TLS Authority
-                    </summary>
+                    <summary className="cursor-pointer text-center text-muted-foreground">Custom TLS Authority</summary>
                     <div className="mt-3">
                       <Field htmlFor={caId} label="CA Certificate (PEM)">
                         <textarea
@@ -377,8 +333,8 @@ export function ConnectionScreen({
                     </div>
                   </details>
                   <p className="text-center text-xs text-muted-foreground">
-                    Remote connections require TLS. HTTP is allowed only for a literal loopback
-                    address. Attached backends continue running after disconnect.
+                    Remote connections require TLS. HTTP is allowed only for a literal loopback address. Attached backends continue running
+                    after disconnect.
                   </p>
                   <Button className="w-full" type="submit">
                     Connect
@@ -396,15 +352,7 @@ export function ConnectionScreen({
 /* === Private Components === */
 
 /** One label/value row on the shared two-column grid. */
-function Field({
-  children,
-  htmlFor,
-  label,
-}: {
-  children: ReactNode;
-  htmlFor: string;
-  label: string;
-}) {
+function Field({ children, htmlFor, label }: { children: ReactNode; htmlFor: string; label: string }) {
   return (
     <div className="grid grid-cols-[10rem_minmax(0,1fr)] items-center gap-3">
       <label className="text-sm text-muted-foreground" htmlFor={htmlFor}>
@@ -426,12 +374,7 @@ function StartupSteps({ current }: { current: string | null }) {
   return (
     <ol aria-label="Startup Phases" className="grid w-full gap-2 text-left">
       {phases.map((name, position) => (
-        <Step
-          active={position === index}
-          done={index >= 0 && position < index}
-          key={name}
-          label={phaseLabel(name)}
-        />
+        <Step active={position === index} done={index >= 0 && position < index} key={name} label={phaseLabel(name)} />
       ))}
     </ol>
   );
@@ -445,12 +388,7 @@ function ResetSteps({ current }: { current: string | null }) {
   return (
     <ol aria-label="Reset Steps" className="grid w-full gap-2 text-left">
       {phases.map((name, position) => (
-        <Step
-          active={position === index}
-          done={position < index}
-          key={name}
-          label={phaseLabel(name)}
-        />
+        <Step active={position === index} done={position < index} key={name} label={phaseLabel(name)} />
       ))}
     </ol>
   );
@@ -461,30 +399,14 @@ function BackupSteps({ archived, current }: { archived: number | null; current: 
   return (
     <ol aria-label="Backup Steps" className="grid w-full gap-2 text-left">
       {backupSteps(current, archived).map((step) => (
-        <Step
-          active={step.state === "active"}
-          detail={step.detail}
-          done={step.state === "done"}
-          key={step.phase}
-          label={step.label}
-        />
+        <Step active={step.state === "active"} detail={step.detail} done={step.state === "done"} key={step.phase} label={step.label} />
       ))}
     </ol>
   );
 }
 
 /** One row of a vertical step list. */
-function Step({
-  active,
-  detail = null,
-  done,
-  label,
-}: {
-  active: boolean;
-  detail?: string | null;
-  done: boolean;
-  label: string;
-}) {
+function Step({ active, detail = null, done, label }: { active: boolean; detail?: string | null; done: boolean; label: string }) {
   return (
     <li
       className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-3 text-sm"
@@ -494,19 +416,12 @@ function Step({
         {done ? (
           <Check aria-hidden className="text-primary" size={14} />
         ) : (
-          <span
-            aria-hidden
-            className={active ? "size-2 rounded-full bg-primary" : "size-2 rounded-full bg-border"}
-          />
+          <span aria-hidden className={active ? "size-2 rounded-full bg-primary" : "size-2 rounded-full bg-border"} />
         )}
       </span>
       <span className={active ? "font-medium text-foreground" : "text-muted-foreground"}>
         {label}
-        {detail && (
-          <span className="ml-2 font-mono text-xs text-muted-foreground tabular-nums">
-            {detail}
-          </span>
-        )}
+        {detail && <span className="ml-2 font-mono text-xs text-muted-foreground tabular-nums">{detail}</span>}
       </span>
     </li>
   );

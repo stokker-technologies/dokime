@@ -40,19 +40,13 @@ type PromptView = Wire<Awaited<ReturnType<typeof rpc.promptsGetPrompt>>>;
 type PromptInstance = NonNullable<PromptView["prompt"]>;
 type NativePromptResponse = NonNullable<PromptView["response"]>;
 type PromptDefinition = NonNullable<PromptInstance["definition"]>;
-type PendingPromptIdentity = Wire<
-  Awaited<ReturnType<typeof rpc.promptsListPending>>["prompts"][number]
->;
+type PendingPromptIdentity = Wire<Awaited<ReturnType<typeof rpc.promptsListPending>>["prompts"][number]>;
 type Cursor = NonNullable<Parameters<typeof rpc.promptsListPending>[1]["cursor"]>;
 type PromptFieldKind = PromptDefinition["fields"][number]["kind"];
 type PromptKind = PromptInstance["kind"];
 type PromptActionEmphasis = PromptDefinition["actions"][number]["emphasis"];
-type ConditionVariant = NonNullable<
-  NonNullable<PromptDefinition["condition"]>["nodes"][number]["kind"]
->["HarmosVariant"];
-type TelemetryCondition = NonNullable<
-  Extract<ConditionVariant, { case: "Telemetry" }>["value"]["field0"]
->;
+type ConditionVariant = NonNullable<NonNullable<PromptDefinition["condition"]>["nodes"][number]["kind"]>["HarmosVariant"];
+type TelemetryCondition = NonNullable<Extract<ConditionVariant, { case: "Telemetry" }>["value"]["field0"]>;
 type TelemetryMatchOperator = TelemetryCondition["op"];
 
 /* === Public API === */
@@ -84,9 +78,7 @@ export async function fetchNativePendingPrompts(
       throw new NativeApiLimitError("Prompts.ListPending", `more than ${NATIVE_MAX_PAGES} pages`);
     }
   }
-  const views = await mapBounded(identities, (identity) =>
-    rpc.promptsGetPrompt(session, { promptId: identity.promptId }),
-  );
+  const views = await mapBounded(identities, (identity) => rpc.promptsGetPrompt(session, { promptId: identity.promptId }));
   return views.map((view, index) => {
     if (!view.prompt) {
       throw new Error(`Native prompt ${identities[index]?.promptId ?? "unknown"} has no instance.`);
@@ -135,8 +127,7 @@ function mapNativePrompt(prompt: PromptInstance, response?: NativePromptResponse
   const definition = prompt.definition;
   if (!definition) throw new Error(`Native prompt ${prompt.promptId} has no definition.`);
   const createdAt = timestampIso(prompt.createdAt);
-  if (!createdAt)
-    throw new Error(`Native prompt ${prompt.promptId} has no valid creation timestamp.`);
+  if (!createdAt) throw new Error(`Native prompt ${prompt.promptId} has no valid creation timestamp.`);
   return {
     correlation_id: prompt.promptId,
     template_id: definition.templateIdentifier ?? prompt.scope?.templateId ?? "",
@@ -181,25 +172,13 @@ function mapPromptField(field: PromptDefinition["fields"][number]) {
     choices: field.choices.map((choice) => String(choice)),
     validation: field.validation
       ? {
-          min_length:
-            field.validation.minLength === undefined
-              ? null
-              : safeNativeNumber(field.validation.minLength),
-          max_length:
-            field.validation.maxLength === undefined
-              ? null
-              : safeNativeNumber(field.validation.maxLength),
+          min_length: field.validation.minLength === undefined ? null : safeNativeNumber(field.validation.minLength),
+          max_length: field.validation.maxLength === undefined ? null : safeNativeNumber(field.validation.maxLength),
           pattern: field.validation.pattern ?? null,
           minimum: nativeValueToNumber(field.validation.minimum),
           maximum: nativeValueToNumber(field.validation.maximum),
-          min_items:
-            field.validation.minItems === undefined
-              ? null
-              : safeNativeNumber(field.validation.minItems),
-          max_items:
-            field.validation.maxItems === undefined
-              ? null
-              : safeNativeNumber(field.validation.maxItems),
+          min_items: field.validation.minItems === undefined ? null : safeNativeNumber(field.validation.minItems),
+          max_items: field.validation.maxItems === undefined ? null : safeNativeNumber(field.validation.maxItems),
         }
       : undefined,
   };
@@ -254,8 +233,7 @@ function mapPromptResponse(
   scope?: Parameters<typeof recordScopeFromNative>[0],
 ): NonNullable<PromptRequest["response"]> {
   const respondedAt = timestampIso(response.submittedAt);
-  if (!respondedAt)
-    throw new Error(`Native prompt ${response.promptId} has no response timestamp.`);
+  if (!respondedAt) throw new Error(`Native prompt ${response.promptId} has no response timestamp.`);
   return {
     correlation_id: response.promptId,
     action: response.action,
@@ -306,9 +284,7 @@ function mapVerification(definition: PromptDefinition): PromptRequest["verificat
   return null;
 }
 
-function mapTelemetryOperator(
-  operator: TelemetryMatchOperator,
-): "within" | "eq" | "gte" | "lte" | "gt" | "lt" | null {
+function mapTelemetryOperator(operator: TelemetryMatchOperator): "within" | "eq" | "gte" | "lte" | "gt" | "lt" | null {
   switch (operator?.HarmosVariant.case) {
     case "Within":
       return "within";

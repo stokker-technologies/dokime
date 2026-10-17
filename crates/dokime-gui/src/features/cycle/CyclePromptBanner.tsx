@@ -37,20 +37,11 @@ import { PromptPanel } from "@/components/PromptPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type PromptValue, promptResponseValues } from "@/lib/prompts";
-import {
-  recordLevelLabel,
-  recordLevelVariant,
-  recordToneRowClass,
-  recordToneShellClass,
-} from "@/lib/record-display";
+import { recordLevelLabel, recordLevelVariant, recordToneRowClass, recordToneShellClass } from "@/lib/record-display";
 import { relativeAgeLabel } from "@/lib/time-format";
 import type { PromptField, PromptRequest } from "@/lib/types";
 import { STATUS_PILL_CLASS } from "./cycle-workspace-model";
-import {
-  orderPendingPrompts,
-  pendingPromptCountLabel,
-  promptLevelTone,
-} from "./prompt-banner-model";
+import { orderPendingPrompts, pendingPromptCountLabel, promptLevelTone } from "./prompt-banner-model";
 import { usePromptResponseMutation } from "./server-state";
 import { usePromptValues } from "./use-prompt-values";
 
@@ -101,18 +92,14 @@ export function CyclePromptBanner({ prompts }: CyclePromptBannerProps) {
     });
   };
 
-  const changeValue = (field: PromptField, value: PromptValue) =>
-    setValues((current) => ({ ...current, [field.name]: value }));
+  const changeValue = (field: PromptField, value: PromptValue) => setValues((current) => ({ ...current, [field.name]: value }));
 
   return (
     <section aria-label="Pending Prompts" className="grid max-h-[50vh] gap-2 overflow-y-auto">
       <h2 className="flex items-center gap-2 font-heading text-sm leading-6 font-semibold">
         <BellRing aria-hidden className="size-4" />
         Operator Input Needed
-        <span
-          className="font-sans font-normal text-muted-foreground"
-          data-testid="cycle-prompt-count"
-        >
+        <span className="font-sans font-normal text-muted-foreground" data-testid="cycle-prompt-count">
           · {pendingPromptCountLabel(ordered.length)}
         </span>
       </h2>
@@ -134,17 +121,11 @@ export function CyclePromptBanner({ prompts }: CyclePromptBannerProps) {
                     onAction={submit}
                     onValueChange={changeValue}
                     prompt={openPrompt}
-                    submittingAction={
-                      responseMutation.isPending
-                        ? (responseMutation.variables?.action ?? null)
-                        : null
-                    }
+                    submittingAction={responseMutation.isPending ? (responseMutation.variables?.action ?? null) : null}
                     values={values}
                   />
                   {responseMutation.isError ? (
-                    <p className="text-sm text-destructive">
-                      The response was not accepted. Check the values and submit again.
-                    </p>
+                    <p className="text-sm text-destructive">The response was not accepted. Check the values and submit again.</p>
                   ) : null}
                 </>
               ) : null}
@@ -171,10 +152,7 @@ function PromptCard({ children, now, onToggle, open, prompt }: PromptCardProps) 
     <li
       className={recordToneShellClass(
         tone,
-        recordToneRowClass(
-          tone,
-          "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1.5 rounded-lg border-l-4 p-3",
-        ),
+        recordToneRowClass(tone, "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1.5 rounded-lg border-l-4 p-3"),
       )}
       data-prompt-id={prompt.correlation_id}
       data-prompt-level={prompt.level}
@@ -187,21 +165,13 @@ function PromptCard({ children, now, onToggle, open, prompt }: PromptCardProps) 
           {promptKindLabel(prompt.kind)}
         </Badge>
         <span />
-        <time
-          className="text-xs leading-6 text-muted-foreground tabular-nums"
-          dateTime={prompt.created_at}
-          title={prompt.created_at}
-        >
+        <time className="text-xs leading-6 text-muted-foreground tabular-nums" dateTime={prompt.created_at} title={prompt.created_at}>
           {relativeAgeLabel(prompt.created_at, now)}
         </time>
       </div>
       <div className="grid min-w-0 gap-1">
-        <p className="line-clamp-2 font-heading text-base leading-6 font-semibold text-foreground">
-          {prompt.title}
-        </p>
-        {prompt.message ? (
-          <p className="line-clamp-3 text-sm leading-5 text-foreground/80">{prompt.message}</p>
-        ) : null}
+        <p className="line-clamp-2 font-heading text-base leading-6 font-semibold text-foreground">{prompt.title}</p>
+        {prompt.message ? <p className="line-clamp-3 text-sm leading-5 text-foreground/80">{prompt.message}</p> : null}
       </div>
       <Button
         aria-expanded={open}

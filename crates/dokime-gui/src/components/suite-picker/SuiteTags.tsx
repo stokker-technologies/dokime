@@ -37,13 +37,7 @@ export function SuiteTags({ className, tags }: { className?: string; tags: strin
   const { hidden, visible } = splitTags(tags);
 
   return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden",
-        TAG_COLUMN_WIDTH,
-        className,
-      )}
-    >
+    <div className={cn("flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden", TAG_COLUMN_WIDTH, className)}>
       {visible.map((tag) => (
         <TagChip key={tag} label={formatTagLabel(tag)} />
       ))}
@@ -68,15 +62,7 @@ export function SuiteTags({ className, tags }: { className?: string; tags: strin
 /* === Subcomponents === */
 
 /** One chip face, shared by the tag column and the Library's provenance pills. */
-export function TagChip({
-  className,
-  label,
-  title,
-}: {
-  className?: string;
-  label: string;
-  title?: string;
-}) {
+export function TagChip({ className, label, title }: { className?: string; label: string; title?: string }) {
   return (
     <span
       className={cn(

@@ -24,24 +24,10 @@ import { type FormEvent, useId, useState } from "react";
 /* === Local Imports === */
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useReportDefaults } from "@/lib/application-settings";
 import type { DocumentDownsampleTechnique } from "@/lib/types";
 import type { PlotSettingsButtonProps } from "./plot-settings";
@@ -83,9 +69,7 @@ export function PlotSettingsButton({ plot, onSubmit }: PlotSettingsButtonProps) 
         <Settings2 />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        {open ? (
-          <PlotSettingsForm plot={plot} onClose={() => setOpen(false)} onSubmit={onSubmit} />
-        ) : null}
+        {open ? <PlotSettingsForm plot={plot} onClose={() => setOpen(false)} onSubmit={onSubmit} /> : null}
       </Dialog>
     </>
   );
@@ -95,21 +79,13 @@ export function PlotSettingsButton({ plot, onSubmit }: PlotSettingsButtonProps) 
 function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
   const id = useId();
   const defaults = useReportDefaults();
-  const defaultTechnique = TECHNIQUE_OPTIONS.find(
-    (option) => option.value === defaults.plotDownsample,
-  )?.label;
+  const defaultTechnique = TECHNIQUE_OPTIONS.find((option) => option.value === defaults.plotDownsample)?.label;
   /* `auto` on a plot means the plot follows the application default. */
   const options = TECHNIQUE_OPTIONS.map((option) =>
-    option.value === "auto" && defaults.plotDownsample !== "auto"
-      ? { ...option, label: `Default (${defaultTechnique})` }
-      : option,
+    option.value === "auto" && defaults.plotDownsample !== "auto" ? { ...option, label: `Default (${defaultTechnique})` } : option,
   );
-  const [pointsRaw, setPointsRaw] = useState(
-    plot.display_points == null ? "" : String(plot.display_points),
-  );
-  const [technique, setTechnique] = useState<DocumentDownsampleTechnique>(
-    plot.downsample ?? "auto",
-  );
+  const [pointsRaw, setPointsRaw] = useState(plot.display_points == null ? "" : String(plot.display_points));
+  const [technique, setTechnique] = useState<DocumentDownsampleTechnique>(plot.downsample ?? "auto");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const points = parseDisplayPoints(pointsRaw);
@@ -135,9 +111,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
       <form className="grid gap-4" onSubmit={submit}>
         <DialogHeader>
           <DialogTitle>Plot Settings</DialogTitle>
-          <DialogDescription>
-            {plot.title}. Saved with the running cycle, so the sealed report draws the same points.
-          </DialogDescription>
+          <DialogDescription>{plot.title}. Saved with the running cycle, so the sealed report draws the same points.</DialogDescription>
         </DialogHeader>
 
         {/* Label and control share one column pair per row so the two fields
@@ -157,10 +131,7 @@ function PlotSettingsForm({ plot, onClose, onSubmit }: PlotSettingsFormProps) {
             value={pointsRaw}
           />
           <Label htmlFor={`${id}-technique`}>Reduction</Label>
-          <Select
-            value={technique}
-            onValueChange={(value) => setTechnique(value as DocumentDownsampleTechnique)}
-          >
+          <Select value={technique} onValueChange={(value) => setTechnique(value as DocumentDownsampleTechnique)}>
             <SelectTrigger className="w-full" id={`${id}-technique`}>
               <SelectValue />
             </SelectTrigger>
@@ -208,7 +179,6 @@ function parseDisplayPoints(raw: string): number | null | undefined {
   if (!text) return null;
   const value = Number(text);
   if (!Number.isSafeInteger(value)) return undefined;
-  if (value !== 0 && (value < MIN_DISPLAY_POINTS || value > NATIVE_PLOT_MAX_POINTS))
-    return undefined;
+  if (value !== 0 && (value < MIN_DISPLAY_POINTS || value > NATIVE_PLOT_MAX_POINTS)) return undefined;
   return value;
 }

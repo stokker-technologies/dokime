@@ -93,9 +93,7 @@ const PlotRequestSchema = plotWire.Row3Schema;
 const PlotWindowSchema = plotWire.Row16Schema;
 type PlotStreamFrame = Wire<WatchFrame>;
 type PlotStreamKind = PlotStreamFrame["kind"];
-type NativeTelemetrySample = Wire<
-  Awaited<ReturnType<typeof rpc.telemetryListSamples>>
->["samples"][number];
+type NativeTelemetrySample = Wire<Awaited<ReturnType<typeof rpc.telemetryListSamples>>>["samples"][number];
 
 /* === Constants === */
 
@@ -186,10 +184,7 @@ export type NativePlotWatchOptions = NativePlotReadOptions & {
 /* === Public API === */
 
 /** Build one typed protobuf plot request from the document-facing input. */
-export function toNativePlotRequest(
-  input: PlotPayloadRequestInput,
-  cursor?: PlotCursor,
-): PlotRequest {
+export function toNativePlotRequest(input: PlotPayloadRequestInput, cursor?: PlotCursor): PlotRequest {
   const nativeCursor = cursor ?? nativeCursorFromInput(input.cursor);
   const nativeScope = nativeEvidenceScope(input.scope);
   return create(PlotRequestSchema, {
@@ -254,17 +249,13 @@ export function toNativePlotRequest(
     ...(input.seriesBy == null ? {} : { seriesBy: input.seriesBy }),
     ...(input.xExpression == null ? {} : { xExpression: dataExpression(input.xExpression) }),
     yExpressions: (input.yExpressions ?? []).map(dataExpression),
-    ...(input.seriesByExpression == null
-      ? {}
-      : { seriesByExpression: dataExpression(input.seriesByExpression) }),
+    ...(input.seriesByExpression == null ? {} : { seriesByExpression: dataExpression(input.seriesByExpression) }),
     ...(input.zStream == null ? {} : { zStream: input.zStream }),
     ...(input.zField == null ? {} : { zField: input.zField }),
     ...(input.unit == null ? {} : { unit: input.unit }),
     ...(input.maxPoints == null ? {} : { maxPoints: boundedPlotPoints(input.maxPoints) }),
     ...(input.windowS == null ? {} : { windowS: boundedWindow(input.windowS) }),
-    ...(input.summaryWindow == null
-      ? {}
-      : { summaryWindow: create(PlotWindowSchema, summaryWindow(input.summaryWindow)) }),
+    ...(input.summaryWindow == null ? {} : { summaryWindow: create(PlotWindowSchema, summaryWindow(input.summaryWindow)) }),
     ...(nativeScope ? { scope: nativeScope } : {}),
     ...(nativeCursor ? { cursor: nativeCursor } : {}),
     technique: downsampleTechnique(input.technique),
@@ -281,9 +272,7 @@ export async function queryNativePlotPayloads(
   ensureActive(session, options.signal);
   try {
     const reply = await rpc.plotsQuerySnapshots(session, {
-      requests: requests.map((request, index) =>
-        toNativePlotRequest(request, options.cursors?.[index]),
-      ),
+      requests: requests.map((request, index) => toNativePlotRequest(request, options.cursors?.[index])),
     });
     ensureActive(session, options.signal);
     return reply.envelopes.map(mapNativePlotEnvelope);
@@ -310,9 +299,7 @@ export async function fetchNativePlotPayloadBatch(
   requests: readonly PlotPayloadRequestInput[],
   options: NativePlotReadOptions = {},
 ): Promise<PlotPayload[]> {
-  return (await queryNativePlotPayloads(session, requests, options)).map(
-    (envelope) => envelope.payload,
-  );
+  return (await queryNativePlotPayloads(session, requests, options)).map((envelope) => envelope.payload);
 }
 
 /**
@@ -327,9 +314,7 @@ export async function openNativePlotStream(
 ): Promise<NativePlotStream> {
   boundedRequestCount(requests.length, "Plots.Watch");
   ensureActive(session, options.signal);
-  const nativeRequests = requests.map((request, index) =>
-    toNativePlotRequest(request, options.cursors?.[index]),
-  );
+  const nativeRequests = requests.map((request, index) => toNativePlotRequest(request, options.cursors?.[index]));
 
   let source: Awaited<ReturnType<typeof rpc.plotsWatch>> | null = null;
   try {
@@ -420,9 +405,7 @@ export async function listNativeTelemetrySamples(
       latest,
     });
     ensureActive(session, options.signal);
-    const throughStreamCursors = Object.fromEntries(
-      reply.throughStreamCursors.map(({ key, value }) => [key, value]),
-    );
+    const throughStreamCursors = Object.fromEntries(reply.throughStreamCursors.map(({ key, value }) => [key, value]));
     return {
       samples: reply.samples.map(mapNativeTelemetrySample),
       throughStreamCursors,
@@ -496,12 +479,8 @@ function mapNativePlotErrorEnvelope(envelope: PlotEnvelope): NativePlotPayloadEn
     payload: envelope.payload
       ? mapNativePlotPayload(envelope.payload)
       : { stream: "", x_key: "", max_points: 0, generated_at: "", series: [] },
-    ...(envelope.diagnostics
-      ? { diagnostics: mapNativePlotDiagnostics(envelope.diagnostics) }
-      : {}),
-    warnings: envelope.warnings.length
-      ? [...envelope.warnings]
-      : ["Plot stream returned an error."],
+    ...(envelope.diagnostics ? { diagnostics: mapNativePlotDiagnostics(envelope.diagnostics) } : {}),
+    warnings: envelope.warnings.length ? [...envelope.warnings] : ["Plot stream returned an error."],
   };
 }
 
@@ -569,10 +548,7 @@ function dataExpression(value: DocumentDataExpression): DataExpression {
   }
   const transforms = (rawTransforms ?? []).map(dataTransform);
   if (transforms.length > MAX_PLOT_TRANSFORMS) {
-    throw new NativeApiLimitError(
-      "Plots expression",
-      `more than ${MAX_PLOT_TRANSFORMS} transforms`,
-    );
+    throw new NativeApiLimitError("Plots expression", `more than ${MAX_PLOT_TRANSFORMS} transforms`);
   }
   return create(DataExpressionSchema, { source: { HarmosVariant: wireSource }, transforms });
 }
@@ -599,10 +575,7 @@ function dataTransform(value: unknown): DataTransform {
             case: "TimeBetween",
             value: {
               field0: {
-                previousRecordType: requiredText(
-                  input.previous_record_type,
-                  "previous record type",
-                ),
+                previousRecordType: requiredText(input.previous_record_type, "previous record type"),
               },
             },
           },
@@ -649,9 +622,7 @@ function nativeCursorFromInput(cursor?: PlotPayloadCursor | null): PlotCursor | 
       key,
       value: boundedUint64(value, "plot cursor telemetry sequence"),
     })),
-    ...(cursor.record_sequence == null
-      ? {}
-      : { recordSequence: boundedUint64(cursor.record_sequence, "plot cursor record sequence") }),
+    ...(cursor.record_sequence == null ? {} : { recordSequence: boundedUint64(cursor.record_sequence, "plot cursor record sequence") }),
     epoch: candidate.epoch,
     selection: candidate.selection,
   });
@@ -717,9 +688,7 @@ function axisScale(value?: DocumentAxisScale | null): AxisScale {
   }
 }
 
-function filterOperator(
-  value: NonNullable<DocumentViewPlot["filters"]>[number]["operator"],
-): FilterOperator {
+function filterOperator(value: NonNullable<DocumentViewPlot["filters"]>[number]["operator"]): FilterOperator {
   switch (value) {
     case "eq":
       return { HarmosVariant: { case: "Eq" as const, value: {} } };
@@ -747,15 +716,9 @@ function filterOperator(
 function mapPlotCursor(cursor: PlotCursor): PlotPayloadCursor {
   return {
     telemetry_streams: Object.fromEntries(
-      cursor.telemetryStreams.map(({ key, value }) => [
-        key,
-        safeNumber(value, "Plots cursor telemetry sequence"),
-      ]),
+      cursor.telemetryStreams.map(({ key, value }) => [key, safeNumber(value, "Plots cursor telemetry sequence")]),
     ),
-    record_sequence:
-      cursor.recordSequence === undefined
-        ? null
-        : safeNumber(cursor.recordSequence, "Plots cursor record sequence"),
+    record_sequence: cursor.recordSequence === undefined ? null : safeNumber(cursor.recordSequence, "Plots cursor record sequence"),
   };
 }
 
@@ -866,9 +829,7 @@ function mapNativePlotAnalysis(analysis?: NativePlotAnalysis): PlotAnalysis | nu
       return {
         kind: "wifi_occupancy",
         channels: occupancy.channels.map((channel) => safeNumber(channel, "wifi channel")),
-        occupied_channels: occupancy.occupiedChannels.map((channel) =>
-          safeNumber(channel, "wifi occupied channel"),
-        ),
+        occupied_channels: occupancy.occupiedChannels.map((channel) => safeNumber(channel, "wifi occupied channel")),
         bands: occupancy.bands.map((band) => ({
           band: band.band,
           occupied_channels: safeNumber(band.occupiedChannels, "wifi band occupied channels"),
@@ -947,9 +908,7 @@ function nativeDomain(value?: { min: number; max: number }): { min: number; max:
   return { min: value.min, max: value.max };
 }
 
-function mapNativePlotDiagnostics(
-  diagnostics: NativePlotPayloadDiagnostics,
-): PlotPayloadDiagnostics {
+function mapNativePlotDiagnostics(diagnostics: NativePlotPayloadDiagnostics): PlotPayloadDiagnostics {
   return {
     series_count: safeNumber(diagnostics.seriesCount, "Plots diagnostics series_count"),
     point_count: safeNumber(diagnostics.pointCount, "Plots diagnostics point_count"),
@@ -1011,10 +970,7 @@ function boundedRequestCount(count: number, operation: string): void {
 
 function boundedTelemetryLimit(value: number): number {
   if (!Number.isSafeInteger(value) || value < 0 || value > NATIVE_TELEMETRY_MAX_LIMIT) {
-    throw new NativeApiLimitError(
-      "Telemetry.ListSamples",
-      `limit must be an integer between 0 and ${NATIVE_TELEMETRY_MAX_LIMIT}`,
-    );
+    throw new NativeApiLimitError("Telemetry.ListSamples", `limit must be an integer between 0 and ${NATIVE_TELEMETRY_MAX_LIMIT}`);
   }
   return value;
 }
@@ -1028,10 +984,7 @@ function boundedUint64(value: number, label: string): bigint {
 
 function boundedPlotPoints(value: number): bigint {
   if (!Number.isSafeInteger(value) || value < 0 || value > NATIVE_PLOT_MAX_POINTS) {
-    throw new NativeApiLimitError(
-      "Plots request",
-      `max_points must be an integer between 0 and ${NATIVE_PLOT_MAX_POINTS}`,
-    );
+    throw new NativeApiLimitError("Plots request", `max_points must be an integer between 0 and ${NATIVE_PLOT_MAX_POINTS}`);
   }
   return BigInt(value);
 }
@@ -1068,11 +1021,7 @@ function ensureActive(session: SessionIdentity, signal?: AbortSignal): void {
   if (signal?.aborted || !session.isCurrent()) throw abortError();
 }
 
-function normalizeCancellation(
-  error: unknown,
-  session: SessionIdentity,
-  signal?: AbortSignal,
-): unknown {
+function normalizeCancellation(error: unknown, session: SessionIdentity, signal?: AbortSignal): unknown {
   if (signal?.aborted || !session.isCurrent()) return abortError();
   return error;
 }
@@ -1115,9 +1064,7 @@ function mapNativeComputation(value?: NativeAnalysisComputation): EvidenceAnalys
       epoch: value.source.epoch,
       stream: value.source.stream,
       scope: recordScopeFromNative(value.source.scope),
-      telemetryStreams: Object.fromEntries(
-        value.source.telemetryStreams.map(({ key, value: cursor }) => [key, cursor.toString()]),
-      ),
+      telemetryStreams: Object.fromEntries(value.source.telemetryStreams.map(({ key, value: cursor }) => [key, cursor.toString()])),
       recordSequence: value.source.recordSequence?.toString(),
       windowS: value.source.windowS,
       fields: [...value.source.fields],

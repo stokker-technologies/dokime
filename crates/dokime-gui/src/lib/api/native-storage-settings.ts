@@ -52,18 +52,11 @@ export async function fetchStorageSources(session: SessionIdentity): Promise<Sto
   return sources(await rpc.settingsListStorageSources(session, {}));
 }
 
-export async function reorderStorageSources(
-  session: SessionIdentity,
-  identifiers: string[],
-): Promise<StorageSource[]> {
+export async function reorderStorageSources(session: SessionIdentity, identifiers: string[]): Promise<StorageSource[]> {
   return sources(await rpc.settingsReorderStorageSources(session, { identifiers }));
 }
 
-export async function setStorageSourceEnabled(
-  session: SessionIdentity,
-  identifier: string,
-  enabled: boolean,
-): Promise<StorageSource[]> {
+export async function setStorageSourceEnabled(session: SessionIdentity, identifier: string, enabled: boolean): Promise<StorageSource[]> {
   return sources(await rpc.settingsSetStorageSourceEnabled(session, { identifier, enabled }));
 }
 
@@ -71,18 +64,13 @@ export async function readStoragePolicy(session: SessionIdentity): Promise<Stora
   return policyView(await rpc.settingsReadStoragePolicy(session, {}));
 }
 
-export async function updateStoragePolicy(
-  session: SessionIdentity,
-  revision: bigint,
-  policy: StoragePolicy,
-): Promise<StoragePolicyView> {
+export async function updateStoragePolicy(session: SessionIdentity, revision: bigint, policy: StoragePolicy): Promise<StoragePolicyView> {
   return policyView(
     await rpc.settingsUpdateStoragePolicy(session, {
       expectedRevision: revision,
       policy: {
         compactionIntervalMs: BigInt(policy.compactionIntervalMs),
-        localRetentionMs:
-          policy.localRetentionMs === null ? undefined : BigInt(policy.localRetentionMs),
+        localRetentionMs: policy.localRetentionMs === null ? undefined : BigInt(policy.localRetentionMs),
       },
     }),
   );
@@ -94,10 +82,7 @@ function policyView(view: WirePolicyView): StoragePolicyView {
     if (!value) throw new Error("Backend omitted storage policy");
     return {
       compactionIntervalMs: safeNumber(value.compactionIntervalMs, "compaction interval"),
-      localRetentionMs:
-        value.localRetentionMs === undefined
-          ? null
-          : safeNumber(value.localRetentionMs, "retention"),
+      localRetentionMs: value.localRetentionMs === undefined ? null : safeNumber(value.localRetentionMs, "retention"),
     };
   };
   return {

@@ -16,13 +16,7 @@
 import type { Wire } from "@/lib/rpc/canonical";
 import * as rpc from "@/lib/rpc/generated/client";
 import type { SessionIdentity } from "@/lib/rpc/transport";
-import type {
-  FileDefinition,
-  ParameterDefinition,
-  ParameterListDefinition,
-  SuiteTemplateEntry,
-  TestSuiteEntry,
-} from "@/lib/types";
+import type { FileDefinition, ParameterDefinition, ParameterListDefinition, SuiteTemplateEntry, TestSuiteEntry } from "@/lib/types";
 import type {
   Row8 as GeneratedFileParameterDefinition,
   Row7 as GeneratedParameterSchema,
@@ -57,18 +51,11 @@ type Cursor = Wire<GeneratedCursor>;
 
 export async function fetchNativeSuites(session: SessionIdentity): Promise<TestSuiteEntry[]> {
   const identities = await listSuites(session);
-  const definitions = await mapBounded(identities, (identity) =>
-    rpc.catalogGetSuite(session, { suiteId: identity.suiteId }),
-  );
-  return definitions.map((definition, index) =>
-    mapSuite(definition, identities[index] ?? definition.identity),
-  );
+  const definitions = await mapBounded(identities, (identity) => rpc.catalogGetSuite(session, { suiteId: identity.suiteId }));
+  return definitions.map((definition, index) => mapSuite(definition, identities[index] ?? definition.identity));
 }
 
-export async function fetchNativeSuite(
-  session: SessionIdentity,
-  suiteId: string,
-): Promise<TestSuiteEntry | null> {
+export async function fetchNativeSuite(session: SessionIdentity, suiteId: string): Promise<TestSuiteEntry | null> {
   const identity = (await listSuites(session)).find((item) => item.suiteId === suiteId);
   if (!identity) return null;
   return mapSuite(await rpc.catalogGetSuite(session, { suiteId }), identity);
@@ -89,8 +76,7 @@ async function listSuites(session: SessionIdentity): Promise<SuiteIdentity[]> {
     result.push(...reply.suites);
     const next = reply.nextAfterSuiteId;
     if (!next) return result;
-    if (next === afterSuiteId)
-      throw new NativeApiLimitError("Catalog.ListSuites", `cursor did not advance at ${next}`);
+    if (next === afterSuiteId) throw new NativeApiLimitError("Catalog.ListSuites", `cursor did not advance at ${next}`);
     afterSuiteId = next;
     cursor = reply.cursor;
   }
@@ -168,10 +154,7 @@ export function mapParameter(parameter: ParameterSchema): ParameterDefinition {
       parameter.expansion?.kind?.HarmosVariant.case === "Zip"
         ? { kind: "zip", group: parameter.expansion.kind.HarmosVariant.value.field0 }
         : {
-            kind:
-              parameter.expansion?.kind?.HarmosVariant.case === "Cartesian"
-                ? "cartesian"
-                : "single",
+            kind: parameter.expansion?.kind?.HarmosVariant.case === "Cartesian" ? "cartesian" : "single",
           },
     list: mapParameterList(parameter.list),
     min: parameter.min ?? null,
@@ -194,9 +177,7 @@ function mapParameterList(list: ParameterSchema["list"]): ParameterListDefinitio
 function parameterIdentifier(parameter: ParameterSchema): string {
   const identifier = parameter.metadata?.identifier;
   if (!identifier) {
-    throw new Error(
-      `Native parameter ${parameter.parameterId || "<unknown>"} has no metadata identifier.`,
-    );
+    throw new Error(`Native parameter ${parameter.parameterId || "<unknown>"} has no metadata identifier.`);
   }
   return identifier;
 }
@@ -223,8 +204,7 @@ function expressionValues(expression: NonNullable<ParameterSchema["expression"]>
     const kind = expression.nodes[index]?.kind?.HarmosVariant;
     if (!kind?.case) throw new Error("Native expression node has no kind.");
     function member(child: number): unknown[] {
-      if (child <= index || child >= expression.nodes.length)
-        throw new Error("Invalid expression member index.");
+      if (child <= index || child >= expression.nodes.length) throw new Error("Invalid expression member index.");
       return read(child, depth + 1);
     }
     switch (kind.case) {
@@ -241,8 +221,7 @@ function expressionValues(expression: NonNullable<ParameterSchema["expression"]>
         if (step === 0n || (step > 0n && start > stop) || (step < 0n && start < stop)) return [];
         const values: unknown[] = [];
         for (let current = start; step > 0n ? current <= stop : current >= stop; current += step) {
-          if (values.length >= NATIVE_CASE_LIMIT)
-            throw new NativeApiLimitError("Catalog.ParameterExpression", "more than 1000 values");
+          if (values.length >= NATIVE_CASE_LIMIT) throw new NativeApiLimitError("Catalog.ParameterExpression", "more than 1000 values");
           values.push(nativeValueToJson(jsonToNativeValue(current)));
         }
         return values;
@@ -256,8 +235,7 @@ function expressionValues(expression: NonNullable<ParameterSchema["expression"]>
         if (step === 0 || (step > 0 && start >= stop) || (step < 0 && start <= stop)) return [];
         const values: unknown[] = [];
         for (let current = start; step > 0 ? current < stop : current > stop; current += step) {
-          if (values.length >= NATIVE_CASE_LIMIT)
-            throw new NativeApiLimitError("Catalog.ParameterExpression", "more than 1000 values");
+          if (values.length >= NATIVE_CASE_LIMIT) throw new NativeApiLimitError("Catalog.ParameterExpression", "more than 1000 values");
           values.push(Number(current.toFixed(12)));
         }
         return values;
@@ -272,14 +250,11 @@ function expressionValues(expression: NonNullable<ParameterSchema["expression"]>
           throw new Error("Native expression payload is missing.");
         })();
         const count = safeNumber(rawCount, "linspace count");
-        if (count < 0 || count > NATIVE_CASE_LIMIT)
-          throw new NativeApiLimitError("Catalog.ParameterExpression", `linspace count ${count}`);
+        if (count < 0 || count > NATIVE_CASE_LIMIT) throw new NativeApiLimitError("Catalog.ParameterExpression", `linspace count ${count}`);
         if (count === 0) return [];
         if (count === 1) return [start];
         const step = (stop - start) / (count - 1);
-        return Array.from({ length: count }, (_, index) =>
-          Number((start + step * index).toFixed(12)),
-        );
+        return Array.from({ length: count }, (_, index) => Number((start + step * index).toFixed(12)));
       }
       default:
         // References and dynamic expressions require a runtime context and are
@@ -289,8 +264,6 @@ function expressionValues(expression: NonNullable<ParameterSchema["expression"]>
   }
 }
 
-export function valueObjectFromJson(
-  values: Record<string, unknown>,
-): ReturnType<typeof jsonToNativeValue> {
+export function valueObjectFromJson(values: Record<string, unknown>): ReturnType<typeof jsonToNativeValue> {
   return jsonToNativeValue(values);
 }

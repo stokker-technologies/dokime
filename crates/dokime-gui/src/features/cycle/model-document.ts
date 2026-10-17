@@ -31,9 +31,7 @@ import type { DocumentViewCard, HubLiveState, TelemetryStream } from "@/lib/type
 
 /* === Public Functions === */
 
-export function mergeParameterContexts(
-  ...contexts: Array<Record<string, unknown> | null | undefined>
-): Record<string, unknown> | null {
+export function mergeParameterContexts(...contexts: Array<Record<string, unknown> | null | undefined>): Record<string, unknown> | null {
   const merged: Record<string, unknown> = {};
   for (const context of contexts) {
     if (!context) {

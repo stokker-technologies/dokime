@@ -123,12 +123,7 @@ export function retainedConsoleRecords(records: HubRecord[]): HubRecord[] {
   let start = records.length;
   while (start > 0 && records.length - start < RETAINED_RECORDS) {
     const record = records[start - 1];
-    const size =
-      256 +
-      2 *
-        (record.source.length +
-          (record.message?.length ?? 0) +
-          JSON.stringify(record.details).length);
+    const size = 256 + 2 * (record.source.length + (record.message?.length ?? 0) + JSON.stringify(record.details).length);
     if (bytes + size > RETAINED_BYTES) break;
     bytes += size;
     start -= 1;
@@ -146,13 +141,11 @@ export function createConsoleRecordsStore() {
       buffers: new Map(),
       filter: "",
       session: null,
-      bindSession: (session) =>
-        set((state) => (state.session === session ? state : { buffers: new Map(), session })),
+      bindSession: (session) => set((state) => (state.session === session ? state : { buffers: new Map(), session })),
       clear: (key) => update(key, (buffer) => ({ ...buffer, records: [] })),
       receive: (key, page, dropped) =>
         update(key, (buffer) => {
-          const held =
-            buffer.epoch !== undefined && buffer.epoch !== page.epoch ? [] : buffer.records;
+          const held = buffer.epoch !== undefined && buffer.epoch !== page.epoch ? [] : buffer.records;
           return {
             afterSequence: page.nextSequence,
             dropped,

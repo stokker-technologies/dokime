@@ -17,9 +17,7 @@ import defaultBrandData from "../../../../branding/generated/default-brand.json"
 
 /* === Types === */
 
-export type BrandLogo =
-  | { kind: "wordmark"; text: string; className?: string }
-  | { kind: "image"; src: string; alt?: string };
+export type BrandLogo = { kind: "wordmark"; text: string; className?: string } | { kind: "image"; src: string; alt?: string };
 
 export type Brand = {
   label: string;
@@ -58,13 +56,7 @@ const BrandContext = createContext<Brand>(defaultBrand);
 
 /* === Components === */
 
-export function BrandProvider({
-  brand = defaultBrand,
-  children,
-}: {
-  brand?: Brand;
-  children: ReactNode;
-}) {
+export function BrandProvider({ brand = defaultBrand, children }: { brand?: Brand; children: ReactNode }) {
   return <BrandContext.Provider value={brand}>{children}</BrandContext.Provider>;
 }
 

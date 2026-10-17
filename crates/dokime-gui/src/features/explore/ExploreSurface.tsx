@@ -44,14 +44,7 @@ type ExploreSurfaceProps = {
  * only and publishes its title through the page chrome. Selection is owned by
  * the route's URL search state, so it survives navigation.
  */
-export function ExploreSurface({
-  comparing,
-  onBack,
-  onCompare,
-  onOpenEntry,
-  onToggleSelected,
-  selectedIds,
-}: ExploreSurfaceProps) {
+export function ExploreSurface({ comparing, onBack, onCompare, onOpenEntry, onToggleSelected, selectedIds }: ExploreSurfaceProps) {
   const [query, setQuery] = useState("");
   /* The box types faster than a round trip; the read follows the operator
      rather than every keystroke, and the box itself never lags. */
@@ -69,11 +62,7 @@ export function ExploreSurface({
       }
       for (const execution of [...entry.executions, ...entry.unrun]) {
         if (execution.archived) {
-          await setNativeExecutionArchived(
-            session.identity,
-            execution.metadata.execution_id,
-            false,
-          );
+          await setNativeExecutionArchived(session.identity, execution.metadata.execution_id, false);
         }
       }
     },
@@ -100,10 +89,7 @@ export function ExploreSurface({
 
   usePageChrome({ title: comparing ? "Compare" : "History" });
 
-  const selectedCycles = useMemo(
-    () => cycles.filter((cycle) => selectedIds.has(exploreEntryKey(cycle.target))),
-    [cycles, selectedIds],
-  );
+  const selectedCycles = useMemo(() => cycles.filter((cycle) => selectedIds.has(exploreEntryKey(cycle.target))), [cycles, selectedIds]);
 
   return (
     <div className="grid content-start">
@@ -155,9 +141,7 @@ export function ExploreSurface({
  * source that could not be read, or executions claiming the same identity.
  */
 function IncompleteHistoryNotice({ coverage }: { coverage: ExecutionBrowsePage }) {
-  const reasons = [
-    ...new Set(coverage.issues.map((issue) => `${issue.source ?? "Storage"}: ${issue.message}`)),
-  ];
+  const reasons = [...new Set(coverage.issues.map((issue) => `${issue.source ?? "Storage"}: ${issue.message}`))];
   const conflicts = coverage.conflicts.length + coverage.omitted_conflicts;
   if (conflicts > 0) {
     reasons.push(
@@ -168,10 +152,7 @@ function IncompleteHistoryNotice({ coverage }: { coverage: ExecutionBrowsePage }
   }
 
   return (
-    <div
-      className="grid gap-1 border-b px-[var(--shell-inset)] py-[var(--shell-gap)] text-sm text-muted-foreground"
-      role="status"
-    >
+    <div className="grid gap-1 border-b px-[var(--shell-inset)] py-[var(--shell-gap)] text-sm text-muted-foreground" role="status">
       <p>History is incomplete: some sources or executions could not be read.</p>
       {reasons.length ? (
         <ul className="list-disc pl-5">

@@ -38,20 +38,14 @@ export type HistogramAxes = {
   y: { label: string };
 };
 
-export type HistogramDeclaration = Pick<
-  DocumentViewPlot,
-  "title" | "x" | "unit" | "histogram" | "x_format"
->;
+export type HistogramDeclaration = Pick<DocumentViewPlot, "title" | "x" | "unit" | "histogram" | "x_format">;
 
 export type HistogramColumn = Pick<TelemetryColumnSpec, "label" | "unit" | "format">;
 
 /* === Public Functions === */
 
 /** The histogram's axes: the declared value on x, the host's count on y. */
-export function histogramAxes(
-  plot: HistogramDeclaration,
-  column?: HistogramColumn | null,
-): HistogramAxes {
+export function histogramAxes(plot: HistogramDeclaration, column?: HistogramColumn | null): HistogramAxes {
   const field = plot.x && plot.x !== "timestamp" ? plot.x : null;
   return {
     x: {

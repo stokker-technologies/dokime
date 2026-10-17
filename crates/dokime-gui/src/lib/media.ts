@@ -19,41 +19,16 @@ export type MediaArtifactCandidate = {
 
 /* === Constants === */
 
-const IMAGE_EXTENSIONS = new Set([
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".gif",
-  ".webp",
-  ".bmp",
-  ".tif",
-  ".tiff",
-  ".svg",
-]);
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".svg"]);
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".mov", ".avi", ".mkv", ".m4v"]);
 
-const AUDIO_EXTENSIONS = new Set([
-  ".wav",
-  ".mp3",
-  ".ogg",
-  ".oga",
-  ".opus",
-  ".flac",
-  ".m4a",
-  ".aac",
-]);
+const AUDIO_EXTENSIONS = new Set([".wav", ".mp3", ".ogg", ".oga", ".opus", ".flac", ".m4a", ".aac"]);
 
 /* === Public Functions === */
 
-export function mediaArtifactKind(
-  artifactOrPath: MediaArtifactCandidate | string,
-  mediaType?: string | null,
-): MediaArtifactKind | null {
-  const path =
-    typeof artifactOrPath === "string"
-      ? artifactOrPath
-      : artifactOrPath.path || artifactOrPath.label || "";
+export function mediaArtifactKind(artifactOrPath: MediaArtifactCandidate | string, mediaType?: string | null): MediaArtifactKind | null {
+  const path = typeof artifactOrPath === "string" ? artifactOrPath : artifactOrPath.path || artifactOrPath.label || "";
   const extension = artifactExtension(path);
 
   if (IMAGE_EXTENSIONS.has(extension)) {
@@ -67,9 +42,7 @@ export function mediaArtifactKind(
   }
 
   const normalizedType =
-    (typeof artifactOrPath === "string" ? mediaType : (artifactOrPath.media_type ?? mediaType))
-      ?.trim()
-      .toLowerCase() ?? "";
+    (typeof artifactOrPath === "string" ? mediaType : (artifactOrPath.media_type ?? mediaType))?.trim().toLowerCase() ?? "";
   if (normalizedType.startsWith("image/")) {
     return "image";
   }
@@ -83,10 +56,7 @@ export function mediaArtifactKind(
   return null;
 }
 
-export function isMediaArtifact(
-  artifactOrPath: MediaArtifactCandidate | string,
-  mediaType?: string | null,
-): boolean {
+export function isMediaArtifact(artifactOrPath: MediaArtifactCandidate | string, mediaType?: string | null): boolean {
   return mediaArtifactKind(artifactOrPath, mediaType) !== null;
 }
 

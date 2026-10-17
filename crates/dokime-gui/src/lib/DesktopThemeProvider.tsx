@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Connected Desktop Theme Preferences.
  */
@@ -21,11 +20,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 // Local Imports
 import { useAppearance } from "@/lib/appearance";
-import {
-  applicationSettingsError,
-  useApplicationSettings,
-  useSaveAppearance,
-} from "@/lib/application-settings";
+import { applicationSettingsError, useApplicationSettings, useSaveAppearance } from "@/lib/application-settings";
 import type { ResolvedTheme, ThemeModePreference } from "@/lib/theme";
 import { useUiStore } from "@/stores/ui-store";
 import { ApplicationThemeProvider } from "./application-theme";
@@ -41,20 +36,12 @@ export function DesktopThemeProvider({ children }: { children: ReactNode }) {
   const query = useApplicationSettings();
   const save = useSaveAppearance();
   const appearance = useAppearance();
-  const [system, setSystem] = useState<ResolvedTheme>(() =>
-    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
-  );
+  const [system, setSystem] = useState<ResolvedTheme>(() => (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
   const settings = query.data?.appearance;
   const theme = settings?.themeMode ?? "system";
   const policy = appearance.mode_policy;
   const forcedTheme =
-    policy === "force_dark"
-      ? "dark"
-      : policy === "force_light"
-        ? "light"
-        : policy === "force_system"
-          ? system
-          : undefined;
+    policy === "force_dark" ? "dark" : policy === "force_light" ? "light" : policy === "force_system" ? system : undefined;
   const resolvedTheme = forcedTheme ?? (theme === "system" ? system : theme);
 
   useEffect(() => {

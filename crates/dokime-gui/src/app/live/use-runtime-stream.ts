@@ -15,11 +15,7 @@ import { useEffect } from "react";
 /* === Local Imports === */
 
 import { useNativeSessionOptional } from "@/app/native-session/context";
-import {
-  invalidateRuntimeDocuments,
-  invalidateRuntimeProjectionQueries,
-  workflowQueryKeys,
-} from "@/features/cycle/server-state";
+import { invalidateRuntimeDocuments, invalidateRuntimeProjectionQueries, workflowQueryKeys } from "@/features/cycle/server-state";
 import type { RuntimeStateFrame } from "@/lib/api/native-observation";
 import { openNativeRuntimeStream } from "@/lib/api/native-observation";
 import { operationsFromFrame } from "@/shell/status-bar-operations";
@@ -63,10 +59,7 @@ export function useRuntimeStream(): void {
     const refreshCoordinator = createRuntimeProjectionRefreshCoordinator(async () => {
       await Promise.all([
         invalidateRuntimeProjectionQueries(queryClient),
-        queryClient.invalidateQueries(
-          { queryKey: workflowQueryKeys.runtimeShell() },
-          { cancelRefetch: false },
-        ),
+        queryClient.invalidateQueries({ queryKey: workflowQueryKeys.runtimeShell() }, { cancelRefetch: false }),
       ]);
       documentRefresh.request();
     });
@@ -74,10 +67,7 @@ export function useRuntimeStream(): void {
     const connect = async () => {
       if (!active || !session.identity.isCurrent()) return;
       try {
-        stream = await openNativeRuntimeStream(
-          { ...session.identity, own: session.own },
-          undefined,
-        );
+        stream = await openNativeRuntimeStream({ ...session.identity, own: session.own }, undefined);
         if (!active || !session.identity.isCurrent()) {
           await stream.cancel();
           return;
@@ -143,15 +133,11 @@ function handleRuntimeFrame(
   }
   /* A frame that only moves the backend's operations repeats its cursor;
      the projections it would refresh have not changed. */
-  const cursor = frame.cursor
-    ? `${frame.cursor.epoch}/${frame.cursor.stream}/${frame.cursor.position}`
-    : null;
+  const cursor = frame.cursor ? `${frame.cursor.epoch}/${frame.cursor.stream}/${frame.cursor.position}` : null;
   if (frame.resynchronized || (cursor !== null && cursor !== observed)) {
     const ensureTrailing =
       queryClient.isFetching({
-        predicate: (query) =>
-          query.queryKey[0] === workflowQueryKeys.all[0] &&
-          query.queryKey.at(-1) === sessionGeneration,
+        predicate: (query) => query.queryKey[0] === workflowQueryKeys.all[0] && query.queryKey.at(-1) === sessionGeneration,
       }) > 0;
     void refreshCoordinator.request({ ensureTrailing }).catch((error: unknown) => {
       if (!isActive()) return;

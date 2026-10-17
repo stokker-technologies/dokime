@@ -53,11 +53,7 @@ export function AppProviders({ children }: AppProvidersProps) {
     </AppearanceProvider>
   );
 
-  return session ? (
-    content
-  ) : (
-    <QueryClientProvider client={queryClient}>{content}</QueryClientProvider>
-  );
+  return session ? content : <QueryClientProvider client={queryClient}>{content}</QueryClientProvider>;
 }
 
 function ThemeProviderFromAppearance({ children }: AppProvidersProps) {

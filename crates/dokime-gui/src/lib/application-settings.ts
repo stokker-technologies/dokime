@@ -88,8 +88,7 @@ let pendingSave: Promise<unknown> = Promise.resolve();
 
 /* === Public Functions === */
 
-export const applicationSettingsKey = (generation: string) =>
-  ["settings", "application", generation] as const;
+export const applicationSettingsKey = (generation: string) => ["settings", "application", generation] as const;
 
 export function useApplicationSettings() {
   const session = useNativeSessionOptional();
@@ -157,22 +156,14 @@ export function useSaveDataRoot() {
   return useMutation({
     mutationFn: (dataRoot: string | null) =>
       serialized(session?.identity, async (identity) =>
-        settingsView(
-          await rpc.settingsUpdateDataRoot(identity, { dataRoot: dataRoot ?? undefined }),
-        ),
+        settingsView(await rpc.settingsUpdateDataRoot(identity, { dataRoot: dataRoot ?? undefined })),
       ),
     onSuccess: cache,
   });
 }
 
 export function applicationSettingsError(error: unknown): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
-  )
-    return error.message;
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") return error.message;
   return String(error);
 }
 
@@ -180,10 +171,7 @@ export function applicationSettingsError(error: unknown): string {
 
 const DISCONNECTED = "Settings are available once the backend is connected";
 
-function serialized<T>(
-  identity: SessionIdentity | undefined,
-  write: (identity: SessionIdentity) => Promise<T>,
-): Promise<T> {
+function serialized<T>(identity: SessionIdentity | undefined, write: (identity: SessionIdentity) => Promise<T>): Promise<T> {
   const saved = pendingSave
     .catch(() => undefined)
     .then(() => {
@@ -199,8 +187,7 @@ function useSavedSettings() {
   const client = useQueryClient();
   const session = useNativeSessionOptional();
   return (view: ApplicationSettingsView) => {
-    if (session?.identity.isCurrent())
-      client.setQueryData(applicationSettingsKey(session.identity.generation), view);
+    if (session?.identity.isCurrent()) client.setQueryData(applicationSettingsKey(session.identity.generation), view);
   };
 }
 
@@ -227,11 +214,7 @@ function appearance(wire: AppearancePreference | undefined): Appearance {
 function reportDefaults(wire: ReportPreference | undefined): ReportDefaults {
   return {
     plotPoints: wire?.plotPoints || BUILT_IN_REPORT_DEFAULTS.plotPoints,
-    plotDownsample: fromWire(
-      TECHNIQUES,
-      wire?.plotDownsample?.HarmosVariant.case,
-      BUILT_IN_REPORT_DEFAULTS.plotDownsample,
-    ),
+    plotDownsample: fromWire(TECHNIQUES, wire?.plotDownsample?.HarmosVariant.case, BUILT_IN_REPORT_DEFAULTS.plotDownsample),
   };
 }
 

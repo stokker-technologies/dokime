@@ -21,14 +21,8 @@ import { type ReactNode, useState } from "react";
 /* === Local Imports === */
 
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
-import {
-  DocumentEmbeddedBlock,
-  DocumentEmbeddedEmptyState,
-} from "@/components/document/DocumentEmbeddedContent";
-import {
-  DocumentMetricFlow,
-  metricFlowStorageKey,
-} from "@/components/document/DocumentOverviewCards";
+import { DocumentEmbeddedBlock, DocumentEmbeddedEmptyState } from "@/components/document/DocumentEmbeddedContent";
+import { DocumentMetricFlow, metricFlowStorageKey } from "@/components/document/DocumentOverviewCards";
 import { FrozenOperatorNotes } from "@/components/document/OperatorNotesView";
 import { LivePlotGroupGrid, type PlotSettingsChange } from "@/components/document/PlotGroupGrid";
 import { RecordTimeline } from "@/components/document/RecordTimeline";
@@ -37,22 +31,8 @@ import { MediaGalleryView } from "@/components/MediaGalleryView";
 import type { MediaGalleryArtifact } from "@/components/media-gallery-model";
 import { CopyableTraceabilityValue } from "@/components/traceability/CopyableTraceabilityValue";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ArtifactTreeInput } from "@/lib/artifact-tree";
 import { formatValue } from "@/lib/dashboard";
 import { isStatedGroup } from "@/lib/traceability";
@@ -189,11 +169,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
       <div className="grid gap-3">
         {reportMode ? null : props.captureControls}
         {props.mediaContent ?? (
-          <MediaGalleryView
-            artifacts={props.mediaArtifacts}
-            emptyMessage="No media recorded."
-            runDir={props.runDir}
-          />
+          <MediaGalleryView artifacts={props.mediaArtifacts} emptyMessage="No media recorded." runDir={props.runDir} />
         )}
       </div>
     );
@@ -201,13 +177,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
 
   if (props.card.kind === "artifacts") {
     return (
-      props.artifactsContent ?? (
-        <ArtifactTreeView
-          artifacts={props.artifacts}
-          emptyMessage="No artifacts recorded."
-          runDir={props.runDir}
-        />
-      )
+      props.artifactsContent ?? <ArtifactTreeView artifacts={props.artifacts} emptyMessage="No artifacts recorded." runDir={props.runDir} />
     );
   }
 
@@ -220,20 +190,14 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
   }
 
   if (props.card.kind === "notes") {
-    return (
-      props.notesContent ?? <FrozenOperatorNotes notes={props.notes} />
-    );
+    return props.notesContent ?? <FrozenOperatorNotes notes={props.notes} />;
   }
 
   if (props.card.kind === "steps") {
     return (
       <StepRecordList
         records={props.stepRecords}
-        emptyMessage={
-          reportMode
-            ? "No step records for the selected case run."
-            : "No step records for the selected execution yet."
-        }
+        emptyMessage={reportMode ? "No step records for the selected case run." : "No step records for the selected execution yet."}
       />
     );
   }
@@ -242,11 +206,7 @@ export function DocumentCardContentView(props: DocumentCardContentProps) {
     return (
       <StepRecordList
         records={props.criterionRecords}
-        emptyMessage={
-          reportMode
-            ? "No criteria records for the selected case run."
-            : "No criteria records for the selected execution yet."
-        }
+        emptyMessage={reportMode ? "No criteria records for the selected case run." : "No criteria records for the selected execution yet."}
       />
     );
   }
@@ -302,8 +262,7 @@ export function DocumentTableContent({ rows }: { rows: DocumentViewTableRow[] })
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <span>
-              {currentPage * pageSize + 1}-{currentPage * pageSize + pagedRows.length} of{" "}
-              {rows.length} rows
+              {currentPage * pageSize + 1}-{currentPage * pageSize + pagedRows.length} of {rows.length} rows
             </span>
             <Select
               value={String(pageSize)}
@@ -357,11 +316,7 @@ export function DocumentTableContent({ rows }: { rows: DocumentViewTableRow[] })
   );
 }
 
-export function TraceabilityDocumentContent({
-  traceability,
-}: {
-  traceability: TraceabilitySnapshot | null | undefined;
-}) {
+export function TraceabilityDocumentContent({ traceability }: { traceability: TraceabilitySnapshot | null | undefined }) {
   const groups = traceability?.groups ?? [];
   return groups.length ? (
     <div className="min-w-0 columns-1 gap-4 md:columns-2 xl:columns-3">
@@ -371,11 +326,7 @@ export function TraceabilityDocumentContent({
             <strong className="block truncate" title={group.title}>
               {group.title}
             </strong>
-            {group.summary ? (
-              <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                {group.summary}
-              </p>
-            ) : null}
+            {group.summary ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{group.summary}</p> : null}
           </div>
           <dl className="grid min-w-0 gap-1.5">
             {/* A stated section is shown whole: the author chose its rows, so
@@ -398,11 +349,7 @@ export function TraceabilityDocumentContent({
         </DocumentEmbeddedBlock>
       ))}
       {traceability?.warnings.length ? (
-        <DocumentEmbeddedBlock
-          as="ul"
-          className="mb-4 break-inside-avoid gap-1 text-sm text-muted-foreground"
-          tone="warning"
-        >
+        <DocumentEmbeddedBlock as="ul" className="mb-4 break-inside-avoid gap-1 text-sm text-muted-foreground" tone="warning">
           {traceability.warnings.slice(0, 6).map((warning) => (
             <li key={warning}>{warning}</li>
           ))}
@@ -444,13 +391,9 @@ export function HealthDocumentContent({ health }: { health: HealthItem[] }) {
         <DocumentEmbeddedBlock as="article" className="gap-1" key={item.health_id}>
           <div className="flex items-center justify-between gap-3">
             <strong className="[overflow-wrap:anywhere]">{item.title}</strong>
-            <span className="rounded-md border bg-muted/40 px-2 py-0.5 text-xs capitalize text-muted-foreground">
-              {item.level}
-            </span>
+            <span className="rounded-md border bg-muted/40 px-2 py-0.5 text-xs capitalize text-muted-foreground">{item.level}</span>
           </div>
-          {item.message ? (
-            <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{item.message}</p>
-          ) : null}
+          {item.message ? <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{item.message}</p> : null}
         </DocumentEmbeddedBlock>
       ))}
     </div>
@@ -459,13 +402,7 @@ export function HealthDocumentContent({ health }: { health: HealthItem[] }) {
   );
 }
 
-export function RecordListContent({
-  live = true,
-  records,
-}: {
-  live?: boolean;
-  records: HubRecord[];
-}) {
+export function RecordListContent({ live = true, records }: { live?: boolean; records: HubRecord[] }) {
   return <RecordTimeline live={live} records={records} />;
 }
 
@@ -486,10 +423,7 @@ function tableColumns(rows: DocumentViewTableRow[]): string[] {
   return columns;
 }
 
-function reportPlotStates(
-  documentPlots: DocumentViewPlot[],
-  reportPlots: Record<string, PlotPayload>,
-): LivePlotStateMap {
+function reportPlotStates(documentPlots: DocumentViewPlot[], reportPlots: Record<string, PlotPayload>): LivePlotStateMap {
   return Object.fromEntries(
     documentPlots.flatMap((plot) => {
       const payload = reportPlots[plot.plot_id];
@@ -513,9 +447,7 @@ function reportPlotStates(
   );
 }
 
-function isReportDocumentSurface(
-  props: DocumentCardContentProps,
-): props is ReportDocumentSurfaceProps {
+function isReportDocumentSurface(props: DocumentCardContentProps): props is ReportDocumentSurfaceProps {
   return props.renderMode === "report";
 }
 

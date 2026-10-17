@@ -35,10 +35,7 @@ export function XyScatterPlot({
   const setSummaryWindow = useSummaryWindowStore((state) => state.setSummaryWindow);
   // A live zoom asks the backend for the zoomed range's statistics; a report's
   // statistics stay frozen over the window it captured.
-  const onViewportChange = useCallback(
-    (window: SummaryWindow | null) => setSummaryWindow(plot.key, window),
-    [plot.key, setSummaryWindow],
-  );
+  const onViewportChange = useCallback((window: SummaryWindow | null) => setSummaryWindow(plot.key, window), [plot.key, setSummaryWindow]);
   useEffect(() => () => setSummaryWindow(plot.key, null), [plot.key, setSummaryWindow]);
   return (
     <CartesianPlot

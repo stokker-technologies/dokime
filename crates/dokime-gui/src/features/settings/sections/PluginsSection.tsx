@@ -17,14 +17,7 @@ import { useCallback, useState } from "react";
 
 import { titleCaseIdentifier } from "@/components/start-cycle-form-model";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInstalledPluginsQuery } from "@/features/settings/installed-plugins/installed-plugin-queries";
 import { PluginConsentDialog } from "@/features/settings/plugins/PluginConsentDialog";
 import { PluginDropZone } from "@/features/settings/plugins/PluginDropZone";
@@ -66,12 +59,7 @@ export function PluginsSection() {
   const standalone = new Map<string, typeof programs>();
   for (const program of programs) {
     const owner = program.owner;
-    if (
-      owner?.kind === "bundle" &&
-      owner.installation &&
-      entries.some((entry) => entry.install_id === owner.installation)
-    )
-      continue;
+    if (owner?.kind === "bundle" && owner.installation && entries.some((entry) => entry.install_id === owner.installation)) continue;
     const name =
       owner?.kind === "host"
         ? `${brand.label} Host`
@@ -93,15 +81,11 @@ export function PluginsSection() {
     (entry: PluginEntry): string | null => {
       const artifacts = new Set(
         programs
-          .filter(
-            (program) =>
-              program.owner?.kind === "bundle" && program.owner.installation === entry.install_id,
-          )
+          .filter((program) => program.owner?.kind === "bundle" && program.owner.installation === entry.install_id)
           .map((program) => program.plugin_id),
       );
       const section = (settings.frame?.sections ?? []).find(
-        (candidate) =>
-          candidate.owner.kind === "installed_plugin" && artifacts.has(candidate.owner.plugin_id),
+        (candidate) => candidate.owner.kind === "installed_plugin" && artifacts.has(candidate.owner.plugin_id),
       );
       return section?.section_id ?? null;
     },
@@ -195,17 +179,10 @@ export function PluginsSection() {
           <div className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 p-4 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">Restart Required</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Restart {brand.label} to apply pending plugin changes.
-              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Restart {brand.label} to apply pending plugin changes.</p>
             </div>
             {desktop ? (
-              <Button
-                disabled={restartMutation.isPending}
-                onClick={() => setRestartPrompt(true)}
-                size="sm"
-                variant="outline"
-              >
+              <Button disabled={restartMutation.isPending} onClick={() => setRestartPrompt(true)} size="sm" variant="outline">
                 <RotateCcw className={restartMutation.isPending ? "animate-spin" : undefined} />
                 {restartMutation.isPending ? "Restarting…" : `Restart ${brand.label}`}
               </Button>
@@ -231,9 +208,7 @@ export function PluginsSection() {
               <h2 className="text-sm font-semibold" id="installed-plugins-title">
                 Installed Plugins
               </h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Active state reflects this application process.
-              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Active state reflects this application process.</p>
             </div>
 
             {pluginsQuery.isPending ? (
@@ -260,15 +235,11 @@ export function PluginsSection() {
                 entries={entries}
                 changingEnabled={enabledMutation.isPending}
                 onSetEnabled={(entry, enabled) =>
-                  enabledMutation.mutate(
-                    { installId: entry.install_id, enabled },
-                    { onSuccess: () => setRestartPrompt(true) },
-                  )
+                  enabledMutation.mutate({ installId: entry.install_id, enabled }, { onSuccess: () => setRestartPrompt(true) })
                 }
                 onOpenSettings={(entry) => {
                   const pluginId = settingsSectionOf(entry);
-                  if (pluginId)
-                    void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" });
+                  if (pluginId) void navigate({ params: { pluginId }, to: "/settings/plugins/$pluginId" });
                 }}
                 settingsSectionOf={settingsSectionOf}
                 onRemove={setRemoveCandidate}
@@ -317,8 +288,8 @@ export function PluginsSection() {
           <DialogHeader>
             <DialogTitle>Restart {brand.label}?</DialogTitle>
             <DialogDescription>
-              Plugin changes are saved. Restart {brand.label} to apply them. Active work will stop
-              and plugin resources will close before the application restarts.
+              Plugin changes are saved. Restart {brand.label} to apply them. Active work will stop and plugin resources will close before
+              the application restarts.
             </DialogDescription>
           </DialogHeader>
           {restartMutation.isError ? (
@@ -343,10 +314,7 @@ export function PluginsSection() {
       <PluginConsentDialog
         busy={consentMutation.isPending || (removeMutation.isPending && Boolean(staged))}
         entry={staged}
-        error={errorMessage(
-          consentMutation.error ?? (staged ? removeMutation.error : null),
-          "The plugin action could not be completed.",
-        )}
+        error={errorMessage(consentMutation.error ?? (staged ? removeMutation.error : null), "The plugin action could not be completed.")}
         onCancel={() => void handleCancelConsent()}
         onInstall={() => void handleInstall()}
       />
@@ -374,20 +342,10 @@ export function PluginsSection() {
             </p>
           ) : null}
           <DialogFooter>
-            <Button
-              disabled={removeMutation.isPending}
-              onClick={() => setRemoveCandidate(null)}
-              type="button"
-              variant="outline"
-            >
+            <Button disabled={removeMutation.isPending} onClick={() => setRemoveCandidate(null)} type="button" variant="outline">
               Cancel
             </Button>
-            <Button
-              disabled={removeMutation.isPending}
-              onClick={() => void handleRemove()}
-              type="button"
-              variant="destructive"
-            >
+            <Button disabled={removeMutation.isPending} onClick={() => void handleRemove()} type="button" variant="destructive">
               {removeMutation.isPending ? "Removing…" : "Remove Plugin"}
             </Button>
           </DialogFooter>

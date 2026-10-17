@@ -25,10 +25,7 @@ export function artifactVisibleInScope(artifact: ScopedArtifact, filter: RecordS
 }
 
 /** Every selected owner must be present and equal in the record. */
-export function scopeVisibleIn(
-  scope: RecordScope | null | undefined,
-  filter: RecordScope,
-): boolean {
+export function scopeVisibleIn(scope: RecordScope | null | undefined, filter: RecordScope): boolean {
   return (
     fieldVisibleIn(scope?.session_id, filter.session_id) &&
     fieldVisibleIn(scope?.test_cycle_id, filter.test_cycle_id) &&
@@ -43,9 +40,6 @@ export function scopeVisibleIn(
 
 /* === Private Functions === */
 
-function fieldVisibleIn(
-  record: string | null | undefined,
-  selected: string | null | undefined,
-): boolean {
+function fieldVisibleIn(record: string | null | undefined, selected: string | null | undefined): boolean {
   return selected == null || record === selected;
 }

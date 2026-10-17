@@ -16,12 +16,7 @@
 import { Badge } from "@/components/ui/badge";
 import { SettingsCard } from "@/features/settings/SettingsCard";
 import { SettingsRow } from "@/features/settings/SettingsRow";
-import type {
-  HostCardBlock,
-  HostCardTone,
-  RuntimeSettingsCard,
-  RuntimeSettingsCardState,
-} from "@/features/settings/settings-contracts";
+import type { HostCardBlock, HostCardTone, RuntimeSettingsCard, RuntimeSettingsCardState } from "@/features/settings/settings-contracts";
 
 /* === Types === */
 
@@ -71,13 +66,7 @@ function HostCardBlockView({ block }: { block: HostCardBlock }) {
       return <div className="px-4 py-2 text-sm text-muted-foreground">{block.text}</div>;
     case "status": {
       const tone = toneMeta(block.tone);
-      return (
-        <SettingsRow
-          control={<Badge variant={tone.variant}>{tone.label}</Badge>}
-          description={block.detail}
-          label={block.label}
-        />
-      );
+      return <SettingsRow control={<Badge variant={tone.variant}>{tone.label}</Badge>} description={block.detail} label={block.label} />;
     }
     case "key_value_list":
       return (
@@ -104,13 +93,9 @@ function HostCardBlockView({ block }: { block: HostCardBlock }) {
               <div className="truncate text-xs text-muted-foreground">{item.label}</div>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="truncate text-lg font-semibold">{item.value}</span>
-                {item.unit ? (
-                  <span className="text-xs text-muted-foreground">{item.unit}</span>
-                ) : null}
+                {item.unit ? <span className="text-xs text-muted-foreground">{item.unit}</span> : null}
               </div>
-              {item.trend ? (
-                <div className="mt-1 truncate text-xs text-muted-foreground">{item.trend}</div>
-              ) : null}
+              {item.trend ? <div className="mt-1 truncate text-xs text-muted-foreground">{item.trend}</div> : null}
             </div>
           ))}
         </div>

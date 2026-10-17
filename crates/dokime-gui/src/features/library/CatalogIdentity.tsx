@@ -48,12 +48,7 @@ type OwnerDisplay = {
 /** A monospace identifier with a copy affordance. */
 export function CatalogIdentifier({ className, subject, value }: CatalogIdentifierProps) {
   return (
-    <span
-      className={cn(
-        "flex min-w-0 items-center gap-1 font-mono text-[11px] leading-4 text-muted-foreground",
-        className,
-      )}
-    >
+    <span className={cn("flex min-w-0 items-center gap-1 font-mono text-[11px] leading-4 text-muted-foreground", className)}>
       <span className="min-w-0 truncate" title={value}>
         {value}
       </span>
@@ -80,32 +75,13 @@ export function CatalogIdentifier({ className, subject, value }: CatalogIdentifi
 export function SuiteProvenance({ className, plugin, source }: SuiteProvenanceProps) {
   const brand = useBrand();
   const owner = plugin ? ownerDisplay(plugin.owner, brand.label) : null;
-  const pluginLabel =
-    plugin?.label && plugin.label !== plugin.plugin_id
-      ? `${plugin.label} · ${plugin.plugin_id}`
-      : source;
+  const pluginLabel = plugin?.label && plugin.label !== plugin.plugin_id ? `${plugin.label} · ${plugin.plugin_id}` : source;
 
   return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden",
-        TAG_COLUMN_WIDTH,
-        className,
-      )}
-    >
-      <TagChip
-        className="min-w-0 shrink truncate font-mono"
-        label={pluginLabel}
-        title={`Registered by plugin ${pluginLabel}`}
-      />
+    <div className={cn("flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden", TAG_COLUMN_WIDTH, className)}>
+      <TagChip className="min-w-0 shrink truncate font-mono" label={pluginLabel} title={`Registered by plugin ${pluginLabel}`} />
       {owner ? <TagChip label={owner.label} title={owner.title} /> : null}
-      {plugin?.version ? (
-        <TagChip
-          className="font-mono"
-          label={versionLabel(plugin.version)}
-          title="Plugin version"
-        />
-      ) : null}
+      {plugin?.version ? <TagChip className="font-mono" label={versionLabel(plugin.version)} title="Plugin version" /> : null}
       {plugin && !plugin.enabled ? <TagChip label="Disabled" title="Plugin is disabled" /> : null}
     </div>
   );
@@ -114,29 +90,17 @@ export function SuiteProvenance({ className, plugin, source }: SuiteProvenancePr
 /* === Public Functions === */
 
 /** Searchable plugin text for one suite, so the filter matches provenance too. */
-export function pluginSearchText(
-  plugin: RuntimeInstalledPluginRecord | undefined,
-  brandLabel: string,
-): unknown[] {
+export function pluginSearchText(plugin: RuntimeInstalledPluginRecord | undefined, brandLabel: string): unknown[] {
   if (!plugin) {
     return [];
   }
   const owner = ownerDisplay(plugin.owner, brandLabel);
-  return [
-    plugin.plugin_id,
-    plugin.label,
-    plugin.version,
-    owner?.label,
-    plugin.owner?.kind === "bundle" ? plugin.owner.package : null,
-  ];
+  return [plugin.plugin_id, plugin.label, plugin.version, owner?.label, plugin.owner?.kind === "bundle" ? plugin.owner.package : null];
 }
 
 /* === Private Functions === */
 
-function ownerDisplay(
-  owner: RuntimeInstalledPluginRecord["owner"],
-  brandLabel: string,
-): OwnerDisplay | null {
+function ownerDisplay(owner: RuntimeInstalledPluginRecord["owner"], brandLabel: string): OwnerDisplay | null {
   switch (owner?.kind) {
     case "host":
       return { label: "Host", title: `Registered by the ${brandLabel} host` };

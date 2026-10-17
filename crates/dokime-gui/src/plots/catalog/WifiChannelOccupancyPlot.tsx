@@ -37,8 +37,8 @@ type OccupancyScan = WifiOccupancyScan & {
 
 const TWO_FOUR_GHZ_CHANNELS = Array.from({ length: 14 }, (_, index) => index + 1);
 const FIVE_GHZ_CHANNELS = [
-  32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140,
-  144, 149, 153, 157, 161, 165, 169, 173, 177,
+  32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169, 173,
+  177,
 ];
 const SIX_GHZ_CHANNELS = Array.from({ length: 59 }, (_, index) => 1_001 + index * 4);
 
@@ -46,13 +46,8 @@ const SIX_GHZ_CHANNELS = Array.from({ length: 59 }, (_, index) => 1_001 + index 
 
 export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
   const analysis = plot.analysis?.kind === "wifi_occupancy" ? plot.analysis : null;
-  const activeChannel = finiteNumber(
-    plot.context?.active_wifi_channel ?? plot.context?.activeWifiChannel,
-  );
-  const activeBand = activeBandLabel(
-    plot.context?.active_wifi_band ?? plot.context?.activeWifiBand,
-    activeChannel,
-  );
+  const activeChannel = finiteNumber(plot.context?.active_wifi_channel ?? plot.context?.activeWifiChannel);
+  const activeBand = activeBandLabel(plot.context?.active_wifi_band ?? plot.context?.activeWifiBand, activeChannel);
   const scans = useMemo(() => occupancyScans(analysis), [analysis]);
   const latestIndex = Math.max(0, scans.length - 1);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -65,10 +60,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
   const selectedScan = scans[selectedIndex] ?? null;
   const reportedChannels = analysis?.channels ?? [];
   const bands = channelBands(activeChannel, reportedChannels);
-  const onlyActiveChannelReported =
-    activeChannel !== null &&
-    reportedChannels.length === 1 &&
-    reportedChannels[0] === activeChannel;
+  const onlyActiveChannelReported = activeChannel !== null && reportedChannels.length === 1 && reportedChannels[0] === activeChannel;
   const activeLabel =
     activeChannel === null
       ? activeBand === null
@@ -95,9 +87,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
               Only Active Channel Reported
             </span>
           ) : null}
-          <span className="rounded-md border bg-background px-2 py-1 text-xs font-semibold tabular-nums">
-            {activeLabel}
-          </span>
+          <span className="rounded-md border bg-background px-2 py-1 text-xs font-semibold tabular-nums">{activeLabel}</span>
         </div>
       </header>
       <div className="grid gap-3">
@@ -106,9 +96,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
             activeBand={activeBand}
             activeChannel={activeChannel}
             band={band}
-            observedChannels={
-              analysis?.bands.find((entry) => entry.band === band.label)?.occupied_channels ?? 0
-            }
+            observedChannels={analysis?.bands.find((entry) => entry.band === band.label)?.occupied_channels ?? 0}
             key={band.label}
             scan={selectedScan}
           />
@@ -136,9 +124,7 @@ export function WifiChannelOccupancyPlot({ plot }: { plot: PlotCardSpec }) {
         />
       ) : null}
       {!scans.length ? (
-        <p className="text-xs text-muted-foreground">
-          {plot.stateDetail ?? "No nearby WiFi channel occupancy samples are available."}
-        </p>
+        <p className="text-xs text-muted-foreground">{plot.stateDetail ?? "No nearby WiFi channel occupancy samples are available."}</p>
       ) : null}
     </article>
   );
@@ -185,22 +171,14 @@ function BandHeatmap({
           {band.channels.map((channel) => (
             <span
               className={`text-center text-[0.62rem] tabular-nums ${
-                band.label === activeBand && channel === activeChannel
-                  ? "font-bold text-primary"
-                  : "text-muted-foreground"
+                band.label === activeBand && channel === activeChannel ? "font-bold text-primary" : "text-muted-foreground"
               }`}
               key={channel}
             >
               {channelDisplay(channel)}
             </span>
           ))}
-          <HeatmapRow
-            activeBand={activeBand}
-            activeChannel={activeChannel}
-            band={band}
-            peakCount={peakCount}
-            scan={scan}
-          />
+          <HeatmapRow activeBand={activeBand} activeChannel={activeChannel} band={band} peakCount={peakCount} scan={scan} />
         </div>
       </div>
     </section>
@@ -229,9 +207,7 @@ function HeatmapRow({
         return (
           <span
             aria-label={occupancyLabel(band.label, channel, count)}
-            className={`h-6 min-w-6 rounded-lg ring-1 ${
-              isActiveChannel ? "ring-2 ring-primary" : "ring-transparent"
-            }`}
+            className={`h-6 min-w-6 rounded-lg ring-1 ${isActiveChannel ? "ring-2 ring-primary" : "ring-transparent"}`}
             key={channel}
             role="img"
             style={{
@@ -241,9 +217,7 @@ function HeatmapRow({
             title={occupancyTitle(channel, count, scan)}
           >
             {count > 0 ? (
-              <span className="grid h-full place-items-center text-[0.62rem] font-semibold leading-none tabular-nums">
-                {count}
-              </span>
+              <span className="grid h-full place-items-center text-[0.62rem] font-semibold leading-none tabular-nums">{count}</span>
             ) : null}
           </span>
         );
@@ -297,9 +271,7 @@ function ScanSlider({
         <span className="font-medium text-foreground">
           {followLatest ? "Latest Scan" : "Selected Scan"} {clampedSelectedIndex + 1}/{scans.length}
         </span>
-        <span className="tabular-nums">
-          {scan ? `${scan.label} · ${scan.total_networks} networks` : "No scan"}
-        </span>
+        <span className="tabular-nums">{scan ? `${scan.label} · ${scan.total_networks} networks` : "No scan"}</span>
       </div>
       <Slider
         aria-label="WiFi occupancy scan"
@@ -357,9 +329,7 @@ function channelBands(activeChannel: number | null, observedChannels: number[]):
       channels: includeBandChannels(FIVE_GHZ_CHANNELS, activeChannel, observedChannels),
     },
   ];
-  const hasSixGhz = [activeChannel, ...observedChannels].some(
-    (channel) => channel !== null && isEncodedSixGhzChannel(channel),
-  );
+  const hasSixGhz = [activeChannel, ...observedChannels].some((channel) => channel !== null && isEncodedSixGhzChannel(channel));
   if (hasSixGhz) {
     bands.push({
       label: "6 GHz",
@@ -369,11 +339,7 @@ function channelBands(activeChannel: number | null, observedChannels: number[]):
   return bands;
 }
 
-function includeBandChannels(
-  channels: number[],
-  activeChannel: number | null,
-  observedChannels: number[],
-): number[] {
+function includeBandChannels(channels: number[], activeChannel: number | null, observedChannels: number[]): number[] {
   const bandLabel = channelBandLabel(channels[0] ?? 0);
   const extras = [activeChannel, ...observedChannels].filter(
     (channel): channel is number => channel !== null && channelBandLabel(channel) === bandLabel,
@@ -413,9 +379,7 @@ function channelBandLabel(channel: number): string | null {
 
 function isEncodedSixGhzChannel(channel: number): boolean {
   const displayChannel = channel - 1_000;
-  return (
-    channel >= 1_000 && displayChannel >= 1 && displayChannel <= 233 && displayChannel % 4 === 1
-  );
+  return channel >= 1_000 && displayChannel >= 1 && displayChannel <= 233 && displayChannel % 4 === 1;
 }
 
 function channelDisplay(channel: number): string {
@@ -461,9 +425,7 @@ function occupancyTextColor(count: number, peakCount: number): string {
   if (count <= 0) {
     return "var(--foreground)";
   }
-  return peakCount > 0 && count / peakCount >= 0.65
-    ? "var(--primary-foreground)"
-    : "var(--foreground)";
+  return peakCount > 0 && count / peakCount >= 0.65 ? "var(--primary-foreground)" : "var(--foreground)";
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -26,11 +26,7 @@ export function MarkdownText({ text, compact = false, title }: MarkdownTextProps
     const preview = text.trim().replace(/\s+/g, " ");
     return (
       <div className="min-w-0 truncate text-sm leading-6" title={title ?? text}>
-        {preview ? (
-          inlineMarkdown(preview)
-        ) : (
-          <span className="text-muted-foreground">Empty note.</span>
-        )}
+        {preview ? inlineMarkdown(preview) : <span className="text-muted-foreground">Empty note.</span>}
       </div>
     );
   }

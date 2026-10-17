@@ -26,14 +26,7 @@ type ValueDisplayProps = {
 
 /* === Components === */
 
-export function ValueDisplay({
-  value,
-  label = "",
-  unit,
-  align = "left",
-  copyPath = true,
-  compactPath = false,
-}: ValueDisplayProps) {
+export function ValueDisplay({ value, label = "", unit, align = "left", copyPath = true, compactPath = false }: ValueDisplayProps) {
   const formatted = formatValue(value, unit, label);
   if (isPathLike(formatted, label)) {
     return <PathPill align={align} compact={compactPath} copy={copyPath} value={formatted} />;

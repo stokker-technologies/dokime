@@ -52,15 +52,11 @@ export type PlotPoint = Omit<NativePlotPoint, "x"> & {
   sample_count?: number | null;
 };
 
-export type PlotSeries = Omit<NativePlotSeries, "points" | "unit"> &
-  Partial<Pick<NativePlotSeries, "unit">> & { points: PlotPoint[] };
+export type PlotSeries = Omit<NativePlotSeries, "points" | "unit"> & Partial<Pick<NativePlotSeries, "unit">> & { points: PlotPoint[] };
 
 export type PlotDomain = { [Key in keyof NativePlotDomain]: NonNullable<NativePlotDomain[Key]> };
 
-export type PlotCartesianFrame = Omit<
-  NativePlotCartesianFrame,
-  "series" | "x_domain" | "y_domain"
-> & {
+export type PlotCartesianFrame = Omit<NativePlotCartesianFrame, "series" | "x_domain" | "y_domain"> & {
   series: Array<Omit<NativePlotCartesianSeriesFrame, "x"> & { x: number[] }>;
   x_domain?: PlotDomain | null;
   y_domain?: PlotDomain | null;
@@ -205,16 +201,8 @@ export type WifiOccupancyBandScan = {
 };
 
 // Renderer payloads also represent locally materialized, partial plot data.
-export type PlotPayload = Pick<
-  NativePlotPayload,
-  "stream" | "x_key" | "max_points" | "generated_at"
-> &
-  Partial<
-    Pick<
-      NativePlotPayload,
-      "series_by" | "context" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at"
-    >
-  > & {
+export type PlotPayload = Pick<NativePlotPayload, "stream" | "x_key" | "max_points" | "generated_at"> &
+  Partial<Pick<NativePlotPayload, "series_by" | "context" | "window_s" | "x_format" | "run_started_at" | "cycle_started_at">> & {
     series: PlotSeries[];
     computed?: EvidenceAnalysisResult | null;
     analysis?: PlotAnalysis | null;

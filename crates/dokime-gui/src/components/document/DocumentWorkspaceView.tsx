@@ -24,9 +24,13 @@ import { DocumentWorkspacePresentation, type DocumentWorkspaceViewProps, visible
 
 /* === Components === */
 export function DocumentWorkspaceView(props: DocumentWorkspaceViewProps) {
-  return props.renderMode === "report"
-    ? <DocumentWorkspacePresentation {...props} />
-    : <PlotSettingsEditorContext.Provider value={PlotSettingsButton}><ConnectedDocumentWorkspace {...props} /></PlotSettingsEditorContext.Provider>;
+  return props.renderMode === "report" ? (
+    <DocumentWorkspacePresentation {...props} />
+  ) : (
+    <PlotSettingsEditorContext.Provider value={PlotSettingsButton}>
+      <ConnectedDocumentWorkspace {...props} />
+    </PlotSettingsEditorContext.Provider>
+  );
 }
 
 /* === Private Components === */
@@ -79,9 +83,7 @@ function ConnectedDocumentWorkspace(props: Extract<DocumentWorkspaceViewProps, {
             cards: props.document.cards.map((card) => ({
               ...card,
               plots: card.plots.map((plot) =>
-                Object.hasOwn(plotSettings, plot.plot_id)
-                  ? { ...plot, ...plotSettings[plot.plot_id] }
-                  : plot,
+                Object.hasOwn(plotSettings, plot.plot_id) ? { ...plot, ...plotSettings[plot.plot_id] } : plot,
               ),
             })),
           }
@@ -95,13 +97,10 @@ function ConnectedDocumentWorkspace(props: Extract<DocumentWorkspaceViewProps, {
   const liveDocumentPlots = useMemo(
     () =>
       visibleDocumentPlots(sections, resolvedCardFilter).map((plot) => ({
-            ...plot,
-            display_points: plot.display_points ?? reportDefaults.plotPoints,
-            downsample:
-              (plot.downsample ?? "auto") === "auto"
-                ? reportDefaults.plotDownsample
-                : plot.downsample,
-          })),
+        ...plot,
+        display_points: plot.display_points ?? reportDefaults.plotPoints,
+        downsample: (plot.downsample ?? "auto") === "auto" ? reportDefaults.plotDownsample : plot.downsample,
+      })),
     [sections, resolvedCardFilter, reportDefaults],
   );
   const livePlotStates = useLivePlotPayloads({
@@ -110,7 +109,6 @@ function ConnectedDocumentWorkspace(props: Extract<DocumentWorkspaceViewProps, {
     scope: props.scope,
     windowS: props.plotWindowS,
   });
-
 
   return (
     <DocumentWorkspacePresentation

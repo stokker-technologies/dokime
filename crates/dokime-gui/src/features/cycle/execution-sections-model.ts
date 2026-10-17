@@ -25,14 +25,7 @@ import type { DocumentViewCard, JsonObject, ParameterDefinition, PromptRequest }
 /* === Types === */
 
 /** The document-backed sections, in page order; Control and Parameters are the page's own. */
-export type ExecutionDocumentSection =
-  | "steps-criteria"
-  | "notes"
-  | "media"
-  | "artifacts"
-  | "report"
-  | "records"
-  | "traceability";
+export type ExecutionDocumentSection = "steps-criteria" | "notes" | "media" | "artifacts" | "report" | "records" | "traceability";
 
 /** One materialized parameter, as the Parameters grid prints it. */
 export type ExecutionParameterRow = {
@@ -75,9 +68,7 @@ export function executionSectionOf(kind: DocumentViewCard["kind"]): ExecutionDoc
 }
 
 /** The sections the given cards fill, in page order. */
-export function executionDocumentSections(
-  cards: readonly Pick<DocumentViewCard, "kind">[],
-): ExecutionDocumentSection[] {
+export function executionDocumentSections(cards: readonly Pick<DocumentViewCard, "kind">[]): ExecutionDocumentSection[] {
   const present = new Set(cards.map((card) => executionSectionOf(card.kind)));
   return EXECUTION_DOCUMENT_SECTIONS.filter((section) => present.has(section));
 }
@@ -107,10 +98,7 @@ export function executionParameterRows(
 }
 
 /** The prompts the execution page answers: its own, and the cycle's that no execution owns. */
-export function executionPagePrompts<T extends Pick<PromptRequest, "scope">>(
-  prompts: readonly T[],
-  executionId: string | null,
-): T[] {
+export function executionPagePrompts<T extends Pick<PromptRequest, "scope">>(prompts: readonly T[], executionId: string | null): T[] {
   return prompts.filter((prompt) => {
     const owner = prompt.scope?.test_execution_id;
     return !owner || owner === executionId;

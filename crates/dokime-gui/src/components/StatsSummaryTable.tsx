@@ -15,12 +15,7 @@ import { useMemo } from "react";
 
 import { DataTable } from "@/components/data-table/DataTable";
 import { type DataTableColumns, dataTableColumns } from "@/components/data-table/data-table-model";
-import type {
-  SeriesLegendColumn,
-  SeriesLegendRow,
-  StatsSummary,
-  StatsSummaryRow,
-} from "@/lib/statistics";
+import type { SeriesLegendColumn, SeriesLegendRow, StatsSummary, StatsSummaryRow } from "@/lib/statistics";
 import { formatStatValue, statsSummaryCells } from "@/lib/statistics";
 import { cn } from "@/lib/utils";
 
@@ -38,9 +33,7 @@ export type SeriesLegend = {
   onToggle?: (key: string) => void;
 };
 
-type StatsSummaryTableProps =
-  | { rows: StatsSummaryRow[]; legend?: undefined }
-  | { legend: SeriesLegend; rows?: undefined };
+type StatsSummaryTableProps = { rows: StatsSummaryRow[]; legend?: undefined } | { legend: SeriesLegend; rows?: undefined };
 
 type DescribedRow = { count: number; label: string; stats: StatsSummary; unit?: string };
 
@@ -79,11 +72,7 @@ const COLUMNS: DataTableColumns<DescribedRow> = [
 /* === Components === */
 
 export function StatsSummaryTable(props: StatsSummaryTableProps) {
-  return props.legend ? (
-    <SeriesLegendTable legend={props.legend} />
-  ) : (
-    <DescribedStatsTable rows={props.rows} />
-  );
+  return props.legend ? <SeriesLegendTable legend={props.legend} /> : <DescribedStatsTable rows={props.rows} />;
 }
 
 /* === Private Functions === */
@@ -108,14 +97,9 @@ function legendColumns(columns: SeriesLegendColumn[]): DataTableColumns<SeriesLe
         meta: { label: header, primary: true },
       });
     }
-    const read = (row: SeriesLegendRow) =>
-      id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id];
+    const read = (row: SeriesLegendRow) => (id === "xCursor" || id === "yCursor" ? row[id] : row.cells[id]);
     return legend.accessor(read, {
-      cell: ({ getValue, row }) => (
-        <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>
-          {getValue()}
-        </span>
-      ),
+      cell: ({ getValue, row }) => <span className={cn("tabular-nums", row.original.hidden && "opacity-50")}>{getValue()}</span>,
       enableSorting: false,
       header,
       id,
@@ -161,10 +145,7 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
   return (
     <DataTable
       aria-label="Trace statistics"
-      className={cn(
-        "rounded-md bg-muted/20 [--table-surface:transparent] transition-opacity",
-        legend.pending && "opacity-50",
-      )}
+      className={cn("rounded-md bg-muted/20 [--table-surface:transparent] transition-opacity", legend.pending && "opacity-50")}
       columns={columns}
       data={legend.rows}
       emptyText="No traces recorded."
@@ -179,10 +160,7 @@ function SeriesLegendTable({ legend }: { legend: SeriesLegend }) {
 /** The trace's colour, filled while it draws and outlined while hidden. */
 function TraceCell({ row }: { row: SeriesLegendRow }) {
   return (
-    <span
-      className={cn("flex min-w-0 items-center gap-2", row.hidden && "opacity-50")}
-      data-trace-hidden={row.hidden ? "true" : undefined}
-    >
+    <span className={cn("flex min-w-0 items-center gap-2", row.hidden && "opacity-50")} data-trace-hidden={row.hidden ? "true" : undefined}>
       <span
         aria-hidden="true"
         className="size-2.5 shrink-0 rounded-full border-2"

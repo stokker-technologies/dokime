@@ -67,10 +67,7 @@ export function backupSteps(phase: string | null, archivedBytes: number | null):
     phase: name,
     label: stepLabel(name),
     state: position < index ? "done" : position === index ? "active" : "waiting",
-    detail:
-      name === "archiving" && position <= index && archivedBytes !== null
-        ? `${formatBytes(archivedBytes)} written`
-        : null,
+    detail: name === "archiving" && position <= index && archivedBytes !== null ? `${formatBytes(archivedBytes)} written` : null,
   }));
 }
 
@@ -89,8 +86,7 @@ export function formatBytes(bytes: number): string {
 /** The kept archive of a backup reset that failed after archiving, or `null`
  * for every other error. */
 export function backupFailure(error: unknown): BackupFailure | null {
-  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "archived")
-    return null;
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "archived") return null;
   if (!("archive" in error) || typeof error.archive !== "string") return null;
   return { archive: error.archive, error: "error" in error ? error.error : undefined };
 }

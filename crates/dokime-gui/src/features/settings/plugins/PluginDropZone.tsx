@@ -31,13 +31,7 @@ type PluginDropZoneProps = {
 
 /* === Components === */
 
-export function PluginDropZone({
-  disabled,
-  error,
-  filename,
-  onFile,
-  progress,
-}: PluginDropZoneProps) {
+export function PluginDropZone({ disabled, error, filename, onFile, progress }: PluginDropZoneProps) {
   const brand = useBrand();
   const inputId = useId();
   const [dragging, setDragging] = useState(false);
@@ -84,12 +78,8 @@ export function PluginDropZone({
             <FileUp className="size-8 text-muted-foreground" />
           )}
           <div className="grid gap-1">
-            <p className="font-medium">
-              {disabled ? stagingLabel(progress, filename) : "Drop a plugin bundle here"}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {brand.label} stages and inspects its frozen catalog without running the file.
-            </p>
+            <p className="font-medium">{disabled ? stagingLabel(progress, filename) : "Drop a plugin bundle here"}</p>
+            <p className="text-sm text-muted-foreground">{brand.label} stages and inspects its frozen catalog without running the file.</p>
           </div>
           <Button asChild aria-disabled={disabled} size="sm" variant="outline">
             <label htmlFor={inputId}>Choose File</label>

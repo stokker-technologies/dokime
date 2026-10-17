@@ -31,16 +31,8 @@ import { SettingsFieldStatus } from "@/features/settings/SettingsFieldStatus";
 import { SettingsPathField } from "@/features/settings/SettingsPathField";
 import { SettingsRow } from "@/features/settings/SettingsRow";
 import { type Autosave, useAutosave } from "@/features/settings/settings-autosave";
-import {
-  readStoragePolicy,
-  type StoragePolicy,
-  updateStoragePolicy,
-} from "@/lib/api/native-storage-settings";
-import {
-  applicationSettingsError,
-  useApplicationSettings,
-  useSaveDataRoot,
-} from "@/lib/application-settings";
+import { readStoragePolicy, type StoragePolicy, updateStoragePolicy } from "@/lib/api/native-storage-settings";
+import { applicationSettingsError, useApplicationSettings, useSaveDataRoot } from "@/lib/application-settings";
 import { useBrand } from "@/lib/brand";
 import { commands } from "@/lib/desktop/commands";
 import { isTauriDesktop } from "@/lib/desktop-open";
@@ -52,13 +44,8 @@ export function GeneralSection() {
   if (!isTauriDesktop()) {
     return (
       <SettingsCard title="Output">
-        <SettingsRow
-          description="Execution storage belongs to the connected host."
-          label="Execution Directory"
-        >
-          <span className="text-sm text-muted-foreground">
-            Open Settings in the {brand.label} desktop application to choose it.
-          </span>
+        <SettingsRow description="Execution storage belongs to the connected host." label="Execution Directory">
+          <span className="text-sm text-muted-foreground">Open Settings in the {brand.label} desktop application to choose it.</span>
         </SettingsRow>
       </SettingsCard>
     );
@@ -78,18 +65,13 @@ export function DesktopOutputSettings() {
   });
   const view = settings.data;
   const error = settings.error ?? pick.error ?? save.error;
-  const canEdit =
-    session?.snapshot.connection.backend?.methods.includes("/dokime.v1.Settings/UpdateDataRoot") ??
-    false;
+  const canEdit = session?.snapshot.connection.backend?.methods.includes("/dokime.v1.Settings/UpdateDataRoot") ?? false;
   const openable = session?.snapshot.ownership === "owned_local";
   const busy = pick.isPending || save.isPending;
 
   return (
     <>
-      <SettingsCard
-        description="Choose the data directory the backend uses when it next starts."
-        title="Output"
-      >
+      <SettingsCard description="Choose the data directory the backend uses when it next starts." title="Output">
         {!session ? (
           <SettingsRow label="Status">
             <span className="text-sm text-muted-foreground" role="status">
@@ -154,11 +136,7 @@ export function DesktopOutputSettings() {
             >
               <div className="flex flex-wrap justify-end gap-2">
                 {view.configuredDataRoot !== null ? (
-                  <Button
-                    disabled={!canEdit || busy}
-                    onClick={() => save.mutate(null)}
-                    variant="ghost"
-                  >
+                  <Button disabled={!canEdit || busy} onClick={() => save.mutate(null)} variant="ghost">
                     Use Default
                   </Button>
                 ) : null}
@@ -179,9 +157,7 @@ export function DesktopOutputSettings() {
 
 function BackendPolicySettings() {
   const session = useNativeSessionOptional();
-  return session ? (
-    <ConnectedPolicySettings key={session.identity.generation} session={session} />
-  ) : null;
+  return session ? <ConnectedPolicySettings key={session.identity.generation} session={session} /> : null;
 }
 
 function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
@@ -210,24 +186,15 @@ function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
     pending.current = operation;
     return operation;
   };
-  const compaction = useAutosave<number>(
-    (hours) => save({ compactionIntervalMs: hours * 3_600_000 }),
-    applicationSettingsError,
-  );
+  const compaction = useAutosave<number>((hours) => save({ compactionIntervalMs: hours * 3_600_000 }), applicationSettingsError);
   const retention = useAutosave<number | null>(
     (days) => save({ localRetentionMs: days === null ? null : days * 86_400_000 }),
     applicationSettingsError,
   );
   const view = query.data;
-  const canEdit =
-    session.snapshot.connection.backend?.methods.includes(
-      "/dokime.v1.Settings/UpdateStoragePolicy",
-    ) ?? false;
+  const canEdit = session.snapshot.connection.backend?.methods.includes("/dokime.v1.Settings/UpdateStoragePolicy") ?? false;
   return (
-    <SettingsCard
-      title="Backend Storage"
-      description="Policy belongs to the connected backend and applies when that backend restarts."
-    >
+    <SettingsCard title="Backend Storage" description="Policy belongs to the connected backend and applies when that backend restarts.">
       {query.isPending ? (
         <SettingsRow label="Status">
           <span role="status">Loading storage policy…</span>
@@ -267,19 +234,14 @@ function ConnectedPolicySettings({ session }: { session: ConnectedSession }) {
           />
           <RetentionRow
             autosave={retention}
-            days={
-              view.configured.localRetentionMs === null
-                ? null
-                : view.configured.localRetentionMs / 86_400_000
-            }
+            days={view.configured.localRetentionMs === null ? null : view.configured.localRetentionMs / 86_400_000}
           />
         </fieldset>
       ) : null}
       {view?.restartRequired ? (
         <SettingsRow label="Pending Restart">
           <span role="status">
-            Saved. Restart the connected backend to apply this policy. Its current policy remains
-            active until then.
+            Saved. Restart the connected backend to apply this policy. Its current policy remains active until then.
           </span>
         </SettingsRow>
       ) : null}
@@ -337,13 +299,7 @@ function IntervalRow({
   );
 }
 
-function RetentionRow({
-  autosave,
-  days,
-}: {
-  autosave: Autosave<number | null>;
-  days: number | null;
-}) {
+function RetentionRow({ autosave, days }: { autosave: Autosave<number | null>; days: number | null }) {
   const id = useId();
   const [selected, setSelected] = useState(days === null ? "all" : String(days));
 
@@ -367,9 +323,7 @@ function RetentionRow({
         <option value="7">One Week</option>
         <option value="30">One Month</option>
         <option value="90">Three Months</option>
-        {days !== null && ![7, 30, 90].includes(days) ? (
-          <option value={String(days)}>{days} Days</option>
-        ) : null}
+        {days !== null && ![7, 30, 90].includes(days) ? <option value={String(days)}>{days} Days</option> : null}
       </select>
     </SettingsRow>
   );

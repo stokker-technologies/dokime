@@ -28,9 +28,5 @@ type SettingsGridProps = {
 /* === Components === */
 
 export function SettingsGrid({ children }: SettingsGridProps) {
-  return (
-    <div className="grid min-w-0 content-start gap-[var(--section-gap)] wide:grid-cols-2">
-      {children}
-    </div>
-  );
+  return <div className="grid min-w-0 content-start gap-[var(--section-gap)] wide:grid-cols-2">{children}</div>;
 }

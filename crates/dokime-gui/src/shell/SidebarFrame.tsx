@@ -7,7 +7,6 @@
  * ***
  */
 
-
 /**
  * Shared Sidebar Frame; The Owning Surface Supplies Navigation.
  */
@@ -24,14 +23,11 @@ import { useSidebarState } from "./use-sidebar-state";
 
 // Local Imports
 
-
 /* === Re-Exports === */
 
 /* === Constants === */
 
-
 /* === Types === */
-
 
 /* === Components === */
 export function SidebarFrame({ children }: { children: ReactNode }) {
@@ -49,15 +45,10 @@ export function SidebarFrame({ children }: { children: ReactNode }) {
           bar and the page title bar end on one line at every density. The
           height is fixed, so the first destination starts on the same y
           whether the rail is open or collapsed. */}
-      <div
-        className="grid place-items-center px-[var(--shell-gap)]"
-        style={{ height: "var(--page-bar-height)" }}
-      >
+      <div className="grid place-items-center px-[var(--shell-gap)]" style={{ height: "var(--page-bar-height)" }}>
         <div className="flex min-w-0 items-center justify-center gap-2">
           <BrandMark />
-          {collapsed ? null : (
-            <span className="truncate font-heading font-semibold tracking-wide">{label}</span>
-          )}
+          {collapsed ? null : <span className="truncate font-heading font-semibold tracking-wide">{label}</span>}
         </div>
       </div>
 
@@ -66,11 +57,8 @@ export function SidebarFrame({ children }: { children: ReactNode }) {
   );
 }
 
-
-
 /* === Hooks === */
 
 /* === Public Functions === */
-
 
 /* === Private Functions === */
