@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod resources;
 pub mod evidence;
 pub mod error;
 pub mod product;
@@ -15,6 +16,7 @@ pub mod publication;
 pub mod contract;
 
 /* === Re-Exports === */
+pub use resources::{ResourceRecord, ResourceLifecycle};
 pub use evidence::{Record, RecordEntry, RecordMarker};
 pub use error::{RecordErrorDetail, RecordFailure};
 pub use product::*;

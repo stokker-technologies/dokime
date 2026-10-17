@@ -17,13 +17,14 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_domain::model::records::evidence::Record;
-use dokime_domain::model::identity::Identifier;
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::execution::RecordScope;
-use dokime_domain::model::time::Timestamp;
-use dokime_domain::model::values::Value;
-use dokime_domain::model::execution::scope_visible_in;
+use crate::model::records::evidence::Record;
+use crate::model::records::resources::{ResourceRecord, ResourceLifecycle};
+use crate::model::identity::Identifier;
+use crate::model::identity::Metadata;
+use crate::model::execution::RecordScope;
+use crate::model::time::Timestamp;
+use crate::model::values::Value;
+use crate::model::execution::scope_visible_in;
 
 /* === Constants === */
 
@@ -32,18 +33,6 @@ use dokime_domain::model::execution::scope_visible_in;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ResourceRecord {
-    pub metadata: Metadata,
-    pub resource_id: String,
-    pub resource_kind: String,
-    pub source: String,
-    pub lifecycle: ResourceLifecycle,
-    pub scope: Option<RecordScope>,
-    pub details: BTreeMap<String, Value>,
-    pub updated_at: Timestamp,
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ResourceRegistry {
     resources: BTreeMap<String, ResourceRecord>,
@@ -60,17 +49,6 @@ struct ResourceInstance {
 }
 
 /* === Enums === */
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ResourceLifecycle {
-    #[default]
-    Registered,
-    Opened,
-    Closed,
-    Failed,
-    Removed,
-}
-
 /* === Traits === */
 
 /* === Implementations === */
@@ -97,6 +75,7 @@ impl ResourceRegistry {
             &record.record_type,
             &record.source,
             &record.timestamp,
+            record.received_at.to_datetime().ok(),
             &record.details,
             &record.scope,
         )
@@ -107,6 +86,7 @@ impl ResourceRegistry {
         record_type: &Identifier,
         source: &str,
         timestamp: &Timestamp,
+        created_at: Option<time::OffsetDateTime>,
         details: &BTreeMap<String, Value>,
         record_scope: &Option<RecordScope>,
     ) -> Option<RecordScope> {
@@ -134,7 +114,7 @@ impl ResourceRegistry {
                         Some("Runtime resource observed during test execution.".to_owned()),
                         ["resource", resource_kind.as_str()],
                     );
-                    metadata.created_at = Some(time::OffsetDateTime::now_utc());
+                    metadata.created_at = created_at;
                     metadata
                 },
                 resource_id: resource_id.clone(),

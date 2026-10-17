@@ -97,7 +97,7 @@ pub struct RuntimeResourceMetadata {
 
 struct RuntimeResourceEntry {
     metadata: RuntimeResourceMetadata,
-    lifecycle: crate::records::ResourceLifecycle,
+    lifecycle: dokime_domain::model::records::resources::ResourceLifecycle,
     handle: Box<dyn Any + Send + Sync>,
 }
 
@@ -452,7 +452,7 @@ impl RuntimeResourceStore {
             metadata.resource_id.clone(),
             RuntimeResourceEntry {
                 metadata,
-                lifecycle: crate::records::ResourceLifecycle::Registered,
+                lifecycle: dokime_domain::model::records::resources::ResourceLifecycle::Registered,
                 handle: Box::new(value),
             },
         );
@@ -467,7 +467,7 @@ impl RuntimeResourceStore {
     ) -> Result<PublishReceipt, StepContextError> {
         self.mark_lifecycle(
             resource_id,
-            crate::records::ResourceLifecycle::Opened,
+            dokime_domain::model::records::resources::ResourceLifecycle::Opened,
             BuiltinRecordType::ResourceOpened,
             RecordSeverity::Info,
             details,
@@ -484,7 +484,7 @@ impl RuntimeResourceStore {
         details.insert("error".to_owned(), Value::from(error.into()));
         self.mark_lifecycle(
             resource_id,
-            crate::records::ResourceLifecycle::Failed,
+            dokime_domain::model::records::resources::ResourceLifecycle::Failed,
             BuiltinRecordType::ResourceFailed,
             RecordSeverity::Error,
             details,
@@ -499,7 +499,7 @@ impl RuntimeResourceStore {
     ) -> Result<PublishReceipt, StepContextError> {
         self.mark_lifecycle(
             resource_id,
-            crate::records::ResourceLifecycle::Closed,
+            dokime_domain::model::records::resources::ResourceLifecycle::Closed,
             BuiltinRecordType::ResourceClosed,
             RecordSeverity::Info,
             details,
@@ -545,7 +545,7 @@ impl RuntimeResourceStore {
     async fn mark_lifecycle(
         &mut self,
         resource_id: &str,
-        lifecycle: crate::records::ResourceLifecycle,
+        lifecycle: dokime_domain::model::records::resources::ResourceLifecycle,
         record_type: BuiltinRecordType,
         severity: RecordSeverity,
         details: BTreeMap<String, Value>,
