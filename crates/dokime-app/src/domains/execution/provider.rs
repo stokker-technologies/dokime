@@ -132,13 +132,30 @@ impl ExecutionFixtureContext {
             })
     }
 
-    pub(crate) async fn cancelled(&self) {
-        let Some(mut cancelled) = self.cancellation.clone() else {
-            return std::future::pending().await;
-        };
-        while !*cancelled.borrow_and_update() {
-            if cancelled.changed().await.is_err() {
+    /// Wait until the same cancellation conditions reported by `is_cancelled` hold.
+    /// Closing the provider's cancellation channel also ends the wait.
+    pub async fn cancelled(&self) {
+        let mut cancellation = self.cancellation.clone();
+        let mut shutdown = self.runtime.shutdown_requested.subscribe();
+        let mut state = self.runtime.watch_state();
+        loop {
+            if self.is_cancelled() {
                 return;
+            }
+            tokio::select! {
+                () = async {
+                    if let Some(cancelled) = cancellation.as_mut() {
+                        let _ = cancelled.wait_for(|cancelled| *cancelled).await;
+                    } else {
+                        std::future::pending::<()>().await;
+                    }
+                } => return,
+                _ = shutdown.wait_for(|shutdown| *shutdown) => return,
+                changed = state.next() => {
+                    if changed.is_none() {
+                        return;
+                    }
+                }
             }
         }
     }
@@ -154,6 +171,24 @@ impl ExecutionFixtureContext {
             .run_requests
             .get(request_id)
             .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
+    }
+
+    /// Wait until this one execution is stopped. Select with `cancelled` when
+    /// the provider also needs to heed cancellation of the whole cycle run.
+    pub async fn execution_stopped(&self, test_execution_id: &TestExecutionId) {
+        let Some(request_id) = &self.request_id else {
+            return std::future::pending().await;
+        };
+        let mut state = self.runtime.watch_state();
+        let _ = state
+            .wait_until(|snapshot| {
+                snapshot
+                    .state()
+                    .run_requests
+                    .get(request_id)
+                    .is_some_and(|request| request.stopped_execution_ids.contains(test_execution_id))
+            })
+            .await;
     }
 
     pub async fn cycle_lifecycle(&self, test_cycle_id: &TestCycleId) -> Option<CycleStatus> {

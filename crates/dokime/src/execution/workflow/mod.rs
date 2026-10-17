@@ -286,6 +286,28 @@ impl<T: SidecarTemplate> Workflow<T> {
         Ok(reply)
     }
 
+    /// Wait for the next output page, input-settlement request or completed cleanup.
+    ///
+    /// This is the waitable form of `drain`, for the execution's single output
+    /// consumer. Registering before the cursor read preserves changes arriving
+    /// between the read and suspension. Dropping the future stops waiting.
+    pub async fn next(&self, token: &str, cursor: u64) -> Result<EvidenceBatch, Refusal> {
+        let changed = lock(&self.executions)
+            .get(token)
+            .map(|state| Arc::clone(&state.changed))
+            .ok_or_else(|| Refusal::of("execution token is not active in this plugin"))?;
+        loop {
+            let notified = changed.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            let batch = self.drain(token, cursor)?;
+            if batch.cursor > cursor || batch.record_subscriptions_settling || batch.cleanup_settled {
+                return Ok(batch);
+            }
+            notified.await;
+        }
+    }
+
     pub fn cancel(&self, token: &str) {
         let callbacks = {
             let mut executions = lock(&self.executions);

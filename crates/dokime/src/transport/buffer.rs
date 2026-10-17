@@ -301,6 +301,7 @@ impl ExecutionState {
 
     pub(crate) fn begin_record_settle(&mut self) {
         self.subscriptions_settling = true;
+        self.changed.notify_one();
     }
 
     pub(crate) fn record_subscriptions_settled(&self) -> bool {
