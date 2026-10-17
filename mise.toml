@@ -55,6 +55,8 @@ platform = "{% if os() == 'windows' %}windows{% else %}linux{% endif %}"
 python = "uv run --locked --project tools/python"
 tools = "uv run --locked --project tools/python python -m"
 lane = "uv run --locked --project tools/python python -m dokime_tools.test.run test"
+# The Cargo selection the development and bench archives are built with (dokime_tools.build.run): the runtime's story hooks.
+stories = "--archive-argument=--features --archive-argument=dokime-runtime/fault-injection"
 
 # === Prepare === #
 
@@ -219,7 +221,7 @@ run = [{ task = "test:unit:rust --profile {{usage.profile}}" }]
 [tasks."test:unit:rust"]
 description = "Test Unit Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust"
+run = "{{vars.lane}} --profile {{usage.profile}} --category unit --language rust {{vars.stories}}"
 
 [tasks."test:integration"]
 description = "Test Integration Layer"
@@ -241,7 +243,7 @@ run = [
 [tasks."test:integration:rust"]
 description = "Test Integration Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust"
+run = "{{vars.lane}} --profile {{usage.profile}} --category integration --language rust {{vars.stories}}"
 
 [tasks."test:integration:typescript"]
 description = "Test Integration TypeScript"
@@ -264,7 +266,7 @@ run = [
 [tasks."test:acceptance:rust"]
 description = "Test Acceptance Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust"
+run = "{{vars.lane}} --profile {{usage.profile}} --category acceptance --language rust {{vars.stories}}"
 
 [tasks."test:system"]
 description = "Test System Layer"
@@ -274,7 +276,7 @@ run = [{ task = "test:system:rust --profile {{usage.profile}}" }, { task = "test
 [tasks."test:system:rust"]
 description = "Test System Rust"
 usage = 'flag "--profile <profile>" default="dev"'
-run = "{{vars.lane}} --profile {{usage.profile}} --category system --language rust"
+run = "{{vars.lane}} --profile {{usage.profile}} --category system --language rust {{vars.stories}}"
 
 [tasks."test:system:typescript"]
 description = "Test System TypeScript"
@@ -297,15 +299,15 @@ run = [{ task = "bench:unit:rust" }, { task = "bench:integration:rust" }, { task
 
 [tasks."bench:integration:rust"]
 description = "Bench Integration Rust"
-run = "{{vars.tools}} dokime_tools.test.run bench --category integration --language rust"
+run = "{{vars.tools}} dokime_tools.test.run bench --category integration --language rust {{vars.stories}}"
 
 [tasks."bench:system:rust"]
 description = "Bench System Rust"
-run = "{{vars.tools}} dokime_tools.test.run bench --category system --language rust"
+run = "{{vars.tools}} dokime_tools.test.run bench --category system --language rust {{vars.stories}}"
 
 [tasks."bench:unit:rust"]
 description = "Bench Unit Rust"
-run = "{{vars.tools}} dokime_tools.test.run bench --category unit --language rust"
+run = "{{vars.tools}} dokime_tools.test.run bench --category unit --language rust {{vars.stories}}"
 
 # === Docs === #
 
