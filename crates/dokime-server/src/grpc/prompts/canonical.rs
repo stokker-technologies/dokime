@@ -19,11 +19,11 @@ use tonic::Status;
 // Local Imports
 use super::value::canonical::timestamp;
 use super::value::{self, Budget, canonical, projection};
-use dokime_app::core::{Value, ValueType};
-use dokime_app::definition::RuntimeCondition;
-use dokime_app::domains::prompts;
-use dokime_app::expressions::{Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp};
-use dokime_app::telemetry::TelemetryConditionOperator;
+use dokime_runtime::core::{Value, ValueType};
+use dokime_runtime::definition::RuntimeCondition;
+use dokime_runtime::domains::prompts;
+use dokime_runtime::expressions::{Expression, ExpressionBinaryOp, ExpressionKind, ExpressionUnaryOp};
+use dokime_runtime::telemetry::TelemetryConditionOperator;
 use dokime_contract::operations::{common, prompts as contract, schema, value as value_wire};
 
 /* === Constants === */
@@ -404,7 +404,7 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     Ok(target)
 }
 
-fn metadata(source: &dokime_app::core::Metadata) -> Result<common::Metadata, Status> {
+fn metadata(source: &dokime_runtime::core::Metadata) -> Result<common::Metadata, Status> {
     canonical::metadata(source)
 }
 
@@ -416,7 +416,7 @@ fn project_value(
     canonical::encode(source, budget, depth)
 }
 
-fn scope_heap(source: &dokime_app::core::RecordScope) -> Result<usize, Status> {
+fn scope_heap(source: &dokime_runtime::core::RecordScope) -> Result<usize, Status> {
     Ok(canonical::scope_memory(source)? - std::mem::size_of::<common::EvidenceScope>())
 }
 

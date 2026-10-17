@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Resources;
-use dokime::prelude::*;
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 
@@ -32,7 +32,7 @@ pub struct AskReadiness {
     resources: Arc<Resources>,
 }
 
-#[dokime::message]
+#[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 pub struct Readiness {
     #[row(description = "Whether the embedded runtime has stopped taking new work.")]
@@ -44,7 +44,7 @@ pub struct Readiness {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::operation(
+#[dokime_runtime::operation(
     id = "obc-plugin.check_readiness",
     version = 1,
     description = "Reports whether the testbench will still take work. A template calls it with `ctx.call::<AskReadiness>(())`.",
@@ -57,7 +57,7 @@ impl AskReadiness {
 
     async fn run(&mut self, _: &Supervisor, _: &()) -> Result<Readiness, Refusal> {
         Ok(Readiness {
-            stopped: dokime::plugin::refusal(self.resources.app().stopped().await)?,
+            stopped: dokime_runtime::plugin::refusal(self.resources.app().stopped().await)?,
         })
     }
 }

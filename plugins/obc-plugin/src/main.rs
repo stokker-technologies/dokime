@@ -37,7 +37,7 @@ use obc_plugin::ObcPlugin;
 
 /* === Private Functions === */
 fn main() -> std::io::Result<()> {
-    dokime::plugin::run::<ObcPlugin>()
+    dokime_runtime::plugin::run::<ObcPlugin>()
 }
 
 /* === Tests === */

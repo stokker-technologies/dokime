@@ -22,7 +22,7 @@ use tonic::Status;
 use super::super::enums::canonical as enums;
 use super::super::value::{self, Budget, canonical};
 use super::cursor::{bounded_text, expression_stream};
-use dokime_app::{
+use dokime_runtime::{
     core::{Identifier, Value},
     document::{
         DocumentFilter, FftOptions, HistogramOptions, PlotDescriptor, PlotInput, ReferenceBand,
@@ -120,7 +120,7 @@ pub(crate) fn values(
     canonical::object(values, &mut Budget::new())
 }
 fn optional_format(
-    value: Option<&dokime_app::core::ValueFormat>,
+    value: Option<&dokime_runtime::core::ValueFormat>,
 ) -> Option<dokime_contract::operations::schema::ValueFormat> {
     value.map(canonical::format)
 }
@@ -609,7 +609,7 @@ fn plot_cursor_wire(
 }
 
 fn plot_payload(
-    value: dokime_app::runtime::query::PlotPayload,
+    value: dokime_runtime::runtime::query::PlotPayload,
 ) -> Result<dokime_contract::operations::plots::PlotPayload, Status> {
     let maximum = super::cursor::MAX_PLOT_POINTS as usize;
     if value
@@ -675,7 +675,7 @@ fn plot_payload(
 }
 
 fn plot_series_summary(
-    value: dokime_app::runtime::query::PlotSeriesSummary,
+    value: dokime_runtime::runtime::query::PlotSeriesSummary,
 ) -> Result<dokime_contract::operations::plots::PlotSeriesSummary, Status> {
     let number = |value: Option<f64>| {
         value
@@ -705,9 +705,9 @@ fn plot_series_summary(
 }
 
 fn plot_analysis(
-    value: dokime_app::runtime::query::PlotAnalysis,
+    value: dokime_runtime::runtime::query::PlotAnalysis,
 ) -> Result<dokime_contract::operations::plots::PlotAnalysis, Status> {
-    use dokime_app::runtime::query::PlotAnalysis;
+    use dokime_runtime::runtime::query::PlotAnalysis;
     use dokime_contract::operations::plots::PlotAnalysisResult as Analysis;
 
     let count = |value| {
@@ -820,8 +820,8 @@ fn plot_analysis(
 fn wifi_occupancy(
     channels: Vec<i64>,
     occupied_channels: Vec<i64>,
-    bands: Vec<dokime_app::runtime::query::WifiBandWindow>,
-    scans: Vec<dokime_app::runtime::query::WifiScan>,
+    bands: Vec<dokime_runtime::runtime::query::WifiBandWindow>,
+    scans: Vec<dokime_runtime::runtime::query::WifiScan>,
 ) -> Result<dokime_contract::operations::plots::PlotWifiOccupancyAnalysis, Status> {
     use dokime_contract::operations::plots::{
         PlotWifiBandScan, PlotWifiBandWindow, PlotWifiChannelCount, PlotWifiOccupancyAnalysis,
@@ -915,14 +915,14 @@ fn json_value(value: JsonValue) -> Result<Value, Status> {
 }
 
 fn plot_cartesian(
-    value: dokime_app::runtime::query::PlotCartesianFrame,
+    value: dokime_runtime::runtime::query::PlotCartesianFrame,
 ) -> Result<dokime_contract::operations::plots::PlotCartesianFrame, Status> {
     Ok(dokime_contract::operations::plots::PlotCartesianFrame {
         mode: match value.mode {
-            dokime_app::runtime::query::PlotCartesianMode::Aligned => {
+            dokime_runtime::runtime::query::PlotCartesianMode::Aligned => {
                 dokime_contract::operations::plots::PlotCartesianMode::Aligned
             }
-            dokime_app::runtime::query::PlotCartesianMode::Faceted => {
+            dokime_runtime::runtime::query::PlotCartesianMode::Faceted => {
                 dokime_contract::operations::plots::PlotCartesianMode::Faceted
             }
         },
@@ -949,7 +949,7 @@ fn plot_cartesian(
 }
 
 fn plot_domain(
-    value: dokime_app::runtime::query::PlotDomain,
+    value: dokime_runtime::runtime::query::PlotDomain,
 ) -> dokime_contract::operations::plots::PlotDomain {
     dokime_contract::operations::plots::PlotDomain {
         min: value.min,
@@ -958,7 +958,7 @@ fn plot_domain(
 }
 
 fn plot_diagnostics(
-    value: dokime_app::runtime::query::PlotPayloadDiagnostics,
+    value: dokime_runtime::runtime::query::PlotPayloadDiagnostics,
 ) -> Result<dokime_contract::operations::plots::PlotPayloadDiagnostics, Status> {
     Ok(dokime_contract::operations::plots::PlotPayloadDiagnostics {
         series_count: u64::try_from(value.series_count)
@@ -976,7 +976,7 @@ fn plot_diagnostics(
 }
 
 fn plot_series(
-    value: dokime_app::runtime::query::PlotSeries,
+    value: dokime_runtime::runtime::query::PlotSeries,
 ) -> Result<dokime_contract::operations::plots::PlotSeries, Status> {
     Ok(dokime_contract::operations::plots::PlotSeries {
         key: value.key,
@@ -995,7 +995,7 @@ fn plot_series(
 }
 
 fn plot_point(
-    value: dokime_app::runtime::query::PlotPoint,
+    value: dokime_runtime::runtime::query::PlotPoint,
 ) -> Result<dokime_contract::operations::plots::PlotPoint, Status> {
     Ok(dokime_contract::operations::plots::PlotPoint {
         x: Some(canonical::encode(
@@ -1009,7 +1009,7 @@ fn plot_point(
 }
 
 fn plot_marker(
-    value: dokime_app::runtime::query::PlotMarker,
+    value: dokime_runtime::runtime::query::PlotMarker,
 ) -> Result<dokime_contract::operations::plots::PlotMarker, Status> {
     Ok(dokime_contract::operations::plots::PlotMarker {
         x: Some(canonical::encode(

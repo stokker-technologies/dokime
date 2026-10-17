@@ -20,7 +20,7 @@ use tonic::Status;
 // Local Imports
 use super::super::value::canonical;
 use super::{Budget, unit, unit_memory, value};
-use dokime_app::{
+use dokime_runtime::{
     core::ValidationMode,
     records::{RecordContract, RecordIconKey, RecordSeverity, RecordTone},
     telemetry::{TelemetryContract, TelemetryRole},
@@ -281,29 +281,29 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     Ok(target)
 }
 
-fn metadata_heap(source: &dokime_app::core::Metadata) -> Result<usize, Status> {
+fn metadata_heap(source: &dokime_runtime::core::Metadata) -> Result<usize, Status> {
     Ok(canonical::metadata_memory(source)? - std::mem::size_of::<common::Metadata>())
 }
 
-fn metadata(source: &dokime_app::core::Metadata) -> Result<common::Metadata, Status> {
+fn metadata(source: &dokime_runtime::core::Metadata) -> Result<common::Metadata, Status> {
     canonical::metadata(source)
 }
 
-fn value_heap(source: &dokime_app::core::Value, budget: &mut Budget) -> Result<usize, Status> {
+fn value_heap(source: &dokime_runtime::core::Value, budget: &mut Budget) -> Result<usize, Status> {
     Ok(canonical::memory(source, budget, 0)? - std::mem::size_of::<wire_value::Value>())
 }
 
 fn project_value(
-    source: &dokime_app::core::Value,
+    source: &dokime_runtime::core::Value,
     budget: &mut Budget,
     depth: usize,
 ) -> Result<wire_value::Value, Status> {
     canonical::encode(source, budget, depth)
 }
 
-fn format_heap(source: Option<&dokime_app::core::ValueFormat>) -> usize {
+fn format_heap(source: Option<&dokime_runtime::core::ValueFormat>) -> usize {
     match source {
-        Some(dokime_app::core::ValueFormat::AbsoluteTime { pattern }) => pattern.len(),
+        Some(dokime_runtime::core::ValueFormat::AbsoluteTime { pattern }) => pattern.len(),
         _ => 0,
     }
 }

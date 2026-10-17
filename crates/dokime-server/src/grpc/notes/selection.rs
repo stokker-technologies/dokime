@@ -19,9 +19,9 @@ use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
-use dokime_app::core::RecordScope;
-use dokime_app::execution::notes::NoteOwner;
-use dokime_app::runtime::query::RuntimeStateSnapshot;
+use dokime_runtime::core::RecordScope;
+use dokime_runtime::execution::notes::NoteOwner;
+use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 use dokime_contract::operations::{cursor::Cursor, notes as contract};
 
 /* === Constants === */
@@ -38,7 +38,7 @@ pub(super) struct Page {
     pub after: String,
     pub cursor: Cursor,
     scope: Option<RecordScope>,
-    case_executions: std::collections::BTreeSet<dokime_app::core::TestExecutionId>,
+    case_executions: std::collections::BTreeSet<dokime_runtime::core::TestExecutionId>,
 }
 
 /* === Enums === */
@@ -122,9 +122,9 @@ impl Page {
             let executions = snapshot
                 .state()
                 .executions_for_cycle(cycle)
-                .take(dokime_app::execution::notes::NOTE_SCAN_LIMIT + 1)
+                .take(dokime_runtime::execution::notes::NOTE_SCAN_LIMIT + 1)
                 .collect::<Vec<_>>();
-            if executions.len() > dokime_app::execution::notes::NOTE_SCAN_LIMIT {
+            if executions.len() > dokime_runtime::execution::notes::NOTE_SCAN_LIMIT {
                 return Err(Status::resource_exhausted(
                     "annotation owner scan budget exceeded",
                 ));

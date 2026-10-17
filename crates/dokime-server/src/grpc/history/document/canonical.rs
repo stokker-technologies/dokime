@@ -38,10 +38,10 @@ use dokime_contract::operations::{common, documents, history, plots, value as va
 
 /* === Public Functions === */
 pub(in crate::grpc) fn wire(
-    value: &dokime_app::document::DocumentDefinition,
-    scope: &dokime_app::core::RecordScope,
+    value: &dokime_runtime::document::DocumentDefinition,
+    scope: &dokime_runtime::core::RecordScope,
 ) -> Result<history::HistoricalDocument, Status> {
-    use dokime_app::document::DocumentCardBody;
+    use dokime_runtime::document::DocumentCardBody;
     let presentation = documents::DocumentHeader {
         document_id: value.document_id.as_str().to_owned(),
         metadata: Some(metadata(&value.metadata)?),
@@ -87,11 +87,11 @@ pub(in crate::grpc) fn wire(
 }
 
 /* === Private Functions === */
-fn layout_count(nodes: &[dokime_app::document::DocumentNode]) -> usize {
+fn layout_count(nodes: &[dokime_runtime::document::DocumentNode]) -> usize {
     nodes.iter().fold(0usize, |count, node| {
         let children = match node {
-            dokime_app::document::DocumentNode::Section(section) => layout_count(&section.children),
-            dokime_app::document::DocumentNode::Card(_) => 0,
+            dokime_runtime::document::DocumentNode::Section(section) => layout_count(&section.children),
+            dokime_runtime::document::DocumentNode::Card(_) => 0,
         };
         count.saturating_add(1).saturating_add(children)
     })
@@ -114,7 +114,7 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
 }
 
 fn value_object(
-    source: &std::collections::BTreeMap<String, dokime_app::core::Value>,
+    source: &std::collections::BTreeMap<String, dokime_runtime::core::Value>,
     budget: &mut value::Budget,
     depth: usize,
 ) -> Result<value_wire::Value, Status> {
@@ -122,12 +122,12 @@ fn value_object(
     canonical::object(source, budget)
 }
 
-fn metadata(source: &dokime_app::core::Metadata) -> Result<common::Metadata, Status> {
+fn metadata(source: &dokime_runtime::core::Metadata) -> Result<common::Metadata, Status> {
     canonical::metadata(source)
 }
 
 fn project_value(
-    source: &dokime_app::core::Value,
+    source: &dokime_runtime::core::Value,
     budget: &mut value::Budget,
     depth: usize,
 ) -> Result<value_wire::Value, Status> {
@@ -135,10 +135,10 @@ fn project_value(
 }
 
 fn historical_card(
-    value: &dokime_app::document::DocumentCardDefinition,
-    scope: &dokime_app::core::RecordScope,
+    value: &dokime_runtime::document::DocumentCardDefinition,
+    scope: &dokime_runtime::core::RecordScope,
 ) -> Result<history::HistoricalDocumentCard, Status> {
-    use dokime_app::document::DocumentCardBody;
+    use dokime_runtime::document::DocumentCardBody;
     let body = match &value.body {
         DocumentCardBody::Text { markdown } => {
             value::text(markdown)?;
@@ -205,7 +205,7 @@ fn historical_card(
 }
 
 fn historical_summary(
-    value: &dokime_app::document::TelemetrySummaryDefinition,
+    value: &dokime_runtime::document::TelemetrySummaryDefinition,
 ) -> Result<history::HistoricalTelemetrySummary, Status> {
     value::collection(value.groups.len())?;
     Ok(history::HistoricalTelemetrySummary {
@@ -220,7 +220,7 @@ fn historical_summary(
 }
 
 fn historical_summary_tile(
-    value: &dokime_app::document::TelemetrySummaryTileDefinition,
+    value: &dokime_runtime::document::TelemetrySummaryTileDefinition,
 ) -> Result<history::HistoricalSummaryTile, Status> {
     value::collection(value.filters.len())?;
     value::collection(value.conditions.len())?;
@@ -254,7 +254,7 @@ fn historical_summary_tile(
 }
 
 fn historical_filter(
-    value: &dokime_app::document::DocumentFilter,
+    value: &dokime_runtime::document::DocumentFilter,
 ) -> Result<history::HistoricalDocumentFilter, Status> {
     Ok(history::HistoricalDocumentFilter {
         expression: Some(data_expression(&value.expression)?),
@@ -268,7 +268,7 @@ fn historical_filter(
 }
 
 fn data_expression(
-    value: &dokime_app::expressions::DataExpression,
+    value: &dokime_runtime::expressions::DataExpression,
 ) -> Result<plots::DataExpression, Status> {
     value::collection(value.transforms.len())?;
     Ok(plots::DataExpression {
@@ -284,9 +284,9 @@ fn data_expression(
 }
 
 fn data_source(
-    value: &dokime_app::expressions::DataSource,
+    value: &dokime_runtime::expressions::DataSource,
 ) -> Result<plots::DataExpressionSource, Status> {
-    use dokime_app::expressions::DataSource;
+    use dokime_runtime::expressions::DataSource;
     Ok(match value {
         DataSource::Telemetry { stream, field } => {
             value::text(stream)?;
@@ -324,9 +324,9 @@ fn data_source(
 }
 
 fn data_transform(
-    value: &dokime_app::expressions::DataTransform,
+    value: &dokime_runtime::expressions::DataTransform,
 ) -> Result<plots::DataTransform, Status> {
-    use dokime_app::expressions::DataTransform;
+    use dokime_runtime::expressions::DataTransform;
     use plots::DataTransformKind as Kind;
     let kind = match value {
         DataTransform::Aggregate(aggregate) => Kind::Aggregate(plots::AggregateTransform {
@@ -358,8 +358,8 @@ fn data_transform(
 }
 
 pub(in crate::grpc) fn historical_plot(
-    value: &dokime_app::document::PlotDefinition,
-    scope: &dokime_app::core::RecordScope,
+    value: &dokime_runtime::document::PlotDefinition,
+    scope: &dokime_runtime::core::RecordScope,
 ) -> Result<documents::DocumentPlotDefinition, Status> {
     value::collection(value.y.len())?;
     value::collection(value.y_expressions.len())?;
@@ -458,7 +458,7 @@ pub(in crate::grpc) fn historical_plot(
     })
 }
 
-fn plot_filter(value: &dokime_app::document::DocumentFilter) -> Result<plots::PlotFilter, Status> {
+fn plot_filter(value: &dokime_runtime::document::DocumentFilter) -> Result<plots::PlotFilter, Status> {
     Ok(plots::PlotFilter {
         expression: Some(data_expression(&value.expression)?),
         operator: enums::filter_operator(&value.operator),
@@ -480,7 +480,7 @@ fn finite(value: f64, field: &str) -> Result<(), Status> {
     }
 }
 
-fn fft_options(value: &dokime_app::document::FftOptions) -> Result<plots::PlotFftOptions, Status> {
+fn fft_options(value: &dokime_runtime::document::FftOptions) -> Result<plots::PlotFftOptions, Status> {
     for item in [
         value.sample_rate_hz,
         value.min_frequency_hz,
@@ -503,7 +503,7 @@ fn fft_options(value: &dokime_app::document::FftOptions) -> Result<plots::PlotFf
 }
 
 fn interval_options(
-    value: &dokime_app::document::SigmaIntervalOptions,
+    value: &dokime_runtime::document::SigmaIntervalOptions,
 ) -> Result<plots::PlotIntervalOptions, Status> {
     finite(value.bin_width, "interval bin_width")?;
     finite(value.sigma, "interval sigma")?;
@@ -515,7 +515,7 @@ fn interval_options(
 }
 
 fn histogram_options(
-    value: &dokime_app::document::HistogramOptions,
+    value: &dokime_runtime::document::HistogramOptions,
 ) -> Result<plots::PlotHistogramOptions, Status> {
     if value.bins > u64::MAX as usize {
         return Err(Status::data_loss(
@@ -532,7 +532,7 @@ fn histogram_options(
 }
 
 fn reference_line(
-    value: &dokime_app::document::ReferenceLine,
+    value: &dokime_runtime::document::ReferenceLine,
 ) -> Result<documents::PlotReferenceLine, Status> {
     finite(value.source_scale, "reference line source_scale")?;
     if let Some(item) = value.value {
@@ -553,7 +553,7 @@ fn reference_line(
 }
 
 fn reference_band(
-    value: &dokime_app::document::ReferenceBand,
+    value: &dokime_runtime::document::ReferenceBand,
 ) -> Result<documents::PlotReferenceBand, Status> {
     if let Some(item) = value.min {
         finite(item, "reference band min")?;
@@ -577,71 +577,71 @@ fn reference_band(
 }
 
 fn summary_stat(
-    value: dokime_app::document::TelemetrySummaryStat,
+    value: dokime_runtime::document::TelemetrySummaryStat,
 ) -> documents::DocumentSummaryStat {
     match value {
-        dokime_app::document::TelemetrySummaryStat::Latest => {
+        dokime_runtime::document::TelemetrySummaryStat::Latest => {
             documents::DocumentSummaryStat::Latest
         }
     }
 }
 
 fn summary_format(
-    value: dokime_app::document::TelemetrySummaryFormat,
+    value: dokime_runtime::document::TelemetrySummaryFormat,
 ) -> documents::DocumentSummaryFormat {
     match value {
-        dokime_app::document::TelemetrySummaryFormat::Auto => {
+        dokime_runtime::document::TelemetrySummaryFormat::Auto => {
             documents::DocumentSummaryFormat::Auto
         }
-        dokime_app::document::TelemetrySummaryFormat::Number => {
+        dokime_runtime::document::TelemetrySummaryFormat::Number => {
             documents::DocumentSummaryFormat::Number
         }
-        dokime_app::document::TelemetrySummaryFormat::Percent => {
+        dokime_runtime::document::TelemetrySummaryFormat::Percent => {
             documents::DocumentSummaryFormat::Percent
         }
-        dokime_app::document::TelemetrySummaryFormat::Duration => {
+        dokime_runtime::document::TelemetrySummaryFormat::Duration => {
             documents::DocumentSummaryFormat::Duration
         }
-        dokime_app::document::TelemetrySummaryFormat::Distance => {
+        dokime_runtime::document::TelemetrySummaryFormat::Distance => {
             documents::DocumentSummaryFormat::Distance
         }
-        dokime_app::document::TelemetrySummaryFormat::Status => {
+        dokime_runtime::document::TelemetrySummaryFormat::Status => {
             documents::DocumentSummaryFormat::Status
         }
-        dokime_app::document::TelemetrySummaryFormat::Text => {
+        dokime_runtime::document::TelemetrySummaryFormat::Text => {
             documents::DocumentSummaryFormat::Text
         }
     }
 }
 
 fn summary_presentation(
-    value: dokime_app::document::TelemetrySummaryPresentation,
+    value: dokime_runtime::document::TelemetrySummaryPresentation,
 ) -> documents::DocumentSummaryPresentation {
     match value {
-        dokime_app::document::TelemetrySummaryPresentation::Value => {
+        dokime_runtime::document::TelemetrySummaryPresentation::Value => {
             documents::DocumentSummaryPresentation::Value
         }
-        dokime_app::document::TelemetrySummaryPresentation::Progress => {
+        dokime_runtime::document::TelemetrySummaryPresentation::Progress => {
             documents::DocumentSummaryPresentation::Progress
         }
-        dokime_app::document::TelemetrySummaryPresentation::Badge => {
+        dokime_runtime::document::TelemetrySummaryPresentation::Badge => {
             documents::DocumentSummaryPresentation::Badge
         }
     }
 }
 
 fn summary_state(
-    value: dokime_app::document::TelemetrySummaryState,
+    value: dokime_runtime::document::TelemetrySummaryState,
 ) -> documents::DocumentSummaryState {
     match value {
-        dokime_app::document::TelemetrySummaryState::Ok => documents::DocumentSummaryState::Ok,
-        dokime_app::document::TelemetrySummaryState::Warning => {
+        dokime_runtime::document::TelemetrySummaryState::Ok => documents::DocumentSummaryState::Ok,
+        dokime_runtime::document::TelemetrySummaryState::Warning => {
             documents::DocumentSummaryState::Warning
         }
-        dokime_app::document::TelemetrySummaryState::Critical => {
+        dokime_runtime::document::TelemetrySummaryState::Critical => {
             documents::DocumentSummaryState::Critical
         }
-        dokime_app::document::TelemetrySummaryState::Muted => {
+        dokime_runtime::document::TelemetrySummaryState::Muted => {
             documents::DocumentSummaryState::Muted
         }
     }
@@ -650,7 +650,7 @@ fn summary_state(
 fn owner_body(
     kind: documents::DocumentCardKind,
     plot_id: Option<String>,
-    _scope: &dokime_app::core::RecordScope,
+    _scope: &dokime_runtime::core::RecordScope,
 ) -> Result<history::HistoricalDocumentCardBody, Status> {
     Ok(history::HistoricalDocumentCardBody::Owner(
         documents::DocumentOwnerReference {
@@ -662,12 +662,12 @@ fn owner_body(
 }
 
 fn layout_nodes_for_node(
-    node: &dokime_app::document::DocumentNode,
+    node: &dokime_runtime::document::DocumentNode,
     parent: Option<u64>,
     ordinal: &mut u64,
     output: &mut Vec<documents::DocumentLayoutNode>,
 ) -> Result<(), Status> {
-    use dokime_app::document::DocumentNode;
+    use dokime_runtime::document::DocumentNode;
     match node {
         DocumentNode::Section(section) => {
             let current = *ordinal;
@@ -709,7 +709,7 @@ fn layout_nodes_for_node(
 }
 
 pub(in crate::grpc) fn repeat(
-    source: &dokime_app::document::DocumentSectionRepeat,
+    source: &dokime_runtime::document::DocumentSectionRepeat,
 ) -> Result<documents::DocumentRepeat, Status> {
     value::text(&source.label_template)?;
     if let Some(id) = &source.id_template {
@@ -724,7 +724,7 @@ pub(in crate::grpc) fn repeat(
     })
 }
 
-fn span(value: &dokime_app::document::ResponsiveSpan) -> documents::DocumentSpan {
+fn span(value: &dokime_runtime::document::ResponsiveSpan) -> documents::DocumentSpan {
     documents::DocumentSpan {
         base: u32::from(value.base),
         sm: value.sm.map(u32::from),
@@ -734,24 +734,24 @@ fn span(value: &dokime_app::document::ResponsiveSpan) -> documents::DocumentSpan
     }
 }
 
-fn density(value: &dokime_app::document::DocumentCardDensity) -> documents::DocumentDensity {
+fn density(value: &dokime_runtime::document::DocumentCardDensity) -> documents::DocumentDensity {
     match value {
-        dokime_app::document::DocumentCardDensity::Compact => documents::DocumentDensity::Compact,
-        dokime_app::document::DocumentCardDensity::Normal => documents::DocumentDensity::Normal,
-        dokime_app::document::DocumentCardDensity::Spacious => documents::DocumentDensity::Spacious,
+        dokime_runtime::document::DocumentCardDensity::Compact => documents::DocumentDensity::Compact,
+        dokime_runtime::document::DocumentCardDensity::Normal => documents::DocumentDensity::Normal,
+        dokime_runtime::document::DocumentCardDensity::Spacious => documents::DocumentDensity::Spacious,
     }
 }
 
-fn rail(value: &dokime_app::document::DocumentCardRail) -> documents::DocumentRail {
+fn rail(value: &dokime_runtime::document::DocumentCardRail) -> documents::DocumentRail {
     match value {
-        dokime_app::document::DocumentCardRail::Main => documents::DocumentRail::Main,
-        dokime_app::document::DocumentCardRail::Right => documents::DocumentRail::Right,
-        dokime_app::document::DocumentCardRail::Left => documents::DocumentRail::Left,
+        dokime_runtime::document::DocumentCardRail::Main => documents::DocumentRail::Main,
+        dokime_runtime::document::DocumentCardRail::Right => documents::DocumentRail::Right,
+        dokime_runtime::document::DocumentCardRail::Left => documents::DocumentRail::Left,
     }
 }
 
 fn analysis_selection(
-    selection: &dokime::analysis::Selection,
+    selection: &dokime_runtime::analysis::Selection,
 ) -> Result<plots::AnalysisSelection, Status> {
     value::text(&selection.id)?;
     Ok(plots::AnalysisSelection {

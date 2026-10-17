@@ -22,8 +22,8 @@ use crate::error::Error;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::system::{self, SystemInputs};
 use crate::suites::common::{measurement, readiness, verdicts};
-use dokime::definition::ParameterDefault;
-use dokime::prelude::*;
+use dokime_runtime::definition::ParameterDefault;
+use dokime_runtime::prelude::*;
 use obc_runtime::device::{Device, Fault, Power, Reading};
 
 /* === Constants === */
@@ -33,7 +33,7 @@ use obc_runtime::device::{Device, Fault, Power, Reading};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::stream(id = "obc.charger.protection.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
+#[dokime_runtime::stream(id = "obc.charger.protection.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
 pub struct Samples;
 
 pub struct Overcurrent {
@@ -47,7 +47,7 @@ pub struct Overcurrent {
 
 /* === Records === */
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.protection.initialized",
     label = "Charger initialized",
     description = "The Charger was initialized for this attempt."
@@ -55,7 +55,7 @@ pub struct Overcurrent {
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.protection.started",
     label = "Charger energized",
     description = "The supply was energized."
@@ -63,7 +63,7 @@ pub struct Initialized {}
 #[derive(Clone, Debug)]
 pub struct Started {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.protection.faulted",
     label = "Overcurrent latch opened the Charger supply",
     description = "The overcurrent latch opened the supply."
@@ -71,7 +71,7 @@ pub struct Started {}
 #[derive(Clone, Debug)]
 pub struct Faulted {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.protection.stopped",
     label = "Charger supply de-energized; any fault latch remains set",
     description = "The procedure left the Charger safely disconnected, and what it decided."
@@ -89,7 +89,7 @@ pub struct Stopped {
     pub tripped_at_step: u64,
 }
 
-#[dokime::parameters]
+#[dokime_runtime::parameters]
 pub struct Parameters {
     #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
@@ -102,10 +102,10 @@ pub struct Parameters {
         min = 0.1,
         min_items = 1,
         max_items = 16,
-        default = ParameterDefault::literal(dokime::core::Value::Array(::std::vec![
-            dokime::core::Value::Number(100.0),
-            dokime::core::Value::Number(50.0),
-            dokime::core::Value::Number(10.0),
+        default = ParameterDefault::literal(dokime_runtime::core::Value::Array(::std::vec![
+            dokime_runtime::core::Value::Number(100.0),
+            dokime_runtime::core::Value::Number(50.0),
+            dokime_runtime::core::Value::Number(10.0),
         ])), description = "The impedances the procedure applies in order, starting from the one the Charger was energized at. Declared in ohms like the load it replaces.")]
     pub load_steps: Vec<f64>,
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
@@ -127,12 +127,12 @@ pub struct Parameters {
 }
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Required {
     AskReadiness(crate::operations::readiness::AskReadiness),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Records {
     Initialized(Initialized),
     Started(Started),
@@ -140,7 +140,7 @@ pub enum Records {
     Stopped(Stopped),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Streams {
     Samples(Samples),
 }
@@ -150,7 +150,7 @@ pub enum Streams {
 /* === Implementations === */
 bench!(Parameters);
 
-#[dokime::template(id = TEMPLATE, label = "Overcurrent Protection", tags = ["device", "protection"],
+#[dokime_runtime::template(id = TEMPLATE, label = "Overcurrent Protection", tags = ["device", "protection"],
     requires = Required,
     subscribes = SystemInputs,
     records = Records,
@@ -173,13 +173,13 @@ impl Overcurrent {
     }
     fn document() -> Document {
         let mut document = measurement::document(
-            <Samples as dokime::StreamSpec>::ID,
+            <Samples as dokime_runtime::StreamSpec>::ID,
             "Overcurrent Protection",
         );
         document.section(system::section(TEMPLATE));
         document
     }
-    #[dokime::step(
+    #[dokime_runtime::step(
         id = "initialize",
         label = "Initialize and Start Charger",
         description = "Bring the simulated Charger to its nominal operating point.\nEnergises the supply at the configured voltage and load, then waits for the RMS readings to settle before any fault is provoked."
@@ -200,7 +200,7 @@ impl Overcurrent {
         publish(ctx, &mut self.published, reading, phase).await;
         Ok(())
     }
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Walk the Load Ladder",
         description = "Walk the declared ladder of load impedances until the latch opens.\n`load_steps` is one ordered run of impedances belonging to this case, not three cases: the procedure applies each in turn, samples the Charger after each, and stops at the rung where the RMS protection opens the supply."
     )]
@@ -233,7 +233,7 @@ impl Overcurrent {
         Ok(())
     }
 
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Leave Charger Safely Disconnected",
         description = "Confirm the supply stays open and leave the Charger de-energised."
     )]
@@ -257,7 +257,7 @@ impl Overcurrent {
         Ok(())
     }
 
-    #[dokime::criterion(
+    #[dokime_runtime::criterion(
         id = "obc.charger.protection.latch",
         label = "Overcurrent disconnects and prevents restart",
         description = "Passed once the overload latched a fault and blocked the restart."

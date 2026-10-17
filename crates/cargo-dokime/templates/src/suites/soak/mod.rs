@@ -30,7 +30,7 @@ pub use hold::{Hold, HoldReached, SoakRow};
 pub struct SoakSuite;
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Templates {
     Hold(hold::Hold),
 }
@@ -43,7 +43,7 @@ pub enum Templates {
 // it is declared in `hold.rs` beside the step that files it and named on that
 // template's own attribute — and reaches the host through the template list
 // below, bound to the template that publishes it.
-#[dokime::suite(
+#[dokime_runtime::suite(
     id = "{{owner}}.soak",
     label = "Thermal Soak",
     tags = ["device", "thermal"],

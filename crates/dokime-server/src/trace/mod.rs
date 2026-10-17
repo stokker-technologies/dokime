@@ -33,7 +33,7 @@ use tracing_subscriber::{EnvFilter, Layer};
 // Local Imports
 
 /* === Constants === */
-const CAPTURE_DIRECTIVES: &str = "info,dokime=debug,dokime_app=debug,dokime_server=debug,\
+const CAPTURE_DIRECTIVES: &str = "info,dokime_runtime=debug,dokime_server=debug,\
 dokime_host=debug,sidecar=trace,harmos=info,h2=off,hyper=off,hyper_util=off,tonic=off,\
 tower=off,tower_http=off,rustls=off";
 

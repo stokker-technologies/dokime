@@ -21,7 +21,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
+use dokime_runtime::harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
 
 /* === Constants === */
 pub(crate) const POLICY: OperationPolicy = OperationPolicy {
@@ -38,14 +38,14 @@ pub(crate) const POLICY: OperationPolicy = OperationPolicy {
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Implemented {
     GetStatus(status::GetStatus),
     AskReadiness(readiness::AskReadiness),
     ListConnections(connections::ListConnections),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Operations {
     #[nested]
     Implemented(Implemented),

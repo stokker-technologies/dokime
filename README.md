@@ -435,9 +435,9 @@ A shortened version of OBC's
 nine-case voltage/load sweep:
 
 ```rust
-use dokime::definition::ParameterDefault;
+use dokime_runtime::definition::ParameterDefault;
 
-#[dokime::parameters]
+#[dokime_runtime::parameters]
 pub struct Parameters {
     #[parameter(
         label = "AC Voltage (RMS)", unit = "V",
@@ -469,7 +469,7 @@ This excerpt is the template's measurement observer. `InputMeasurement`,
 `Samples`, `ObserverStreams`, and `reading` belong to the example:
 
 ```rust
-#[dokime::observer(interval_ms = 5, streams = ObserverStreams)]
+#[dokime_runtime::observer(interval_ms = 5, streams = ObserverStreams)]
 async fn samples(ctx: &mut ObserverContext<'_>) -> Result<(), Error> {
     let row = reading(ctx.resources())?;
     ctx.stream::<InputMeasurement>()
@@ -485,7 +485,7 @@ summary through `ctx.artifacts()`. Its criterion checks that enough samples
 were captured and that the completion record accepted the run:
 
 ```rust
-#[dokime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
+#[dokime_runtime::criterion(id = STEADY_ACCEPTANCE_CRITERION, label = "Trace Accepted")]
 fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
     Ok(
         ctx.samples::<Samples>().len() as u64 >= ctx.parameters().sample_count()?
@@ -622,7 +622,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 
 - [OBC Plugin](plugins/obc-plugin/) — the charger simulation and complete test templates.
 - [Plugin Starter](crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
-- [Rust SDK](crates/dokime/src/lib.rs) — public authoring APIs and module documentation.
+- [Runtime And Plugin SDK](crates/dokime-runtime/src/lib.rs) — public authoring APIs and module documentation.
 - [Client API](crates/dokime-client/src/) — programmatic access to cycles and executions.
 - [Contributing](CONTRIBUTING.md) — repository setup and development workflow.
 

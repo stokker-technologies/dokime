@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::{Bench, Error};
-use dokime::host::ToolConnectionAcquired;
-use dokime::prelude::*;
+use dokime_runtime::host::ToolConnectionAcquired;
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 
@@ -38,7 +38,7 @@ pub struct UnitConnected {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::listener(id = "{{owner}}.unit_connected", record = ToolConnectionAcquired)]
+#[dokime_runtime::listener(id = "{{owner}}.unit_connected", record = ToolConnectionAcquired)]
 impl UnitConnected {
     pub async fn initialize(bench: Arc<Bench>, _: &Supervisor) -> Self {
         Self { bench }

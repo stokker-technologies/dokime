@@ -22,7 +22,7 @@ use tonic::Status;
 use super::chunked;
 use super::value::canonical;
 use super::{error::detailed, value};
-use dokime_app::{
+use dokime_runtime::{
     OpenedReport, ReportOrigin, RuntimeHandle,
     core::{Identifier, TestCycleId, TestExecutionId},
 };
@@ -165,7 +165,7 @@ pub(super) fn register(
         .operations()
         .register_wire_operations::<Operations, Resources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(Resources {
                 runtime: runtime.clone(),
                 max_message_bytes,
@@ -227,13 +227,13 @@ async fn deliver(
     Ok(().into())
 }
 
-fn report_failure(error: dokime_app::Error) -> Status {
-    if let dokime_app::Error::NotFound { message, .. } = &error {
+fn report_failure(error: dokime_runtime::runtime::Error) -> Status {
+    if let dokime_runtime::runtime::Error::NotFound { message, .. } = &error {
         return Status::not_found(message.clone());
     }
     let status = if matches!(
         &error,
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. })
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. })
     ) {
         Status::resource_exhausted(format!("report operation failed: {error}"))
     } else {

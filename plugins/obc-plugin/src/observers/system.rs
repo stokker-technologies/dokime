@@ -19,7 +19,7 @@ use sysinfo::{Pid, System as Machine};
 // Local Imports
 // Third-Party Imports
 use crate::{ObcPlugin, Resources};
-use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
+use dokime_runtime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 
 /* === Constants === */
 
@@ -28,7 +28,7 @@ use dokime::harmos::sidecar::{ObserverContext, PublishError, Publisher};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::stream(
+#[dokime_runtime::stream(
     id = "obc-plugin.system",
     window = 4096,
     label = "Testbench Health",
@@ -54,7 +54,7 @@ impl Default for System {
 }
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Streams {
     SystemRow(SystemRow),
 }
@@ -62,7 +62,7 @@ pub enum Streams {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
+#[dokime_runtime::observer(interval_ms = 1_000, streams(SystemRow), activation = "demand")]
 impl System {
     async fn observe(
         &mut self,

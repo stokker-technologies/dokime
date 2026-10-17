@@ -28,7 +28,7 @@ use tokio::{
 // Local Imports
 use super::build;
 use crate::error::Error;
-use dokime_cli::terminal::{ColorMode, Terminal};
+use dokime::terminal::{ColorMode, Terminal};
 
 /* === Constants === */
 
@@ -843,7 +843,7 @@ fn read_environment_keys(
 
 /// A `dokime` CLI invocation carrying this tool's color mode.
 fn dokime(cli: &Path, subcommand: &str) -> Command {
-    let color = match dokime_cli::terminal::color_mode() {
+    let color = match dokime::terminal::color_mode() {
         ColorMode::Auto => "auto",
         ColorMode::Always => "always",
         ColorMode::Never => "never",

@@ -22,8 +22,8 @@ use crate::error::Error;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::system::{self, SystemInputs};
 use crate::suites::common::{measurement, readiness, verdicts};
-use dokime::definition::ParameterDefault;
-use dokime::prelude::*;
+use dokime_runtime::definition::ParameterDefault;
+use dokime_runtime::prelude::*;
 use obc_runtime::device::{Device, Fault, Power, Reading};
 
 /* === Constants === */
@@ -33,7 +33,7 @@ use obc_runtime::device::{Device, Fault, Power, Reading};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::stream(id = "obc.charger.recovery.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
+#[dokime_runtime::stream(id = "obc.charger.recovery.samples", window = 4096, row = measurement::InputMeasurement, label = "AC Device Measurements", description = "The stream this suite's readings travel.\nA type of its own rather than a home on [`measurement::InputMeasurement`]: four suites measure the same physical thing and each owns the stream its evidence travels, so the shape declares no home and every stream declares itself.")]
 pub struct Samples;
 
 pub struct PowerLoss {
@@ -45,7 +45,7 @@ pub struct PowerLoss {
 
 /* === Records === */
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.recovery.initialized",
     label = "Charger initialized",
     description = "The Charger was initialized for this attempt."
@@ -53,7 +53,7 @@ pub struct PowerLoss {
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.recovery.started",
     label = "Charger energized",
     description = "The supply was energized, once before the loss and once after it."
@@ -67,7 +67,7 @@ pub struct Started {
     pub note: String,
 }
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.recovery.faulted",
     label = "Charger power was removed; plugin and host remain alive",
     description = "Power was removed from the Charger."
@@ -75,7 +75,7 @@ pub struct Started {
 #[derive(Clone, Debug)]
 pub struct Faulted {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.recovery.cleared",
     label = "Power restored and fault latch cleared",
     description = "Power was restored and the latch cleared."
@@ -83,7 +83,7 @@ pub struct Faulted {}
 #[derive(Clone, Debug)]
 pub struct Cleared {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.recovery.stopped",
     label = "Recovered Charger de-energized",
     description = "The recovered Charger was de-energized, and what the procedure decided."
@@ -96,7 +96,7 @@ pub struct Stopped {
     pub cycles: u64,
 }
 
-#[dokime::parameters]
+#[dokime_runtime::parameters]
 pub struct Parameters {
     #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
@@ -109,10 +109,10 @@ pub struct Parameters {
         min = 0.0,
         min_items = 1,
         max_items = 16,
-        default = ParameterDefault::literal(dokime::core::Value::Array(::std::vec![
-            dokime::core::Value::Number(0.05),
-            dokime::core::Value::Number(0.1),
-            dokime::core::Value::Number(0.2),
+        default = ParameterDefault::literal(dokime_runtime::core::Value::Array(::std::vec![
+            dokime_runtime::core::Value::Number(0.05),
+            dokime_runtime::core::Value::Number(0.1),
+            dokime_runtime::core::Value::Number(0.2),
         ])), description = "How long the Charger stays without power on each cycle, in model seconds.")]
     pub outage_durations_s: Vec<f64>,
     #[parameter(
@@ -122,10 +122,10 @@ pub struct Parameters {
         min = SHORTEST_S,
         min_items = 1,
         max_items = 16,
-        default = ParameterDefault::literal(dokime::core::Value::Array(::std::vec![
-            dokime::core::Value::Number(0.02),
-            dokime::core::Value::Number(0.05),
-            dokime::core::Value::Number(0.1),
+        default = ParameterDefault::literal(dokime_runtime::core::Value::Array(::std::vec![
+            dokime_runtime::core::Value::Number(0.02),
+            dokime_runtime::core::Value::Number(0.05),
+            dokime_runtime::core::Value::Number(0.1),
         ])), description = "How long the restart after each outage is allowed to take, in model seconds, read in step with [`Parameters::outage_durations_s`].")]
     pub recovery_limits_s: Vec<f64>,
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]
@@ -147,12 +147,12 @@ pub struct Parameters {
 }
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Required {
     AskReadiness(crate::operations::readiness::AskReadiness),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Records {
     Initialized(Initialized),
     Started(Started),
@@ -161,7 +161,7 @@ pub enum Records {
     Stopped(Stopped),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Streams {
     Samples(Samples),
 }
@@ -171,7 +171,7 @@ pub enum Streams {
 /* === Implementations === */
 bench!(Parameters);
 
-#[dokime::template(id = TEMPLATE, label = "Power-Loss Recovery", tags = ["device", "recovery"],
+#[dokime_runtime::template(id = TEMPLATE, label = "Power-Loss Recovery", tags = ["device", "recovery"],
     requires = Required,
     subscribes = SystemInputs,
     records = Records,
@@ -192,11 +192,11 @@ impl PowerLoss {
     }
     fn document() -> Document {
         let mut document =
-            measurement::document(<Samples as dokime::StreamSpec>::ID, "Power-Loss Recovery");
+            measurement::document(<Samples as dokime_runtime::StreamSpec>::ID, "Power-Loss Recovery");
         document.section(system::section(TEMPLATE));
         document
     }
-    #[dokime::step(id = "initialize", label = "Initialize and Start Charger")]
+    #[dokime_runtime::step(id = "initialize", label = "Initialize and Start Charger")]
     async fn setup(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Initialized {}).await;
         self.device.start().map_err(Error::Device)?;
@@ -208,7 +208,7 @@ impl PowerLoss {
         publish(ctx, &mut self.published, reading, "running").await;
         Ok(())
     }
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Replay the Outage Schedule",
         description = "Replay the declared outage schedule, one pair at a time.\nEach cycle removes power for its own duration, restores it, clears the latch, and requires the restart to be observable within the paired budget. A case whose two lists are different lengths has half a cycle in it and is refused by name rather than silently truncated."
     )]
@@ -253,7 +253,7 @@ impl PowerLoss {
         Ok(())
     }
 
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Leave Charger De-Energized",
         description = "Leave the recovered Charger de-energized and record what was decided."
     )]
@@ -273,7 +273,7 @@ impl PowerLoss {
         Ok(())
     }
 
-    #[dokime::criterion(
+    #[dokime_runtime::criterion(
         id = "obc.charger.recovery.restart",
         label = "Power loss is contained and restart succeeds",
         description = "Passed once the loss was contained and the controlled restart recovered."

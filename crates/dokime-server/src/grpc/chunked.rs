@@ -21,7 +21,7 @@ use sha2::{Digest as _, Sha256};
 use std::num::NonZeroUsize;
 use tonic::Status;
 // Local Imports
-use dokime_app::runtime::ArtifactReader;
+use dokime_runtime::runtime::ArtifactReader;
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */
@@ -106,7 +106,7 @@ impl Source {
     async fn next_chunk(
         &mut self,
         maximum: NonZeroUsize,
-    ) -> Result<Option<Vec<u8>>, dokime_app::Error> {
+    ) -> Result<Option<Vec<u8>>, dokime_runtime::runtime::Error> {
         match self {
             Self::Artifact(reader) => reader.next_chunk(maximum).await,
             Self::Bytes { .. } => unreachable!("captured byte sources use direct bounded slices"),
@@ -237,12 +237,12 @@ fn checked_offset(offset: u64, count: usize, size: u64, noun: &str) -> Result<u6
         .filter(|delivered| *delivered <= size)
         .ok_or_else(|| Status::data_loss(format!("{noun} exceeds its declared length")))
 }
-fn file_failure(source: dokime_app::Error, message: &'static str) -> Status {
+fn file_failure(source: dokime_runtime::runtime::Error, message: &'static str) -> Status {
     let status = match &source {
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted(message)
         }
-        dokime_app::Error::Harmos(harmos::Error::NotReady { .. }) => Status::unavailable(message),
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::NotReady { .. }) => Status::unavailable(message),
         _ => Status::internal(message),
     };
     super::error::detailed(status, &source)

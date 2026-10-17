@@ -22,8 +22,8 @@ use tonic::Status;
 // Local Imports
 use super::error::detailed;
 use super::value::{self, Budget, canonical};
-use dokime_app::RuntimeHandle;
-use dokime_app::runtime::query::aggregate::{
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::runtime::query::aggregate::{
     AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource,
 };
 use dokime_contract::operations::query as wire;
@@ -85,7 +85,7 @@ impl Operation for Aggregate {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<Aggregate>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             max_message_bytes: maximum,
@@ -170,19 +170,19 @@ fn decode(request: &mut wire::AggregateRequest) -> Result<AggregateQuery, Status
     })
 }
 
-fn status(error: dokime_app::Error) -> Status {
+fn status(error: dokime_runtime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_app::Error::Validation { message, .. } => Status::invalid_argument(message.clone()),
-        dokime_app::Error::NotFound { .. } => Status::not_found("aggregate source was not found"),
-        dokime_app::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
+        dokime_runtime::runtime::Error::Validation { message, .. } => Status::invalid_argument(message.clone()),
+        dokime_runtime::runtime::Error::NotFound { .. } => Status::not_found("aggregate source was not found"),
+        dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("aggregate response exceeds its original budget")
         }
-        dokime_app::Error::Overload { .. } => {
+        dokime_runtime::runtime::Error::Overload { .. } => {
             Status::resource_exhausted("aggregate reads are busy")
         }
-        dokime_app::Error::Unavailable { .. }
-        | dokime_app::Error::ShuttingDown
-        | dokime_app::Error::Interrupted => {
+        dokime_runtime::runtime::Error::Unavailable { .. }
+        | dokime_runtime::runtime::Error::ShuttingDown
+        | dokime_runtime::runtime::Error::Interrupted => {
             Status::unavailable("aggregate query could not be served")
         }
         _ => Status::internal("aggregate query failed"),

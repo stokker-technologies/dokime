@@ -29,8 +29,8 @@ use super::super::{
     value::{self, projection},
 };
 use super::wire;
-use dokime_app::RuntimeHandle;
-use dokime_app::runtime::query::checkpoint_records::ExecutionRecordPage;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::runtime::query::checkpoint_records::ExecutionRecordPage;
 use dokime_contract::operations::history as contract;
 
 /* === Constants === */
@@ -74,7 +74,7 @@ impl Operation for List {
     ) -> Result<Response<contract::CheckpointRecordPage>, Status> {
         value::text(&request.after)?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
-        let query = dokime_app::runtime::query::checkpoint_records::ExecutionRecordQuery {
+        let query = dokime_runtime::runtime::query::checkpoint_records::ExecutionRecordQuery {
             after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),
             limit: (request.limit != 0).then_some(request.limit as usize),
         };
@@ -129,7 +129,7 @@ fn project(
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,

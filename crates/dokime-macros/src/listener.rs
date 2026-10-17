@@ -56,7 +56,7 @@ fn expand(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, Err
     if block.trait_.is_some() {
         return Err(Error::new_spanned(
             &block.self_ty,
-            "`#[dokime::listener]` declares the listener's own inherent impl",
+            "`#[dokime_runtime::listener]` declares the listener's own inherent impl",
         ));
     }
     let identifier = arguments.required("id", "the host calls a listener by its operation id")?;

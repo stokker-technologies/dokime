@@ -26,13 +26,13 @@ use crate::operations::status::GetStatus;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::settings]
+#[dokime_runtime::settings]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BenchSettings {
     pub evidence: Evidence,
 }
 
-#[dokime::section(label = "Evidence", status = GetStatus, description = "Where this bench looks for the optional reference image an attached evidence step captures.\nElectrical inputs stay template parameters — they vary case to case — but this path is deployment shape: it does not change from one test case to the next.")]
+#[dokime_runtime::section(label = "Evidence", status = GetStatus, description = "Where this bench looks for the optional reference image an attached evidence step captures.\nElectrical inputs stay template parameters — they vary case to case — but this path is deployment shape: it does not change from one test case to the next.")]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Evidence {
     #[setting(

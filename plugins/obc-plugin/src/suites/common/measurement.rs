@@ -17,9 +17,9 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::expressions::telemetry;
-use dokime::prelude::*;
-use dokime::telemetry::OwnedStream;
+use dokime_runtime::expressions::telemetry;
+use dokime_runtime::prelude::*;
+use dokime_runtime::telemetry::OwnedStream;
 use obc_runtime::device::Reading;
 
 /* === Constants === */
@@ -29,7 +29,7 @@ use obc_runtime::device::Reading;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::row]
+#[dokime_runtime::row]
 #[derive(Clone)]
 pub struct InputMeasurement {
     #[row(role = counter)]

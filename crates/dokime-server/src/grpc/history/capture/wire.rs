@@ -22,9 +22,9 @@ use crate::grpc::{
     catalog, execution, notes,
     value::{self, canonical},
 };
-use dokime_app::definition::{MaterializedParameter, ParameterSource, TestCase};
-use dokime_app::execution::result::ExecutionInvalidation;
-use dokime_app::execution::{ExecutionSnapshot, ExecutionStatus, StepStatus, TestExecution};
+use dokime_runtime::definition::{MaterializedParameter, ParameterSource, TestCase};
+use dokime_runtime::execution::result::ExecutionInvalidation;
+use dokime_runtime::execution::{ExecutionSnapshot, ExecutionStatus, StepStatus, TestExecution};
 use dokime_contract::operations::{
     common as common_wire, execution as execution_wire, history as history_wire,
     value as value_wire,
@@ -45,7 +45,7 @@ use dokime_contract::operations::{
 
 /* === Public Functions === */
 pub(super) fn execution_document(
-    value: dokime_app::execution::storage::ExecutionDocument,
+    value: dokime_runtime::execution::storage::ExecutionDocument,
 ) -> Result<history_wire::HistoricalExecutionDocument, Status> {
     Ok(history_wire::HistoricalExecutionDocument {
         cycle: Some(history_wire::HistoricalExecutionCycle {
@@ -71,10 +71,10 @@ fn test_execution(value: TestExecution) -> Result<history_wire::HistoricalTestEx
     Ok(history_wire::HistoricalTestExecution {
         execution_id: value.test_execution_id.as_str().to_owned(),
         mode: match value.mode {
-            dokime_app::execution::ExecutionMode::Automatic => {
+            dokime_runtime::execution::ExecutionMode::Automatic => {
                 execution_wire::ExecutionMode::Automatic
             }
-            dokime_app::execution::ExecutionMode::Interactive => {
+            dokime_runtime::execution::ExecutionMode::Interactive => {
                 execution_wire::ExecutionMode::Interactive
             }
         },
@@ -116,7 +116,7 @@ fn test_execution(value: TestExecution) -> Result<history_wire::HistoricalTestEx
 }
 
 fn step_attempt(
-    attempt: &dokime_app::execution::TestStepAttempt,
+    attempt: &dokime_runtime::execution::TestStepAttempt,
 ) -> Result<history_wire::HistoricalStepAttempt, Status> {
     let detail = attempt
         .detail
@@ -150,16 +150,16 @@ fn step_attempt(
             .map(canonical::timestamp)
             .transpose()?,
         termination: match attempt.termination {
-            dokime_app::execution::TerminationReason::Completed => {
+            dokime_runtime::execution::TerminationReason::Completed => {
                 history_wire::StepTermination::Completed
             }
-            dokime_app::execution::TerminationReason::Failed => {
+            dokime_runtime::execution::TerminationReason::Failed => {
                 history_wire::StepTermination::Failed
             }
-            dokime_app::execution::TerminationReason::Cancelled => {
+            dokime_runtime::execution::TerminationReason::Cancelled => {
                 history_wire::StepTermination::Cancelled
             }
-            dokime_app::execution::TerminationReason::Interrupted => {
+            dokime_runtime::execution::TerminationReason::Interrupted => {
                 history_wire::StepTermination::Interrupted
             }
         },
@@ -169,7 +169,7 @@ fn step_attempt(
 
 fn execution_snapshot(
     value: ExecutionSnapshot,
-    scope: &dokime_app::core::RecordScope,
+    scope: &dokime_runtime::core::RecordScope,
 ) -> Result<history_wire::HistoricalExecutionSnapshot, Status> {
     let mut budget = value::Budget::new();
     let parameter_definitions = catalog::parameters(value.parameter_definitions(), &mut budget)?;
@@ -269,7 +269,7 @@ fn parameter_source(value: &ParameterSource) -> execution_wire::ParameterSource 
     }
 }
 
-fn step(value: &dokime_app::execution::StepRecord) -> Result<history_wire::HistoricalStep, Status> {
+fn step(value: &dokime_runtime::execution::StepRecord) -> Result<history_wire::HistoricalStep, Status> {
     let measurements = collect(value.measurements.iter().enumerate().map(
         |(ordinal, measurement)| {
             Ok(execution_wire::StepMeasurement {
@@ -294,19 +294,19 @@ fn step(value: &dokime_app::execution::StepRecord) -> Result<history_wire::Histo
                     criterion_id: criterion.criterion_id.as_str().to_owned(),
                     metadata: Some(canonical_metadata(&criterion.metadata)?),
                     status: match criterion.status {
-                        dokime_app::execution::CriterionStatus::Pending => {
+                        dokime_runtime::execution::CriterionStatus::Pending => {
                             execution_wire::CriterionStatus::Pending
                         }
-                        dokime_app::execution::CriterionStatus::Passed => {
+                        dokime_runtime::execution::CriterionStatus::Passed => {
                             execution_wire::CriterionStatus::Passed
                         }
-                        dokime_app::execution::CriterionStatus::Failed => {
+                        dokime_runtime::execution::CriterionStatus::Failed => {
                             execution_wire::CriterionStatus::Failed
                         }
-                        dokime_app::execution::CriterionStatus::Indeterminate => {
+                        dokime_runtime::execution::CriterionStatus::Indeterminate => {
                             execution_wire::CriterionStatus::Indeterminate
                         }
-                        dokime_app::execution::CriterionStatus::Skipped => {
+                        dokime_runtime::execution::CriterionStatus::Skipped => {
                             execution_wire::CriterionStatus::Skipped
                         }
                     },
@@ -369,12 +369,12 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     Ok(target)
 }
 fn canonical_metadata(
-    source: &dokime_app::core::Metadata,
+    source: &dokime_runtime::core::Metadata,
 ) -> Result<common_wire::Metadata, Status> {
     canonical::metadata(source)
 }
 fn projected_value(
-    source: &dokime_app::core::Value,
+    source: &dokime_runtime::core::Value,
     budget: &mut value::Budget,
     depth: usize,
 ) -> Result<value_wire::Value, Status> {

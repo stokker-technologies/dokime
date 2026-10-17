@@ -9,15 +9,14 @@
 [workspace]
 members = [
   "crates/dokime",
+  "crates/dokime-runtime",
   "crates/dokime-client",
   "crates/dokime-contract",
   "crates/cargo-dokime",
   "crates/dokime-packaging",
-  "crates/dokime-cli",
   "crates/dokime-gui/src-tauri",
   "crates/dokime-host",
   "crates/dokime-macros",
-  "crates/dokime-app",
   "crates/dokime-server",
   "crates/dokime-filesystem",
   "plugins/obc-plugin",

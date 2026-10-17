@@ -23,9 +23,9 @@ use tonic::Status;
 // Local Imports
 use super::wire;
 use crate::grpc::{error::detailed, value};
-use dokime_app::RuntimeHandle;
-use dokime_app::core::TestExecutionId;
-use dokime_app::runtime::query::execution_history::ExecutionCheckpoint;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::core::TestExecutionId;
+use dokime_runtime::runtime::query::execution_history::ExecutionCheckpoint;
 use dokime_contract::operations::{checkpoint, history};
 
 /* === Constants === */
@@ -83,7 +83,7 @@ impl Operation for Inspect {
             .execution_saved_checkpoint(id)
             .await
             .map_err(|source| match source {
-                dokime_app::Error::NotFound { .. } => {
+                dokime_runtime::runtime::Error::NotFound { .. } => {
                     detailed(Status::not_found("execution has no saved seal"), &source)
                 }
                 source => wire::query_failure(source),
@@ -147,7 +147,7 @@ pub(in crate::grpc) fn register(
         .operations()
         .register_wire_operations::<Operations, Resources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(Resources {
                 runtime: runtime.clone(),
                 max_message_bytes,

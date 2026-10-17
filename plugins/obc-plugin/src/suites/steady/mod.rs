@@ -35,14 +35,14 @@ pub const STEADY_ACCEPTANCE_CRITERION_LABEL: &str = "Charging Input Measurement"
 pub struct SteadySuite;
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Templates {
     Steady(measurement::Steady),
 }
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::suite(
+#[dokime_runtime::suite(
     id = STEADY_SUITE,
     label = "Steady Charging",
     tags = ["device", "steady", "ac"],

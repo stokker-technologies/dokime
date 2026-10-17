@@ -25,7 +25,7 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use super::access::Principal;
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     core::{CommandId, NoteId, SessionId},
     domains::evidence::notes::{CreateNoteRequest, EditNoteRequest, NoteError},
@@ -288,22 +288,22 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     });
     runtime.operations().register_wire_operation::<ListNotes>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<ListHealth>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<CreateNote>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<EditNote>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources,
     )?;
     Ok(())

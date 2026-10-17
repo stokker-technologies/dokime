@@ -26,7 +26,7 @@
 
 /* === Structs === */
 // What `ReadChamber` answers.
-#[dokime::message]
+#[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 pub struct ChamberReading {
     #[row(description = "What the chamber is at, in °C.")]
@@ -42,7 +42,7 @@ pub struct ChamberReading {
 // `TemperatureRow::celsius()` stops resolving the day the field is renamed.
 // The observer below says how often, and everything that reads these rows names
 // this type.
-#[dokime::stream(
+#[dokime_runtime::stream(
     id = "{{owner}}.temperature",
     window = 4096,
     label = "Bench Temperature",

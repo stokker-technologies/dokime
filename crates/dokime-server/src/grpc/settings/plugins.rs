@@ -18,7 +18,7 @@ use tonic::Status;
 // Local Imports
 use super::{preferences::Resources, wire as projection};
 use crate::grpc::value::{self, Budget, canonical};
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     domains::installed_plugins::{
         PluginCredentialSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings,
@@ -117,7 +117,7 @@ impl Operation for UpdatePluginSettings {
         let values = match request.values.take() {
             None => Default::default(),
             Some(value) => match canonical::decode(value, &mut Budget::new(), 0)? {
-                dokime_app::core::Value::Object(values) => values,
+                dokime_runtime::core::Value::Object(values) => values,
                 _ => {
                     return Err(Status::invalid_argument(
                         "plugin settings values must be an object",
@@ -179,34 +179,34 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
         .operations()
         .register_wire_operation::<GetSettings>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<GetPluginSettings>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<UpdatePluginSettings>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     runtime
         .operations()
         .register_wire_operation::<UpdatePluginCredential>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources.clone(),
         )?;
     Ok(())
 }
 /* === Private Functions === */
-fn plugin_id(id: &str) -> Result<dokime_app::core::Identifier, Status> {
+fn plugin_id(id: &str) -> Result<dokime_runtime::core::Identifier, Status> {
     value::text(id)?;
     projection::identifier(id.to_owned(), "plugin_id")
 }

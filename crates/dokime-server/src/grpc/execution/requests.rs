@@ -22,8 +22,8 @@ use harmos::operations::{Context, Operation};
 use super::loan;
 use super::*;
 use crate::grpc::access::{Principal, Role};
-use dokime_app::runtime::command::{CommandContext, CommandReceipt, CommandStatus};
-use dokime_app::{
+use dokime_runtime::runtime::command::{CommandContext, CommandReceipt, CommandStatus};
+use dokime_runtime::{
     core::{CaseId, CommandId},
     domains::execution::requests::{RunPhase, RunReceipt},
 };
@@ -146,11 +146,11 @@ impl Operation for Execution {
             request.idempotency_key.as_deref(),
         )?;
         value::text(&request.execution_id)?;
-        let id = dokime_app::core::TestExecutionId::from_uuid(request.execution_id.clone())
+        let id = dokime_runtime::core::TestExecutionId::from_uuid(request.execution_id.clone())
             .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         let mode = match request.mode {
-            wire::ExecutionMode::Automatic => dokime_app::execution::ExecutionMode::Automatic,
-            wire::ExecutionMode::Interactive => dokime_app::execution::ExecutionMode::Interactive,
+            wire::ExecutionMode::Automatic => dokime_runtime::execution::ExecutionMode::Automatic,
+            wire::ExecutionMode::Interactive => dokime_runtime::execution::ExecutionMode::Interactive,
         };
         let result = self.runtime.run_execution(id, mode, context).await;
         receipt(result, self.runtime.process_epoch().to_string()).map(Into::into)
@@ -188,12 +188,12 @@ pub(super) fn register(
         .operations()
         .register_wire_operations::<Operations, RuntimeHandle>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(runtime.clone()),
         )?;
     runtime.operations().register_wire_operation::<Lookup>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(super::Resources {
             runtime: runtime.clone(),
             max_message_bytes,
@@ -304,8 +304,8 @@ fn project(receipt: &RunReceipt) -> Result<wire::RunRequestReceipt, Status> {
     Ok(wire::RunRequestReceipt {
         request_id: summary.request_id.as_str().to_owned(),
         mode: match summary.mode {
-            dokime_app::execution::ExecutionMode::Automatic => wire::ExecutionMode::Automatic,
-            dokime_app::execution::ExecutionMode::Interactive => wire::ExecutionMode::Interactive,
+            dokime_runtime::execution::ExecutionMode::Automatic => wire::ExecutionMode::Automatic,
+            dokime_runtime::execution::ExecutionMode::Interactive => wire::ExecutionMode::Interactive,
         },
         node_id: receipt.node_id.as_str().to_owned(),
         cycle_id: summary.cycle_id.as_str().to_owned(),

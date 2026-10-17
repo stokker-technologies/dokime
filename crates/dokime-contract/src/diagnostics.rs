@@ -293,7 +293,7 @@ fn located(location: &Location<'_>) -> String {
 fn backtrace() -> String {
     let captured = Backtrace::force_capture().to_string();
     let frames = frames(&captured)
-        .skip_while(|frame| frame.contains(CAPTURE) || frame.contains("dokime::diagnostics"))
+        .skip_while(|frame| frame.contains(CAPTURE) || frame.contains("dokime_runtime::diagnostics"))
         .collect::<Vec<_>>();
     if frames.is_empty() {
         return captured;

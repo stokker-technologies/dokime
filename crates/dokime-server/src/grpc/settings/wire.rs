@@ -21,8 +21,8 @@ use super::super::{
     execution,
     value::{self, Budget, canonical},
 };
-use dokime_app::Error;
-use dokime_app::{
+use dokime_runtime::runtime::Error;
+use dokime_runtime::{
     core::{
         HostCardBlock, HostCardBody, HostCardKeyValue, HostCardMetric, HostCardTone, Identifier,
     },
@@ -107,12 +107,12 @@ pub(super) fn encode_plugin_settings(
     value::collection(settings.credential_bindings.bindings.len())?;
     value::collection(settings.credential_bindings.missing_required.len())?;
     let values = canonical::encode(
-        &dokime_app::core::Value::Object(settings.values),
+        &dokime_runtime::core::Value::Object(settings.values),
         &mut budget,
         0,
     )?;
     let discovered = canonical::encode(
-        &dokime_app::core::Value::Object(settings.discovered),
+        &dokime_runtime::core::Value::Object(settings.discovered),
         &mut budget,
         0,
     )?;
@@ -461,7 +461,7 @@ fn encode_secret_reference(
 }
 
 fn encode_credentials(
-    credentials: dokime_app::domains::installed_plugins::PluginRuntimeCredentialBindings,
+    credentials: dokime_runtime::domains::installed_plugins::PluginRuntimeCredentialBindings,
     _budget: &mut Budget,
 ) -> Result<wire::PluginRuntimeCredentialBindings, TonicStatus> {
     value::collection(credentials.bindings.len())?;
@@ -492,14 +492,14 @@ fn encode_credentials(
 }
 
 fn encode_credential_backend(
-    backend: dokime_app::core::CredentialBackendKind,
+    backend: dokime_runtime::core::CredentialBackendKind,
 ) -> wire::CredentialBackendKind {
     match backend {
-        dokime_app::core::CredentialBackendKind::OsKeyring => {
+        dokime_runtime::core::CredentialBackendKind::OsKeyring => {
             wire::CredentialBackendKind::OsKeyring
         }
-        dokime_app::core::CredentialBackendKind::Memory => wire::CredentialBackendKind::Memory,
-        dokime_app::core::CredentialBackendKind::LocalFile => {
+        dokime_runtime::core::CredentialBackendKind::Memory => wire::CredentialBackendKind::Memory,
+        dokime_runtime::core::CredentialBackendKind::LocalFile => {
             wire::CredentialBackendKind::LocalFile
         }
     }

@@ -21,16 +21,16 @@ use super::*;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::{measurement, system, verdicts};
 use crate::{error::Error, prompts::checkpoint};
-use dokime::core::TemplateId;
-use dokime::document::{self, PlotDefinition, PlotStyle};
-use dokime::expressions::telemetry;
-use dokime::harmos::operations::Host;
-use dokime::host::ToolConnectionAcquired;
-use dokime::operations::files::{
+use dokime_runtime::core::TemplateId;
+use dokime_runtime::document::{self, PlotDefinition, PlotStyle};
+use dokime_runtime::expressions::telemetry;
+use dokime_runtime::harmos::operations::Host;
+use dokime_runtime::host::ToolConnectionAcquired;
+use dokime_runtime::operations::files::{
     FileWatchPolicy, FileWatchSource, FileWatchSourcePayload, LineMatcher, LocalWatchSource,
     WatchFile, WatchFileRequest,
 };
-use dokime::prelude::*;
+use dokime_runtime::prelude::*;
 use obc_runtime::device::{Device, Power};
 
 /* === Constants === */
@@ -46,7 +46,7 @@ const STARTUP_STREAM: &str = "obc.charger.startup.samples";
 // A type of its own rather than a home on [`InputMeasurement`]: four suites measure
 // the same physical thing and each owns the stream its evidence travels, so
 // the shape declares no home and every stream declares itself.
-#[dokime::stream(
+#[dokime_runtime::stream(
     id = "obc.charger.startup.samples",
     window = 4096,
     row = measurement::InputMeasurement,
@@ -56,7 +56,7 @@ pub struct Samples;
 
 // Read from the charger's own log file, not measured: a matcher turns each
 // status line into one row.
-#[dokime::stream(
+#[dokime_runtime::stream(
     id = "obc.charger.startup.log",
     window = 256,
     label = "Charger Log",
@@ -80,7 +80,7 @@ pub struct Startup {
 
 /* === Records === */
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.startup.initialized",
     label = "Charger Initialized",
     description = "The Charger was initialized for this attempt."
@@ -88,7 +88,7 @@ pub struct Startup {
 #[derive(Clone, Debug)]
 pub struct Initialized {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.startup.started",
     label = "AC Supply Energized",
     description = "The AC supply was energized."
@@ -96,7 +96,7 @@ pub struct Initialized {}
 #[derive(Clone, Debug)]
 pub struct Started {}
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.startup.checkpoint",
     label = "Review the charger status indicator and startup trace",
     description = "The operator was asked to look at the bench."
@@ -109,7 +109,7 @@ pub struct Checkpoint {
     pub prompt_type: String,
 }
 
-#[dokime::record(
+#[dokime_runtime::record(
     id = "obc.charger.startup.completed",
     label = "Startup measurement and operator decision captured",
     description = "The startup measurement and the operator's decision, together."
@@ -126,7 +126,7 @@ pub struct Completed {
     pub accepted: bool,
 }
 
-#[dokime::parameters]
+#[dokime_runtime::parameters]
 pub struct Parameters {
     #[parameter(label = "AC Voltage (RMS)", unit = "V", default = 230.0)]
     pub ac_voltage_v: f64,
@@ -175,12 +175,12 @@ pub struct Parameters {
 }
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Prompts {
     StartupCheck(checkpoint::StartupCheck),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Required {
     AskReadiness(crate::operations::readiness::AskReadiness),
     ListConnections(crate::operations::connections::ListConnections),
@@ -188,7 +188,7 @@ pub enum Required {
 
 // `SystemInputs` and the unit's connection: a catalog names one list, so this
 // one repeats the six host streams `system::SystemInputs` declares.
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Subscriptions {
     ToolConnectionAcquired(ToolConnectionAcquired),
     System(host::System),
@@ -199,7 +199,7 @@ pub enum Subscriptions {
     Bluetooth(host::Bluetooth),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Records {
     Initialized(Initialized),
     Started(Started),
@@ -207,7 +207,7 @@ pub enum Records {
     Completed(Completed),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Streams {
     Samples(Samples),
     ChargerLog(ChargerLog),
@@ -218,7 +218,7 @@ pub enum Streams {
 /* === Implementations === */
 bench!(Parameters);
 
-#[dokime::template(
+#[dokime_runtime::template(
     id = STARTUP_TEMPLATE, label = "Power Up the Charger",
     template_id = TemplateId::from_uuid(STARTUP_TEMPLATE_ID).expect("startup template UUID"),
     tags = ["device", "startup"], prompts = Prompts, graceful_stop = "continuous",
@@ -265,7 +265,7 @@ impl Startup {
         startup_document()
     }
 
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Wait for the Unit",
         description = "Waits for the unit to say it is on the bench before energizing it.\nNothing this execution can produce: the connection is reported by whoever owns the fixture — another plugin, the host, or an operator — into this run's scope, and the run has no business guessing. The wait is bounded, and the SDK's timeout becomes this plugin's own error through the `From` on `Error::Awaited`.\nIt also reports what the bench was told *before* this run started, which is what the process-wide connection listener accumulated across every execution and every gap between them."
     )]
@@ -298,7 +298,7 @@ impl Startup {
         Ok(())
     }
 
-    #[dokime::step(label = "Initialize and Power Charger")]
+    #[dokime_runtime::step(label = "Initialize and Power Charger")]
     async fn setup(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Initialized {}).await;
         self.device.start().map_err(Error::Device)?;
@@ -312,7 +312,7 @@ impl Startup {
         Ok(())
     }
 
-    #[dokime::step(
+    #[dokime_runtime::step(
         label = "Tail the Charger Log",
         description = "Watches the charger's log file while it reports its first readings.\nThe watch is the host's `WatchFile` operation: it captures only what the charger writes after the watch starts into the `charger/device.log` artifact, and its matcher turns every status line into a row of the charger log stream. Bounded, it settles on its own once the readings are in."
     )]
@@ -358,7 +358,7 @@ impl Startup {
         Ok(())
     }
 
-    #[dokime::step(label = "Measure Startup Inrush")]
+    #[dokime_runtime::step(label = "Measure Startup Inrush")]
     async fn publish(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let inputs = ctx.parameters();
         let (total, interval_s) = (inputs.sample_count()?, inputs.sample_interval_s);
@@ -396,7 +396,7 @@ impl Startup {
         Ok(())
     }
 
-    #[dokime::step(label = "Inspect Powered Charger")]
+    #[dokime_runtime::step(label = "Inspect Powered Charger")]
     async fn prompt(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         ctx.publish(Checkpoint {
             sample_index: self.produced,
@@ -420,7 +420,7 @@ impl Startup {
         Ok(())
     }
 
-    #[dokime::step(label = "Observe Settling and Attach Evidence")]
+    #[dokime_runtime::step(label = "Observe Settling and Attach Evidence")]
     async fn finalize(&mut self, ctx: &mut StepContext<'_>) -> Result<(), Error> {
         let inputs = ctx.parameters();
         let (total, interval_s) = (inputs.sample_count()?, inputs.sample_interval_s);
@@ -483,7 +483,7 @@ impl Startup {
         Ok(())
     }
 
-    #[dokime::criterion(
+    #[dokime_runtime::criterion(
         id = "obc.charger.startup.acceptance",
         label = "Startup trace and operator inspection",
         description = "Passed once the trace is unfaulted and, for a bounded run, the operator accepted it."
@@ -550,7 +550,7 @@ fn sample_range(start: u64, end: u64) -> Result<std::ops::Range<usize>, Error> {
     Ok(start..end)
 }
 
-fn signal(field: &str) -> dokime::expressions::DataExpression {
+fn signal(field: &str) -> dokime_runtime::expressions::DataExpression {
     telemetry(STARTUP_STREAM, field)
 }
 

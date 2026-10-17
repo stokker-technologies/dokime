@@ -27,7 +27,7 @@ use crate::grpc::{
     appearance, execution, notes, prompts,
     value::{self, canonical},
 };
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     execution::{CycleStatus, CycleView},
     runtime::query::execution_history::ExecutionCheckpointContext,
@@ -94,7 +94,7 @@ impl Operation for Get {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum: maximum.min(4 * 1024 * 1024),
@@ -141,7 +141,7 @@ pub(super) fn checkpoint_context(
 }
 
 fn cycle_context(
-    value: dokime_app::runtime::ExecutionCycleContext,
+    value: dokime_runtime::runtime::ExecutionCycleContext,
     maximum: usize,
 ) -> Result<history::HistoricalCycleContext, Status> {
     let cycle = cycle(value.cycle, &value.cases, maximum)?;
@@ -158,7 +158,7 @@ fn cycle_context(
 
 fn cycle(
     value: CycleView,
-    cases: &[dokime_app::definition::TestCase],
+    cases: &[dokime_runtime::definition::TestCase],
     maximum: usize,
 ) -> Result<history::HistoricalCycle, Status> {
     let mut bounds = execution::Bounds::new(maximum);
@@ -194,7 +194,7 @@ fn cycle_status(value: CycleStatus) -> execution_wire::CycleStatus {
     }
 }
 
-fn canonical_metadata(value: &dokime_app::core::Metadata) -> Result<common::Metadata, Status> {
+fn canonical_metadata(value: &dokime_runtime::core::Metadata) -> Result<common::Metadata, Status> {
     canonical::metadata(value)
 }
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {

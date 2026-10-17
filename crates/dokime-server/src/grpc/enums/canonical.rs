@@ -17,7 +17,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_app::{
+use dokime_runtime::{
     ExecutionFileContentKind, ExecutionFileStreamState,
     document::{
         AxisScale, FftDetrend, FftWindow, FilterOperator, FrequencyLevelUnit, PlotAxisKind,

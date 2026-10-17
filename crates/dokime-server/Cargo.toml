@@ -18,16 +18,15 @@ version = { workspace = true }
 [features]
 default = []
 # Host screenshot, camera and audio capture, enabled by the release server build;
-# see dokime-app for the system packages it links.
-media-native = ["dokime-app/media-native"]
+# see dokime-runtime for the system packages it links.
+media-native = ["dokime-runtime/media-native"]
 
 [dependencies]
 # Local
-dokime = { path = "../dokime" }
-dokime-app = { path = "../dokime-app", features = ["fft"] }
+dokime-runtime = { path = "../dokime-runtime", features = ["host", "fft"] }
 dokime-contract = { path = "../dokime-contract", features = ["diagnostics"] }
 dokime-filesystem = { path = "../dokime-filesystem" }
-dokime-cli = { path = "../dokime-cli" }
+dokime = { path = "../dokime" }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }

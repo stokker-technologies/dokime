@@ -36,7 +36,7 @@
 
 /* === Private Functions === */
 fn main() -> std::io::Result<()> {
-    dokime::plugin::run::<{{crate}}::Plugin>()
+    dokime_runtime::plugin::run::<{{crate}}::Plugin>()
 }
 
 /* === Tests === */

@@ -17,8 +17,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::document::{Column, PlotDefinition};
-use dokime::prelude::*;
+use dokime_runtime::document::{Column, PlotDefinition};
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 
@@ -31,7 +31,7 @@ use dokime::prelude::*;
 /* === Enums === */
 /// The host streams every OBC template leases, so the system section below
 /// draws what each run captured. Each stream declares its own cadence.
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum SystemInputs {
     System(host::System),
     Network(host::Network),

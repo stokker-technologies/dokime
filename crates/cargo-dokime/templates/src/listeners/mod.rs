@@ -29,7 +29,7 @@ pub use unit_connected::UnitConnected;
 /* === Structs === */
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Listeners {
     UnitConnected(UnitConnected),
 }

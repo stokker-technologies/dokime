@@ -24,11 +24,11 @@ use super::loan;
 use super::{requests, value};
 use crate::grpc::access::{Principal, Role};
 use crate::grpc::value::canonical;
-use dokime_app::core::{CommandId, StepId, TestExecutionId};
-use dokime_app::domains::execution::requests::{
+use dokime_runtime::core::{CommandId, StepId, TestExecutionId};
+use dokime_runtime::domains::execution::requests::{
     RunReceipt, StepCommand, StepCommandPhase, StepCommandReceipt,
 };
-use dokime_app::{Error, RuntimeHandle};
+use dokime_runtime::{runtime::Error, RuntimeHandle};
 use dokime_contract::operations::execution as wire;
 
 /* === Constants === */
@@ -108,7 +108,7 @@ pub(super) fn register(
         .operations()
         .register_wire_operations::<Operations, super::Resources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(super::Resources {
                 runtime: runtime.clone(),
                 max_message_bytes,

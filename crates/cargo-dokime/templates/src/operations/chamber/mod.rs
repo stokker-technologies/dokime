@@ -20,7 +20,7 @@ use std::sync::Arc;
 // Local Imports
 use crate::Bench;
 use crate::domain::model::chamber::ChamberReading;
-use dokime::prelude::*;
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 
@@ -42,7 +42,7 @@ pub struct DetectPort {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::operation(
+#[dokime_runtime::operation(
     id = "{{owner}}.get_chamber",
     version = 1,
     description = "Reads the chamber. A template calls it with `ctx.call::<ReadChamber>(())`.",
@@ -58,13 +58,13 @@ impl ReadChamber {
             tracing::debug!(key = %scope.key(), "reading the chamber for a run");
         }
         Ok(ChamberReading {
-            celsius: dokime::plugin::refusal(self.bench.sensor.read_celsius())?,
+            celsius: dokime_runtime::plugin::refusal(self.bench.sensor.read_celsius())?,
             sensor: self.bench.sensor.describe(),
         })
     }
 }
 
-#[dokime::operation(
+#[dokime_runtime::operation(
     id = "{{owner}}.detect_port",
     version = 1,
     description = "Finds the sensor port the settings card offers before anybody saved one.",

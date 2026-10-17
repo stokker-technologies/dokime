@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Resources;
-use dokime::prelude::*;
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 
@@ -32,7 +32,7 @@ pub struct ListConnections {
     resources: Arc<Resources>,
 }
 
-#[dokime::message]
+#[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 pub struct Connections {
     #[row(description = "The resource ids, one per unit the listener heard about.")]
@@ -44,7 +44,7 @@ pub struct Connections {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::operation(
+#[dokime_runtime::operation(
     id = "obc-plugin.list_connections",
     version = 1,
     description = "Reports the units this process has been told about. The connection listener accumulates them across executions; a template calls the operation without holding the plugin.",

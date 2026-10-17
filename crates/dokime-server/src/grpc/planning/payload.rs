@@ -18,9 +18,9 @@ use std::collections::BTreeMap;
 use tonic::Status;
 // Local Imports
 use super::rejection;
-use dokime_app::core::{Metadata, Value};
-use dokime_app::definition::parameters::limits;
-use dokime_app::definition::{ParameterDefinition, TestCase, TestCaseTemplate};
+use dokime_runtime::core::{Metadata, Value};
+use dokime_runtime::definition::parameters::limits;
+use dokime_runtime::definition::{ParameterDefinition, TestCase, TestCaseTemplate};
 
 /* === Constants === */
 // Conservative native allocation estimate, shared by expression intermediates

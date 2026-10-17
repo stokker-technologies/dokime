@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 // Local Imports
 use super::super::files;
 use crate::grpc::value::projection;
-use dokime_app::ExecutionFileContent;
+use dokime_runtime::ExecutionFileContent;
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */

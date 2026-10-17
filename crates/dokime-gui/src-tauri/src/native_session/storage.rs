@@ -22,7 +22,7 @@ use std::{
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 // Local Imports
 use super::{DesktopSessionError as Error, StorageResetReason as Reason};
-use dokime::paths::ApplicationPaths;
+use dokime_runtime::paths::ApplicationPaths;
 
 /* === Constants === */
 // The same override the backend reads; the owned backend inherits it.

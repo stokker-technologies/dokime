@@ -23,7 +23,7 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use super::error::detailed;
-use dokime_app::{RuntimeHandle, runtime::CapturedRecords};
+use dokime_runtime::{RuntimeHandle, runtime::CapturedRecords};
 use dokime_contract::operations::{cursor::Cursor, evidence as v1, schema::RecordSchema};
 
 use selection::Selection;
@@ -271,7 +271,7 @@ impl Operation for Schema {
             ));
         }
         super::value::text(&request.record_type)?;
-        let kind = dokime_app::core::Identifier::new(std::mem::take(&mut request.record_type))
+        let kind = dokime_runtime::core::Identifier::new(std::mem::take(&mut request.record_type))
             .map_err(|_| Status::invalid_argument("invalid record type"))?;
         let contract = snapshot
             .state()
@@ -295,17 +295,17 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
     });
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<Watch>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime.operations().register_wire_operation::<Schema>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources,
     )?;
     Ok(())
@@ -313,14 +313,14 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 
 /* === Private Functions === */
 fn memory_error(error: harmos::Error) -> Status {
-    let error = dokime_app::Error::from(error);
+    let error = dokime_runtime::runtime::Error::from(error);
     detailed(
         Status::resource_exhausted(format!("captured record output unavailable: {error}")),
         &error,
     )
 }
 
-fn capture_error(error: dokime_app::Error) -> Status {
+fn capture_error(error: dokime_runtime::runtime::Error) -> Status {
     detailed(
         Status::unavailable(format!("captured record source unavailable: {error}")),
         &error,

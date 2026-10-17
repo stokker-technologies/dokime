@@ -22,7 +22,7 @@ use harmos::operations::{Context, Operation, StreamOutput};
 use prost::Message;
 use tonic::Status;
 // Local Imports
-use dokime_app::RuntimeHandle;
+use dokime_runtime::RuntimeHandle;
 use dokime_contract::operations::{appearance as wire, content};
 
 /* === Constants === */
@@ -143,7 +143,7 @@ pub(super) fn register(
         .operations()
         .register_wire_operations::<Operations, Resources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(Resources {
                 runtime: runtime.clone(),
                 max_message_bytes,
@@ -153,7 +153,7 @@ pub(super) fn register(
 }
 
 pub(super) fn historical(
-    frame: dokime_app::domains::installed_plugins::RuntimeAppearanceFrame,
+    frame: dokime_runtime::domains::installed_plugins::RuntimeAppearanceFrame,
 ) -> Result<wire::AppearanceSnapshot, Status> {
     convert::historical_memory(&frame)
         .map_err(|_| failure(wire::AppearanceFailureKind::TooLarge))?;

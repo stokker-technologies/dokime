@@ -18,7 +18,7 @@ pub mod ripple;
 // Third Party Imports
 
 // Local Imports
-use dokime::analysis::{Operation, Served};
+use dokime_runtime::analysis::{Operation, Served};
 
 /* === Constants === */
 
@@ -30,13 +30,13 @@ use dokime::analysis::{Operation, Served};
 
 /* === Enums === */
 /// The analyses an operator may select on any of this bench's plots.
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Analyses {
     Ripple(Operation<ripple::Ripple>),
 }
 
 /// The operations that answer [`Analyses`] inside this plugin.
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Implemented {
     Ripple(Served<ripple::Ripple, crate::Resources>),
 }

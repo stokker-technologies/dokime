@@ -31,15 +31,15 @@ use tonic::{Code, Status};
 // Local Imports
 use super::value;
 use super::value::canonical;
-use dokime_app::core::{TestCycleId, ValidationIssue};
-use dokime_app::definition::TestCase;
-use dokime_app::execution::{CycleStatus, CycleView, ExecutionStatus};
-use dokime_app::runtime::RuntimeState;
-use dokime_app::runtime::query::{
+use dokime_runtime::core::{TestCycleId, ValidationIssue};
+use dokime_runtime::definition::TestCase;
+use dokime_runtime::execution::{CycleStatus, CycleView, ExecutionStatus};
+use dokime_runtime::runtime::RuntimeState;
+use dokime_runtime::runtime::query::{
     CaseProjection, CaseStatus, CycleFilter, CycleOrder, CycleOrderKey, CyclePageError,
     case_projection, case_tally, cycle_page, historical_case_projection, select_cycles,
 };
-use dokime_app::{Error, RuntimeHandle};
+use dokime_runtime::{runtime::Error, RuntimeHandle};
 use dokime_contract::operations::{cursor::Cursor, execution as wire};
 
 /* === Constants === */
@@ -465,7 +465,7 @@ pub(super) fn register(
         .operations()
         .register_wire_operations::<Operations, Resources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(Resources {
                 runtime: runtime.clone(),
                 max_message_bytes,
@@ -510,7 +510,7 @@ pub(super) fn status(error: Error) -> Status {
 
 pub(super) fn summary(
     state: &RuntimeState,
-    cycle: &dokime_app::execution::TestCycle,
+    cycle: &dokime_runtime::execution::TestCycle,
     cursor: Cursor,
     bounds: &mut detail::Bounds,
 ) -> Result<wire::CycleSummary, Status> {
@@ -704,8 +704,8 @@ fn cycle_order(order: Option<&wire::CycleOrder>) -> CycleOrder {
 /// The archive selection a list request asks for; absent lists unarchived rows.
 pub(super) fn archive_scope(
     scope: Option<wire::ArchiveScope>,
-) -> dokime_app::runtime::query::executions::ArchiveScope {
-    use dokime_app::runtime::query::executions::ArchiveScope;
+) -> dokime_runtime::runtime::query::executions::ArchiveScope {
+    use dokime_runtime::runtime::query::executions::ArchiveScope;
     match scope {
         None | Some(wire::ArchiveScope::Unarchived) => ArchiveScope::Unarchived,
         Some(wire::ArchiveScope::Archived) => ArchiveScope::Archived,
@@ -805,7 +805,7 @@ fn case_page(
 
 fn execution_page<'a>(
     state: &RuntimeState,
-    members: impl ExactSizeIterator<Item = &'a dokime_app::execution::TestExecution> + Clone,
+    members: impl ExactSizeIterator<Item = &'a dokime_runtime::execution::TestExecution> + Clone,
     after: &str,
     limit: usize,
     cursor: Cursor,
@@ -846,7 +846,7 @@ fn execution_page<'a>(
 
 pub(super) fn execution_summary(
     state: &RuntimeState,
-    execution: &dokime_app::execution::TestExecution,
+    execution: &dokime_runtime::execution::TestExecution,
     ordinal: usize,
 ) -> wire::ExecutionSummary {
     wire::ExecutionSummary {

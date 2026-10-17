@@ -25,7 +25,7 @@ pub(super) use upload::{artifact_scope, content_failure};
 // Third Party Imports
 use tonic::Status;
 // Local Imports
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     artifacts::{ArtifactRecord, ArtifactStatus},
 };

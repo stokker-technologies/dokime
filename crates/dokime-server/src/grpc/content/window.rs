@@ -20,7 +20,7 @@ use harmos::Protobuf;
 
 // Local Imports
 use super::files;
-use dokime_app::ExecutionFileContent;
+use dokime_runtime::ExecutionFileContent;
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */

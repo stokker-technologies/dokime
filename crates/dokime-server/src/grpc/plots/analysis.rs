@@ -41,7 +41,7 @@ use super::super::{
 /* === Public Functions === */
 pub(super) fn selection(
     value: dokime_contract::operations::plots::AnalysisSelection,
-) -> Result<dokime::analysis::Selection, Status> {
+) -> Result<dokime_runtime::analysis::Selection, Status> {
     value::text(&value.id)?;
     if value.id.is_empty() || value.version == 0 {
         return Err(Status::invalid_argument(
@@ -54,14 +54,14 @@ pub(super) fn selection(
         .transpose()?
     {
         None => Default::default(),
-        Some(dokime_app::core::Value::Object(fields)) => fields,
+        Some(dokime_runtime::core::Value::Object(fields)) => fields,
         Some(_) => {
             return Err(Status::invalid_argument(
                 "analysis parameters must be an object",
             ));
         }
     };
-    let selection = dokime::analysis::Selection {
+    let selection = dokime_runtime::analysis::Selection {
         id: value.id,
         version: value.version,
         parameters,
@@ -69,7 +69,7 @@ pub(super) fn selection(
     if serde_json::to_vec(&selection.parameters)
         .map_err(|error| Status::invalid_argument(error.to_string()))?
         .len()
-        > dokime::analysis::MAX_PARAMETER_BYTES
+        > dokime_runtime::analysis::MAX_PARAMETER_BYTES
     {
         return Err(Status::resource_exhausted(
             "analysis configuration exceeds its budget",
@@ -79,7 +79,7 @@ pub(super) fn selection(
 }
 
 pub(crate) fn selection_wire(
-    selection: &dokime::analysis::Selection,
+    selection: &dokime_runtime::analysis::Selection,
 ) -> Result<dokime_contract::operations::plots::AnalysisSelection, Status> {
     Ok(dokime_contract::operations::plots::AnalysisSelection {
         id: selection.id.clone(),
@@ -89,7 +89,7 @@ pub(crate) fn selection_wire(
 }
 
 pub(super) fn definition(
-    definition: &dokime::analysis::Definition,
+    definition: &dokime_runtime::analysis::Definition,
 ) -> Result<dokime_contract::operations::plots::AnalysisDefinition, Status> {
     definition.check().map_err(Status::internal)?;
     let mut budget = Budget::new();
@@ -122,7 +122,7 @@ pub(super) fn definition(
 }
 
 pub(super) fn computation(
-    computed: dokime_app::runtime::query::PlotComputation,
+    computed: dokime_runtime::runtime::query::PlotComputation,
 ) -> Result<dokime_contract::operations::plots::AnalysisComputation, Status> {
     Ok(dokime_contract::operations::plots::AnalysisComputation {
         definition: Some(definition(&computed.definition)?),

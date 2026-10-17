@@ -263,7 +263,7 @@ async fn build_resolved(
     };
     let debuginfo = DebugInfo::of(package);
     command.args(debuginfo.arguments(&profile_name, target));
-    let terminal = dokime_cli::terminal::Terminal::default();
+    let terminal = dokime::terminal::Terminal::default();
     terminal.status(format!(
         "Building {} ({}) for {target}",
         package.name,
@@ -308,7 +308,7 @@ async fn build_resolved(
                 .into(),
         ));
     }
-    let terminal = dokime_cli::terminal::Terminal::default();
+    let terminal = dokime::terminal::Terminal::default();
     terminal.status("Collecting plugin declarations and assets");
     let collection_started = Instant::now();
     let mut inputs = Vec::new();
@@ -399,7 +399,7 @@ async fn build_resolved(
         .map_err(|error| Error::Io(error.error))?;
     terminal.success(format!(
         "Plugin bundle ready · {} in {:.1}s",
-        dokime_cli::terminal::size_label(bundle.bytes().len() as u64),
+        dokime::terminal::size_label(bundle.bytes().len() as u64),
         bundle_started.elapsed().as_secs_f64()
     ));
     Ok(output)
@@ -411,7 +411,7 @@ fn symbols(
     pdb: &std::path::Path,
     target: &str,
     limit: usize,
-    terminal: &dokime_cli::terminal::Terminal,
+    terminal: &dokime::terminal::Terminal,
 ) -> Result<Option<(String, Vec<u8>)>, Error> {
     let pdb_name = pdb
         .file_name()
@@ -425,8 +425,8 @@ fn symbols(
             terminal.warn(format!(
                 "{} is {}, over the {} limit; the bundle ships without its debug symbols",
                 pdb.display(),
-                dokime_cli::terminal::size_label(size),
-                dokime_cli::terminal::size_label(limit as u64)
+                dokime::terminal::size_label(size),
+                dokime::terminal::size_label(limit as u64)
             ));
             Ok(None)
         }
@@ -564,7 +564,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let pdb = root.path().join("plugin.pdb");
         std::fs::write(&pdb, vec![0xAB; 2048]).unwrap();
-        let terminal = dokime_cli::terminal::Terminal::default();
+        let terminal = dokime::terminal::Terminal::default();
         let target = "x86_64-pc-windows-msvc";
 
         // Over The Limit The Symbols Are Left Out; Within It They Ship

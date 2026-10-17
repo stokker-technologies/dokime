@@ -20,7 +20,7 @@ use std::path::PathBuf;
 // Local Imports
 use crate::operations::chamber::DetectPort;
 use crate::operations::status::GetStatus;
-use dokime::plugin::Secret;
+use dokime_runtime::plugin::Secret;
 
 /* === Constants === */
 
@@ -29,13 +29,13 @@ use dokime::plugin::Secret;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::settings]
+#[dokime_runtime::settings]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BenchSettings {
     pub chamber: Chamber,
 }
 
-#[dokime::section(label = "Chamber", status = GetStatus, description = "Where the bench sensor is and how it uploads.\nThe upload token is an `Option<Secret>` because this bench runs without one: the shape of the field is what says whether an operator must fill it in, so a required secret is written as a bare `Secret` instead.")]
+#[dokime_runtime::section(label = "Chamber", status = GetStatus, description = "Where the bench sensor is and how it uploads.\nThe upload token is an `Option<Secret>` because this bench runs without one: the shape of the field is what says whether an operator must fill it in, so a required secret is written as a bare `Secret` instead.")]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Chamber {
     #[setting(label = "Sensor Port", discovered = DetectPort, description = "Serial port of the bench sensor.\n`discovered = DetectPort` names the operation that computes it. The host calls it once the plugin is initialized, and only for a field nobody saved, and what it found is stored beside the saved values with a marker the card shows. It is not used by a run until an operator saves it, which is why this is an `Option<PathBuf>`: the bench has to open without it, and a discovered value is a suggestion rather than a setting.")]

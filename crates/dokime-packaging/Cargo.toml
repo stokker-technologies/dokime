@@ -10,7 +10,7 @@ version = { workspace = true }
 
 [dependencies]
 # Local
-dokime-cli = { path = "../dokime-cli" }
+dokime = { path = "../dokime" }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }

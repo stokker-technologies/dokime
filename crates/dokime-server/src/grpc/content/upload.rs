@@ -24,7 +24,7 @@ use tonic::Status;
 // Local Imports
 use super::{MAX_CONTENT_BYTES, metadata, transfer_chunk_bytes};
 use crate::grpc::{error::detailed, value};
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     core::{CaseId, RecordScope, TestCycleId, TestExecutionId},
     domains::evidence::ArtifactUploadInput,
@@ -174,7 +174,7 @@ impl Upload {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Upload>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,
@@ -196,7 +196,7 @@ fn upload_header(
 ) -> Result<(RecordScope, String, Option<String>, Option<String>), Status> {
     let scope = artifact_scope(header.scope.as_ref())?;
     let filename = header.filename.trim();
-    dokime_app::artifacts::name::validate(filename)
+    dokime_runtime::artifacts::name::validate(filename)
         .map_err(|source| Status::invalid_argument(source.to_string()))?;
     let content_type = header
         .content_type
@@ -327,11 +327,11 @@ async fn receive_artifact(
     Ok(None)
 }
 
-pub(in crate::grpc) fn content_failure(error: dokime_app::Error) -> Status {
-    use dokime_app::Error;
+pub(in crate::grpc) fn content_failure(error: dokime_runtime::runtime::Error) -> Status {
+    use dokime_runtime::runtime::Error;
     let status = match &error {
         Error::ExportStorage {
-            source: dokime_app::domains::exports::storage::StorageError::ArchiveTooLarge { .. },
+            source: dokime_runtime::domains::exports::storage::StorageError::ArchiveTooLarge { .. },
         } => Status::resource_exhausted("cycle bundle exceeds native content limit"),
         Error::NotFound { .. } => Status::not_found("artifact upload owner not found"),
         Error::Validation { message, .. } => Status::invalid_argument(message.clone()),

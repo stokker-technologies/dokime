@@ -21,7 +21,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 // Local Imports
 use super::value;
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     core::{DocumentId, Identifier, TestCycleId, TestExecutionId},
 };
@@ -162,14 +162,14 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
     });
     runtime.operations().register_wire_operation::<Capture>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         resources.clone(),
     )?;
     runtime
         .operations()
         .register_wire_operation::<UpdatePlotSettings>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             resources,
         )?;
     Ok(())

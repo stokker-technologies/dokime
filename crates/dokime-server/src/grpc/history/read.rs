@@ -22,8 +22,8 @@ use tonic::Status;
 // Local Imports
 use super::super::{content, value};
 use super::wire;
-use dokime_app::RuntimeHandle;
-use dokime_app::core::ArtifactId;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::core::ArtifactId;
 use dokime_contract::operations::{content as content_wire, history};
 
 /* === Constants === */
@@ -89,7 +89,7 @@ impl Operation for Download {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Download>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,

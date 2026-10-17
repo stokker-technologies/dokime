@@ -23,7 +23,7 @@ use tonic::Status;
 
 // Local Imports
 use super::{Budget, collection, text};
-use dokime_app::core::{ElapsedUnit, Metadata, Value, ValueFormat};
+use dokime_runtime::core::{ElapsedUnit, Metadata, Value, ValueFormat};
 use dokime_contract::operations::{common, cursor::Cursor, schema, value as wire};
 
 /* === Constants === */
@@ -124,7 +124,7 @@ pub(in crate::grpc) fn metadata(value: &Metadata) -> Result<common::Metadata, St
 }
 
 pub(in crate::grpc) fn cursor(
-    snapshot: &dokime_app::runtime::query::RuntimeStateSnapshot,
+    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
 ) -> Cursor {
     Cursor {
         epoch: snapshot.state().process_epoch().to_string(),
@@ -134,7 +134,7 @@ pub(in crate::grpc) fn cursor(
 }
 
 pub(in crate::grpc) fn timestamp(
-    value: &dokime_app::core::Timestamp,
+    value: &dokime_runtime::core::Timestamp,
 ) -> Result<common::Timestamp, Status> {
     let at = value
         .to_datetime()
@@ -147,28 +147,28 @@ pub(in crate::grpc) fn timestamp(
 
 pub(in crate::grpc) fn decoded_timestamp(
     value: common::Timestamp,
-) -> Result<dokime_app::core::Timestamp, Status> {
+) -> Result<dokime_runtime::core::Timestamp, Status> {
     let at = value
         .to_datetime()
         .map_err(|_| Status::invalid_argument("invalid timestamp"))?;
-    Ok(dokime_app::core::Timestamp::from_datetime(at))
+    Ok(dokime_runtime::core::Timestamp::from_datetime(at))
 }
 
 pub(in crate::grpc) fn scope(
-    value: &dokime_app::core::RecordScope,
+    value: &dokime_runtime::core::RecordScope,
 ) -> Result<common::EvidenceScope, Status> {
     scope_memory(value)?;
     let ids = scope_ids(value);
     let origin = match &value.origin {
-        dokime_app::core::EvidenceOrigin::Default => common::EvidenceOriginKind::Default(true),
-        dokime_app::core::EvidenceOrigin::Initialization => {
+        dokime_runtime::core::EvidenceOrigin::Default => common::EvidenceOriginKind::Default(true),
+        dokime_runtime::core::EvidenceOrigin::Initialization => {
             common::EvidenceOriginKind::Initialization(true)
         }
-        dokime_app::core::EvidenceOrigin::Step { attempt_id } => {
+        dokime_runtime::core::EvidenceOrigin::Step { attempt_id } => {
             text(attempt_id.as_str())?;
             common::EvidenceOriginKind::StepAttemptId(attempt_id.to_string())
         }
-        dokime_app::core::EvidenceOrigin::Cleanup => common::EvidenceOriginKind::Cleanup(true),
+        dokime_runtime::core::EvidenceOrigin::Cleanup => common::EvidenceOriginKind::Cleanup(true),
     };
     Ok(common::EvidenceScope {
         session_id: ids[0].map(str::to_owned),
@@ -184,14 +184,14 @@ pub(in crate::grpc) fn scope(
 }
 
 pub(in crate::grpc) fn scope_memory(
-    value: &dokime_app::core::RecordScope,
+    value: &dokime_runtime::core::RecordScope,
 ) -> Result<usize, Status> {
     let mut bytes = std::mem::size_of::<common::EvidenceScope>();
     for id in scope_ids(value).into_iter().flatten() {
         text(id)?;
         bytes = bytes.saturating_add(id.len());
     }
-    if let dokime_app::core::EvidenceOrigin::Step { attempt_id } = &value.origin {
+    if let dokime_runtime::core::EvidenceOrigin::Step { attempt_id } = &value.origin {
         text(attempt_id.as_str())?;
         bytes = bytes.saturating_add(attempt_id.as_str().len());
     }
@@ -200,8 +200,8 @@ pub(in crate::grpc) fn scope_memory(
 
 pub(in crate::grpc) fn decoded_scope(
     scope: &common::EvidenceScope,
-) -> Result<dokime_app::core::RecordScope, Status> {
-    use dokime_app::core::{
+) -> Result<dokime_runtime::core::RecordScope, Status> {
+    use dokime_runtime::core::{
         CaseId, CriterionId, EvidenceOrigin, RecordScope, SessionId, StepAttemptId, StepId,
         SuiteId, TemplateId, TestCycleId, TestExecutionId,
     };
@@ -264,9 +264,9 @@ pub(in crate::grpc) fn decoded_scope(
 }
 
 pub(in crate::grpc) fn execution_plugin_memory(
-    value: &dokime_app::execution::ExecutionPluginIdentity,
+    value: &dokime_runtime::execution::ExecutionPluginIdentity,
 ) -> Result<usize, Status> {
-    use dokime_app::execution::ExecutionImplementation;
+    use dokime_runtime::execution::ExecutionImplementation;
     text(&value.source)?;
     if let Some(version) = &value.version {
         text(version)?;
@@ -285,9 +285,9 @@ pub(in crate::grpc) fn execution_plugin_memory(
 }
 
 pub(in crate::grpc) fn execution_plugin(
-    value: &dokime_app::execution::ExecutionPluginIdentity,
+    value: &dokime_runtime::execution::ExecutionPluginIdentity,
 ) -> Result<dokime_contract::operations::execution::ExecutionPluginIdentity, Status> {
-    use dokime_app::execution::ExecutionImplementation;
+    use dokime_runtime::execution::ExecutionImplementation;
     use dokime_contract::operations::execution::{
         ExecutionPluginIdentity, ExecutionPluginIdentityImplementation as Implementation,
     };
@@ -409,8 +409,8 @@ pub(in crate::grpc) fn slots<T>(length: usize) -> Result<Vec<T>, Status> {
     Ok(values)
 }
 
-pub(in crate::grpc) fn value_type(value: &dokime_app::core::ValueType) -> schema::ValueType {
-    use dokime_app::core::ValueType;
+pub(in crate::grpc) fn value_type(value: &dokime_runtime::core::ValueType) -> schema::ValueType {
+    use dokime_runtime::core::ValueType;
     match value {
         ValueType::Boolean => schema::ValueType::Boolean,
         ValueType::Integer => schema::ValueType::Integer,
@@ -423,8 +423,8 @@ pub(in crate::grpc) fn value_type(value: &dokime_app::core::ValueType) -> schema
     }
 }
 
-pub(in crate::grpc) fn value_format(value: &dokime_app::core::ValueFormat) -> schema::ValueFormat {
-    use dokime_app::core::ValueFormat;
+pub(in crate::grpc) fn value_format(value: &dokime_runtime::core::ValueFormat) -> schema::ValueFormat {
+    use dokime_runtime::core::ValueFormat;
     use schema::ValueFormatKind as Kind;
     schema::ValueFormat {
         kind: Some(match value {
@@ -536,7 +536,7 @@ fn elapsed_unit(value: &ElapsedUnit) -> schema::ElapsedUnit {
 fn scope_id<T>(
     value: Option<&str>,
     label: &str,
-    build: impl FnOnce(&str) -> Result<T, dokime_app::ApiError>,
+    build: impl FnOnce(&str) -> Result<T, dokime_runtime::ApiError>,
 ) -> Result<Option<T>, Status> {
     let Some(value) = value else {
         return Ok(None);
@@ -553,7 +553,7 @@ fn scope_id<T>(
         .map_err(|error| Status::invalid_argument(format!("invalid {label}: {error}")))
 }
 
-fn scope_ids(value: &dokime_app::core::RecordScope) -> [Option<&str>; 8] {
+fn scope_ids(value: &dokime_runtime::core::RecordScope) -> [Option<&str>; 8] {
     [
         value.session_id.as_ref().map(|id| id.as_str()),
         value.test_cycle_id.as_ref().map(|id| id.as_str()),

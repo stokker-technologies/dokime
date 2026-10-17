@@ -23,7 +23,7 @@ use tonic::Status;
 // Local Imports
 use super::{inspection, wire};
 use crate::grpc::{content::window, value};
-use dokime_app::{
+use dokime_runtime::{
     ExecutionFileContent, RuntimeHandle, runtime::query::execution_history::ExecutionCheckpoint,
 };
 use dokime_contract::operations::history;
@@ -128,14 +128,14 @@ impl Operation for Read {
             data.extend_from_slice(&batch.bytes);
         }
         let state = match output.stream_state {
-            Some(dokime::execution::saved::SavedStreamState::Interrupted) => {
-                dokime_app::ExecutionFileStreamState::Interrupted
+            Some(dokime_runtime::execution::saved::SavedStreamState::Interrupted) => {
+                dokime_runtime::ExecutionFileStreamState::Interrupted
             }
-            _ => dokime_app::ExecutionFileStreamState::Finalized,
+            _ => dokime_runtime::ExecutionFileStreamState::Finalized,
         };
-        let content = dokime_app::ExecutionFileContent {
+        let content = dokime_runtime::ExecutionFileContent {
             relative_path: request.relative_path.clone(),
-            content_kind: dokime_app::ExecutionFileContentKind::from_metadata(
+            content_kind: dokime_runtime::ExecutionFileContentKind::from_metadata(
                 &request.relative_path,
                 content_type.as_deref(),
             ),
@@ -155,7 +155,7 @@ impl Operation for Read {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Read>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,

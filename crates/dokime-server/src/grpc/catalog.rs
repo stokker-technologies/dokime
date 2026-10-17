@@ -23,7 +23,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use tonic::Status;
 // Local Imports
 use super::value::{self, Budget, canonical};
-use dokime_app::RuntimeHandle;
+use dokime_runtime::RuntimeHandle;
 use dokime_contract::operations::{catalog as wire, common, schema, value as wire_value};
 
 /* === Constants === */
@@ -218,7 +218,7 @@ pub(super) fn register(
         .operations()
         .register_wire_operations::<Operations, Resources>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(Resources {
                 runtime: runtime.clone(),
                 max_message_bytes,
@@ -250,18 +250,18 @@ fn page(
     limit: u32,
     after: &str,
     given: Option<&dokime_contract::operations::cursor::Cursor>,
-    snapshot: &dokime_app::runtime::query::RuntimeStateSnapshot,
+    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
 ) -> Result<usize, Status> {
     canonical::cursor(snapshot)
         .page(limit, after, given)
         .map_err(canonical::cursor_failure)
 }
 
-fn metadata_heap(metadata: &dokime_app::core::Metadata) -> Result<usize, Status> {
+fn metadata_heap(metadata: &dokime_runtime::core::Metadata) -> Result<usize, Status> {
     Ok(canonical::metadata_memory(metadata)? - std::mem::size_of::<common::Metadata>())
 }
 
-fn identity_memory(entry: &dokime_app::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
+fn identity_memory(entry: &dokime_runtime::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
     value::text(&entry.suite_id)?;
     value::text(&entry.source)?;
     Ok(std::mem::size_of::<wire::SuiteIdentity>()
@@ -280,7 +280,7 @@ fn strings_memory(values: &[String]) -> Result<usize, Status> {
     Ok(bytes)
 }
 
-fn groups_memory(values: &[dokime_app::definition::ParameterGroup]) -> Result<usize, Status> {
+fn groups_memory(values: &[dokime_runtime::definition::ParameterGroup]) -> Result<usize, Status> {
     value::collection(values.len())?;
     let mut bytes = values
         .len()
@@ -293,7 +293,7 @@ fn groups_memory(values: &[dokime_app::definition::ParameterGroup]) -> Result<us
     Ok(bytes)
 }
 
-fn suite_memory(entry: &dokime_app::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
+fn suite_memory(entry: &dokime_runtime::domains::execution::SuiteSnapshot) -> Result<usize, Status> {
     value::collection(entry.suite.test_case_templates.len())?;
     let mut bytes = std::mem::size_of::<wire::SuiteDefinition>()
         .saturating_add(identity_memory(entry)? - std::mem::size_of::<wire::SuiteIdentity>())
@@ -583,7 +583,7 @@ async fn get_telemetry_schema(
 }
 
 fn identity(
-    entry: &dokime_app::domains::execution::SuiteSnapshot,
+    entry: &dokime_runtime::domains::execution::SuiteSnapshot,
 ) -> Result<wire::SuiteIdentity, Status> {
     Ok(wire::SuiteIdentity {
         suite_id: entry.suite_id.clone(),
@@ -601,7 +601,7 @@ fn strings(values: &[String]) -> Result<Vec<String>, Status> {
 }
 
 fn groups(
-    values: &[dokime_app::definition::ParameterGroup],
+    values: &[dokime_runtime::definition::ParameterGroup],
 ) -> Result<Vec<wire::ParameterGroupDefinition>, Status> {
     value::collection(values.len())?;
     collect(values.iter().map(|group| {
@@ -613,7 +613,7 @@ fn groups(
 }
 
 fn steps(
-    values: &[dokime_app::definition::ExecutionPhaseDefinition],
+    values: &[dokime_runtime::definition::ExecutionPhaseDefinition],
 ) -> Result<Vec<wire::StepDefinition>, Status> {
     value::collection(values.len())?;
     collect(values.iter().map(|step| {
@@ -626,7 +626,7 @@ fn steps(
 }
 
 fn files(
-    values: &[dokime_app::definition::FileDefinition],
+    values: &[dokime_runtime::definition::FileDefinition],
     budget: &mut Budget,
 ) -> Result<Vec<wire::FileParameterDefinition>, Status> {
     value::collection(values.len())?;
@@ -646,7 +646,7 @@ fn files(
     }))
 }
 
-fn suite_tags_memory(entry: &dokime_app::definition::SuiteSnapshot) -> Result<usize, Status> {
+fn suite_tags_memory(entry: &dokime_runtime::definition::SuiteSnapshot) -> Result<usize, Status> {
     let tags = tag_refs(entry)?;
     let mut bytes = tags.len().saturating_mul(std::mem::size_of::<String>());
     for tag in tags {
@@ -656,7 +656,7 @@ fn suite_tags_memory(entry: &dokime_app::definition::SuiteSnapshot) -> Result<us
     Ok(bytes)
 }
 
-fn tag_refs(entry: &dokime_app::definition::SuiteSnapshot) -> Result<BTreeSet<&String>, Status> {
+fn tag_refs(entry: &dokime_runtime::definition::SuiteSnapshot) -> Result<BTreeSet<&String>, Status> {
     value::collection(entry.tags.len())?;
     value::collection(entry.suite.tags.len())?;
     let tags: BTreeSet<_> = entry.tags.iter().chain(&entry.suite.tags).collect();
@@ -664,7 +664,7 @@ fn tag_refs(entry: &dokime_app::definition::SuiteSnapshot) -> Result<BTreeSet<&S
     Ok(tags)
 }
 
-fn suite_tags(entry: &dokime_app::definition::SuiteSnapshot) -> Result<Vec<String>, Status> {
+fn suite_tags(entry: &dokime_runtime::definition::SuiteSnapshot) -> Result<Vec<String>, Status> {
     let tags = tag_refs(entry)?;
     let mut values = canonical::slots(tags.len())?;
     for tag in tags {

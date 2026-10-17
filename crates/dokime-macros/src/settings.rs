@@ -141,9 +141,9 @@ fn aggregate(attribute: TokenStream, item: &TokenStream) -> Result<TokenStream, 
     let named = crate::arguments::named_struct_fields(
         &input,
         "a plugin's settings are a struct whose fields are its sections; a plugin with none \
-         writes `dokime::plugin::NoSettings` in `initialize` instead",
+         writes `dokime_runtime::plugin::NoSettings` in `initialize` instead",
         "a settings aggregate names its fields: the field order is the card order, and a plugin \
-         with nothing to configure writes `dokime::plugin::NoSettings` in `initialize` instead",
+         with nothing to configure writes `dokime_runtime::plugin::NoSettings` in `initialize` instead",
     )?;
     let fields = named
         .named
@@ -435,7 +435,7 @@ fn kind(leaf: &Type, written: &FieldArguments) -> Kind {
         Some("Secret") => Kind::Secret,
         Some(number) if NUMBERS.contains(&number) => Kind::Number,
         // A type the SDK does not own declares its own closed set, which is
-        // what `#[dokime::choice]` writes; a `secret` flag on anything else is
+        // what `#[dokime_runtime::choice]` writes; a `secret` flag on anything else is
         // refused beside this, where the field's own span is still available.
         _ if written.secret => Kind::Secret,
         _ => Kind::Choice,
@@ -452,7 +452,7 @@ fn validate(
     if written.secret && !matches!(kind, Kind::Secret) {
         return Err(Error::new(
             name.span(),
-            "a secret is declared by its type: write the field as `dokime::plugin::Secret`",
+            "a secret is declared by its type: write the field as `dokime_runtime::plugin::Secret`",
         ));
     }
     if written.from_environment.is_some() && !matches!(kind, Kind::Secret) {

@@ -26,7 +26,7 @@ use crate::grpc::{
     catalog, content,
     value::{self, canonical},
 };
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     runtime::query::execution_history::{ExecutionCheckpoint, ExecutionCheckpointEvidence},
 };
@@ -104,7 +104,7 @@ impl Operation for Get {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), crate::grpc::Error> {
     runtime.operations().register_wire_operation::<Get>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             maximum,
@@ -143,12 +143,12 @@ fn sections(
 
 fn checkpoint_outputs(
     checkpoint: &ExecutionCheckpoint,
-    outputs: &[dokime_app::execution::saved::ExecutionOutput],
+    outputs: &[dokime_runtime::execution::saved::ExecutionOutput],
     sections: &[contract::EvidenceSection],
 ) -> Result<contract::CheckpointEvidence, Status> {
     let files = if sections.contains(&contract::EvidenceSection::Outputs) {
         collect(outputs.iter().map(|output| {
-            let kind = dokime_app::ExecutionFileContentKind::from_metadata(
+            let kind = dokime_runtime::ExecutionFileContentKind::from_metadata(
                 &output.relative_path,
                 Some(&output.file.metadata.media_type),
             );
@@ -161,10 +161,10 @@ fn checkpoint_outputs(
                 ),
                 kind: content::files::kind(&kind),
                 state: match output.stream_state {
-                    Some(dokime_app::execution::saved::SavedStreamState::Finalized) => {
+                    Some(dokime_runtime::execution::saved::SavedStreamState::Finalized) => {
                         content_wire::ExecutionFileState::Finalized
                     }
-                    Some(dokime_app::execution::saved::SavedStreamState::Interrupted) => {
+                    Some(dokime_runtime::execution::saved::SavedStreamState::Interrupted) => {
                         content_wire::ExecutionFileState::Interrupted
                     }
                     None => content_wire::ExecutionFileState::Streaming,
@@ -182,7 +182,7 @@ fn checkpoint_outputs(
             .filter(|output| {
                 matches!(
                     output.content,
-                    dokime_app::execution::saved::ExecutionOutputContent::Artifact { .. }
+                    dokime_runtime::execution::saved::ExecutionOutputContent::Artifact { .. }
                 )
             })
             .count()
@@ -192,7 +192,7 @@ fn checkpoint_outputs(
     let mut artifacts = value::projection::slots(count).map_err(status_failure)?;
     if count != 0 {
         for output in outputs {
-            let dokime_app::execution::saved::ExecutionOutputContent::Artifact { record, .. } =
+            let dokime_runtime::execution::saved::ExecutionOutputContent::Artifact { record, .. } =
                 &output.content
             else {
                 continue;
@@ -265,7 +265,7 @@ fn checkpoint_evidence(
 }
 
 fn file(
-    value: dokime_app::ExecutionFileEntry,
+    value: dokime_runtime::ExecutionFileEntry,
 ) -> Result<content_wire::ExecutionFileMetadata, Status> {
     value::text(&value.relative_path)?;
     if let Some(content_type) = &value.content_type {
@@ -275,21 +275,21 @@ fn file(
         relative_path: value.relative_path,
         content_type: value.content_type,
         kind: match value.content_kind {
-            dokime_app::ExecutionFileContentKind::Text => content_wire::ExecutionFileKind::Text,
-            dokime_app::ExecutionFileContentKind::Binary => content_wire::ExecutionFileKind::Binary,
-            dokime_app::ExecutionFileContentKind::Media => content_wire::ExecutionFileKind::Media,
-            dokime_app::ExecutionFileContentKind::Unknown => {
+            dokime_runtime::ExecutionFileContentKind::Text => content_wire::ExecutionFileKind::Text,
+            dokime_runtime::ExecutionFileContentKind::Binary => content_wire::ExecutionFileKind::Binary,
+            dokime_runtime::ExecutionFileContentKind::Media => content_wire::ExecutionFileKind::Media,
+            dokime_runtime::ExecutionFileContentKind::Unknown => {
                 content_wire::ExecutionFileKind::Unknown
             }
         },
         state: match value.stream_state {
-            dokime_app::ExecutionFileStreamState::Streaming => {
+            dokime_runtime::ExecutionFileStreamState::Streaming => {
                 content_wire::ExecutionFileState::Streaming
             }
-            dokime_app::ExecutionFileStreamState::Finalized => {
+            dokime_runtime::ExecutionFileStreamState::Finalized => {
                 content_wire::ExecutionFileState::Finalized
             }
-            dokime_app::ExecutionFileStreamState::Interrupted => {
+            dokime_runtime::ExecutionFileStreamState::Interrupted => {
                 content_wire::ExecutionFileState::Interrupted
             }
         },

@@ -26,9 +26,9 @@ use crate::grpc::{
     planning,
     value::{self, canonical},
 };
-use dokime_app::core::{CaseId, CommandId, CorrelationId, TestExecutionId};
-use dokime_app::runtime::command::CommandContext;
-use dokime_app::{RuntimeHandle, transactions::CycleDefinition};
+use dokime_runtime::core::{CaseId, CommandId, CorrelationId, TestExecutionId};
+use dokime_runtime::runtime::command::CommandContext;
+use dokime_runtime::{RuntimeHandle, transactions::CycleDefinition};
 use dokime_contract::operations::execution as wire;
 
 /* === Constants === */
@@ -678,7 +678,7 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error
         .operations()
         .register_wire_operations::<Operations, RuntimeHandle>(
             "dokime",
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             Arc::new(runtime.clone()),
         )?;
     Ok(())

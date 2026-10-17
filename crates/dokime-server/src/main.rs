@@ -34,8 +34,8 @@ use dokime_server::host::{self, Error, Result};
 #[derive(Debug, Parser)]
 #[command(name = "dokime-server", about = "Run The Dokime Backend.", version)]
 struct Cli {
-    #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime_cli::terminal::ColorMode), help = "Color output: auto, always, or never.")]
-    color: dokime_cli::terminal::ColorMode,
+    #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime::terminal::ColorMode), help = "Color output: auto, always, or never.")]
+    color: dokime::terminal::ColorMode,
     #[command(flatten)]
     args: host::Args,
     #[command(subcommand)]
@@ -57,16 +57,16 @@ enum Command {
 /* === Private Functions === */
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    dokime_cli::terminal::set_color_mode(cli.color);
+    dokime::terminal::set_color_mode(cli.color);
     if let Some(Command::Version(args)) = cli.command {
         host::version::run(args);
         return ExitCode::SUCCESS;
     }
-    let terminal = dokime_cli::terminal::Terminal::new(cli.color);
+    let terminal = dokime::terminal::Terminal::new(cli.color);
     let result = cli.args.network.config().and_then(|config| {
         load_environment(cli.args.env_file.as_deref())?;
         let served = host::run(cli.args, config, terminal.clone());
-        dokime::process::block_on(served)?
+        dokime_runtime::process::block_on(served)?
     });
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -74,7 +74,7 @@ fn main() -> ExitCode {
             // A Refused Data Root Is An Operator Remedy, Not A Defect Report
             match &error {
                 Error::IncompatibleStorage { .. } => terminal.failure(&error),
-                _ => terminal.failure(dokime::plugin::Diagnostic::capture(&error)),
+                _ => terminal.failure(dokime_runtime::plugin::Diagnostic::capture(&error)),
             }
             error.exit_code()
         }

@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 // Local Imports
 use crate::Resources;
-use dokime::prelude::*;
+use dokime_runtime::prelude::*;
 
 /* === Constants === */
 
@@ -37,7 +37,7 @@ pub struct GetStatus {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::operation(
+#[dokime_runtime::operation(
     id = "obc-plugin.get_status",
     version = 1,
     description = "Reports bench readiness without advancing the Charger. The settings section selects this operation as its readiness probe.",
@@ -49,7 +49,7 @@ impl GetStatus {
     }
 
     async fn run(&mut self, _: &Supervisor, _: &()) -> Result<StatusResponse, Refusal> {
-        let stopped = dokime::plugin::refusal(self.resources.app().stopped().await)?;
+        let stopped = dokime_runtime::plugin::refusal(self.resources.app().stopped().await)?;
         Ok(StatusResponse::new(if stopped {
             "disconnected"
         } else {

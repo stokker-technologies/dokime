@@ -23,7 +23,7 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use super::value::{self, canonical};
-use dokime_app::{
+use dokime_runtime::{
     RuntimeHandle,
     core::{Identifier, Timestamp},
     domains::evidence::{ScopeSelection, TelemetrySelection},
@@ -142,7 +142,7 @@ impl Operation for List {
 pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), super::Error> {
     runtime.operations().register_wire_operation::<List>(
         "dokime",
-        dokime_app::app::Lanes::Open,
+        dokime_runtime::app::Lanes::Open,
         Arc::new(Resources {
             runtime: runtime.clone(),
             max_message_bytes: maximum,
@@ -169,7 +169,7 @@ fn bounded_limit(value: u32) -> Result<usize, Status> {
 /// after them; latest windows keep their newest. Only a single sample larger
 /// than the whole budget is refused, because no page could ever carry it.
 fn fit_page(
-    samples: &mut Vec<dokime_app::telemetry::TelemetrySample>,
+    samples: &mut Vec<dokime_runtime::telemetry::TelemetrySample>,
     latest: bool,
     after_stream_cursors: BTreeMap<String, u64>,
     budget: usize,
@@ -199,7 +199,7 @@ fn fit_page(
         let mut bytes = projection::memory(sample)?
             .saturating_add(3 * std::mem::size_of::<wire::TelemetrySample>());
         let stream = (!latest).then(|| {
-            dokime_app::domains::telemetry::telemetry_stream_id(
+            dokime_runtime::domains::telemetry::telemetry_stream_id(
                 sample.scope.as_ref(),
                 &sample.stream,
             )

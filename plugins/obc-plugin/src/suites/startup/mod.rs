@@ -33,14 +33,14 @@ const STARTUP_TEMPLATE_ID: &str = "0197f000-0000-7000-8000-000000000001";
 pub struct StartupSuite;
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 pub enum Templates {
     Startup(sequence::Startup),
 }
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::suite(
+#[dokime_runtime::suite(
     id = STARTUP_SUITE,
     label = "Charger Power-Up",
     tags = ["device", "startup", "ac"],

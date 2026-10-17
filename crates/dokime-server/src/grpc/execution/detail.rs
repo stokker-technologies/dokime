@@ -19,9 +19,9 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::*;
-use dokime_app::core::{Metadata, TestExecutionId, Value};
-use dokime_app::definition::{MaterializedParameter, ParameterSource};
-use dokime_app::execution::TestExecution;
+use dokime_runtime::core::{Metadata, TestExecutionId, Value};
+use dokime_runtime::definition::{MaterializedParameter, ParameterSource};
+use dokime_runtime::execution::TestExecution;
 use dokime_contract::operations::common::Diagnostic;
 
 /* === Constants === */
@@ -69,11 +69,11 @@ impl Bounds {
 
 /* === Public Functions === */
 pub(super) fn execution<'a>(
-    state: &'a dokime_app::state::RuntimeState,
+    state: &'a dokime_runtime::state::RuntimeState,
     id: &str,
 ) -> Result<
     (
-        &'a dokime_app::execution::TestCycle,
+        &'a dokime_runtime::execution::TestCycle,
         usize,
         &'a TestExecution,
     ),
@@ -98,9 +98,9 @@ pub(super) fn execution<'a>(
 }
 
 pub(crate) fn result(
-    value: &dokime_app::execution::ResultSummary,
+    value: &dokime_runtime::execution::ResultSummary,
 ) -> dokime_contract::operations::execution::ResultSummary {
-    use dokime_app::execution::ResultStatus;
+    use dokime_runtime::execution::ResultStatus;
     dokime_contract::operations::execution::ResultSummary {
         status: match value.status {
             ResultStatus::Pending => dokime_contract::operations::execution::ResultStatus::Pending,
@@ -145,7 +145,7 @@ pub(super) fn get_case(
             summary: Some(super::case_summary(
                 case,
                 ordinal,
-                dokime_app::runtime::query::case_projection(
+                dokime_runtime::runtime::query::case_projection(
                     snapshot.state(),
                     &cycle,
                     &case.test_case_id,
@@ -235,17 +235,17 @@ pub(super) fn get_execution(
                 .transpose()?,
             result: execution.result.as_ref().map(result),
             input_parameter_count: execution.snapshot.parameters().len() as u64,
-            controls: dokime_app::runtime::query::execution_controls(
+            controls: dokime_runtime::runtime::query::execution_controls(
                 snapshot.state(),
                 &execution.test_execution_id,
             )
             .map(|controls| wire::ExecutionControls {
                 request_id: controls.request_id.to_string(),
                 mode: match controls.mode {
-                    dokime_app::execution::ExecutionMode::Automatic => {
+                    dokime_runtime::execution::ExecutionMode::Automatic => {
                         wire::ExecutionMode::Automatic
                     }
-                    dokime_app::execution::ExecutionMode::Interactive => {
+                    dokime_runtime::execution::ExecutionMode::Interactive => {
                         wire::ExecutionMode::Interactive
                     }
                 },
@@ -307,7 +307,7 @@ pub(super) fn metadata_memory(value: &Metadata) -> Result<usize, Status> {
 }
 
 pub(super) fn diagnostic(
-    value: &dokime_app::plugin::Diagnostic,
+    value: &dokime_runtime::plugin::Diagnostic,
     bounds: &mut Bounds,
 ) -> Result<Diagnostic, Status> {
     value::collection(value.chain.len())?;
@@ -473,7 +473,7 @@ fn bounded(value: &str, bounds: &mut Bounds) -> Result<String, Status> {
 }
 
 fn parameter_cursor(
-    snapshot: &dokime_app::runtime::query::RuntimeStateSnapshot,
+    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
     selection: wire::ParameterCursorSelection,
 ) -> wire::ParameterCursor {
     wire::ParameterCursor {
@@ -486,7 +486,7 @@ fn parameter_page(
     limit: u32,
     after: &str,
     cursor: Option<&wire::ParameterCursor>,
-    snapshot: &dokime_app::runtime::query::RuntimeStateSnapshot,
+    snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
     selection: &wire::ParameterCursorSelection,
 ) -> Result<usize, Status> {
     if let Some(cursor) = cursor {
