@@ -493,6 +493,14 @@ impl ExecutionStorage {
             .acquisition(&execution.test_execution_id)
             .await
             .ok_or_else(|| invalid("report lifecycle has no acquisition owner"))?;
+        if matches!(
+            execution.status,
+            ExecutionStatus::Pending | ExecutionStatus::Running
+        ) || execution.finished_at.is_none()
+            || execution.saved.is_some()
+        {
+            return Err(invalid("report lifecycle must be terminal and unsealed"));
+        }
         let execution = Arc::new(execution.clone());
         // Saving Survives Caller Cancellation So A Started Freeze Always Settles.
         tokio::spawn(async move {
