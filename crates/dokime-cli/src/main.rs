@@ -38,7 +38,7 @@ const STACK_BYTES: usize = 32 * 1024 * 1024;
 /* === Private Functions === */
 fn main() -> ExitCode {
     let cli = dokime_cli::Cli::parse();
-    let terminal = dokime_terminal::Terminal::new(cli.color);
+    let terminal = dokime_cli::terminal::Terminal::new(cli.color);
     // The client stays off the Dokime runtime crate, so it sizes its own
     // stacks the way `dokime::process` does: Windows grants the main thread
     // one megabyte, which dev-profile futures overflow.

@@ -13,8 +13,11 @@ mod backend;
 mod catalog;
 mod cycle;
 mod execution;
+mod gui;
 mod operation;
 mod plan;
+mod plugin;
+mod serve;
 mod status;
 pub mod version;
 
@@ -60,6 +63,10 @@ pub(crate) enum Command {
     Operation(operation::Command),
     #[command(subcommand, about = "Preview And Register Canonical Selection Plans.")]
     Plan(plan::Command),
+    #[command(subcommand, about = "Install Plugin Bundles On A Backend.")]
+    Plugin(plugin::Command),
+    Serve(serve::Args),
+    Gui(gui::Args),
     Version(version::Args),
 }
 
@@ -78,6 +85,9 @@ pub(crate) async fn run(command: Command) -> crate::Result<()> {
         Command::Catalog(command) => catalog::run(command).await,
         Command::Operation(command) => operation::run(command).await,
         Command::Plan(command) => plan::run(command).await,
+        Command::Plugin(command) => plugin::run(command).await,
+        Command::Serve(args) => serve::run(args),
+        Command::Gui(args) => gui::run(args),
         Command::Version(args) => {
             version::run(args);
             Ok(())

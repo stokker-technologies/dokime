@@ -94,7 +94,7 @@ pub(crate) async fn cargo(
     let mut command = tokio::process::Command::from(command);
     use process_wrap::tokio::{CommandWrap, KillOnDrop};
     use std::time::Instant;
-    let terminal = cargo_terminal(&mut command, dokime_terminal::color_mode());
+    let terminal = cargo_terminal(&mut command, dokime_cli::terminal::color_mode());
     let progress = terminal.progress(name);
     let started = Instant::now();
     command
@@ -179,9 +179,9 @@ async fn read(
 
 fn cargo_terminal(
     command: &mut tokio::process::Command,
-    mode: dokime_terminal::ColorMode,
-) -> dokime_terminal::Terminal {
-    use dokime_terminal::{ColorMode, Terminal};
+    mode: dokime_cli::terminal::ColorMode,
+) -> dokime_cli::terminal::Terminal {
+    use dokime_cli::terminal::{ColorMode, Terminal};
     let inherited = command
         .as_std()
         .get_envs()
@@ -212,7 +212,7 @@ fn cargo_terminal(
 
 async fn cargo_output(
     reader: impl AsyncRead + Unpin,
-    progress: &dokime_terminal::Progress,
+    progress: &dokime_cli::terminal::Progress,
     compilation: bool,
 ) -> Result<Vec<u8>, Error> {
     use tokio::io::{AsyncBufReadExt, BufReader};
@@ -242,7 +242,7 @@ async fn cargo_output(
 
 async fn cargo_diagnostics(
     mut reader: impl AsyncRead + Unpin,
-    progress: &dokime_terminal::Progress,
+    progress: &dokime_cli::terminal::Progress,
 ) -> Result<Vec<u8>, Error> {
     // Retain only an error tail; long successful builds must not fail due to log volume.
     const TAIL: usize = 64 * 1024;

@@ -27,7 +27,7 @@ dokime = { path = "../dokime" }
 dokime-app = { path = "../dokime-app", features = ["fft"] }
 dokime-contract = { path = "../dokime-contract" }
 dokime-filesystem = { path = "../dokime-filesystem" }
-dokime-terminal = { path = "../dokime-terminal" }
+dokime-cli = { path = "../dokime-cli" }
 
 # Git
 harmos = { workspace = true, features = ["grpc"] }

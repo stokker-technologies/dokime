@@ -7,7 +7,7 @@
  * ***
  */
 
-#![cfg(feature = "sim")]
+#![cfg(feature = "simulation")]
 
 /* === Modules === */
 

@@ -61,7 +61,7 @@ const IDENTITY: ExecutionFileIdentity = {
   epoch: "epoch",
   fileId: "file",
   executionId: "execution",
-  relativePath: "mini.charger.steady/stream.log",
+  relativePath: "obc.charger.steady/stream.log",
 } as ExecutionFileIdentity;
 
 function cards(...kinds: string[]): Pick<DocumentViewCard, "kind">[] {

@@ -20,19 +20,15 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 // Third Party Imports
-use harmos::bundle::{Bundle, Limits};
+use semver::Version;
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
 };
 // Local Imports
-use super::{
-    backend as host, build, environment::required_environment_references,
-    installation::gui_override,
-};
+use super::build;
 use crate::error::Error;
-use dokime_packaging::process;
-use dokime_terminal::{ColorMode, Terminal};
+use dokime_cli::terminal::{ColorMode, Terminal};
 
 /* === Constants === */
 
@@ -50,12 +46,13 @@ pub struct Args {
     build: build::Args,
     #[arg(
         long,
-        help = "Server Override. Defaults To The Installed Dokime Server Executable."
+        default_value = "dokime",
+        help = "The Dokime CLI that launches the installed server and GUI."
     )]
-    dokime: Option<PathBuf>,
+    dokime: PathBuf,
     #[arg(
         long,
-        help = "Explicit GUI executable. The default is the one beside the host."
+        help = "Explicit GUI executable, forwarded to `dokime gui`. The default is the installed one."
     )]
     gui: Option<PathBuf>,
     #[arg(
@@ -108,17 +105,11 @@ pub struct Args {
     shutdown_stdin: bool,
 }
 
-#[derive(clap::Args)]
-#[command(
-    about = "Check plugin tools, SDK access, host compatibility and watched paths without building"
-)]
-pub struct DoctorArgs {
-    #[arg(long)]
-    manifest_path: Option<PathBuf>,
-    #[arg(short, long)]
-    package: Option<String>,
-    #[arg(long)]
-    dokime: Option<PathBuf>,
+/// The host identity `dokime-server version --json` reports.
+#[derive(serde::Deserialize)]
+struct Identity {
+    version: Version,
+    dev_protocol: u32,
 }
 
 struct Host {
@@ -190,57 +181,6 @@ impl ShutdownOwner for Host {
 }
 
 /* === Public Functions === */
-pub async fn doctor(args: DoctorArgs) -> Result<(), Error> {
-    let terminal = Terminal::default();
-    terminal.header("Dokime", env!("CARGO_PKG_VERSION"), "doctor");
-    for tool in ["cargo", "rustc", "git"] {
-        let mut command = std::process::Command::new(tool);
-        command.arg("--version");
-        let output = process::run(
-            command,
-            tool,
-            Some(Duration::from_secs(10)),
-            16 * 1024,
-            16 * 1024,
-        )
-        .await?;
-        terminal.field(tool, String::from_utf8_lossy(&output.stdout).trim());
-    }
-    let installation = host::resolve(args.dokime.as_deref())?;
-    let identity = host::inspect(installation.executable()).await?;
-    terminal.field(
-        "Host",
-        format!(
-            "{} · {}",
-            installation.executable().display(),
-            installation.origin().label()
-        ),
-    );
-    match installation.gui() {
-        Ok(gui) => terminal.field("GUI", gui.display()),
-        // Only `dev` without --headless needs the GUI, so report its absence
-        // here instead of refusing the whole check.
-        Err(error) => terminal.warn(error),
-    }
-    let build = build::Args {
-        manifest_path: args.manifest_path,
-        package: args.package,
-        ..build::Args::default()
-    };
-    let manifest = build
-        .manifest_path
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("Cargo.toml"))
-        .canonicalize()?;
-    let (roots, target, _) = watch_roots(&build, &[], &manifest, &identity, &terminal).await?;
-    terminal.field("Build output", target.display());
-    for root in roots {
-        terminal.field("Watch", root.display());
-    }
-    terminal.success("Development environment ready · SDK dependencies resolved");
-    Ok(())
-}
-
 pub async fn run(mut args: Args) -> Result<(), Error> {
     let terminal = Terminal::new(ColorMode::Auto);
     if args.build.output.is_some() {
@@ -248,25 +188,11 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
             "dev owns its isolated bundle output; use build --output for distribution files".into(),
         ));
     }
-    let installation = host::resolve(args.dokime.as_deref())?;
-    let identity = host::inspect(installation.executable()).await?;
-    let gui = if args.headless {
-        None
-    } else {
-        Some(match args.gui.as_deref() {
-            Some(path) => gui_override(path)?,
-            None => installation.gui()?,
-        })
-    };
+    let identity = inspect(&args.dokime).await?;
     terminal.header("Dokime", env!("CARGO_PKG_VERSION"), "dev");
     terminal.field(
         "Host",
-        format!(
-            "{} · {} · {}",
-            identity.version,
-            installation.executable().display(),
-            installation.origin().label()
-        ),
+        format!("{} · through {}", identity.version, args.dokime.display()),
     );
     let cwd = resolve_cwd(args.cwd.as_deref())?;
     args.env_file = resolve_env_file(args.env_file.as_deref())?;
@@ -384,15 +310,8 @@ pub async fn run(mut args: Args) -> Result<(), Error> {
                     }
                     let started = Instant::now();
                     if running.is_none() {
-                        if let Err(error) =
-                            require_declared_secrets(args.env_file.as_deref(), &cwd, &bytes)
-                        {
-                            terminal.error(error.to_string());
-                            terminal.hint("No development host is running. Watching for changes · r + Enter to retry · q + Enter to stop");
-                            continue;
-                        }
                         terminal.status("Starting development host…");
-                        match launch(&args, installation.executable(), &state, &cwd, &bundle, gui.as_deref()).await {
+                        match launch(&args, &state, &cwd, &bundle).await {
                             Ok((host, url)) => {
                                 running = Some(host);
                                 terminal.field("Local", url);
@@ -559,21 +478,13 @@ async fn read_readiness(
 
 async fn launch(
     args: &Args,
-    executable: &Path,
     state: &Path,
     cwd: &Path,
     bundle: &Path,
-    gui: Option<&Path>,
 ) -> Result<(Host, String), Error> {
-    let mut command = Command::new(executable);
-    let color = match dokime_terminal::color_mode() {
-        ColorMode::Auto => "auto",
-        ColorMode::Always => "always",
-        ColorMode::Never => "never",
-    };
+    let mut command = dokime(&args.dokime, "serve");
     command
-        .arg("--color")
-        .arg(color)
+        .arg("--")
         .args(arguments(args, state, bundle))
         .current_dir(cwd)
         .stdin(Stdio::piped())
@@ -602,8 +513,8 @@ async fn launch(
     };
     match result {
         Ok(url) => {
-            if let Some(gui) = gui {
-                match launch_gui(gui, &url).await {
+            if !args.headless {
+                match launch_gui(args, &url).await {
                     Ok(process) => host.gui = Some(process),
                     Err(error) => {
                         // Readiness means the backend is already serving. Do
@@ -623,11 +534,14 @@ async fn launch(
     }
 }
 
-async fn launch_gui(gui: &Path, endpoint: &str) -> Result<Gui, Error> {
-    let mut command = Command::new(gui);
+async fn launch_gui(args: &Args, endpoint: &str) -> Result<Gui, Error> {
+    let mut command = dokime(&args.dokime, "gui");
+    command.arg("--endpoint").arg(endpoint);
+    if let Some(gui) = &args.gui {
+        command.arg("--gui").arg(gui);
+    }
     command
-        .arg("--endpoint")
-        .arg(endpoint)
+        .arg("--")
         .arg("--shutdown-stdin")
         .stdin(Stdio::piped())
         .stdout(Stdio::inherit())
@@ -772,7 +686,7 @@ async fn watch_roots(
     build: &build::Args,
     watch: &[PathBuf],
     manifest: &Path,
-    identity: &host::Identity,
+    identity: &Identity,
     terminal: &Terminal,
 ) -> Result<(Vec<PathBuf>, PathBuf, dokime_packaging::build::Project), Error> {
     let mut options = build.clone();
@@ -781,7 +695,7 @@ async fn watch_roots(
     terminal.field("Plugin", project.package_name());
     let sdk_version = semver::Version::parse(project.sdk_version())
         .map_err(|error| Error::Invalid(error.to_string()))?;
-    host::compatible(identity, &sdk_version)?;
+    compatible(identity, &sdk_version)?;
     terminal.field(
         "SDK",
         format!(
@@ -927,46 +841,68 @@ fn read_environment_keys(
     Ok(values)
 }
 
-/// Refuses a launch whose plugin requires a secret that neither the process
-/// environment nor the environment file provides. Only the variable names are
-/// ever reported, never a value.
-fn require_declared_secrets(
-    env_file: Option<&Path>,
-    cwd: &Path,
-    bundle_bytes: &[u8],
-) -> Result<(), Error> {
-    let bundle = Bundle::inspect(bundle_bytes, Limits::default())?;
-    let required = required_environment_references(&bundle)?;
-    if required.is_empty() {
-        return Ok(());
-    }
-    let declared_in_file = match env_file.map(Path::to_owned).or_else(|| locate_dotenv(cwd)) {
-        Some(path) => environment_file_keys(&path)?,
-        None => BTreeMap::new(),
+/// A `dokime` CLI invocation carrying this tool's color mode.
+fn dokime(cli: &Path, subcommand: &str) -> Command {
+    let color = match dokime_cli::terminal::color_mode() {
+        ColorMode::Auto => "auto",
+        ColorMode::Always => "always",
+        ColorMode::Never => "never",
     };
-    let missing = required
-        .iter()
-        .filter(|reference| {
-            let exported = std::env::var(&reference.variable).is_ok_and(|value| !value.is_empty());
-            let filed = declared_in_file
-                .get(&reference.variable)
-                .is_some_and(|value| !value.is_empty());
-            !exported && !filed
-        })
-        .map(|reference| {
-            format!(
-                "{} (secret {:?} of {})",
-                reference.variable, reference.setting, reference.owner
-            )
-        })
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        return Ok(());
+    let mut command = Command::new(cli);
+    command.arg("--color").arg(color).arg(subcommand);
+    command
+}
+
+/// Reads the installed server's identity through the CLI and refuses a host
+/// this tool or the plugin's SDK cannot develop against.
+async fn inspect(cli: &Path) -> Result<Identity, Error> {
+    let mut command = std::process::Command::new(cli);
+    command.args(["serve", "--", "version", "--json"]);
+    let output = dokime_packaging::process::run(
+        command,
+        "Dokime version probe",
+        Some(Duration::from_secs(10)),
+        16 * 1024,
+        64 * 1024,
+    )
+    .await
+    .map_err(|error| {
+        Error::Invalid(format!(
+            "cannot inspect the Dokime server through {}: {error}. Install Dokime or pass --dokime PATH",
+            cli.display()
+        ))
+    })?;
+    let identity: Identity = serde_json::from_slice(&output.stdout).map_err(|error| {
+        Error::Invalid(format!(
+            "the Dokime server returned invalid version information: {error}; update Dokime"
+        ))
+    })?;
+    if identity.dev_protocol != dokime_contract::DEV_PROTOCOL {
+        return Err(Error::Invalid(format!(
+            "the Dokime server uses development protocol {}; this cargo-dokime requires {}. Update Dokime and the Cargo extension together",
+            identity.dev_protocol,
+            dokime_contract::DEV_PROTOCOL
+        )));
     }
-    Err(Error::Invalid(format!(
-        "required environment variable not set: {}; export it or add it to the environment file, then press r + Enter to retry",
-        missing.join(", ")
-    )))
+    compatible(
+        &identity,
+        &Version::parse(env!("CARGO_PKG_VERSION")).expect("Cargo version"),
+    )?;
+    Ok(identity)
+}
+
+fn compatible(host: &Identity, sdk: &Version) -> Result<(), Error> {
+    let version = &host.version;
+    let same_api = version.major == sdk.major
+        && (version.major != 0 || version.minor == sdk.minor)
+        && (version.major != 0 || version.minor != 0 || version.patch == sdk.patch)
+        && version.pre == sdk.pre;
+    if !same_api {
+        return Err(Error::Invalid(format!(
+            "Dokime SDK/tool version {sdk} is incompatible with host {version}. Update the host or select an SDK release in the same compatibility series"
+        )));
+    }
+    Ok(())
 }
 
 /* === Tests === */

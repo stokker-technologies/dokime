@@ -7,7 +7,7 @@ live operator shell and the self-contained report renderer.
 ## Brand Assets
 
 - Brand values live in `../../branding/brand.toml` and are compiled into
-  `dokime-theme`. Preserve committed frontend assets under
+  `dokime-app` (its `brand::theme` module). Preserve committed frontend assets under
   `../../branding/generated/`; runtime appearance owns the compiled stylesheet.
 - Treat `../dokime-app/dist-report/report.html` as generated output. The report
   build owns it.

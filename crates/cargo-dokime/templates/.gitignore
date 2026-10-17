@@ -1,2 +1,4 @@
 /target/
 /.dokime/
+/dist/
+/.cache/

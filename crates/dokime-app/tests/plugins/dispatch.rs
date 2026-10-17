@@ -36,11 +36,11 @@ use super::*;
 /* === Public Functions === */
 
 /* === Private Functions === */
-// external bundle boots its declared routes and reports live status.
+// an installed bundle boots its declared operations and reports live status.
 
 pub(crate) async fn external_bundle_live() {
     let root = tempfile::tempdir().unwrap();
-    let bytes = fixture_bundle_bytes("dokime-route-plugin");
+    let bytes = fixture_bundle_bytes("obc-plugin");
     let store = crate::support::plugins::plugin_store(root.path());
     let staged = store.stage(&bytes).unwrap();
     store
@@ -56,27 +56,21 @@ pub(crate) async fn external_bundle_live() {
         "{row:?}"
     );
 
-    // Boot succeeding here already proves the sidecar's four declared routes
-    // (a plain `invoke`, the `status` probe, and the `choices` options
-    // provider, plus the controlled record publication route) were all admitted: `Bindings::inspect` refuses undeclared,
-    // reserved, or doubly-claimed routes before the plugin is ever marked
-    // loaded, so an `Ok` boot is the binding assertion.
-    //
-    // The status route is the only one left with a public, host-driven call
-    // path after actions were removed (`domains::actions` and its
-    // `query_artifact_options` are gone, so the `choices` route has no
-    // integration-level caller to exercise from here). Read it live through
-    // the settings frame the way an operator's settings page would.
+    // Boot succeeding already proves the bundle's bound operations (the settings
+    // status probe and the ripple analysis) were admitted: `Bindings::inspect`
+    // refuses undeclared, reserved, or doubly claimed operations before the
+    // plugin is marked loaded. Read the probe live through the settings frame
+    // the way an operator's settings page does.
     let frame = handle.settings_frame().await;
     let card = frame
         .cards
         .iter()
-        .find(|card| card.plugin_id == identifier("route-fixture"))
-        .expect("route fixture settings card is present");
-    let serialized = serde_json::to_value(card).unwrap();
-    assert!(
-        serialized.to_string().contains("calls-0"),
-        "expected the live status probe's call count in {serialized}"
+        .find(|card| card.plugin_id == identifier("obc-plugin"))
+        .expect("the OBC settings card is present");
+    assert_eq!(
+        card.state,
+        dokime_app::domains::settings::RuntimeSettingsCardState::Ready,
+        "{card:?}"
     );
 
     drop(handle);

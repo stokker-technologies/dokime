@@ -44,7 +44,6 @@ use dokime_client::profiles::Store;
 /* === Tests === */
 
 pub(crate) async fn json_files_connection() {
-    assert!(Cli::try_parse_from(["dokime", "serve"]).is_err());
     for arguments in [
         vec![
             "plan",

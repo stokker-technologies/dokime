@@ -8,11 +8,11 @@
 
 // Plot Stream Throughput Through The Native WebView: IPC Bridge Versus gRPC-Web.
 //
-// Starts a backend with the Mini charger plugin and gRPC-Web enabled for this
+// Starts a backend with the OBC charger plugin and gRPC-Web enabled for this
 // WebView's origin, attaches the desktop shell to it, and injects two builds of
 // the GUI's own transport and plot adapter into the page: one bound to the IPC
 // bridge the desktop ships, one bound to direct gRPC-Web, the previous path.
-// Each measured window starts a fresh continuous Mini startup run publishing
+// Each measured window starts a fresh continuous OBC startup run publishing
 // telemetry at a one-millisecond step and watches its plot through
 // `openNativePlotStream` on one transport, alternating the order per round. The
 // page records, for every delivered frame, when it arrived and when the backend
@@ -22,7 +22,7 @@
 //
 // Prerequisites match native-desktop.mjs: a running display (or a headless
 // compositor), WebKitWebDriver, and the dev-built shell (with
-// `tauri/custom-protocol`), backend and Mini bundle under the target directory.
+// `tauri/custom-protocol`), backend and OBC bundle under the target directory.
 // Results print as JSON and land in `<target>/stream-throughput.json`.
 
 /* === Imports === */
@@ -48,7 +48,7 @@ const targetRoot = resolve(workspace, process.env.CARGO_TARGET_DIR ?? "target");
 const backendBinary = process.env.DOKIME_E2E_BACKEND ?? join(targetRoot, "debug/dokime-server");
 const shellBinary = process.env.DOKIME_E2E_SHELL ?? join(targetRoot, "debug/dokime-gui");
 const pluginBundle =
-  process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/mini-sidecar.dokime");
+  process.env.DOKIME_E2E_PLUGIN ?? join(targetRoot, "debug/plugins/obc-plugin.dokime");
 const origin = process.platform === "win32" ? "http://tauri.localhost" : "tauri://localhost";
 const STREAM = "mini.charger.startup.samples";
 const TEMPLATE = "Power Up the Charger";

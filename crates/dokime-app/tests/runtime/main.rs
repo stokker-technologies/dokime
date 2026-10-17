@@ -49,7 +49,7 @@ pub(crate) use crate::support::prelude::*;
 
 /* === Private Functions === */
 fn provider_config(root: &Path) -> RuntimeConfig {
-    config(root).with_plugins([fixture_bundle(root, "mini-sidecar")])
+    config(root).with_plugins([fixture_bundle(root, "obc-plugin")])
 }
 
 async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
@@ -69,8 +69,8 @@ async fn provider_cycle(runtime: &RuntimeHandle, suffix: &str) -> TestCycleId {
         .test_suites()
         .await
         .into_iter()
-        .find(|suite| suite.source == "mini-sidecar" && suite.suite_id == "mini.checks")
-        .expect("mini suite registered");
+        .find(|suite| suite.source == "obc-plugin" && suite.suite_id == "obc.checks")
+        .expect("OBC suite registered");
     start_cases(
         runtime,
         metadata(

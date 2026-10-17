@@ -13,13 +13,13 @@ A Dokime plugin is a Harmos plugin. `#[dokime::plugin]` forwards to `#[harmos::p
 #[dokime::plugin(
     id = "bench",
     description = "Owns the bench operations and evidence",
-    provides = operations::Operations,
+    provides = domain::operations::Operations,
     requires(),
     contributions(
         dokime::Suites<suites::Suites>,
         dokime::Records<Records, listeners::Listeners>,
         dokime::Evidence<observers::Streams>,
-        dokime::Settings<settings::BenchSettings>,
+        dokime::Settings<domain::model::settings::BenchSettings>,
     ),
     observers = observers::Observers,
     observer_control = observers::controls::Observe,
@@ -34,7 +34,7 @@ impl dokime::Plugin for Bench {
     async fn initialize(&mut self, _: &Supervisor) -> Result<(), Refusal>;
     fn resources(&self) -> Arc<Resources>;
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
-        table.bind_operations::<operations::Implemented, _>(self.resources())?;
+        table.bind_operations::<domain::operations::Operations, _>(self.resources())?;
         table.bind_operations::<listeners::Listeners, _>(self.resources())?;
         dokime::execution::serve::<Self, suites::Suites>(table)
     }
@@ -56,7 +56,7 @@ fn main() -> std::io::Result<()> { dokime::plugin::run::<Bench>() }
 - Several declarations may name one stream, record or prompt; identical ones register once. Two that disagree about one stream id (row type, schema version, window or metadata) stop the plugin's build; a disagreement the macro cannot see — a record's or prompt's fields, a stream's columns — is refused at admission.
 - Listeners are operations: `#[dokime::listener(id, record = Type)]` on an inherent impl with `hear(&mut self, ctx, record)`. The listener constructs with `async fn initialize(resources: Arc<Resources>, ctx: &Supervisor)`. The host forwards a published record to every listener that declared its type. Publish a record outside a run with `dokime::plugin::Publisher::new(&supervisor).publish(record)`.
 - Settings are host-authored UI declarations; `prepare` decodes them with `config.settings::<S>()` from the admitted `Configuration`. A setting's readiness probe and a discovered default link operations, not routes. Runtime settings and secret references are distinct from test parameters.
-- Plugin observers are Harmos observers sharing the original initialized resources through `ObserverAttachment`; never duplicate hardware handles per callback. An observer constructs with `async fn initialize(resources: &Resources) -> Result<Self, Error>` (or `Default`), works in `observe`, and ends with `stop` and `cleanup`. The plugin serves them through one Host control, `observer_control = Observe`, declared with `observers::POLICY` and bound with `bind::<Observe>(table)`.
+- Plugin observers are Harmos observers sharing the original initialized resources through `ObserverAttachment`; never duplicate hardware handles per callback. An observer constructs with `async fn initialize(resources: &Resources) -> Result<Self, Error>` (or `Default`), works in `observe`, and ends with `stop` and `cleanup`. At the current Harmos pin the plugin serves them through one Host control, `observer_control = Observe`, declared with `observers::POLICY` and bound with `bind::<Observe>(table)`; after the Harmos re-pin that control is the built-in `harmos.observe`, bound automatically when a plugin declares observers, and the `cargo dokime new` starter is already written that way.
 - `dokime::plugin::refusal(result)` turns any error into the `Refusal` an operation boundary returns and logs the full diagnostic.
 
 Static binary inspection reads the inert declaration and never initializes a plugin or acquires resources. One lifecycle owner initializes resources and settles work before releasing them, including partial failures. Plugin install/update/remove/enable/disable changes take effect through a full app restart; keep pending-restart feedback. Development-bundle reload is a separate explicit lifecycle.

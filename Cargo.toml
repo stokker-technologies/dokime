@@ -12,20 +12,17 @@ members = [
   "crates/dokime-client",
   "crates/dokime-contract",
   "crates/cargo-dokime",
-  "crates/dokime-starter-check",
   "crates/dokime-packaging",
   "crates/dokime-cli",
-  "crates/dokime-terminal",
-  "crates/dokime-theme",
   "crates/dokime-gui/src-tauri",
   "crates/dokime-host",
   "crates/dokime-macros",
   "crates/dokime-app",
   "crates/dokime-server",
   "crates/dokime-filesystem",
-  "plugins/mini",
-  "crates/dokime-app/tests/fixtures/route_plugin",
-  "plugins/mini/runtime",
+  "plugins/obc-plugin",
+  "crates/dokime-app/tests/fixtures",
+  "plugins/obc-plugin/runtime",
 ]
 resolver = "2"
 

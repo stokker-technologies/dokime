@@ -1,0 +1,122 @@
+# Rendered-pending: the plugin-profile task graph `stkr project update` renders for a Dokime plugin,
+# written by hand until the Hub renders it. Every CI job runs one of these tasks.
+
+# === Settings === #
+
+[settings]
+lockfile = true
+
+# === Tools === #
+
+[tools]
+# Languages And Runtimes
+rust = { version = "1.99.0", components = "clippy,rustfmt" }
+
+# === Environment === #
+
+[env]
+
+# === Variables === #
+
+[vars]
+
+# === Prepare === #
+
+# === Format === #
+
+[tasks.format]
+description = "Format Every Language"
+usage = 'flag "--check"'
+run = [{ task = "format:rust{% if usage.check %} --check{% endif %}" }]
+
+[tasks."format:rust"]
+description = "Format Rust"
+usage = 'flag "--check"'
+run = "cargo fmt --all{% if usage.check %} --check{% endif %}"
+
+# === Lint === #
+
+[tasks."lint:rust"]
+description = "Lint Rust"
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+# === Check === #
+
+[tasks.check]
+description = "Check Formatting, Lints And Types"
+run = [{ task = "format:rust --check" }, { task = "lint:rust" }, { task = "check:rust" }]
+
+[tasks."check:rust"]
+description = "Check Rust"
+run = "cargo check --all-targets --all-features"
+
+# === Build === #
+
+[tasks.build]
+description = "Build The Plugin Bundle And Test Its Units"
+run = ["cargo dokime build --output dist/{{package}}.dokime", { task = "test:unit" }]
+
+# === Dev === #
+
+[tasks.dev]
+description = "Rebuild And Reload The Plugin In A Development Host"
+run = "cargo dokime dev"
+
+# === Test === #
+
+[tasks."test:unit"]
+description = "Test Unit Layer"
+run = "cargo test --lib --bins"
+
+[tasks."test:integration:rust"]
+description = "Test Integration Rust"
+run = "cargo test --tests"
+
+[tasks."test:acceptance:rust"]
+description = "Test Acceptance Rust"
+run = "cargo dokime inspect dist/{{package}}.dokime"
+
+[tasks."test:verify"]
+description = "Verify The Built Bundle Of One Tree"
+run = "cargo dokime inspect dist/{{package}}.dokime"
+
+# === Bench === #
+
+# === Docs === #
+
+# === Package === #
+
+[tasks."package:rust"]
+description = "Package Rust"
+usage = 'flag "--profile <profile>" default="dev"'
+run = "cargo dokime build --profile {{usage.profile}} --output dist/{{package}}.dokime"
+
+# === CI === #
+
+[tasks.ci]
+description = "Run The CI Flow Locally"
+run = [
+  { task = "format --check" },
+  { task = "check" },
+  { task = "build" },
+  { task = "test:integration:rust" },
+  { task = "test:acceptance:rust" },
+  { task = "package:rust" },
+  { task = "test:verify" },
+]
+
+[tasks."ci:nightly"]
+description = "Run The Nightly Flow"
+run = [{ task = "ci" }]
+
+# === Release === #
+
+[tasks."release:prepare"]
+description = "Set The Package Version From The Release Branch"
+run = "version=\"${RELEASE_VERSION:-$(git branch --show-current | sed 's#^release/v##')}\" && sed -i \"0,/^version = .*/s//version = \\\"$version\\\"/\" Cargo.toml"
+
+[tasks."release:publish"]
+description = "Attach The Release Bundle To The Tagged Release"
+run = "if [ -n \"$GITHUB_ACTIONS\" ]; then gh release create \"$GITHUB_REF_NAME\" dist/{{package}}.dokime --verify-tag; else glab release create \"$CI_COMMIT_TAG\" dist/{{package}}.dokime; fi"
+
+# === Housekeeping === #

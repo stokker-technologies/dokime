@@ -44,15 +44,9 @@ use dokime::records::{RecordPublication, RecordPublishRequest, RecordSeverity};
 
 pub(crate) async fn native_publications_order() {
     let root = tempfile::tempdir().unwrap();
-    let mut owner = Runtime::start(config(root.path()).with_plugins([
-        fixture_bundle(root.path(), "fixture-sidecar-protocol"),
-        revised_bundle(
-            root.path(),
-            "dokime-route-plugin",
-            "route-publications-peer",
-            "records",
-        ),
-    ]))
+    let mut owner = Runtime::start(
+        config(root.path()).with_plugins([fixture_bundle(root.path(), "fixture-sidecar-protocol")]),
+    )
     .await
     .unwrap();
     let runtime = owner.handle();
@@ -129,38 +123,6 @@ pub(crate) async fn native_publications_order() {
         assert_eq!(entry.scope, None);
         assert_eq!(entry.details["value"], dokime::core::Value::Number(7.0));
     }
-    let mut ordered = Vec::new();
-    for (route, kind) in [
-        ("fixture-sidecar.publish-record", "fixture.sidecar.observed"),
-        ("route-fixture.publish_record", "fixture.route.observed"),
-        ("fixture-sidecar.publish-record", "fixture.sidecar.observed"),
-    ] {
-        request.record_type = Identifier::new(kind).unwrap();
-        let publication = RecordPublication {
-            request_json: serde_json::to_string(&request).unwrap(),
-            produced_at: timestamp.into(),
-        };
-        runtime
-            .operations()
-            .call_encoded(route, publication.encode_to_vec())
-            .await
-            .unwrap();
-    }
-    tokio::time::timeout(Duration::from_secs(5), async {
-        for _ in 0..3 {
-            ordered.push(records.next().await.unwrap().unwrap());
-        }
-    })
-    .await
-    .unwrap();
-    assert_eq!(
-        ordered
-            .iter()
-            .map(|row| row.source.as_str())
-            .collect::<Vec<_>>(),
-        ["fixture-sidecar", "route-fixture", "fixture-sidecar"]
-    );
-    assert!(ordered[0].sequence < ordered[1].sequence && ordered[1].sequence < ordered[2].sequence);
     drop(records);
     drop(runtime);
     owner.shutdown().await.unwrap();

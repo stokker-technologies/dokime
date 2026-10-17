@@ -1,21 +1,19 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
 
-
 /* === Modules === */
 pub mod bench;
+pub mod domain;
 pub mod error;
 pub mod listeners;
 pub mod observers;
 pub mod operations;
-pub mod prompts;
-pub mod settings;
 pub mod suites;
 
 /* === Re-Exports === */
@@ -29,10 +27,10 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::operations::{
     OperationPolicy, RestartPolicy, RetryPolicy, ServingError, WireTable,
 };
+use dokime::harmos::plugin::{Attachment, Declared};
 use dokime::harmos::sidecar::{ObserverAttachment, Publisher};
 use dokime::prelude::*;
 
@@ -56,7 +54,7 @@ type Observing = ObserverAttachment<Bench, Publisher<Plugin>>;
 /* === Structs === */
 pub struct Bench {
     pub sensor: bench::Sensor,
-        pub upload_configured: bool,
+    pub upload_configured: bool,
     units: Mutex<Vec<String>>,
 }
 
@@ -73,14 +71,14 @@ pub enum Records {}
 
 /* === Implementations === */
 impl Bench {
-                        pub(crate) fn observed(&self, unit: String) {
+    pub(crate) fn observed(&self, unit: String) {
         self.units
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(unit);
     }
 
-        pub fn connected(&self) -> Vec<String> {
+    pub fn connected(&self) -> Vec<String> {
         self.units
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -95,16 +93,15 @@ impl dokime::harmos::operations::lifecycle::Policy for Plugin {
 
 #[dokime::plugin(
     id = "{{owner}}",
-    provides = operations::Operations,
+    provides = domain::operations::Operations,
     requires(),
     contributions(
         dokime::Suites<suites::Suites>,
         dokime::Records<Records, listeners::Listeners>,
         dokime::Evidence<observers::Streams>,
-        dokime::Settings<settings::BenchSettings>,
+        dokime::Settings<domain::model::settings::BenchSettings>,
     ),
     observers = observers::Observers,
-    observer_control = observers::controls::Observe,
     restart = "never", description = "A thermal bench: one plugin, one suite, one template that holds a chamber at temperature and decides whether it stayed there.\nThe identity, the operations it serves and calls, and the contributions it makes to the host are literal data on the attribute: they are what the host reads *before* the plugin runs, out of a binary it never executes. A template calls `ReadChamber` through the host; the plugin serves it privately, so its own runs may call it without naming it in `requires(...)`, which lists only what other plugins or the host provide.")]
 impl dokime::Plugin for Plugin {
     type Config = Configuration;
@@ -112,8 +109,9 @@ impl dokime::Plugin for Plugin {
     type Context = Supervisor;
     type Resources = Bench;
 
-        fn prepare(config: Configuration) -> std::result::Result<Self, Refusal> {
-        let settings = dokime::plugin::refusal(config.settings::<settings::BenchSettings>())?;
+    fn prepare(config: Configuration) -> std::result::Result<Self, Refusal> {
+        let settings =
+            dokime::plugin::refusal(config.settings::<domain::model::settings::BenchSettings>())?;
         // The port is discovered, so it is absent until an operator saves what
         // the card offered them: a plugin has to open before discovery can run,
         // which is exactly why a discovered field is an `Option<T>`.
@@ -150,13 +148,9 @@ impl dokime::Plugin for Plugin {
         &self,
         table: &mut WireTable<Supervisor>,
     ) -> std::result::Result<(), ServingError> {
-        table.bind_operations::<operations::Implemented, _>(self.resources())?;
+        table.bind_operations::<domain::operations::Operations, _>(self.resources())?;
         table.bind_operations::<listeners::Listeners, _>(self.resources())?;
-        dokime::execution::serve::<Self, suites::Suites>(table)?;
-        self.observers
-            .as_ref()
-            .ok_or(ServingError::Catalog)?
-            .bind::<observers::controls::Observe>(table)
+        dokime::execution::serve::<Self, suites::Suites>(table)
     }
 
     fn attachment(&self) -> Option<Arc<dyn Attachment<Supervisor>>> {
@@ -165,7 +159,7 @@ impl dokime::Plugin for Plugin {
             .map(|observers| Arc::clone(observers) as Arc<dyn Attachment<Supervisor>>)
     }
 
-        async fn stop(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
+    async fn stop(&mut self, _: &Supervisor) -> std::result::Result<(), Refusal> {
         dokime::execution::interrupt().await;
         Ok(())
     }

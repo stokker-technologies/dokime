@@ -924,17 +924,13 @@ dependencies = [
 name = "cargo-dokime"
 version = "0.1.0"
 dependencies = [
- "cargo_metadata 0.23.1",
  "clap",
- "dokime-client",
+ "dokime-cli",
  "dokime-contract",
  "dokime-packaging",
- "dokime-terminal",
  "dotenvy",
- "futures-util",
  "glob",
  "harmos",
- "portable-pty",
  "semver",
  "serde",
  "serde_json",
@@ -942,9 +938,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
- "tokio-stream",
  "toml_edit 0.25.17+spec-1.1.0",
- "tonic",
  "tracing",
  "url",
 ]
@@ -1994,7 +1988,6 @@ dependencies = [
  "dokime-contract",
  "dokime-filesystem",
  "dokime-host",
- "dokime-theme",
  "futures-util",
  "harmos",
  "hound",
@@ -2033,18 +2026,24 @@ dependencies = [
 name = "dokime-cli"
 version = "0.1.0"
 dependencies = [
+ "anstream",
+ "anstyle",
  "clap",
  "criterion",
  "dokime-client",
  "dokime-contract",
  "dokime-filesystem",
- "dokime-terminal",
+ "harmos",
+ "indicatif",
+ "portable-pty",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "tempfile",
  "thiserror 2.0.21",
  "time",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tracing",
  "zeroize",
@@ -2101,6 +2100,18 @@ dependencies = [
  "tracing",
  "uuid",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "dokime-fixtures"
+version = "0.1.0"
+dependencies = [
+ "dokime",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2186,24 +2197,11 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata 0.23.1",
  "clap",
- "dokime-terminal",
+ "dokime-cli",
  "harmos",
  "process-wrap",
  "serde_json",
  "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "dokime-route-plugin"
-version = "0.1.0"
-dependencies = [
- "dokime",
- "harmos",
- "serde",
- "serde_json",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -2218,11 +2216,11 @@ dependencies = [
  "criterion",
  "dokime",
  "dokime-app",
+ "dokime-cli",
  "dokime-client",
  "dokime-contract",
  "dokime-filesystem",
  "dokime-host",
- "dokime-terminal",
  "dotenvy",
  "futures-util",
  "harmos",
@@ -2253,41 +2251,6 @@ dependencies = [
  "uuid",
  "zeroize",
  "zip 9.0.2",
-]
-
-[[package]]
-name = "dokime-starter-check"
-version = "0.1.0"
-dependencies = [
- "dokime",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "dokime-terminal"
-version = "0.1.0"
-dependencies = [
- "anstream",
- "anstyle",
- "indicatif",
- "thiserror 2.0.21",
- "tracing",
-]
-
-[[package]]
-name = "dokime-theme"
-version = "0.1.0"
-dependencies = [
- "base64 0.23.1",
- "cssparser 0.38.0",
- "dokime",
- "tempfile",
- "thiserror 2.0.21",
- "tracing",
 ]
 
 [[package]]
@@ -4519,33 +4482,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
-name = "mini-runtime"
-version = "0.1.0"
-dependencies = [
- "harmos",
- "serde",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "mini-sidecar"
-version = "0.1.0"
-dependencies = [
- "dokime",
- "harmos",
- "mini-runtime",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "sysinfo",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4996,6 +4932,33 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "obc-plugin"
+version = "0.1.0"
+dependencies = [
+ "dokime",
+ "harmos",
+ "obc-runtime",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "sysinfo",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "obc-runtime"
+version = "0.1.0"
+dependencies = [
+ "harmos",
+ "serde",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

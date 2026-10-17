@@ -45,12 +45,12 @@ async fn main() -> ExitCode {
         args.remove(1);
     }
     let cli = cli::Cli::parse_from(args);
-    dokime_terminal::set_color_mode(cli.color);
+    dokime_cli::terminal::set_color_mode(cli.color);
     match cli.command.run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(error::Error::Cancelled) => ExitCode::from(130),
         Err(error) => {
-            dokime_terminal::Terminal::default().error(error);
+            dokime_cli::terminal::Terminal::default().error(error);
             ExitCode::FAILURE
         }
     }

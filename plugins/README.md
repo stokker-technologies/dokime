@@ -1,6 +1,6 @@
 # Dokime Plugins
 
-`mini/` is the maintained onboard charger demo and validation plugin. Its
+`obc-plugin/` is the maintained onboard charger demo and validation plugin. Its
 `runtime/` crate owns the simulated testbench. The demo is installed explicitly
 and uses the same native delivery conventions as other plugins.
 

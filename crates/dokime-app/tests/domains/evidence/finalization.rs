@@ -21,10 +21,10 @@
 use super::*;
 
 /* === Constants === */
-/// Ample for one interactive point read, but below what materializing Mini's
+/// Ample for one interactive point read, but below what materializing OBC's
 /// full report costs in a debug build, so a finalization that borrowed the
 /// interactive query budget would fail.
-const STEADY_SUITE: &str = "mini.charger.steady";
+const STEADY_SUITE: &str = "obc.charger.steady";
 /// The steady suite sweeps three voltages across three loads.
 const STEADY_CASES: usize = 9;
 
@@ -46,18 +46,18 @@ const STEADY_CASES: usize = 9;
 
 /* === Tests === */
 
-// Mini's nine-case steady cycle seals every report. Whether a simulated case
-// passes is Mini's concern; every one must seal.
+// OBC's nine-case steady cycle seals every report. Whether a simulated case
+// passes is OBC's concern; every one must seal.
 pub(crate) async fn steady_cycle_seals() {
     let root = tempdir().unwrap();
-    let tight = config(root.path()).with_plugins([fixture_bundle(root.path(), "mini-sidecar")]);
+    let tight = config(root.path()).with_plugins([fixture_bundle(root.path(), "obc-plugin")]);
     let (mut owner, runtime) = started(tight).await;
     let registration = runtime
         .test_suites()
         .await
         .into_iter()
-        .find(|suite| suite.source == "mini-sidecar" && suite.suite_id == STEADY_SUITE)
-        .expect("Mini's steady suite is registered");
+        .find(|suite| suite.source == "obc-plugin" && suite.suite_id == STEADY_SUITE)
+        .expect("OBC's steady suite is registered");
     let cases = materialize_cases(&registration.suite_id, &registration.suite);
     assert_eq!(cases.len(), STEADY_CASES);
     let test_cycle_id = start_cases(

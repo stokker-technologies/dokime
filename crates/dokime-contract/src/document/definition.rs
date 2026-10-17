@@ -2789,11 +2789,8 @@ mod tests {
         let mut section = DocumentSection::new("Battery Charging");
         assert_eq!(section.metadata.identifier.as_str(), "battery.charging");
 
-        section.id("mini.charger.charging");
-        assert_eq!(
-            section.metadata.identifier.as_str(),
-            "mini.charger.charging"
-        );
+        section.id("obc.charger.charging");
+        assert_eq!(section.metadata.identifier.as_str(), "obc.charger.charging");
         assert_eq!(section.metadata.label, "Battery Charging");
     }
 

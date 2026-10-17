@@ -135,20 +135,37 @@ mise run dev:desktop:dev
 ```
 
 This starts the desktop application with its local backend. The
-[Mini plugin](plugins/mini/) supplies a simulated charger; no physical charger
-is required. The task builds Mini and a suite fixture into
+[OBC plugin](plugins/obc-plugin/) supplies a simulated charger; no physical charger
+is required. The task builds OBC and a suite fixture into
 `target/debug/plugins/` and points `DOKIME_PLUGINS_DIR` at that directory, so
 the backend loads both for the session without installing them. Create a cycle
 with **New Cycle** (its title defaults to the current date and time), then add
-Mini's charging templates to it from the library, choose operating points, and
+OBC's charging templates to it from the library, choose operating points, and
 inspect live measurements and results.
 
-To install Mini into a regular application instead, build its bundle and add
+To install OBC into a regular application instead, build its bundle and add
 it through the application's plugin settings, then restart:
 
 ```sh
-cargo run -p cargo-dokime -- build --package mini-sidecar --output target/debug/plugins/mini-sidecar.dokime
+cargo run -p cargo-dokime -- build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime
 ```
+
+An installed Dokime places `dokime`, `dokime-server` and `dokime-gui` side by
+side, and the CLI launches the other two: it looks beside itself, then in
+`DOKIME_HOME`, then in the platform's installation directories. Arguments after
+`--` reach the launched program unchanged:
+
+```sh
+dokime serve -- --application-root ~/dokime-lab
+dokime gui --endpoint http://127.0.0.1:50051
+dokime plugin install target/debug/plugins/obc-plugin.dokime --backend lab
+```
+
+`dokime plugin install` stages the bundle on the backend, shows its identity,
+digest and the environment variables its secrets read (names only), and records
+consent for the next restart; `--yes` consents without the prompt. Plugin authors
+use `cargo dokime new`, `build`, `inspect` and `dev`; `dev` rebuilds on every
+change and runs the bundle through `dokime serve` and `dokime gui`.
 
 ## Browser Clients
 
@@ -229,8 +246,19 @@ dokime operation call OPERATION_ID --owner OWNER --backend lab --input-file requ
 
 Inputs use the discovered contract's protobuf JSON shape. Streaming input is one
 item per line; output emits item and completion events. Ctrl+C closes the local
-call. The [Remote Operations Example](crates/dokime-client/examples/remote_operations/main.rs)
-uses the same live contract discovery and shared Harmos codec from Rust.
+call. From Rust, `dokime_client::Client::call_operation` uses the same live
+contract discovery and shared Harmos codec:
+
+```rust
+let client = Client::connect(Target::new(endpoint, None)?, Some(token), None).await?;
+let stream = client
+    .call_operation("obc-plugin.get_status", Some("obc-plugin"), b"{}", Vec::new())
+    .await?;
+while let Some(event) = stream.message().await? {
+    println!("{event:?}");
+}
+stream.close().await;
+```
 
 Browse the registered suite catalog, stop work explicitly and re-run a case:
 
@@ -306,9 +334,9 @@ Name a template by its readable ID, `<suite id>.<segment>`, as `dokime catalog
 show` lists it:
 
 ```sh
-dokime plan preview --template mini.charger.steady.measurement --backend lab --json
+dokime plan preview --template obc.charger.steady.measurement --backend lab --json
 dokime cycle create --label "Campaign 1" --backend lab --json
-dokime cycle append CYCLE_ID --template mini.charger.steady.measurement --backend lab --json
+dokime cycle append CYCLE_ID --template obc.charger.steady.measurement --backend lab --json
 ```
 
 A cycle is always created explicitly and empty; `cycle append` adds the cases a
@@ -395,22 +423,22 @@ Harmos supplies the runtime and plugin boundary. Dokime adds the testing domain:
 procedures, parameter expansion, operator interaction, acceptance criteria, and
 self-contained reports.
 
-The [Mini charger simulation](plugins/mini/src/suites/) demonstrates startup,
+The [OBC charger simulation](plugins/obc-plugin/src/suites/) demonstrates startup,
 steady-state measurement, overcurrent protection, and recovery. It models a
 charger testbench for learning the workflow; it is not a validated electrical
 model or a ready-made vehicle qualification standard.
 
 ### Define The Operating Points
 
-A shortened version of Mini's
-[steady-state parameters](plugins/mini/src/suites/parameters.rs) declares the
+A shortened version of OBC's
+[steady-state parameters](plugins/obc-plugin/src/suites/steady/measurement.rs) declare the
 nine-case voltage/load sweep:
 
 ```rust
 use dokime::definition::ParameterDefault;
 
 #[dokime::parameters]
-pub struct Steady {
+pub struct Parameters {
     #[parameter(
         label = "AC Voltage (RMS)", unit = "V",
         expansion = "cartesian",
@@ -432,7 +460,7 @@ inputs before execution, so the procedure and its document see the same values.
 
 ### Run The Procedure And Capture Evidence
 
-Mini's [steady-state template](plugins/mini/src/suites/steady/measurement.rs)
+OBC's [steady-state template](plugins/obc-plugin/src/suites/steady/measurement.rs)
 initializes shared device resources, energizes the charger, observes its
 waveform, asks the operator to inspect the trace, and attaches a measurement
 summary. Cleanup stops the simulated device.
@@ -470,7 +498,7 @@ fn accepted(ctx: &CriterionContext<'_>) -> Result<bool, Error> {
 ```
 
 These are excerpts from the complete template, not standalone programs.
-The [protection template](plugins/mini/src/suites/protection/overcurrent.rs)
+The [protection template](plugins/obc-plugin/src/suites/protection/overcurrent.rs)
 adds an automated load ladder and verifies that an overcurrent fault disconnects
 the supply and prevents restart. A real charger integration can extend these
 procedures with regulation, efficiency, and thermal criteria for its hardware.
@@ -480,7 +508,7 @@ to declare. `RunProcess` runs a vendor tool in the execution's artifact folder,
 sends its output to the execution log or into an artifact, and records its exit.
 `WatchFile` captures a device log written during the step into an artifact and
 turns matching lines into rows and records. The
-[startup template](plugins/mini/src/suites/startup/sequence.rs) tails the
+[startup template](plugins/obc-plugin/src/suites/startup/sequence.rs) tails the
 simulated charger's log this way:
 
 ```rust
@@ -515,8 +543,8 @@ record.
 ### Present The Result
 
 Compose plots from the same typed measurement fields used by the procedure.
-This shortened example follows Mini's
-[measurement document](plugins/mini/src/suites/measurement.rs); `stream` selects
+This shortened example follows OBC's
+[measurement document](plugins/obc-plugin/src/suites/common/measurement.rs); `stream` selects
 the suite-owned stream carrying `InputMeasurement` rows:
 
 ```rust
@@ -592,7 +620,7 @@ Disabling defaults retains the SDK's underlying Harmos dependency. See the
 
 ## Documentation
 
-- [Mini Plugin](plugins/mini/) — the charger simulation and complete test templates.
+- [OBC Plugin](plugins/obc-plugin/) — the charger simulation and complete test templates.
 - [Plugin Starter](crates/cargo-dokime/templates/) — a complete temperature-soak procedure.
 - [Rust SDK](crates/dokime/src/lib.rs) — public authoring APIs and module documentation.
 - [Client API](crates/dokime-client/src/) — programmatic access to cycles and executions.

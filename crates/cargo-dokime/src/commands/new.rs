@@ -27,24 +27,46 @@ use crate::error::Error;
 const REPOSITORY: &str = "https://github.com/stokker-technologies/dokime";
 
 const FILES: &[(&str, &str)] = &[
+    (".gitignore", include_str!("../../templates/.gitignore")),
     (
-        "tests/soak.rs",
-        include_str!("../../templates/tests/soak.rs"),
+        ".gitlab-ci.yml",
+        include_str!("../../templates/.gitlab-ci.yml.tmpl"),
     ),
     (
         "Cargo.toml",
         include_str!("../../templates/Cargo.toml.tmpl"),
     ),
     ("README.md", include_str!("../../templates/README.md")),
-    (".gitignore", include_str!("../../templates/.gitignore")),
+    ("mise.toml", include_str!("../../templates/mise.toml.tmpl")),
+    ("stkr.toml", include_str!("../../templates/stkr.toml.tmpl")),
+    ("src/bench.rs", include_str!("../../templates/src/bench.rs")),
+    ("src/error.rs", include_str!("../../templates/src/error.rs")),
     ("src/lib.rs", include_str!("../../templates/src/lib.rs")),
     ("src/main.rs", include_str!("../../templates/src/main.rs")),
-    ("src/bench.rs", include_str!("../../templates/src/bench.rs")),
     (
-        "src/settings.rs",
-        include_str!("../../templates/src/settings.rs"),
+        "tests/soak.rs",
+        include_str!("../../templates/tests/soak.rs"),
     ),
-    ("src/error.rs", include_str!("../../templates/src/error.rs")),
+    (
+        ".github/workflows/ci.yml",
+        include_str!("../../templates/.github/workflows/ci.yml.tmpl"),
+    ),
+    (
+        ".github/workflows/nightly.yml",
+        include_str!("../../templates/.github/workflows/nightly.yml.tmpl"),
+    ),
+    (
+        ".github/workflows/prepare-release.yml",
+        include_str!("../../templates/.github/workflows/prepare-release.yml.tmpl"),
+    ),
+    (
+        ".github/workflows/release.yml",
+        include_str!("../../templates/.github/workflows/release.yml.tmpl"),
+    ),
+    (
+        "src/domain/mod.rs",
+        include_str!("../../templates/src/domain/mod.rs"),
+    ),
     (
         "src/listeners/mod.rs",
         include_str!("../../templates/src/listeners/mod.rs"),
@@ -52,26 +74,6 @@ const FILES: &[(&str, &str)] = &[
     (
         "src/listeners/unit_connected.rs",
         include_str!("../../templates/src/listeners/unit_connected.rs"),
-    ),
-    (
-        "src/prompts/mod.rs",
-        include_str!("../../templates/src/prompts/mod.rs"),
-    ),
-    (
-        "src/prompts/checkpoint.rs",
-        include_str!("../../templates/src/prompts/checkpoint.rs"),
-    ),
-    (
-        "src/operations/mod.rs",
-        include_str!("../../templates/src/operations/mod.rs"),
-    ),
-    (
-        "src/operations/chamber.rs",
-        include_str!("../../templates/src/operations/chamber.rs"),
-    ),
-    (
-        "src/operations/status.rs",
-        include_str!("../../templates/src/operations/status.rs"),
     ),
     (
         "src/observers/mod.rs",
@@ -82,20 +84,48 @@ const FILES: &[(&str, &str)] = &[
         include_str!("../../templates/src/observers/temperature.rs"),
     ),
     (
-        "src/observers/controls.rs",
-        include_str!("../../templates/src/observers/controls.rs"),
+        "src/operations/mod.rs",
+        include_str!("../../templates/src/operations/mod.rs"),
     ),
     (
         "src/suites/mod.rs",
         include_str!("../../templates/src/suites/mod.rs"),
     ),
     (
-        "src/suites/soak/mod.rs",
-        include_str!("../../templates/src/suites/soak/mod.rs"),
+        "src/domain/model/mod.rs",
+        include_str!("../../templates/src/domain/model/mod.rs"),
+    ),
+    (
+        "src/domain/operations/mod.rs",
+        include_str!("../../templates/src/domain/operations/mod.rs"),
+    ),
+    (
+        "src/operations/chamber/mod.rs",
+        include_str!("../../templates/src/operations/chamber/mod.rs"),
+    ),
+    (
+        "src/operations/status/mod.rs",
+        include_str!("../../templates/src/operations/status/mod.rs"),
     ),
     (
         "src/suites/soak/hold.rs",
         include_str!("../../templates/src/suites/soak/hold.rs"),
+    ),
+    (
+        "src/suites/soak/mod.rs",
+        include_str!("../../templates/src/suites/soak/mod.rs"),
+    ),
+    (
+        "src/domain/model/chamber/mod.rs",
+        include_str!("../../templates/src/domain/model/chamber/mod.rs"),
+    ),
+    (
+        "src/domain/model/prompts/mod.rs",
+        include_str!("../../templates/src/domain/model/prompts/mod.rs"),
+    ),
+    (
+        "src/domain/model/settings/mod.rs",
+        include_str!("../../templates/src/domain/model/settings/mod.rs"),
     ),
 ];
 
@@ -207,7 +237,7 @@ pub fn run(args: Args) -> Result<(), Error> {
         }
         return Err(error);
     }
-    let terminal = dokime_terminal::Terminal::default();
+    let terminal = dokime_cli::terminal::Terminal::default();
     terminal.success(format!("Created {name}"));
     terminal.hint(format!("cd {}", args.path.display()));
     terminal.hint(format!("cargo dokime dev{selection}"));

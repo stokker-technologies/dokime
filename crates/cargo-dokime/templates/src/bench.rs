@@ -1,12 +1,11 @@
 /* ***
  *
- * Dokime
+ * {{package}}
  *
  * SPDX-License-Identifier: Apache-2.0
  *
  * ***
  */
-
 
 /* === Modules === */
 
@@ -67,7 +66,7 @@ pub enum BenchError {
 
 /* === Implementations === */
 impl Sensor {
-                        pub fn open(port: impl Into<String>, ambient_c: f64) -> Self {
+    pub fn open(port: impl Into<String>, ambient_c: f64) -> Self {
         let port = port.into();
         let chamber = Arc::clone(registry().entry(port.clone()).or_insert_with(|| {
             Arc::new(Mutex::new(Chamber {
@@ -80,7 +79,7 @@ impl Sensor {
         Self { port, chamber }
     }
 
-                            pub fn read_celsius(&self) -> Result<f64, BenchError> {
+    pub fn read_celsius(&self) -> Result<f64, BenchError> {
         let mut chamber = self.chamber.lock().unwrap_or_else(PoisonError::into_inner);
         let target = if chamber.powered {
             chamber.target_c
@@ -92,21 +91,21 @@ impl Sensor {
         Ok(chamber.celsius)
     }
 
-        pub fn port(&self) -> &str {
+    pub fn port(&self) -> &str {
         &self.port
     }
 
-        pub fn describe(&self) -> String {
+    pub fn describe(&self) -> String {
         format!("simulated sensor on {}", self.port)
     }
 
-        pub fn close(&self) {
+    pub fn close(&self) {
         rest(&self.chamber);
     }
 }
 
 impl Heater {
-                                pub async fn open(port: impl Into<String>) -> Result<Self, BenchError> {
+    pub async fn open(port: impl Into<String>) -> Result<Self, BenchError> {
         let port = port.into();
         let chamber = registry()
             .get(&port)
@@ -116,7 +115,7 @@ impl Heater {
         Ok(Self { port, chamber })
     }
 
-        pub async fn identity(&self) -> Result<Identity, BenchError> {
+    pub async fn identity(&self) -> Result<Identity, BenchError> {
         Ok(Identity {
             serial: format!(
                 "SIM-{}",
@@ -126,7 +125,7 @@ impl Heater {
         })
     }
 
-                        pub async fn set_target(&self, celsius: f64) -> Result<(), BenchError> {
+    pub async fn set_target(&self, celsius: f64) -> Result<(), BenchError> {
         if !celsius.is_finite() || celsius > MAXIMUM_C {
             return Err(BenchError::Unreachable { celsius });
         }
@@ -137,7 +136,7 @@ impl Heater {
         Ok(())
     }
 
-        pub async fn off(&self) -> Result<(), BenchError> {
+    pub async fn off(&self) -> Result<(), BenchError> {
         rest(&self.chamber);
 
         Ok(())

@@ -29,8 +29,8 @@ use crate::commands::Command;
 #[derive(Debug, Parser)]
 #[command(name = "dokime", about = "Connect To Dokime Backends", version)]
 pub struct Cli {
-    #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(dokime_terminal::ColorMode), help = "Color output: auto, always, or never.")]
-    pub color: dokime_terminal::ColorMode,
+    #[arg(long, global = true, default_value = "auto", value_parser = clap::value_parser!(crate::terminal::ColorMode), help = "Color output: auto, always, or never.")]
+    pub color: crate::terminal::ColorMode,
     #[command(subcommand)]
     pub(crate) command: Command,
 }
@@ -42,7 +42,7 @@ pub struct Cli {
 /* === Implementations === */
 impl Cli {
     pub async fn run(self) -> crate::Result<()> {
-        dokime_terminal::set_color_mode(self.color);
+        crate::terminal::set_color_mode(self.color);
         crate::commands::run(self.command).await
     }
 }

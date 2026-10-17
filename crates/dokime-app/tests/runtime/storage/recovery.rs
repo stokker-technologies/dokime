@@ -31,7 +31,7 @@ const MEMBERS: usize = 9;
 const COLUMNS: usize = 49;
 const STREAM: &str = "fixture.wide";
 // The Two Shipped Bundles A Development Session Loads Beside The Host
-const BUNDLES: [&str; 2] = ["mini-sidecar", "fixture-suites"];
+const BUNDLES: [&str; 2] = ["obc-plugin", "fixture-suites"];
 
 /* === Macros === */
 

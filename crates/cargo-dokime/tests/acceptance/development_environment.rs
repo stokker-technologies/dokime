@@ -40,20 +40,24 @@
 /* === Tests === */
 
 fn command(cwd: &std::path::Path) -> std::process::Command {
-    let backend = std::path::PathBuf::from(
+    let server = std::path::PathBuf::from(
         std::env::var_os("DOKIME_TEST_HOST").expect("mise selects the exact prepared server"),
     );
     assert!(
-        backend.is_file(),
+        server.is_file(),
         "Prepared Server Must Provide {}",
-        backend.display()
+        server.display()
     );
+    // The dokime CLI built beside this tool launches the prepared server.
+    let cli =
+        super::support::tool().with_file_name(format!("dokime{}", std::env::consts::EXE_SUFFIX));
     let mut command = std::process::Command::new(super::support::tool());
     command
         .current_dir(cwd)
         .env_remove("DOKIME_DEV_ROOT")
+        .env("DOKIME_HOME", server.parent().unwrap())
         .args(["--color", "never", "dev", "--headless", "--dokime"])
-        .arg(backend)
+        .arg(cli)
         .arg("--manifest-path")
         .arg(cwd.join("missing-Cargo.toml"));
     command

@@ -61,7 +61,7 @@ struct ExpectedPlugin {
 pub async fn run(
     args: Args,
     server_config: crate::grpc::Config,
-    terminal: dokime_terminal::Terminal,
+    terminal: dokime_cli::terminal::Terminal,
 ) -> Result<()> {
     let mut config = ApplicationOptions {
         application_root: args.application_root.clone(),
@@ -287,7 +287,7 @@ fn emit_phase(dev_control: bool, name: &str) {
 }
 
 fn print_startup(
-    terminal: &dokime_terminal::Terminal,
+    terminal: &dokime_cli::terminal::Terminal,
     application_root: &Path,
     storage_root: &Path,
     bind_addr: SocketAddr,

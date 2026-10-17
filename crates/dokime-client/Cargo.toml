@@ -76,9 +76,6 @@ path = "tests/integration/profiles/main.rs"
 
 # === Example Targets ===
 
-[[example]]
-name = "remote-operations"
-path = "examples/remote_operations/main.rs"
 
 # === Workspace Lints ===
 

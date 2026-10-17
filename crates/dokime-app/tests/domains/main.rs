@@ -1001,7 +1001,7 @@ fn execution_runs_contract() {
             false,
         );
     }
-    #[cfg(feature = "sim")]
+    #[cfg(feature = "simulation")]
     {
         eprintln!("Scenario: execution::simulation::declaration_boots_runtime");
         execution::simulation::declaration_boots_runtime();
@@ -1308,6 +1308,35 @@ fn files_contract() {
 
 #[test]
 fn installation_contract() {
+    {
+        eprintln!("Scenario: installed_plugins::theme::local_woff2_uris");
+        installed_plugins::theme::local_woff2_uris();
+    }
+    {
+        eprintln!("Scenario: installed_plugins::theme::missing_local_refused");
+        installed_plugins::theme::missing_local_refused();
+    }
+    {
+        eprintln!("Scenario: installed_plugins::theme::parent_directory_refused");
+        installed_plugins::theme::parent_directory_refused();
+    }
+    {
+        eprintln!("Scenario: installed_plugins::theme::remote_absolute_refused");
+        installed_plugins::theme::remote_absolute_refused();
+    }
+    {
+        eprintln!("Scenario: installed_plugins::theme::unsupported_font_refused");
+        installed_plugins::theme::unsupported_font_refused();
+    }
+    #[cfg(unix)]
+    {
+        eprintln!("Scenario: installed_plugins::theme::symlink_font_refused");
+        installed_plugins::theme::symlink_font_refused();
+    }
+    {
+        eprintln!("Scenario: installed_plugins::theme::compiled_bundle_filesystem");
+        installed_plugins::theme::compiled_bundle_filesystem();
+    }
     {
         eprintln!("Scenario: installed_plugins::brand::brand_toml_types");
         installed_plugins::brand::brand_toml_types();

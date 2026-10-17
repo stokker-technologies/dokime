@@ -34,7 +34,7 @@ const INCIDENT_READ_MEMORY: std::num::NonZeroUsize =
 const PULSE_ROWS: u32 = 2_000;
 
 /// Live plots an operator keeps open on the running cycle, as many as a plugin
-/// such as Mini shows: about twice what that pool held when every
+/// such as OBC shows: about twice what that pool held when every
 /// interactive view reserved the report profile.
 const LIVE_PLOTS: usize = 15;
 
