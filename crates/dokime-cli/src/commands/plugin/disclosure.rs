@@ -19,7 +19,7 @@ use harmos::bundle::Bundle;
 use harmos::plugin::inventory::CarrierSection;
 use serde::Deserialize;
 // Local Imports
-use crate::error::Error;
+use crate::{Error, Result};
 
 /* === Constants === */
 
@@ -29,10 +29,10 @@ use crate::error::Error;
 
 /* === Structs === */
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
-pub(super) struct EnvironmentReference {
-    pub(super) owner: String,
-    pub(super) setting: String,
-    pub(super) variable: String,
+pub(crate) struct EnvironmentReference {
+    pub(crate) owner: String,
+    pub(crate) setting: String,
+    pub(crate) variable: String,
 }
 
 // Read only the disclosure slice of the frozen product catalog. The host
@@ -54,8 +54,6 @@ enum SettingContribution {
     SecretReference {
         id: String,
         default: Option<SecretDefault>,
-        #[serde(default)]
-        required: bool,
     },
     #[serde(other)]
     Other,
@@ -76,28 +74,10 @@ enum SecretDefault {
 /* === Implementations === */
 
 /* === Public Functions === */
-pub(super) fn requested_environment_references(
-    bundle: &Bundle,
-) -> Result<BTreeSet<EnvironmentReference>, Error> {
-    Ok(secret_references(bundle)?
-        .into_iter()
-        .map(|(reference, _)| reference)
-        .collect())
-}
-
-/// The environment references a plugin cannot start without.
-pub(super) fn required_environment_references(
-    bundle: &Bundle,
-) -> Result<BTreeSet<EnvironmentReference>, Error> {
-    Ok(secret_references(bundle)?
-        .into_iter()
-        .filter_map(|(reference, required)| required.then_some(reference))
-        .collect())
-}
-
-/* === Private Functions === */
-fn secret_references(bundle: &Bundle) -> Result<Vec<(EnvironmentReference, bool)>, Error> {
-    let mut references = Vec::new();
+/// The environment variables a bundle's settings would read secrets from, by
+/// name only, for the operator to review before consenting.
+pub(crate) fn environment_references(bundle: &Bundle) -> Result<BTreeSet<EnvironmentReference>> {
+    let mut references = BTreeSet::new();
     for file in &bundle.manifest().files {
         let Some(executable) = &file.executable else {
             continue;
@@ -106,15 +86,20 @@ fn secret_references(bundle: &Bundle) -> Result<Vec<(EnvironmentReference, bool)
             Some(declaration) if matches!(declaration.carrier, CarrierSection::Sidecar { .. }) => {
                 &declaration.id
             }
-            Some(_) => return Err(crate::error::guest_refused(&file.path)),
-            None => return Err(Error::Invalid("executable declaration missing".into())),
+            Some(_) => {
+                return Err(Error::Input(format!(
+                    "Dokime admits native sidecar plugins only; `{}` declares a WebAssembly guest",
+                    file.path
+                )));
+            }
+            None => return Err(Error::Input("executable declaration missing".into())),
         };
         for registration in &executable.registrations {
             if registration.namespace != "dokime.settings" {
                 continue;
             }
             if registration.schema != 3 {
-                return Err(Error::Invalid(format!(
+                return Err(Error::Input(format!(
                     "cannot review settings schema {} for {owner}; rebuild the plugin with the current SDK",
                     registration.schema
                 )));
@@ -124,7 +109,6 @@ fn secret_references(bundle: &Bundle) -> Result<Vec<(EnvironmentReference, bool)
                 if let SettingContribution::SecretReference {
                     id,
                     default: Some(SecretDefault::Environment { variable }),
-                    required,
                 } = contribution
                 {
                     let reference = EnvironmentReference {
@@ -132,12 +116,14 @@ fn secret_references(bundle: &Bundle) -> Result<Vec<(EnvironmentReference, bool)
                         setting: id,
                         variable,
                     };
-                    references.push((reference, required));
+                    references.insert(reference);
                 }
             }
         }
     }
     Ok(references)
 }
+
+/* === Private Functions === */
 
 /* === Tests === */

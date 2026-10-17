@@ -392,8 +392,8 @@ fn run_cli(bundle: &Path, endpoint: &str, consent: bool) -> Result<Outcome, Stri
             pixel_height: 0,
         })
         .map_err(|error| error.to_string())?;
-    let mut command = CommandBuilder::new(super::support::tool());
-    command.args(["--color", "never", "install"]);
+    let mut command = CommandBuilder::new(env!("CARGO_BIN_EXE_dokime"));
+    command.args(["--color", "never", "plugin", "install"]);
     command.arg(bundle);
     command.args(["--endpoint", endpoint]);
     command.env("PLUGIN_API_TOKEN", SECRET_VALUE);
@@ -622,8 +622,15 @@ async fn refused_or_uncertain_consent_never_removes_or_retries() {
 
 /* === Tests === */
 
-pub(super) async fn consent_contract() {
-    hidden_environment_access_prevents_automatic_consent().await;
-    interactive_cancellation_removes_only_the_staged_bundle().await;
-    refused_or_uncertain_consent_never_removes_or_retries().await;
+#[test]
+fn consent_contract() {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            hidden_environment_access_prevents_automatic_consent().await;
+            interactive_cancellation_removes_only_the_staged_bundle().await;
+            refused_or_uncertain_consent_never_removes_or_retries().await;
+        });
 }

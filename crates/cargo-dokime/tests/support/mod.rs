@@ -46,12 +46,6 @@ pub fn tool() -> std::path::PathBuf {
     path
 }
 
-pub fn target_directory() -> std::path::PathBuf {
-    std::env::var_os("CARGO_TARGET_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target"))
-}
-
 pub fn standalone_directory() -> tempfile::TempDir {
     standalone_directory_in(&std::env::temp_dir())
 }

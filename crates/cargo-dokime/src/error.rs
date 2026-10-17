@@ -33,12 +33,8 @@ pub enum Error {
     Cancelled,
     #[error("{0}")]
     Invalid(String),
-    #[error("{0} exceeded the {1} byte limit")]
-    Output(String, usize),
     #[error(transparent)]
     Packaging(dokime_packaging::Error),
-    #[error(transparent)]
-    Client(#[from] dokime_client::Error),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]

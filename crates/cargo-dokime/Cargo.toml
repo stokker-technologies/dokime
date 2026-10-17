@@ -2,14 +2,13 @@
 name = "cargo-dokime"
 edition.workspace = true
 rust-version.workspace = true
-description = "Build, develop, inspect, and install Dokime plugins"
+description = "Build, develop and inspect Dokime plugins"
 license.workspace = true
 repository.workspace = true
 version = { workspace = true }
 
 [dependencies]
 # Local
-dokime-client = { path = "../dokime-client" }
 dokime-contract = { path = "../dokime-contract" }
 dokime-packaging = { path = "../dokime-packaging" }
 dokime-cli = { path = "../dokime-cli" }
@@ -41,27 +40,7 @@ glob = { workspace = true }
 tempfile = { workspace = true }
 
 # Async
-futures-util = { workspace = true }
 tokio = { workspace = true, features = ["process"] }
 
 # Networking
 url = { workspace = true }
-
-[dev-dependencies]
-# Local
-
-# Git
-harmos = { workspace = true, features = ["plugin", "grpc"] }
-
-# Parsing
-cargo_metadata = { workspace = true }
-
-# Async
-tokio = { workspace = true, features = ["test-util"] }
-tokio-stream = { workspace = true, features = ["net"] }
-
-# Networking
-tonic = { workspace = true, features = ["server"] }
-
-# UI
-portable-pty = { workspace = true }

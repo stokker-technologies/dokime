@@ -21,6 +21,9 @@ dokime-contract = { path = "../dokime-contract" }
 dokime-client = { path = "../dokime-client" }
 dokime-filesystem = { path = "../dokime-filesystem" }
 
+# Git
+harmos = { workspace = true, features = ["plugin"] }
+
 # Error Handling
 thiserror = { workspace = true }
 
@@ -28,6 +31,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 # Utilities
+sha2 = { workspace = true }
 zeroize = { workspace = true }
 
 # Serialization
@@ -42,6 +46,7 @@ tempfile = { workspace = true }
 
 # Async
 tokio = { workspace = true }
+tokio-stream = { workspace = true }
 
 # UI
 anstream = { workspace = true }
@@ -49,6 +54,9 @@ anstyle = { workspace = true }
 indicatif = { workspace = true }
 
 [dev-dependencies]
+# Git
+harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
+
 # Networking
 tonic = { workspace = true }
 
@@ -60,6 +68,9 @@ tempfile = { workspace = true }
 
 # Testing
 criterion = { workspace = true }
+
+# UI
+portable-pty = { workspace = true }
 
 [[bin]]
 name = "dokime"

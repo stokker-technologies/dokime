@@ -150,6 +150,23 @@ it through the application's plugin settings, then restart:
 cargo run -p cargo-dokime -- build --package obc-plugin --output target/debug/plugins/obc-plugin.dokime
 ```
 
+An installed Dokime places `dokime`, `dokime-server` and `dokime-gui` side by
+side, and the CLI launches the other two: it looks beside itself, then in
+`DOKIME_HOME`, then in the platform's installation directories. Arguments after
+`--` reach the launched program unchanged:
+
+```sh
+dokime serve -- --application-root ~/dokime-lab
+dokime gui --endpoint http://127.0.0.1:50051
+dokime plugin install target/debug/plugins/obc-plugin.dokime --backend lab
+```
+
+`dokime plugin install` stages the bundle on the backend, shows its identity,
+digest and the environment variables its secrets read (names only), and records
+consent for the next restart; `--yes` consents without the prompt. Plugin authors
+use `cargo dokime new`, `build`, `inspect` and `dev`; `dev` rebuilds on every
+change and runs the bundle through `dokime serve` and `dokime gui`.
+
 ## Browser Clients
 
 The desktop never needs gRPC-Web: its WebView reaches the backend only through

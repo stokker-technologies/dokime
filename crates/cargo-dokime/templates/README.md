@@ -11,8 +11,8 @@ src/error.rs                  the one error every boundary answers with
 src/lib.rs                    the catalogs, the settings, and the handles opened once
 src/listeners/unit_connected.rs  what the bench hears between runs
 src/prompts/checkpoint.rs     the one question it asks an operator
-src/routes/chamber.rs         reads the chamber; the one road a template has to it
-src/routes/status.rs          what the bench reports about itself
+src/operations/chamber.rs         reads the chamber; the one road a template has to it
+src/operations/status.rs          what the bench reports about itself
 src/observers/temperature.rs  the chamber's row, and the observer that measures it
 src/suites/soak/hold.rs       the procedure: steps, samples, criteria, cleanup
 tests/soak.rs                 the whole procedure, run in process
@@ -46,8 +46,9 @@ execute the case. Turn the **Ask the operator to sign off** parameter on to see
 the checkpoint prompt. Keep dev running while editing: successful builds cancel
 active plugin work and reload the plugin while the browser stays connected.
 Click **Re-run**, or start dev with `--rerun` to repeat your latest case after
-each reload. Type `r` and Enter to retry, `q` and Enter to quit. Use
-`cargo dokime doctor{{selection}}` to check your setup.
+each reload. Type `r` and Enter to retry, `q` and Enter to quit. Dev launches
+the installed host through the `dokime` CLI, so `dokime` must be on `PATH`
+(or passed with `--dokime`).
 
 ```sh
 cargo test
