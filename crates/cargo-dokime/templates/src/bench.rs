@@ -158,3 +158,37 @@ fn rest(chamber: &Mutex<Chamber>) {
 }
 
 /* === Tests === */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn refused_target_unchanged() {
+        let sensor = Sensor::open("unit/refused-target", 22.0);
+        let heater = Heater::open(sensor.port()).await.unwrap();
+        heater.set_target(80.0).await.unwrap();
+        let before = {
+            let chamber = sensor.chamber.lock().unwrap();
+            (chamber.target_c, chamber.powered, chamber.celsius)
+        };
+        for refused in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 151.0] {
+            assert!(matches!(heater.set_target(refused).await, Err(BenchError::Unreachable { .. })));
+            let chamber = sensor.chamber.lock().unwrap();
+            assert_eq!((chamber.target_c, chamber.powered, chamber.celsius), before);
+        }
+        heater.off().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn closed_heater_steady() {
+        let sensor = Sensor::open("unit/heater-off", 22.0);
+        let heater = Heater::open(sensor.port()).await.unwrap();
+        heater.set_target(80.0).await.unwrap();
+        let warmed = sensor.read_celsius().unwrap();
+        assert!(warmed > 22.0 && warmed < 80.0);
+        heater.off().await.unwrap();
+        assert_eq!(sensor.read_celsius().unwrap(), warmed);
+        assert_eq!(sensor.read_celsius().unwrap(), warmed);
+    }
+}
