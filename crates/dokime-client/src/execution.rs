@@ -92,7 +92,7 @@ impl ExecutionRequestHandle {
         &self.id
     }
 
-    pub fn updates(&self, interval: Option<std::time::Duration>) -> Result<ResponseStream<contracts::execution::RunRequestReceipt>> {
+    pub fn updates(&self, interval: Option<std::time::Duration>) -> Result<ResponseStream<dokime_domain::model::execution::wire::RunRequestReceipt>> {
         let interval = poll_interval(interval)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -121,7 +121,7 @@ impl ExecutionRequestHandle {
         })
     }
 
-    pub async fn status(&self) -> Result<contracts::execution::RunRequestReceipt> {
+    pub async fn status(&self) -> Result<dokime_domain::model::execution::wire::RunRequestReceipt> {
         self.client.verify(false).await?;
         let receipt =
             self.client.execution_get_run_request(contracts::execution::GetRunRequest { request_id: self.id.to_string() }).await?;
@@ -131,7 +131,7 @@ impl ExecutionRequestHandle {
 
     pub async fn wait(
         &self, timeout: Option<std::time::Duration>, interval: Option<std::time::Duration>,
-    ) -> Result<contracts::execution::RunRequestReceipt> {
+    ) -> Result<dokime_domain::model::execution::wire::RunRequestReceipt> {
         let interval = poll_interval(interval)?;
         let wait = self.client.guard(async {
             loop {
@@ -154,7 +154,7 @@ impl TestExecutionHandle {
         &self.id
     }
 
-    pub async fn snapshot(&self) -> Result<contracts::execution::ExecutionDetail> {
+    pub async fn snapshot(&self) -> Result<dokime_domain::model::execution::wire::ExecutionDetail> {
         self.client.verify(true).await?;
         let detail = self.client.execution_get_execution(contracts::execution::GetExecution { execution_id: self.id.to_string() }).await?;
         validate_snapshot(&self.id, &detail)?;
@@ -162,7 +162,7 @@ impl TestExecutionHandle {
         Ok(detail)
     }
 
-    pub async fn checkpoint(&self) -> Result<contracts::checkpoint::ExecutionCheckpoint> {
+    pub async fn checkpoint(&self) -> Result<dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint> {
         self.client.verify(false).await?;
         let checkpoint = self
             .client
@@ -173,8 +173,8 @@ impl TestExecutionHandle {
     }
 
     pub async fn document_at(
-        &self, checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
-    ) -> Result<contracts::history::CheckpointDocument> {
+        &self, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
+    ) -> Result<dokime_domain::model::history::wire::CheckpointDocument> {
         validate_checkpoint(&self.id, checkpoint)?;
         self.client.verify(false).await?;
         let document = self
@@ -187,7 +187,7 @@ impl TestExecutionHandle {
 
     pub async fn wait(
         &self, timeout: Option<std::time::Duration>, interval: Option<std::time::Duration>,
-    ) -> Result<contracts::history::CheckpointDocument> {
+    ) -> Result<dokime_domain::model::history::wire::CheckpointDocument> {
         let interval = poll_interval(interval)?;
         let wait = self.client.guard(async {
             loop {
@@ -211,13 +211,13 @@ impl TestExecutionHandle {
         }
     }
 
-    pub async fn start(&self, key: &str, mode: ExecutionMode) -> Result<contracts::execution::Admission> {
+    pub async fn start(&self, key: &str, mode: ExecutionMode) -> Result<dokime_domain::model::execution::wire::Admission> {
         dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
         let mode = match mode {
-            ExecutionMode::Automatic => contracts::execution::ExecutionMode::Automatic,
-            ExecutionMode::Interactive => contracts::execution::ExecutionMode::Interactive,
+            ExecutionMode::Automatic => dokime_domain::model::execution::wire::ExecutionMode::Automatic,
+            ExecutionMode::Interactive => dokime_domain::model::execution::wire::ExecutionMode::Interactive,
         };
         let reply = self
             .client
@@ -233,7 +233,7 @@ impl TestExecutionHandle {
 
     pub async fn command_receipt(
         &self, request_id: &CommandId, command_id: &CommandId,
-    ) -> Result<contracts::execution::ExecutionCommandReceipt> {
+    ) -> Result<dokime_domain::model::execution::wire::ExecutionCommandReceipt> {
         self.client.verify(false).await?;
         let receipt = self
             .client
@@ -248,12 +248,12 @@ impl TestExecutionHandle {
 
     pub async fn command(
         &self, request_id: &CommandId, command_id: &CommandId, command: &StepCommand,
-    ) -> Result<contracts::execution::ExecutionCommandReceipt> {
+    ) -> Result<dokime_domain::model::execution::wire::ExecutionCommandReceipt> {
         self.client.verify(true).await?;
         let (action, step_id) = match command {
-            StepCommand::Next => (contracts::execution::ExecutionCommandAction::Next, None),
-            StepCommand::RunStep { step_id } => (contracts::execution::ExecutionCommandAction::RunStep, Some(step_id.to_string())),
-            StepCommand::Finish => (contracts::execution::ExecutionCommandAction::Finish, None),
+            StepCommand::Next => (dokime_domain::model::execution::wire::ExecutionCommandAction::Next, None),
+            StepCommand::RunStep { step_id } => (dokime_domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(step_id.to_string())),
+            StepCommand::Finish => (dokime_domain::model::execution::wire::ExecutionCommandAction::Finish, None),
         };
         let request = contracts::execution::SubmitExecutionCommand {
             request_id: request_id.to_string(),
@@ -270,7 +270,7 @@ impl TestExecutionHandle {
         Ok(receipt)
     }
 
-    pub async fn pause(&self) -> Result<contracts::execution::ControlReply> {
+    pub async fn pause(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
             .client
@@ -280,7 +280,7 @@ impl TestExecutionHandle {
         Ok(reply)
     }
 
-    pub async fn resume(&self) -> Result<contracts::execution::ControlReply> {
+    pub async fn resume(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
             .client
@@ -290,7 +290,7 @@ impl TestExecutionHandle {
         Ok(reply)
     }
 
-    pub async fn stop(&self) -> Result<contracts::execution::ControlReply> {
+    pub async fn stop(&self) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
             .client
@@ -302,27 +302,27 @@ impl TestExecutionHandle {
 }
 
 /* === Public Functions === */
-pub(super) fn admission(epoch: &str, reply: contracts::execution::RunReply) -> Result<contracts::execution::Admission> {
+pub(super) fn admission(epoch: &str, reply: dokime_domain::model::execution::wire::RunReply) -> Result<dokime_domain::model::execution::wire::Admission> {
     match reply.outcome {
-        Some(contracts::execution::RunReplyOutcome::Accepted(admission)) => {
+        Some(dokime_domain::model::execution::wire::RunReplyOutcome::Accepted(admission)) => {
             validate_admission(epoch, &admission)?;
             Ok(admission)
         }
-        Some(contracts::execution::RunReplyOutcome::Rejected(rejection)) => Err(Error::ExecutionRejected { rejection }),
+        Some(dokime_domain::model::execution::wire::RunReplyOutcome::Rejected(rejection)) => Err(Error::ExecutionRejected { rejection }),
         None => Err(invalid("execution admission has no outcome")),
     }
 }
 
 /* === Private Functions === */
-fn evidence_complete(receipt: &contracts::execution::RunRequestReceipt) -> Result<bool> {
-    if receipt.phase == contracts::execution::RunRequestPhase::Interrupted {
+fn evidence_complete(receipt: &dokime_domain::model::execution::wire::RunRequestReceipt) -> Result<bool> {
+    if receipt.phase == dokime_domain::model::execution::wire::RunRequestPhase::Interrupted {
         return Err(invalid("interrupted acquisition does not certify complete live evidence"));
     }
     request_terminal(receipt.phase)
 }
 
 fn validate_request_receipt(
-    id: &CommandId, cycle: &OnceLock<TestCycleId>, receipt: &contracts::execution::RunRequestReceipt,
+    id: &CommandId, cycle: &OnceLock<TestCycleId>, receipt: &dokime_domain::model::execution::wire::RunRequestReceipt,
 ) -> Result<()> {
     if receipt.request_id != id.as_str() {
         return Err(invalid("request receipt identity differs"));
@@ -344,7 +344,7 @@ fn poll_interval(interval: Option<std::time::Duration>) -> Result<std::time::Dur
 }
 
 fn validate_checkpoint(
-    id: &TestExecutionId, checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
+    id: &TestExecutionId, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
 ) -> Result<dokime_domain::model::execution::ExecutionCheckpoint> {
     use harmos::storage::ObjectVersionToken;
     use std::num::NonZeroUsize;
@@ -371,7 +371,7 @@ fn validate_checkpoint(
     Ok(original)
 }
 
-fn checkpoint_cursor(cursor: Option<&contracts::checkpoint::StorageCursor>) -> Result<harmos::storage::StorageCursor> {
+fn checkpoint_cursor(cursor: Option<&dokime_domain::model::execution::wire_checkpoint::StorageCursor>) -> Result<harmos::storage::StorageCursor> {
     let cursor = cursor.ok_or_else(|| invalid("saved checkpoint cursor is missing"))?;
     let history = cursor.history.as_ref().ok_or_else(|| invalid("saved checkpoint history is missing"))?;
     if history.store.len() > 4096 || history.epoch.len() > 4096 {
@@ -388,27 +388,27 @@ fn checkpoint_cursor(cursor: Option<&contracts::checkpoint::StorageCursor>) -> R
     })
 }
 
-fn request_terminal(phase: contracts::execution::RunRequestPhase) -> Result<bool> {
+fn request_terminal(phase: dokime_domain::model::execution::wire::RunRequestPhase) -> Result<bool> {
     match phase {
-        contracts::execution::RunRequestPhase::Completed
-        | contracts::execution::RunRequestPhase::Failed
-        | contracts::execution::RunRequestPhase::Stopped
-        | contracts::execution::RunRequestPhase::Interrupted => Ok(true),
-        contracts::execution::RunRequestPhase::Queued
-        | contracts::execution::RunRequestPhase::Preparing
-        | contracts::execution::RunRequestPhase::Running
-        | contracts::execution::RunRequestPhase::Finishing => Ok(false),
+        dokime_domain::model::execution::wire::RunRequestPhase::Completed
+        | dokime_domain::model::execution::wire::RunRequestPhase::Failed
+        | dokime_domain::model::execution::wire::RunRequestPhase::Stopped
+        | dokime_domain::model::execution::wire::RunRequestPhase::Interrupted => Ok(true),
+        dokime_domain::model::execution::wire::RunRequestPhase::Queued
+        | dokime_domain::model::execution::wire::RunRequestPhase::Preparing
+        | dokime_domain::model::execution::wire::RunRequestPhase::Running
+        | dokime_domain::model::execution::wire::RunRequestPhase::Finishing => Ok(false),
         _ => Err(invalid("request receipt has an unknown phase")),
     }
 }
 
-fn validate_admission(epoch: &str, admission: &contracts::execution::Admission) -> Result<()> {
+fn validate_admission(epoch: &str, admission: &dokime_domain::model::execution::wire::Admission) -> Result<()> {
     CommandId::from_uuid(&admission.command_id).map_err(|_| invalid("invalid admission identity"))?;
     validate_observed_cursor(epoch, admission.cursor.as_ref())
 }
 
 fn validate_command_receipt(
-    execution_id: &TestExecutionId, request_id: &CommandId, command_id: &CommandId, receipt: &contracts::execution::ExecutionCommandReceipt,
+    execution_id: &TestExecutionId, request_id: &CommandId, command_id: &CommandId, receipt: &dokime_domain::model::execution::wire::ExecutionCommandReceipt,
 ) -> Result<()> {
     if receipt.execution_id != execution_id.as_str()
         || receipt.request_id != request_id.as_str()
@@ -417,20 +417,20 @@ fn validate_command_receipt(
         return Err(invalid("command receipt identity differs"));
     }
     match (receipt.action, &receipt.step_id) {
-        (contracts::execution::ExecutionCommandAction::Next | contracts::execution::ExecutionCommandAction::Finish, None) => {}
-        (contracts::execution::ExecutionCommandAction::RunStep, Some(step_id)) => {
+        (dokime_domain::model::execution::wire::ExecutionCommandAction::Next | dokime_domain::model::execution::wire::ExecutionCommandAction::Finish, None) => {}
+        (dokime_domain::model::execution::wire::ExecutionCommandAction::RunStep, Some(step_id)) => {
             StepId::from_uuid(step_id).map_err(|_| invalid("command receipt has an invalid step identity"))?;
         }
         _ => return Err(invalid("command receipt has an invalid action")),
     }
     match receipt.phase {
-        contracts::execution::ExecutionCommandPhase::Accepted
-        | contracts::execution::ExecutionCommandPhase::Dispatching
-        | contracts::execution::ExecutionCommandPhase::Running
-        | contracts::execution::ExecutionCommandPhase::Completed
-        | contracts::execution::ExecutionCommandPhase::Refused
-        | contracts::execution::ExecutionCommandPhase::Failed
-        | contracts::execution::ExecutionCommandPhase::Interrupted => {}
+        dokime_domain::model::execution::wire::ExecutionCommandPhase::Accepted
+        | dokime_domain::model::execution::wire::ExecutionCommandPhase::Dispatching
+        | dokime_domain::model::execution::wire::ExecutionCommandPhase::Running
+        | dokime_domain::model::execution::wire::ExecutionCommandPhase::Completed
+        | dokime_domain::model::execution::wire::ExecutionCommandPhase::Refused
+        | dokime_domain::model::execution::wire::ExecutionCommandPhase::Failed
+        | dokime_domain::model::execution::wire::ExecutionCommandPhase::Interrupted => {}
         _ => return Err(invalid("command receipt has an unknown phase")),
     }
     if let Some(attempt_id) = &receipt.attempt_id {
@@ -439,7 +439,7 @@ fn validate_command_receipt(
     Ok(())
 }
 
-fn validate_snapshot(id: &TestExecutionId, detail: &contracts::execution::ExecutionDetail) -> Result<()> {
+fn validate_snapshot(id: &TestExecutionId, detail: &dokime_domain::model::execution::wire::ExecutionDetail) -> Result<()> {
     let summary = detail.summary.as_ref().ok_or_else(|| invalid("execution snapshot has no identity"))?;
     if summary.execution_id != id.as_str() {
         return Err(invalid("execution snapshot identity differs"));
@@ -448,7 +448,7 @@ fn validate_snapshot(id: &TestExecutionId, detail: &contracts::execution::Execut
 }
 
 fn validate_outcome(
-    id: &TestExecutionId, checkpoint: &contracts::checkpoint::ExecutionCheckpoint, outcome: &contracts::history::CheckpointDocument,
+    id: &TestExecutionId, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint, outcome: &dokime_domain::model::history::wire::CheckpointDocument,
 ) -> Result<()> {
     if outcome.checkpoint.as_ref() != Some(checkpoint) || !outcome.acquisition_finished {
         return Err(invalid("execution outcome differs from the persisted seal"));
@@ -461,17 +461,17 @@ fn validate_outcome(
     if execution.execution_id != id.as_str() || execution.result.is_none() {
         return Err(invalid("sealed execution outcome identity or result is missing"));
     }
-    if execution.result.as_ref().expect("checked result").status == contracts::execution::ResultStatus::Unspecified {
+    if execution.result.as_ref().expect("checked result").status == dokime_domain::model::execution::wire::ResultStatus::Unspecified {
         return Err(invalid("sealed execution result has an unknown status"));
     }
     match execution.status {
-        contracts::execution::ExecutionStatus::Invalidated
-        | contracts::execution::ExecutionStatus::Passed
-        | contracts::execution::ExecutionStatus::Failed
-        | contracts::execution::ExecutionStatus::Blocked
-        | contracts::execution::ExecutionStatus::Cancelled
-        | contracts::execution::ExecutionStatus::Interrupted
-        | contracts::execution::ExecutionStatus::Skipped => Ok(()),
+        dokime_domain::model::execution::wire::ExecutionStatus::Invalidated
+        | dokime_domain::model::execution::wire::ExecutionStatus::Passed
+        | dokime_domain::model::execution::wire::ExecutionStatus::Failed
+        | dokime_domain::model::execution::wire::ExecutionStatus::Blocked
+        | dokime_domain::model::execution::wire::ExecutionStatus::Cancelled
+        | dokime_domain::model::execution::wire::ExecutionStatus::Interrupted
+        | dokime_domain::model::execution::wire::ExecutionStatus::Skipped => Ok(()),
         _ => Err(invalid("sealed execution outcome is not terminal")),
     }
 }

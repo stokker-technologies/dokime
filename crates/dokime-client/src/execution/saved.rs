@@ -44,8 +44,8 @@ struct Pages {
 /* === Implementations === */
 impl TestExecutionHandle {
     pub async fn context_at(
-        &self, checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
-    ) -> Result<contracts::history::CheckpointContext> {
+        &self, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
+    ) -> Result<dokime_domain::model::history::wire::CheckpointContext> {
         validate_checkpoint(&self.id, checkpoint)?;
         self.client.verify(false).await?;
         let context = self
@@ -57,8 +57,8 @@ impl TestExecutionHandle {
     }
 
     pub async fn evidence_at(
-        &self, checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
-    ) -> Result<contracts::history::CheckpointEvidence> {
+        &self, checkpoint: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
+    ) -> Result<dokime_domain::model::history::wire::CheckpointEvidence> {
         validate_checkpoint(&self.id, checkpoint)?;
         self.client.verify(false).await?;
         let evidence = self
@@ -66,9 +66,9 @@ impl TestExecutionHandle {
             .history_get_checkpoint_evidence(contracts::history::GetCheckpointEvidence {
                 checkpoint: Some(checkpoint.clone()),
                 sections: vec![
-                    contracts::history::EvidenceSection::Artifacts,
-                    contracts::history::EvidenceSection::RecordSchemas,
-                    contracts::history::EvidenceSection::TelemetryTables,
+                    dokime_domain::model::history::wire::EvidenceSection::Artifacts,
+                    dokime_domain::model::history::wire::EvidenceSection::RecordSchemas,
+                    dokime_domain::model::history::wire::EvidenceSection::TelemetryTables,
                 ],
             })
             .await?;
@@ -77,8 +77,8 @@ impl TestExecutionHandle {
     }
 
     pub fn records_at(
-        &self, checkpoint: contracts::checkpoint::ExecutionCheckpoint,
-    ) -> Result<ResponseStream<contracts::history::CheckpointRecordPage>> {
+        &self, checkpoint: dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
+    ) -> Result<ResponseStream<dokime_domain::model::history::wire::CheckpointRecordPage>> {
         let original = validate_checkpoint(&self.id, &checkpoint)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -116,8 +116,8 @@ impl TestExecutionHandle {
     }
 
     pub fn samples_at(
-        &self, checkpoint: contracts::checkpoint::ExecutionCheckpoint,
-    ) -> Result<ResponseStream<contracts::history::CheckpointTelemetryPage>> {
+        &self, checkpoint: dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint,
+    ) -> Result<ResponseStream<dokime_domain::model::history::wire::CheckpointTelemetryPage>> {
         let original = validate_checkpoint(&self.id, &checkpoint)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -127,7 +127,7 @@ impl TestExecutionHandle {
                     .client
                     .history_get_checkpoint_evidence(contracts::history::GetCheckpointEvidence {
                         checkpoint: Some(checkpoint.clone()),
-                        sections: vec![contracts::history::EvidenceSection::TelemetryTables],
+                        sections: vec![dokime_domain::model::history::wire::EvidenceSection::TelemetryTables],
                     })
                     .await?;
                 same_checkpoint(&checkpoint, inventory.checkpoint.as_ref())?;
@@ -191,7 +191,7 @@ impl Pages {
 
 /* === Private Functions === */
 fn same_checkpoint(
-    expected: &contracts::checkpoint::ExecutionCheckpoint, actual: Option<&contracts::checkpoint::ExecutionCheckpoint>,
+    expected: &dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint, actual: Option<&dokime_domain::model::execution::wire_checkpoint::ExecutionCheckpoint>,
 ) -> Result<()> {
     if actual != Some(expected) {
         return Err(invalid("history returned a different checkpoint"));
@@ -199,7 +199,7 @@ fn same_checkpoint(
     Ok(())
 }
 
-fn records(page: &contracts::history::CheckpointRecordPage) -> Result<()> {
+fn records(page: &dokime_domain::model::history::wire::CheckpointRecordPage) -> Result<()> {
     if !page.issues.is_empty() || page.issues_truncated {
         return Err(invalid("historical records are incomplete; history reported issues"));
     }
@@ -209,7 +209,7 @@ fn records(page: &contracts::history::CheckpointRecordPage) -> Result<()> {
     Ok(())
 }
 
-fn samples(table: &str, page: &contracts::history::CheckpointTelemetryPage) -> Result<()> {
+fn samples(table: &str, page: &dokime_domain::model::history::wire::CheckpointTelemetryPage) -> Result<()> {
     if page.table != table {
         return Err(invalid("history returned a different telemetry stream"));
     }

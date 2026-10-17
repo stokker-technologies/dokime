@@ -39,7 +39,7 @@ use dokime_domain::model::identity::TestExecutionId;
 impl TestExecutionHandle {
     pub fn records(
         &self, record_types: Vec<String>, follow: bool, interval: Option<Duration>,
-    ) -> Result<ResponseStream<contracts::evidence::RecordPage>> {
+    ) -> Result<ResponseStream<dokime_domain::model::evidence::wire::RecordPage>> {
         let interval = poll_interval(interval)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -57,7 +57,7 @@ impl TestExecutionHandle {
 
     pub fn samples(
         &self, streams: Vec<String>, follow: bool, page_size: u32, interval: Option<Duration>,
-    ) -> Result<ResponseStream<contracts::telemetry::TelemetrySamplesReply>> {
+    ) -> Result<ResponseStream<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>> {
         let interval = sample_interval(page_size, interval)?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
@@ -92,8 +92,8 @@ pub(crate) fn sample_interval(page_size: u32, interval: Option<Duration>) -> Res
 }
 
 pub(crate) async fn read_samples<F, Fut>(
-    client: &Client, scope: contracts::common::EvidenceScope, streams: Vec<String>, page_size: u32, interval: Duration, mut completion: F,
-    sender: &mpsc::Sender<Result<contracts::telemetry::TelemetrySamplesReply>>,
+    client: &Client, scope: dokime_domain::model::identity::wire::EvidenceScope, streams: Vec<String>, page_size: u32, interval: Duration, mut completion: F,
+    sender: &mpsc::Sender<Result<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>>,
 ) -> Result<()>
 where
     F: FnMut() -> Fut + Send,
@@ -113,7 +113,7 @@ where
                 limit: page_size,
                 after_stream_cursors: positions
                     .iter()
-                    .map(|(key, value)| contracts::telemetry::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
+                    .map(|(key, value)| dokime_domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry {
                         key: key.clone(),
                         value: *value,
                     })
@@ -145,13 +145,13 @@ where
 }
 
 pub(crate) async fn read_records<F>(
-    client: &Client, scope: contracts::common::EvidenceScope, record_types: Vec<String>, completion: Option<F>,
-    sender: &mpsc::Sender<Result<contracts::evidence::RecordPage>>,
+    client: &Client, scope: dokime_domain::model::identity::wire::EvidenceScope, record_types: Vec<String>, completion: Option<F>,
+    sender: &mpsc::Sender<Result<dokime_domain::model::evidence::wire::RecordPage>>,
 ) -> Result<()>
 where
     F: Future<Output = Result<()>> + Send,
 {
-    let selection = contracts::evidence::CapturedRecordSelection {
+    let selection = dokime_domain::model::evidence::wire::CapturedRecordSelection {
         scope: Some(scope.clone()),
         record_types,
         sources: Vec::new(),
@@ -215,8 +215,8 @@ where
 }
 
 /* === Private Functions === */
-fn record_scope(id: &TestExecutionId) -> contracts::common::EvidenceScope {
-    contracts::common::EvidenceScope {
+fn record_scope(id: &TestExecutionId) -> dokime_domain::model::identity::wire::EvidenceScope {
+    dokime_domain::model::identity::wire::EvidenceScope {
         execution_id: Some(id.to_string()),
 
         session_id: None,
@@ -231,8 +231,8 @@ fn record_scope(id: &TestExecutionId) -> contracts::common::EvidenceScope {
 }
 
 fn validate_records(
-    scope: &contracts::common::EvidenceScope, epoch: &str, page: &contracts::evidence::RecordPage,
-    after: Option<&contracts::cursor::Cursor>,
+    scope: &dokime_domain::model::identity::wire::EvidenceScope, epoch: &str, page: &dokime_domain::model::evidence::wire::RecordPage,
+    after: Option<&dokime_domain::model::execution::wire_cursor::Cursor>,
 ) -> Result<()> {
     validate_observed_cursor(epoch, page.scanned.as_ref())?;
     validate_observed_cursor(epoch, page.through.as_ref())?;
@@ -269,8 +269,8 @@ fn validate_records(
 }
 
 fn validate_samples(
-    scope: &contracts::common::EvidenceScope, streams: &[String], positions: &HashMap<String, u64>,
-    page: &contracts::telemetry::TelemetrySamplesReply,
+    scope: &dokime_domain::model::identity::wire::EvidenceScope, streams: &[String], positions: &HashMap<String, u64>,
+    page: &dokime_domain::model::telemetry::wire::TelemetrySamplesReply,
 ) -> Result<()> {
     let mut seen = std::collections::HashSet::new();
     let mut advanced = false;

@@ -47,8 +47,8 @@ pub enum Error {
 /* === Implementations === */
 impl Client {
     pub async fn upload_artifact_file(
-        &self, source: &Path, mut header: contracts::content::UploadArtifactHeader,
-    ) -> Result<contracts::content::ArtifactMetadata, Error> {
+        &self, source: &Path, mut header: dokime_domain::model::content::wire::UploadArtifactHeader,
+    ) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, Error> {
         let file = tokio::fs::File::open(source).await?;
         header.size_bytes = file.metadata().await?.len();
         header.sha256 = None;
@@ -68,7 +68,7 @@ impl Client {
         upload.close().await;
         let (metadata, completion) = result?;
         if metadata.artifact_id.is_empty()
-            || metadata.state != contracts::content::ArtifactState::Complete
+            || metadata.state != dokime_domain::model::content::wire::ArtifactState::Complete
             || metadata.size_bytes != completion.size_bytes
             || metadata.sha256 != completion.sha256
         {
@@ -82,12 +82,12 @@ impl Client {
 
 /* === Private Functions === */
 async fn feed<F: Future<Output = super::Result<()>>>(
-    mut source: impl AsyncRead + Unpin, header: contracts::content::UploadArtifactHeader, chunk_bytes: usize,
-    mut send: impl FnMut(contracts::content::UploadArtifactFrame) -> F,
-) -> Result<contracts::content::ArtifactCompletion, Error> {
-    use contracts::content::UploadArtifactFramePayload as Payload;
+    mut source: impl AsyncRead + Unpin, header: dokime_domain::model::content::wire::UploadArtifactHeader, chunk_bytes: usize,
+    mut send: impl FnMut(dokime_domain::model::content::wire::UploadArtifactFrame) -> F,
+) -> Result<dokime_domain::model::content::wire::ArtifactCompletion, Error> {
+    use dokime_domain::model::content::wire::UploadArtifactFramePayload as Payload;
     let expected = header.size_bytes;
-    send(contracts::content::UploadArtifactFrame { payload: Some(Payload::Header(header)) }).await?;
+    send(dokime_domain::model::content::wire::UploadArtifactFrame { payload: Some(Payload::Header(header)) }).await?;
     let mut digest = Sha256::new();
     let mut offset = 0u64;
     let mut buffer = vec![0; chunk_bytes];
@@ -102,18 +102,18 @@ async fn feed<F: Future<Output = super::Result<()>>>(
         }
         let data = buffer[..count].to_vec();
         digest.update(&data);
-        send(contracts::content::UploadArtifactFrame { payload: Some(Payload::Chunk(contracts::content::ArtifactChunk { offset, data })) })
+        send(dokime_domain::model::content::wire::UploadArtifactFrame { payload: Some(Payload::Chunk(dokime_domain::model::content::wire::ArtifactChunk { offset, data })) })
             .await?;
         offset = next;
     }
     if offset != expected {
         return Err(Error::Invalid("source length changed during upload"));
     }
-    let completion = contracts::content::ArtifactCompletion {
+    let completion = dokime_domain::model::content::wire::ArtifactCompletion {
         size_bytes: offset,
         sha256: digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
     };
-    send(contracts::content::UploadArtifactFrame { payload: Some(Payload::Complete(completion.clone())) }).await?;
+    send(dokime_domain::model::content::wire::UploadArtifactFrame { payload: Some(Payload::Complete(completion.clone())) }).await?;
     Ok(completion)
 }
 

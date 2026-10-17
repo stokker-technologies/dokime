@@ -77,14 +77,14 @@ impl Drop for Partial {
 impl Client {
     pub async fn download_artifact(
         &self, request: contracts::content::DownloadArtifact, destination: PathBuf,
-    ) -> Result<Download<contracts::content::ArtifactMetadata>, Error> {
+    ) -> Result<Download<dokime_domain::model::content::wire::ArtifactMetadata>, Error> {
         let identity = request.artifact_id.clone();
         let stream = self.content_download_artifact(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
             |frame| {
-                use contracts::content::ArtifactFramePayload as Payload;
+                use dokime_domain::model::content::wire::ArtifactFramePayload as Payload;
                 Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
                     Payload::Metadata(metadata) => {
                         if metadata.artifact_id != identity {
@@ -105,14 +105,14 @@ impl Client {
 
     pub async fn download_execution_file(
         &self, request: contracts::content::DownloadExecutionFile, destination: PathBuf,
-    ) -> Result<Download<contracts::content::ExecutionFileDownloadMetadata>, Error> {
+    ) -> Result<Download<dokime_domain::model::content::wire::ExecutionFileDownloadMetadata>, Error> {
         let identity = request.relative_path.clone();
         let stream = self.content_download_execution_file(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
             |frame| {
-                use contracts::content::ExecutionFileDownloadFramePayload as Payload;
+                use dokime_domain::model::content::wire::ExecutionFileDownloadFramePayload as Payload;
                 Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
                     Payload::Metadata(metadata) => {
                         if metadata.relative_path != identity {
@@ -133,14 +133,14 @@ impl Client {
 
     pub async fn download_checkpoint_artifact(
         &self, request: contracts::history::DownloadCheckpointArtifact, destination: PathBuf, expected: (u64, String),
-    ) -> Result<Download<contracts::content::ArtifactMetadata>, Error> {
+    ) -> Result<Download<dokime_domain::model::content::wire::ArtifactMetadata>, Error> {
         let id = request.artifact_id.clone();
         let stream = self.history_download_checkpoint_artifact(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
             |frame| {
-                use contracts::content::ArtifactFramePayload as Payload;
+                use dokime_domain::model::content::wire::ArtifactFramePayload as Payload;
                 Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
                     Payload::Metadata(metadata) => {
                         if metadata.artifact_id != id || metadata.size_bytes != expected.0 || metadata.sha256 != expected.1 {
@@ -165,14 +165,14 @@ impl Client {
 
     pub async fn download_cycle_report(
         &self, request: contracts::reports::DownloadCycleReport, destination: PathBuf,
-    ) -> Result<Download<contracts::reports::ReportMetadata>, Error> {
+    ) -> Result<Download<dokime_domain::model::reports::wire::ReportMetadata>, Error> {
         let id = request.cycle_id.clone();
         let stream = self.reports_download_cycle_report(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
             |frame| {
-                use contracts::reports::ReportHtmlFramePayload as Payload;
+                use dokime_domain::model::reports::wire::ReportHtmlFramePayload as Payload;
                 Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
                     Payload::Report(metadata) => {
                         if metadata.test_cycle_id != id {
@@ -192,14 +192,14 @@ impl Client {
 
     pub async fn download_execution_report(
         &self, request: contracts::reports::DownloadExecutionReport, destination: PathBuf,
-    ) -> Result<Download<contracts::reports::ReportMetadata>, Error> {
+    ) -> Result<Download<dokime_domain::model::reports::wire::ReportMetadata>, Error> {
         let id = request.execution_id.clone();
         let stream = self.reports_download_execution_report(request).await.map_err(Error::Request)?;
         let result = receive(
             || stream.message(),
             destination,
             |frame| {
-                use contracts::reports::ReportHtmlFramePayload as Payload;
+                use dokime_domain::model::reports::wire::ReportHtmlFramePayload as Payload;
                 Ok(match frame.payload.ok_or(Error::Invalid("empty frame"))? {
                     Payload::Report(metadata) => {
                         if metadata.test_execution_id.as_deref() != Some(id.as_str()) {

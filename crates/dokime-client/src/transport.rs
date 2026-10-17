@@ -18,7 +18,7 @@ use std::num::NonZeroUsize;
 // Third Party Imports
 use futures_util::{StreamExt, stream};
 use harmos::grpc::{Codec, DecodeSettings, EncodeSettings, InputEnvelope, OutputEnvelope};
-use harmos::operations::{InputDeclaration, OutputDeclaration, Response, StreamItem};
+use harmos::operations::{Direction, OperationDeclaration, Response, StreamItem};
 use harmos::{MemorySize, Protobuf};
 use tonic::{
     metadata::{Ascii, MetadataValue},
@@ -42,15 +42,15 @@ use super::{Client, Error, ResponseStream, Result, request, stream::Input};
 
 /* === Implementations === */
 impl Client {
-    pub(super) async fn download<O>(&self, path: &'static str, message: O) -> Result<ResponseStream<O::Item>>
+    pub(super) async fn download<O>(&self, path: &'static str, message: O) -> Result<ResponseStream<<O::Output as Direction>::Item>>
     where
-        O: OutputDeclaration,
+        O: OperationDeclaration,
         O: Protobuf + Sync,
         O::Response: Protobuf + MemorySize,
-        O::Item: Protobuf + MemorySize,
+        <O::Output as Direction>::Item: Protobuf + MemorySize,
     {
         self.require(path)?;
-        let codec = codec::<OutputEnvelope<O::Item, O::Response>, O>(self.response_limit(), self.request_limit())?;
+        let codec = codec::<OutputEnvelope<<O::Output as Direction>::Item, O::Response>, O>(self.response_limit(), self.request_limit())?;
         let mut client = tonic::client::Grpc::new(self.channel()?)
             .max_decoding_message_size(self.response_limit())
             .max_encoding_message_size(self.request_limit());
@@ -91,14 +91,14 @@ impl Client {
 
     pub(super) async fn upload<O, S>(&self, path: &'static str, message: O, items: S) -> Result<O::Response>
     where
-        O: InputDeclaration,
+        O: OperationDeclaration,
         O: Protobuf + Sync,
         O::Response: Protobuf + MemorySize,
-        O::Item: Protobuf + Sync,
-        S: tokio_stream::Stream<Item = O::Item> + Send + 'static,
+        <O::Input as Direction>::Item: Protobuf + Sync,
+        S: tokio_stream::Stream<Item = <O::Input as Direction>::Item> + Send + 'static,
     {
         self.require(path)?;
-        let codec = codec::<O::Response, InputEnvelope<O, O::Item>>(self.response_limit(), self.request_limit())?;
+        let codec = codec::<O::Response, InputEnvelope<O, <O::Input as Direction>::Item>>(self.response_limit(), self.request_limit())?;
         let cancellation = self.inner.cancellation.child_token();
         let _cancel = cancellation.clone().drop_guard();
         let opening = stream::once(async move { Response::new(InputEnvelope::Request(message)) });

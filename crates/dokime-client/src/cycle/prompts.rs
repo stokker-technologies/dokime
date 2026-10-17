@@ -39,7 +39,7 @@ const PAGE_SIZE: u32 = 100;
 
 /* === Implementations === */
 impl TestCycleHandle {
-    pub async fn prompt(&self, id: &PromptId) -> Result<contracts::prompts::PromptView> {
+    pub async fn prompt(&self, id: &PromptId) -> Result<dokime_domain::model::prompts::wire::PromptView> {
         self.client.verify(true).await?;
         let view = self.client.prompts_get_prompt(contracts::prompts::GetPrompt { prompt_id: id.to_string() }).await?;
         validate_view(&self.client.backend().epoch, id, &view)?;
@@ -51,7 +51,7 @@ impl TestCycleHandle {
         Ok(view)
     }
 
-    pub fn pending_prompts(&self) -> Result<ResponseStream<contracts::prompts::PromptInstance>> {
+    pub fn pending_prompts(&self) -> Result<ResponseStream<dokime_domain::model::prompts::wire::PromptInstance>> {
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let read = async {
@@ -97,8 +97,8 @@ impl TestCycleHandle {
     }
 
     pub async fn respond_prompt(
-        &self, id: &PromptId, action: String, values: contracts::value::Value, accepted: bool,
-    ) -> Result<contracts::prompts::PromptResponseReceipt> {
+        &self, id: &PromptId, action: String, values: dokime_domain::model::values::wire::Value, accepted: bool,
+    ) -> Result<dokime_domain::model::prompts::wire::PromptResponseReceipt> {
         self.prompt(id).await?;
         self.client.verify(true).await?;
         let receipt = self
@@ -119,7 +119,7 @@ impl TestCycleHandle {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn validate_view(epoch: &str, id: &PromptId, view: &contracts::prompts::PromptView) -> Result<()> {
+fn validate_view(epoch: &str, id: &PromptId, view: &dokime_domain::model::prompts::wire::PromptView) -> Result<()> {
     validate_observed_cursor(epoch, view.observed_cursor.as_ref())?;
     let prompt = view.prompt.as_ref().ok_or_else(|| invalid("prompt view has no admitted prompt"))?;
     if prompt.prompt_id != id.as_str()
@@ -133,7 +133,7 @@ fn validate_view(epoch: &str, id: &PromptId, view: &contracts::prompts::PromptVi
 
 fn validate_page(
     epoch: &str, cycle: &TestCycleId, selection: &str, request: &contracts::prompts::ListPending,
-    page: &contracts::prompts::ListPendingPromptsReply,
+    page: &dokime_domain::model::prompts::wire::ListPendingPromptsReply,
 ) -> Result<()> {
     validate_observed_cursor(epoch, page.cursor.as_ref())?;
     if page.cursor.as_ref().is_none_or(|cursor| cursor.stream != selection)
@@ -160,7 +160,7 @@ fn validate_page(
     Ok(())
 }
 
-fn validate_listed(identity: &contracts::prompts::PendingPromptIdentity, prompt: &contracts::prompts::PromptInstance) -> Result<()> {
+fn validate_listed(identity: &dokime_domain::model::prompts::wire::PendingPromptIdentity, prompt: &dokime_domain::model::prompts::wire::PromptInstance) -> Result<()> {
     let matches_definition = identity.definition.as_ref().zip(prompt.definition.as_ref()).is_some_and(|(listed, actual)| {
         listed.prompt_type == actual.prompt_type && listed.schema_version == actual.schema_version && listed.title == actual.title
     });
@@ -174,7 +174,7 @@ fn validate_listed(identity: &contracts::prompts::PendingPromptIdentity, prompt:
     Ok(())
 }
 
-fn validate_receipt(epoch: &str, id: &PromptId, receipt: &contracts::prompts::PromptResponseReceipt) -> Result<()> {
+fn validate_receipt(epoch: &str, id: &PromptId, receipt: &dokime_domain::model::prompts::wire::PromptResponseReceipt) -> Result<()> {
     validate_observed_cursor(epoch, receipt.observed_cursor.as_ref())?;
     CommandId::from_uuid(&receipt.command_id).map_err(|_| invalid("prompt receipt has an invalid command identity"))?;
     if receipt.prompt_id != id.as_str()

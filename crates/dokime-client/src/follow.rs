@@ -42,7 +42,7 @@ const BUFFER_BYTES: usize = 64 * 1024;
 #[serde(deny_unknown_fields)]
 pub struct FileResume {
     path: PathBuf,
-    identity: Option<content::ExecutionFileIdentity>,
+    identity: Option<dokime_domain::model::content::wire::ExecutionFileIdentity>,
     offset: u64,
     sha256: String,
 }
@@ -60,7 +60,7 @@ impl FileResume {
     pub fn path(&self) -> &Path {
         &self.path
     }
-    pub fn identity(&self) -> Option<&content::ExecutionFileIdentity> {
+    pub fn identity(&self) -> Option<&dokime_domain::model::content::wire::ExecutionFileIdentity> {
         self.identity.as_ref()
     }
     pub fn committed_offset(&self) -> u64 {
@@ -90,7 +90,7 @@ impl Client {
     // seal. Finished output is accepted only after its full hash and final status.
     pub async fn follow_execution_file(
         &self, request: content::FollowExecutionFile, resume: &mut FileResume,
-    ) -> Result<content::ExecutionFileFollowTerminal, Error> {
+    ) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowTerminal, Error> {
         self.follow_execution_file_with_commit(request, resume, |_| async { Ok::<_, std::io::Error>(()) }).await
     }
 
@@ -101,7 +101,7 @@ impl Client {
     // resume authority. The initial content identity is committed before data.
     pub async fn follow_execution_file_with_commit<F, Fut, E>(
         &self, request: content::FollowExecutionFile, resume: &mut FileResume, mut committed: F,
-    ) -> Result<content::ExecutionFileFollowTerminal, Error>
+    ) -> Result<dokime_domain::model::content::wire::ExecutionFileFollowTerminal, Error>
     where
         F: FnMut(FileResume) -> Fut + Send,
         Fut: Future<Output = Result<(), E>> + Send,
@@ -117,15 +117,15 @@ impl Client {
         let stream = self.content_follow_execution_file(request.clone()).await?;
         let read = async {
             let frame = stream.message().await?.ok_or(Error::Invalid("follow has no metadata"))?;
-            let Some(content::ExecutionFileFollowFramePayload::Metadata(metadata)) = frame.payload else {
+            let Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Metadata(metadata)) = frame.payload else {
                 return Err(Error::Invalid("follow must begin with metadata"));
             };
             let identity = metadata.identity.as_ref().ok_or(Error::Invalid("follow metadata has no identity"))?;
             validate_identity(identity, &request)?;
             if metadata.offset != resume.offset
                 || metadata.available_length < metadata.offset
-                || metadata.kind == content::ExecutionFileKind::Unspecified
-                || metadata.phase == content::ExecutionFilePhase::Unspecified
+                || metadata.kind == dokime_domain::model::content::wire::ExecutionFileKind::Unspecified
+                || metadata.phase == dokime_domain::model::content::wire::ExecutionFilePhase::Unspecified
             {
                 return Err(Error::Invalid("follow metadata has an invalid prefix or phase"));
             }
@@ -140,7 +140,7 @@ impl Client {
                     return Err(Error::Invalid("follow continued after its terminal frame"));
                 }
                 match frame.payload {
-                    Some(content::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
+                    Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Chunk(chunk)) => {
                         let limit = if request.max_bytes == 0 { BUFFER_BYTES } else { request.max_bytes as usize };
                         if chunk.offset != position || chunk.data.is_empty() || chunk.data.len() > limit {
                             return Err(Error::Invalid("follow chunks are not contiguous or exceed their bound"));
@@ -154,7 +154,7 @@ impl Client {
                             committed(resume.clone()).await.map_err(|source| Error::Receipt(Box::new(source)))?;
                         }
                     }
-                    Some(content::ExecutionFileFollowFramePayload::Terminal(value)) => {
+                    Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(value)) => {
                         commit(&mut output, &digest, position, resume).await?;
                         committed(resume.clone()).await.map_err(|source| Error::Receipt(Box::new(source)))?;
                         validate_terminal(&value, identity, position, &digest)?;
@@ -176,7 +176,7 @@ impl Client {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn validate_identity(identity: &content::ExecutionFileIdentity, request: &content::FollowExecutionFile) -> Result<(), Error> {
+fn validate_identity(identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, request: &content::FollowExecutionFile) -> Result<(), Error> {
     let history = identity.history.as_ref().ok_or(Error::Invalid("follow identity has no history"))?;
     if identity.execution_id != request.execution_id
         || identity.relative_path != request.relative_path
@@ -233,14 +233,14 @@ async fn commit(output: &mut tokio::fs::File, digest: &Sha256, position: u64, re
 }
 
 fn validate_terminal(
-    terminal: &content::ExecutionFileFollowTerminal, identity: &content::ExecutionFileIdentity, position: u64, digest: &Sha256,
+    terminal: &dokime_domain::model::content::wire::ExecutionFileFollowTerminal, identity: &dokime_domain::model::content::wire::ExecutionFileIdentity, position: u64, digest: &Sha256,
 ) -> Result<(), Error> {
     if terminal.length != position {
         return Err(Error::Invalid("follow terminal length differs"));
     }
     match terminal.phase {
-        content::ExecutionFilePhase::Abandoned if terminal.sealed.is_none() => Ok(()),
-        content::ExecutionFilePhase::Finished => {
+        dokime_domain::model::content::wire::ExecutionFilePhase::Abandoned if terminal.sealed.is_none() => Ok(()),
+        dokime_domain::model::content::wire::ExecutionFilePhase::Finished => {
             let seal = terminal.sealed.as_ref().ok_or(Error::Invalid("finished follow has no seal"))?;
             let saved = seal.position.as_ref().ok_or(Error::Invalid("finished seal has no saved position"))?;
             if seal.identity.as_ref() != Some(identity)

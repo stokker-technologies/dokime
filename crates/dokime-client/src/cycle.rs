@@ -123,7 +123,7 @@ impl TestCycleHandle {
     pub fn samples(
         &self, streams: Vec<String>, execution_id: Option<TestExecutionId>, until: Option<&ExecutionRequestHandle>, page_size: u32,
         interval: Option<Duration>,
-    ) -> Result<ResponseStream<contracts::telemetry::TelemetrySamplesReply>> {
+    ) -> Result<ResponseStream<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>> {
         let interval = super::execution::sample_interval(page_size, interval)?;
         let until = until.map(|request| request.bind_cycle(&self.client, &self.id)).transpose()?;
         let handle = self.clone();
@@ -136,7 +136,7 @@ impl TestCycleHandle {
                         None => Ok(true),
                     }
                 };
-                let scope = contracts::common::EvidenceScope {
+                let scope = dokime_domain::model::identity::wire::EvidenceScope {
                     cycle_id: Some(handle.id.to_string()),
                     execution_id: execution_id.map(|id| id.to_string()),
                     session_id: None,
@@ -158,14 +158,14 @@ impl TestCycleHandle {
 
     pub fn records(
         &self, record_types: Vec<String>, execution_id: Option<TestExecutionId>, until: Option<&ExecutionRequestHandle>,
-    ) -> Result<ResponseStream<contracts::evidence::RecordPage>> {
+    ) -> Result<ResponseStream<dokime_domain::model::evidence::wire::RecordPage>> {
         let until = until.map(|request| request.bind_cycle(&self.client, &self.id)).transpose()?;
         let handle = self.clone();
         ResponseStream::spawn(&self.client, move |sender| async move {
             let result = async {
                 handle.snapshot().await?;
                 let completion = until.map(|request| async move { request.wait_evidence().await });
-                let scope = contracts::common::EvidenceScope {
+                let scope = dokime_domain::model::identity::wire::EvidenceScope {
                     cycle_id: Some(handle.id.to_string()),
                     execution_id: execution_id.map(|id| id.to_string()),
                     session_id: None,
@@ -201,7 +201,7 @@ impl TestCycleHandle {
         super::transport::value(reply)
     }
 
-    pub async fn run(&self, key: &str) -> Result<contracts::execution::Admission> {
+    pub async fn run(&self, key: &str) -> Result<dokime_domain::model::execution::wire::Admission> {
         dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
@@ -221,7 +221,7 @@ impl TestCycleHandle {
     /// Creation is not idempotent: every accepted call appends another attempt.
     /// Earlier attempts and their evidence are never reused or changed; admit
     /// the new one with [`Self::run_case`].
-    pub async fn schedule_rerun(&self, case_id: &str) -> Result<contracts::execution::ControlReply> {
+    pub async fn schedule_rerun(&self, case_id: &str) -> Result<dokime_domain::model::execution::wire::ControlReply> {
         self.client.verify(true).await?;
         let reply = self
             .client
@@ -236,7 +236,7 @@ impl TestCycleHandle {
     }
 
     /// Admit the case's queued attempt once under a caller-retained key.
-    pub async fn run_case(&self, case_id: &str, key: &str) -> Result<contracts::execution::Admission> {
+    pub async fn run_case(&self, case_id: &str, key: &str) -> Result<dokime_domain::model::execution::wire::Admission> {
         dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
@@ -252,7 +252,7 @@ impl TestCycleHandle {
         super::execution::admission(&self.client.backend().epoch, reply)
     }
 
-    pub async fn snapshot(&self) -> Result<contracts::execution::CycleSummary> {
+    pub async fn snapshot(&self) -> Result<dokime_domain::model::execution::wire::CycleSummary> {
         self.client.verify(true).await?;
         let snapshot = self.client.execution_get_cycle(contracts::execution::GetCycle { cycle_id: self.id.to_string() }).await?;
         validate_snapshot(&self.id, &snapshot)?;
@@ -338,7 +338,7 @@ fn single_plan(
 }
 
 fn execution_members(
-    epoch: &str, request: &contracts::execution::ListExecutions, page: &contracts::execution::ListExecutionsReply, first_ordinal: u64,
+    epoch: &str, request: &contracts::execution::ListExecutions, page: &dokime_domain::model::execution::wire::ListExecutionsReply, first_ordinal: u64,
     seen: &mut HashSet<TestExecutionId>,
 ) -> Result<Vec<TestExecutionId>> {
     validate_observed_cursor(epoch, page.cursor.as_ref())?;
@@ -366,7 +366,7 @@ fn execution_members(
     Ok(ids)
 }
 
-fn validate_snapshot(id: &TestCycleId, snapshot: &contracts::execution::CycleSummary) -> Result<()> {
+fn validate_snapshot(id: &TestCycleId, snapshot: &dokime_domain::model::execution::wire::CycleSummary) -> Result<()> {
     if snapshot.cycle_id != id.as_str() {
         return Err(invalid("cycle snapshot identity differs"));
     }
