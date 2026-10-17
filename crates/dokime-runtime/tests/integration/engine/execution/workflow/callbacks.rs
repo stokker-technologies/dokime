@@ -240,7 +240,10 @@ async fn shutdown_joins_owners() {
         foreign.release.notify_one();
         shutdown.await.unwrap();
         assert_eq!(*foreign.events.lock().unwrap(), expected, "{stage}");
-        let settled = workflow.drain(stage, u64::MAX).unwrap();
+        // The terminal notification already happened before this waiter was
+        // created. Cleanup state must still make the wait immediately readable,
+        // even when its cursor deliberately skips every buffered event.
+        let settled = workflow.next(stage, u64::MAX).await.unwrap();
         assert!(settled.cleanup_settled, "{stage}: original owners joined");
         assert!(settled.outcome.is_none());
         assert_eq!(settled.cursor, u64::MAX);
