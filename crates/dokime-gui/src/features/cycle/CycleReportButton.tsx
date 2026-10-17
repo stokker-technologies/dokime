@@ -12,8 +12,9 @@
  *
  * It saves through the native dialog the same report Open Report opens — one
  * rendered from the run so far, the sealed one, or the sealed one rendered
- * again when its file is gone — named after the cycle or execution. It waits
- * only for a save already in progress.
+ * again when its file is gone — named after the cycle or execution, then
+ * opens the saved file in the default browser. It waits only for a save
+ * already in progress.
  */
 
 /* === External Imports === */
@@ -46,7 +47,9 @@ export function CycleReportButton({ cycleId, executionId, label }: CycleReportBu
     downloadReport
       .mutateAsync({ executionId, label })
       .then((saved) => {
-        if (saved) toast.success("Report Saved");
+        if (!saved) return;
+        toast.success("Report Saved");
+        if (saved.openFailure) toast.warning("The saved report could not be opened.", { description: saved.openFailure });
       })
       .catch((error: unknown) =>
         toast.error("The report could not be saved.", {

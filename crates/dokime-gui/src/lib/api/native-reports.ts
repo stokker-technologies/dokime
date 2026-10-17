@@ -217,19 +217,34 @@ export async function openNativeReport(resource: NativeReportHtml, session?: Ses
   });
 }
 
-/** Save a verified report through the native picker. */
+/** A saved report: where it landed, and why the default browser could not show it, if it could not. */
+export interface SavedReport {
+  path: string;
+  /** Opening is a courtesy after the save, so its failure never undoes the save. */
+  openFailure: string | null;
+}
+
+/** Save a verified report through the native picker, then open the saved file in the default browser. */
 export async function downloadNativeReport(
   resource: NativeReportHtml,
   filename = `${resource.report.identifier}.html`,
   session?: SessionIdentity,
-): Promise<boolean> {
+): Promise<SavedReport | null> {
   if (!isTauriDesktop()) {
     throw new NativeApiUnsupportedError("Save report", "desktop_save_document (native file picker)");
   }
   if (!session) throw new Error("Reports.SaveReport requires a connected native session.");
-  return saveNativeDocument(session, {
+  const path = await saveNativeDocument(session, {
     kind: "html_report",
     filename: filename.trim() || `${resource.report.identifier}.html`,
     bytes: resource.bytes,
   });
+  if (path === null) return null;
+  const { commands } = await import("@/lib/desktop/commands");
+  try {
+    await commands.desktopOpenPath(path);
+    return { path, openFailure: null };
+  } catch (error) {
+    return { path, openFailure: error instanceof Error ? error.message : String(error) };
+  }
 }

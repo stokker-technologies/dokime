@@ -122,7 +122,7 @@ pub async fn desktop_open_target(app: AppHandle, target: String) -> Result<(), S
 
 pub async fn desktop_save_document(
     window: WebviewWindow, state: State<'_, ConnectionSession>, app: AppHandle, generation: String, document: DesktopSaveDocument,
-) -> Result<bool, String> {
+) -> Result<Option<String>, String> {
     ensure_main_window(&window)?;
     ensure_picker_kind(document.kind)?;
     let (filename, bytes, kind) = validate_save_document(&generation, &document)?;
@@ -136,12 +136,12 @@ pub async fn desktop_save_document(
     .await
     .map_err(|error| error.to_string())?;
     let Some(path) = selected.transpose()? else {
-        return Ok(false);
+        return Ok(None);
     };
     let path = ensure_selected_extension(path, kind)?;
     ensure_document_session(&session, &generation)?;
-    write_document(&session, &generation, path, bytes, false).await?;
-    Ok(true)
+    write_document(&session, &generation, path.clone(), bytes, false).await?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 pub async fn desktop_open_document(

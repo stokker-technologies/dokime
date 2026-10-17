@@ -50,13 +50,14 @@ export async function openNativeDocument(session: SessionIdentity, request: Nati
 }
 
 /**
- * Save verified bytes through the main-window native picker.
+ * Save verified bytes through the main-window native picker, and say where
+ * they landed: the saved path, or `null` when the operator cancels.
  *
  * The desktop command owns extension, encoded-size preflight, private filesystem
  * publication, and generation checks. This adapter repeats the byte bound to stop
  * an oversized request before base64 encoding and IPC allocation.
  */
-export async function saveNativeDocument(session: SessionIdentity, request: NativeDeliveryRequest): Promise<boolean> {
+export async function saveNativeDocument(session: SessionIdentity, request: NativeDeliveryRequest): Promise<string | null> {
   if (!isTauriDesktop()) {
     throw new NativeApiUnsupportedError("Save native document", "desktop_save_document (native file picker)");
   }

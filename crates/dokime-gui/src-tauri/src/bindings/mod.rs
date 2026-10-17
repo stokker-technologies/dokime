@@ -113,7 +113,7 @@ native_commands! {
     // Save a verified document through the native file picker.
     async desktop_save_document
         [window: tauri::WebviewWindow, state: tauri::State<'_, crate::connection::ConnectionSession>, app: tauri::AppHandle]
-        (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<bool, String>
+        (generation: String, document: crate::app::desktop::DesktopSaveDocument) -> Result<Option<String>, String>
         => crate::app::desktop::desktop_save_document;
 
     // Open a verified document from the private native cache.

@@ -64,9 +64,9 @@ export const commands = {
   desktopBackupResetLocalStorage: (archive: string) => invoke<DesktopSessionSnapshot>("desktop_backup_reset_local_storage", { archive }),
   desktopOpenPath: (path: string) => invoke<null>("desktop_open_path", { path }),
   desktopOpenTarget: (target: string) => invoke<null>("desktop_open_target", { target }),
-  /** Save a verified document through the native file picker. */
+  /** Save a verified document through the native file picker: the saved path, `null` when the operator cancels. */
   desktopSaveDocument: (generation: string, document: DesktopSaveDocument) =>
-    invoke<boolean>("desktop_save_document", { generation, document }),
+    invoke<string | null>("desktop_save_document", { generation, document }),
   /** Open a verified document from the private native cache. */
   desktopOpenDocument: (generation: string, document: DesktopSaveDocument) =>
     invoke<null>("desktop_open_document", { generation, document }),

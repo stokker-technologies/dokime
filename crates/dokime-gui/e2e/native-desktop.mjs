@@ -710,8 +710,26 @@ async function installSaveTap(session) {
           });
           entry.state = 'tapped';
           entry.ms = 0;
+          /* The shell answers with the path the operator picked; the gate names
+             one that was never written, and the open that follows is tapped too. */
           return Promise.resolve(
-            new Response('true', {
+            new Response(JSON.stringify('/dokime-gate/saved/' + document.filename), {
+              headers: { 'content-type': 'application/json', 'Tauri-Response': 'ok' },
+              status: 200,
+            }),
+          );
+        }
+        if (command === 'desktop_open_path') {
+          globalThis.__dokimeOpenedPaths = globalThis.__dokimeOpenedPaths ?? [];
+          try {
+            globalThis.__dokimeOpenedPaths.push(JSON.parse(String(init && init.body)).path);
+          } catch (failure) {
+            globalThis.__dokimeOpenedPaths.push('unreadable open payload: ' + String(failure));
+          }
+          entry.state = 'tapped';
+          entry.ms = 0;
+          return Promise.resolve(
+            new Response('null', {
               headers: { 'content-type': 'application/json', 'Tauri-Response': 'ok' },
               status: 200,
             }),
