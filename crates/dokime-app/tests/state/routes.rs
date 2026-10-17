@@ -40,29 +40,25 @@ fn fixture_bytes() -> Vec<u8> {
     use crate::fixtures::{PREPARE, prepared_directory, require_current};
     let directory = prepared_directory();
     require_current(&directory, PREPARE);
-    let bundle = directory.join("dokime-route-plugin/dokime-route-plugin.dokime");
+    let bundle = directory.join("obc-plugin/obc-plugin.dokime");
     std::fs::read(&bundle)
         .unwrap_or_else(|error| panic!("{PREPARE}: {}: {error}", bundle.display()))
 }
 
 /* === Tests === */
-// frozen catalog cannot bind missing reserved or multiply claimed routes.
+// frozen catalog cannot bind missing, reserved or multiply claimed operations.
 
 pub(crate) fn frozen_catalog_multiply() {
     use harmos::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
+    // The analysis claims `obc-plugin.ripple` first, so the status probe naming
+    // it is the second claim.
     for (namespace, pointer, method, reason) in [
-        (
-            "dokime.options",
-            "/0/source/entrypoint/name",
-            "route-fixture.missing",
-            "undeclared",
-        ),
         (
             "dokime.settings",
             "/status_entrypoint/name",
-            "route-fixture.missing",
+            "obc-plugin.missing",
             "undeclared",
         ),
         (
@@ -74,7 +70,7 @@ pub(crate) fn frozen_catalog_multiply() {
         (
             "dokime.settings",
             "/status_entrypoint/name",
-            "route-fixture.list_choices",
+            "obc-plugin.ripple",
             "more than once",
         ),
     ] {
@@ -116,7 +112,7 @@ pub(crate) fn legacy_unknown_refused() {
     use harmos::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
-    for namespace in ["dokime.options", "dokime.settings"] {
+    for namespace in ["dokime.settings", "dokime.suites"] {
         for schema in [1, 4] {
             let mut executable = file.executable.clone().unwrap();
             let registration = executable

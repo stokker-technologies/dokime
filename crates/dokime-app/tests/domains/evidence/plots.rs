@@ -1002,7 +1002,7 @@ pub(crate) async fn selected_analysis_axes() {
 pub(crate) async fn external_analysis_reload() {
     let root = tempdir().unwrap();
     let store = crate::support::plugins::plugin_store(root.path());
-    let bundle = crate::support::plugins::fixture_bundle_bytes("dokime-route-plugin");
+    let bundle = crate::support::plugins::fixture_bundle_bytes("obc-plugin");
     let staged = store.stage(&bundle).unwrap();
     store
         .consent(staged.installation.install_id, &[], &Default::default())
@@ -1015,19 +1015,19 @@ pub(crate) async fn external_analysis_reload() {
         .unwrap();
     let mut request = wifi_request(None, Some(1), None);
     request.analysis = Some(dokime::analysis::Selection {
-        id: "route-fixture.peak-to-peak".into(),
+        id: "obc-plugin.ripple".into(),
         version: 1,
         parameters: Default::default(),
     });
     for reload in [false, true] {
         if reload {
-            owner.reinitialize_plugin("route-fixture").await.unwrap();
+            owner.reinitialize_plugin("obc-plugin").await.unwrap();
         }
         let definitions = runtime.analysis_definitions().await.unwrap();
         assert_eq!(
             definitions
                 .iter()
-                .filter(|definition| definition.id == "route-fixture.peak-to-peak")
+                .filter(|definition| definition.id == "obc-plugin.ripple")
                 .count(),
             1
         );
@@ -1036,7 +1036,7 @@ pub(crate) async fn external_analysis_reload() {
             .await
             .unwrap();
         let computed = envelopes[0].payload.computed.as_ref().unwrap();
-        assert_eq!(computed.selection.id, "route-fixture.peak-to-peak");
+        assert_eq!(computed.selection.id, "obc-plugin.ripple");
         assert_eq!(computed.series[0].input_samples, 100);
         assert_eq!(computed.series[0].output.outputs[0].values, [99.0]);
         assert_eq!(computed.series[0].output.outputs[0].unit, "count");

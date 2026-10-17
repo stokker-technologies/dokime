@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod ripple;
 
 /* === Re-Exports === */
 
@@ -17,6 +18,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime::analysis::{Operation, Served};
 
 /* === Constants === */
 
@@ -27,12 +29,16 @@
 /* === Structs === */
 
 /* === Enums === */
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("fixture refusal")]
-    InvocationRefused,
-    #[error("dokime sdk: {0}")]
-    Sdk(#[from] dokime::Error),
+/// The analyses an operator may select on any of this bench's plots.
+#[dokime::catalog]
+pub enum Analyses {
+    Ripple(Operation<ripple::Ripple>),
+}
+
+/// The operations that answer [`Analyses`] inside this plugin.
+#[dokime::catalog]
+pub enum Implemented {
+    Ripple(Served<ripple::Ripple, crate::Resources>),
 }
 
 /* === Traits === */

@@ -24,7 +24,7 @@ members = [
   "crates/dokime-server",
   "crates/dokime-filesystem",
   "plugins/obc-plugin",
-  "crates/dokime-app/tests/fixtures/route_plugin",
+  "crates/dokime-app/tests/fixtures",
   "plugins/obc-plugin/runtime",
 ]
 resolver = "2"

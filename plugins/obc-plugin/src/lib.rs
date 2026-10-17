@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod analyses;
 pub mod error;
 mod listeners;
 mod observers;
@@ -110,7 +111,7 @@ impl dokime::harmos::operations::lifecycle::Policy for ObcPlugin {
     contributions(
         dokime::Suites<suites::Suites>,
         dokime::Records<Records, listeners::Listeners>,
-        dokime::Evidence<observers::system::Streams>,
+        dokime::Evidence<observers::system::Streams, analyses::Analyses>,
         dokime::Settings<BenchSettings>,
     ),
     observers = observers::Observers,
@@ -161,6 +162,7 @@ impl dokime::Plugin for ObcPlugin {
 
     fn bind_operations(&self, table: &mut WireTable<Supervisor>) -> Result<(), ServingError> {
         table.bind_operations::<operations::Implemented, _>(self.resources())?;
+        table.bind_operations::<analyses::Implemented, _>(self.resources())?;
         table.bind_operations::<listeners::Listeners, _>(self.resources())?;
         dokime::execution::serve::<Self, suites::Suites>(table)?;
         self.observers

@@ -152,8 +152,8 @@ impl Hosting {
         for (publication, scope) in published {
             use dokime::telemetry::TelemetryRow;
             use harmos::Message;
-            let row = obc_plugin::suites::checks::pulse::PulseRow::decode(publication.payload())
-                .unwrap();
+            let row =
+                obc_plugin::suites::checks::pulse::PulseRow::decode(publication.payload()).unwrap();
             let micros = u64::try_from(publication.published_unix_micros().unwrap()).unwrap();
             let instant = std::time::UNIX_EPOCH
                 .checked_add(Duration::from_micros(micros))
@@ -874,10 +874,7 @@ async fn the_inert_mini_inventory_matches_live_dispatch() {
 
     // Demand drives the real host probe; two rows cover its retained reader
     // across ticks rather than testing sysinfo in an inline unit test.
-    let system = runtime
-        .streams
-        .publication("obc-plugin.system", 1)
-        .unwrap();
+    let system = runtime.streams.publication("obc-plugin.system", 1).unwrap();
     let demand = system.watch();
     let rows = tokio::time::timeout(std::time::Duration::from_secs(5), async {
         loop {
@@ -932,6 +929,14 @@ async fn the_inert_mini_inventory_matches_live_dispatch() {
     served.push((
         observe.to_owned(),
         harmos::operations::observers::POLICY.timeout.as_millis() as u64,
+    ));
+    // The ripple analysis is reached too; an empty request is refused all the same.
+    let ripple = <obc_plugin::analyses::ripple::Ripple as dokime::analysis::Analysis>::ID;
+    dispatch(&runtime.operations, ripple, Vec::new()).await;
+    served.push((
+        ripple.to_owned(),
+        <obc_plugin::analyses::ripple::Ripple as dokime::analysis::Analysis>::TIMEOUT.as_millis()
+            as u64,
     ));
     served.sort();
     let mut inspected = declared
@@ -1084,6 +1089,7 @@ fn executable_declares_identity_and_execution_routes() {
                 "obc-plugin.get_status",
                 "obc-plugin.list_connections",
                 "obc-plugin.observers.observe",
+                "obc-plugin.ripple",
                 // Every template of every suite serves a run and a signal.
                 "mini.charger.protection.overcurrent.run",
                 "mini.charger.protection.overcurrent.signal",
@@ -1107,7 +1113,6 @@ fn executable_declares_identity_and_execution_routes() {
     assert_eq!(
         streams,
         [
-            "obc-plugin.system",
             "mini.charger.protection.samples",
             "mini.charger.recovery.samples",
             "mini.charger.startup.log",
@@ -1115,6 +1120,7 @@ fn executable_declares_identity_and_execution_routes() {
             "mini.charger.steady.events",
             "mini.charger.steady.samples",
             "mini.pulse",
+            "obc-plugin.system",
         ]
     );
     assert_eq!("obc-plugin", declared.id);

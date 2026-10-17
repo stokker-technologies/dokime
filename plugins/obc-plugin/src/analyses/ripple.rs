@@ -12,15 +12,14 @@
 /* === Re-Exports === */
 
 /* === Imports === */
-
 // Standard Library Imports
+use std::convert::Infallible;
+use std::time::Duration;
 
 // Third Party Imports
 
 // Local Imports
-use dokime::analysis::{
-    Analysis, Limits, Operation, Output, Response, ResultData, Samples, Values,
-};
+use dokime::analysis::{Analysis, Limits, Output, Response, ResultData, Samples, Values};
 
 /* === Constants === */
 
@@ -29,60 +28,60 @@ use dokime::analysis::{
 /* === Type Aliases === */
 
 /* === Structs === */
-pub(crate) struct PeakToPeak;
-pub(crate) struct Amplitude {
+/// Peak-to-peak ripple of one plotted trace, over its original samples.
+pub struct Ripple;
+
+pub struct Amplitude {
     value: f64,
     unit: String,
 }
 
 /* === Enums === */
-#[dokime::catalog]
-pub(crate) enum Analyses {
-    PeakToPeak(Operation<PeakToPeak>),
-}
 
 /* === Traits === */
 
 /* === Implementations === */
-impl Analysis for PeakToPeak {
+impl Analysis for Ripple {
     type Parameters = ();
     type Output = Amplitude;
-    type Error = std::convert::Infallible;
-    const ID: &'static str = "route-fixture.peak-to-peak";
+    type Error = Infallible;
+    const ID: &'static str = "obc-plugin.ripple";
     const VERSION: u32 = 1;
-    const LABEL: &'static str = "Peak To Peak";
-    const DESCRIPTION: &'static str = "Maximum minus minimum over original samples.";
-    const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+    const LABEL: &'static str = "Ripple";
+    const DESCRIPTION: &'static str =
+        "Peak-to-peak ripple: the maximum minus the minimum of the trace's original samples.";
+    const TIMEOUT: Duration = Duration::from_secs(5);
     const LIMITS: Limits = Limits {
         max_samples: 1024,
         max_output_values: 1,
     };
-    fn evaluate(samples: &Samples, _: &()) -> Result<Amplitude, Self::Error> {
-        let minimum = samples.values.iter().copied().fold(f64::INFINITY, f64::min);
-        let maximum = samples
-            .values
-            .iter()
-            .copied()
-            .fold(f64::NEG_INFINITY, f64::max);
+
+    fn evaluate(samples: &Samples, _: &()) -> Result<Amplitude, Infallible> {
+        let values = samples.values.iter().copied();
+        let minimum = values.clone().fold(f64::INFINITY, f64::min);
+        let maximum = values.fold(f64::NEG_INFINITY, f64::max);
+
         Ok(Amplitude {
             value: maximum - minimum,
             unit: samples.unit.clone(),
         })
     }
 }
+
 impl ResultData for Amplitude {
     fn outputs() -> Vec<Output> {
         vec![Output {
-            key: "amplitude".into(),
-            label: "Amplitude".into(),
+            key: "ripple".into(),
+            label: "Ripple".into(),
             unit: None,
             axis: None,
         }]
     }
+
     fn into_response(self) -> Response {
         Response {
             outputs: vec![Values {
-                key: "amplitude".into(),
+                key: "ripple".into(),
                 unit: self.unit,
                 axis_unit: String::new(),
                 axis: vec![],

@@ -112,7 +112,7 @@ impl NativeHub {
         // compositions these scenarios exercise; nothing loads them implicitly.
         let bundles = fixtures::prepared_directory();
         fixtures::require_current(&bundles, fixtures::PREPARE);
-        config.explicit_plugins = ["obc-plugin", "dokime-route-plugin"]
+        config.explicit_plugins = ["obc-plugin"]
             .into_iter()
             .map(|package| bundles.join(package).join(format!("{package}.dokime")))
             .collect();
@@ -1139,7 +1139,7 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
         .plugins_list_admitted_plugins(contracts::plugins::ListAdmittedPluginsRequest::default())
         .await
         .unwrap();
-    assert_eq!(installed.total_count, 3);
+    assert_eq!(installed.total_count, 2);
     let artifact_ids = installed
         .plugins
         .iter()
@@ -1147,7 +1147,7 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         artifact_ids,
-        std::collections::BTreeSet::from(["host", "route-fixture", "obc-plugin",])
+        std::collections::BTreeSet::from(["host", "obc-plugin"])
     );
     assert!(installed.plugins.iter().all(|artifact| artifact.enabled));
 
@@ -1156,7 +1156,7 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
         .settings_get_settings(contracts::settings::GetSettingsRequest::default())
         .await
         .unwrap();
-    for section_id in ["identity", "route-fixture"] {
+    for section_id in ["identity", "obc-plugin"] {
         assert!(
             frame
                 .sections
@@ -1166,18 +1166,15 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
         );
     }
     // One card per plugin, identified the way the artifact is: a plugin declares
-    // no card, it declares the readiness route the host's card shows.
-    let artifact_id = "route-fixture";
+    // no card, it declares the readiness operation the host's card shows.
+    let artifact_id = "obc-plugin";
     let card_id = artifact_id;
     let card = frame
         .cards
         .iter()
         .find(|card| card.plugin_id == artifact_id && card.card_id == card_id)
         .unwrap_or_else(|| panic!("settings card {card_id} is missing"));
-    assert_eq!(
-        card.state,
-        contracts::settings::SettingsCardState::Disconnected
-    );
+    assert_eq!(card.state, contracts::settings::SettingsCardState::Ready);
     assert!(card.body.as_ref().is_some_and(|body| {
         body.blocks.iter().any(|block| {
             matches!(
@@ -1186,19 +1183,10 @@ async fn fixtures_expose_installed_settings_branding_and_diagnostics() {
                     ref label,
                     tone,
                     ..
-                })) if label == "Disconnected" && tone == contracts::settings::HostCardTone::Warning
+                })) if label == "Connected" && tone == contracts::settings::HostCardTone::Success
             )
         })
     }));
-
-    settings
-        .settings_update_plugin_credential(contracts::settings::UpdatePluginCredentialRequest {
-            plugin_id: "route-fixture".into(),
-            credential_id: "token".into(),
-            secret: "native-fixture-token".into(),
-        })
-        .await
-        .unwrap();
 
     let appearance = hub.connection.clone();
     let appearance = appearance
@@ -1624,39 +1612,26 @@ async fn name_without_media_type_refused_row_lands_on_own_stream() {
     );
 }
 
-async fn independent_sidecar_modes() {
-    use dokime_client::dynamic::Event;
+async fn plugin_operation_grants() {
     use dokime_server::grpc::access::{BearerGrant, OperationPermission, Role};
 
-    const OWNER: &str = "route-fixture";
-    const ALLOWED: &str = "sidecar-allowed-012345678901234567890123456789";
-    const DENIED: &str = "sidecar-unlisted-012345678901234567890123456789";
-    const SCOPED: &str = "sidecar-scoped-012345678901234567890123456789";
-    let ids = [
-        "route-fixture.remote.unary",
-        "route-fixture.remote.download",
-        "route-fixture.remote.upload",
-        "route-fixture.remote.duplex",
-    ];
-    let permission = |id: &str| OperationPermission {
+    const OWNER: &str = "obc-plugin";
+    const STATUS: &str = "obc-plugin.get_status";
+    const ALLOWED: &str = "plugin-allowed-0123456789012345678901234567890";
+    const DENIED: &str = "plugin-unlisted-012345678901234567890123456789";
+
+    // Grant One Plugin Operation To A Reader, None To An Administrator
+    let permission = OperationPermission {
         owner: OWNER.into(),
-        id: id.into(),
+        id: STATUS.into(),
         grants: vec![],
     };
-    let mut conditional = permission(ids[0]);
-    conditional
-        .grants
-        .push(harmos::plugin::Grant::of(ids[0], "fixture.remote.allowed"));
     let grants = vec![
-        BearerGrant::new("sidecar caller".into(), Role::Read, ALLOWED)
+        BearerGrant::new("plugin caller".into(), Role::Read, ALLOWED)
             .unwrap()
-            .with_operations(ids.iter().map(|id| permission(id)).collect())
+            .with_operations(vec![permission])
             .unwrap(),
         BearerGrant::new("unlisted admin".into(), Role::Admin, DENIED).unwrap(),
-        BearerGrant::new("scoped grant".into(), Role::Read, SCOPED)
-            .unwrap()
-            .with_operations(vec![conditional])
-            .unwrap(),
     ];
     let hub = NativeHub::start_with_policy(
         false,
@@ -1669,14 +1644,26 @@ async fn independent_sidecar_modes() {
         .await
         .unwrap();
     let denied = Client::connect(target(), Some(DENIED), None).await.unwrap();
-    let scoped = Client::connect(target(), Some(SCOPED), None).await.unwrap();
+
+    // The Listed Operation Is Visible
     let catalog = allowed.operations().await.unwrap();
-    for id in ids {
-        assert!(
-            catalog.iter().any(|entry| entry.owner.as_str() == OWNER
-                && entry.contract.operation().id.as_str() == id)
-        );
-    }
+    assert!(
+        catalog.iter().any(|entry| entry.owner.as_str() == OWNER
+            && entry.contract.operation().id.as_str() == STATUS)
+    );
+
+    // A Plugin Built Without gRPC Refuses Remote Calls Plainly
+    let refusal = allowed
+        .call_operation(STATUS, Some(OWNER), b"{}", vec![])
+        .await
+        .err()
+        .expect("the OBC plugin does not expose gRPC");
+    assert!(
+        format!("{refusal:?}").contains("does not expose gRPC"),
+        "{refusal:?}"
+    );
+
+    // An Unlisted Grant Neither Sees Nor Calls The Plugin
     assert!(
         !denied
             .operations()
@@ -1685,143 +1672,15 @@ async fn independent_sidecar_modes() {
             .iter()
             .any(|entry| entry.owner.as_str() == OWNER)
     );
-    for id in ids {
-        assert!(
-            denied
-                .call_operation(id, Some(OWNER), b"{\"value\":10}", vec![])
-                .await
-                .is_err()
-        );
-    }
-    // Send A Different Protobuf Field Kind Through The Actual Listener.
-    #[harmos::message]
-    struct WrongRequest {
-        value: String,
-    }
-    #[harmos::message]
-    struct WireNumber {
-        value: u32,
-    }
-    let channel = tonic::transport::Endpoint::from_shared(hub.server.local_endpoint())
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
-    let mut direct = tonic::client::Grpc::new(channel);
-    direct.ready().await.unwrap();
-    let limit = std::num::NonZeroUsize::new(4096).unwrap();
-    let codec = harmos::grpc::Codec::<WireNumber, harmos::operations::Response<WrongRequest>>::new(
-        harmos::grpc::DecodeSettings {
-            message_bytes: limit,
-            retained_bytes: limit,
-        },
-        harmos::grpc::EncodeSettings {
-            message_bytes: limit,
-            buffer_bytes: limit,
-        },
-    )
-    .unwrap();
-    let mut wrong = tonic::Request::new(harmos::operations::Response::new(WrongRequest {
-        value: "wrong-schema".into(),
-    }));
-    wrong.metadata_mut().insert(
-        "authorization",
-        format!("Bearer {ALLOWED}").parse().unwrap(),
-    );
-    let refusal = direct
-        .unary(
-            wrong,
-            "/fixture.remote.v1.Provider/Unary".parse().unwrap(),
-            codec,
-        )
-        .await
-        .err()
-        .expect("independent sidecar refuses the wrong request shape");
-    assert_eq!(refusal.code(), tonic::Code::InvalidArgument, "{refusal:?}");
-    // Read The Actual Sidecar Counter Through Its Unary Handler.
-    let counter = allowed
-        .call_operation(ids[0], Some(OWNER), b"{\"value\":0}", vec![])
-        .await
-        .unwrap();
-    // The JSON projection omits a proto3 field at its default, so zero reads as absent.
-    let completion = counter.message().await.unwrap();
     assert!(
-        matches!(&completion, Some(Event::Completion(value)) if value.get("value").is_none_or(|value| *value == 0)),
-        "{completion:?}"
-    );
-    assert!(counter.message().await.unwrap().is_none());
-    counter.close().await;
-    for (id, input, expected, completion) in [
-        (ids[0], false, vec![], 11),
-        (ids[1], false, vec![11, 12], 13),
-        (ids[2], true, vec![], 16),
-        (ids[3], true, vec![11, 13, 16], 16),
-    ] {
-        let inputs = if input {
-            [1, 2, 3]
-                .into_iter()
-                .map(|value| serde_json::to_vec(&serde_json::json!({"value": value})).unwrap())
-                .collect()
-        } else {
-            vec![]
-        };
-        let response = allowed
-            .call_operation(id, Some(OWNER), b"{\"value\":10}", inputs)
-            .await
-            .unwrap();
-        let mut items = Vec::new();
-        let mut finished = false;
-        tokio::time::timeout(Duration::from_secs(5), async {
-            while let Some(event) = response.message().await.unwrap() {
-                assert!(!finished, "sidecar completion is terminal");
-                match event {
-                    Event::Item(value) => items.push(value["value"].as_u64().unwrap()),
-                    Event::Completion(value) => {
-                        assert_eq!(value["value"], completion);
-                        finished = true;
-                    }
-                }
-            }
-        })
-        .await
-        .expect("independent sidecar settles within its existing policy");
-        assert_eq!(items, expected);
-        assert!(finished);
-        response.close().await;
-    }
-    assert!(
-        allowed
-            .call_operation(ids[0], Some(OWNER), b"{\"value\":20}", vec![])
+        denied
+            .call_operation(STATUS, Some(OWNER), b"{}", vec![])
             .await
             .is_err()
     );
-    assert!(
-        scoped
-            .call_operation(ids[0], Some(OWNER), b"{\"value\":21}", vec![])
-            .await
-            .is_err()
-    );
-    let counter = allowed
-        .call_operation(ids[0], Some(OWNER), b"{\"value\":0}", vec![])
-        .await
-        .unwrap();
-    assert!(
-        matches!(counter.message().await.unwrap(), Some(Event::Completion(value)) if value["value"] == 4)
-    );
-    assert!(counter.message().await.unwrap().is_none());
-    counter.close().await;
-    let matched = scoped
-        .call_operation(ids[0], Some(OWNER), b"{\"value\":20}", vec![])
-        .await
-        .unwrap();
-    assert!(
-        matches!(matched.message().await.unwrap(), Some(Event::Completion(value)) if value["value"] == 21)
-    );
-    assert!(matched.message().await.unwrap().is_none());
-    matched.close().await;
+
     allowed.close_and_wait().await;
     denied.close_and_wait().await;
-    scoped.close_and_wait().await;
     hub.shutdown().await;
 }
 
@@ -1829,7 +1688,7 @@ async fn independent_sidecar_modes() {
 
 #[tokio::test]
 async fn native_grpc_contract() {
-    Box::pin(independent_sidecar_modes()).await;
+    Box::pin(plugin_operation_grants()).await;
     Box::pin(charger_telemetry_query_uses_native_prompt_log_telemetry()).await;
     Box::pin(sidecar_execution_streams_evidence_through_native_grpc()).await;
     Box::pin(fixtures_expose_installed_settings_branding_and_diagnostics()).await;

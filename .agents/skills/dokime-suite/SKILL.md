@@ -173,7 +173,7 @@ and stream producers/listeners beside their feature, with suite-only observation
 inside that suite.
 
 - Concern modules exist only when the integration contributes that domain.
-- Generate a `cargo dokime new` starter for the worked example of a complete suite: one template that owns its data, opens its handles in `resources()`, states traceability, declares the record it publishes beside the step that files it, listens for a host record by type, holds on its own observer by listening for its own row type, prompts, and decides two criteria. Use `plugins/obc-plugin` for the maintained onboard charger demonstrator and its embedded testbench runtime; `crates/dokime-app/tests/fixtures/route_plugin` exercises host plumbing rather than teaching product suite structure.
+- Generate a `cargo dokime new` starter for the worked example of a complete suite: one template that owns its data, opens its handles in `resources()`, states traceability, declares the record it publishes beside the step that files it, listens for a host record by type, holds on its own observer by listening for its own row type, prompts, and decides two criteria. Use `plugins/obc-plugin` for the maintained onboard charger demonstrator and its embedded testbench runtime; the boundary sidecars under `crates/dokime-app/tests/fixtures` exercise host plumbing rather than teaching product suite structure.
 - Use `snake_case` for Rust module folders/files and `PascalCase` for types.
 - Keep assets next to the domain that declares them.
 

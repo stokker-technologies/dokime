@@ -2104,6 +2104,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dokime-fixtures"
+version = "0.1.0"
+dependencies = [
+ "dokime",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "dokime-gui"
 version = "0.1.0"
 dependencies = [
@@ -2191,19 +2203,6 @@ dependencies = [
  "process-wrap",
  "serde_json",
  "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "dokime-route-plugin"
-version = "0.1.0"
-dependencies = [
- "dokime",
- "harmos",
- "serde",
- "serde_json",
  "thiserror 2.0.21",
  "tokio",
  "tracing",

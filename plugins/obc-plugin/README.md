@@ -11,21 +11,23 @@ phase shifts, and latched faults; each execution owns its device.
 | Suite | Procedure | SDK Behavior |
 | --- | --- | --- |
 | Bench Signal Check | Verify a deterministic pulse before connecting the charger | Typed streams, criteria, optional scoped system capture |
-| Charger Power-Up | Confirm the connection, energize the supply, inspect inrush | Connection listener, typed routes, operator prompts, traceability, artifacts |
+| Charger Power-Up | Confirm the connection, energize the supply, inspect inrush | Connection listener, typed operations, operator prompts, traceability, artifacts |
 | Steady Charging | Observe input voltage and current while charging | Independent periodic and event observers, captured evidence, parameter expansion |
 | Overcurrent Protection | Increase the simulated load until protection trips | Ordered load inputs, fault records, evidence-based criteria |
 | Power-Loss Recovery | Interrupt the supply, clear the fault, restart | Paired input lists, multiple steps, cleanup and recovery evidence |
 
 The process listener remembers connected bench resources across executions.
-Templates ask the plugin's routes for readiness and connections, without naming
-or borrowing the plugin. Execution observers publish scoped measurements;
+Templates ask the plugin's operations for readiness and connections, without
+naming or borrowing the plugin. The settings card reads `get_status` live, and
+the `obc-plugin.ripple` analysis gives any plotted trace its peak-to-peak ripple. Execution observers publish scoped measurements;
 the process system observer publishes monitoring data. Explicit subscriptions
 capture host observations for an execution.
 
 ## Source Layout
 
 - `src/lib.rs`: the plugin owner, lifecycle, and complete catalogs.
-- `src/routes/`, `src/listeners/`, `src/observers/`: bench interaction and process observation.
+- `src/operations/`, `src/listeners/`, `src/observers/`: bench interaction and process observation.
+- `src/analyses/`: the plot analyses the plugin contributes.
 - `src/suites/`: one module per suite, with typed parameters and shared measurement shape.
 - `src/prompts/` and `src/settings.rs`: operator checkpoints and bench configuration.
 - `runtime/`: the embedded Harmos bench application and deterministic device model.

@@ -200,11 +200,7 @@ impl Steady {
 
         // Device Under Test
         let mut dut = TraceabilitySection::new("dut", "Device Under Test");
-        dut.row(TraceabilityRow::text(
-            "model",
-            "Model",
-            "ObcPlugin AC load",
-        ));
+        dut.row(TraceabilityRow::text("model", "Model", "ObcPlugin AC load"));
         dut.row(
             TraceabilityRow::number(
                 "nominal_voltage_rms_v",

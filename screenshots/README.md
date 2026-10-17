@@ -46,7 +46,7 @@ mise run screenshots:capture
 `screenshots:build` builds the `dokime` backend, the OBC charger plugin bundle, and
 the desktop shell with `tauri/custom-protocol` so the shell runs without a Vite
 development server beside it. `screenshots:capture`
-(`tools/node/gui/capture-screenshots.mjs`) starts a backend with the plugin
+(`crates/dokime-gui/tools/capture-screenshots.mjs`) starts a backend with the plugin
 loaded, drives the real WebView through `WebKitWebDriver`, materializes two
 cycles through the template dialog, runs them, answers their operator prompts,
 switches density through the Appearance setting, and writes each image over the

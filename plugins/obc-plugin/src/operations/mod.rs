@@ -49,6 +49,8 @@ pub enum Implemented {
 pub enum Operations {
     #[nested]
     Implemented(Implemented),
+    #[nested]
+    Analyses(crate::analyses::Implemented),
     Observe(crate::observers::controls::Observe),
 }
 

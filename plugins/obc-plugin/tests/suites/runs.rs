@@ -141,9 +141,8 @@ pub(crate) async fn stopping_continuous_evidence() {
 
 pub(crate) async fn cancelling_steady_device() {
     let resources = Connections::default();
-    let workflow = workflow::<obc_plugin::suites::steady::Steady>(
-        obc_plugin::suites::steady::STEADY_SUITE,
-    );
+    let workflow =
+        workflow::<obc_plugin::suites::steady::Steady>(obc_plugin::suites::steady::STEADY_SUITE);
     let mut request = steady_request("cancel-steady");
     let mut parameters: serde_json::Value = serde_json::from_str(&request.parameters_json).unwrap();
     parameters["duration_s"] = serde_json::to_value(dokime::Value::from(10.0)).unwrap();
@@ -225,9 +224,8 @@ pub(crate) async fn faults_contained_ready() {
     let protection = workflow::<obc_plugin::suites::protection::Overcurrent>(
         obc_plugin::suites::protection::SUITE,
     );
-    let recovery = workflow::<obc_plugin::suites::recovery::PowerLoss>(
-        obc_plugin::suites::recovery::SUITE,
-    );
+    let recovery =
+        workflow::<obc_plugin::suites::recovery::PowerLoss>(obc_plugin::suites::recovery::SUITE);
     for (token, suite, template, fault_record) in [
         (
             "overload",
