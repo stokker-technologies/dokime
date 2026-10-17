@@ -1,4 +1,4 @@
-# Rendered by stkr project update from templates/python/test/archive.py; sha256:b1d5b1535c8889083b825b0150bf5d65c813c75718ef54f5989260b99be258dc
+# Rendered by stkr project update from templates/python/test/archive.py; sha256:0e7ed1d2e5a2958736e1792067d633ee26edf18a76fee7f2c6dcb856c6b6fecd
 # ***
 #
 # Dokime
@@ -50,7 +50,7 @@ from typing import Any
 
 # Local Imports
 from . import backend as python_backend
-from . import policy
+from . import cache, policy
 
 # Type Checking Imports
 
@@ -228,6 +228,8 @@ def native(
         _inside(project, output.relative_to(project).as_posix())
         if output.is_file():
             exports[str(output.resolve())] = _source(output)
+        elif output.is_dir() and role == "dependency-export":
+            exports[str(output.resolve())] = _source(output)
         elif output.is_dir():
             for path in output.rglob("*"):
                 if path.is_symlink():
@@ -340,9 +342,9 @@ def verify_outputs(record: dict, paths: Sequence[Path] | None = None) -> None:
     Use the record returned by build/compile, or first require the persisted archive's inputs.
     Omitting paths checks every expected output, including entries deleted after production.
     """
-    if record.get("schema") != 1 or not _outputs(record):
-        raise policy.TestError("no complete producer output map; rebuild the artifacts")
     expected = _outputs(record)
+    if record.get("schema") != 1 or not expected:
+        raise policy.TestError("no complete producer output map; rebuild the artifacts")
     selected = list(expected) if paths is None else [str(path) for path in paths]
     for name in selected:
         if name not in expected:
@@ -353,8 +355,22 @@ def verify_outputs(record: dict, paths: Sequence[Path] | None = None) -> None:
 
 def verify_copy(record: dict, source: Path, destination: Path) -> str:
     """Verify source and copied bytes against the immutable producer map; return its original digest."""
-    verify_outputs(record, [source])
-    expected = _outputs(record)[str(source)]
+    if record.get("schema") != 1:
+        raise policy.TestError("no complete producer output map; rebuild the artifacts")
+    name = str(source)
+    expected = None
+    for group in ("exports", "generated", "artifacts"):
+        expected = record.get(group, {}).get(name)
+        if expected is not None:
+            break
+    if expected is None and record.get("project") and record.get("receipt"):
+        if source == Path(record["project"]) / record["receipt"]:
+            original = (json.dumps(record, indent=2) + "\n").encode()
+            expected = hashlib.sha256(original).hexdigest()
+    if expected is None:
+        raise policy.TestError(f"output was not recorded by the compiler producer: {source}")
+    if _source(source) != expected:
+        raise policy.TestError(f"output changed after compiler production: {source}")
     if _source(destination) != expected:
         raise policy.TestError(f"staged copy differs from original compiler output: {destination}")
     return expected
@@ -501,6 +517,9 @@ def _snapshot(directory: Path, profile: str, parents: Sequence[dict], inputs: Se
     for input in inputs:
         input = input if input.is_absolute() else directory / input
         _unlinked(input)
+        if input.is_dir() and (digest := _source(input)) in origins:
+            record["parent_inputs"][str(input.resolve())] = digest
+            continue
         paths = [input] if input.is_file() else [path for path in input.rglob("*") if path.is_file() or path.is_symlink()]
         if not paths:
             raise policy.TestError(f"declared producer input is missing or empty: {input}")
@@ -590,6 +609,16 @@ def _installed(path: Path, boundary: Path) -> str:
     return hashlib.sha256(json.dumps(sorted(entries)).encode()).hexdigest()
 
 
+def _consumed(inputs: dict) -> dict:
+    # Consumers On Other Runners Need The Producer's Native Platform, Toolchain And Configuration, Not Its PATH Or Tool Set.
+    return {
+        "platform": list(inputs.get("platform", []))[:2],
+        "configuration": inputs.get("configuration"),
+        "rustc": inputs.get("rustc"),
+        "cargo": inputs.get("cargo"),
+    }
+
+
 def _verify_inputs(directory: Path, record: dict, profile: str, current: str, arguments: Sequence[str]) -> None:
     if record.get("tree") != current or record.get("profile") != profile:
         raise policy.TestError("producer capture belongs to another source tree or profile")
@@ -599,8 +628,8 @@ def _verify_inputs(directory: Path, record: dict, profile: str, current: str, ar
         raise policy.TestError("producer capture uses another Cargo argument selection")
     if record.get("revision") != revision(directory):
         raise policy.TestError("producer capture belongs to another source revision")
-    if record.get("inputs") != _inputs(directory):
-        raise policy.TestError("producer capture uses another platform, environment or configuration")
+    if _consumed(record.get("inputs", {})) != _consumed(_inputs(directory)):
+        raise policy.TestError("producer capture uses another platform, toolchain or configuration")
     project = Path(_git(directory, "rev-parse", "--show-toplevel"))
     _verify_parents(directory, record, profile, current)
     _verify_directories(record, missing_parents=True)
@@ -673,13 +702,16 @@ def _produce(
         raise policy.TestError("build profile must be dev, release or bench")
     if any(argument in ("--config", "--manifest-path") or argument.startswith(("--config=", "--manifest-path=")) for argument in extra):
         raise policy.TestError("build inputs require repository-owned Cargo configuration and the current workspace manifest")
+    cache.prepare()
     directory = directory.resolve()
     project = Path(_git(directory, "rev-parse", "--show-toplevel"))
     capture = _snapshot(directory, profile, parents, inputs)
     before = capture["tree"]
     build_inputs = capture["inputs"]
     target = _target(directory, extra)
-    metadata_command = ["cargo", "metadata", "--locked", "--format-version", "1", "--filter-platform", target, *_features(extra)]
+    # Host Build Dependencies And Proc Macros Compile Beside A Cross Target, So Both Platforms Bound The Package Set.
+    platforms = [option for triple in dict.fromkeys((target, _host(directory))) for option in ("--filter-platform", triple)]
+    metadata_command = ["cargo", "metadata", "--locked", "--format-version", "1", *platforms, *_features(extra)]
     metadata = _output(directory, metadata_command)
     resolved = json.loads(metadata)
     if archived:
@@ -845,9 +877,12 @@ def _output(directory: Path, command: Sequence[str]) -> str:
 
 
 def _runtime(directory: Path, name: str) -> str | None:
-    # A Shim This Project Does Not Configure Is An Unavailable Runtime, Recorded As Such.
-    result = subprocess.run([name, "--version"], cwd=directory, capture_output=True, text=True, encoding="utf-8", check=False)
-    return result.stdout.strip() if result.returncode == 0 else None
+    # A Shim This Project Does Not Configure, Or One That Names No Version, Is An Unavailable Runtime, Recorded As Such.
+    try:
+        result = subprocess.run([name, "--version"], cwd=directory, capture_output=True, text=True, encoding="utf-8", check=False)
+    except (OSError, UnicodeDecodeError):
+        return None
+    return (result.stdout.strip() or None) if result.returncode == 0 else None
 
 
 def _toolchain(directory: Path) -> str:
@@ -1060,6 +1095,8 @@ def _watched(directory: Path, messages: Path, metadata: dict) -> dict:
             elif declaration.startswith("rerun-if-changed="):
                 path = Path(declaration.split("=", 1)[1])
                 if not path.is_absolute():
+                    if message["package_id"] not in packages:
+                        raise policy.TestError(f"compiled package is absent from the resolved metadata: {message['package_id']}")
                     path = packages[message["package_id"]] / path
                 files.add(str(path))
     return {"files": sorted(files), "environment": sorted(environment)}
@@ -1113,6 +1150,10 @@ def _target(directory: Path, arguments: Sequence[str]) -> str:
             if not isinstance(value, str):
                 raise policy.TestError("multiple Cargo build targets require separate archive producers")
             return value
+    return _host(directory)
+
+
+def _host(directory: Path) -> str:
     for line in _toolchain(directory).splitlines():
         if line.startswith("host: "):
             return line.removeprefix("host: ")
