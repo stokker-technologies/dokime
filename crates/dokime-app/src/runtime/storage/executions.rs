@@ -807,6 +807,13 @@ async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevisi
     if acquisition.execution.saved.is_some() {
         return complete_final_report(acquisition);
     }
+    // A Reopened Cycle Rebuilds This Report From Its Captured Anchor; Only
+    // Revisions Before That Anchor Become Stale Once The Seal Is Saved.
+    let anchor = acquisition
+        .published
+        .as_ref()
+        .and_then(|published| published.inspection.captured_source())
+        .and_then(|source| source.execution.clone());
     if acquisition.pending.is_none() {
         let seal = acquisition
             .published
@@ -827,7 +834,32 @@ async fn seal_final(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevisi
         });
     }
     save_working_revision(acquisition).await?;
+    if let Some(anchor) = anchor {
+        release_before(&acquisition.storage, &anchor).await?;
+    }
     complete_final_report(acquisition)
+}
+
+async fn release_before(storage: &Manager, anchor: &ExecutionRevision) -> Result<()> {
+    use harmos::catalog::Member;
+    use harmos::storage::{ObjectDefinitions, ObjectKey};
+
+    let Some(predecessor) = anchor.position.sequence.checked_sub(1) else {
+        return Ok(());
+    };
+    let schema = <ObjectDefinitions as Member<Execution>>::ENTRY.schema()?;
+    let key = ObjectKey::new(
+        anchor.execution_id.as_str(),
+        std::num::NonZeroUsize::new(1024).unwrap(),
+    )?;
+    let through = StorageCursor {
+        history: anchor.position.history.clone(),
+        sequence: predecessor,
+    };
+    storage
+        .release_object_history(&schema, &key, &through)
+        .await?;
+    Ok(())
 }
 
 fn complete_final_report(acquisition: &mut Acquisition) -> Result<Arc<ExecutionRevision>> {

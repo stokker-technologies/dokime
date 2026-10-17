@@ -84,7 +84,9 @@ pub(crate) async fn telemetry_pages_window() {
             sample
                 .values
                 .insert("progress".into(), Value::Number(index as f64));
-            sample
+            sample.with_storage_payload(harmos::Message::encode_to_vec(&common::ProgressRow {
+                progress: index as f64,
+            }))
         })
         .collect();
     handle

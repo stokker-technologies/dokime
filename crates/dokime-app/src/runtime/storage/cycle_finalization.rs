@@ -175,27 +175,21 @@ impl super::executions::ExecutionStorage {
 }
 
 impl RuntimeHandle {
+    // Members Release Their Own History When They Seal; A Reopened Cycle
+    // Rebuilds Their Reports From The Anchors Those Releases Keep.
     async fn release_cycle_history(
         &self,
         cycle: &TestCycle,
         through: &StorageCursor,
     ) -> Result<()> {
-        use dokime::storage::objects::execution::Execution;
         use harmos::catalog::Member;
         use harmos::storage::{ObjectDefinitions, ObjectKey};
 
         if cycle.saved.is_none() {
-            return Err(invalid("unsealed cycle cannot release member history"));
+            return Err(invalid("unsealed cycle cannot release its history"));
         }
         let key_bytes = std::num::NonZeroUsize::new(1024).unwrap();
-        let execution_schema = <ObjectDefinitions as Member<Execution>>::ENTRY.schema()?;
         let cycle_schema = <ObjectDefinitions as Member<Cycle>>::ENTRY.schema()?;
-        for id in &cycle.execution_ids {
-            let key = ObjectKey::new(id.as_str(), key_bytes)?;
-            self.storage()
-                .release_object_history(&execution_schema, &key, through)
-                .await?;
-        }
         let key = ObjectKey::new(cycle.test_cycle_id.as_str(), key_bytes)?;
         self.storage()
             .release_object_history(&cycle_schema, &key, through)
