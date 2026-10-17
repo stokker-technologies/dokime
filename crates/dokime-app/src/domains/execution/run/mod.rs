@@ -51,8 +51,6 @@ const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 /// How long a cancelled run may take to answer before the host settles the
 /// execution as stopped without it. Stop stays cooperative inside this budget.
 const STOP_SETTLEMENT: Duration = Duration::from_secs(30);
-/// Rows one replayed page reads; each page is its own query.
-const REPLAY_PAGE_ROWS: usize = 128;
 /// Encoded sample bytes one replay signal carries before the next begins.
 const REPLAY_SIGNAL_BYTES: usize = dokime::transport::MAX_ARTIFACT_CHUNK_BYTES;
 
@@ -61,12 +59,6 @@ const REPLAY_SIGNAL_BYTES: usize = dokime::transport::MAX_ARTIFACT_CHUNK_BYTES;
 /* === Type Aliases === */
 
 /* === Structs === */
-/// A captured sample with the storage position its replay resumes after.
-struct ReplayedSample {
-    position: u64,
-    entry: dokime::storage::telemetry::TelemetryEntry,
-}
-
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct TemplateRunExecutor;
 
@@ -1694,41 +1686,101 @@ async fn close_stopped_attempt(
         .map_err(|error| failure("stop_settlement", error.to_string()))
 }
 
-/// Hands the run every captured sample after `replayed`, advancing it past
-/// each page the run has received.
+/// Hands the run every captured sample after its stream's `replayed`
+/// position, advancing that position past each signal the run has received.
 async fn replay_sample_inputs(
     context: &ExecutionFixtureContext,
     target: &Target,
     execution: &TestExecution,
-    replayed: &mut u64,
+    replayed: &mut BTreeMap<harmos::Identifier, u64>,
 ) -> Result<(), ProviderExecutionFailure> {
     // The run's own evidence is fixed once its publications are flushed. Each
-    // page is its own bounded query against that cut, resumed by storage
-    // position. The position outlives this call: a settling page the run sends again after its call
-    // ran out of time resumes the replay instead of starting it over, so a
-    // capture longer than one call still settles.
-    let cut = context
-        .runtime
-        .storage()
+    // stream is one query against that cut, read through its own pages. The
+    // positions outlive this call: a settling page the run sends again after
+    // its call ran out of time resumes each stream instead of starting over.
+    let storage = context.runtime.storage();
+    let cut = storage
         .flush()
         .await
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+    let mut at = storage.cursor_saved();
+    at.sequence = cut.sequence;
+    let contracts = context.runtime.state_read().telemetry_contracts();
+    for contract in contracts.iter().filter(|contract| !contract.foreign) {
+        let position = replayed.entry(contract.stream.clone()).or_default();
+        replay_stream(context, target, execution, &at, contract, position).await?;
+    }
+    Ok(())
+}
+
+// One Stream's Samples In Storage Order, Read Through A Single Query.
+async fn replay_stream(
+    context: &ExecutionFixtureContext,
+    target: &Target,
+    execution: &TestExecution,
+    at: &harmos::storage::StorageCursor,
+    contract: &dokime::telemetry::TelemetryContract,
+    replayed: &mut u64,
+) -> Result<(), ProviderExecutionFailure> {
+    use harmos::storage::query::transform::{
+        FieldPath, Transform,
+        filter::{Clause, Compare, Condition, Filter, Term},
+    };
+    use harmos::storage::query::{Query, QueryOutput, RowSlice, Source, StreamSelection};
+    let samples_failure = |error: harmos::Error| failure("sidecar_samples", error.to_string());
     let scope = harmos::Identifier::new(execution.test_execution_id.as_str())
         .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-    loop {
-        let page = replay_page(context, execution, &scope, cut.sequence, *replayed)
-            .await
-            .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-        let Some(page) = page.filter(|page| !page.is_empty()) else {
-            return Ok(());
+    let scope_json = serde_json::to_string(&execution.scope)
+        .map_err(|error| failure("sidecar_samples", error.to_string()))?;
+    let codec = dokime::storage::telemetry::codec(contract)
+        .map_err(|error| samples_failure(replay_codec_error(error)))?;
+    let mut reader = context
+        .runtime
+        .storage()
+        .query(Query {
+            at: at.clone(),
+            source: Source::Stream(StreamSelection {
+                schema: codec.schema().clone(),
+                scope: Some(scope),
+                item: None,
+                stream: Some(contract.stream.clone()),
+                source_start: None,
+                source_end: None,
+            }),
+            transforms: vec![Transform::Filter(Filter {
+                clauses: vec![Clause {
+                    terms: vec![Term {
+                        field: FieldPath::from("_storage.position"),
+                        condition: Condition::Compare {
+                            op: Compare::Gt,
+                            value: harmos::storage::query::scalar::ScalarValue::Unsigned(*replayed),
+                        },
+                        negate: false,
+                    }],
+                }],
+            })],
+            slice: RowSlice::default(),
+        })
+        .await
+        .map_err(samples_failure)?;
+    let owner = &execution.scope;
+    let mut samples = Vec::new();
+    let mut bytes = 0;
+    let mut through = *replayed;
+    while let Some(output) = reader.next().await.map_err(samples_failure)? {
+        let QueryOutput::Batch(batch) = output else {
+            continue;
         };
-        let through = page.last().map_or(*replayed, |sample| sample.position);
-        let owner = &execution.scope;
-        let scope_json = serde_json::to_string(owner)
-            .map_err(|error| failure("sidecar_samples", error.to_string()))?;
-        let mut samples = Vec::new();
-        let mut bytes = 0;
-        for ReplayedSample { entry, .. } in page.iter() {
+        let raw = batch.as_record_batch();
+        let positions = raw
+            .column_by_name("_storage")
+            .and_then(|column| column.as_any().downcast_ref::<arrow_array::StructArray>())
+            .and_then(|metadata| metadata.column_by_name("position"))
+            .and_then(|column| column.as_any().downcast_ref::<arrow_array::UInt64Array>())
+            .ok_or_else(|| failure("sidecar_samples", "storage positions are missing"))?;
+        let entries = dokime::storage::telemetry::decode_batch(&codec, &batch)
+            .map_err(|error| samples_failure(replay_codec_error(error)))?;
+        for (index, entry) in entries.into_iter().enumerate() {
             let captured = entry.sample.scope.as_ref().ok_or_else(|| {
                 failure("sidecar_samples", "captured sample has no execution scope")
             })?;
@@ -1749,116 +1801,18 @@ async fn replay_sample_inputs(
             if !samples.is_empty() && bytes + encoded.len() > REPLAY_SIGNAL_BYTES {
                 deliver_replayed(target, execution, &scope_json, std::mem::take(&mut samples))
                     .await?;
+                *replayed = through;
                 bytes = 0;
             }
             bytes += encoded.len();
             samples.push(encoded);
+            through = positions.value(index);
         }
-        deliver_replayed(target, execution, &scope_json, samples).await?;
-        *replayed = through;
     }
-}
-
-// One page of the execution's captured samples after `after`, read through
-// `through`, decoded and checked against its storage envelope. The reader and
-// its view are released before the page is delivered.
-async fn replay_page(
-    context: &ExecutionFixtureContext,
-    execution: &TestExecution,
-    scope: &harmos::Identifier,
-    through: u64,
-    after: u64,
-) -> harmos::Result<Option<Vec<ReplayedSample>>> {
-    use harmos::storage::query::transform::{
-        FieldPath, Transform,
-        filter::{Clause, Compare, Condition, Filter, Term},
-    };
-    use harmos::storage::query::{Query, QueryOutput, RowSlice, Source, StreamSelection};
-    let storage = context.runtime.storage();
-    let mut at = storage.cursor_saved();
-    at.sequence = through;
-    let contracts = context.runtime.state_read().telemetry_contracts();
-    let mut selected = Vec::new();
-    for contract in contracts.iter().filter(|contract| !contract.foreign) {
-        let codec = dokime::storage::telemetry::codec(contract).map_err(replay_codec_error)?;
-        let mut reader = storage
-            .query(Query {
-                at: at.clone(),
-                source: Source::Stream(StreamSelection {
-                    schema: codec.schema().clone(),
-                    scope: Some(scope.clone()),
-                    item: None,
-                    stream: Some(contract.stream.clone()),
-                    source_start: None,
-                    source_end: None,
-                }),
-                transforms: vec![Transform::Filter(Filter {
-                    clauses: vec![Clause {
-                        terms: vec![Term {
-                            field: FieldPath::from("_storage.position"),
-                            condition: Condition::Compare {
-                                op: Compare::Gt,
-                                value: harmos::storage::query::scalar::ScalarValue::Unsigned(after),
-                            },
-                            negate: false,
-                        }],
-                    }],
-                })],
-                slice: RowSlice {
-                    offset: 0,
-                    limit: Some(REPLAY_PAGE_ROWS as u64),
-                },
-            })
-            .await?;
-        while let Some(output) = reader.next().await? {
-            let QueryOutput::Batch(batch) = output else {
-                continue;
-            };
-            let raw = batch.as_record_batch();
-            let positions = raw
-                .column_by_name("_storage")
-                .and_then(|column| column.as_any().downcast_ref::<arrow_array::StructArray>())
-                .and_then(|metadata| metadata.column_by_name("position"))
-                .and_then(|column| column.as_any().downcast_ref::<arrow_array::UInt64Array>())
-                .ok_or(harmos::Error::InvalidInput {
-                    field: "sample replay",
-                    reason: "storage positions are missing",
-                })?;
-            let entries = dokime::storage::telemetry::decode_batch(&codec, &batch)
-                .map_err(replay_codec_error)?;
-            for (index, entry) in entries.into_iter().enumerate() {
-                if entry
-                    .sample
-                    .scope
-                    .as_ref()
-                    .and_then(|scope| scope.test_execution_id.as_ref())
-                    != Some(&execution.test_execution_id)
-                {
-                    return Err(harmos::Error::InvalidInput {
-                        field: "sample replay",
-                        reason: "native sample scope differs",
-                    });
-                }
-                let position = positions.value(index);
-                if selected.len() == REPLAY_PAGE_ROWS
-                    && selected
-                        .last()
-                        .is_some_and(|row: &ReplayedSample| row.position < position)
-                {
-                    continue;
-                }
-                let index = selected
-                    .partition_point(|previous: &ReplayedSample| previous.position < position);
-                selected.insert(index, ReplayedSample { position, entry });
-                selected.truncate(REPLAY_PAGE_ROWS);
-            }
-        }
-        reader.completion()?;
-    }
-    if selected.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(selected))
+    reader.completion().map_err(samples_failure)?;
+    deliver_replayed(target, execution, &scope_json, samples).await?;
+    *replayed = through;
+    Ok(())
 }
 
 fn replay_codec_error(source: dokime::storage::Error) -> harmos::Error {

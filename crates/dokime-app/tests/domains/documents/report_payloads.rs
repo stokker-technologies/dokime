@@ -1324,36 +1324,26 @@ pub(crate) async fn normalised_report_rows() {
         group_label: Some("Outputs".into()),
         scope: Some(scope.clone()),
     });
-    // The Newer Edit Comes First, So Only Its Timestamp Can Select It.
-    let note_id = dokime::core::NoteId::new();
-    let note = |message: &str, at: &str| OperatorNote {
-        note_id: note_id.clone(),
+    // A Frozen Context Holds Each Subject Once, At Its Latest Observation.
+    let notes = vec![OperatorNote {
+        note_id: dokime::core::NoteId::new(),
         scope: scope.clone(),
         author: Some("operator".into()),
-        message: message.into(),
-        created_at: Timestamp::new(at),
-    };
-    let notes = vec![
-        note("Edited", "2026-01-01T00:00:02Z"),
-        note("Original", "2026-01-01T00:00:01Z"),
-    ];
-    let health_id = dokime::core::HealthItemId::new();
-    let item = |message: &str, at: &str| HealthItem {
-        health_item_id: health_id.clone(),
+        message: "Edited".into(),
+        created_at: Timestamp::new("2026-01-01T00:00:02Z"),
+    }];
+    let health = vec![HealthItem {
+        health_item_id: dokime::core::HealthItemId::new(),
         scope: scope.clone(),
         severity: HealthSeverity::Warning,
-        message: message.into(),
+        message: "Recovered".into(),
         detail: None,
-        observed_at: Timestamp::new(at),
-    };
-    let health = vec![
-        item("Recovered", "2026-01-01T00:00:04Z"),
-        item("Degraded", "2026-01-01T00:00:03Z"),
-    ];
+        observed_at: Timestamp::new("2026-01-01T00:00:04Z"),
+    }];
 
     let payload = parse(&render_annotated(&input, notes, health).await);
 
-    // One Canonical Row Per Subject, At Its Latest Observation
+    // One Row Per Subject
     let notes = payload["snapshot"]["notes"].as_array().unwrap();
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0]["text"], "Edited");

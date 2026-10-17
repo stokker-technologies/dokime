@@ -115,12 +115,21 @@ impl ExecutionFixtureContext {
         self
     }
 
+    /// True once the runtime shuts down, the work is cancelled, or an operator
+    /// stopped the cycle run this context serves.
     pub fn is_cancelled(&self) -> bool {
         self.runtime.is_shutting_down()
             || self
                 .cancellation
                 .as_ref()
                 .is_some_and(|cancelled| *cancelled.borrow())
+            || self.request_id.as_ref().is_some_and(|request_id| {
+                self.runtime
+                    .state_read()
+                    .run_requests
+                    .get(request_id)
+                    .is_some_and(|request| request.summary.stop_requested)
+            })
     }
 
     pub(crate) async fn cancelled(&self) {
@@ -193,7 +202,9 @@ impl ExecutionFixtureContext {
             .map_err(|error| crate::unavailable_rejection(error.to_string()))
     }
 
-    pub(crate) async fn begin_step_attempt(
+    /// Admit one attempt of a declared step; its outcome follows through
+    /// [`Self::record_step_attempt`].
+    pub async fn begin_step_attempt(
         &self,
         scope: RecordScope,
         start: crate::execution::StepAttemptStart,
@@ -206,7 +217,8 @@ impl ExecutionFixtureContext {
             .map_err(|error| crate::unavailable_rejection(error.to_string()))
     }
 
-    pub(crate) async fn record_step_attempt(
+    /// Record how an admitted step attempt ended; this is the step's outcome.
+    pub async fn record_step_attempt(
         &self,
         scope: RecordScope,
         attempt: crate::execution::TestStepAttempt,

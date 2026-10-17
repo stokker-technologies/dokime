@@ -58,6 +58,8 @@ pub(crate) struct Member {
     pub parameters: BTreeMap<String, Value>,
     pub scope: RecordScope,
     pub steps: Vec<StepRecord>,
+    /// The member's own report time, standing in for step times it never set.
+    pub generated_at: Timestamp,
 }
 #[derive(Clone)]
 pub(crate) struct Sample {
@@ -122,6 +124,10 @@ impl MemorySize for Member {
             ),
             (self.scope.memory_size(), std::mem::size_of_val(&self.scope)),
             (self.steps.memory_size(), std::mem::size_of_val(&self.steps)),
+            (
+                self.generated_at.memory_size(),
+                std::mem::size_of_val(&self.generated_at),
+            ),
         ];
         fields
             .into_iter()
@@ -136,7 +142,7 @@ impl MemorySize for Member {
 }
 impl Annotation {}
 impl Member {
-    fn new(execution: &TestExecution) -> Self {
+    fn new(execution: &TestExecution, generated_at: &Timestamp) -> Self {
         let input = execution.snapshot.parameters();
         let output = &execution.output_parameters;
         let parameters = input
@@ -156,6 +162,7 @@ impl Member {
             parameters,
             scope: execution.scope.clone(),
             steps: execution.steps.clone(),
+            generated_at: generated_at.clone(),
         }
     }
 }
@@ -373,7 +380,8 @@ impl Index {
         self.executions
             .try_reserve_exact(1)
             .map_err(|source| Error::Operation(source.to_string()))?;
-        self.executions.push(Member::new(execution));
+        self.executions
+            .push(Member::new(execution, &input.generated_at));
         self.counts
             .try_reserve_exact(1)
             .map_err(|source| Error::Operation(source.to_string()))?;

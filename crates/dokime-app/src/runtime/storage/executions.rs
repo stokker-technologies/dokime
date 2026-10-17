@@ -241,6 +241,20 @@ impl ExecutionStorage {
         })
     }
 
+    /// The seal `id` saved durably, which an open cycle's state does not yet hold.
+    pub(crate) async fn durable_seal(
+        &self,
+        id: &TestExecutionId,
+    ) -> Result<Option<dokime::execution::saved::ExecutionSeal>> {
+        let latest = super::execution::ExecutionView::open(
+            &self.storage,
+            id,
+            harmos::storage::ObjectVersion::Latest,
+        )
+        .await?;
+        Ok(latest.and_then(|latest| latest.execution().saved.clone()))
+    }
+
     pub(crate) async fn acquisition(
         &self,
         id: &TestExecutionId,

@@ -36,7 +36,8 @@ use harmos::storage::StorageBackends;
 /* === Type Aliases === */
 
 /* === Structs === */
-struct ReportOwner;
+/// A bare application that only serves storage operations over one manager.
+pub struct ReportOwner;
 
 /* === Enums === */
 
@@ -61,14 +62,26 @@ impl harmos::operations::Lane for ReportOwner {
 }
 
 /* === Public Functions === */
-pub fn register_storage(operations: &harmos::operations::OperationManager, manager: &Manager) {
+/// A bare runtime over `manager` serving the Harmos storage operations on its
+/// own declared lane.
+pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> {
+    use harmos::operations::Lane;
+    let runtime = harmos::Runtime::<ReportOwner>::builder((), ())
+        .register(harmos::operations::LaneSet::declared([(
+            ReportOwner.name(),
+            ReportOwner.capacity(),
+        )]))
+        .runtime_with_storage(manager)
+        .await
+        .unwrap();
     harmos::storage::operations::Operations::register(
-        operations,
+        &runtime.operations,
         "fixture.storage",
         ReportOwner,
         Arc::new(manager.clone()),
     )
     .unwrap();
+    runtime
 }
 
 pub async fn bytes(manager: &Manager, file: &FileReference) -> Vec<u8> {
@@ -136,11 +149,7 @@ pub async fn render_annotated(
         settings,
     )
     .unwrap();
-    let owner = harmos::Runtime::<ReportOwner>::builder((), ())
-        .runtime_with_storage(&manager)
-        .await
-        .unwrap();
-    register_storage(&owner.operations, &manager);
+    let owner = storage_runtime(&manager).await;
 
     // Settle The Execution Like A Final Capture
     let mut input = input.clone();

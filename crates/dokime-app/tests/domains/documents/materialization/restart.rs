@@ -60,8 +60,18 @@ pub(crate) async fn persisted_cycle_restart() {
         before.saved.is_none(),
         "the parent still has a pending execution"
     );
-    assert_eq!(before.test_executions[1].status, ExecutionStatus::Pending);
-    let seal = before.test_executions[0].saved.as_ref().unwrap().clone();
+    // A never-started member is a draft: skipped, without a finish.
+    assert_eq!(before.test_executions[1].status, ExecutionStatus::Skipped);
+    assert!(before.test_executions[1].finished_at.is_none());
+    // The member's seal is durable at once; the open cycle's state installs
+    // member seals only with its own seal.
+    assert!(before.test_executions[0].saved.is_none());
+    let seal = crate::support::native::open(&runtime, &checkpoint)
+        .await
+        .execution()
+        .saved
+        .clone()
+        .unwrap();
     let sealed_html = crate::support::reports::bytes(runtime.storage(), &seal.report).await;
     let input_bytes = crate::support::reports::bytes(runtime.storage(), &seal.source.context).await;
     let boundary = runtime.storage().cursor_saved();
@@ -75,21 +85,17 @@ pub(crate) async fn persisted_cycle_restart() {
         .unwrap();
     let html = crate::support::reports::bytes(runtime.storage(), &report.report).await;
     assert!(!html.is_empty());
+    let reread = crate::support::native::checkpoint(&runtime, &first).await;
     assert_eq!(
-        cycle_snapshot(&runtime, &cycle_id).await.test_executions[0]
+        crate::support::native::open(&runtime, &reread)
+            .await
+            .execution()
             .saved
             .as_ref(),
-        Some(&seal)
+        Some(&seal),
+        "cycle composition must not reseal its member"
     );
-    assert_eq!(
-        seal.source.evidence_through,
-        before.test_executions[0]
-            .saved
-            .as_ref()
-            .unwrap()
-            .source
-            .evidence_through
-    );
+    drop(reread);
     drop((checkpoint, runtime));
     owner.shutdown().await.unwrap();
 
@@ -101,25 +107,36 @@ pub(crate) async fn persisted_cycle_restart() {
     let released = backend
         .local_state()
         .call(|connection| {
-            let mut statement = connection.prepare("SELECT item FROM storage_object_releases")?;
+            let mut statement =
+                connection.prepare("SELECT item, through FROM storage_object_releases")?;
             let items = statement
-                .query_map([], |row| row.get::<_, String>(0))?
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })?
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(items)
         })
         .await
         .unwrap();
     assert!(
-        !released.iter().any(|item| item == cycle_id.as_str()),
+        !released.iter().any(|(item, _)| item == cycle_id.as_str()),
         "active parent must retain its history: {released:?}"
     );
-    for member in &before.test_executions {
-        assert!(
-            !released
-                .iter()
-                .any(|item| item == member.test_execution_id.as_str()),
-            "active parent must retain member history: {released:?}"
+    // A sealed member releases only revisions before its sealed one; the
+    // never-started member releases nothing.
+    let sealed_through = format!("{:016x}", seal.source.execution.position.sequence);
+    for (item, through) in &released {
+        assert_ne!(
+            item,
+            before.test_executions[1].test_execution_id.as_str(),
+            "active parent must retain its draft member's history: {released:?}"
         );
+        if item == first.as_str() {
+            assert!(
+                through < &sealed_through,
+                "a sealed member keeps its sealed revision: {released:?}"
+            );
+        }
     }
     while !backend
         .prune_objects(&at, NonZeroUsize::new(128).unwrap())
@@ -132,7 +149,16 @@ pub(crate) async fn persisted_cycle_restart() {
     let (mut owner, runtime) = booted_with_fixture(root.path(), Arc::new(PublishingExecutor)).await;
     let recovered = cycle_snapshot(&runtime, &cycle_id).await;
     assert!(recovered.saved.is_none());
-    assert_eq!(recovered.test_executions[0].saved.as_ref(), Some(&seal));
+    let recovered_checkpoint = crate::support::native::checkpoint(&runtime, &first).await;
+    assert_eq!(
+        crate::support::native::open(&runtime, &recovered_checkpoint)
+            .await
+            .execution()
+            .saved
+            .as_ref(),
+        Some(&seal)
+    );
+    drop(recovered_checkpoint);
     assert_eq!(
         crate::support::reports::bytes(runtime.storage(), &seal.source.context).await,
         input_bytes

@@ -34,20 +34,12 @@ use dokime_app::report::saved::CapturedExecutionReportInput;
 /* === Type Aliases === */
 
 /* === Structs === */
-struct ReportOwner;
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::Application for ReportOwner {
-    type State = ();
-    type Transaction = harmos::state::Never;
-    type Record = harmos::state::Never;
-    type Streams = ();
-    type Resources = ();
-}
 
 /* === Public Functions === */
 pub(crate) async fn dependency_publication_retry() {
@@ -144,11 +136,7 @@ pub(crate) async fn dependency_publication_retry() {
             settings,
         )
         .unwrap();
-        let owner = harmos::Runtime::<ReportOwner>::builder((), ())
-            .runtime_with_storage(&manager)
-            .await
-            .unwrap();
-        crate::support::reports::register_storage(&owner.operations, &manager);
+        let owner = crate::support::reports::storage_runtime(&manager).await;
         let mut input = template.clone();
         let execution = input.input.cycle.test_executions[0].clone();
         assert!(execution.saved.is_none());

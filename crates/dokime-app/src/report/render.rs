@@ -235,6 +235,7 @@ struct StepOwner<'a> {
     case: &'a str,
     template: &'a str,
     scope: &'a RecordScope,
+    generated_at: &'a Timestamp,
 }
 struct ReportValue<'a>(&'a Value);
 
@@ -571,8 +572,8 @@ fn step_with_owner<'a>(
         order,
         status,
         result,
-        started_at: step.started_at.as_ref().unwrap_or(input.generated_at),
-        finished_at: step.finished_at.as_ref().unwrap_or(input.generated_at),
+        started_at: step.started_at.as_ref().unwrap_or(owner.generated_at),
+        finished_at: step.finished_at.as_ref().unwrap_or(owner.generated_at),
         duration_s: if criterion.is_some() {
             0.0
         } else {

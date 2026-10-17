@@ -13,6 +13,7 @@
 
 /* === Imports === */
 // Standard Library Imports
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 // Third Party Imports
@@ -68,9 +69,9 @@ pub(crate) struct Session {
 struct Pages {
     cursor: u64,
     settled: bool,
-    /// Storage position through which the run has received its captured
-    /// samples back, kept across settling pages the run sends again.
-    replayed: u64,
+    /// Storage position, per stream, through which the run has received its
+    /// captured samples back, kept across settling pages the run sends again.
+    replayed: BTreeMap<harmos::Identifier, u64>,
     stream_log: StreamLog,
     artifacts: ArtifactBridge,
     phase: PhaseTracker,
@@ -96,7 +97,7 @@ impl Session {
             pages: tokio::sync::Mutex::new(Pages {
                 cursor: 0,
                 settled: false,
-                replayed: 0,
+                replayed: BTreeMap::new(),
                 stream_log: StreamLog::default(),
                 artifacts: ArtifactBridge::new(spill),
                 phase: opened.phase,
@@ -544,7 +545,7 @@ impl Session {
     /// record subscriptions and replays the captured samples after it.
     async fn settle_records(
         &self,
-        replayed: Option<&mut u64>,
+        replayed: Option<&mut BTreeMap<harmos::Identifier, u64>>,
     ) -> Result<(), ProviderExecutionFailure> {
         let close = replayed.is_some();
         let context = &self.context;

@@ -27,20 +27,12 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-struct ReportReader;
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::Application for ReportReader {
-    type State = ();
-    type Transaction = harmos::state::Never;
-    type Record = harmos::state::Never;
-    type Streams = ();
-    type Resources = ();
-}
 
 /* === Public Functions === */
 
@@ -90,11 +82,7 @@ pub(crate) async fn report_save_receipt() {
         settings,
     )
     .unwrap();
-    let runtime = harmos::Runtime::<ReportReader>::builder((), ())
-        .runtime_with_storage(&manager)
-        .await
-        .unwrap();
-    crate::support::reports::register_storage(&runtime.operations, &manager);
+    let runtime = crate::support::reports::storage_runtime(&manager).await;
 
     // Use An Actual Admitted Execution Revision
     let finished_at = Timestamp::new("2026-10-06T06:00:00Z");
@@ -599,8 +587,20 @@ pub(crate) async fn cycle_report_reboot() {
     executor.release();
     let cycle = wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
     let original = cycle.saved.as_ref().unwrap().clone();
-    assert!(original.report.metadata.expected_length.is_none());
-    assert!(original.report.metadata.expected_sha256.is_none());
+    // The Whole Report Is Rendered Before Publication, So Storage Verifies It.
+    assert_eq!(
+        original.report.metadata.expected_length,
+        Some(original.report.length)
+    );
+    assert_eq!(
+        original
+            .report
+            .metadata
+            .expected_sha256
+            .as_ref()
+            .map(|digest| digest.as_slice()),
+        Some(original.report.sha256.as_slice())
+    );
     assert_eq!(original.executions.len(), 1);
     assert!(cycle.test_executions[0].saved.is_some());
     let original_bytes = crate::support::reports::bytes(runtime.storage(), &original.report).await;

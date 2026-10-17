@@ -10,7 +10,6 @@
 /* === Modules === */
 /* === Re-Exports === */
 /* === Imports === */
-use super::execution::ExecutionView;
 use crate::{
     Error, Result, RuntimeHandle,
     execution::{CycleView, TestExecution},
@@ -172,9 +171,7 @@ impl RuntimeHandle {
     }
 
     async fn saved_seal(&self, id: &TestExecutionId) -> Result<bool> {
-        let latest =
-            ExecutionView::open(self.storage(), id, harmos::storage::ObjectVersion::Latest).await?;
-        Ok(latest.is_some_and(|latest| latest.execution().saved.is_some()))
+        Ok(self.execution_storage.durable_seal(id).await?.is_some())
     }
 
     async fn finish_saved_execution_attributed<'a>(

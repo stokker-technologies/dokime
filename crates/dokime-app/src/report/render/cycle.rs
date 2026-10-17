@@ -333,6 +333,7 @@ impl Serialize for Steps<'_, '_> {
             case: member.case.as_str(),
             template: member.template.as_str(),
             scope: &member.scope,
+            generated_at: &member.generated_at,
         };
         let mut rows = serializer.serialize_seq(None)?;
         for (order, step) in member.steps.iter().enumerate() {

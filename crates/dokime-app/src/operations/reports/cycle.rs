@@ -156,7 +156,16 @@ async fn current(
         .iter()
         .filter(|execution| execution.status != ExecutionStatus::Pending)
     {
-        let member = if let Some(seal) = &execution.saved {
+        let seal = match &execution.saved {
+            Some(seal) => Some(seal.clone()),
+            None => {
+                resources
+                    .execution_storage
+                    .durable_seal(&execution.test_execution_id)
+                    .await?
+            }
+        };
+        let member = if let Some(seal) = &seal {
             if !at.covers(&seal.source.evidence_through)? {
                 return Err(invalid(
                     "sealed member evidence exceeds cycle report boundary",
