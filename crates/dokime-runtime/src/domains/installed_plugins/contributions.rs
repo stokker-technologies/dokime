@@ -71,7 +71,7 @@ pub(crate) fn decode_registrations(
     let appearance =
         decode_once::<AppearanceRegistration>(registrations, source, APPEARANCE_NAMESPACE)?
             .unwrap_or_default();
-    Ok(InstalledPlugin {
+    let installation = InstalledPlugin {
         source: source.to_owned(),
         version: version.to_owned(),
         description: description.to_owned(),
@@ -117,7 +117,9 @@ pub(crate) fn decode_registrations(
             OPTIONS_NAMESPACE,
         )?
         .unwrap_or_default(),
-    })
+    };
+    crate::prompts::admission::validate_installation(&installation).map_err(Error::Operation)?;
+    Ok(installation)
 }
 
 /* === Private Functions === */

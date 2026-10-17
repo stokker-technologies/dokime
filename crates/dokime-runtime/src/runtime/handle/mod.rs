@@ -547,6 +547,7 @@ impl RuntimeHandle {
             if self.state_read().host_plugin_current(&plugin) {
                 continue;
             }
+            crate::prompts::admission::validate_installation(&plugin).map_err(Error::Operation)?;
             self.commit(crate::transactions::InstallHostPlugin {
                 installation: plugin,
             })

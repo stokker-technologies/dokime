@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub(crate) mod admission;
 mod authoring;
 mod declared;
 mod validation;

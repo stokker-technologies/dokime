@@ -19,9 +19,9 @@ use std::time::Instant;
 
 // Local Imports
 use dokime_domain::model::records::evidence::RecordEntry;
+use crate::prompts::admission::{validate_request, validate_response};
 use crate::transactions::prompts::{
-    RequestPrompt as Request, SubmitPromptResponse as SubmitResponse, validate_request,
-    validate_response,
+    RequestPrompt as Request, SubmitPromptResponse as SubmitResponse,
 };
 use crate::{
     CommandContext, CommandId, CommandReceipt, runtime::Error, RuntimeHandle, commands::accepted_receipt,
@@ -252,7 +252,7 @@ impl RuntimeHandle {
             .as_deref()
             .filter(|key| !key.is_empty())
             .map(CommandId::from_seed)
-            .unwrap_or_default();
+            .unwrap_or_else(crate::model::identity::new_id);
         let accepted_at = crate::model::time::now_utc();
         let transaction = SubmitResponse {
             prompt_id,
