@@ -25,6 +25,7 @@ pub use audio::AudioRecording;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::{ArtifactRecord, ArtifactUploadInput};
 use dokime_domain::model::execution::RecordScope;
@@ -125,11 +126,11 @@ impl RuntimeHandle {
 /* === Private Functions === */
 fn require_execution(scope: &RecordScope) -> Result<()> {
     if scope.test_cycle_id.is_none() || scope.test_execution_id.is_none() {
-        return Err(Error::Validation {
+        return Err(Error::Admission(AdmissionFailure::Validation {
             code: "media_scope".into(),
             message: "media capture requires a cycle and execution scope".into(),
             issues: Vec::new(),
-        });
+        }));
     }
     Ok(())
 }
@@ -150,18 +151,18 @@ fn capture_name(folder: &str, extension: &str) -> String {
 
 #[cfg_attr(not(feature = "media-native"), allow(dead_code))]
 fn unavailable(message: impl std::fmt::Display) -> Error {
-    Error::Unavailable {
+    Error::Admission(AdmissionFailure::Unavailable {
         code: UNAVAILABLE.into(),
         message: message.to_string(),
-    }
+    })
 }
 
 #[cfg_attr(feature = "media-native", allow(dead_code))]
 fn not_compiled() -> Error {
-    Error::Unavailable {
+    Error::Admission(AdmissionFailure::Unavailable {
         code: NOT_COMPILED.into(),
         message: "capture not available in this build".into(),
-    }
+    })
 }
 
 /* === Tests === */

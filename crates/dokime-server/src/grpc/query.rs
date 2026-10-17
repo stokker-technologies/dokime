@@ -20,6 +20,7 @@ use std::sync::Arc;
 use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::error::detailed;
 use super::value::{self, Budget, canonical};
 use dokime_runtime::RuntimeHandle;
@@ -172,15 +173,15 @@ fn decode(request: &mut wire::Aggregate) -> Result<AggregateQuery, Status> {
 
 fn status(error: dokime_runtime::runtime::Error) -> Status {
     let status = match &error {
-        dokime_runtime::runtime::Error::Validation { message, .. } => Status::invalid_argument(message.clone()),
-        dokime_runtime::runtime::Error::NotFound { .. } => Status::not_found("aggregate source was not found"),
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("aggregate source was not found"),
         dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("aggregate response exceeds its original budget")
         }
-        dokime_runtime::runtime::Error::Overload { .. } => {
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Overload { .. }) => {
             Status::resource_exhausted("aggregate reads are busy")
         }
-        dokime_runtime::runtime::Error::Unavailable { .. }
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Unavailable { .. })
         | dokime_runtime::runtime::Error::ShuttingDown
         | dokime_runtime::runtime::Error::Interrupted => {
             Status::unavailable("aggregate query could not be served")

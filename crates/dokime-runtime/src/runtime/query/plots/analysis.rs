@@ -19,6 +19,7 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::plot::{
     PlotComputation, PlotComputedSeries, PlotEvidence, PlotPayload, PlotPayloadCursor,
     PlotPayloadRequest,
@@ -462,17 +463,17 @@ fn evidence_owner(
 }
 
 fn invalid(message: impl Into<String>) -> crate::runtime::Error {
-    crate::runtime::Error::Validation {
+    crate::runtime::Error::Admission(AdmissionFailure::Validation {
         code: "analysis_input".into(),
         message: message.into(),
         issues: vec![],
-    }
+    })
 }
 fn unavailable(message: impl Into<String>) -> crate::runtime::Error {
-    crate::runtime::Error::Unavailable {
+    crate::runtime::Error::Admission(AdmissionFailure::Unavailable {
         code: "analysis_unavailable".into(),
         message: message.into(),
-    }
+    })
 }
 
 /* === Tests === */

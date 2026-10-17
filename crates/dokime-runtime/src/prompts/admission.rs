@@ -20,6 +20,7 @@
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::plugins::InstalledPlugin;
 use dokime_domain::model::definition::SuiteSet;
 use dokime_domain::model::identity::PromptId;
@@ -52,7 +53,7 @@ pub(crate) fn validate_request(state: &RuntimeState, request: &RequestPrompt) ->
     let checked = prompts::validate_request(state, request);
     let values_reached = checked.as_ref().err().is_none_or(|error| {
         error.code() == Some("prompt_already_exists") || matches!(error,
-            Error::Validation { message, .. } if message == "invalid question initial values" || message == "prompt record validation failed")
+            Error::Admission(AdmissionFailure::Validation { message, .. }) if message == "invalid question initial values" || message == "prompt record validation failed")
     });
     if values_reached && let Some(definition) = definition {
         let mut fields = definition.fields.clone();
@@ -66,7 +67,7 @@ pub(crate) fn validate_request(state: &RuntimeState, request: &RequestPrompt) ->
 pub(crate) fn validate_response(state: &RuntimeState, response: &SubmitPromptResponse) -> Result<PromptId, Error> {
     let checked = prompts::validate_response(state, response);
     let values_reached = checked.as_ref().err().is_none_or(|error| matches!(error,
-        Error::Validation { message, .. } if message == "prompt response validation failed" || message == "prompt record validation failed"));
+        Error::Admission(AdmissionFailure::Validation { message, .. }) if message == "prompt response validation failed" || message == "prompt record validation failed"));
     if response.accepted && values_reached && let Some(prompt) = state.prompt_requests.get(&response.prompt_id) {
         let issues = super::validate_answers(&prompt.definition, &response.values);
         if !issues.is_empty() { return Err(Error::validation("validation_failed", "prompt response validation failed", issues)); }

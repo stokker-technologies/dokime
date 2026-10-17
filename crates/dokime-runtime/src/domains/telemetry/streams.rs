@@ -20,6 +20,7 @@ use std::{
 // Third Party Imports
 use futures_util::{Stream, StreamExt};
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::evidence_runtime::{
     PublishReceipt, TelemetrySelection, retain_running_samples, validation_rejection,
 };
@@ -524,11 +525,11 @@ impl RuntimeHandle {
         .take(scan_limit.map_or(usize::MAX, |limit| limit.saturating_add(1)))
         .collect::<Vec<_>>();
         if scan_limit.is_some_and(|limit| rows.len() > limit) {
-            return Err(crate::runtime::Error::Validation {
+            return Err(crate::runtime::Error::Admission(AdmissionFailure::Validation {
                 code: "analysis_read_budget".into(),
                 message: "analysis raw evidence scan exceeds its budget; narrow the scope".into(),
                 issues: vec![],
-            });
+            }));
         }
 
         // A page resumes after its stream cursors; rows it has passed are

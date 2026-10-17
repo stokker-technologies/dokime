@@ -26,6 +26,7 @@ use harmos::{
 use tonic::Status;
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::content::{artifact_scope, content_failure, metadata, metadata_memory};
 use dokime_runtime::runtime::Error;
 use dokime_runtime::RuntimeHandle;
@@ -333,10 +334,10 @@ fn recording_limit(seconds: Option<u32>) -> Result<Duration, Status> {
 
 fn failure(error: Error) -> Status {
     match &error {
-        Error::Unavailable { code, message } if code == UNAVAILABLE || code == NOT_COMPILED => {
+        Error::Admission(AdmissionFailure::Unavailable { code, message }) if code == UNAVAILABLE || code == NOT_COMPILED => {
             Status::failed_precondition(message.clone())
         }
-        Error::Conflict { message, .. } => Status::failed_precondition(message.clone()),
+        Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message.clone()),
         _ => content_failure(error),
     }
 }

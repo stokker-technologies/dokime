@@ -19,6 +19,7 @@ use harmos::Protobuf;
 use harmos::operations::{Context, Operation, Response, StreamOutput};
 use tonic::Status;
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::chunked;
 use super::value::canonical;
 use super::{error::detailed, value};
@@ -230,7 +231,7 @@ async fn deliver(
 }
 
 fn report_failure(error: dokime_runtime::runtime::Error) -> Status {
-    if let dokime_runtime::runtime::Error::NotFound { message, .. } = &error {
+    if let dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { message, .. }) = &error {
         return Status::not_found(message.clone());
     }
     let status = if matches!(

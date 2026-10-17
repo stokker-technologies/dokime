@@ -29,6 +29,7 @@ use harmos::operations::{Context, Operation};
 use prost::Message;
 use tonic::{Code, Status};
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::value;
 use super::value::canonical;
 use dokime_domain::model::identity::TestCycleId;
@@ -480,19 +481,19 @@ pub(super) fn register(
 
 pub(super) fn status(error: Error) -> Status {
     let (grpc_code, code, message, issues) = match error {
-        Error::Validation {
+        Error::Admission(AdmissionFailure::Validation {
             code,
             message,
             issues,
-        } => (Code::InvalidArgument, code, message, issues),
-        Error::Conflict { code, message } => (Code::FailedPrecondition, code, message, vec![]),
-        Error::Overload { code, message } => (Code::ResourceExhausted, code, message, vec![]),
-        Error::Unavailable { code, message } => (Code::Unavailable, code, message, vec![]),
-        Error::Forbidden { code, message } => (Code::PermissionDenied, code, message, vec![]),
-        Error::NotFound { code, message } => (Code::NotFound, code, message, vec![]),
-        Error::Timeout { code, message } => (Code::DeadlineExceeded, code, message, vec![]),
-        Error::Cancelled { code, message } => (Code::Cancelled, code, message, vec![]),
-        Error::Internal { code, message } => (Code::Internal, code, message, vec![]),
+        }) => (Code::InvalidArgument, code, message, issues),
+        Error::Admission(AdmissionFailure::Conflict { code, message }) => (Code::FailedPrecondition, code, message, vec![]),
+        Error::Admission(AdmissionFailure::Overload { code, message }) => (Code::ResourceExhausted, code, message, vec![]),
+        Error::Admission(AdmissionFailure::Unavailable { code, message }) => (Code::Unavailable, code, message, vec![]),
+        Error::Admission(AdmissionFailure::Forbidden { code, message }) => (Code::PermissionDenied, code, message, vec![]),
+        Error::Admission(AdmissionFailure::NotFound { code, message }) => (Code::NotFound, code, message, vec![]),
+        Error::Admission(AdmissionFailure::Timeout { code, message }) => (Code::DeadlineExceeded, code, message, vec![]),
+        Error::Admission(AdmissionFailure::Cancelled { code, message }) => (Code::Cancelled, code, message, vec![]),
+        Error::Admission(AdmissionFailure::Internal { code, message }) => (Code::Internal, code, message, vec![]),
         error => (
             Code::Internal,
             "runtime_internal".to_owned(),

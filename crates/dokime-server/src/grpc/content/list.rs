@@ -22,6 +22,7 @@ use sha2::{Digest, Sha256};
 use tonic::Status;
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::metadata;
 use crate::grpc::{error::detailed, value};
 use dokime_runtime::{RuntimeHandle, artifacts::ArtifactRecord};
@@ -124,10 +125,10 @@ fn inventory_failure(error: dokime_runtime::runtime::Error) -> Status {
         dokime_runtime::runtime::Error::Harmos(harmos::Error::ResourceExhausted { .. }) => {
             Status::resource_exhausted("artifact inventory exceeds its read budget")
         }
-        dokime_runtime::runtime::Error::Overload { .. } => {
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Overload { .. }) => {
             Status::resource_exhausted("artifact inventory is busy")
         }
-        dokime_runtime::runtime::Error::Unavailable { .. }
+        dokime_runtime::runtime::Error::Admission(AdmissionFailure::Unavailable { .. })
         | dokime_runtime::runtime::Error::ShuttingDown
         | dokime_runtime::runtime::Error::Interrupted => {
             Status::unavailable("artifact inventory is unavailable")

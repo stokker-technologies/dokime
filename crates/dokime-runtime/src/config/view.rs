@@ -17,6 +17,7 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::{Appearance, ReportDefaults};
 use crate::{runtime::Error, runtime::Result};
 
@@ -155,11 +156,11 @@ fn preflight(root: &std::path::Path) -> std::io::Result<()> {
 }
 
 fn invalid(message: &str) -> Error {
-    Error::Validation {
+    Error::Admission(AdmissionFailure::Validation {
         code: "application_settings_invalid".into(),
         message: message.into(),
         issues: Vec::new(),
-    }
+    })
 }
 
 /* === Tests === */

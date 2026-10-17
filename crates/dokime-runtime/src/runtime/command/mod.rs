@@ -21,6 +21,7 @@ pub use dokime_domain::model::identity::JobRunId;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::runtime::Error;
 use dokime_domain::model::identity::CorrelationId;
 use dokime_domain::model::identity::PromptId;
@@ -123,23 +124,23 @@ pub fn internal_rejection(message: impl Into<String>) -> Error {
 /* === Private Functions === */
 fn command_rejection(error: Error) -> CommandRejection {
     match error {
-        Error::Validation {
+        Error::Admission(AdmissionFailure::Validation {
             code,
             message,
             issues,
-        } => CommandRejection {
+        }) => CommandRejection {
             code,
             message,
             validation_issues: issues,
         },
-        Error::Conflict { code, message }
-        | Error::Overload { code, message }
-        | Error::Unavailable { code, message }
-        | Error::Forbidden { code, message }
-        | Error::NotFound { code, message }
-        | Error::Timeout { code, message }
-        | Error::Cancelled { code, message }
-        | Error::Internal { code, message } => CommandRejection {
+        Error::Admission(AdmissionFailure::Conflict { code, message })
+        | Error::Admission(AdmissionFailure::Overload { code, message })
+        | Error::Admission(AdmissionFailure::Unavailable { code, message })
+        | Error::Admission(AdmissionFailure::Forbidden { code, message })
+        | Error::Admission(AdmissionFailure::NotFound { code, message })
+        | Error::Admission(AdmissionFailure::Timeout { code, message })
+        | Error::Admission(AdmissionFailure::Cancelled { code, message })
+        | Error::Admission(AdmissionFailure::Internal { code, message }) => CommandRejection {
             code,
             message,
             validation_issues: Vec::new(),

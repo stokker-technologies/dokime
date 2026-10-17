@@ -27,6 +27,7 @@ use harmos::{
 use tonic::Status;
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::content::{content_failure, metadata};
 use dokime_runtime::{
     runtime::Error, RuntimeHandle,
@@ -234,20 +235,20 @@ fn frame(event: WatchEvent) -> Result<dokime_domain::model::files::wire::FileWat
 fn failure(error: Error) -> Status {
     let code = error.code().unwrap_or_default();
     match &error {
-        Error::Validation { message, .. } if code == INVALID => {
+        Error::Admission(AdmissionFailure::Validation { message, .. }) if code == INVALID => {
             Status::invalid_argument(message.clone())
         }
-        Error::Overload { message, .. } if code == CAPPED => {
+        Error::Admission(AdmissionFailure::Overload { message, .. }) if code == CAPPED => {
             Status::resource_exhausted(message.clone())
         }
-        Error::Conflict { message, .. } if code == UNTRUSTED || code == UNSUPPORTED => {
+        Error::Admission(AdmissionFailure::Conflict { message, .. }) if code == UNTRUSTED || code == UNSUPPORTED => {
             Status::failed_precondition(message.clone())
         }
-        Error::Unavailable { message, .. } if code == UNREACHABLE => {
+        Error::Admission(AdmissionFailure::Unavailable { message, .. }) if code == UNREACHABLE => {
             Status::unavailable(message.clone())
         }
-        Error::Conflict { message, .. } => Status::failed_precondition(message.clone()),
-        Error::NotFound { message, .. } => Status::not_found(message.clone()),
+        Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message.clone()),
+        Error::Admission(AdmissionFailure::NotFound { message, .. }) => Status::not_found(message.clone()),
         _ => content_failure(error),
     }
 }

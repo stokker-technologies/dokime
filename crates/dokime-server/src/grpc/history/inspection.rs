@@ -21,6 +21,7 @@ use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::wire;
 use crate::grpc::{error::detailed, value};
 use dokime_runtime::RuntimeHandle;
@@ -84,7 +85,7 @@ impl Operation for Inspect {
             .execution_saved_checkpoint(id)
             .await
             .map_err(|source| match source {
-                dokime_runtime::runtime::Error::NotFound { .. } => {
+                dokime_runtime::runtime::Error::Admission(AdmissionFailure::NotFound { .. }) => {
                     detailed(Status::not_found("execution has no saved seal"), &source)
                 }
                 source => wire::query_failure(source),

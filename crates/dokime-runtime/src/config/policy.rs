@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::{RuntimeConfig, Settings};
 use crate::{runtime::Error, runtime::Result};
 
@@ -74,11 +75,11 @@ impl StoragePolicy {
             ),
         ] {
             if value.is_some_and(|value| value == 0 || value > maximum) {
-                return Err(Error::Validation {
+                return Err(Error::Admission(AdmissionFailure::Validation {
                     code: "storage_policy_invalid".into(),
                     message: format!("{name} must be between 1 and {maximum} milliseconds"),
                     issues: Vec::new(),
-                });
+                }));
             }
         }
         Ok(())
@@ -131,10 +132,10 @@ impl PolicyStore {
         policy.validate()?;
         let mut revision = self.revision.lock().await;
         if *revision != expected {
-            return Err(Error::Conflict {
+            return Err(Error::Admission(AdmissionFailure::Conflict {
                 code: "storage_policy_revision_conflict".into(),
                 message: "storage policy changed; read it again before saving".into(),
-            });
+            }));
         }
         if self.configured() == policy {
             return Ok(self.view(*revision));

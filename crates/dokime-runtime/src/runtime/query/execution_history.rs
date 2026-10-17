@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 use harmos::storage::ObjectRevision;
 use serde::{Deserialize, Serialize};
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use crate::execution::storage::{ExecutionDocument, ExecutionMetadata};
 use dokime_domain::model::execution::result::ExecutionStatus;
 use dokime_domain::model::execution::result::ResultStatus;
@@ -238,10 +239,10 @@ impl RuntimeHandle {
             checkpoint,
         )
         .await?
-        .ok_or_else(|| Error::NotFound {
+        .ok_or_else(|| Error::Admission(AdmissionFailure::NotFound {
             code: "execution_seal_missing".into(),
             message: "execution checkpoint has no retained exact seal".into(),
-        })
+        }))
     }
 
     pub async fn execution_saved_checkpoint(
@@ -255,10 +256,10 @@ impl RuntimeHandle {
         )
         .await?
         .filter(|inspection| inspection.execution().saved.is_some())
-        .ok_or_else(|| Error::NotFound {
+        .ok_or_else(|| Error::Admission(AdmissionFailure::NotFound {
             code: "execution_seal_missing".into(),
             message: "execution has no saved seal".into(),
-        })?
+        }))?
         .checkpoint()
     }
 

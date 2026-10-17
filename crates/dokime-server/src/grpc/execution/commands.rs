@@ -20,6 +20,7 @@ use std::sync::Arc;
 use harmos::operations::{Context, Operation};
 use tonic::Status;
 // Local Imports
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::loan;
 use super::{requests, value};
 use crate::grpc::access::{Principal, Role};
@@ -138,7 +139,7 @@ async fn submit(
         .admit_execution_command(&request_id, command_id, execution_id, action)
         .await
         .map_err(|error| match error {
-            Error::Conflict { message, .. } => Status::failed_precondition(message),
+            Error::Admission(AdmissionFailure::Conflict { message, .. }) => Status::failed_precondition(message),
             error => super::super::error::detailed(
                 Status::unavailable(
                     "command admission is uncertain; resolve the same command UUID",
