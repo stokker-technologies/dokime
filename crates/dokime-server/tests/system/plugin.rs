@@ -22,7 +22,7 @@ use std::{
 use sha2::{Digest, Sha256};
 // Local Imports
 use crate::support::{self, host::Host};
-use dokime_app::core::Value;
+use dokime_runtime::core::Value;
 use dokime_client::{Client, ResponseStream, contracts};
 
 /* === Constants === */

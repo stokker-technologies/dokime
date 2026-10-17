@@ -18,7 +18,7 @@
 use tonic::Code;
 // Local Imports
 use crate::{WireClient, contracts};
-use dokime_app::{
+use dokime_runtime::{
     Runtime, RuntimeConfig, RuntimeHandle,
     core::{Identifier, Metadata},
     records::{ProductCalibrationDetails, ProductCalibrationKind, ProductCalibrationPhase},

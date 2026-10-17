@@ -19,10 +19,10 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use dokime::core::Value;
-use dokime::execution::Workflow;
-use dokime::records::RecordPublishRequest;
-use dokime::transport::{
+use dokime_runtime::core::Value;
+use dokime_runtime::execution::Workflow;
+use dokime_runtime::records::RecordPublishRequest;
+use dokime_runtime::transport::{
     EvidenceBatch, RunExecutionRequest, SidecarCriterionStatus, SidecarExecutionOutcome,
     StepAdmission,
 };
@@ -47,11 +47,11 @@ const POLL: Duration = Duration::from_millis(5);
 
 /* === Private Functions === */
 fn start_request(token: &str, sample_count: u64) -> RunExecutionRequest {
-    let template = <Pulse as dokime::definition::DeclaredTemplate>::declaration();
-    let cases = dokime::definition::materialize_template_cases(
+    let template = <Pulse as dokime_runtime::definition::DeclaredTemplate>::declaration();
+    let cases = dokime_runtime::definition::materialize_template_cases(
         "fixture.registration",
         &template,
-        dokime::definition::CaseMaterializationSelection {
+        dokime_runtime::definition::CaseMaterializationSelection {
             case_overrides: std::collections::BTreeMap::from([(
                 "sample_count".to_owned(),
                 vec![Value::from(i64::try_from(sample_count).unwrap())],
@@ -64,8 +64,8 @@ fn start_request(token: &str, sample_count: u64) -> RunExecutionRequest {
     RunExecutionRequest {
         mode: "automatic".into(),
         execution_token: token.to_owned(),
-        test_cycle_id: dokime::core::TestCycleId::from_seed("obc.fixture.cycle").to_string(),
-        test_execution_id: dokime::core::TestExecutionId::from_seed(token).to_string(),
+        test_cycle_id: dokime_runtime::core::TestCycleId::from_seed("obc.fixture.cycle").to_string(),
+        test_execution_id: dokime_runtime::core::TestExecutionId::from_seed(token).to_string(),
         template_identifier: template.metadata.identifier.to_string(),
         workflow: suites::checks::ID.to_owned(),
 
@@ -83,7 +83,7 @@ fn drain(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceBatch 
         .drain(token, cursor)
         .expect("the execution remains drainable");
     for encoded in &reply.step_begins {
-        let start: dokime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(
             token,
             &StepAdmission {
@@ -102,7 +102,7 @@ async fn next(workflow: &Workflow<Pulse>, token: &str, cursor: u64) -> EvidenceB
         .await
         .expect("the execution remains drainable");
     for encoded in &reply.step_begins {
-        let start: dokime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
+        let start: dokime_runtime::execution::StepAttemptStart = serde_json::from_str(encoded).unwrap();
         workflow.admit(
             token,
             &StepAdmission {
@@ -176,7 +176,7 @@ async fn execution_streams_outcome() {
     assert!(
         samples
             .iter()
-            .all(|sample| { sample.stream.as_str() == <PulseRow as dokime::StreamSpec>::ID })
+            .all(|sample| { sample.stream.as_str() == <PulseRow as dokime_runtime::StreamSpec>::ID })
     );
     // The values are the sidecar's own deterministic function of the index,
     // compared with a tolerance because they round-trip through JSON.
@@ -199,8 +199,8 @@ async fn execution_streams_outcome() {
             .map(|record| record.record_type.as_str())
             .collect::<Vec<_>>(),
         vec![
-            <suites::checks::pulse::RunStarted as dokime::records::DeclaredRecord>::RECORD_TYPE,
-            <suites::checks::pulse::RunCompleted as dokime::records::DeclaredRecord>::RECORD_TYPE,
+            <suites::checks::pulse::RunStarted as dokime_runtime::records::DeclaredRecord>::RECORD_TYPE,
+            <suites::checks::pulse::RunCompleted as dokime_runtime::records::DeclaredRecord>::RECORD_TYPE,
         ]
     );
     assert!(outcome.passed);

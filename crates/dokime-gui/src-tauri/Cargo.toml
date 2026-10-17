@@ -93,8 +93,7 @@ windows = { workspace = true, features = ["Win32_System_Com"] }
 
 [dev-dependencies]
 # Local
-dokime = { path = "../../dokime" }
-dokime-app = { path = "../../dokime-app", features = ["fft"] }
+dokime-runtime = { path = "../../dokime-runtime", features = ["host", "fft"] }
 dokime-server = { path = "../../dokime-server" }
 
 # Git

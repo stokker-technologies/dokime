@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::*;
-use dokime_app::{
+use dokime_runtime::{
     core::{Identifier, Timestamp, Value},
     telemetry::{TelemetryBatch, TelemetrySample},
 };
@@ -195,7 +195,7 @@ fn served_points(frame: &contracts::plots::PlotStreamFrame) -> usize {
 }
 
 /// Publishes `count` progress rows from `start`, one millisecond apart.
-async fn publish(handle: &dokime_app::RuntimeHandle, id: &Identifier, start: u64, count: u64) {
+async fn publish(handle: &dokime_runtime::RuntimeHandle, id: &Identifier, start: u64, count: u64) {
     let samples = (start..start + count)
         .map(|index| {
             let at = Timestamp::new(format!(

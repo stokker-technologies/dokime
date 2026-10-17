@@ -28,13 +28,13 @@ use harmos::sidecar::StreamDeclaration;
 use serde_json::{Value, json};
 // Local Imports
 use crate::support::bridge::{Harness, Local};
-use dokime::{
+use dokime_runtime::{
     execution::{
         CleanupContext, CriterionContext, InitializationContext, Runnable, StepContext, Workflow,
     },
     schema::Described,
 };
-use dokime_app::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
+use dokime_runtime::{InstalledPlugin, Runtime, RuntimeConfig, runtime::EmbeddedProvider};
 use dokime_gui::connection::ConnectionSession;
 use dokime_gui::connection::{ConnectRequest, ConnectionCredentials, ConnectionTarget};
 use dokime_server::grpc::{Config, Server};
@@ -56,7 +56,7 @@ struct State {
 
 struct Resources {
     root: PathBuf,
-    writer: std::sync::Mutex<dokime::artifacts::ArtifactWriter>,
+    writer: std::sync::Mutex<dokime_runtime::artifacts::ArtifactWriter>,
 }
 
 struct Provider(State);
@@ -67,17 +67,17 @@ struct Probe;
 
 struct Process(Child);
 
-#[dokime::record(id = "matrix.phase", label = "Phase")]
+#[dokime_runtime::record(id = "matrix.phase", label = "Phase")]
 struct Phase {
     phase: String,
 }
 
-#[dokime::stream(id = "matrix.reading", window = 32, label = "Reading")]
+#[dokime_runtime::stream(id = "matrix.reading", window = 32, label = "Reading")]
 struct Reading {
     value: i64,
 }
 
-#[dokime::prompt(id = "matrix.continue", label = "Continue?")]
+#[dokime_runtime::prompt(id = "matrix.continue", label = "Continue?")]
 struct Continue;
 
 /* === Enums === */
@@ -98,30 +98,30 @@ impl Drop for Resources {
     }
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 enum Templates {
     Probe(Probe),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 enum Streams {
     Reading(Reading),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 enum Records {
     Phase(Phase),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 enum Prompts {
     Continue(Continue),
 }
 
-#[dokime::suite(id = "matrix.lab", label = "Lab", templates = Templates)]
+#[dokime_runtime::suite(id = "matrix.lab", label = "Lab", templates = Templates)]
 impl Lab {}
 
-#[dokime::template(
+#[dokime_runtime::template(
     id = "matrix.lab.probe",
     label = "Probe",
     records = Records,
@@ -129,7 +129,7 @@ impl Lab {}
     prompts = Prompts
 )]
 impl Probe {
-    async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime::Result<(Self, Resources)> {
+    async fn initialize(ctx: &mut InitializationContext<'_>) -> dokime_runtime::Result<(Self, Resources)> {
         let template = Self;
 
         let root = root();
@@ -143,8 +143,8 @@ impl Probe {
         Ok((template, shared))
     }
 
-    #[dokime::step(label = "Measure")]
-    async fn measure(&mut self, ctx: &mut StepContext<'_>) -> dokime::Result<()> {
+    #[dokime_runtime::step(label = "Measure")]
+    async fn measure(&mut self, ctx: &mut StepContext<'_>) -> dokime_runtime::Result<()> {
         for value in ctx.progress("Measuring", [1, 2]) {
             ctx.publish(Reading { value }).await;
             if value == 1 {
@@ -154,7 +154,7 @@ impl Probe {
                 .await;
             }
             if !ctx.ask(Continue).await? {
-                return Err(dokime::Error::PromptRefused("operator refused".into()));
+                return Err(dokime_runtime::Error::PromptRefused("operator refused".into()));
             }
         }
         ctx.publish(Phase {
@@ -164,7 +164,7 @@ impl Probe {
         Ok(())
     }
 
-    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> dokime::Result<()> {
+    async fn cleanup(&mut self, ctx: &mut CleanupContext<'_>) -> dokime_runtime::Result<()> {
         ctx.resources()
             .writer
             .lock()
@@ -174,8 +174,8 @@ impl Probe {
         Ok(())
     }
 
-    #[dokime::criterion(id = "matrix.accepted", label = "Accepted")]
-    async fn accepted(ctx: &CriterionContext<'_>) -> dokime::Result<bool> {
+    #[dokime_runtime::criterion(id = "matrix.accepted", label = "Accepted")]
+    async fn accepted(ctx: &CriterionContext<'_>) -> dokime_runtime::Result<bool> {
         Ok(ctx.samples::<Reading>().len() == 2)
     }
 }
@@ -187,7 +187,7 @@ impl EmbeddedProvider for Provider {
             source: "matrix.rust".into(),
             version: "0.1.0".into(),
             enabled: true,
-            suites: dokime_app::definition::SuiteSet::new([Lab::definition()]),
+            suites: dokime_runtime::definition::SuiteSet::new([Lab::definition()]),
             ..Default::default()
         }
     }
@@ -205,7 +205,7 @@ impl EmbeddedProvider for Provider {
             .unwrap(),
         }]
     }
-    async fn start(&self) -> dokime_app::Result<Vec<Arc<dyn Runnable>>> {
+    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn Runnable>>> {
         *ROOT.lock().unwrap() = Some(self.0.root.clone());
         let lab = Lab::definition();
         Ok(vec![Arc::new(
@@ -213,7 +213,7 @@ impl EmbeddedProvider for Provider {
                 .with_records(&lab.record_contracts),
         ) as Arc<dyn Runnable>])
     }
-    async fn stop(&self) -> dokime_app::Result<()> {
+    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
         Ok(())
     }
 }
@@ -303,8 +303,8 @@ async fn run_matrix(interface: &str) {
         let directory = tempfile::tempdir().unwrap();
         let config = RuntimeConfig::new(
             directory.path().join("backend"),
-            dokime::core::Metadata::new(
-                dokime::core::Identifier::new("matrix").unwrap(),
+            dokime_runtime::core::Metadata::new(
+                dokime_runtime::core::Identifier::new("matrix").unwrap(),
                 "Matrix",
                 None,
             ),

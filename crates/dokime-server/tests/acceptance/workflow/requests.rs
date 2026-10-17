@@ -180,7 +180,7 @@ async fn crashed_run_replay() {
     let execution = &cycle.test_executions[0];
     assert_eq!(
         execution.status,
-        dokime_app::execution::ExecutionStatus::Interrupted
+        dokime_runtime::execution::ExecutionStatus::Interrupted
     );
     assert_eq!(
         execution.test_execution_id.as_str(),
@@ -191,7 +191,7 @@ async fn crashed_run_replay() {
     let recovered = restored.state().run_requests.values().next().unwrap();
     assert_eq!(
         recovered.summary.phase,
-        dokime::execution::request::RunPhase::Interrupted
+        dokime_runtime::execution::request::RunPhase::Interrupted
     );
     assert!(recovered.pending.is_empty());
     assert_eq!(

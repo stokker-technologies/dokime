@@ -167,7 +167,7 @@ async fn file_watch_artifacts() {
     .await;
     assert_eq!(
         stored.status,
-        dokime_app::artifacts::ArtifactStatus::Complete
+        dokime_runtime::artifacts::ArtifactStatus::Complete
     );
     assert_eq!(stored.size_bytes, 7);
 

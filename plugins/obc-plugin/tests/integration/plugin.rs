@@ -45,7 +45,7 @@ const EXECUTABLE: &str = env!("CARGO_BIN_EXE_obc-plugin");
 /* === Tests === */
 #[tokio::test]
 async fn resources_share_allocation() {
-    use dokime::__harmos::Plugin;
+    use dokime_runtime::__harmos::Plugin;
 
     let mut plugin = <ObcPlugin as Plugin>::prepare(Default::default()).unwrap();
     let first = Plugin::resources(&plugin);
@@ -61,7 +61,7 @@ async fn resources_share_allocation() {
 
 #[test]
 fn executable_declares_routes() {
-    let declared = dokime::__harmos::sidecar::Executable::at(EXECUTABLE)
+    let declared = dokime_runtime::__harmos::sidecar::Executable::at(EXECUTABLE)
         .expect("the obc-plugin executable declares itself")
         .declaration()
         .clone();

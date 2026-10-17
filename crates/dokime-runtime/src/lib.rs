@@ -10,6 +10,11 @@
 #![recursion_limit = "256"]
 
 /* === Modules === */
+
+#[cfg(all(test, feature = "host"))]
+#[path = "../tests/support/services/mod.rs"]
+pub(crate) mod service_support;
+
 #[macro_use]
 mod macros;
 pub mod artifacts;
@@ -225,6 +230,7 @@ pub use runtime::{OpenedReport, ReportOrigin, Runtime, RuntimeHandle};
 
 
 /* === Imports === */
+
 // Standard Library Imports
 
 // Third Party Imports

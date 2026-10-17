@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use prost::Message;
 // Local Imports
 use super::*;
-use dokime_app::{
+use dokime_runtime::{
     core::{PromptId, RecordScope, TestCycleId, Value, ValueType},
     domains::prompts::{FormPrompt, Prompt, PromptField, PromptFieldKind, PromptRequest, Rule},
     expressions::BooleanExpression,
@@ -274,8 +274,8 @@ async fn prompt_answers_identity() {
 
 #[tokio::test]
 async fn prompt_condition_commit() {
-    use dokime_app::definition::RuntimeCondition;
-    use dokime_app::records::{ProductConnectionDetails, ProductConnectionState, RecordCondition};
+    use dokime_runtime::definition::RuntimeCondition;
+    use dokime_runtime::records::{ProductConnectionDetails, ProductConnectionState, RecordCondition};
     let root = tempfile::tempdir().unwrap();
     let mut definition =
         FormPrompt::<BTreeMap<String, bool>>::new("fixture.condition", "Connect device")
@@ -377,7 +377,7 @@ async fn prompt_condition_commit() {
 
 #[tokio::test]
 async fn prompt_level_watched() {
-    use dokime_app::records::RecordSeverity;
+    use dokime_runtime::records::RecordSeverity;
 
     // === Ask A Warning Prompt === //
 
@@ -461,7 +461,7 @@ async fn settled_prompt_refused() {
     let handle = owner.handle();
     let cycle = handle
         .create_cycle(
-            dokime_app::transactions::CycleDefinition {
+            dokime_runtime::transactions::CycleDefinition {
                 metadata: support::metadata("cycle.prompt.settle", "Prompt Settle"),
                 continue_on_failure: false,
             },
@@ -537,14 +537,14 @@ async fn settled_prompt_refused() {
 
 async fn prompt_runtime(
     root: &std::path::Path,
-    definition: dokime_app::domains::prompts::PromptDefinition,
+    definition: dokime_runtime::domains::prompts::PromptDefinition,
 ) -> Runtime {
     let mut declarations = harmos::sidecar::Registrar::new();
     declarations
         .register(
-            dokime::plugin::registration::PROMPTS_NAMESPACE,
-            dokime::plugin::registration::domain_schema(
-                dokime::plugin::registration::PROMPTS_NAMESPACE,
+            dokime_runtime::plugin::registration::PROMPTS_NAMESPACE,
+            dokime_runtime::plugin::registration::domain_schema(
+                dokime_runtime::plugin::registration::PROMPTS_NAMESPACE,
             ),
             &[definition],
         )

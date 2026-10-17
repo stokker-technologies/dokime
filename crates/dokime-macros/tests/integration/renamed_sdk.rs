@@ -148,9 +148,9 @@ impl GetEcho {
     async fn run(
         &mut self,
         _: &sdk::Supervisor,
-        request: &self::dokime::Payload,
-    ) -> Result<self::dokime::Payload, sdk::Refusal> {
-        Ok(self::dokime::reply(request.clone()))
+        request: &self::dokime_runtime::Payload,
+    ) -> Result<self::dokime_runtime::Payload, sdk::Refusal> {
+        Ok(self::dokime_runtime::reply(request.clone()))
     }
 }
 
@@ -167,7 +167,7 @@ impl GetStatus {
     ) -> Result<sdk::domains::StatusResponse, sdk::Refusal> {
         Ok(sdk::domains::StatusResponse::ready().field(
             "Echo",
-            self::dokime::reply(self::dokime::Payload {
+            self::dokime_runtime::reply(self::dokime_runtime::Payload {
                 text: "author syntax survives".to_owned(),
             })
             .text,
@@ -184,8 +184,8 @@ impl GetSpareEcho {
     async fn run(
         &mut self,
         _: &sdk::Supervisor,
-        request: &self::dokime::Ignored,
-    ) -> Result<self::dokime::Ignored, sdk::Refusal> {
+        request: &self::dokime_runtime::Ignored,
+    ) -> Result<self::dokime_runtime::Ignored, sdk::Refusal> {
         Ok(request.clone())
     }
 }
@@ -209,7 +209,7 @@ impl Observations {
         &mut self,
         ctx: &ObserverContext<'_, Resources, Publisher<Renamed>>,
     ) -> Result<(), PublishError> {
-        let text = self::dokime::reply(self::dokime::Payload {
+        let text = self::dokime_runtime::reply(self::dokime_runtime::Payload {
             text: "one".to_owned(),
         });
 

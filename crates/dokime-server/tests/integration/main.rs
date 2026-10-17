@@ -48,7 +48,7 @@ use tonic::{
     transport::{Certificate, ClientTlsConfig, Endpoint},
 };
 // Local Imports
-use dokime_app::{
+use dokime_runtime::{
     Runtime,
     core::{Identifier, Metadata},
 };

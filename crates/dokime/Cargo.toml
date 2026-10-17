@@ -60,13 +60,20 @@ doc = false
 
 [dev-dependencies]
 # Git
-harmos = { workspace = true, features = ["plugin-sidecar"] }
+harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
 
-# Serialization
-serde_json = { workspace = true }
+# Networking
+tonic = { workspace = true }
+
+# Utilities
+time = { workspace = true }
 
 # Filesystem
 tempfile = { workspace = true }
 
-# Async
-tokio = { workspace = true, features = ["test-util"] }
+# Testing
+criterion = { workspace = true }
+
+# UI
+portable-pty = { workspace = true }
+

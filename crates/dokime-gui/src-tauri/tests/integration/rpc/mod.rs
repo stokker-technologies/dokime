@@ -81,7 +81,7 @@ impl Drop for StageInput {
 
 /* === Private Functions === */
 fn large_bundle(resource_bytes: usize) -> Vec<u8> {
-    bundle_for_target(resource_bytes, dokime_app::plugins::NATIVE_TARGET)
+    bundle_for_target(resource_bytes, dokime_runtime::plugins::NATIVE_TARGET)
 }
 
 fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {

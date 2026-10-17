@@ -18,8 +18,8 @@
 
 // Local Imports
 use super::*;
-use dokime_app::core::{CriterionId, StepId};
-use dokime_app::definition::{CriterionDefinition, ExecutionPhaseDefinition};
+use dokime_runtime::core::{CriterionId, StepId};
+use dokime_runtime::definition::{CriterionDefinition, ExecutionPhaseDefinition};
 
 /* === Constants === */
 

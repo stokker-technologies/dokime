@@ -7,10 +7,11 @@
  * ***
  */
 
-// SDK stories that launch real child processes through the step built-ins.
+// In-process command stories, one module per command domain.
 
 /* === Modules === */
-mod process;
+
+mod installation;
 
 /* === Re-Exports === */
 

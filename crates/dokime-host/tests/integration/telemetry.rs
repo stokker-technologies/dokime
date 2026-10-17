@@ -18,8 +18,8 @@
 // Third Party Imports
 
 // Local Imports
-use dokime::telemetry::TelemetryRow;
-use dokime::telemetry::validate_telemetry_sample;
+use dokime_runtime::telemetry::TelemetryRow;
+use dokime_runtime::telemetry::validate_telemetry_sample;
 use dokime_contract::telemetry::ValidationMode;
 use dokime_host::{HOST_STREAMS, Host, HostTelemetryStream, host_telemetry_contracts};
 
@@ -79,22 +79,22 @@ fn fixture_host_contracts() {
 
 #[test]
 fn collected_row_stream() {
-    fn reads<C: dokime::telemetry::TelemetryStream>(host: &Host, stream: HostTelemetryStream) {
+    fn reads<C: dokime_runtime::telemetry::TelemetryStream>(host: &Host, stream: HostTelemetryStream) {
         let batch = host.collect_stream(stream).unwrap().unwrap();
         assert!(!batch.samples.is_empty(), "{} collected nothing", C::ID);
         for sample in batch.samples {
-            <C::Row as dokime::telemetry::TelemetryRow>::from_row(&sample.values)
+            <C::Row as dokime_runtime::telemetry::TelemetryRow>::from_row(&sample.values)
                 .unwrap_or_else(|error| panic!("{}: {error}", C::ID));
         }
     }
 
     let host = Host::fixture();
-    reads::<dokime::host::System>(&host, HostTelemetryStream::System);
-    reads::<dokime::host::Network>(&host, HostTelemetryStream::Network);
-    reads::<dokime::host::Wifi>(&host, HostTelemetryStream::Wifi);
-    reads::<dokime::host::WifiLatency>(&host, HostTelemetryStream::WifiLatency);
-    reads::<dokime::host::WifiChannelOccupancy>(&host, HostTelemetryStream::WifiChannelOccupancy);
-    reads::<dokime::host::Bluetooth>(&host, HostTelemetryStream::Bluetooth);
+    reads::<dokime_runtime::host::System>(&host, HostTelemetryStream::System);
+    reads::<dokime_runtime::host::Network>(&host, HostTelemetryStream::Network);
+    reads::<dokime_runtime::host::Wifi>(&host, HostTelemetryStream::Wifi);
+    reads::<dokime_runtime::host::WifiLatency>(&host, HostTelemetryStream::WifiLatency);
+    reads::<dokime_runtime::host::WifiChannelOccupancy>(&host, HostTelemetryStream::WifiChannelOccupancy);
+    reads::<dokime_runtime::host::Bluetooth>(&host, HostTelemetryStream::Bluetooth);
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn fixture_battery_columns() {
         .collect_stream(HostTelemetryStream::System)
         .unwrap()
         .unwrap();
-    let row = dokime::host::System::from_row(&batch.samples[0].values).unwrap();
+    let row = dokime_runtime::host::System::from_row(&batch.samples[0].values).unwrap();
 
     assert_eq!(row.battery_state.as_deref(), Some("discharging"));
     assert_eq!(row.battery_technology.as_deref(), Some("lithium-ion"));
@@ -132,7 +132,7 @@ fn fixture_channel_columns() {
         .collect_stream(HostTelemetryStream::WifiChannelOccupancy)
         .unwrap()
         .unwrap();
-    let row = dokime::host::WifiChannelOccupancy::from_row(&batch.samples[0].values).unwrap();
+    let row = dokime_runtime::host::WifiChannelOccupancy::from_row(&batch.samples[0].values).unwrap();
 
     assert_eq!(row.active_channel, Some(true));
     assert_eq!(row.active_wifi_channel, Some(6));

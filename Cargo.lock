@@ -925,7 +925,7 @@ name = "cargo-dokime"
 version = "0.1.0"
 dependencies = [
  "clap",
- "dokime-cli",
+ "dokime",
  "dokime-contract",
  "dokime-packaging",
  "dotenvy",
@@ -1932,90 +1932,6 @@ dependencies = [
 name = "dokime"
 version = "0.1.0"
 dependencies = [
- "arrow-array",
- "arrow-schema",
- "base64 0.23.1",
- "dokime-contract",
- "dokime-filesystem",
- "dokime-macros",
- "futures-util",
- "globset",
- "harmos",
- "libc",
- "prost",
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "tempfile",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-error",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "dokime-app"
-version = "0.1.0"
-dependencies = [
- "arrow-array",
- "arrow-schema",
- "arrow-select",
- "ashpd",
- "async-trait",
- "base64 0.23.1",
- "blake2",
- "cpal",
- "criterion",
- "cssparser 0.38.0",
- "dokime",
- "dokime-app",
- "dokime-contract",
- "dokime-filesystem",
- "dokime-host",
- "futures-util",
- "harmos",
- "hound",
- "image",
- "keyring",
- "libunftp",
- "nokhwa",
- "prost",
- "regex",
- "rusqlite",
- "rustls-platform-verifier",
- "serde",
- "serde_arrow",
- "serde_json",
- "sha2 0.11.1",
- "suppaftp",
- "sysinfo",
- "tempfile",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "tokio-util",
- "toml 1.1.8+spec-1.1.0",
- "tracing",
- "tracing-subscriber",
- "unftp-core",
- "unftp-sbe-fs",
- "url",
- "uuid",
- "walkdir",
- "xcap",
- "zip 9.0.2",
-]
-
-[[package]]
-name = "dokime-cli"
-version = "0.1.0"
-dependencies = [
  "anstream",
  "anstyle",
  "clap",
@@ -2093,7 +2009,7 @@ dependencies = [
 name = "dokime-fixtures"
 version = "0.1.0"
 dependencies = [
- "dokime",
+ "dokime-runtime",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -2108,11 +2024,10 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.23.1",
- "dokime",
- "dokime-app",
  "dokime-client",
  "dokime-contract",
  "dokime-filesystem",
+ "dokime-runtime",
  "dokime-server",
  "dotenvy",
  "harmos",
@@ -2151,8 +2066,8 @@ name = "dokime-host"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "dokime",
  "dokime-contract",
+ "dokime-runtime",
  "getifs",
  "serde",
  "serde_json",
@@ -2169,7 +2084,7 @@ dependencies = [
 name = "dokime-macros"
 version = "0.1.0"
 dependencies = [
- "dokime",
+ "dokime-runtime",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
@@ -2184,7 +2099,7 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata 0.23.1",
  "clap",
- "dokime-cli",
+ "dokime",
  "harmos",
  "process-wrap",
  "serde_json",
@@ -2192,6 +2107,62 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "dokime-runtime"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "arrow-schema",
+ "arrow-select",
+ "ashpd",
+ "async-trait",
+ "base64 0.23.1",
+ "blake2",
+ "cpal",
+ "criterion",
+ "cssparser 0.38.0",
+ "dokime-contract",
+ "dokime-filesystem",
+ "dokime-host",
+ "dokime-macros",
+ "futures-util",
+ "globset",
+ "harmos",
+ "hound",
+ "image",
+ "keyring",
+ "libc",
+ "libunftp",
+ "nokhwa",
+ "prost",
+ "regex",
+ "rusqlite",
+ "rustls-platform-verifier",
+ "serde",
+ "serde_arrow",
+ "serde_json",
+ "sha2 0.11.1",
+ "suppaftp",
+ "sysinfo",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "toml 1.1.8+spec-1.1.0",
+ "tracing",
+ "tracing-error",
+ "tracing-subscriber",
+ "unftp-core",
+ "unftp-sbe-fs",
+ "url",
+ "uuid",
+ "walkdir",
+ "xcap",
+ "zip 9.0.2",
 ]
 
 [[package]]
@@ -2203,12 +2174,11 @@ dependencies = [
  "clap",
  "criterion",
  "dokime",
- "dokime-app",
- "dokime-cli",
  "dokime-client",
  "dokime-contract",
  "dokime-filesystem",
  "dokime-host",
+ "dokime-runtime",
  "dotenvy",
  "futures-util",
  "harmos",
@@ -4926,7 +4896,7 @@ dependencies = [
 name = "obc-plugin"
 version = "0.1.0"
 dependencies = [
- "dokime",
+ "dokime-runtime",
  "futures-util",
  "harmos",
  "obc-runtime",

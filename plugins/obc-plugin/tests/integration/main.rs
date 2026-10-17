@@ -23,10 +23,10 @@ use std::sync::Arc;
 // Third Party Imports
 
 // Local Imports
-use dokime::core::{ValidationMode, ValueType};
-use dokime::definition::{SuiteSet, materialize_template_cases};
-use dokime::execution::{Answering, Caller};
-use dokime::harmos::operations::{Declares, OperationDeclaration};
+use dokime_runtime::core::{ValidationMode, ValueType};
+use dokime_runtime::definition::{SuiteSet, materialize_template_cases};
+use dokime_runtime::execution::{Answering, Caller};
+use dokime_runtime::harmos::operations::{Declares, OperationDeclaration};
 use obc_plugin::operations::readiness::{AskReadiness, Readiness};
 use obc_plugin::{MiniChecks, Pulse};
 
@@ -37,7 +37,7 @@ use obc_plugin::{MiniChecks, Pulse};
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::stream(
+#[dokime_runtime::stream(
     id = "obc-plugin.system",
     window = 4096,
     label = "Testbench Health",
@@ -62,8 +62,8 @@ struct SystemRow {
 fn answering<O, F>(answer: F) -> (String, Answering)
 where
     O: Declares,
-    <O::Declaration as OperationDeclaration>::Request: dokime::harmos::Message,
-    <O::Declaration as OperationDeclaration>::Response: dokime::harmos::Message,
+    <O::Declaration as OperationDeclaration>::Request: dokime_runtime::harmos::Message,
+    <O::Declaration as OperationDeclaration>::Response: dokime_runtime::harmos::Message,
     F: Fn(
             <O::Declaration as OperationDeclaration>::Request,
         ) -> <O::Declaration as OperationDeclaration>::Response
@@ -77,9 +77,9 @@ where
         Arc::new(move |payload: Vec<u8>| {
             let answer = Arc::clone(&answer);
             Box::pin(async move {
-                let request = <<O::Declaration as OperationDeclaration>::Request as dokime::harmos::Message>::decode(payload.as_slice())
+                let request = <<O::Declaration as OperationDeclaration>::Request as dokime_runtime::harmos::Message>::decode(payload.as_slice())
                     .map_err(|error| error.to_string())?;
-                Ok(dokime::harmos::Message::encode_to_vec(&answer(request)))
+                Ok(dokime_runtime::harmos::Message::encode_to_vec(&answer(request)))
             })
                 as std::pin::Pin<
                     Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + Send>,
@@ -94,10 +94,10 @@ fn road() -> Caller {
     })]))
 }
 
-fn measured<C: dokime::telemetry::TelemetryStream>(
+fn measured<C: dokime_runtime::telemetry::TelemetryStream>(
     rows: impl IntoIterator<Item = C::Row>,
-) -> dokime::plugin::testing::Harness {
-    dokime::plugin::testing::Harness::template("obc.checks.pulse").measuring::<C>(rows)
+) -> dokime_runtime::plugin::testing::Harness {
+    dokime_runtime::plugin::testing::Harness::template("obc.checks.pulse").measuring::<C>(rows)
 }
 
 /* === Tests === */
@@ -119,7 +119,7 @@ fn suite_export_bound() {
 fn contracts_bind_fields() {
     let registration = MiniChecks::definition();
     // The suite declares no telemetry of its own: this contract came off the
-    // `#[dokime::observer]` that publishes on the stream, through the template that
+    // `#[dokime_runtime::observer]` that publishes on the stream, through the template that
     // declares it.
     let contract = &registration.telemetry_contracts[0];
 
@@ -233,7 +233,7 @@ async fn pulse_leases_unmeasured() {
     assert!(report.passed(), "{}", report.diagnostics());
     assert!(!report.samples::<obc_plugin::PulseRow>().is_empty());
 
-    let refused = dokime::plugin::testing::Harness::template("obc.checks.pulse")
+    let refused = dokime_runtime::plugin::testing::Harness::template("obc.checks.pulse")
         .parameter("capture_system", true)
         .parameter("sample_count", 2)
         .run::<obc_plugin::suites::Suites>()

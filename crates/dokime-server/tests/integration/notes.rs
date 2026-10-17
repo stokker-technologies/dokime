@@ -18,11 +18,11 @@
 
 // Local Imports
 use super::*;
-use dokime_app::RuntimeConfig;
-use dokime_app::core::{RecordScope, TestCycleId};
-use dokime_app::domains::evidence::OperatorNoteRequest;
-use dokime_app::execution::HealthSeverity;
-use dokime_app::runtime::command::CommandContext;
+use dokime_runtime::RuntimeConfig;
+use dokime_runtime::core::{RecordScope, TestCycleId};
+use dokime_runtime::domains::evidence::OperatorNoteRequest;
+use dokime_runtime::execution::HealthSeverity;
+use dokime_runtime::runtime::command::CommandContext;
 
 /* === Constants === */
 
@@ -41,7 +41,7 @@ use dokime_app::runtime::command::CommandContext;
 /* === Public Functions === */
 
 /* === Private Functions === */
-async fn cycle(runtime: &dokime_app::RuntimeHandle) -> TestCycleId {
+async fn cycle(runtime: &dokime_runtime::RuntimeHandle) -> TestCycleId {
     let suite = support::fixture_suite(&["passed"]);
     support::register_fixture_execution(runtime, suite.clone()).await;
     support::cycle_with_cases(

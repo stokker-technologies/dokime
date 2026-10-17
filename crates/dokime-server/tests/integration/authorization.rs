@@ -283,7 +283,7 @@ fn credentialed<T>(message: T, token: Option<&'static str>) -> Request<T> {
 }
 
 fn cases() -> impl Iterator<Item = &'static Case> {
-    use dokime::operations::runtime::{GetHealth, GetIdentity};
+    use dokime_runtime::operations::runtime::{GetHealth, GetIdentity};
     static OPERATIONS: &[Case] = &[
         Case {
             path: GetHealth::PATH,
@@ -299,7 +299,7 @@ fn cases() -> impl Iterator<Item = &'static Case> {
 
 fn operation<O>(channel: Channel, token: Option<&'static str>, path: &'static str) -> Refusal
 where
-    O: harmos::operations::OperationDeclaration<Request = dokime::operations::runtime::Request>,
+    O: harmos::operations::OperationDeclaration<Request = dokime_runtime::operations::runtime::Request>,
     O::Response: harmos::Protobuf + harmos::MemorySize,
 {
     Box::pin(async move {
@@ -307,7 +307,7 @@ where
         let bytes = std::num::NonZeroUsize::new(4096).unwrap();
         let codec = Codec::<
             O::Response,
-            harmos::operations::Response<dokime::operations::runtime::Request>,
+            harmos::operations::Response<dokime_runtime::operations::runtime::Request>,
         >::new(
             DecodeSettings {
                 message_bytes: bytes,
@@ -324,7 +324,7 @@ where
         client
             .unary(
                 credentialed(
-                    harmos::operations::Response::new(dokime::operations::runtime::Request {}),
+                    harmos::operations::Response::new(dokime_runtime::operations::runtime::Request {}),
                     token,
                 ),
                 tonic::codegen::http::uri::PathAndQuery::from_static(path),

@@ -25,8 +25,8 @@ use tonic::{
     transport::{Channel, Endpoint},
 };
 // Local Imports
-use dokime::domains::ExecutionProviderTarget;
-use dokime_app::{
+use dokime_runtime::domains::ExecutionProviderTarget;
+use dokime_runtime::{
     ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture, Runtime,
     core::{Identifier, Metadata},
     execution::{CycleView, ExecutionStatus},
@@ -394,7 +394,7 @@ impl ExecutionFixture for Gate {
             tokio::select! {
                 _ = &mut released => {},
                 () = context.cancelled() => {
-                    return Err(dokime_app::transport::ProviderExecutionFailure::new(
+                    return Err(dokime_runtime::transport::ProviderExecutionFailure::new(
                         "cancel", "fixture acknowledged cancellation",
                     ));
                 }

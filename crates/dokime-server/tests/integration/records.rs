@@ -20,9 +20,9 @@ use tokio::sync::Notify;
 use tokio_stream::StreamExt as _;
 // Local Imports
 use super::*;
-use dokime::host::ToolConnectionAcquired;
-use dokime_app::execution::{CycleStatus, ExecutionStatus};
-use dokime_app::runtime::command::CommandContext;
+use dokime_runtime::host::ToolConnectionAcquired;
+use dokime_runtime::execution::{CycleStatus, ExecutionStatus};
+use dokime_runtime::runtime::command::CommandContext;
 
 /* === Constants === */
 const SOURCE: &str = "fixture-bench";
@@ -53,12 +53,12 @@ struct Waiting {
 }
 
 /* === Enums === */
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 enum Templates {
     Waiting(Waiting),
 }
 
-#[dokime::catalog]
+#[dokime_runtime::catalog]
 enum Subscriptions {
     ToolConnectionAcquired(ToolConnectionAcquired),
 }
@@ -66,24 +66,24 @@ enum Subscriptions {
 /* === Traits === */
 
 /* === Implementations === */
-#[dokime::suite(id = "fixture.bench", label = "Fixture Bench", templates = Templates)]
+#[dokime_runtime::suite(id = "fixture.bench", label = "Fixture Bench", templates = Templates)]
 impl BenchSuite {}
 
-#[dokime::template(
+#[dokime_runtime::template(
     id = "fixture.bench.waiting",
     label = "Wait For The Unit",
     subscribes = Subscriptions
 )]
 impl Waiting {
     async fn initialize(
-        ctx: &mut dokime::execution::InitializationContext<'_>,
-    ) -> dokime::Result<Self> {
+        ctx: &mut dokime_runtime::execution::InitializationContext<'_>,
+    ) -> dokime_runtime::Result<Self> {
         let expectation = Arc::clone(ctx.environment().binding::<Arc<Expectation>>());
         Ok(Self { expectation })
     }
 
-    #[dokime::step(label = "Wait")]
-    async fn wait(&mut self, ctx: &mut dokime::execution::StepContext<'_>) -> dokime::Result<()> {
+    #[dokime_runtime::step(label = "Wait")]
+    async fn wait(&mut self, ctx: &mut dokime_runtime::execution::StepContext<'_>) -> dokime_runtime::Result<()> {
         let mut connected = ctx
             .listen::<ToolConnectionAcquired>()
             .timeout(self.expectation.budget);
@@ -99,13 +99,13 @@ impl Waiting {
 }
 
 #[async_trait::async_trait]
-impl dokime_app::runtime::EmbeddedProvider for Bench {
-    fn catalog(&self) -> dokime_app::InstalledPlugin {
-        dokime_app::InstalledPlugin {
+impl dokime_runtime::runtime::EmbeddedProvider for Bench {
+    fn catalog(&self) -> dokime_runtime::InstalledPlugin {
+        dokime_runtime::InstalledPlugin {
             source: SOURCE.into(),
             version: "0.1.0".into(),
             enabled: true,
-            suites: dokime_app::definition::SuiteSet::new([BenchSuite::definition()]),
+            suites: dokime_runtime::definition::SuiteSet::new([BenchSuite::definition()]),
             ..Default::default()
         }
     }
@@ -114,15 +114,15 @@ impl dokime_app::runtime::EmbeddedProvider for Bench {
         Vec::new()
     }
 
-    async fn start(&self) -> dokime_app::Result<Vec<Arc<dyn dokime::execution::Runnable>>> {
+    async fn start(&self) -> dokime_runtime::runtime::Result<Vec<Arc<dyn dokime_runtime::execution::Runnable>>> {
         let binding: Arc<dyn std::any::Any + Send + Sync> = Arc::new(Arc::clone(&self.expectation));
         Ok(vec![
-            Arc::new(dokime::execution::Workflow::<Waiting>::new(SUITE, SOURCE).bound(binding))
-                as Arc<dyn dokime::execution::Runnable>,
+            Arc::new(dokime_runtime::execution::Workflow::<Waiting>::new(SUITE, SOURCE).bound(binding))
+                as Arc<dyn dokime_runtime::execution::Runnable>,
         ])
     }
 
-    async fn stop(&self) -> dokime_app::Result<()> {
+    async fn stop(&self) -> dokime_runtime::runtime::Result<()> {
         Ok(())
     }
 }
@@ -134,7 +134,7 @@ impl dokime_app::runtime::EmbeddedProvider for Bench {
 async fn waiting_cycle(
     root: &std::path::Path,
     expectation: Arc<Expectation>,
-) -> (Runtime, dokime_app::core::TestCycleId) {
+) -> (Runtime, dokime_runtime::core::TestCycleId) {
     let config =
         support::budgets::runtime_config(root, support::metadata("grpc.records", "Records Host"))
             .register(Arc::new(Bench { expectation }));
@@ -153,10 +153,10 @@ async fn waiting_cycle(
     (owner, cycle)
 }
 
-fn connection(resource: &str) -> dokime_app::records::RecordPublishRequest {
-    let mut record = dokime_app::records::RecordPublishRequest::new(
+fn connection(resource: &str) -> dokime_runtime::records::RecordPublishRequest {
+    let mut record = dokime_runtime::records::RecordPublishRequest::new(
         Identifier::new("tool.connection.acquired").expect("a builtin record type"),
-        dokime_app::records::RecordSeverity::Info,
+        dokime_runtime::records::RecordSeverity::Info,
     );
     record.message = Some("a unit reported itself on the bench".to_owned());
     record.details.extend([

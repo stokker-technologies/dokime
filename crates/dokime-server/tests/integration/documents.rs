@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::*;
-use dokime_app::{
+use dokime_runtime::{
     core::Value,
     document::{DocumentCard, DocumentCardBody, DocumentDefinition, DocumentSection},
     runtime::command::CommandContext,
@@ -202,7 +202,7 @@ async fn current_document_rows() {
 
 #[tokio::test]
 async fn summary_complete_telemetry() {
-    use dokime_app::{
+    use dokime_runtime::{
         core::Timestamp,
         document::{
             TelemetrySummaryDefinition, TelemetrySummaryGroupDefinition,
@@ -227,7 +227,7 @@ async fn summary_complete_telemetry() {
     let mut group = TelemetrySummaryGroupDefinition::new("summary", "Progress");
     group.tile(TelemetrySummaryTileDefinition::new(
         "Latest",
-        dokime_app::expressions::telemetry("fixture.progress", "progress"),
+        dokime_runtime::expressions::telemetry("fixture.progress", "progress"),
     ));
     let mut summary = TelemetrySummaryDefinition::new();
     summary.group(group);
@@ -340,12 +340,12 @@ async fn summary_complete_telemetry() {
 
 #[tokio::test]
 async fn duration_x_axis() {
-    use dokime::domains::TestSuiteDefinition;
-    use dokime_app::core::{Identifier, MeasurementUnit, Metadata, ValueType};
-    use dokime_app::definition::SuiteSet;
-    use dokime_app::document::Plot;
-    use dokime_app::expressions::telemetry;
-    use dokime_app::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+    use dokime_runtime::domains::TestSuiteDefinition;
+    use dokime_runtime::core::{Identifier, MeasurementUnit, Metadata, ValueType};
+    use dokime_runtime::definition::SuiteSet;
+    use dokime_runtime::document::Plot;
+    use dokime_runtime::expressions::telemetry;
+    use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
 
     let root = tempfile::tempdir().unwrap();
     let mut owner = runtime(root.path()).await;

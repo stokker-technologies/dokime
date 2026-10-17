@@ -27,7 +27,7 @@ const OTHER_STREAM: &str = "fixture.other.samples";
 /* === Type Aliases === */
 
 /* === Structs === */
-#[dokime::message]
+#[dokime_runtime::message]
 #[derive(Clone, PartialEq)]
 struct HomedRow {
     value: f64,
@@ -38,49 +38,49 @@ struct HomedRow {
 /* === Traits === */
 
 /* === Implementations === */
-impl dokime_app::StreamSpec for HomedRow {
+impl dokime_runtime::StreamSpec for HomedRow {
     type Row = Self;
     const ID: &'static str = HOME_STREAM;
     const VERSION: u32 = 1;
     const WINDOW: usize = 4096;
 }
 
-impl dokime_app::telemetry::TelemetryStream for HomedRow {
-    fn contract() -> dokime_app::telemetry::TelemetryContract {
-        dokime_app::telemetry::TelemetryContract::declared(
-            <Self as dokime_app::StreamSpec>::ID,
+impl dokime_runtime::telemetry::TelemetryStream for HomedRow {
+    fn contract() -> dokime_runtime::telemetry::TelemetryContract {
+        dokime_runtime::telemetry::TelemetryContract::declared(
+            <Self as dokime_runtime::StreamSpec>::ID,
             "Steady Events",
         )
-        .columns(<Self as dokime_app::telemetry::TelemetryRow>::columns())
+        .columns(<Self as dokime_runtime::telemetry::TelemetryRow>::columns())
         .typed::<Self>()
         .strict()
     }
 }
 
-impl dokime_app::telemetry::OwnedStream for HomedRow {}
+impl dokime_runtime::telemetry::OwnedStream for HomedRow {}
 
-impl dokime_app::telemetry::TelemetryRow for HomedRow {
-    fn columns() -> Vec<dokime_app::telemetry::TelemetryColumn> {
-        vec![dokime_app::telemetry::TelemetryColumn::declared(
+impl dokime_runtime::telemetry::TelemetryRow for HomedRow {
+    fn columns() -> Vec<dokime_runtime::telemetry::TelemetryColumn> {
+        vec![dokime_runtime::telemetry::TelemetryColumn::declared(
             "value",
             "Value",
-            dokime_app::core::ValueType::Number,
-            dokime_app::telemetry::TelemetryRole::Value,
+            dokime_runtime::core::ValueType::Number,
+            dokime_runtime::telemetry::TelemetryRole::Value,
         )]
     }
 
-    fn into_row(self) -> BTreeMap<String, dokime_app::core::Value> {
+    fn into_row(self) -> BTreeMap<String, dokime_runtime::core::Value> {
         BTreeMap::from([(
             "value".to_owned(),
-            dokime_app::core::Value::Number(self.value),
+            dokime_runtime::core::Value::Number(self.value),
         )])
     }
 
     fn from_row(
-        values: &BTreeMap<String, dokime_app::core::Value>,
-    ) -> Result<Self, dokime_app::telemetry::FieldError> {
+        values: &BTreeMap<String, dokime_runtime::core::Value>,
+    ) -> Result<Self, dokime_runtime::telemetry::FieldError> {
         Ok(Self {
-            value: dokime_app::telemetry::field(values, "value")?,
+            value: dokime_runtime::telemetry::field(values, "value")?,
         })
     }
 }
@@ -92,15 +92,15 @@ impl dokime_app::telemetry::TelemetryRow for HomedRow {
 /* === Tests === */
 #[test]
 fn untyped_artifact_refused() {
-    let sink = std::sync::Arc::new(dokime_app::transport::recording::RecordingSink::new());
-    let artifacts = dokime_app::artifacts::Artifacts::new("authoring", sink.clone());
+    let sink = std::sync::Arc::new(dokime_runtime::transport::recording::RecordingSink::new());
+    let artifacts = dokime_runtime::artifacts::Artifacts::new("authoring", sink.clone());
 
     // An artifact name is the one statement the file makes about its content,
     // and there is no typed override left to make that statement a lie.
     let refused = artifacts
         .write("x", b"bytes")
         .expect_err("a name that does not say what the content is is refused");
-    // `dokime::Error` is not a name this crate resolves (it depends on
+    // `dokime_runtime::Error` is not a name this crate resolves (it depends on
     // `dokime` only through `dokime_app`'s re-exports), so the `io::Error`
     // beneath the refusal is reached through `source()` instead of a match.
     let io_error = std::error::Error::source(&refused)
@@ -122,24 +122,24 @@ fn untyped_artifact_refused() {
 
 #[tokio::test]
 async fn declared_row_home() {
-    let sink = std::sync::Arc::new(dokime_app::transport::recording::RecordingSink::new());
-    let artifacts = dokime_app::artifacts::Artifacts::new("authoring", sink.clone());
+    let sink = std::sync::Arc::new(dokime_runtime::transport::recording::RecordingSink::new());
+    let artifacts = dokime_runtime::artifacts::Artifacts::new("authoring", sink.clone());
 
     // A row type that declared its stream is published on that one and nowhere
     // else — the contract the host validates it against is that stream's, and
     // the call has no room left to name another. Driven through a step's own
     // grant, which is where an author meets the rule.
-    let mut transport = dokime_app::transport::recording::RecordingTransport::new();
+    let mut transport = dokime_runtime::transport::recording::RecordingTransport::new();
     let parameters = BTreeMap::new();
-    let settings = dokime::plugin::Configuration::default();
-    let environment: dokime_app::execution::Environment<'_, (), ()> =
-        dokime_app::execution::Environment::new(
+    let settings = dokime_runtime::plugin::Configuration::default();
+    let environment: dokime_runtime::execution::Environment<'_, (), ()> =
+        dokime_runtime::execution::Environment::new(
             &(),
             &parameters,
             &settings,
             artifacts,
-            dokime_app::telemetry::Streams::new(sink.clone()),
-            dokime_app::records::Deliveries::new(sink.clone()),
+            dokime_runtime::telemetry::Streams::new(sink.clone()),
+            dokime_runtime::records::Deliveries::new(sink.clone()),
         );
     let step = environment.step(&mut transport);
 

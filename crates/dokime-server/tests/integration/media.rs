@@ -177,7 +177,7 @@ async fn media_capture_artifacts() {
                 .expect("artifact query succeeds")
                 .iter()
                 .filter(|record| record.filename.starts_with("audio/"))
-                .filter(|record| record.status == dokime_app::artifacts::ArtifactStatus::Complete)
+                .filter(|record| record.status == dokime_runtime::artifacts::ArtifactStatus::Complete)
                 .count();
             (audio == 2).then_some(())
         })

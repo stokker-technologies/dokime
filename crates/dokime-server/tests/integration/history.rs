@@ -17,7 +17,7 @@ use std::sync::Arc;
 // Third Party Imports
 // Local Imports
 use super::*;
-use dokime_app::{execution::CycleStatus, runtime::command::CommandContext};
+use dokime_runtime::{execution::CycleStatus, runtime::command::CommandContext};
 use dokime_client::contracts::history::BrowseExecutionsRequest;
 use dokime_client::contracts::history::DeleteExecutionRequest;
 
@@ -41,7 +41,7 @@ const ADMIN_TOKEN: &str = "history-admin-token-01234567890123456789012";
 
 /* === Private Functions === */
 async fn checkpoint_for(
-    handle: &dokime_app::RuntimeHandle,
+    handle: &dokime_runtime::RuntimeHandle,
     history: &mut WireClient,
     execution_id: &str,
 ) -> contracts::checkpoint::ExecutionCheckpoint {

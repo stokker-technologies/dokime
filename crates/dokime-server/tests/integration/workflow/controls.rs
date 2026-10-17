@@ -464,7 +464,7 @@ async fn attempts(
         .executions
 }
 
-async fn completed(handle: &dokime_app::RuntimeHandle, client: &mut WireClient, id: &str) {
+async fn completed(handle: &dokime_runtime::RuntimeHandle, client: &mut WireClient, id: &str) {
     support::on_state_change(handle, async || {
         if client
             .unary::<contracts::execution::GetCycle>(authenticated(

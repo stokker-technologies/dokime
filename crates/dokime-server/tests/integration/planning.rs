@@ -18,8 +18,8 @@
 use prost::Message;
 // Local Imports
 use super::*;
-use dokime_app::core::Value;
-use dokime_app::definition::{FileDefinition, ParameterExpr, ParameterSelection, SuiteSet};
+use dokime_runtime::core::Value;
+use dokime_runtime::definition::{FileDefinition, ParameterExpr, ParameterSelection, SuiteSet};
 
 /* === Constants === */
 
@@ -39,7 +39,7 @@ use dokime_app::definition::{FileDefinition, ParameterExpr, ParameterSelection, 
 
 /* === Private Functions === */
 fn selection(
-    suite: &dokime_app::definition::TestSuite,
+    suite: &dokime_runtime::definition::TestSuite,
 ) -> contracts::planning::RegisteredSelection {
     contracts::planning::RegisteredSelection {
         suite_id: suite.metadata.identifier.to_string(),
@@ -131,8 +131,8 @@ async fn ordered_selections_provider() {
     let mut first = support::fixture_suite(&["passed"]);
     first.tags = vec!["suite-tag".into()];
     let parameter = &mut first.test_case_templates[0].parameters[0];
-    parameter.expansion = dokime_app::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_app::core::ValueType::Integer;
+    parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
+    parameter.value_type = dokime_runtime::core::ValueType::Integer;
     parameter.expression = ParameterExpr::Literal {
         value: Value::Integer(0),
     };
@@ -148,12 +148,12 @@ async fn ordered_selections_provider() {
     second.test_case_templates[0].metadata =
         support::metadata("fixture.second.template", "Second template");
     let parameter = &mut second.test_case_templates[0].parameters[0];
-    parameter.list = Some(dokime_app::definition::ParameterList {
-        element_type: dokime_app::core::ValueType::Integer,
+    parameter.list = Some(dokime_runtime::definition::ParameterList {
+        element_type: dokime_runtime::core::ValueType::Integer,
         min_items: None,
         max_items: None,
     });
-    parameter.value_type = dokime_app::core::ValueType::Array;
+    parameter.value_type = dokime_runtime::core::ValueType::Array;
     parameter.expression = ParameterExpr::Literal {
         value: Value::Array(vec![Value::Integer(0)]),
     };
@@ -289,15 +289,15 @@ async fn ordered_selections_provider() {
         .await
         .unwrap();
     let snapshot = owner.handle().watch_state().latest();
-    let id = dokime_app::core::TestCycleId::from_uuid(cycle_id).unwrap();
+    let id = dokime_runtime::core::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
-    assert_eq!(cycle.lifecycle, dokime_app::execution::CycleStatus::Ready);
+    assert_eq!(cycle.lifecycle, dokime_runtime::execution::CycleStatus::Ready);
     assert_eq!(cycle.test_executions.len(), cycle.cases().count());
     for (execution, case) in cycle.test_executions.iter().zip(cycle.cases()) {
         assert_eq!(execution.test_case_id, case.test_case_id);
         assert_eq!(
             execution.status,
-            dokime_app::execution::ExecutionStatus::Skipped
+            dokime_runtime::execution::ExecutionStatus::Skipped
         );
         assert!(execution.started_at.is_none());
     }
@@ -583,8 +583,8 @@ async fn effective_native_materialization() {
     let mut owner = runtime(root.path()).await;
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].parameters[0].expansion =
-        dokime_app::definition::ParameterExpansion::Cartesian;
-    suite.test_case_templates[0].parameters[0].value_type = dokime_app::core::ValueType::Integer;
+        dokime_runtime::definition::ParameterExpansion::Cartesian;
+    suite.test_case_templates[0].parameters[0].value_type = dokime_runtime::core::ValueType::Integer;
     let server = Server::start(owner.handle(), Config::default())
         .await
         .unwrap();
@@ -666,7 +666,7 @@ async fn effective_native_materialization() {
         step: 1,
     };
     let mut other = suite.test_case_templates[0].parameters[0].clone();
-    other.parameter_id = dokime_app::core::ParameterId::new();
+    other.parameter_id = dokime_runtime::core::ParameterId::new();
     other.metadata = support::metadata("fixture.other", "Other dimension");
     suite.test_case_templates[0].parameters.push(other);
     support::register_fixture_execution(&owner.handle(), suite.clone()).await;
@@ -698,8 +698,8 @@ async fn payload_budget_allocation() {
     let mut owner = runtime(root.path()).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let template = &mut suite.test_case_templates[0];
-    template.parameters[0].expansion = dokime_app::definition::ParameterExpansion::Cartesian;
-    template.parameters[0].value_type = dokime_app::core::ValueType::Integer;
+    template.parameters[0].expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
+    template.parameters[0].value_type = dokime_runtime::core::ValueType::Integer;
     template.parameters[0].expression = ParameterExpr::Range {
         start: 0,
         stop: 999,
@@ -780,12 +780,12 @@ async fn payload_budget_allocation() {
     suite.test_case_templates[0].metadata.label = "Template".into();
     suite.metadata.description = None;
     let template = &mut suite.test_case_templates[0];
-    template.parameters[0].value_type = dokime_app::core::ValueType::Array;
+    template.parameters[0].value_type = dokime_runtime::core::ValueType::Array;
     template.parameters[0].expression = ParameterExpr::Literal {
         value: Value::Array(vec![Value::Text("x".repeat(1024)); 32]),
     };
     let mut other = template.parameters[0].clone();
-    other.parameter_id = dokime_app::core::ParameterId::new();
+    other.parameter_id = dokime_runtime::core::ParameterId::new();
     other.metadata = support::metadata("fixture.other", "Other");
     other.expression = ParameterExpr::Array {
         values: vec![
@@ -895,7 +895,7 @@ async fn registered_cases_selection() {
         .await
         .unwrap();
     let snapshot = owner.handle().watch_state().latest();
-    let id = dokime_app::core::TestCycleId::from_uuid(cycle_id).unwrap();
+    let id = dokime_runtime::core::TestCycleId::from_uuid(cycle_id).unwrap();
     let cycle = snapshot.state().cycle_view(&id).unwrap();
     assert_eq!(cycle.test_executions.len(), 2);
     assert_ne!(

@@ -146,3 +146,58 @@ ashpd = { workspace = true, optional = true, features = ["screenshot"] }
 # UI
 xcap = { workspace = true, optional = true }
 
+
+[dev-dependencies]
+# Git
+harmos = { workspace = true, features = ["plugin-sidecar"] }
+
+# Logging
+tracing-subscriber = { workspace = true }
+
+# Serialization
+serde_json = { workspace = true }
+
+# Filesystem
+tempfile = { workspace = true }
+
+# Async
+tokio = { workspace = true, features = ["test-util"] }
+
+# Networking
+libunftp = { workspace = true, features = ["ring"] }
+unftp-core = { workspace = true }
+unftp-sbe-fs = { workspace = true }
+
+# Storage
+rusqlite = { workspace = true }
+
+# Testing
+criterion = { workspace = true }
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
+required-features = ["host", "fault-injection"]
+
+[[test]]
+name = "acceptance"
+path = "tests/acceptance/main.rs"
+required-features = ["host", "fault-injection"]
+
+[[bench]]
+name = "unit-runtime"
+path = "benches/unit/main.rs"
+harness = false
+required-features = ["host"]
+
+[[bench]]
+name = "integration-runtime"
+path = "benches/integration/main.rs"
+harness = false
+required-features = ["host"]
+
+[[bench]]
+name = "system-runtime"
+path = "benches/system/main.rs"
+harness = false
+required-features = ["host"]

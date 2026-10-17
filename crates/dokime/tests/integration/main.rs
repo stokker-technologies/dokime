@@ -7,18 +7,11 @@
  * ***
  */
 
-// In-process SDK stories: one behaviour of the runtime per story, with test
-// hosts and in-process sidecars, grouped by SDK domain.
+// In-process command stories, one module per command domain.
 
 /* === Modules === */
-mod artifacts;
-mod diagnostics;
-mod execution;
-mod files;
-mod plugin;
-mod storage;
-#[path = "../support/mod.rs"]
-pub mod support;
+mod install;
+mod commands;
 
 /* === Re-Exports === */
 

@@ -19,11 +19,11 @@ use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
 // Local Imports
 use super::*;
-use dokime::domains::ExecutionProviderTarget;
-use dokime_app::artifacts::{ArtifactRecord, ArtifactUploadInput};
-use dokime_app::core::RecordScope;
-use dokime_app::execution::CycleView;
-use dokime_app::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
+use dokime_runtime::domains::ExecutionProviderTarget;
+use dokime_runtime::artifacts::{ArtifactRecord, ArtifactUploadInput};
+use dokime_runtime::core::RecordScope;
+use dokime_runtime::execution::CycleView;
+use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
 const LARGE_ARTIFACT_BYTES: u64 = 300 * 1024 * 1024;
@@ -306,7 +306,7 @@ async fn artifact_transfer(message_bytes: usize) {
         content
             .download::<contracts::content::DownloadArtifact>(authenticated(
                 contracts::content::DownloadArtifactRequest {
-                    artifact_id: dokime_app::core::ArtifactId::new().to_string(),
+                    artifact_id: dokime_runtime::core::ArtifactId::new().to_string(),
                 }
             ))
             .await
@@ -382,7 +382,7 @@ async fn artifact_transfer(message_bytes: usize) {
         support::wait_for_cycle_lifecycle(
             &owner.handle(),
             records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-            dokime_app::execution::CycleStatus::Completed,
+            dokime_runtime::execution::CycleStatus::Completed,
         )
         .await;
         // A sealed execution cannot acquire another mutable artifact producer.
@@ -435,7 +435,7 @@ async fn artifact_transfer(message_bytes: usize) {
         support::wait_for_cycle_lifecycle(
             &owner.handle(),
             records[0].0.scope.test_cycle_id.as_ref().unwrap(),
-            dokime_app::execution::CycleStatus::Completed,
+            dokime_runtime::execution::CycleStatus::Completed,
         )
         .await;
     }
@@ -767,7 +767,7 @@ async fn artifact_upload_owned() {
             .find(|record| record.filename == "bad-offset.bin")
             .unwrap()
             .status,
-        dokime_app::artifacts::ArtifactStatus::Cancelled
+        dokime_runtime::artifacts::ArtifactStatus::Cancelled
     );
 
     let error = content
@@ -805,7 +805,7 @@ async fn artifact_upload_owned() {
             .find(|record| record.filename == "bad-size.bin")
             .unwrap()
             .status,
-        dokime_app::artifacts::ArtifactStatus::Rejected
+        dokime_runtime::artifacts::ArtifactStatus::Rejected
     );
 
     let error = content
@@ -843,7 +843,7 @@ async fn artifact_upload_owned() {
             .find(|record| record.filename == "bad-digest.bin")
             .unwrap()
             .status,
-        dokime_app::artifacts::ArtifactStatus::Rejected
+        dokime_runtime::artifacts::ArtifactStatus::Rejected
     );
 
     let listed = content
@@ -991,8 +991,8 @@ async fn completion_harness() -> (
 /// Wait on the live state the settled-evidence refusal reads, not on a sibling source.
 async fn wait_for_watched_lifecycle(
     owner: &Runtime,
-    cycle: &dokime_app::core::TestCycleId,
-    lifecycle: dokime_app::execution::CycleStatus,
+    cycle: &dokime_runtime::core::TestCycleId,
+    lifecycle: dokime_runtime::execution::CycleStatus,
 ) {
     owner
         .handle()
@@ -1137,7 +1137,7 @@ async fn artifact_upload_match() {
             .find(|record| record.filename == "mismatched.bin")
             .unwrap()
             .status,
-        dokime_app::artifacts::ArtifactStatus::Rejected
+        dokime_runtime::artifacts::ArtifactStatus::Rejected
     );
     finish_completion_harness(execution, cycle_id, gate, owner, server).await;
 }
@@ -1199,12 +1199,12 @@ async fn artifact_upload_completion() {
 async fn open_report_states() {
     let (_root, mut owner, server, execution, _content, gate, cycle_id, scope) =
         completion_harness().await;
-    let cycle = dokime_app::core::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
+    let cycle = dokime_runtime::core::TestCycleId::from_uuid(cycle_id.clone()).unwrap();
     let execution_id = scope
         .execution_id
         .clone()
         .expect("captured execution scope");
-    wait_for_watched_lifecycle(&owner, &cycle, dokime_app::execution::CycleStatus::Running).await;
+    wait_for_watched_lifecycle(&owner, &cycle, dokime_runtime::execution::CycleStatus::Running).await;
 
     // Running: Both Reports Are Rendered From The Current Evidence
     let (metadata, html) = cycle_report(&execution, &cycle_id).await;
@@ -1225,7 +1225,7 @@ async fn open_report_states() {
     wait_for_watched_lifecycle(
         &owner,
         &cycle,
-        dokime_app::execution::CycleStatus::Completed,
+        dokime_runtime::execution::CycleStatus::Completed,
     )
     .await;
     let (metadata, first) = cycle_report(&execution, &cycle_id).await;

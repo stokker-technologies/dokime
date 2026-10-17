@@ -93,12 +93,12 @@ pub(super) fn generated_plugin_tasks() {
     }
 
     // Build It Against This Tree, Offline
-    let sdk = workspace().join("crates/dokime");
+    let sdk = workspace().join("crates/dokime-runtime");
     std::fs::create_dir(plugin.join(".cargo")).unwrap();
     std::fs::write(
         plugin.join(".cargo/config.toml"),
         format!(
-            "[patch.{REPOSITORY:?}]\ndokime = {{ path = {:?} }}\n",
+            "[patch.{REPOSITORY:?}]\ndokime-runtime = {{ path = {:?} }}\n",
             sdk.display().to_string()
         ),
     )

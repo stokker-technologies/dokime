@@ -334,7 +334,7 @@ fn same_root_relaunches() {
 
 #[tokio::test]
 async fn incompatible_storage_refused() {
-    use dokime::storage::sqlite::{self, rusqlite};
+    use dokime_runtime::storage::sqlite::{self, rusqlite};
     let root = tempfile::tempdir().unwrap();
     let application = root.path().join("application");
     let data = application.join("data");
@@ -373,10 +373,10 @@ async fn incompatible_storage_refused() {
     assert_eq!(std::fs::read(data.join("local.sqlite")).unwrap(), original);
 
     // The Same Refusal Is Typed In Process
-    let mut config = dokime_app::config::Config::local(&data);
+    let mut config = dokime_runtime::config::Config::local(&data);
     config.application_root = Some(application.clone());
     config.seed_plugins = false;
-    let error = dokime_app::app::launch(config).await.err().unwrap();
+    let error = dokime_runtime::app::launch(config).await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, data.clone());
     assert!(
         matches!(&error, dokime_server::host::Error::IncompatibleStorage { root, .. } if root == &data),
@@ -392,10 +392,10 @@ async fn incompatible_storage_refused() {
     // A Root Owned By Another Runtime Is Not Reported As Incompatible
     let fresh = root.path().join("owned");
     let owner = sqlite::State::open(&fresh).await.unwrap();
-    let mut config = dokime_app::config::Config::local(&fresh);
+    let mut config = dokime_runtime::config::Config::local(&fresh);
     config.application_root = Some(application);
     config.seed_plugins = false;
-    let error = dokime_app::app::launch(config).await.err().unwrap();
+    let error = dokime_runtime::app::launch(config).await.err().unwrap();
     let error = dokime_server::host::Error::launch(error, fresh);
     assert!(
         matches!(&error, dokime_server::host::Error::Runtime(_)),

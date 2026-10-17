@@ -38,7 +38,7 @@ const CONTROL_TOKEN: &str = "append-control-token-012345678901234567890";
 
 /* === Private Functions === */
 fn selection(
-    suite: &dokime_app::definition::TestSuite,
+    suite: &dokime_runtime::definition::TestSuite,
     index: usize,
 ) -> contracts::planning::RegisteredSelection {
     contracts::planning::RegisteredSelection {

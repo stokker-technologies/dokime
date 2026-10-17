@@ -19,7 +19,7 @@ use std::io::{Cursor, Read as _, Write as _};
 use sha2::Digest as _;
 // Local Imports
 use super::*;
-use dokime_app::{
+use dokime_runtime::{
     InstalledPlugin,
     core::{Identifier, Value},
     domains::installed_plugins::PluginCredentialSecretUpdate,
@@ -117,7 +117,7 @@ fn secret_module() -> InstalledPlugin {
 
 fn record(level: &str, message: &str) -> String {
     format!(
-        r#"{{"timestamp":"2026-09-30T14:22:33.000001Z","level":"{level}","target":"dokime::fixture","fields":{{"message":"{message}"}}}}"#
+        r#"{{"timestamp":"2026-09-30T14:22:33.000001Z","level":"{level}","target":"dokime_runtime::fixture","fields":{{"message":"{message}"}}}}"#
     )
 }
 
@@ -297,7 +297,7 @@ async fn log_stream_file() {
         .unwrap()
         .expect("the WARN record replays");
     assert_eq!(replayed.level, contracts::backend::LogLevel::Warn);
-    assert_eq!(replayed.target, "dokime::fixture");
+    assert_eq!(replayed.target, "dokime_runtime::fixture");
     assert_eq!(replayed.message, "slow");
     assert_eq!(replayed.dropped, 0);
 
@@ -328,7 +328,7 @@ async fn level_filter_stream() {
     std::fs::create_dir_all(log.parent().unwrap()).unwrap();
     std::fs::write(&log, concat!(
         r#"{"timestamp":"2026-09-30T14:22:33.000001Z","level":"INFO","target":"dokime","fields":{"message":"started"}}"#, "\n",
-        r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
+        r#"{"timestamp":"2026-09-30T14:22:34.000001Z","level":"WARN","target":"dokime_runtime::hub","fields":{"message":"slow","api_token":"fake-material"}}"#, "\nnot json\n",
     )).unwrap();
     let mut stream = client
         .download::<contracts::backend::WatchLogs>(contracts::backend::WatchLogsRequest {
@@ -340,7 +340,7 @@ async fn level_filter_stream() {
         .into_inner();
     let frame = stream.message().await.unwrap().unwrap();
     assert_eq!(frame.level, contracts::backend::LogLevel::Warn);
-    assert_eq!(frame.target, "dokime::hub");
+    assert_eq!(frame.target, "dokime_runtime::hub");
     assert_eq!(frame.message, "slow");
     assert_eq!(
         frame

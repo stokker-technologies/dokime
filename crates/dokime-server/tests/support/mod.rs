@@ -11,7 +11,7 @@
 
 /* === Modules === */
 pub mod artifacts;
-#[path = "../../../dokime-app/tests/support/budgets.rs"]
+#[path = "../../../dokime-runtime/tests/support/services/budgets.rs"]
 pub mod budgets;
 pub mod host;
 pub mod wire;
@@ -28,29 +28,29 @@ use std::{
 use tempfile::tempdir;
 use tonic::{Extensions, Request, Status};
 // Local Imports
-use dokime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
-use dokime_app::core::{
+use dokime_runtime::domains::{ActionDispatcher, ExecutionProviderTarget, TestSuiteDefinition};
+use dokime_runtime::core::{
     CaseId, CredentialBackendKind, Identifier, Metadata, ParameterId, TemplateId, TestCycleId,
     Value, ValueType,
 };
-use dokime_app::definition::{
+use dokime_runtime::definition::{
     CriterionDefinition, ExecutionPhaseDefinition, ParameterDefinition, ParameterExpr, TestCase,
     TestCaseTemplate, TestSuite,
 };
-use dokime_app::domains::execution::provider::{
+use dokime_runtime::domains::execution::provider::{
     ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture,
 };
-use dokime_app::execution::ExecutionStatus;
-use dokime_app::execution::{CycleStatus, CycleView};
-use dokime_app::runtime::command::CommandContext;
-use dokime_app::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
-use dokime_app::transactions::CycleDefinition;
-use dokime_app::transport::{
+use dokime_runtime::execution::ExecutionStatus;
+use dokime_runtime::execution::{CycleStatus, CycleView};
+use dokime_runtime::runtime::command::CommandContext;
+use dokime_runtime::telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole};
+use dokime_runtime::transactions::CycleDefinition;
+use dokime_runtime::transport::{
     ProviderCriterionOutcome, ProviderCycleOutcome, ProviderDependencyProbe,
     ProviderExecutionFailure, ProviderExecutionOutcome, ProviderPhaseOutcome,
     ProviderStatusOutcome, ProviderTelemetryOutcome,
 };
-use dokime_app::{InstalledPlugin, Runtime, RuntimeCredentialConfig, RuntimeHandle};
+use dokime_runtime::{InstalledPlugin, Runtime, RuntimeCredentialConfig, RuntimeHandle};
 use dokime_client::contracts;
 
 /* === Constants === */
@@ -116,7 +116,7 @@ impl TestEnvironment {
             runtime_config = runtime_config.with_action_dispatcher(suite_id, dispatcher);
         }
         let runtime_owner =
-            { dokime_app::Runtime::with_execution_fixture(runtime_config, "fixture", provider) }
+            { dokime_runtime::Runtime::with_execution_fixture(runtime_config, "fixture", provider) }
                 .await
                 .unwrap();
         let runtime = runtime_owner.handle();
@@ -224,7 +224,7 @@ pub async fn cycle_with_cases(
 }
 
 pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
-    let options = dokime_app::definition::CaseMaterializationOptions {
+    let options = dokime_runtime::definition::CaseMaterializationOptions {
         force: true,
         ..Default::default()
     };
@@ -232,7 +232,7 @@ pub fn materialize_cases(suite_id: &str, suite: &TestSuite) -> Vec<TestCase> {
         .test_case_templates
         .iter()
         .flat_map(|template| {
-            dokime_app::definition::materialize_template_cases(
+            dokime_runtime::definition::materialize_template_cases(
                 suite_id,
                 template,
                 Default::default(),
@@ -314,7 +314,7 @@ pub async fn register_fixture_execution_pair(
     runtime
         .set_suites(
             "provider:fixture",
-            dokime_app::definition::SuiteSet::new([
+            dokime_runtime::definition::SuiteSet::new([
                 fixture_progress_registration(first),
                 diagnostics,
             ]),
@@ -530,7 +530,7 @@ async fn register_fixture_registration(runtime: &RuntimeHandle, registration: Te
     runtime
         .set_suites(
             "provider:fixture",
-            dokime_app::definition::SuiteSet::new([registration]),
+            dokime_runtime::definition::SuiteSet::new([registration]),
         )
         .await
         .unwrap();
@@ -591,11 +591,11 @@ fn named_case_template(
         files: Vec::new(),
         phases: vec![ExecutionPhaseDefinition {
             repeatable: false,
-            step_id: dokime_app::core::StepId::new(),
+            step_id: dokime_runtime::core::StepId::new(),
             metadata: metadata("fixture.phase", "Fixture Phase"),
         }],
         criteria: vec![CriterionDefinition {
-            criterion_id: dokime_app::core::CriterionId::new(),
+            criterion_id: dokime_runtime::core::CriterionId::new(),
             metadata: metadata("fixture.criterion", "Fixture Criterion"),
             expected: Some(Value::from(result)),
         }],
@@ -640,7 +640,7 @@ fn fixture_progress_telemetry(progress: f64) -> ProviderTelemetryOutcome {
     ProviderTelemetryOutcome {
         stream: "fixture.progress".to_owned(),
         label: "Fixture Progress".to_owned(),
-        samples: vec![dokime::transport::ProviderTelemetryRow {
+        samples: vec![dokime_runtime::transport::ProviderTelemetryRow {
             values: BTreeMap::from([("progress".to_owned(), Value::Number(progress))]),
             payload: harmos::Message::encode_to_vec(&ProgressRow { progress }),
         }],

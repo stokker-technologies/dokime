@@ -40,14 +40,7 @@
 /* === Tests === */
 
 fn command(cwd: &std::path::Path) -> std::process::Command {
-    let server = std::path::PathBuf::from(
-        std::env::var_os("DOKIME_TEST_HOST").expect("mise selects the exact prepared server"),
-    );
-    assert!(
-        server.is_file(),
-        "Prepared Server Must Provide {}",
-        server.display()
-    );
+    let server = super::support::host();
     // The dokime CLI built beside this tool launches the prepared server.
     let cli =
         super::support::tool().with_file_name(format!("dokime{}", std::env::consts::EXE_SUFFIX));

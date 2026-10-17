@@ -45,9 +45,9 @@ async fn large_cycles_order() {
     let mut owner = fixture(root.path(), gate.clone()).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let parameter = &mut suite.test_case_templates[0].parameters[0];
-    parameter.expansion = dokime_app::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_app::core::ValueType::Integer;
-    parameter.expression = dokime_app::definition::ParameterExpr::Range {
+    parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
+    parameter.value_type = dokime_runtime::core::ValueType::Integer;
+    parameter.expression = dokime_runtime::definition::ParameterExpr::Range {
         start: 0,
         stop: 256,
         step: 1,
@@ -226,9 +226,9 @@ async fn large_run_preparation() {
     let mut owner = fixture(root.path(), gate.clone()).await;
     let mut suite = support::fixture_suite(&["passed"]);
     let parameter = &mut suite.test_case_templates[0].parameters[0];
-    parameter.expansion = dokime_app::definition::ParameterExpansion::Cartesian;
-    parameter.value_type = dokime_app::core::ValueType::Integer;
-    parameter.expression = dokime_app::definition::ParameterExpr::Range {
+    parameter.expansion = dokime_runtime::definition::ParameterExpansion::Cartesian;
+    parameter.value_type = dokime_runtime::core::ValueType::Integer;
+    parameter.expression = dokime_runtime::definition::ParameterExpr::Range {
         start: 0,
         stop: PREPARATION_CASES as i64 - 1,
         step: 1,

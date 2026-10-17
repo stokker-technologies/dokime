@@ -65,7 +65,7 @@ async fn live_file_rewrites() {
         .unwrap()
         .into_inner();
     let id =
-        dokime_app::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
+        dokime_runtime::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
             .unwrap();
     let first = runtime
         .execution_file_target(&id, "files/a.bin".into(), false, true)
@@ -629,7 +629,7 @@ async fn live_file_rewrites() {
     }
 }
 
-async fn producer_generation_follow(runtime: &dokime_app::RuntimeHandle) {
+async fn producer_generation_follow(runtime: &dokime_runtime::RuntimeHandle) {
     use harmos::storage::{FileMetadata, FilePhase, StagedFile};
     let storage = runtime.storage();
     let metadata = FileMetadata {
@@ -709,7 +709,7 @@ async fn live_follow_refusal(change: &str) {
         .unwrap()
         .into_inner();
     let id =
-        dokime_app::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
+        dokime_runtime::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
             .unwrap();
     let target = runtime
         .execution_file_target(&id, "follow.bin".into(), false, true)
@@ -853,7 +853,7 @@ async fn live_follow_refusal(change: &str) {
     server.shutdown().await.unwrap();
     drop(runtime);
     let failure = owner.shutdown().await.unwrap_err();
-    let dokime_app::Error::Harmos(shutdown) = &failure else {
+    let dokime_runtime::runtime::Error::Harmos(shutdown) = &failure else {
         panic!("{change}: expected retained service failure, got {failure:?}");
     };
     let mut cause: &(dyn std::error::Error + Send + Sync + 'static) = shutdown;
@@ -861,8 +861,8 @@ async fn live_follow_refusal(change: &str) {
     {
         cause = source.as_ref();
     }
-    let Some(harmos::services::Fault::Application(dokime_app::Error::Operation(reason))) =
-        cause.downcast_ref::<harmos::services::Fault<dokime_app::Error>>()
+    let Some(harmos::services::Fault::Application(dokime_runtime::runtime::Error::Operation(reason))) =
+        cause.downcast_ref::<harmos::services::Fault<dokime_runtime::runtime::Error>>()
     else {
         panic!("{change}: shutdown must retain the injected capture failure: {failure:?}");
     };
@@ -904,7 +904,7 @@ async fn execution_file_buffer() {
         .unwrap()
         .into_inner();
     let id =
-        dokime_app::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
+        dokime_runtime::core::TestExecutionId::from_uuid(executions.executions[0].execution_id.clone())
             .unwrap();
     let target = runtime
         .execution_file_target(&id, "large.bin".into(), false, true)

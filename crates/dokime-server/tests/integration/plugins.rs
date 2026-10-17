@@ -352,7 +352,7 @@ fn bundle_description(description: &str) -> Vec<u8> {
             bytes: executable.as_bytes(),
             executable: Some(Executable {
                 facility: Facility::Sidecar,
-                target: dokime_app::plugins::NATIVE_TARGET.into(),
+                target: dokime_runtime::plugins::NATIVE_TARGET.into(),
                 registrations: vec![],
             }),
         }],
@@ -368,7 +368,7 @@ async fn fixture(root: &std::path::Path) -> Runtime {
         root,
         Metadata::new(Identifier::new("plugins.fixture").unwrap(), "Plugins", None),
     );
-    config.installed_plugins.push(dokime_app::InstalledPlugin {
+    config.installed_plugins.push(dokime_runtime::InstalledPlugin {
         source: "grpc.host".into(),
         version: "1.0.0".into(),
         enabled: true,
@@ -633,7 +633,7 @@ async fn operation_grants_scope() {
         .operations()
         .register_wire_operation::<DynamicUnaryHandler>(
             DYNAMIC_OWNER,
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             calls.clone(),
         )
         .unwrap();
@@ -641,7 +641,7 @@ async fn operation_grants_scope() {
         .operations()
         .register_wire_operation::<DynamicDownloadHandler>(
             DYNAMIC_OWNER,
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             calls.clone(),
         )
         .unwrap();
@@ -649,7 +649,7 @@ async fn operation_grants_scope() {
         .operations()
         .register_wire_operation::<DynamicUploadHandler>(
             DYNAMIC_OWNER,
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             calls.clone(),
         )
         .unwrap();
@@ -657,7 +657,7 @@ async fn operation_grants_scope() {
         .operations()
         .register_wire_operation::<DynamicDuplexHandler>(
             DYNAMIC_OWNER,
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             calls.clone(),
         )
         .unwrap();
@@ -864,7 +864,7 @@ async fn operation_grants_scope() {
         .operations()
         .register_wire_operation::<DynamicReplacementHandler>(
             DYNAMIC_OWNER,
-            dokime_app::app::Lanes::Open,
+            dokime_runtime::app::Lanes::Open,
             calls.clone(),
         )
         .unwrap();

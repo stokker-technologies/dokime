@@ -48,41 +48,20 @@ fn sdk_artifact() -> &'static SdkArtifact {
     static SDK: std::sync::OnceLock<SdkArtifact> = std::sync::OnceLock::new();
     SDK.get_or_init(|| {
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../dokime/Cargo.toml")
+            .join("../dokime-runtime/Cargo.toml")
             .canonicalize()
             .unwrap();
-        let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/fixtures/macros-native-sdk");
-        // Keep The Nested SDK Build In Its Own Checkout-Local Namespace.
-        // Cargo JSON Identifies Exact Libraries And Native Link Paths There.
-        let built =
-            std::process::Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
-                .args(["build", "--locked", "--manifest-path"])
-                .arg(&manifest)
-                .args([
-                    "--package",
-                    "dokime",
-                    "--lib",
-                    "--no-default-features",
-                    // The fixtures are written with the attributes, which ship
-                    // behind `derive` the way serde ships its own.
-                    "--features",
-                    "native,derive",
-                    "--message-format=json",
-                    "--target-dir",
-                ])
-                .arg(&target)
-                .output()
-                .unwrap();
-        assert!(
-            built.status.success(),
-            "native SDK fixture build failed: {}",
-            String::from_utf8_lossy(&built.stderr)
-        );
+        let workspace = manifest.parent().unwrap().parent().unwrap().parent().unwrap();
+        let target = std::env::var_os("CARGO_TARGET_DIR")
+            .map(|path| workspace.join(path))
+            .unwrap_or_else(|| workspace.join("target"));
+        let messages = target.join("build/compiler-artifacts.jsonl");
+        let built = std::fs::read_to_string(&messages)
+            .unwrap_or_else(|error| panic!("run mise run build to produce {}: {error}", messages.display()));
         let mut artifacts = Vec::new();
         let mut serde = None;
         let mut native_paths = Vec::new();
-        for line in String::from_utf8(built.stdout).unwrap().lines() {
+        for line in built.lines() {
             let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
                 continue;
             };
@@ -113,7 +92,7 @@ fn sdk_artifact() -> &'static SdkArtifact {
                 || !value["manifest_path"]
                     .as_str()
                     .is_some_and(|path| same_path(&manifest, path))
-                || value["target"]["name"] != "dokime"
+                || value["target"]["name"] != "dokime_runtime"
             {
                 continue;
             }
@@ -559,8 +538,8 @@ fn foreign_stream_unpublished() {
     for unsatisfied in [
         "the trait bound `GatewayRssi: Publishable` is not satisfied",
         "the trait bound `GatewayRssi: OwnedStream` is not satisfied",
-        "the trait bound `dokime::host::System: Publishable` is not satisfied",
-        "the trait bound `dokime::host::System: OwnedStream` is not satisfied",
+        "the trait bound `dokime_runtime::host::System: Publishable` is not satisfied",
+        "the trait bound `dokime_runtime::host::System: OwnedStream` is not satisfied",
     ] {
         assert!(diagnostics.contains(unsatisfied), "{diagnostics}");
     }
@@ -582,12 +561,12 @@ fn undeclared_call_refused() {
     // The plugin serves the operation; the template never said it would call it,
     // so the refusal is on the call and names the catalog to add it to.
     assert!(
-        diagnostics.contains("ProbeRequired: dokime::catalog::Contains<GetCurrent>"),
+        diagnostics.contains("ProbeRequired: dokime_runtime::catalog::Contains<GetCurrent>"),
         "{diagnostics}"
     );
     assert_eq!(
         diagnostics
-            .matches("ProbeRequired: dokime::catalog::Contains<GetVoltage>")
+            .matches("ProbeRequired: dokime_runtime::catalog::Contains<GetVoltage>")
             .count(),
         0,
         "a declared request is not refused: {diagnostics}"

@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::*;
-use dokime_app::{
+use dokime_runtime::{
     core::{DurationMillis, MeasurementUnit, UnitFamily, Value, ValueType},
     records::{RecordContract, RecordField, RecordIconKey, RecordSeverity, RecordTone},
     telemetry::{TelemetryColumn, TelemetryContract, TelemetryRole},
@@ -93,7 +93,7 @@ async fn schemas_exact_pages() {
     handle
         .set_suites(
             "provider:fixture",
-            dokime_app::definition::SuiteSet::new([registration.clone()]),
+            dokime_runtime::definition::SuiteSet::new([registration.clone()]),
         )
         .await
         .unwrap();
@@ -291,7 +291,7 @@ async fn schemas_exact_pages() {
     handle
         .set_suites(
             "provider:fixture",
-            dokime_app::definition::SuiteSet::new([registration]),
+            dokime_runtime::definition::SuiteSet::new([registration]),
         )
         .await
         .unwrap();
@@ -334,7 +334,7 @@ async fn catalog_suite_extensions() {
     let mut suite = support::fixture_suite(&["passed"]);
     suite.test_case_templates[0].parameters[0].value_type = ValueType::Number;
     suite.test_case_templates[0].parameters[0].expression =
-        dokime_app::definition::ParameterExpr::Literal {
+        dokime_runtime::definition::ParameterExpr::Literal {
             value: Value::Number(10.0),
         };
     suite.test_case_templates[0].parameters[0].min = Some(1.0);
@@ -354,7 +354,7 @@ async fn catalog_suite_extensions() {
     handle
         .set_suites(
             "provider:fixture",
-            dokime_app::definition::SuiteSet::new([registration]),
+            dokime_runtime::definition::SuiteSet::new([registration]),
         )
         .await
         .unwrap();

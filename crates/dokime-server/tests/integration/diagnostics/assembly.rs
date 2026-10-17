@@ -18,9 +18,9 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_app::core::{Identifier, Metadata};
-use dokime_app::domains::exports::storage::DiagnosticPathKey;
-use dokime_app::{Runtime, RuntimeConfig};
+use dokime_runtime::core::{Identifier, Metadata};
+use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
+use dokime_runtime::{Runtime, RuntimeConfig};
 use tempfile::tempdir;
 
 use dokime_server::diagnostics_assembly::{

@@ -34,10 +34,10 @@ use prost::Message;
 use tokio::sync::Notify;
 // Local Imports
 use super::*;
-use dokime::domains::ExecutionProviderTarget;
-use dokime_app::execution::CycleView;
-use dokime_app::transport::ProviderExecutionFailure;
-use dokime_app::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
+use dokime_runtime::domains::ExecutionProviderTarget;
+use dokime_runtime::execution::CycleView;
+use dokime_runtime::transport::ProviderExecutionFailure;
+use dokime_runtime::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 
 /* === Constants === */
 
@@ -816,7 +816,7 @@ async fn historical_checkpoint_content() {
         vec![contracts::execution::CaseParameter {
             name: "fixture.result".into(),
             value: Some(contracts::value::Value::from(
-                &dokime_app::core::Value::Text("passed".into())
+                &dokime_runtime::core::Value::Text("passed".into())
             )),
         }]
     );

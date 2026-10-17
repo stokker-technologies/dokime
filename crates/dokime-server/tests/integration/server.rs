@@ -84,16 +84,16 @@ async fn discovery_shares_independently() {
     assert_eq!(managed_identity.product_version, identity.product_version);
     let operations = native.operations().await.unwrap();
     assert!(operations.iter().any(|operation| {
-        operation.contract.operation().id.as_str() == dokime::operations::evidence::WatchRecords::ID
+        operation.contract.operation().id.as_str() == dokime_runtime::operations::evidence::WatchRecords::ID
             && operation.grpc_available
     }));
     assert!(operations.iter().any(|operation| {
-        operation.contract.operation().id.as_str() == dokime::operations::runtime::GetIdentity::ID
+        operation.contract.operation().id.as_str() == dokime_runtime::operations::runtime::GetIdentity::ID
             && operation.grpc_available
     }));
     let response = native
         .call_operation(
-            dokime::operations::runtime::GetIdentity::ID,
+            dokime_runtime::operations::runtime::GetIdentity::ID,
             None,
             b"{}",
             vec![],
@@ -113,7 +113,7 @@ async fn discovery_shares_independently() {
     assert_eq!(managed.epoch, epoch);
     assert_eq!(
         managed.readiness,
-        dokime::operations::runtime::Readiness::Ready
+        dokime_runtime::operations::runtime::Readiness::Ready
     );
     assert!(managed.observed_at_nanoseconds < 1_000_000_000);
     native.close_and_wait().await;

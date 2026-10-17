@@ -86,15 +86,15 @@ fn app_and_window(
 struct ActiveFixture {
     release: tokio::sync::Notify,
 }
-impl dokime_app::ExecutionFixture for ActiveFixture {
+impl dokime_runtime::ExecutionFixture for ActiveFixture {
     fn run_cycle<'a>(
         &'a self,
-        _context: dokime_app::ExecutionFixtureContext,
-        cycle: &'a dokime_app::execution::CycleView,
-        _target: &'a dokime::domains::ExecutionProviderTarget,
-    ) -> dokime_app::ExecutionFixtureFuture<'a> {
+        _context: dokime_runtime::ExecutionFixtureContext,
+        cycle: &'a dokime_runtime::execution::CycleView,
+        _target: &'a dokime_runtime::domains::ExecutionProviderTarget,
+    ) -> dokime_runtime::ExecutionFixtureFuture<'a> {
         Box::pin(async move {
-            use dokime_app::transport::{
+            use dokime_runtime::transport::{
                 ProviderCycleOutcome, ProviderExecutionOutcome, ProviderStatusOutcome,
             };
             self.release.notified().await;
@@ -131,7 +131,7 @@ impl dokime_app::ExecutionFixture for ActiveFixture {
 struct ScopedFixture {
     session: dokime_gui::connection::ConnectionSession,
     server: dokime_server::grpc::Server,
-    runtime: dokime_app::Runtime,
+    runtime: dokime_runtime::Runtime,
     _root: tempfile::TempDir,
     scope: content::ArtifactScope,
     execution: std::sync::Arc<ActiveFixture>,
@@ -141,23 +141,23 @@ impl ScopedFixture {
     async fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
         let metadata = || {
-            dokime_app::core::Metadata::new(
-                dokime_app::core::Identifier::new("rpc.artifact-upload").unwrap(),
+            dokime_runtime::core::Metadata::new(
+                dokime_runtime::core::Identifier::new("rpc.artifact-upload").unwrap(),
                 "Artifact upload fixture",
                 None,
             )
         };
         let execution = std::sync::Arc::new(ActiveFixture::default());
-        let runtime = dokime_app::Runtime::with_execution_fixture(
-            dokime_app::RuntimeConfig::new(root.path(), metadata()),
+        let runtime = dokime_runtime::Runtime::with_execution_fixture(
+            dokime_runtime::RuntimeConfig::new(root.path(), metadata()),
             "fixture",
             execution.clone(),
         )
         .await
         .unwrap();
         let handle = runtime.handle();
-        let template = dokime_app::definition::TestCaseTemplate {
-            test_case_template_id: dokime_app::core::TemplateId::new(),
+        let template = dokime_runtime::definition::TestCaseTemplate {
+            test_case_template_id: dokime_runtime::core::TemplateId::new(),
             metadata: metadata(),
             tags: vec![],
             parameter_groups: vec![],
@@ -171,7 +171,7 @@ impl ScopedFixture {
             subscriptions: vec![],
             attributes: Default::default(),
         };
-        let suite = dokime_app::definition::TestSuite {
+        let suite = dokime_runtime::definition::TestSuite {
             metadata: metadata(),
             tags: vec![],
             parameter_groups: vec![],
@@ -180,7 +180,7 @@ impl ScopedFixture {
         handle
             .set_suites(
                 "provider:fixture",
-                dokime_app::definition::SuiteSet::new([dokime::domains::TestSuiteDefinition {
+                dokime_runtime::definition::SuiteSet::new([dokime_runtime::domains::TestSuiteDefinition {
                     suite_id: "rpc.artifact-upload".into(),
                     tags: vec![],
                     workflow: Some("execute_cycle".into()),

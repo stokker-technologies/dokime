@@ -197,7 +197,7 @@ async fn commands_owner_receipts() {
             .await;
         if let Err(error) = &response {
             let request_id =
-                dokime_app::core::CommandId::from_uuid(command.request_id.clone()).unwrap();
+                dokime_runtime::core::CommandId::from_uuid(command.request_id.clone()).unwrap();
             let original = owner.handle().run_request(&request_id).await;
             panic!("command lookup failed: {error}; original receipt: {original:?}");
         }
@@ -374,7 +374,7 @@ async fn keyed_runs_restart() {
     assert_eq!(plan.test_executions.len(), 1);
     assert_eq!(
         plan.test_executions[0].status,
-        dokime_app::execution::ExecutionStatus::Interrupted
+        dokime_runtime::execution::ExecutionStatus::Interrupted
     );
     assert!(plan.test_executions[0].started_at.is_none());
     assert!(plan.test_executions[0].finished_at.is_some());
@@ -409,7 +409,7 @@ async fn keyed_runs_restart() {
     assert_eq!(plan.test_executions.len(), 1);
     assert_eq!(
         plan.test_executions[0].status,
-        dokime_app::execution::ExecutionStatus::Interrupted
+        dokime_runtime::execution::ExecutionStatus::Interrupted
     );
     assert!(plan.test_executions[0].started_at.is_none());
     assert!(plan.test_executions[0].finished_at.is_some());

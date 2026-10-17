@@ -49,8 +49,8 @@ fn serve_writes_records() {
     }
 
     let guards = dokime_server::host::install_logging(root.path(), false).unwrap();
-    tracing::info!(target: "dokime::hub", phase = "storage", "backend reached storage");
-    tracing::warn!(target: "dokime::hub", attempts = 3, "plugin handshake retried");
+    tracing::info!(target: "dokime_runtime::hub", phase = "storage", "backend reached storage");
+    tracing::warn!(target: "dokime_runtime::hub", attempts = 3, "plugin handshake retried");
     // Flushes the non-blocking worker's queue; the file is only whole after.
     drop(guards);
 
@@ -68,7 +68,7 @@ fn serve_writes_records() {
     ];
     for (record, (level, message, field, value)) in records.iter().zip(expected) {
         assert_eq!(record["level"], level, "{record}");
-        assert_eq!(record["target"], "dokime::hub", "{record}");
+        assert_eq!(record["target"], "dokime_runtime::hub", "{record}");
         // Nested, not flattened: this is where the reader looks.
         assert_eq!(record["fields"]["message"], message, "{record}");
         assert_eq!(record["fields"][field].to_string(), value, "{record}");

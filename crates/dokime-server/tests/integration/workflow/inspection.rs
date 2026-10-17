@@ -18,7 +18,7 @@
 
 // Local Imports
 use super::*;
-use dokime_app::{core::Value, domains::execution::authoring::SidecarStepContext};
+use dokime_runtime::{core::Value, domains::execution::authoring::SidecarStepContext};
 
 /* === Constants === */
 
@@ -436,12 +436,12 @@ async fn planned_params_limit() {
     suite.test_case_templates[0].parameters = (0..257)
         .map(|index| {
             let mut parameter = prototype.clone();
-            parameter.parameter_id = dokime_app::core::ParameterId::new();
+            parameter.parameter_id = dokime_runtime::core::ParameterId::new();
             parameter.metadata = support::metadata(&format!("p{index:03}"), "Parameter");
-            parameter.expression = dokime_app::definition::ParameterExpr::Literal {
+            parameter.expression = dokime_runtime::definition::ParameterExpr::Literal {
                 value: Value::Integer(index),
             };
-            parameter.value_type = dokime_app::core::ValueType::Integer;
+            parameter.value_type = dokime_runtime::core::ValueType::Integer;
             parameter
         })
         .collect();

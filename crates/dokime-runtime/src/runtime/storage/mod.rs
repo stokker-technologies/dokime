@@ -19,7 +19,7 @@ pub(crate) mod context_records;
 pub(crate) mod cycle;
 pub(crate) mod cycle_finalization;
 #[cfg(test)]
-#[path = "../../../tests/domains/documents/materialization/cycle_restart.rs"]
+#[path = "../../../tests/private/cycle_restart.rs"]
 mod cycle_restart;
 mod cycles;
 pub(crate) mod execution;

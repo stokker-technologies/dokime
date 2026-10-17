@@ -52,7 +52,7 @@ fn base64(bytes: &[u8]) -> String {
 async fn typescript_facade_bridge() {
     let fixture = Fixture::new().await;
     fixture.runtime.handle().set_brand(Some(
-        dokime_app::domains::installed_plugins::load_brand(
+        dokime_runtime::domains::installed_plugins::load_brand(
             &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../branding"),
         )
         .unwrap(),

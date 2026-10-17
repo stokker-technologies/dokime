@@ -20,7 +20,7 @@ use std::{path::Path, sync::Arc};
 
 // Local Imports
 use super::artifact;
-use dokime_app::{
+use dokime_runtime::{
     Runtime, RuntimeConfig,
     core::{Identifier, Metadata},
 };
@@ -78,10 +78,10 @@ impl Fixture {
         )
         .await
         .unwrap();
-        let calibration = dokime_app::records::ProductCalibrationDetails::new(
+        let calibration = dokime_runtime::records::ProductCalibrationDetails::new(
             "rpc-device",
-            dokime_app::records::ProductCalibrationKind::Field,
-            dokime_app::records::ProductCalibrationPhase::Completed,
+            dokime_runtime::records::ProductCalibrationKind::Field,
+            dokime_runtime::records::ProductCalibrationPhase::Completed,
         );
         runtime
             .handle()
@@ -131,11 +131,11 @@ impl Fixture {
 
 impl Published {
     pub async fn start(root: &Path) -> Self {
-        let mut config = dokime_app::config::Config::local(root);
+        let mut config = dokime_runtime::config::Config::local(root);
         config.seed_plugins = false;
         config.credential_backend =
             serde_json::from_value(serde_json::json!({"backend":"memory"})).unwrap();
-        let runtime = dokime_app::app::launch(config).await.unwrap();
+        let runtime = dokime_runtime::app::launch(config).await.unwrap();
         let server = Server::start(runtime.handle(), Config::local())
             .await
             .unwrap();

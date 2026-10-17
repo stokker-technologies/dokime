@@ -18,10 +18,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 // Local Imports
 use super::*;
-use dokime_app::core::{Identifier, ParameterId, RecordScope, Timestamp, Value, ValueType};
-use dokime_app::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
-use dokime_app::runtime::command::CommandContext;
-use dokime_app::telemetry::{TelemetryBatch, TelemetrySample};
+use dokime_runtime::core::{Identifier, ParameterId, RecordScope, Timestamp, Value, ValueType};
+use dokime_runtime::definition::{ParameterDefinition, ParameterExpr, SuiteSet};
+use dokime_runtime::runtime::command::CommandContext;
+use dokime_runtime::telemetry::{TelemetryBatch, TelemetrySample};
 
 /* === Constants === */
 
@@ -285,7 +285,7 @@ async fn get_traceability_cursor() {
                     .as_ref()
                     .map(|value| value.to_core().unwrap())
                     .is_some_and(|kind| {
-                        matches!(kind, dokime_app::core::Value::Text(value) if value == "second-host")
+                        matches!(kind, dokime_runtime::core::Value::Text(value) if value == "second-host")
                     })
         })
     }));
