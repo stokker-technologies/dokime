@@ -19,14 +19,7 @@ include = ["/src/**", "/tests/**", "/benches/**", "/build.rs", "/Cargo.toml", "/
 
 [features]
 default = ["native", "derive"]
-native = [
-  "harmos/plugin-sidecar",
-  "dep:globset",
-  "dep:tokio",
-  "dep:tokio-stream",
-  "dep:tracing-subscriber",
-  "dep:tracing-error",
-]
+native = ["harmos/plugin-sidecar", "dep:globset", "dep:tokio", "dep:tokio-stream", "dep:tracing-subscriber", "dep:tracing-error"]
 derive = ["dep:dokime-macros"]
 storage = ["dep:base64", "dep:futures-util", "dep:rusqlite", "dep:sha2", "dep:tempfile", "dep:tokio"]
 host = [

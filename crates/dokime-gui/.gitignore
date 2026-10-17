@@ -1,2 +1,5 @@
 # Generated Canonical TypeScript Bindings
 .generated/
+
+# Built Frontend Output
+dist/

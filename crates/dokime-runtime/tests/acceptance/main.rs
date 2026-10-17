@@ -17,9 +17,6 @@
 mod engine;
 mod services;
 
-#[path = "../support/engine/mod.rs"]
-pub mod engine_support;
-
 #[path = "../support/services/mod.rs"]
 pub mod service_support;
 

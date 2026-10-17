@@ -223,6 +223,8 @@ impl DoubleHandler {
 #[dokime_runtime::operation(id = "call-fixture.hidden", version = 1, policy = super::native::POLICY, response = ())]
 #[derive(Clone, PartialEq)]
 struct Hidden {}
+// Never dispatched: the story proves no catalog lists it.
+#[allow(dead_code)]
 #[dokime_runtime::operation]
 impl HiddenHandler {
     async fn initialize(_: Arc<Shared>, _: &Supervisor) -> Self {

@@ -11,9 +11,10 @@
 
 /* === Modules === */
 
+// Public Within The Unit-Test Build Only: Each Target Uses Its Own Part Of The Shared Story Support.
 #[cfg(all(test, feature = "host"))]
 #[path = "../tests/support/services/mod.rs"]
-pub(crate) mod service_support;
+pub mod service_support;
 
 #[macro_use]
 mod macros;
@@ -143,7 +144,7 @@ pub use definition::{Parameter, ParameterDefault, ParameterExpansion};
 pub use dokime_domain::DEV_PROTOCOL;
 pub use dokime_domain::Error as ApiError;
 pub use dokime_domain::READINESS_PROTOCOL;
-pub use dokime_domain::model::appearance::*;
+pub use dokime_domain::model::appearance::{HostCardBlock, HostCardBody, HostCardKeyValue, HostCardMetric, HostCardTone};
 pub use dokime_domain::model::credentials::*;
 pub use dokime_domain::model::diagnostics::*;
 pub use dokime_domain::model::execution::*;
@@ -152,6 +153,8 @@ pub use dokime_domain::model::settings;
 pub use dokime_domain::model::time::*;
 pub use dokime_domain::model::validation::*;
 pub use dokime_domain::model::values::*;
+// Several model globs carry a `wire` module; the value wire form is the one this crate names.
+pub use dokime_domain::model::values::wire;
 pub use error::{Error, Result};
 pub use execution::Slot;
 pub use parameters::{FromParameters, ParameterChoice, ParameterHandle, ParameterValue};
@@ -201,7 +204,7 @@ pub(crate) use domains::{
 #[cfg(feature = "host")]
 pub(crate) use runtime::command as commands;
 #[cfg(feature = "host")]
-pub(crate) use runtime::command::{CommandContext, CommandId, CommandReceipt, JobRunId};
+pub(crate) use runtime::command::CommandReceipt;
 #[cfg(feature = "host")]
 pub(crate) use runtime::query as queries;
 #[cfg(feature = "host")]

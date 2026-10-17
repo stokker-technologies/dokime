@@ -35,7 +35,7 @@ mod package;
 #[derive(clap::Subcommand)]
 pub enum Command {
     New(new::Args),
-    Build(build::Args),
+    Build(Box<build::Args>),
     Package(package::Args),
     Dev(Box<dev::Args>),
     Inspect(inspect::Args),
@@ -49,7 +49,7 @@ impl Command {
     pub async fn run(self) -> Result<(), crate::error::Error> {
         match self {
             Self::New(args) => new::run(args),
-            Self::Build(args) => build::run(args).await,
+            Self::Build(args) => build::run(*args).await,
             Self::Package(args) => package::run(args).await,
             Self::Dev(args) => dev::run(*args).await,
             Self::Inspect(args) => inspect::run(args),

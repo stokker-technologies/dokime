@@ -14,14 +14,14 @@ mod native_session;
 mod parameters;
 mod rpc;
 mod storage;
-#[path = "../support/wire.rs"]
-mod wire;
 
 #[allow(dead_code)]
 #[path = "../support/mod.rs"]
 mod support;
 
 /* === Re-Exports === */
+
+use support::wire;
 
 /* === Imports === */
 
