@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
 // Local Imports
 
 /* === Constants === */

@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::{collections::BTreeSet, fs, path::Path};
 // Third Party Imports
-use harmos::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
+use harmos_packaging::bundle::{Bundle, Executable, Facility, Identity, Limits, Source};
 // Local Imports
 use crate::service_support::bundles::bundle;
 use dokime_runtime::config::Settings;

@@ -72,8 +72,7 @@ pub async fn storage_runtime(manager: &Manager) -> harmos::Runtime<ReportOwner> 
         .runtime_with_storage(manager)
         .await
         .unwrap();
-    harmos::storage::operations::Operations::register(&runtime.operations, "fixture.storage", ReportOwner, Arc::new(manager.clone()))
-        .unwrap();
+    harmos::storage::operations::register(&runtime.operations, "fixture.storage", ReportOwner, Arc::new(manager.clone())).unwrap();
     runtime
 }
 

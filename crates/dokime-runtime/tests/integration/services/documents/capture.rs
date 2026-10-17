@@ -20,7 +20,7 @@
 // Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model;
-use dokime_runtime::CommandId;
+use dokime_domain::model::identity::CommandId;
 use dokime_runtime::domains::evidence::notes::{CreateNote, EditNote, NoteError};
 use model::execution::notes::NoteOwner;
 

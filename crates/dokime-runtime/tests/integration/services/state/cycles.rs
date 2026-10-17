@@ -483,7 +483,7 @@ fn append_checks_execution() {
     let (mut state, cycle_id) = admitted();
     let original = state.cycle_view(&cycle_id).unwrap().cases().next().unwrap().clone();
     let append = AppendCycle {
-        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>(),
         settings: Default::default(),
         test_cycle_id: cycle_id.clone(),
         cases: vec![original.clone()],
@@ -524,7 +524,7 @@ fn append_admissions_identity() {
     let original = state.cycle_view(&cycle_id).unwrap().cases().next().unwrap().clone();
     state.cycles.get_mut(&cycle_id).unwrap().lifecycle = CycleStatus::Stopped;
     let mut append = AppendCycle {
-        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>(),
+        admission_identifier: dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>(),
         settings: Default::default(),
         test_cycle_id: cycle_id.clone(),
         cases: vec![original],
@@ -535,7 +535,7 @@ fn append_admissions_identity() {
     let removed_id = state.cycles.get_mut(&cycle_id).unwrap().execution_ids.pop().unwrap();
     let removed = state.executions.remove(&removed_id).unwrap();
 
-    append.admission_identifier = dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>();
+    append.admission_identifier = dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>();
     append.check(&state).unwrap();
     append.apply(&mut state);
     let cycle = state.cycle_view(&cycle_id).unwrap();
@@ -1427,7 +1427,7 @@ fn execution_selection_attempts() {
     cycle.test_executions.push(second);
     state.replace_cycle(cycle).unwrap();
     let mut run = RunProvider {
-        mode: dokime_runtime::execution::ExecutionMode::Interactive,
+        mode: dokime_domain::model::execution::ExecutionMode::Interactive,
         test_cycle_id: cycle_id.clone(),
         test_execution_id: Some(selected.clone()),
         context: Default::default(),
@@ -1440,7 +1440,7 @@ fn execution_selection_attempts() {
     assert_eq!(state.run_requests[&run.command_id].summary.planned, 1);
     assert_eq!(state.run_requests[&run.command_id].summary.mode, run.mode);
     let mut conflicting = run.clone();
-    conflicting.mode = dokime_runtime::execution::ExecutionMode::Automatic;
+    conflicting.mode = dokime_domain::model::execution::ExecutionMode::Automatic;
     assert!(conflicting.check(&state).is_err());
     assert_eq!(state.run_requests[&run.command_id].pending.front(), Some(&selected));
     let mut control = dokime_runtime::transactions::ControlExecution {

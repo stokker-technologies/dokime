@@ -49,7 +49,7 @@ async fn persisted_cycle_restart() {
     let cycle_id = start_cycle(&runtime, suite, false).await;
     let source = cycle_snapshot(&runtime, &cycle_id).await;
     let first = source.test_executions[0].test_execution_id.clone();
-    runtime.run_execution(first.clone(), dokime_runtime::execution::ExecutionMode::Automatic, CommandContext::default()).await;
+    runtime.run_execution(first.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     let checkpoint = crate::service_support::native::checkpoint(&runtime, &first).await;
     let before = cycle_snapshot(&runtime, &cycle_id).await;
     assert!(before.saved.is_none(), "the parent still has a pending execution");
@@ -65,7 +65,7 @@ async fn persisted_cycle_restart() {
     let boundary = runtime.storage().cursor_saved();
     let report = runtime
         .operations()
-        .call_as::<MaterializeReport>(MaterializeReport { subject: ReportSubject::Cycle(cycle_id.to_string()), at: boundary.clone() })
+        .call(MaterializeReport { subject: ReportSubject::Cycle(cycle_id.to_string()), at: boundary.clone() })
         .await
         .unwrap();
     let html = crate::service_support::reports::bytes(runtime.storage(), &report.report).await;

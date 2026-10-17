@@ -98,7 +98,7 @@ impl StorageBackend for PublicationBackend {
                     std::process::exit(status);
                 }
                 self.fault.failures.fetch_add(1, Ordering::SeqCst);
-                return Err(harmos::Error::Backend {
+                return Err(harmos::storage::Error::Backend {
                     operation: "fixture report publication",
                     kind: harmos::BackendFailure::Transient,
                     source: Box::new(std::io::Error::other("controlled report publication interruption")),

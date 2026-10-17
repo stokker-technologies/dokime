@@ -123,7 +123,7 @@ pub async fn wait_for_cycle_lifecycle(
 }
 
 /// Waits Until A Run Receipt Is Terminal, Which Follows Its Seals Or Unsealed Cause.
-pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime_runtime::CommandId) {
+pub async fn wait_for_run_settled(runtime: &RuntimeHandle, run: &dokime_domain::model::identity::CommandId) {
     // TODO(source-hook): RequestStorage publishes no receipt change; a watch on the durable run receipt would replace this poll.
     loop {
         if let Ok(Some(receipt)) = runtime.run_request(run).await

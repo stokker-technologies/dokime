@@ -1133,7 +1133,7 @@ async fn normalised_report_rows() {
 // newer row; a cycle note both members hold appears once.
 #[tokio::test]
 async fn latest_member_annotations() {
-    use dokime_runtime::CommandId;
+    use dokime_domain::model::identity::CommandId;
     use dokime_runtime::domains::evidence::notes::CreateNote;
     use model::execution::notes::NoteOwner;
     use model::execution::{HealthItem, HealthSeverity};
@@ -1168,8 +1168,9 @@ async fn latest_member_annotations() {
     };
     // Each Run Settles With Its Member's Seal Before The Next Observation
     let run = async |member: &dokime_runtime::TestExecutionId| {
-        let receipt =
-            runtime.run_execution(member.clone(), dokime_runtime::execution::ExecutionMode::Automatic, CommandContext::default()).await;
+        let receipt = runtime
+            .run_execution(member.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default())
+            .await;
         assert_eq!(receipt.status, CommandStatus::Accepted, "{receipt:?}");
         let checkpoint = crate::service_support::native::checkpoint(&runtime, member).await;
         let view = crate::service_support::native::open(&runtime, &checkpoint).await;

@@ -198,7 +198,9 @@ pub fn materialized_case(suite_id: &str, suite: Option<&TestSuite>, identifier: 
     TestCase {
         suite_id: suite_id.to_owned(),
         test_case_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CaseId>(),
-        test_case_template_id: suite.map_or_else(TemplateId::new, |suite| suite.test_case_templates[0].test_case_template_id.clone()),
+        test_case_template_id: suite.map_or_else(dokime_runtime::model::identity::new_id::<TemplateId>, |suite| {
+            suite.test_case_templates[0].test_case_template_id.clone()
+        }),
         suite: suite.map(|suite| suite.metadata.clone()),
         metadata: metadata(identifier, label),
         parameters: BTreeMap::from([("fixture.result".to_owned(), Value::from(result))]),

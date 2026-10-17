@@ -671,7 +671,7 @@ async fn interactive_commands_downstream() {
     for (action, step) in [("next", ""), ("next", ""), ("run_step", "start"), ("next", ""), ("next", "")] {
         let command = CommandExecutionRequest {
             execution_token: token.into(),
-            command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
+            command_id: dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>().to_string(),
             action: action.into(),
             step: step.into(),
         };
@@ -683,7 +683,7 @@ async fn interactive_commands_downstream() {
     assert_ne!(commands[0].1.attempt_id, commands[2].1.attempt_id);
     let blocked = CommandExecutionRequest {
         execution_token: token.into(),
-        command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
+        command_id: dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>().to_string(),
         action: "run_step".into(),
         step: "start".into(),
     };
@@ -697,7 +697,7 @@ async fn interactive_commands_downstream() {
     }
     let finish = CommandExecutionRequest {
         execution_token: token.into(),
-        command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
+        command_id: dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>().to_string(),
         action: "finish".into(),
         step: String::new(),
     };
@@ -719,7 +719,7 @@ async fn interactive_commands_downstream() {
     assert!(
         workflow
             .command(CommandExecutionRequest {
-                command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
+                command_id: dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>().to_string(),
                 ..blocked
             })
             .is_err()
@@ -754,7 +754,7 @@ async fn interactive_idle_stop() {
         workflow
             .command(CommandExecutionRequest {
                 execution_token: token.into(),
-                command_id: dokime_runtime::model::identity::new_id::<dokime_runtime::CommandId>().to_string(),
+                command_id: dokime_runtime::model::identity::new_id::<dokime_domain::model::identity::CommandId>().to_string(),
                 action: "next".into(),
                 step: String::new(),
             })

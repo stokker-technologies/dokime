@@ -22,7 +22,7 @@ use harmos::storage::StorageBackend;
 // Local Imports
 use crate::service_support::prelude::*;
 use dokime_domain::model::execution::request::RunSummary;
-use dokime_runtime::CommandId;
+use dokime_domain::model::identity::CommandId;
 use dokime_runtime::storage::requests::Request;
 use {dokime_domain::model::execution::request::RunPhase, dokime_domain::model::execution::request::RunReceipt};
 
@@ -226,7 +226,8 @@ async fn queued_execution_request() {
     executor.wait_until_entered().await;
 
     let id = cycle_snapshot(&handle, &queued_cycle).await.test_executions[0].test_execution_id.clone();
-    let queued = handle.run_execution(id.clone(), dokime_runtime::execution::ExecutionMode::Automatic, CommandContext::default()).await;
+    let queued =
+        handle.run_execution(id.clone(), dokime_domain::model::execution::ExecutionMode::Automatic, CommandContext::default()).await;
     assert_eq!(queued.status, CommandStatus::Accepted);
     handle.pause_execution(id.clone(), CommandContext::default()).await.unwrap();
     assert!(handle.run_request(&queued.command_id).await.unwrap().unwrap().summary.paused);

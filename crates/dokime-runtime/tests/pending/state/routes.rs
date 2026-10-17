@@ -49,7 +49,7 @@ fn fixture_bytes() -> Vec<u8> {
 // frozen catalog cannot bind missing, reserved or multiply claimed operations.
 
 pub(crate) fn frozen_catalog_multiply() {
-    use harmos::bundle::{Bundle, Limits, Source};
+    use harmos_packaging::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
     // The analysis claims `obc-plugin.ripple` first, so the status probe naming
@@ -109,7 +109,7 @@ pub(crate) fn frozen_catalog_multiply() {
 // legacy and unknown domain carriers are refused before admission.
 
 pub(crate) fn legacy_unknown_refused() {
-    use harmos::bundle::{Bundle, Limits, Source};
+    use harmos_packaging::bundle::{Bundle, Limits, Source};
     let bundle = Bundle::inspect(&fixture_bytes(), Limits::default()).unwrap();
     let file = &bundle.manifest().files[0];
     for namespace in ["dokime.settings", "dokime.suites"] {

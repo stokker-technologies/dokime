@@ -16,7 +16,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use dokime_runtime::CommandId;
+use dokime_domain::model::identity::CommandId;
 
 // Local Imports
 use crate::service_support::prelude::*;
