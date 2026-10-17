@@ -36,14 +36,14 @@ use crate::model::identity::wire::*;
 
 /* === Structs === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArtifactCursor {
     pub epoch: String,
     pub metadata_sha256: Vec<u8>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListArtifactsReply {
     pub artifacts: Vec<ArtifactMetadata>,
@@ -51,7 +51,7 @@ pub struct ListArtifactsReply {
     pub cursor: Option<ArtifactCursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArtifactScope {
     pub cycle_id: Option<String>,
@@ -62,7 +62,7 @@ pub struct ArtifactScope {
     pub execution_id: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArtifactMetadata {
     pub artifact_id: String,
@@ -86,20 +86,20 @@ pub struct ArtifactMetadata {
 // Cancelled/rejected artifacts may contain partial evidence; their state remains
 // explicit. Completion verifies the stored length and digest, and must be
 // followed by an OK gRPC final status before the consumer accepts the transfer.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArtifactFrame {
     pub payload: Option<ArtifactFramePayload>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArtifactChunk {
     pub offset: u64,
     pub data: Vec<u8>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArtifactCompletion {
     pub size_bytes: u64,
@@ -115,13 +115,13 @@ pub struct ArtifactCompletion {
 // actually received before the upload commits. Uploads have no resumable
 // session or idempotency key; callers must not retry a stream automatically
 // after an uncertain disconnect.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct UploadArtifactFrame {
     pub payload: Option<UploadArtifactFramePayload>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct UploadArtifactHeader {
     pub scope: Option<ArtifactScope>,
@@ -131,7 +131,7 @@ pub struct UploadArtifactHeader {
     pub sha256: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFilesCursor {
     pub epoch: String,
@@ -139,7 +139,7 @@ pub struct ExecutionFilesCursor {
     pub metadata_sha256: Vec<u8>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListExecutionFilesReply {
     pub files: Vec<ExecutionFileMetadata>,
@@ -147,7 +147,7 @@ pub struct ListExecutionFilesReply {
     pub cursor: Option<ExecutionFilesCursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileMetadata {
     pub relative_path: String,
@@ -158,7 +158,7 @@ pub struct ExecutionFileMetadata {
     pub created_at: Option<Timestamp>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileWindow {
     pub relative_path: String,
@@ -170,13 +170,13 @@ pub struct ExecutionFileWindow {
     pub data: Vec<u8>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileDownloadFrame {
     pub payload: Option<ExecutionFileDownloadFramePayload>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileDownloadMetadata {
     pub relative_path: String,
@@ -186,7 +186,7 @@ pub struct ExecutionFileDownloadMetadata {
     pub observed_size_bytes: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileIdentity {
     pub history: Option<crate::model::execution::wire_checkpoint::StoreHistory>,
@@ -195,13 +195,13 @@ pub struct ExecutionFileIdentity {
     pub relative_path: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileFollowFrame {
     pub payload: Option<ExecutionFileFollowFramePayload>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileFollowMetadata {
     pub identity: Option<ExecutionFileIdentity>,
@@ -216,7 +216,7 @@ pub struct ExecutionFileFollowMetadata {
 // file including bytes retained before a resumed stream. Abandoned retains
 // partial bytes and carries no sealed reference. A terminal frame requires
 // final OK transport status before acceptance; stream EOF alone proves nothing.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileFollowTerminal {
     pub phase: ExecutionFilePhase,
@@ -224,7 +224,7 @@ pub struct ExecutionFileFollowTerminal {
     pub sealed: Option<ExecutionFileSeal>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionFileSeal {
     pub identity: Option<ExecutionFileIdentity>,
@@ -236,7 +236,7 @@ pub struct ExecutionFileSeal {
     pub sha256: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearanceAssetFrame {
     pub payload: Option<AppearanceAssetFramePayload>,
@@ -244,7 +244,7 @@ pub struct AppearanceAssetFrame {
 
 /* === Enums === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArtifactState {
     Unspecified,
@@ -253,7 +253,7 @@ pub enum ArtifactState {
     Rejected,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionFileKind {
     Unspecified,
@@ -263,7 +263,7 @@ pub enum ExecutionFileKind {
     Unknown,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionFileState {
     Unspecified,
@@ -272,7 +272,7 @@ pub enum ExecutionFileState {
     Interrupted,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionFilePhase {
     Unspecified,
@@ -281,7 +281,7 @@ pub enum ExecutionFilePhase {
     Abandoned,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExecutionFileFollowFramePayload {
     Metadata(ExecutionFileFollowMetadata),
@@ -289,7 +289,7 @@ pub enum ExecutionFileFollowFramePayload {
     Terminal(ExecutionFileFollowTerminal),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ArtifactFramePayload {
     Metadata(ArtifactMetadata),
@@ -297,7 +297,7 @@ pub enum ArtifactFramePayload {
     Complete(ArtifactCompletion),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum UploadArtifactFramePayload {
     Header(UploadArtifactHeader),
@@ -305,7 +305,7 @@ pub enum UploadArtifactFramePayload {
     Complete(ArtifactCompletion),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExecutionFileDownloadFramePayload {
     Metadata(ExecutionFileDownloadMetadata),
@@ -313,7 +313,7 @@ pub enum ExecutionFileDownloadFramePayload {
     Complete(ArtifactCompletion),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum AppearanceAssetFramePayload {
     Metadata(AppearanceAssetMetadata),

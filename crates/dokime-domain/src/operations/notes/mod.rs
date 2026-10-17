@@ -47,7 +47,7 @@ use crate::model::notes::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     ListNotes(ListNotes),
     CreateNote(CreateNote),

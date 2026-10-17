@@ -42,12 +42,12 @@ pub struct FieldValidation {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for FieldValidation {
+impl harmos_domain::MemorySize for FieldValidation {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.pattern), std::mem::size_of_val(&self.pattern)),
-            (harmos::MemorySize::memory_size(&self.minimum), std::mem::size_of_val(&self.minimum)),
-            (harmos::MemorySize::memory_size(&self.maximum), std::mem::size_of_val(&self.maximum)),
+            (harmos_domain::MemorySize::memory_size(&self.pattern), std::mem::size_of_val(&self.pattern)),
+            (harmos_domain::MemorySize::memory_size(&self.minimum), std::mem::size_of_val(&self.minimum)),
+            (harmos_domain::MemorySize::memory_size(&self.maximum), std::mem::size_of_val(&self.maximum)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

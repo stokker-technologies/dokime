@@ -420,7 +420,7 @@ pub struct DocumentDatasetWarning {
 pub struct Plot;
 
 /* === Enums === */
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum DownsampleTechnique {
@@ -659,12 +659,12 @@ pub trait DocumentTagged {
 }
 
 /* === Implementations === */
-impl harmos::MemorySize for PlotDescriptor {
+impl harmos_domain::MemorySize for PlotDescriptor {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.plot_id), std::mem::size_of_val(&self.plot_id)),
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.input), std::mem::size_of_val(&self.input)),
+            (harmos_domain::MemorySize::memory_size(&self.plot_id), std::mem::size_of_val(&self.plot_id)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.input), std::mem::size_of_val(&self.input)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -672,32 +672,32 @@ impl harmos::MemorySize for PlotDescriptor {
     }
 }
 
-impl harmos::MemorySize for PlotInput {
+impl harmos_domain::MemorySize for PlotInput {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.analysis), std::mem::size_of_val(&self.analysis)),
-            (harmos::MemorySize::memory_size(&self.plot_id), std::mem::size_of_val(&self.plot_id)),
-            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
-            (harmos::MemorySize::memory_size(&self.x_field), std::mem::size_of_val(&self.x_field)),
-            (harmos::MemorySize::memory_size(&self.series_fields), std::mem::size_of_val(&self.series_fields)),
-            (harmos::MemorySize::memory_size(&self.z_stream), std::mem::size_of_val(&self.z_stream)),
-            (harmos::MemorySize::memory_size(&self.z_field), std::mem::size_of_val(&self.z_field)),
-            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
-            (harmos::MemorySize::memory_size(&self.series_by), std::mem::size_of_val(&self.series_by)),
-            (harmos::MemorySize::memory_size(&self.x_expression), std::mem::size_of_val(&self.x_expression)),
-            (harmos::MemorySize::memory_size(&self.y_expressions), std::mem::size_of_val(&self.y_expressions)),
-            (harmos::MemorySize::memory_size(&self.z_expression), std::mem::size_of_val(&self.z_expression)),
-            (harmos::MemorySize::memory_size(&self.series_by_expression), std::mem::size_of_val(&self.series_by_expression)),
-            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
-            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
-            (harmos::MemorySize::memory_size(&self.histogram), std::mem::size_of_val(&self.histogram)),
-            (harmos::MemorySize::memory_size(&self.marker_record_types), std::mem::size_of_val(&self.marker_record_types)),
-            (harmos::MemorySize::memory_size(&self.reference_lines), std::mem::size_of_val(&self.reference_lines)),
-            (harmos::MemorySize::memory_size(&self.reference_bands), std::mem::size_of_val(&self.reference_bands)),
-            (harmos::MemorySize::memory_size(&self.x_format), std::mem::size_of_val(&self.x_format)),
-            (harmos::MemorySize::memory_size(&self.y_format), std::mem::size_of_val(&self.y_format)),
-            (harmos::MemorySize::memory_size(&self.x_axis), std::mem::size_of_val(&self.x_axis)),
-            (harmos::MemorySize::memory_size(&self.available_streams), std::mem::size_of_val(&self.available_streams)),
+            (harmos_domain::MemorySize::memory_size(&self.analysis), std::mem::size_of_val(&self.analysis)),
+            (harmos_domain::MemorySize::memory_size(&self.plot_id), std::mem::size_of_val(&self.plot_id)),
+            (harmos_domain::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos_domain::MemorySize::memory_size(&self.x_field), std::mem::size_of_val(&self.x_field)),
+            (harmos_domain::MemorySize::memory_size(&self.series_fields), std::mem::size_of_val(&self.series_fields)),
+            (harmos_domain::MemorySize::memory_size(&self.z_stream), std::mem::size_of_val(&self.z_stream)),
+            (harmos_domain::MemorySize::memory_size(&self.z_field), std::mem::size_of_val(&self.z_field)),
+            (harmos_domain::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos_domain::MemorySize::memory_size(&self.series_by), std::mem::size_of_val(&self.series_by)),
+            (harmos_domain::MemorySize::memory_size(&self.x_expression), std::mem::size_of_val(&self.x_expression)),
+            (harmos_domain::MemorySize::memory_size(&self.y_expressions), std::mem::size_of_val(&self.y_expressions)),
+            (harmos_domain::MemorySize::memory_size(&self.z_expression), std::mem::size_of_val(&self.z_expression)),
+            (harmos_domain::MemorySize::memory_size(&self.series_by_expression), std::mem::size_of_val(&self.series_by_expression)),
+            (harmos_domain::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos_domain::MemorySize::memory_size(&self.histogram), std::mem::size_of_val(&self.histogram)),
+            (harmos_domain::MemorySize::memory_size(&self.marker_record_types), std::mem::size_of_val(&self.marker_record_types)),
+            (harmos_domain::MemorySize::memory_size(&self.reference_lines), std::mem::size_of_val(&self.reference_lines)),
+            (harmos_domain::MemorySize::memory_size(&self.reference_bands), std::mem::size_of_val(&self.reference_bands)),
+            (harmos_domain::MemorySize::memory_size(&self.x_format), std::mem::size_of_val(&self.x_format)),
+            (harmos_domain::MemorySize::memory_size(&self.y_format), std::mem::size_of_val(&self.y_format)),
+            (harmos_domain::MemorySize::memory_size(&self.x_axis), std::mem::size_of_val(&self.x_axis)),
+            (harmos_domain::MemorySize::memory_size(&self.available_streams), std::mem::size_of_val(&self.available_streams)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -705,14 +705,14 @@ impl harmos::MemorySize for PlotInput {
     }
 }
 
-impl harmos::MemorySize for DocumentDefinition {
+impl harmos_domain::MemorySize for DocumentDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.document_id), std::mem::size_of_val(&self.document_id)),
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.cards), std::mem::size_of_val(&self.cards)),
-            (harmos::MemorySize::memory_size(&self.layout), std::mem::size_of_val(&self.layout)),
-            (harmos::MemorySize::memory_size(&self.sections), std::mem::size_of_val(&self.sections)),
+            (harmos_domain::MemorySize::memory_size(&self.document_id), std::mem::size_of_val(&self.document_id)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.cards), std::mem::size_of_val(&self.cards)),
+            (harmos_domain::MemorySize::memory_size(&self.layout), std::mem::size_of_val(&self.layout)),
+            (harmos_domain::MemorySize::memory_size(&self.sections), std::mem::size_of_val(&self.sections)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -720,12 +720,12 @@ impl harmos::MemorySize for DocumentDefinition {
     }
 }
 
-impl harmos::MemorySize for DocumentCardDefinition {
+impl harmos_domain::MemorySize for DocumentCardDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
-            (harmos::MemorySize::memory_size(&self.body), std::mem::size_of_val(&self.body)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos_domain::MemorySize::memory_size(&self.body), std::mem::size_of_val(&self.body)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -733,12 +733,12 @@ impl harmos::MemorySize for DocumentCardDefinition {
     }
 }
 
-impl harmos::MemorySize for DocumentCard {
+impl harmos_domain::MemorySize for DocumentCard {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
-            (harmos::MemorySize::memory_size(&self.body), std::mem::size_of_val(&self.body)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos_domain::MemorySize::memory_size(&self.body), std::mem::size_of_val(&self.body)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -746,12 +746,12 @@ impl harmos::MemorySize for DocumentCard {
     }
 }
 
-impl harmos::MemorySize for DocumentSection {
+impl harmos_domain::MemorySize for DocumentSection {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.cards), std::mem::size_of_val(&self.cards)),
-            (harmos::MemorySize::memory_size(&self.repeat), std::mem::size_of_val(&self.repeat)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.cards), std::mem::size_of_val(&self.cards)),
+            (harmos_domain::MemorySize::memory_size(&self.repeat), std::mem::size_of_val(&self.repeat)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -759,20 +759,20 @@ impl harmos::MemorySize for DocumentSection {
     }
 }
 
-impl harmos::MemorySize for DocumentCardBody {
+impl harmos_domain::MemorySize for DocumentCardBody {
     fn memory_size(&self) -> usize {
         let heap = match self {
             Self::Text { markdown } => markdown.capacity(),
             Self::TelemetrySummary { summary } => {
-                let owned = harmos::MemorySize::memory_size(summary);
+                let owned = harmos_domain::MemorySize::memory_size(summary);
                 if owned == usize::MAX {
                     return usize::MAX;
                 }
                 owned.saturating_sub(std::mem::size_of_val(summary))
             }
-            Self::Plot { plot } => harmos::MemorySize::memory_size(plot.as_ref()),
+            Self::Plot { plot } => harmos_domain::MemorySize::memory_size(plot.as_ref()),
             Self::Table { rows } => {
-                let owned = harmos::MemorySize::memory_size(rows);
+                let owned = harmos_domain::MemorySize::memory_size(rows);
                 if owned == usize::MAX {
                     return usize::MAX;
                 }
@@ -792,29 +792,29 @@ impl harmos::MemorySize for DocumentCardBody {
     }
 }
 
-impl harmos::MemorySize for PlotDefinition {
+impl harmos_domain::MemorySize for PlotDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
-            (harmos::MemorySize::memory_size(&self.x), std::mem::size_of_val(&self.x)),
-            (harmos::MemorySize::memory_size(&self.y), std::mem::size_of_val(&self.y)),
-            (harmos::MemorySize::memory_size(&self.z_stream), std::mem::size_of_val(&self.z_stream)),
-            (harmos::MemorySize::memory_size(&self.z_field), std::mem::size_of_val(&self.z_field)),
-            (harmos::MemorySize::memory_size(&self.series_by), std::mem::size_of_val(&self.series_by)),
-            (harmos::MemorySize::memory_size(&self.x_expression), std::mem::size_of_val(&self.x_expression)),
-            (harmos::MemorySize::memory_size(&self.y_expressions), std::mem::size_of_val(&self.y_expressions)),
-            (harmos::MemorySize::memory_size(&self.z_expression), std::mem::size_of_val(&self.z_expression)),
-            (harmos::MemorySize::memory_size(&self.series_by_expression), std::mem::size_of_val(&self.series_by_expression)),
-            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
-            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
-            (harmos::MemorySize::memory_size(&self.histogram), std::mem::size_of_val(&self.histogram)),
-            (harmos::MemorySize::memory_size(&self.marker_record_types), std::mem::size_of_val(&self.marker_record_types)),
-            (harmos::MemorySize::memory_size(&self.reference_lines), std::mem::size_of_val(&self.reference_lines)),
-            (harmos::MemorySize::memory_size(&self.reference_bands), std::mem::size_of_val(&self.reference_bands)),
-            (harmos::MemorySize::memory_size(&self.x_format), std::mem::size_of_val(&self.x_format)),
-            (harmos::MemorySize::memory_size(&self.y_format), std::mem::size_of_val(&self.y_format)),
-            (harmos::MemorySize::memory_size(&self.x_axis), std::mem::size_of_val(&self.x_axis)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos_domain::MemorySize::memory_size(&self.x), std::mem::size_of_val(&self.x)),
+            (harmos_domain::MemorySize::memory_size(&self.y), std::mem::size_of_val(&self.y)),
+            (harmos_domain::MemorySize::memory_size(&self.z_stream), std::mem::size_of_val(&self.z_stream)),
+            (harmos_domain::MemorySize::memory_size(&self.z_field), std::mem::size_of_val(&self.z_field)),
+            (harmos_domain::MemorySize::memory_size(&self.series_by), std::mem::size_of_val(&self.series_by)),
+            (harmos_domain::MemorySize::memory_size(&self.x_expression), std::mem::size_of_val(&self.x_expression)),
+            (harmos_domain::MemorySize::memory_size(&self.y_expressions), std::mem::size_of_val(&self.y_expressions)),
+            (harmos_domain::MemorySize::memory_size(&self.z_expression), std::mem::size_of_val(&self.z_expression)),
+            (harmos_domain::MemorySize::memory_size(&self.series_by_expression), std::mem::size_of_val(&self.series_by_expression)),
+            (harmos_domain::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos_domain::MemorySize::memory_size(&self.histogram), std::mem::size_of_val(&self.histogram)),
+            (harmos_domain::MemorySize::memory_size(&self.marker_record_types), std::mem::size_of_val(&self.marker_record_types)),
+            (harmos_domain::MemorySize::memory_size(&self.reference_lines), std::mem::size_of_val(&self.reference_lines)),
+            (harmos_domain::MemorySize::memory_size(&self.reference_bands), std::mem::size_of_val(&self.reference_bands)),
+            (harmos_domain::MemorySize::memory_size(&self.x_format), std::mem::size_of_val(&self.x_format)),
+            (harmos_domain::MemorySize::memory_size(&self.y_format), std::mem::size_of_val(&self.y_format)),
+            (harmos_domain::MemorySize::memory_size(&self.x_axis), std::mem::size_of_val(&self.x_axis)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -822,21 +822,21 @@ impl harmos::MemorySize for PlotDefinition {
     }
 }
 
-impl harmos::MemorySize for HistogramOptions {
+impl harmos_domain::MemorySize for HistogramOptions {
     fn memory_size(&self) -> usize {
-        let fields = [(harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit))];
+        let fields = [(harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit))];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
         })
     }
 }
 
-impl harmos::MemorySize for ReferenceLine {
+impl harmos_domain::MemorySize for ReferenceLine {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
-            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
-            (harmos::MemorySize::memory_size(&self.color), std::mem::size_of_val(&self.color)),
+            (harmos_domain::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos_domain::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos_domain::MemorySize::memory_size(&self.color), std::mem::size_of_val(&self.color)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -844,13 +844,13 @@ impl harmos::MemorySize for ReferenceLine {
     }
 }
 
-impl harmos::MemorySize for ReferenceBand {
+impl harmos_domain::MemorySize for ReferenceBand {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.center), std::mem::size_of_val(&self.center)),
-            (harmos::MemorySize::memory_size(&self.tolerance), std::mem::size_of_val(&self.tolerance)),
-            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
-            (harmos::MemorySize::memory_size(&self.color), std::mem::size_of_val(&self.color)),
+            (harmos_domain::MemorySize::memory_size(&self.center), std::mem::size_of_val(&self.center)),
+            (harmos_domain::MemorySize::memory_size(&self.tolerance), std::mem::size_of_val(&self.tolerance)),
+            (harmos_domain::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos_domain::MemorySize::memory_size(&self.color), std::mem::size_of_val(&self.color)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -858,19 +858,19 @@ impl harmos::MemorySize for ReferenceBand {
     }
 }
 
-impl harmos::MemorySize for FftOptions {
+impl harmos_domain::MemorySize for FftOptions {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
     }
 }
 
-impl harmos::MemorySize for SigmaIntervalOptions {
+impl harmos_domain::MemorySize for SigmaIntervalOptions {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
     }
 }
 
-impl harmos::MemorySize for PlotAxisKind {
+impl harmos_domain::MemorySize for PlotAxisKind {
     fn memory_size(&self) -> usize {
         let heap = match self {
             Self::WallTime => 0,
@@ -880,20 +880,20 @@ impl harmos::MemorySize for PlotAxisKind {
     }
 }
 
-impl harmos::MemorySize for TelemetrySummaryDefinition {
+impl harmos_domain::MemorySize for TelemetrySummaryDefinition {
     fn memory_size(&self) -> usize {
-        let fields = [(harmos::MemorySize::memory_size(&self.groups), std::mem::size_of_val(&self.groups))];
+        let fields = [(harmos_domain::MemorySize::memory_size(&self.groups), std::mem::size_of_val(&self.groups))];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
         })
     }
 }
 
-impl harmos::MemorySize for TelemetrySummaryGroupDefinition {
+impl harmos_domain::MemorySize for TelemetrySummaryGroupDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.tiles), std::mem::size_of_val(&self.tiles)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.tiles), std::mem::size_of_val(&self.tiles)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -901,14 +901,14 @@ impl harmos::MemorySize for TelemetrySummaryGroupDefinition {
     }
 }
 
-impl harmos::MemorySize for TelemetrySummaryTileDefinition {
+impl harmos_domain::MemorySize for TelemetrySummaryTileDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
-            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
-            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
-            (harmos::MemorySize::memory_size(&self.conditions), std::mem::size_of_val(&self.conditions)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos_domain::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos_domain::MemorySize::memory_size(&self.conditions), std::mem::size_of_val(&self.conditions)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -916,16 +916,16 @@ impl harmos::MemorySize for TelemetrySummaryTileDefinition {
     }
 }
 
-impl harmos::MemorySize for TelemetrySummaryCondition {
+impl harmos_domain::MemorySize for TelemetrySummaryCondition {
     fn memory_size(&self) -> usize {
-        let fields = [(harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value))];
+        let fields = [(harmos_domain::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value))];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
         })
     }
 }
 
-impl harmos::MemorySize for DocumentLayout {
+impl harmos_domain::MemorySize for DocumentLayout {
     fn memory_size(&self) -> usize {
         let nodes = document_nodes_memory(&self.nodes, 0);
         if nodes == usize::MAX {
@@ -935,23 +935,23 @@ impl harmos::MemorySize for DocumentLayout {
     }
 }
 
-impl harmos::MemorySize for DocumentNode {
+impl harmos_domain::MemorySize for DocumentNode {
     fn memory_size(&self) -> usize {
         document_node_memory(self, 0)
     }
 }
 
-impl harmos::MemorySize for DocumentSectionNode {
+impl harmos_domain::MemorySize for DocumentSectionNode {
     fn memory_size(&self) -> usize {
         document_section_memory(self, 0)
     }
 }
 
-impl harmos::MemorySize for DocumentFilter {
+impl harmos_domain::MemorySize for DocumentFilter {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.expression), std::mem::size_of_val(&self.expression)),
-            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos_domain::MemorySize::memory_size(&self.expression), std::mem::size_of_val(&self.expression)),
+            (harmos_domain::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -959,14 +959,14 @@ impl harmos::MemorySize for DocumentFilter {
     }
 }
 
-impl harmos::MemorySize for DocumentSectionRepeat {
+impl harmos_domain::MemorySize for DocumentSectionRepeat {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
-            (harmos::MemorySize::memory_size(&self.label_template), std::mem::size_of_val(&self.label_template)),
-            (harmos::MemorySize::memory_size(&self.id_template), std::mem::size_of_val(&self.id_template)),
-            (harmos::MemorySize::memory_size(&self.order_by), std::mem::size_of_val(&self.order_by)),
-            (harmos::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
+            (harmos_domain::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos_domain::MemorySize::memory_size(&self.label_template), std::mem::size_of_val(&self.label_template)),
+            (harmos_domain::MemorySize::memory_size(&self.id_template), std::mem::size_of_val(&self.id_template)),
+            (harmos_domain::MemorySize::memory_size(&self.order_by), std::mem::size_of_val(&self.order_by)),
+            (harmos_domain::MemorySize::memory_size(&self.filters), std::mem::size_of_val(&self.filters)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -974,9 +974,9 @@ impl harmos::MemorySize for DocumentSectionRepeat {
     }
 }
 
-impl harmos::MemorySize for DocumentCardPlacement {
+impl harmos_domain::MemorySize for DocumentCardPlacement {
     fn memory_size(&self) -> usize {
-        let fields = [(harmos::MemorySize::memory_size(&self.card_id), std::mem::size_of_val(&self.card_id))];
+        let fields = [(harmos_domain::MemorySize::memory_size(&self.card_id), std::mem::size_of_val(&self.card_id))];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
         })
@@ -1898,7 +1898,7 @@ fn document_node_memory(node: &DocumentNode, depth: usize) -> usize {
     let heap = match node {
         DocumentNode::Section(section) => document_section_memory(section, depth),
         DocumentNode::Card(card) => {
-            let owned = harmos::MemorySize::memory_size(card);
+            let owned = harmos_domain::MemorySize::memory_size(card);
             if owned == usize::MAX {
                 return usize::MAX;
             }
@@ -1909,7 +1909,7 @@ fn document_node_memory(node: &DocumentNode, depth: usize) -> usize {
 }
 
 fn document_section_memory(section: &DocumentSectionNode, depth: usize) -> usize {
-    use harmos::MemorySize;
+    use harmos_domain::MemorySize;
     if depth > 64 {
         return usize::MAX;
     }

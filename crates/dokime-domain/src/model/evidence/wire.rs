@@ -38,7 +38,7 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapturedRecordSelection {
     // Conjunction of exact supplied fields. Missing record fields do not match.
@@ -50,7 +50,7 @@ pub struct CapturedRecordSelection {
     pub severities: Vec<Severity>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordPage {
     pub records: Vec<CapturedRecord>,
@@ -67,7 +67,7 @@ pub struct RecordPage {
     pub retained_after: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapturedRecord {
     pub record_id: String,
@@ -91,7 +91,7 @@ pub struct CapturedRecord {
     pub received_at: Option<Timestamp>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapturedRecordError {
     pub message: String,
@@ -103,7 +103,7 @@ pub struct CapturedRecordError {
     pub correlation_id: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapturedErrorCause {
     pub message: String,

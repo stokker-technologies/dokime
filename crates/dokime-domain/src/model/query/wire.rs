@@ -35,7 +35,7 @@ use crate::model::values::wire::Value;
 // `values` carries exactly one value for EQ, NEQ, GT, GTE, LT and LTE, one or
 // more for IN, and none for IS_NULL. Values are compared against the column's
 // own type; a value that cannot be coerced to it is rejected.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryFilter {
     pub column: String,
@@ -53,10 +53,10 @@ pub struct QueryFilter {
 // `Max` order any one scalar type; the rest require numbers. `alias` names the
 // output column and must be unique across the request and distinct from every
 // `group_by` name.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryAggregate {
-    pub aggregate: harmos::Aggregate,
+    pub aggregate: harmos_domain::Aggregate,
     pub column: String,
     pub alias: String,
 }
@@ -65,7 +65,7 @@ pub struct QueryAggregate {
 // aliases in request order; every row has exactly that many values in that
 // order. `complete` is false when the selection had more groups than the
 // effective limit returned.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregateReply {
     pub columns: Vec<String>,
@@ -73,7 +73,7 @@ pub struct AggregateReply {
     pub complete: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryRow {
     pub values: Vec<Value>,
@@ -83,7 +83,7 @@ pub struct QueryRow {
 
 // Native saved sources a caller may aggregate. Telemetry samples retain their
 // declared-schema reader through Telemetry.ListSamples.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuerySource {
     Unspecified,
@@ -102,7 +102,7 @@ pub enum QuerySource {
 
 // Named for its service: `FilterOperator` already belongs to the plot
 // contract, and enum value names are siblings of their type in one package.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QueryFilterOperator {
     Unspecified,

@@ -18,7 +18,7 @@ pub use crate::model::execution::SavedEvidenceError;
 // Standard Library Imports
 use std::collections::BTreeSet;
 // Third Party Imports
-use harmos::storage::{FileReference, ObjectVersionToken, StorageCursor};
+use harmos_domain::model::storage::{FileReference, ObjectVersionToken, StorageCursor};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use super::result::{CycleStatus, CycleView, ExecutionStatus, TestCycle, TestExecution};
@@ -36,11 +36,11 @@ pub const EXECUTION_CONTEXT_SCHEMA_VERSION: u32 = 1;
 /* === Macros === */
 macro_rules! owned_memory {
     ($type:ty, $($field:ident),+ $(,)?) => {
-        impl harmos::MemorySize for $type {
+        impl harmos_domain::MemorySize for $type {
             fn memory_size(&self) -> usize {
                 let mut bytes = std::mem::size_of::<Self>();
                 $(
-                    let owned = harmos::MemorySize::memory_size(&self.$field);
+                    let owned = harmos_domain::MemorySize::memory_size(&self.$field);
                     if owned == usize::MAX {
                         return usize::MAX;
                     }
@@ -137,7 +137,7 @@ owned_memory!(ExecutionSeal, source, report, dependencies_saved, sealed_at);
 owned_memory!(VerifiedReplicaFile, source, local);
 owned_memory!(CycleSeal, owner_node_id, evidence_through, executions, report, dependencies_saved, sealed_at,);
 
-impl harmos::MemorySize for ExecutionOutputContent {
+impl harmos_domain::MemorySize for ExecutionOutputContent {
     fn memory_size(&self) -> usize {
         let Self::Artifact { record, metadata } = self else {
             return std::mem::size_of::<Self>();
@@ -149,7 +149,7 @@ impl harmos::MemorySize for ExecutionOutputContent {
     }
 }
 
-impl harmos::MemorySize for SavedStreamState {
+impl harmos_domain::MemorySize for SavedStreamState {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
     }
@@ -286,9 +286,9 @@ pub fn validate_cycle_revisions(cycle: &TestCycle, evidence_through: &StorageCur
 
 pub fn output_validation_memory(outputs: &[ExecutionOutput]) -> usize {
     let artifacts = outputs.iter().filter(|output| matches!(&output.content, ExecutionOutputContent::Artifact { .. })).count();
-    harmos::btree_map_memory::<&String, ()>(outputs.len())
-        .saturating_add(harmos::btree_map_memory::<&str, ()>(outputs.len()))
-        .saturating_add(harmos::btree_map_memory::<&crate::model::identity::ArtifactId, ()>(artifacts))
+    harmos_domain::btree_map_memory::<&String, ()>(outputs.len())
+        .saturating_add(harmos_domain::btree_map_memory::<&str, ()>(outputs.len()))
+        .saturating_add(harmos_domain::btree_map_memory::<&crate::model::identity::ArtifactId, ()>(artifacts))
 }
 
 pub fn validate_outputs(id: &TestExecutionId, through: &StorageCursor, outputs: &[ExecutionOutput]) -> Result<()> {

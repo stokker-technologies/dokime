@@ -42,7 +42,7 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListPromptDefinitionsReply {
     pub definitions: Vec<PromptDefinitionIdentity>,
@@ -50,7 +50,7 @@ pub struct ListPromptDefinitionsReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptDefinitionIdentity {
     pub prompt_type: String,
@@ -58,7 +58,7 @@ pub struct PromptDefinitionIdentity {
     pub title: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListPendingPromptsReply {
     pub prompts: Vec<PendingPromptIdentity>,
@@ -66,7 +66,7 @@ pub struct ListPendingPromptsReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PendingPromptIdentity {
     pub prompt_id: String,
@@ -78,7 +78,7 @@ pub struct PendingPromptIdentity {
 // The admitted definition belongs to this request even if the current catalog
 // changes. A missing response means unanswered; it does not waive condition,
 // action or field checks performed authoritatively on Respond.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptView {
     pub prompt: Option<PromptInstance>,
@@ -86,7 +86,7 @@ pub struct PromptView {
     pub observed_cursor: Option<Cursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptInstance {
     pub prompt_id: String,
@@ -97,7 +97,7 @@ pub struct PromptInstance {
     pub created_at: Option<Timestamp>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptDefinition {
     pub prompt_type: String,
@@ -118,7 +118,7 @@ pub struct PromptDefinition {
     pub level: Severity,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptField {
     pub metadata: Option<Metadata>,
@@ -131,7 +131,7 @@ pub struct PromptField {
     pub validation: Option<PromptFieldValidation>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptFieldValidation {
     pub min_length: Option<u64>,
@@ -143,7 +143,7 @@ pub struct PromptFieldValidation {
     pub max_items: Option<u64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptAction {
     pub id: String,
@@ -152,7 +152,7 @@ pub struct PromptAction {
     pub requires_condition: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnswerRule {
     pub predicate: Option<AnswerPredicate>,
@@ -161,7 +161,7 @@ pub struct AnswerRule {
 
 // Predicates over answer fields. Calls and structured literals are not admitted
 // in answer rules. Validation remains authoritative on the backend.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 //
 // The tree is flattened into its nodes: `nodes[0]` is the root and a node
@@ -170,13 +170,13 @@ pub struct AnswerPredicate {
     pub nodes: Vec<AnswerPredicateNode>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnswerPredicateNode {
     pub kind: Option<AnswerPredicateKind>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnswerBinaryPredicate {
     pub op: AnswerOperator,
@@ -192,33 +192,33 @@ pub struct AnswerBinaryPredicate {
 
 // A condition tree flattened into its nodes: `nodes[0]` is the root and a
 // node names its operands by a larger index in `nodes`.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceCondition {
     pub nodes: Vec<EvidenceConditionNode>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceConditionNode {
     pub kind: Option<EvidenceConditionKind>,
 }
 
 // Operand indices into the enclosing condition's nodes.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EvidenceConditions {
     pub conditions: Vec<u32>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordMatchCondition {
     pub record_type: String,
     pub match_fields: Option<Value>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryMatchCondition {
     pub stream: String,
@@ -228,7 +228,7 @@ pub struct TelemetryMatchCondition {
     pub tolerance: Option<f64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptResponseReceipt {
     pub command_id: String,
@@ -238,7 +238,7 @@ pub struct PromptResponseReceipt {
     pub observed_cursor: Option<Cursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PromptResponse {
     pub prompt_id: String,
@@ -251,7 +251,7 @@ pub struct PromptResponse {
 
 /* === Enums === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PromptArchetype {
     Unspecified,
@@ -261,7 +261,7 @@ pub enum PromptArchetype {
     Status,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PromptKind {
     Unspecified,
@@ -272,7 +272,7 @@ pub enum PromptKind {
     Verification,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PromptFieldKind {
     Unspecified,
@@ -283,7 +283,7 @@ pub enum PromptFieldKind {
     Boolean,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PromptActionEmphasis {
     Unspecified,
@@ -292,7 +292,7 @@ pub enum PromptActionEmphasis {
     Danger,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AnswerOperator {
     Unspecified,
@@ -309,7 +309,7 @@ pub enum AnswerOperator {
     EndsWith,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TelemetryMatchOperator {
     Unspecified,
@@ -322,7 +322,7 @@ pub enum TelemetryMatchOperator {
     Within,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum AnswerPredicateKind {
     Literal(Value),
@@ -332,7 +332,7 @@ pub enum AnswerPredicateKind {
     Binary(AnswerBinaryPredicate),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum EvidenceConditionKind {
     Record(RecordMatchCondition),

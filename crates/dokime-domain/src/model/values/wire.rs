@@ -40,33 +40,33 @@ pub const MAX_DEPTH: usize = 64;
 // `nodes[0]` is the root. An array or object names its members by their
 // index in `nodes`; every index exceeds its container's index and every node
 // other than the root is a member of exactly one container.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Value {
     pub nodes: Vec<ValueNode>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValueNode {
     pub kind: Option<ValueKind>,
 }
 
 // Member indices of an array, in order.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValueItems {
     pub items: Vec<u32>,
 }
 
 // Members of an object, in key order.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValueFields {
     pub fields: Vec<ValueField>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ValueField {
     pub key: String,
@@ -74,7 +74,7 @@ pub struct ValueField {
 }
 
 /* === Enums === */
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ValueKind {
     Null,

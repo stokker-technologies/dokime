@@ -43,7 +43,7 @@ use crate::model::planning::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     RegisterSelection(RegisterSelection),
     PreviewSelection(PreviewSelection),

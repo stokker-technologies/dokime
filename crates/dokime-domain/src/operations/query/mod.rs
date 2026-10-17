@@ -40,7 +40,7 @@ use crate::model::query::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     Aggregate(Aggregate),
 }

@@ -39,7 +39,7 @@ pub const API_VERSION: &str = "0.6.0";
 /* === Structs === */
 
 // One page of captured tracing events, oldest first.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TraceBatch {
     pub epoch: String,
@@ -62,7 +62,7 @@ pub struct TraceBatch {
 
 // One tracing event. Secret-looking field names carry a redaction marker
 // instead of their value, and host paths are redacted from text.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TraceEvent {
     // Position within the requested scope; strictly increasing per scope.
@@ -83,7 +83,7 @@ pub struct TraceEvent {
     pub fields: Vec<LogFrameFieldsEntry>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BackendIdentity {
     // Stable identity of this backend installation, not its network address.
@@ -102,7 +102,7 @@ pub struct BackendIdentity {
     pub display_name: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ApiIdentity {
     // Fully qualified protobuf package, currently dokime.v1.
@@ -118,7 +118,7 @@ pub struct ApiIdentity {
     pub descriptor_sha256: Vec<u8>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BackendHealth {
     pub backend_id: String,
@@ -131,7 +131,7 @@ pub struct BackendHealth {
     pub message: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BackendAvailability {
     pub backend_id: String,
@@ -147,7 +147,7 @@ pub struct BackendAvailability {
     pub limits: Option<BackendLimits>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BackendLimits {
     // Positive limits enforced by this backend, excluding transport framing.
@@ -168,21 +168,21 @@ pub struct BackendLimits {
 // Native diagnostics intentionally reports backend and runtime facts. It does
 // not mirror HTTP listener policy such as origins, heartbeat intervals, or
 // bind addresses.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsResponse {
     pub server: Option<BackendDiagnostics>,
     pub runtime: Option<RuntimeDiagnostics>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BackendDiagnostics {
     pub version: String,
     pub process: Option<ProcessDiagnostics>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProcessDiagnostics {
     pub pid: u32,
@@ -191,7 +191,7 @@ pub struct ProcessDiagnostics {
     pub virtual_memory_bytes: Option<u64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeDiagnostics {
     pub captured_at: Option<Timestamp>,
@@ -207,14 +207,14 @@ pub struct RuntimeDiagnostics {
     pub installed_plugin_errors: Vec<InstalledPluginErrorRecord>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeIdentity {
     pub node: Option<RuntimeNodeIdentity>,
     pub actor: Option<RuntimeActorIdentity>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeNodeIdentity {
     pub node_id: String,
@@ -223,14 +223,14 @@ pub struct RuntimeNodeIdentity {
     pub updated_at: Option<Timestamp>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeActorIdentity {
     pub actor_id: String,
     pub display_name: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StartupDoctorSnapshot {
     pub checked_at: Option<Timestamp>,
@@ -238,7 +238,7 @@ pub struct StartupDoctorSnapshot {
     pub checks: Vec<StartupDoctorCheck>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StartupDoctorCheck {
     pub key: StartupDoctorCheckKey,
@@ -247,7 +247,7 @@ pub struct StartupDoctorCheck {
     pub detail: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticPathConvention {
     pub key: DiagnosticPathKey,
@@ -257,7 +257,7 @@ pub struct DiagnosticPathConvention {
     pub absolute_path: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsCounts {
     pub test_suites: u64,
@@ -269,7 +269,7 @@ pub struct DiagnosticsCounts {
     pub telemetry_cursor_entries: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstalledPluginErrorRecord {
     pub plugin_id: String,
@@ -289,7 +289,7 @@ pub struct InstalledPluginErrorRecord {
     pub recorded_at: Option<Timestamp>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ErrorCause {
     pub message: String,
@@ -300,13 +300,13 @@ pub struct ErrorCause {
 // One diagnostics archive, delivered as a header, contiguous chunks, and a
 // completion. Accept the bytes only after the completion frame and a
 // successful final gRPC status.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsBundleFrame {
     pub payload: Option<DiagnosticsBundleFramePayload>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsBundleHeader {
     // Suggested save name, dokime-diagnostics-<utc timestamp>.zip. It is a name,
@@ -329,7 +329,7 @@ pub struct DiagnosticsBundleHeader {
     pub entries: Vec<DiagnosticsBundleEntry>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsBundleEntry {
     // Archive-relative path, never a backend filesystem path.
@@ -348,14 +348,14 @@ pub struct DiagnosticsBundleEntry {
     pub note: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsBundleChunk {
     pub offset: u64,
     pub data: Vec<u8>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagnosticsBundleCompletion {
     pub size_bytes: u64,
@@ -365,7 +365,7 @@ pub struct DiagnosticsBundleCompletion {
     pub sha256: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LogFrameFieldsEntry {
     pub key: String,
@@ -374,7 +374,7 @@ pub struct LogFrameFieldsEntry {
 
 // One observed hub-log record. Secret-looking field names carry a redaction
 // marker instead of their value.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LogFrame {
     pub time: Option<Timestamp>,
@@ -393,7 +393,7 @@ pub struct LogFrame {
 
 /* === Enums === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Readiness {
     Unspecified,
@@ -403,7 +403,7 @@ pub enum Readiness {
     Stopping,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiagnosticCheckStatus {
     Unspecified,
@@ -412,7 +412,7 @@ pub enum DiagnosticCheckStatus {
     Failed,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StartupDoctorCheckKey {
     Unspecified,
@@ -420,7 +420,7 @@ pub enum StartupDoctorCheckKey {
     ShutdownState,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiagnosticPathKey {
     Unspecified,
@@ -432,7 +432,7 @@ pub enum DiagnosticPathKey {
     ExecutionLogPattern,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiagnosticPathScope {
     Unspecified,
@@ -441,7 +441,7 @@ pub enum DiagnosticPathScope {
     ExecutionPattern,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiagnosticFileFormat {
     Unspecified,
@@ -450,7 +450,7 @@ pub enum DiagnosticFileFormat {
     Zip,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InstalledPluginPhase {
     Unspecified,
@@ -465,7 +465,7 @@ pub enum InstalledPluginPhase {
 }
 
 // Hub log severity. Callers branch on this, never on the log text.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LogLevel {
     Unspecified,
@@ -478,7 +478,7 @@ pub enum LogLevel {
 
 // Which captured events a trace watch reads. Cycle and Execution carry the
 // canonical UUID of that cycle or execution.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum TraceScope {
     Instance,
@@ -486,7 +486,7 @@ pub enum TraceScope {
     Execution(String),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DiagnosticsBundleFramePayload {
     Header(DiagnosticsBundleHeader),

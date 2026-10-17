@@ -28,9 +28,9 @@ use super::*;
 
 /* === Structs === */
 // Replays a bounded tail of the hub log, then follows it. Read access.
-#[harmos::message]
-#[harmos::operation(response = (), output = LogFrame, id = "dokime.backend.watch_logs", version = 1,
-        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = (), output = LogFrame, id = "dokime.backend.watch_logs", version = 1,
+        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "WatchLogs"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchLogs {

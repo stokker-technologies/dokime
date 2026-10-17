@@ -28,9 +28,9 @@ use super::*;
 
 /* === Structs === */
 // Returns the bounded, scope-aware current traceability projection. This is a read of the current runtime state and never creates a checkpoint.
-#[harmos::message]
-#[harmos::operation(response = TraceabilityPage, id = "dokime.observation.get_traceability", version = 1,
-        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = TraceabilityPage, id = "dokime.observation.get_traceability", version = 1,
+        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Observation", method = "GetTraceability"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GetTraceability {

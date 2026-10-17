@@ -52,7 +52,7 @@ use crate::model::files::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     FileWatch(FileWatch),
 }

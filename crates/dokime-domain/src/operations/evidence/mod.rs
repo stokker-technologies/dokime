@@ -46,7 +46,7 @@ use crate::model::evidence::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     ListRecords(ListRecords),
     WatchRecords(WatchRecords),

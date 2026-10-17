@@ -57,7 +57,7 @@ use crate::model::catalog::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     ListSuites(ListSuites),
     GetSuite(GetSuite),

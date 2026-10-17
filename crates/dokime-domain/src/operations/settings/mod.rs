@@ -63,7 +63,7 @@ use crate::model::settings::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     ReadStoragePolicy(ReadStoragePolicy),
     UpdateStoragePolicy(UpdateStoragePolicy),

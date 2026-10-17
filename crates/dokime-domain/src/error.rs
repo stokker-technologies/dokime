@@ -32,7 +32,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
-    Identifier(#[from] harmos::IdentifierError),
+    Identifier(#[from] harmos_domain::IdentifierError),
     #[error("{0}")]
     Id(#[from] crate::model::identity::id::HubIdError),
     #[error("{0}")]

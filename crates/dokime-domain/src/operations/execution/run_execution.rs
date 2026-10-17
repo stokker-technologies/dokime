@@ -28,9 +28,9 @@ use super::*;
 
 /* === Structs === */
 // Admit one existing, unstarted execution. Never reopens a finished attempt.
-#[harmos::message]
-#[harmos::operation(response = RunReply, id = "dokime.execution.run_execution", version = 1,
-        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = RunReply, id = "dokime.execution.run_execution", version = 1,
+        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "RunExecution"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RunExecution {

@@ -39,9 +39,9 @@ pub struct RecordEntry {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for RecordEntry {
+impl harmos_domain::MemorySize for RecordEntry {
     fn memory_size(&self) -> usize {
-        let fields = [(harmos::MemorySize::memory_size(&self.record), std::mem::size_of_val(&self.record))];
+        let fields = [(harmos_domain::MemorySize::memory_size(&self.record), std::mem::size_of_val(&self.record))];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
         })

@@ -18,8 +18,8 @@ use std::mem::size_of;
 
 // Third Party Imports
 use base64::Engine;
-use harmos::Error;
-use harmos::Result;
+use harmos_domain::Error;
+use harmos_domain::Result;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -46,7 +46,7 @@ pub struct PageCursor {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for PageCursor {
+impl harmos_domain::MemorySize for PageCursor {
     fn memory_size(&self) -> usize {
         size_of::<Self>()
     }
@@ -57,9 +57,7 @@ impl PageCursor {
     }
 
     pub fn open(checkpoint: &ExecutionCheckpoint, kind: &str, source: &str, after: Option<&str>) -> Result<Self> {
-        checkpoint
-            .validate()
-            .map_err(|source| harmos::Error::backend("validate checkpoint page identity", harmos::BackendFailure::Corrupt, source))?;
+        checkpoint.validate().map_err(|_| invalid("checkpoint does not bind its evidence boundary"))?;
         let identity = identity(checkpoint, kind, source);
         let Some(after) = after else {
             return Ok(Self { identity, after: 0 });
@@ -146,11 +144,11 @@ fn identity(checkpoint: &ExecutionCheckpoint, kind: &str, source: &str) -> [u8; 
 }
 
 fn invalid(message: &'static str) -> Error {
-    harmos::Error::InvalidInput { field: "checkpoint evidence cursor", reason: message }
+    Error::InvalidInput { field: "checkpoint evidence cursor", reason: message }
 }
 
 fn exhausted() -> Error {
-    harmos::Error::ResourceExhausted { resource: "native page cursor" }
+    Error::ResourceExhausted { resource: "native page cursor" }
 }
 
 /* === Tests === */

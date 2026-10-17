@@ -154,7 +154,7 @@ use crate::model::execution::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     ListExecutionSteps(ListExecutionSteps),
     ListStepCriteria(ListStepCriteria),

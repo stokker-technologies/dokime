@@ -78,16 +78,16 @@ pub enum RecordFailure {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for RecordErrorDetail {
+impl harmos_domain::MemorySize for RecordErrorDetail {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
-            (harmos::MemorySize::memory_size(&self.code), std::mem::size_of_val(&self.code)),
-            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
-            (harmos::MemorySize::memory_size(&self.cause_chain), std::mem::size_of_val(&self.cause_chain)),
-            (harmos::MemorySize::memory_size(&self.stacktrace_attachment), std::mem::size_of_val(&self.stacktrace_attachment)),
-            (harmos::MemorySize::memory_size(&self.trace_id), std::mem::size_of_val(&self.trace_id)),
-            (harmos::MemorySize::memory_size(&self.correlation_id), std::mem::size_of_val(&self.correlation_id)),
+            (harmos_domain::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos_domain::MemorySize::memory_size(&self.code), std::mem::size_of_val(&self.code)),
+            (harmos_domain::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos_domain::MemorySize::memory_size(&self.cause_chain), std::mem::size_of_val(&self.cause_chain)),
+            (harmos_domain::MemorySize::memory_size(&self.stacktrace_attachment), std::mem::size_of_val(&self.stacktrace_attachment)),
+            (harmos_domain::MemorySize::memory_size(&self.trace_id), std::mem::size_of_val(&self.trace_id)),
+            (harmos_domain::MemorySize::memory_size(&self.correlation_id), std::mem::size_of_val(&self.correlation_id)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

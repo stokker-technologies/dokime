@@ -39,14 +39,14 @@ pub mod telemetry;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::catalog::Member;
-use harmos::catalog::Visitor;
-use harmos::operations::OperationDeclaration;
-use harmos::operations::OperationPolicy;
-use harmos::operations::RestartPolicy;
-use harmos::operations::RetryPolicy;
-use harmos::operations::WireDeclaration;
-use harmos::schema::Described;
+use harmos_domain::catalog::Member;
+use harmos_domain::catalog::Visitor;
+use harmos_domain::operations::OperationDeclaration;
+use harmos_domain::operations::OperationPolicy;
+use harmos_domain::operations::RestartPolicy;
+use harmos_domain::operations::RetryPolicy;
+use harmos_domain::operations::WireDeclaration;
+use harmos_domain::schema::Described;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -93,9 +93,9 @@ pub enum Access {
     Admin,
 }
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
-    Host(harmos::operations::host::Catalog),
+    Host(harmos_domain::operations::host::Catalog),
     Health(runtime::GetHealth),
     Identity(runtime::GetIdentity),
     #[nested]
@@ -150,7 +150,7 @@ pub trait Endpoint: OperationDeclaration {
 }
 
 /* === Implementations === */
-impl Endpoint for harmos::operations::host::Catalog {
+impl Endpoint for harmos_domain::operations::host::Catalog {
     const PATH: &'static str = "/harmos.host.v1.Host/Catalog";
     const ACCESS: Access = Access::Read;
 }

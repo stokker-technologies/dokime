@@ -21,15 +21,15 @@ use super::*;
 /* === Macros === */
 /* === Type Aliases === */
 /* === Structs === */
-#[harmos::message]
-#[harmos::operation(response = MaterializedReport,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = MaterializedReport,
     id = "dokime.reports.materialize_report", version = 1, policy = TRANSFER,
-    visibility = harmos::operations::Visibility::Host,
+    visibility = harmos_domain::operations::Visibility::Host,
     grpc(package = "dokime.v1", service = "Reports", method = "MaterializeReport"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MaterializeReport {
     pub subject: ReportSubject,
-    pub at: harmos::storage::StorageCursor,
+    pub at: harmos_domain::model::storage::StorageCursor,
 }
 /* === Enums === */
 /* === Traits === */

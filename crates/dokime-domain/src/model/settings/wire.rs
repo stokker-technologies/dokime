@@ -34,14 +34,14 @@ use crate::model::values::wire::Value;
 
 // The points and strategy a plot draws with when neither its author nor its
 // operator chose, live and in every report.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReportPreference {
     pub plot_points: u32,
     pub plot_downsample: crate::model::document::DownsampleTechnique,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppearancePreference {
     pub theme_mode: ThemeMode,
@@ -49,7 +49,7 @@ pub struct AppearancePreference {
     pub density: Density,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ApplicationSettings {
     pub appearance: Option<AppearancePreference>,
@@ -69,14 +69,14 @@ pub struct ApplicationSettings {
     pub restart_required: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoragePolicy {
     pub compaction_interval_ms: u64,
     pub local_retention_ms: Option<u64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoragePolicyView {
     pub revision: u64,
@@ -85,7 +85,7 @@ pub struct StoragePolicyView {
     pub restart_required: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StorageSource {
     pub identifier: String,
@@ -94,20 +94,20 @@ pub struct StorageSource {
     pub enabled: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StorageSources {
     pub sources: Vec<StorageSource>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingsFrame {
     pub sections: Vec<SettingsSection>,
     pub cards: Vec<SettingsCard>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingsSection {
     pub section_id: String,
@@ -117,7 +117,7 @@ pub struct SettingsSection {
     pub order: i32,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingsCard {
     pub plugin_id: String,
@@ -131,19 +131,19 @@ pub struct SettingsCard {
     pub order: i32,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HostCardBody {
     pub blocks: Vec<HostCardBlock>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HostCardBlock {
     pub kind: Option<HostCardBlockKind>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HostCardStatus {
     pub label: String,
@@ -151,13 +151,13 @@ pub struct HostCardStatus {
     pub detail: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HostCardKeyValueList {
     pub items: Vec<HostCardKeyValue>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HostCardKeyValue {
     pub label: String,
@@ -165,13 +165,13 @@ pub struct HostCardKeyValue {
     pub detail: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HostCardMetrics {
     pub items: Vec<HostCardMetric>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct HostCardMetric {
     pub label: String,
@@ -180,27 +180,27 @@ pub struct HostCardMetric {
     pub trend: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingsCardRefreshPolicy {
     pub policy: Option<SettingsCardRefreshPolicyPolicy>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ManualRefresh {}
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CachedRefresh {
     pub max_age_ms: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct OnDemandRefresh {}
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginRuntimeSettings {
     pub settings: Option<SettingsCatalog>,
@@ -216,19 +216,19 @@ pub struct PluginRuntimeSettings {
     pub discovered: Option<Value>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingsCatalog {
     pub contributions: Vec<SettingContribution>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingContribution {
     pub kind: Option<SettingContributionKind>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BooleanSetting {
     pub id: String,
@@ -237,7 +237,7 @@ pub struct BooleanSetting {
     pub default: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextAreaSetting {
     pub id: String,
@@ -247,7 +247,7 @@ pub struct TextAreaSetting {
     pub required: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PathSetting {
     pub id: String,
@@ -257,7 +257,7 @@ pub struct PathSetting {
     pub required: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct NumberSetting {
     pub id: String,
@@ -269,7 +269,7 @@ pub struct NumberSetting {
     pub step: Option<f64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MultipleChoiceSetting {
     pub id: String,
@@ -283,14 +283,14 @@ pub struct MultipleChoiceSetting {
     pub provider: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingChoice {
     pub value: String,
     pub title: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SecretSetting {
     pub id: String,
@@ -300,27 +300,27 @@ pub struct SecretSetting {
     pub required: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SecretReference {
     pub kind: Option<SecretReferenceKind>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginRuntimeCredentialBindingsBindingsEntry {
     pub key: String,
     pub value: Option<RedactedCredentialBinding>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PluginRuntimeCredentialBindings {
     pub bindings: Vec<PluginRuntimeCredentialBindingsBindingsEntry>,
     pub missing_required: Vec<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RedactedCredentialBinding {
     pub credential_id: String,
@@ -330,7 +330,7 @@ pub struct RedactedCredentialBinding {
 
 /* === Enums === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeMode {
     Unspecified,
@@ -339,7 +339,7 @@ pub enum ThemeMode {
     Dark,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Density {
     Unspecified,
@@ -348,7 +348,7 @@ pub enum Density {
     Touch,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostCardTone {
     Unspecified,
@@ -359,7 +359,7 @@ pub enum HostCardTone {
     Danger,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SettingsCardState {
     Unspecified,
@@ -371,7 +371,7 @@ pub enum SettingsCardState {
     PermissionDenied,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CredentialBackendKind {
     Unspecified,
@@ -380,14 +380,14 @@ pub enum CredentialBackendKind {
     LocalFile,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum SettingsSectionOwner {
     App(bool),
     InstalledPluginId(String),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum HostCardBlockKind {
     Text(String),
@@ -396,7 +396,7 @@ pub enum HostCardBlockKind {
     Metrics(HostCardMetrics),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum SettingsCardRefreshPolicyPolicy {
     Manual(ManualRefresh),
@@ -404,7 +404,7 @@ pub enum SettingsCardRefreshPolicyPolicy {
     OnDemand(OnDemandRefresh),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum SettingContributionKind {
     Boolean(BooleanSetting),
@@ -415,7 +415,7 @@ pub enum SettingContributionKind {
     SecretReference(SecretSetting),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum SecretReferenceKind {
     Environment(String),

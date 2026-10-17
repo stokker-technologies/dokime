@@ -27,9 +27,9 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[harmos::operation(response = InstallationPage, id = "dokime.plugins.list_installations", version = 1,
-        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = InstallationPage, id = "dokime.plugins.list_installations", version = 1,
+        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Plugins", method = "ListInstallations"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListInstallations {

@@ -35,7 +35,7 @@ use crate::model::values::Value;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::record(id = "dokime.record", version = 2)]
+#[harmos_domain::record(id = "dokime.record", version = 2)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Record {
@@ -62,21 +62,21 @@ pub struct Record {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for Record {
+impl harmos_domain::MemorySize for Record {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.record_id), std::mem::size_of_val(&self.record_id)),
-            (harmos::MemorySize::memory_size(&self.timestamp), std::mem::size_of_val(&self.timestamp)),
-            (harmos::MemorySize::memory_size(&self.received_at), std::mem::size_of_val(&self.received_at)),
-            (harmos::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
-            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
-            (harmos::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
-            (harmos::MemorySize::memory_size(&self.error), std::mem::size_of_val(&self.error)),
-            (harmos::MemorySize::memory_size(&self.details), std::mem::size_of_val(&self.details)),
-            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
-            (harmos::MemorySize::memory_size(&self.related_sample_id), std::mem::size_of_val(&self.related_sample_id)),
-            (harmos::MemorySize::memory_size(&self.related_stream_id), std::mem::size_of_val(&self.related_stream_id)),
-            (harmos::MemorySize::memory_size(&self.related_artifact_id), std::mem::size_of_val(&self.related_artifact_id)),
+            (harmos_domain::MemorySize::memory_size(&self.record_id), std::mem::size_of_val(&self.record_id)),
+            (harmos_domain::MemorySize::memory_size(&self.timestamp), std::mem::size_of_val(&self.timestamp)),
+            (harmos_domain::MemorySize::memory_size(&self.received_at), std::mem::size_of_val(&self.received_at)),
+            (harmos_domain::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
+            (harmos_domain::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos_domain::MemorySize::memory_size(&self.message), std::mem::size_of_val(&self.message)),
+            (harmos_domain::MemorySize::memory_size(&self.error), std::mem::size_of_val(&self.error)),
+            (harmos_domain::MemorySize::memory_size(&self.details), std::mem::size_of_val(&self.details)),
+            (harmos_domain::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos_domain::MemorySize::memory_size(&self.related_sample_id), std::mem::size_of_val(&self.related_sample_id)),
+            (harmos_domain::MemorySize::memory_size(&self.related_stream_id), std::mem::size_of_val(&self.related_stream_id)),
+            (harmos_domain::MemorySize::memory_size(&self.related_artifact_id), std::mem::size_of_val(&self.related_artifact_id)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

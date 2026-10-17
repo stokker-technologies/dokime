@@ -118,15 +118,15 @@ pub enum ExpressionError {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for Expression {
+impl harmos_domain::MemorySize for Expression {
     fn memory_size(&self) -> usize {
         expression_memory(self, 0)
     }
 }
 
-impl harmos::MemorySize for BooleanExpression {
+impl harmos_domain::MemorySize for BooleanExpression {
     fn memory_size(&self) -> usize {
-        harmos::MemorySize::memory_size(&self.expression)
+        harmos_domain::MemorySize::memory_size(&self.expression)
     }
 }
 
@@ -242,7 +242,7 @@ fn expression_memory(expression: &Expression, depth: usize) -> usize {
     }
     let heap = match &expression.kind {
         ExpressionKind::Literal { value } => {
-            let owned = harmos::MemorySize::memory_size(value);
+            let owned = harmos_domain::MemorySize::memory_size(value);
             if owned == usize::MAX {
                 return usize::MAX;
             }

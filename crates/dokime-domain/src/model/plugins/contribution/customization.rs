@@ -130,12 +130,12 @@ pub enum ThemeModePolicy {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for OrganizationIdentity {
+impl harmos_domain::MemorySize for OrganizationIdentity {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.name), std::mem::size_of_val(&self.name)),
-            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
-            (harmos::MemorySize::memory_size(&self.website), std::mem::size_of_val(&self.website)),
+            (harmos_domain::MemorySize::memory_size(&self.name), std::mem::size_of_val(&self.name)),
+            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos_domain::MemorySize::memory_size(&self.website), std::mem::size_of_val(&self.website)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -143,17 +143,17 @@ impl harmos::MemorySize for OrganizationIdentity {
     }
 }
 
-impl harmos::MemorySize for ThemeCornerRadii {
+impl harmos_domain::MemorySize for ThemeCornerRadii {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.base), std::mem::size_of_val(&self.base)),
-            (harmos::MemorySize::memory_size(&self.sm), std::mem::size_of_val(&self.sm)),
-            (harmos::MemorySize::memory_size(&self.md), std::mem::size_of_val(&self.md)),
-            (harmos::MemorySize::memory_size(&self.lg), std::mem::size_of_val(&self.lg)),
-            (harmos::MemorySize::memory_size(&self.xl), std::mem::size_of_val(&self.xl)),
-            (harmos::MemorySize::memory_size(&self.two_xl), std::mem::size_of_val(&self.two_xl)),
-            (harmos::MemorySize::memory_size(&self.three_xl), std::mem::size_of_val(&self.three_xl)),
-            (harmos::MemorySize::memory_size(&self.four_xl), std::mem::size_of_val(&self.four_xl)),
+            (harmos_domain::MemorySize::memory_size(&self.base), std::mem::size_of_val(&self.base)),
+            (harmos_domain::MemorySize::memory_size(&self.sm), std::mem::size_of_val(&self.sm)),
+            (harmos_domain::MemorySize::memory_size(&self.md), std::mem::size_of_val(&self.md)),
+            (harmos_domain::MemorySize::memory_size(&self.lg), std::mem::size_of_val(&self.lg)),
+            (harmos_domain::MemorySize::memory_size(&self.xl), std::mem::size_of_val(&self.xl)),
+            (harmos_domain::MemorySize::memory_size(&self.two_xl), std::mem::size_of_val(&self.two_xl)),
+            (harmos_domain::MemorySize::memory_size(&self.three_xl), std::mem::size_of_val(&self.three_xl)),
+            (harmos_domain::MemorySize::memory_size(&self.four_xl), std::mem::size_of_val(&self.four_xl)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -161,11 +161,11 @@ impl harmos::MemorySize for ThemeCornerRadii {
     }
 }
 
-impl harmos::MemorySize for ThemeVariant {
+impl harmos_domain::MemorySize for ThemeVariant {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.variables), std::mem::size_of_val(&self.variables)),
-            (harmos::MemorySize::memory_size(&self.plot_palette), std::mem::size_of_val(&self.plot_palette)),
+            (harmos_domain::MemorySize::memory_size(&self.variables), std::mem::size_of_val(&self.variables)),
+            (harmos_domain::MemorySize::memory_size(&self.plot_palette), std::mem::size_of_val(&self.plot_palette)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

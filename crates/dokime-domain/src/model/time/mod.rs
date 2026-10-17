@@ -11,13 +11,13 @@
 
 /* === Modules === */
 
-pub mod time;
+pub mod clock;
 
 /* === Re-Exports === */
 
-pub use time::DurationMillis;
-pub use time::Timestamp;
-pub use time::datetime_text;
+pub use clock::DurationMillis;
+pub use clock::Timestamp;
+pub use clock::datetime_text;
 
 /* === Imports === */
 

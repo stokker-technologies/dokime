@@ -15,7 +15,7 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Aggregate;
+use harmos_domain::Aggregate;
 use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
@@ -88,7 +88,7 @@ pub enum DataTransform {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for DataSource {
+impl harmos_domain::MemorySize for DataSource {
     fn memory_size(&self) -> usize {
         let heap = match self {
             Self::Telemetry { stream, field } => stream.capacity().saturating_add(field.capacity()),
@@ -100,7 +100,7 @@ impl harmos::MemorySize for DataSource {
     }
 }
 
-impl harmos::MemorySize for DataTransform {
+impl harmos_domain::MemorySize for DataTransform {
     fn memory_size(&self) -> usize {
         let heap = match self {
             Self::Aggregate(_) | Self::PerCase => 0,
@@ -112,12 +112,12 @@ impl harmos::MemorySize for DataTransform {
     }
 }
 
-impl harmos::MemorySize for DataExpression {
+impl harmos_domain::MemorySize for DataExpression {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
-            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
-            (harmos::MemorySize::memory_size(&self.transforms), std::mem::size_of_val(&self.transforms)),
+            (harmos_domain::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos_domain::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos_domain::MemorySize::memory_size(&self.transforms), std::mem::size_of_val(&self.transforms)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

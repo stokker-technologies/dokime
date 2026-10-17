@@ -27,9 +27,9 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[harmos::operation(response = (), output = RecordingFrame, id = "dokime.media.camera_recording", version = 1,
-        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = (), output = RecordingFrame, id = "dokime.media.camera_recording", version = 1,
+        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Media", method = "CameraRecording"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct CameraRecording {

@@ -39,7 +39,7 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListSuitesReply {
     pub suites: Vec<SuiteIdentity>,
@@ -47,7 +47,7 @@ pub struct ListSuitesReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SuiteIdentity {
     pub suite_id: String,
@@ -55,7 +55,7 @@ pub struct SuiteIdentity {
     pub metadata: Option<Metadata>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SuiteDefinition {
     pub identity: Option<SuiteIdentity>,
@@ -64,7 +64,7 @@ pub struct SuiteDefinition {
     pub parameter_groups: Vec<ParameterGroupDefinition>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TemplateDefinition {
     pub template_id: String,
@@ -77,7 +77,7 @@ pub struct TemplateDefinition {
     pub continue_on_failure: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileParameterDefinition {
     pub metadata: Option<Metadata>,
@@ -87,7 +87,7 @@ pub struct FileParameterDefinition {
     pub attributes: Option<Value>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StepDefinition {
     pub step_id: String,
@@ -95,21 +95,21 @@ pub struct StepDefinition {
     pub repeatable: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterGroupDefinition {
     pub group_id: String,
     pub metadata: Option<Metadata>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterSchemaExtensionsEntry {
     pub key: String,
     pub value: Option<Value>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterSchema {
     pub parameter_id: String,
@@ -143,7 +143,7 @@ pub struct ParameterSchema {
     pub expansion: Option<ParameterExpansion>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterList {
     pub element_type: ValueType,
@@ -151,19 +151,19 @@ pub struct ParameterList {
     pub max_items: Option<u32>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterSelection {
     pub choices: Vec<Value>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterExpansion {
     pub kind: Option<ParameterExpansionKind>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 // An expression tree flattened into its nodes. `nodes[0]` is the root and a
 // node names its operands by their index in `nodes`; an operand index always
@@ -172,20 +172,20 @@ pub struct ParameterExpression {
     pub nodes: Vec<ParameterNode>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterNode {
     pub kind: Option<ParameterNodeKind>,
 }
 
 // Operand indices into the enclosing expression's nodes.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterOperands {
     pub values: Vec<u32>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct IntegerRange {
     pub start: i64,
@@ -193,7 +193,7 @@ pub struct IntegerRange {
     pub step: i64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct NumberRange {
     pub start: f64,
@@ -201,7 +201,7 @@ pub struct NumberRange {
     pub step: f64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LinearSpace {
     pub start: f64,
@@ -209,7 +209,7 @@ pub struct LinearSpace {
     pub count: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DynamicDefault {
     pub key: DynamicDefaultKey,
@@ -219,7 +219,7 @@ pub struct DynamicDefault {
     pub fallback: Option<u32>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct UnaryExpression {
     pub op: UnaryOperator,
@@ -229,7 +229,7 @@ pub struct UnaryExpression {
     pub value: u32,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct BinaryExpression {
     pub op: BinaryOperator,
@@ -243,7 +243,7 @@ pub struct BinaryExpression {
     pub right: u32,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListRecordSchemasReply {
     pub schemas: Vec<RecordSchemaIdentity>,
@@ -251,7 +251,7 @@ pub struct ListRecordSchemasReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordSchemaIdentity {
     pub record_type: String,
@@ -259,7 +259,7 @@ pub struct RecordSchemaIdentity {
     pub metadata: Option<Metadata>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListTelemetrySchemasReply {
     pub schemas: Vec<TelemetrySchemaIdentity>,
@@ -267,7 +267,7 @@ pub struct ListTelemetrySchemasReply {
     pub cursor: Option<Cursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetrySchemaIdentity {
     pub stream: String,
@@ -277,7 +277,7 @@ pub struct TelemetrySchemaIdentity {
 
 /* === Enums === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DynamicDefaultKey {
     Unspecified,
@@ -285,14 +285,14 @@ pub enum DynamicDefaultKey {
     OperatorEmail,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryOperator {
     Unspecified,
     Negate,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinaryOperator {
     Unspecified,
@@ -302,7 +302,7 @@ pub enum BinaryOperator {
     Divide,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ParameterExpansionKind {
     Single(bool),
@@ -310,7 +310,7 @@ pub enum ParameterExpansionKind {
     Zip(String),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum ParameterNodeKind {
     Literal(Value),

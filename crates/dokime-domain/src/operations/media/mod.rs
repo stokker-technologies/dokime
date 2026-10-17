@@ -50,7 +50,7 @@ use crate::model::media::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     Screenshot(Screenshot),
     Photo(Photo),

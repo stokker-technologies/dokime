@@ -18,8 +18,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::storage::ObjectVersionToken;
-use harmos::storage::StorageCursor;
+use harmos_domain::model::storage::ObjectVersionToken;
+use harmos_domain::model::storage::StorageCursor;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -49,9 +49,7 @@ pub enum SavedEvidenceError {
     #[error("invalid saved execution evidence: {0}")]
     Invalid(&'static str),
     #[error(transparent)]
-    Storage(#[from] harmos::Error),
-    #[error(transparent)]
-    Domain(#[from] harmos::domain::Error),
+    Domain(#[from] harmos_domain::Error),
     #[error(transparent)]
     Timestamp(#[from] time::error::Parse),
 }
@@ -59,13 +57,13 @@ pub enum SavedEvidenceError {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for ExecutionCheckpoint {
+impl harmos_domain::MemorySize for ExecutionCheckpoint {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
-            (harmos::MemorySize::memory_size(&self.position), std::mem::size_of_val(&self.position)),
-            (harmos::MemorySize::memory_size(&self.version), std::mem::size_of_val(&self.version)),
-            (harmos::MemorySize::memory_size(&self.evidence_through), std::mem::size_of_val(&self.evidence_through)),
+            (harmos_domain::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
+            (harmos_domain::MemorySize::memory_size(&self.position), std::mem::size_of_val(&self.position)),
+            (harmos_domain::MemorySize::memory_size(&self.version), std::mem::size_of_val(&self.version)),
+            (harmos_domain::MemorySize::memory_size(&self.evidence_through), std::mem::size_of_val(&self.evidence_through)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

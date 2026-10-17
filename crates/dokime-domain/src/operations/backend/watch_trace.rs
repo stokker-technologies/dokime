@@ -29,9 +29,9 @@ use super::*;
 /* === Structs === */
 // Pages the backend's live tracing output for one scope, then optionally follows
 // it. Read access, like the hub log it complements.
-#[harmos::message]
-#[harmos::operation(response = (), output = TraceBatch, id = "dokime.backend.watch_trace", version = 1,
-        policy = FOLLOW, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = (), output = TraceBatch, id = "dokime.backend.watch_trace", version = 1,
+        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Backend", method = "WatchTrace"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct WatchTrace {

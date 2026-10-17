@@ -58,7 +58,7 @@ use crate::model::plots::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     ListAnalyses(ListAnalyses),
     QuerySnapshots(QuerySnapshots),

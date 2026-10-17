@@ -119,38 +119,38 @@ pub enum RecordTone {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for RecordContract {
+impl harmos_domain::MemorySize for RecordContract {
     fn memory_size(&self) -> usize {
         retained_memory(
             std::mem::size_of::<Self>(),
             [
-                (harmos::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
-                (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-                (harmos::MemorySize::memory_size(&self.display), std::mem::size_of_val(&self.display)),
-                (harmos::MemorySize::memory_size(&self.template_id), std::mem::size_of_val(&self.template_id)),
-                (harmos::MemorySize::memory_size(&self.owner), std::mem::size_of_val(&self.owner)),
-                (harmos::MemorySize::memory_size(&self.fields), std::mem::size_of_val(&self.fields)),
+                (harmos_domain::MemorySize::memory_size(&self.record_type), std::mem::size_of_val(&self.record_type)),
+                (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+                (harmos_domain::MemorySize::memory_size(&self.display), std::mem::size_of_val(&self.display)),
+                (harmos_domain::MemorySize::memory_size(&self.template_id), std::mem::size_of_val(&self.template_id)),
+                (harmos_domain::MemorySize::memory_size(&self.owner), std::mem::size_of_val(&self.owner)),
+                (harmos_domain::MemorySize::memory_size(&self.fields), std::mem::size_of_val(&self.fields)),
             ],
         )
     }
 }
 
-impl harmos::MemorySize for RecordField {
+impl harmos_domain::MemorySize for RecordField {
     fn memory_size(&self) -> usize {
         retained_memory(
             std::mem::size_of::<Self>(),
             [
-                (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-                (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
-                (harmos::MemorySize::memory_size(&self.choices), std::mem::size_of_val(&self.choices)),
-                (harmos::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
-                (harmos::MemorySize::memory_size(&self.format), std::mem::size_of_val(&self.format)),
+                (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+                (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+                (harmos_domain::MemorySize::memory_size(&self.choices), std::mem::size_of_val(&self.choices)),
+                (harmos_domain::MemorySize::memory_size(&self.default), std::mem::size_of_val(&self.default)),
+                (harmos_domain::MemorySize::memory_size(&self.format), std::mem::size_of_val(&self.format)),
             ],
         )
     }
 }
 
-impl harmos::MemorySize for RecordDisplay {
+impl harmos_domain::MemorySize for RecordDisplay {
     fn memory_size(&self) -> usize {
         // All Icon Keys And Tones Are Closed Unit Variants With No Owned Heap.
         std::mem::size_of::<Self>()

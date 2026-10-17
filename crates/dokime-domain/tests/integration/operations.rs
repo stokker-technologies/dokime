@@ -19,7 +19,7 @@
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::OperationDeclaration;
+use harmos_domain::operations::OperationDeclaration;
 
 // Local Imports
 use dokime_domain::operations::plugins::{Consent, Remove, Stage};

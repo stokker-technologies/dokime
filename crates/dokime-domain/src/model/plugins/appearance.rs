@@ -85,16 +85,16 @@ pub struct RuntimeThemeFamily {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for RuntimeAppearanceFrame {
+impl harmos_domain::MemorySize for RuntimeAppearanceFrame {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.app_name), std::mem::size_of_val(&self.app_name)),
-            (harmos::MemorySize::memory_size(&self.organization), std::mem::size_of_val(&self.organization)),
-            (harmos::MemorySize::memory_size(&self.title_template), std::mem::size_of_val(&self.title_template)),
-            (harmos::MemorySize::memory_size(&self.logo), std::mem::size_of_val(&self.logo)),
-            (harmos::MemorySize::memory_size(&self.themes), std::mem::size_of_val(&self.themes)),
-            (harmos::MemorySize::memory_size(&self.active_theme), std::mem::size_of_val(&self.active_theme)),
-            (harmos::MemorySize::memory_size(&self.source_plugin_id), std::mem::size_of_val(&self.source_plugin_id)),
+            (harmos_domain::MemorySize::memory_size(&self.app_name), std::mem::size_of_val(&self.app_name)),
+            (harmos_domain::MemorySize::memory_size(&self.organization), std::mem::size_of_val(&self.organization)),
+            (harmos_domain::MemorySize::memory_size(&self.title_template), std::mem::size_of_val(&self.title_template)),
+            (harmos_domain::MemorySize::memory_size(&self.logo), std::mem::size_of_val(&self.logo)),
+            (harmos_domain::MemorySize::memory_size(&self.themes), std::mem::size_of_val(&self.themes)),
+            (harmos_domain::MemorySize::memory_size(&self.active_theme), std::mem::size_of_val(&self.active_theme)),
+            (harmos_domain::MemorySize::memory_size(&self.source_plugin_id), std::mem::size_of_val(&self.source_plugin_id)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -102,13 +102,13 @@ impl harmos::MemorySize for RuntimeAppearanceFrame {
     }
 }
 
-impl harmos::MemorySize for RuntimeAppLogo {
+impl harmos_domain::MemorySize for RuntimeAppLogo {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.plugin_id), std::mem::size_of_val(&self.plugin_id)),
-            (harmos::MemorySize::memory_size(&self.asset_id), std::mem::size_of_val(&self.asset_id)),
-            (harmos::MemorySize::memory_size(&self.url), std::mem::size_of_val(&self.url)),
-            (harmos::MemorySize::memory_size(&self.alt), std::mem::size_of_val(&self.alt)),
+            (harmos_domain::MemorySize::memory_size(&self.plugin_id), std::mem::size_of_val(&self.plugin_id)),
+            (harmos_domain::MemorySize::memory_size(&self.asset_id), std::mem::size_of_val(&self.asset_id)),
+            (harmos_domain::MemorySize::memory_size(&self.url), std::mem::size_of_val(&self.url)),
+            (harmos_domain::MemorySize::memory_size(&self.alt), std::mem::size_of_val(&self.alt)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -116,18 +116,18 @@ impl harmos::MemorySize for RuntimeAppLogo {
     }
 }
 
-impl harmos::MemorySize for RuntimeThemeFamily {
+impl harmos_domain::MemorySize for RuntimeThemeFamily {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.plugin_id), std::mem::size_of_val(&self.plugin_id)),
-            (harmos::MemorySize::memory_size(&self.theme_id), std::mem::size_of_val(&self.theme_id)),
-            (harmos::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
-            (harmos::MemorySize::memory_size(&self.description), std::mem::size_of_val(&self.description)),
-            (harmos::MemorySize::memory_size(&self.stylesheet), std::mem::size_of_val(&self.stylesheet)),
-            (harmos::MemorySize::memory_size(&self.variables), std::mem::size_of_val(&self.variables)),
-            (harmos::MemorySize::memory_size(&self.corner_radii), std::mem::size_of_val(&self.corner_radii)),
-            (harmos::MemorySize::memory_size(&self.light), std::mem::size_of_val(&self.light)),
-            (harmos::MemorySize::memory_size(&self.dark), std::mem::size_of_val(&self.dark)),
+            (harmos_domain::MemorySize::memory_size(&self.plugin_id), std::mem::size_of_val(&self.plugin_id)),
+            (harmos_domain::MemorySize::memory_size(&self.theme_id), std::mem::size_of_val(&self.theme_id)),
+            (harmos_domain::MemorySize::memory_size(&self.label), std::mem::size_of_val(&self.label)),
+            (harmos_domain::MemorySize::memory_size(&self.description), std::mem::size_of_val(&self.description)),
+            (harmos_domain::MemorySize::memory_size(&self.stylesheet), std::mem::size_of_val(&self.stylesheet)),
+            (harmos_domain::MemorySize::memory_size(&self.variables), std::mem::size_of_val(&self.variables)),
+            (harmos_domain::MemorySize::memory_size(&self.corner_radii), std::mem::size_of_val(&self.corner_radii)),
+            (harmos_domain::MemorySize::memory_size(&self.light), std::mem::size_of_val(&self.light)),
+            (harmos_domain::MemorySize::memory_size(&self.dark), std::mem::size_of_val(&self.dark)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

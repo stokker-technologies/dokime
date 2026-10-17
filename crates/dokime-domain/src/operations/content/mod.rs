@@ -85,7 +85,7 @@ use crate::model::content::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     DownloadAppearanceAsset(DownloadAppearanceAsset),
     ListExecutionFiles(ListExecutionFiles),

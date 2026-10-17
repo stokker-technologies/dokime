@@ -41,13 +41,13 @@ use crate::model::values::wire::Value;
 
 /* === Structs === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotSnapshotsReply {
     pub envelopes: Vec<PlotEnvelope>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotRequest {
     pub plot_id: Option<String>,
@@ -85,7 +85,7 @@ pub struct PlotRequest {
     pub summary_window: Option<PlotWindow>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotFilter {
     pub expression: Option<DataExpression>,
@@ -99,7 +99,7 @@ pub struct PlotFilter {
 // Data expressions are deliberately structural. They cover the expression
 // forms accepted by document plot descriptors without embedding JSON or a
 // language-specific serialized AST.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DataExpression {
     pub source: Option<DataExpressionSource>,
@@ -107,82 +107,82 @@ pub struct DataExpression {
     pub label: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryDataSource {
     pub stream: String,
     pub field: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParameterDataSource {
     pub name: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DimensionDataSource {
     pub name: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecordDataSource {
     pub record_type: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArtifactDataSource {
     pub artifact: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DataTransform {
     pub kind: Option<DataTransformKind>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct EmptyTransform {}
 
 // One member of the Harmos aggregate vocabulary as its enum message; a
 // percentile rank above 100 is refused.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AggregateTransform {
-    pub aggregate: harmos::Aggregate,
+    pub aggregate: harmos_domain::Aggregate,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DetailTransform {
     pub name: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TimeBetweenTransform {
     pub previous_record_type: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryAtOrBeforeTransform {
     pub stream: String,
     pub field: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotCursorTelemetryStreamsEntry {
     pub key: String,
     pub value: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotCursor {
     pub telemetry_streams: Vec<PlotCursorTelemetryStreamsEntry>,
@@ -198,7 +198,7 @@ pub struct PlotCursor {
     pub selection: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotEnvelope {
     pub plot_id: String,
@@ -209,14 +209,14 @@ pub struct PlotEnvelope {
     pub warnings: Vec<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotStreamFrame {
     pub kind: PlotStreamKind,
     pub envelope: Option<PlotEnvelope>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotPayload {
     pub stream: String,
@@ -251,7 +251,7 @@ pub struct PlotPayload {
     pub summaries: Vec<PlotSeriesSummary>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotSeriesSummary {
     pub series_id: String,
@@ -267,14 +267,14 @@ pub struct PlotSeriesSummary {
 
 // An inclusive x range in the cartesian x space: epoch seconds on a time
 // axis, x values on a scatter.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotWindow {
     pub from: f64,
     pub to: f64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotCartesianFrame {
     pub mode: PlotCartesianMode,
@@ -285,7 +285,7 @@ pub struct PlotCartesianFrame {
     pub signature: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotCartesianSeriesFrame {
     pub x: Vec<f64>,
@@ -295,20 +295,20 @@ pub struct PlotCartesianSeriesFrame {
     pub y: Vec<NullableNumber>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct NullableNumber {
     pub value: Option<f64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotDomain {
     pub min: f64,
     pub max: f64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotPayloadDiagnostics {
     pub series_count: u64,
@@ -320,7 +320,7 @@ pub struct PlotPayloadDiagnostics {
     pub window_s: Option<f64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotSeries {
     pub key: String,
@@ -332,7 +332,7 @@ pub struct PlotSeries {
     pub format: Option<ValueFormat>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotPoint {
     pub x: Option<Value>,
@@ -340,7 +340,7 @@ pub struct PlotPoint {
     pub z: Option<f64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotMarker {
     pub x: Option<Value>,
@@ -349,7 +349,7 @@ pub struct PlotMarker {
     pub color: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotFftOptions {
     pub sample_rate_hz: Option<f64>,
@@ -361,7 +361,7 @@ pub struct PlotFftOptions {
     pub max_frequency_hz: Option<f64>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotIntervalOptions {
     pub bin_width: f64,
@@ -369,32 +369,32 @@ pub struct PlotIntervalOptions {
     pub clip_to_observed: bool,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotHistogramOptions {
     pub bins: u64,
     pub unit: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotAnalysis {
     pub result: Option<PlotAnalysisResult>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotAnalysisError {
     pub message: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotHistogramAnalysis {
     pub series: Vec<PlotHistogramSeries>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotHistogramSeries {
     pub key: String,
@@ -403,7 +403,7 @@ pub struct PlotHistogramSeries {
     pub statistics: Option<PlotHistogramStatistics>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotHistogramStatistics {
     pub mean: f64,
@@ -414,7 +414,7 @@ pub struct PlotHistogramStatistics {
     pub max: f64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotHistogramBin {
     pub lower: f64,
@@ -422,7 +422,7 @@ pub struct PlotHistogramBin {
     pub count: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotBoxSummaryAnalysis {
     pub series: Vec<PlotBoxSummary>,
@@ -432,7 +432,7 @@ pub struct PlotBoxSummaryAnalysis {
     pub total: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotBoxSummary {
     pub key: String,
@@ -448,13 +448,13 @@ pub struct PlotBoxSummary {
     pub label: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotSigmaIntervalAnalysis {
     pub series: Vec<PlotSigmaSeries>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotSigmaSeries {
     pub key: String,
@@ -465,7 +465,7 @@ pub struct PlotSigmaSeries {
     pub raw_points: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotSigmaBin {
     pub x: f64,
@@ -475,7 +475,7 @@ pub struct PlotSigmaBin {
     pub upper: f64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotWifiOccupancyAnalysis {
     // Every channel a series reported, ascending.
@@ -494,7 +494,7 @@ pub struct PlotWifiOccupancyAnalysis {
 }
 
 // Channels of one band that held a network in any scan of the window.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotWifiBandWindow {
     pub band: String,
@@ -503,7 +503,7 @@ pub struct PlotWifiBandWindow {
 
 // One scan: the readings sharing a whole second, a channel keeping its
 // largest reading.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotWifiScan {
     pub time: String,
@@ -514,14 +514,14 @@ pub struct PlotWifiScan {
     pub peak_count: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotWifiChannelCount {
     pub channel: i64,
     pub count: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlotWifiBandScan {
     pub band: String,
@@ -530,14 +530,14 @@ pub struct PlotWifiBandScan {
     pub peak_count: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ListAnalysesReply {
     pub definitions: Vec<AnalysisDefinition>,
     pub next_after_id: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisDefinition {
     pub id: String,
@@ -550,7 +550,7 @@ pub struct AnalysisDefinition {
     pub max_output_values: u32,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisOutput {
     pub key: String,
@@ -559,14 +559,14 @@ pub struct AnalysisOutput {
     pub axis: Option<AnalysisAxis>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisAxis {
     pub key: String,
     pub unit: Option<String>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisSelection {
     pub id: String,
@@ -574,7 +574,7 @@ pub struct AnalysisSelection {
     pub parameters: Option<Value>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisComputation {
     pub definition: Option<AnalysisDefinition>,
@@ -583,14 +583,14 @@ pub struct AnalysisComputation {
     pub series: Vec<AnalysisSeries>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisEvidenceTelemetryStreamsEntry {
     pub key: String,
     pub value: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisEvidence {
     pub epoch: String,
@@ -603,7 +603,7 @@ pub struct AnalysisEvidence {
     pub x_key: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisSeries {
     pub key: String,
@@ -616,7 +616,7 @@ pub struct AnalysisSeries {
 }
 
 // Numeric Payloads Stay Numeric On The Wire, Including Custom Results.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisValues {
     pub key: String,
@@ -632,7 +632,7 @@ pub struct AnalysisValues {
 
 /* === Enums === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlotType {
     Unspecified,
@@ -656,7 +656,7 @@ pub enum PlotType {
     AggregateTable,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AxisScale {
     Unspecified,
@@ -664,7 +664,7 @@ pub enum AxisScale {
     Log,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FilterOperator {
     Unspecified,
@@ -678,7 +678,7 @@ pub enum FilterOperator {
     Exists,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlotStreamKind {
     Unspecified,
@@ -688,7 +688,7 @@ pub enum PlotStreamKind {
     Error,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlotCartesianMode {
     Unspecified,
@@ -696,7 +696,7 @@ pub enum PlotCartesianMode {
     Faceted,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FftWindow {
     Unspecified,
@@ -704,7 +704,7 @@ pub enum FftWindow {
     Rectangular,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FftDetrend {
     Unspecified,
@@ -712,7 +712,7 @@ pub enum FftDetrend {
     Mean,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FrequencyLevelUnit {
     Unspecified,
@@ -722,7 +722,7 @@ pub enum FrequencyLevelUnit {
     Dbm,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DataExpressionSource {
     Telemetry(TelemetryDataSource),
@@ -732,7 +732,7 @@ pub enum DataExpressionSource {
     Artifact(ArtifactDataSource),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum DataTransformKind {
     Aggregate(AggregateTransform),
@@ -742,7 +742,7 @@ pub enum DataTransformKind {
     PerCase(EmptyTransform),
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlotAnalysisResult {
     Histogram(PlotHistogramAnalysis),

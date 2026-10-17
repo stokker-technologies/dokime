@@ -26,9 +26,9 @@ use super::*;
 
 /* === Structs === */
 // Uploads one immutable artifact into the runtime's active execution. The first frame is a header and the remaining frames are contiguous chunks; end of stream commits the runtime upload.
-#[harmos::message]
-#[harmos::operation(response = ArtifactMetadata, input = UploadArtifactFrame, id = "dokime.content.upload_artifact", version = 1,
-        policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = ArtifactMetadata, input = UploadArtifactFrame, id = "dokime.content.upload_artifact", version = 1,
+        policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "UploadArtifact"))]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UploadArtifact {}

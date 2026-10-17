@@ -52,7 +52,7 @@ use crate::model::backend::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     GetIdentity(GetIdentity),
     GetHealth(GetHealth),

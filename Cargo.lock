@@ -1984,7 +1984,7 @@ name = "dokime-domain"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "harmos",
+ "harmos-domain",
  "serde",
  "serde_json",
  "sha2 0.11.1",

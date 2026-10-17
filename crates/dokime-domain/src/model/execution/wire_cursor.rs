@@ -31,7 +31,7 @@ pub const MAX_AFTER_BYTES: usize = 4096;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Cursor {
     pub epoch: String,

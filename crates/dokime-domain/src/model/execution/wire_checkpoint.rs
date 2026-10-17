@@ -30,7 +30,7 @@ use serde::Serialize;
 /* === Structs === */
 // Exact inspected sealed revision and captured evidence in one native history.
 // Reading this identity never creates or publishes a newer checkpoint.
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExecutionCheckpoint {
     pub execution_identifier: String,
@@ -41,14 +41,14 @@ pub struct ExecutionCheckpoint {
     pub evidence_through: Option<StorageCursor>,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StorageCursor {
     pub history: Option<StoreHistory>,
     pub sequence: u64,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct StoreHistory {
     pub store: String,

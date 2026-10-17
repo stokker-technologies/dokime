@@ -27,9 +27,9 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[harmos::operation(response = CheckpointEvidence, id = "dokime.history.get_checkpoint_evidence", version = 1,
-        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = CheckpointEvidence, id = "dokime.history.get_checkpoint_evidence", version = 1,
+        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "History", method = "GetCheckpointEvidence"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct GetCheckpointEvidence {

@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use harmos::Value;
+pub use harmos_domain::Value;
 
 /* === Imports === */
 // Standard Library Imports

@@ -73,16 +73,16 @@ pub enum ArtifactStatus {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for ArtifactRecord {
+impl harmos_domain::MemorySize for ArtifactRecord {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.artifact_id), std::mem::size_of_val(&self.artifact_id)),
-            (harmos::MemorySize::memory_size(&self.upload_id), std::mem::size_of_val(&self.upload_id)),
-            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
-            (harmos::MemorySize::memory_size(&self.filename), std::mem::size_of_val(&self.filename)),
-            (harmos::MemorySize::memory_size(&self.content_type), std::mem::size_of_val(&self.content_type)),
-            (harmos::MemorySize::memory_size(&self.sha256), std::mem::size_of_val(&self.sha256)),
-            (harmos::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
+            (harmos_domain::MemorySize::memory_size(&self.artifact_id), std::mem::size_of_val(&self.artifact_id)),
+            (harmos_domain::MemorySize::memory_size(&self.upload_id), std::mem::size_of_val(&self.upload_id)),
+            (harmos_domain::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos_domain::MemorySize::memory_size(&self.filename), std::mem::size_of_val(&self.filename)),
+            (harmos_domain::MemorySize::memory_size(&self.content_type), std::mem::size_of_val(&self.content_type)),
+            (harmos_domain::MemorySize::memory_size(&self.sha256), std::mem::size_of_val(&self.sha256)),
+            (harmos_domain::MemorySize::memory_size(&self.created_at), std::mem::size_of_val(&self.created_at)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

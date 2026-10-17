@@ -12,13 +12,13 @@
 /* === Modules === */
 
 pub mod id;
-pub mod identity;
+pub mod identities;
 pub mod wire;
 
 /* === Re-Exports === */
 
-pub use harmos::Identifier;
-pub use harmos::Metadata;
+pub use harmos_domain::Identifier;
+pub use harmos_domain::Metadata;
 pub use id::ActorId;
 pub use id::ArtifactId;
 pub use id::CaseId;
@@ -47,11 +47,11 @@ pub use id::TestExecutionId;
 pub use id::TraceId;
 pub use id::TraceabilityId;
 pub use id::UploadId;
-pub use identity::DokimeActorIdentity;
-pub use identity::DokimeIdentity;
-pub use identity::DokimeNodeIdentity;
-pub use identity::ExternalIdentityMapping;
-pub use identity::ExternalIdentityProvider;
+pub use identities::DokimeActorIdentity;
+pub use identities::DokimeIdentity;
+pub use identities::DokimeNodeIdentity;
+pub use identities::ExternalIdentityMapping;
+pub use identities::ExternalIdentityProvider;
 
 /* === Imports === */
 

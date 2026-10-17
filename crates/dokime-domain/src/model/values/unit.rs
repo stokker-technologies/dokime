@@ -15,8 +15,8 @@
 // Standard Library Imports
 
 // Third Party Imports
-use harmos::Identifier;
-use harmos::Metadata;
+use harmos_domain::Identifier;
+use harmos_domain::Metadata;
 use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
@@ -53,11 +53,11 @@ pub enum UnitFamily {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for MeasurementUnit {
+impl harmos_domain::MemorySize for MeasurementUnit {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.symbol), std::mem::size_of_val(&self.symbol)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.symbol), std::mem::size_of_val(&self.symbol)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

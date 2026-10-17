@@ -38,14 +38,14 @@ pub const DEFAULT_GRACE_MS: u32 = 2_000;
 
 /* === Structs === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessVariable {
     pub name: String,
     pub value: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessExit {
     // Absent when a signal ended the process.

@@ -53,19 +53,19 @@ pub struct TelemetrySample {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for TelemetrySample {
+impl harmos_domain::MemorySize for TelemetrySample {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.storage_payload), std::mem::size_of_val(&self.storage_payload)),
-            (harmos::MemorySize::memory_size(&self.sample_id), std::mem::size_of_val(&self.sample_id)),
-            (harmos::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
-            (harmos::MemorySize::memory_size(&self.timestamp), std::mem::size_of_val(&self.timestamp)),
-            (harmos::MemorySize::memory_size(&self.received_at), std::mem::size_of_val(&self.received_at)),
-            (harmos::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
-            (harmos::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
-            (harmos::MemorySize::memory_size(&self.values), std::mem::size_of_val(&self.values)),
-            (harmos::MemorySize::memory_size(&self.summary), std::mem::size_of_val(&self.summary)),
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.storage_payload), std::mem::size_of_val(&self.storage_payload)),
+            (harmos_domain::MemorySize::memory_size(&self.sample_id), std::mem::size_of_val(&self.sample_id)),
+            (harmos_domain::MemorySize::memory_size(&self.stream), std::mem::size_of_val(&self.stream)),
+            (harmos_domain::MemorySize::memory_size(&self.timestamp), std::mem::size_of_val(&self.timestamp)),
+            (harmos_domain::MemorySize::memory_size(&self.received_at), std::mem::size_of_val(&self.received_at)),
+            (harmos_domain::MemorySize::memory_size(&self.source), std::mem::size_of_val(&self.source)),
+            (harmos_domain::MemorySize::memory_size(&self.scope), std::mem::size_of_val(&self.scope)),
+            (harmos_domain::MemorySize::memory_size(&self.values), std::mem::size_of_val(&self.values)),
+            (harmos_domain::MemorySize::memory_size(&self.summary), std::mem::size_of_val(&self.summary)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -79,7 +79,7 @@ impl TelemetrySample {
         self
     }
 
-    pub fn typed<T: harmos::Message>(self, row: &T) -> Self {
+    pub fn typed<T: harmos_domain::Message>(self, row: &T) -> Self {
         self.with_storage_payload(row.encode_to_vec())
     }
 

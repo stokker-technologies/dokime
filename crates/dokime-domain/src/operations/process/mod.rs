@@ -37,9 +37,9 @@ use crate::model::process::wire::*;
 /* === Structs === */
 
 // Shared, so a template reaches it through `ctx.host()` without listing it.
-#[harmos::message]
-#[harmos::operation(response = ProcessExit, id = "dokime.process.run", version = 1,
-        policy = FOLLOW, visibility = harmos::operations::Visibility::Shared)]
+#[harmos_domain::message]
+#[harmos_domain::operation(response = ProcessExit, id = "dokime.process.run", version = 1,
+        policy = FOLLOW, visibility = harmos_domain::operations::Visibility::Shared)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunProcess {
     pub program: String,

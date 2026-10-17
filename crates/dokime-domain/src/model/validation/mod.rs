@@ -11,13 +11,13 @@
 
 /* === Modules === */
 
-pub mod validation;
+pub mod evaluation;
 
 /* === Re-Exports === */
 
-pub use validation::CompatibilityStatus;
-pub use validation::ConditionEvaluation;
-pub use validation::ValidationMode;
+pub use evaluation::CompatibilityStatus;
+pub use evaluation::ConditionEvaluation;
+pub use evaluation::ValidationMode;
 
 /* === Imports === */
 

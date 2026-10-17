@@ -11,12 +11,12 @@
 
 /* === Modules === */
 
-pub mod credentials;
+pub mod binding;
 
 /* === Re-Exports === */
 
-pub use credentials::CredentialBackendKind;
-pub use credentials::RedactedCredentialBinding;
+pub use binding::CredentialBackendKind;
+pub use binding::RedactedCredentialBinding;
 
 /* === Imports === */
 

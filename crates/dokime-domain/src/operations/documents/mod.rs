@@ -45,7 +45,7 @@ use crate::model::documents::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     CaptureCurrentDocument(CaptureCurrentDocument),
     UpdatePlotSettings(UpdatePlotSettings),

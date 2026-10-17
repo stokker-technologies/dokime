@@ -31,7 +31,7 @@ use serde::Serialize;
 
 /* === Structs === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Identity {
     pub backend_id: String,
@@ -40,7 +40,7 @@ pub struct Identity {
     pub product_version: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Health {
     pub backend_id: String,
@@ -53,7 +53,7 @@ pub struct Health {
 
 /* === Enums === */
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Readiness {
     Starting,

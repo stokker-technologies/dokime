@@ -27,9 +27,9 @@ use super::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
-#[harmos::operation(response = (), output = AppearanceAssetFrame, id = "dokime.content.download_appearance_asset", version = 1,
-        policy = TRANSFER, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = (), output = AppearanceAssetFrame, id = "dokime.content.download_appearance_asset", version = 1,
+        policy = TRANSFER, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Content", method = "DownloadAppearanceAsset"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct DownloadAppearanceAsset {

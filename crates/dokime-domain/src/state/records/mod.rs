@@ -48,7 +48,7 @@ pub struct RecordVisibility {
 }
 
 /* === Enums === */
-#[harmos::records]
+#[harmos_domain::records]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Records {
     Record(Record),

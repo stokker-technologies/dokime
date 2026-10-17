@@ -29,7 +29,7 @@ use crate::model::values::FieldError;
 use crate::model::values::FieldValue;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
-use harmos::Message;
+use harmos_domain::Message;
 use std::collections::BTreeMap;
 
 /* === Constants === */
@@ -48,7 +48,7 @@ macro_rules! host_contracts {
         )*
     ) => {
         $(
-            #[harmos::message]
+            #[harmos_domain::message]
             #[derive(Clone, PartialEq)]
             struct $stream { $( $field: $ty, )* }
         )*
@@ -127,13 +127,13 @@ crate::host_streams!(host_contracts);
 /* === Type Aliases === */
 
 /* === Structs === */
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq)]
 pub struct HostTimestamp {
     pub value: String,
 }
 
-#[harmos::message]
+#[harmos_domain::message]
 #[derive(Clone, PartialEq)]
 pub struct HostTextList {
     pub values: Vec<String>,

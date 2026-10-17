@@ -115,14 +115,14 @@ pub enum StepCommandPhase {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for RunSummary {
+impl harmos_domain::MemorySize for RunSummary {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.request_id), std::mem::size_of_val(&self.request_id)),
-            (harmos::MemorySize::memory_size(&self.cycle_id), std::mem::size_of_val(&self.cycle_id)),
-            (harmos::MemorySize::memory_size(&self.accepted_at), std::mem::size_of_val(&self.accepted_at)),
-            (harmos::MemorySize::memory_size(&self.provider_started_at), std::mem::size_of_val(&self.provider_started_at)),
-            (harmos::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
+            (harmos_domain::MemorySize::memory_size(&self.request_id), std::mem::size_of_val(&self.request_id)),
+            (harmos_domain::MemorySize::memory_size(&self.cycle_id), std::mem::size_of_val(&self.cycle_id)),
+            (harmos_domain::MemorySize::memory_size(&self.accepted_at), std::mem::size_of_val(&self.accepted_at)),
+            (harmos_domain::MemorySize::memory_size(&self.provider_started_at), std::mem::size_of_val(&self.provider_started_at)),
+            (harmos_domain::MemorySize::memory_size(&self.finished_at), std::mem::size_of_val(&self.finished_at)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -130,16 +130,16 @@ impl harmos::MemorySize for RunSummary {
     }
 }
 
-impl harmos::MemorySize for RunReceipt {
+impl harmos_domain::MemorySize for RunReceipt {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.node_id), std::mem::size_of_val(&self.node_id)),
-            (harmos::MemorySize::memory_size(&self.summary), std::mem::size_of_val(&self.summary)),
-            (harmos::MemorySize::memory_size(&self.fingerprint), std::mem::size_of_val(&self.fingerprint)),
-            (harmos::MemorySize::memory_size(&self.submitted_by), std::mem::size_of_val(&self.submitted_by)),
-            (harmos::MemorySize::memory_size(&self.last_claim), std::mem::size_of_val(&self.last_claim)),
-            (harmos::MemorySize::memory_size(&self.interruption), std::mem::size_of_val(&self.interruption)),
-            (harmos::MemorySize::memory_size(&self.commands), std::mem::size_of_val(&self.commands)),
+            (harmos_domain::MemorySize::memory_size(&self.node_id), std::mem::size_of_val(&self.node_id)),
+            (harmos_domain::MemorySize::memory_size(&self.summary), std::mem::size_of_val(&self.summary)),
+            (harmos_domain::MemorySize::memory_size(&self.fingerprint), std::mem::size_of_val(&self.fingerprint)),
+            (harmos_domain::MemorySize::memory_size(&self.submitted_by), std::mem::size_of_val(&self.submitted_by)),
+            (harmos_domain::MemorySize::memory_size(&self.last_claim), std::mem::size_of_val(&self.last_claim)),
+            (harmos_domain::MemorySize::memory_size(&self.interruption), std::mem::size_of_val(&self.interruption)),
+            (harmos_domain::MemorySize::memory_size(&self.commands), std::mem::size_of_val(&self.commands)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -147,11 +147,11 @@ impl harmos::MemorySize for RunReceipt {
     }
 }
 
-impl harmos::MemorySize for AttemptClaim {
+impl harmos_domain::MemorySize for AttemptClaim {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.case_id), std::mem::size_of_val(&self.case_id)),
-            (harmos::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
+            (harmos_domain::MemorySize::memory_size(&self.case_id), std::mem::size_of_val(&self.case_id)),
+            (harmos_domain::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -159,16 +159,16 @@ impl harmos::MemorySize for AttemptClaim {
     }
 }
 
-impl harmos::MemorySize for StepCommandReceipt {
+impl harmos_domain::MemorySize for StepCommandReceipt {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.command_id), std::mem::size_of_val(&self.command_id)),
-            (harmos::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
-            (harmos::MemorySize::memory_size(&self.action), std::mem::size_of_val(&self.action)),
-            (harmos::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
-            (harmos::MemorySize::memory_size(&self.accepted_at), std::mem::size_of_val(&self.accepted_at)),
-            (harmos::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
-            (harmos::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
+            (harmos_domain::MemorySize::memory_size(&self.command_id), std::mem::size_of_val(&self.command_id)),
+            (harmos_domain::MemorySize::memory_size(&self.execution_id), std::mem::size_of_val(&self.execution_id)),
+            (harmos_domain::MemorySize::memory_size(&self.action), std::mem::size_of_val(&self.action)),
+            (harmos_domain::MemorySize::memory_size(&self.attempt_id), std::mem::size_of_val(&self.attempt_id)),
+            (harmos_domain::MemorySize::memory_size(&self.accepted_at), std::mem::size_of_val(&self.accepted_at)),
+            (harmos_domain::MemorySize::memory_size(&self.updated_at), std::mem::size_of_val(&self.updated_at)),
+            (harmos_domain::MemorySize::memory_size(&self.detail), std::mem::size_of_val(&self.detail)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }

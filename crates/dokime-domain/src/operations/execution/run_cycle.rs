@@ -28,9 +28,9 @@ use super::*;
 
 /* === Structs === */
 // RunCycle dispatches one provider run per execution target its runnable cases resolve to, sequentially and in case order, under one request.
-#[harmos::message]
-#[harmos::operation(response = RunReply, id = "dokime.execution.run_cycle", version = 1,
-        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = RunReply, id = "dokime.execution.run_cycle", version = 1,
+        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "RunCycle"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct RunCycle {

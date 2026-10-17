@@ -244,12 +244,12 @@ enum EvaluatedExpr {
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::MemorySize for ParameterExpansion {
+impl harmos_domain::MemorySize for ParameterExpansion {
     fn memory_size(&self) -> usize {
         let heap = match self {
             Self::Single | Self::Cartesian => 0,
             Self::Zip { group } => {
-                let owned = harmos::MemorySize::memory_size(group);
+                let owned = harmos_domain::MemorySize::memory_size(group);
                 if owned == usize::MAX {
                     return usize::MAX;
                 }
@@ -260,22 +260,22 @@ impl harmos::MemorySize for ParameterExpansion {
     }
 }
 
-impl harmos::MemorySize for ParameterList {
+impl harmos_domain::MemorySize for ParameterList {
     fn memory_size(&self) -> usize {
         std::mem::size_of::<Self>()
     }
 }
 
-impl harmos::MemorySize for ParameterSelection {
+impl harmos_domain::MemorySize for ParameterSelection {
     fn memory_size(&self) -> usize {
-        harmos::MemorySize::memory_size(&self.choices)
+        harmos_domain::MemorySize::memory_size(&self.choices)
     }
 }
 
-impl harmos::MemorySize for ParameterGroup {
+impl harmos_domain::MemorySize for ParameterGroup {
     fn memory_size(&self) -> usize {
-        let metadata = harmos::MemorySize::memory_size(&self.metadata);
-        let group = harmos::MemorySize::memory_size(&self.group_id);
+        let metadata = harmos_domain::MemorySize::memory_size(&self.metadata);
+        let group = harmos_domain::MemorySize::memory_size(&self.group_id);
         if metadata == usize::MAX || group == usize::MAX {
             return usize::MAX;
         }
@@ -285,7 +285,7 @@ impl harmos::MemorySize for ParameterGroup {
     }
 }
 
-impl harmos::MemorySize for ParameterDefinition {
+impl harmos_domain::MemorySize for ParameterDefinition {
     fn memory_size(&self) -> usize {
         let fields = [
             (self.expansion.memory_size(), std::mem::size_of_val(&self.expansion)),
@@ -303,19 +303,19 @@ impl harmos::MemorySize for ParameterDefinition {
     }
 }
 
-impl harmos::MemorySize for ParameterExpr {
+impl harmos_domain::MemorySize for ParameterExpr {
     fn memory_size(&self) -> usize {
         parameter_expression_memory(self, 0)
     }
 }
 
-impl harmos::MemorySize for MaterializedParameter {
+impl harmos_domain::MemorySize for MaterializedParameter {
     fn memory_size(&self) -> usize {
         let fields = [
-            (harmos::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
-            (harmos::MemorySize::memory_size(&self.group_id), std::mem::size_of_val(&self.group_id)),
-            (harmos::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
-            (harmos::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
+            (harmos_domain::MemorySize::memory_size(&self.metadata), std::mem::size_of_val(&self.metadata)),
+            (harmos_domain::MemorySize::memory_size(&self.group_id), std::mem::size_of_val(&self.group_id)),
+            (harmos_domain::MemorySize::memory_size(&self.value), std::mem::size_of_val(&self.value)),
+            (harmos_domain::MemorySize::memory_size(&self.unit), std::mem::size_of_val(&self.unit)),
         ];
         fields.into_iter().fold(std::mem::size_of::<Self>(), |bytes, (owned, inline)| {
             if owned == usize::MAX { usize::MAX } else { bytes.saturating_add(owned.saturating_sub(inline)) }
@@ -570,7 +570,7 @@ fn parameter_expression_memory(expression: &ParameterExpr, depth: usize) -> usiz
     }
     let heap = match expression {
         ParameterExpr::Literal { value } => {
-            let bytes = harmos::MemorySize::memory_size(value);
+            let bytes = harmos_domain::MemorySize::memory_size(value);
             if bytes == usize::MAX {
                 return usize::MAX;
             }

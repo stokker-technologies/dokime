@@ -28,9 +28,9 @@ use super::*;
 
 /* === Structs === */
 // Archives or unarchives one terminal cycle, live or retired to history.
-#[harmos::message]
-#[harmos::operation(response = ArchiveReply, id = "dokime.execution.set_cycle_archived", version = 1,
-        policy = ORDINARY, visibility = harmos::operations::Visibility::Host,
+#[harmos_domain::message]
+#[harmos_domain::operation(response = ArchiveReply, id = "dokime.execution.set_cycle_archived", version = 1,
+        policy = ORDINARY, visibility = harmos_domain::operations::Visibility::Host,
         grpc(package = "dokime.v1", service = "Execution", method = "SetCycleArchived"))]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SetCycleArchived {

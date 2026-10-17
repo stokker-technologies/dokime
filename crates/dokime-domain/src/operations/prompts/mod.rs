@@ -58,7 +58,7 @@ use crate::model::prompts::wire::*;
 
 /* === Enums === */
 
-#[harmos::catalog]
+#[harmos_domain::catalog]
 pub enum Operations {
     ListDefinitions(ListDefinitions),
     GetDefinition(GetDefinition),
