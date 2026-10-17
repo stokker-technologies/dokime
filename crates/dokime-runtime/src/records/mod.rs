@@ -13,8 +13,6 @@ pub mod declared;
 pub mod host;
 pub mod inbox;
 pub mod route;
-#[cfg(feature = "host")]
-pub mod resources;
 
 /* === Re-Exports === */
 pub use dokime_domain::model::validation::CompatibilityStatus;
@@ -31,8 +29,6 @@ pub use contract::{
 pub use declared::{DeclaredRecord, message_of};
 pub use inbox::{Deliveries, RecordSource};
 pub use route::{PublishRecord, RECORD_PUBLICATION_VERSION, RecordPublication};
-#[cfg(feature = "host")]
-pub use resources::{ResourceLifecycle, ResourceRecord, ResourceRegistry};
 
 /* === Imports === */
 // Standard Library Imports

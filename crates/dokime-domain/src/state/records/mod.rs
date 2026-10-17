@@ -11,10 +11,12 @@
 // Pure Record Collections And Their State Transitions.
 
 /* === Modules === */
+pub mod resources;
 pub mod set;
 
 
 /* === Re-Exports === */
+pub use resources::ResourceRegistry;
 
 /* === Imports === */
 
