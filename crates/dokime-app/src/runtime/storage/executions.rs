@@ -570,6 +570,9 @@ impl ExecutionStorage {
         let _boundary = gate.lock().await;
         let mut acquisition = owner.lock().await;
         validate_identity(&acquisition, execution)?;
+        if acquisition.execution.saved.is_some() {
+            return Err(invalid("final report is already published"));
+        }
         if acquisition.working.as_deref() == Some(revision)
             && *acquisition.execution == *execution
             && acquisition.pending.is_none()
@@ -589,7 +592,6 @@ impl ExecutionStorage {
             || stored.version != revision.version
             || stored.value != Execution::try_from(execution)?
             || acquisition.pending.is_some()
-            || acquisition.execution.saved.is_some()
         {
             return Err(invalid("capture differs from immutable lifecycle intent"));
         }

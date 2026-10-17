@@ -814,7 +814,8 @@ pub(crate) async fn pool_refusal_settles() {
     assert!(cycle.saved.is_none(), "refused report remains unsealed");
     assert!(handle.open_cycle_report(&cycle_id).await.is_err());
     drop(handle);
-    assert!(runtime.shutdown().await.is_err());
+    // The Refusal Is A Clean Failure: Nothing Remains Stuck To Report At Shutdown.
+    runtime.shutdown().await.unwrap();
 }
 
 fn constrain_report_memory(config: &mut dokime_app::RuntimeConfig) {
