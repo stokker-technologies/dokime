@@ -77,6 +77,19 @@ include = [
 
 # === Templates ===
 
+[[templates.scaffolds]]
+path = "crates/cargo-dokime/templates"
+profile = "plugin"
+suffix = ".tmpl"
+tasks = "crates/cargo-dokime/scaffold.tasks.toml"
+
+[templates.scaffolds.placeholders]
+package = "{{package}}"
+module = "{{crate}}"
+owner = "{{owner}}"
+repository = "{{repository}}"
+selection = "{{selection}}"
+
 
 # === Release ===
 
@@ -88,25 +101,5 @@ include = [
 
 
 # === Catalogs ===
-
-[[catalogs]]
-language = "rust"
-path = "plugins/mini/src/operations/mod.rs"
-name = "Implemented"
-implementations = ["connections.rs", "readiness.rs", "status.rs"]
-
-
-[[catalogs]]
-language = "rust"
-path = "crates/cargo-dokime/templates/src/operations/mod.rs"
-name = "Implemented"
-implementations = ["status.rs", "chamber.rs"]
-
-[[catalogs]]
-language = "rust"
-path = "crates/dokime/src/storage/objects/mod.rs"
-name = "Objects"
-implementations = ["case.rs", "cycle.rs", "execution.rs", "suite.rs"]
-
 
 # === PyO3 ===
