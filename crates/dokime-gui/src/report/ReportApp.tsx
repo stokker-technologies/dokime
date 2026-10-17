@@ -7,25 +7,13 @@
  * ***
  */
 
-/* The frozen report, which is the application with `live={false}`.
- *
- * There is no report frame and no report workspace: this file is boot, not
- * rendering. It puts the three things the shared components expect around
- * them — a query client nothing fetches through, a router nothing navigates
- * with, and the snapshot the workspace's hooks read instead of the backend —
- * and then mounts the shared shell frames and cycle presentation.
- *
- * The router is a memory router with a root route and no children. The shell
- * reads the location (focus mode, the back chevron, the console scope) through
- * router hooks; the same memory router supplies those presentation hooks.
- *
- * Selection is React state here rather than a URL: a single file has no
- * address bar of its own to keep it in.
+/* The frozen report supplies captured evidence to shared presentation views.
+ * Its memory router provides presentation state for shell focus and navigation.
+ * Selection stays local to the document; no live service is constructed.
  */
 
 /* === External Imports === */
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -37,7 +25,7 @@ import { useMemo, useState } from "react";
 /* === Local Imports === */
 
 import { DokimeToaster } from "@/components/DokimeToaster";
-import { CycleWorkspace } from "@/features/cycle/CycleWorkspace";
+import { ReportCycleWorkspace } from "./ReportCycleWorkspace";
 import type { CycleSelection } from "@/features/cycle/cycle-workspace-model";
 import { CycleSnapshotProvider, useCycleSnapshotSource } from "@/features/cycle/snapshot-source";
 import type { ReportPayload } from "@/lib/report-types";
@@ -45,15 +33,6 @@ import { ReportShell } from "./ReportShell";
 import { cycleSnapshotSource } from "./report-snapshot";
 
 /* === Constants === */
-
-/**
- * Nothing is ever fetched: every hook on this path answers from the snapshot
- * and leaves its query disabled. The client exists because those hooks still
- * call `useQuery`, which is what keeps one set of components.
- */
-const idleQueryClient = new QueryClient({
-  defaultOptions: { queries: { gcTime: Infinity, retry: false, staleTime: Infinity } },
-});
 
 const reportRouter = createRouter({
   history: createMemoryHistory({ initialEntries: ["/"] }),
@@ -69,13 +48,13 @@ export function ReportApp({ payload }: { payload: ReportPayload }) {
      it: a component the router owns must hold its own state, or the router
      never re-renders it when that state changes. */
   return (
-    <QueryClientProvider client={idleQueryClient}>
+    <>
       <CycleSnapshotProvider source={source}>
         <RouterProvider router={reportRouter} />
       </CycleSnapshotProvider>
       {/* Copy and download confirm themselves here as they do live. */}
       <DokimeToaster />
-    </QueryClientProvider>
+    </>
   );
 }
 
@@ -103,14 +82,7 @@ function ReportSurface() {
         title,
       }}
     >
-      <CycleWorkspace
-        caseId={selection.caseId}
-        cycleId={cycleId}
-        executionId={selection.executionId}
-        live={false}
-        view={selection.view}
-        onSelectionChange={setSelection}
-      />
+      <ReportCycleWorkspace source={source} selection={selection} />
     </ReportShell>
   );
 }

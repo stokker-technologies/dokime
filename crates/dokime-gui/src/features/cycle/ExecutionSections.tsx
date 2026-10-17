@@ -35,27 +35,17 @@ import { useMemo } from "react";
 /* === Local Imports === */
 
 import { ArtifactTree } from "@/components/ArtifactTree";
-import {
-  RecordListContent,
-  TraceabilityDocumentContent,
-} from "@/components/document/DocumentSurfaceView";
-import type { DocumentBlockChrome } from "@/components/document/DocumentViewRenderer";
-import { isDocumentSurfaceCard } from "@/components/document/document-surface-policy";
 import { OperatorNotesContent } from "@/components/document/OperatorNotesContent";
-import { MarkdownText } from "@/components/MarkdownText";
 import { MediaCaptureControls } from "@/components/MediaCaptureControls";
 import { MediaGallery } from "@/components/MediaGallery";
-import { TraceabilityJsonDialog } from "@/components/traceability/TraceabilityJsonDialog";
-import { Button } from "@/components/ui/button";
 import type {
-  DocumentViewCard,
   HubLiveState,
   PromptRequest,
   RecordScope,
   TestCyclePlan,
   TestExecution,
 } from "@/lib/types";
-import { type ExecutionMenu, NodeMenu } from "./CycleWorkspaceHeader";
+import type { ExecutionMenu } from "./CycleWorkspaceHeader";
 import {
   type CycleExecutionRow,
   type CycleSelection,
@@ -63,20 +53,11 @@ import {
   isUnstartedExecution,
 } from "./cycle-workspace-model";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
-import { documentHasWindowedCards, documentWindowElapsedUnit, FrozenDocumentConsole } from "./DocumentViewPresentation";
-import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
-import { EditableLabel } from "./EditableLabel";
+import { evidencePaneState } from "./document-query-model";
 import { ExecutionControl } from "./ExecutionControl";
-import { ExecutionParameters } from "./ExecutionParameters";
-import { ExecutionSectionCard } from "./ExecutionSectionCard";
-import { ExecutionStepsCriteria } from "./ExecutionStepsCriteria";
-import {
-  executionDocumentSections,
-  executionPagePrompts,
-  executionParameterRows,
-  executionSectionOf,
-} from "./execution-sections-model";
-import { PlotWindowControl, usePlotWindow } from "./PlotWindowSlider";
+import { executionPagePrompts } from "./execution-sections-model";
+import { ExecutionSectionsView } from "./ExecutionSectionsView";
+import { usePlotWindow } from "./PlotWindowSlider";
 import { useExecutionDetailQuery, useExecutionDocumentQuery } from "./server-state";
 
 /* === Types === */
@@ -100,11 +81,6 @@ export type ExecutionSectionsProps = {
   selection: CycleSelection;
   onSelectExecution: (executionId: string) => void;
 };
-
-/* === Constants === */
-
-const UNSTARTED_NOTICE =
-  "This case has not run yet. These are the parameters the next attempt will use.";
 
 /* === Components === */
 
@@ -160,19 +136,6 @@ export function ExecutionSections({
       : null,
   });
 
-  // Divide The Document Into Sections
-  const { shared, view } = surface;
-  const mainCards = view.sections.flatMap((section) => section.cards).filter(isDocumentSurfaceCard);
-  const present = new Set(executionDocumentSections(mainCards));
-  const reportSections = view.sections.map((section) => ({
-    ...section,
-    cards: section.cards.filter(isReportCard),
-  }));
-  const template = plan?.templates.find((item) => item.template_id === row.case.templateId);
-  const parameterRows = executionParameterRows(
-    row.case.testCase?.parameters,
-    template?.parameters ?? [],
-  );
   const executionId = row.execution?.test_execution_id ?? null;
   const pagePrompts = executionPagePrompts(prompts, executionId);
   const running = execution && isActiveExecutionStatus(execution.status) ? executionId : null;
@@ -183,197 +146,20 @@ export function ExecutionSections({
     failureReason: documentQuery.failureReason,
     pending: documentQuery.isPending,
   });
-
   return (
-    <div className="grid min-h-0">
-      <div className="min-h-0 overflow-y-auto px-4 py-4">
-        <div className="grid min-w-0 gap-4">
-          <header className="grid min-h-[var(--bar-control-height)] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
-            <EditableLabel
-              label={label}
-              onRename={live ? onRename : null}
-              prefix={titlePrefix}
-              subject="Execution"
-            />
-            {live ? <NodeMenu menu={menu} /> : <span />}
-            {template?.description ? (
-              <div className="col-span-2 text-sm text-muted-foreground">
-                <MarkdownText text={template.description} />
-              </div>
-            ) : null}
-          </header>
-
-          {live ? (
-            <ExecutionControl
-              cycleId={cycleId}
-              executionId={running}
-              onSelectExecution={onSelectExecution}
-              prompts={pagePrompts}
-              selection={selection}
-            />
-          ) : null}
-
-          <ExecutionSectionCard
-            description={started ? null : UNSTARTED_NOTICE}
-            empty={parameterRows.length ? null : "This case has no parameters."}
-            title="Parameters"
-          >
-            {parameterRows.length ? <ExecutionParameters rows={parameterRows} /> : null}
-          </ExecutionSectionCard>
-
-          {!started ? null : pane.kind === "failed" ? (
-            <ExecutionSectionCard
-              action={
-                <Button onClick={() => void documentQuery.refetch()} size="sm" variant="outline">
-                  Try Again
-                </Button>
-              }
-              empty={pane.message}
-              title="Evidence Unavailable"
-            />
-          ) : pane.kind === "busy" ? (
-            <ExecutionSectionCard empty={BUSY_NOTICE} title="Loading" />
-          ) : pane.kind === "loading" ? (
-            <ExecutionSectionCard
-              empty="Reading the document for this execution."
-              title="Loading"
-            />
-          ) : (
-            <>
-              {pane.staleReason ? (
-                <p className="text-xs text-muted-foreground">
-                  Showing the last evidence read. {pane.staleReason}
-                </p>
-              ) : null}
-              {present.has("steps-criteria") ? (
-                <ExecutionSectionCard
-                  empty={
-                    view.stepRecords.length || view.criterionRecords.length
-                      ? null
-                      : "No steps or criteria recorded yet."
-                  }
-                  title="Steps & Criteria"
-                >
-                  {view.stepRecords.length || view.criterionRecords.length ? (
-                    <ExecutionStepsCriteria
-                      criteria={view.criterionRecords}
-                      steps={view.stepRecords}
-                    />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
-
-              {present.has("notes") ? (
-                <ExecutionSectionCard
-                  empty={liveScope || view.notes.length ? null : "No operator notes recorded."}
-                  title="Operator Notes"
-                >
-                  {liveScope || view.notes.length ? (
-                    <OperatorNotesContent notes={view.notes} scope={liveScope} />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
-
-              {present.has("media") && (live || shared.mediaArtifacts.length) ? (
-                <ExecutionSectionCard
-                  empty={shared.mediaArtifacts.length ? null : "No media recorded."}
-                  title="Media"
-                >
-                  {liveScope ? <MediaCaptureControls scope={liveScope} /> : null}
-                  {shared.mediaArtifacts.length ? (
-                    <MediaGallery artifacts={shared.mediaArtifacts} emptyMessage="" />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
-
-              {present.has("artifacts") && (live || shared.artifacts.length) ? (
-                <ExecutionSectionCard
-                  empty={shared.artifacts.length ? null : "No artifacts recorded."}
-                  title="Artifacts"
-                >
-                  {shared.artifacts.length ? (
-                    <ArtifactTree artifacts={shared.artifacts} emptyMessage="" />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
-
-              {present.has("report") || live ? (
-                <ExecutionSectionCard
-                  action={
-                    documentHasWindowedCards(reportSections) ? (
-                      <PlotWindowControl
-                        elapsedUnit={documentWindowElapsedUnit(reportSections)}
-                        live={live}
-                        window={plotWindow}
-                      />
-                    ) : null
-                  }
-                  empty={
-                    present.has("report")
-                      ? null
-                      : "This execution's document authors no report content."
-                  }
-                  title="Report"
-                >
-                  {present.has("report") ? (
-                    <DocumentView
-                      cardChrome={reportCardChrome}
-                      cardFilter={isReportCard}
-                      surface={surface}
-                    />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
-
-              {present.has("records") ? (
-                <ExecutionSectionCard
-                  empty={view.records.length ? null : "No records yet."}
-                  title="Records"
-                >
-                  {view.records.length ? (
-                    <RecordListContent live={live} records={view.records} />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
-
-              {present.has("traceability") ? (
-                <ExecutionSectionCard
-                  action={
-                    <TraceabilityJsonDialog
-                      exportName={shared.traceabilityExportName}
-                      traceability={view.traceability}
-                    />
-                  }
-                  empty={
-                    view.traceability?.groups.length || view.traceability?.warnings.length
-                      ? null
-                      : "No traceability information available."
-                  }
-                  title="Traceability"
-                >
-                  {view.traceability?.groups.length || view.traceability?.warnings.length ? (
-                    <TraceabilityDocumentContent traceability={view.traceability} />
-                  ) : null}
-                </ExecutionSectionCard>
-              ) : null}
-
-              <FrozenDocumentConsole surface={surface} />
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+    <ExecutionSectionsView
+      plan={plan} row={row} live={live} titlePrefix={titlePrefix} label={label}
+      onRename={onRename} menu={menu} started={started} surface={surface} pane={pane}
+      plotWindow={plotWindow} onRetry={() => void documentQuery.refetch()}
+      documentView={DocumentView}
+      control={live ? <ExecutionControl cycleId={cycleId} executionId={running}
+        onSelectExecution={onSelectExecution} prompts={pagePrompts} selection={selection} /> : null}
+      notesContent={live ? <OperatorNotesContent notes={surface.view.notes} scope={liveScope} /> : undefined}
+      mediaContent={live ? <>{liveScope ? <MediaCaptureControls scope={liveScope} /> : null}
+        {surface.shared.mediaArtifacts.length ? <MediaGallery artifacts={surface.shared.mediaArtifacts} emptyMessage="" /> : null}</> : undefined}
+      artifactsContent={live ? <ArtifactTree artifacts={surface.shared.artifacts} emptyMessage="" /> : undefined}
+    />
   );
 }
 
 /* === Private Functions === */
-
-/** Report holds the main-region cards no built-in section claims. */
-function isReportCard(card: DocumentViewCard): boolean {
-  return isDocumentSurfaceCard(card) && executionSectionOf(card.kind) === "report";
-}
-
-/** Inside Report a card keeps its title but not a second frame; plots stay flat. */
-function reportCardChrome(card: DocumentViewCard): DocumentBlockChrome {
-  return card.kind === "plots" ? "flat" : "embedded";
-}

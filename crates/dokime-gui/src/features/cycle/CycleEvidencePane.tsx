@@ -26,12 +26,11 @@ import { useMemo } from "react";
 
 /* === Local Imports === */
 
-import { Button } from "@/components/ui/button";
 import type { HubLiveState, RecordScope, TestCyclePlan } from "@/lib/types";
 import { DocumentView, useDocumentSurface } from "./DocumentView";
-import { documentWindowElapsedUnit, FrozenDocumentConsole } from "./DocumentViewPresentation";
-import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
-import { PlotWindowControl, usePlotWindow } from "./PlotWindowSlider";
+import { CycleEvidenceView } from "./CycleEvidenceView";
+import { evidencePaneState } from "./document-query-model";
+import { usePlotWindow } from "./PlotWindowSlider";
 import { useCycleDocumentQuery } from "./server-state";
 
 /* === Types === */
@@ -75,66 +74,8 @@ export function CycleEvidencePane({
     pending: documentQuery.isPending,
   });
 
-  return (
-    <div className="grid min-h-0">
-      <div className="min-h-0 overflow-y-auto px-4 py-4">
-        {pane.kind === "failed" ? (
-          <PaneNotice
-            action={{ label: "Try Again", onClick: () => void documentQuery.refetch() }}
-            message={pane.message}
-            title="Evidence Unavailable"
-          />
-        ) : pane.kind === "busy" ? (
-          <PaneNotice message={BUSY_NOTICE} title="Loading" />
-        ) : pane.kind === "loading" ? (
-          <PaneNotice message="Reading the document for this selection." title="Loading" />
-        ) : (
-          <div className="grid gap-6">
-            {pane.staleReason ? (
-              <p className="text-xs text-muted-foreground">
-                Showing the last evidence read. {pane.staleReason}
-              </p>
-            ) : null}
-            <DocumentView
-              plotWindowControl={
-                <PlotWindowControl
-                  elapsedUnit={documentWindowElapsedUnit(surface.view.sections)}
-                  live={live}
-                  window={plotWindow}
-                />
-              }
-              surface={surface}
-            />
-            <FrozenDocumentConsole surface={surface} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* === Private Components === */
-
-function PaneNotice({
-  action,
-  message,
-  title,
-}: {
-  action?: { label: string; onClick: () => void };
-  message: string;
-  title: string;
-}) {
-  return (
-    <div className="grid justify-items-start gap-2 py-8">
-      <p className="font-heading text-sm font-semibold">{title}</p>
-      <p className="max-w-prose text-sm text-muted-foreground">{message}</p>
-      {action ? (
-        <Button onClick={action.onClick} size="sm" variant="outline">
-          {action.label}
-        </Button>
-      ) : null}
-    </div>
-  );
+  return <CycleEvidenceView live={live} surface={surface} pane={pane} plotWindow={plotWindow}
+    onRetry={() => void documentQuery.refetch()} documentView={DocumentView} />;
 }
 
 /* === Private Functions === */
