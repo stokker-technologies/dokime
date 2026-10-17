@@ -57,7 +57,6 @@ pub(crate) struct PreparedTelemetry {
 pub struct TelemetryReader {
     storage: Manager,
     readers: Vec<TypedRead>,
-    after: u64,
 }
 
 struct TypedRead {
@@ -132,6 +131,7 @@ impl TelemetryReader {
                         stream: Some(contract.stream.clone()),
                         source_start: None,
                         source_end: None,
+                        after,
                     }),
                     transforms: vec![],
                     slice: RowSlice::default(),
@@ -148,7 +148,6 @@ impl TelemetryReader {
         Ok(Self {
             storage: view.storage().clone(),
             readers,
-            after,
         })
     }
 
@@ -165,7 +164,7 @@ impl TelemetryReader {
         while selected.len() < PAGE_ROWS {
             for source in &mut self.readers {
                 while !source.finished && source.head.is_none() {
-                    source.head = read_head(&self.storage, source, self.after).await?;
+                    source.head = read_head(&self.storage, source).await?;
                     source.offset = 0;
                 }
             }
@@ -417,22 +416,20 @@ async fn closed(closure: Option<&crate::services::telemetry::Sampling>, scope: &
         None => std::future::pending().await,
     }
 }
-// One Bounded Query Per Head; Holding Readers For Every Schema Can Exhaust Admission.
+// One Bounded Query Per Head, Resuming After The Last Row The Head Read;
+// Holding Readers For Every Schema Can Exhaust Admission.
 async fn read_head(
     storage: &Manager,
     source: &mut TypedRead,
-    after: u64,
 ) -> Result<Option<Vec<PositionedTelemetry>>> {
     source.query.slice.limit = Some(PAGE_ROWS as u64);
     let mut reader = storage.query(source.query.clone()).await?;
     let mut rows = Vec::new();
-    let mut count = 0u64;
     while let Some(output) = reader.next().await? {
         let QueryOutput::Batch(batch) = output else {
             continue;
         };
         let raw = batch.as_record_batch();
-        count += raw.num_rows() as u64;
         let positions = raw
             .column_by_name("_storage")
             .and_then(|column| column.as_any().downcast_ref::<arrow_array::StructArray>())
@@ -441,17 +438,17 @@ async fn read_head(
             .ok_or_else(|| invalid("typed telemetry positions are absent"))?;
         let decoded = telemetry::decode_batch(&source.codec, &batch)?;
         for (index, captured) in decoded.into_iter().enumerate() {
-            if positions.value(index) > after {
-                rows.push(PositionedTelemetry {
-                    position: positions.value(index),
-                    captured,
-                });
-            }
+            rows.push(PositionedTelemetry {
+                position: positions.value(index),
+                captured,
+            });
         }
     }
     reader.completion()?;
-    source.query.slice.offset += count;
-    source.finished = count < PAGE_ROWS as u64;
+    source.finished = rows.len() < PAGE_ROWS;
+    if let (Some(last), Source::Stream(selection)) = (rows.last(), &mut source.query.source) {
+        selection.after = last.position;
+    }
     Ok((!rows.is_empty()).then_some(rows))
 }
 

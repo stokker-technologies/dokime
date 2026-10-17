@@ -1722,10 +1722,6 @@ async fn replay_stream(
     contract: &dokime::telemetry::TelemetryContract,
     replayed: &mut u64,
 ) -> Result<(), ProviderExecutionFailure> {
-    use harmos::storage::query::transform::{
-        FieldPath, Transform,
-        filter::{Clause, Compare, Condition, Filter, Term},
-    };
     use harmos::storage::query::{Query, QueryOutput, RowSlice, Source, StreamSelection};
     let samples_failure = |error: harmos::Error| failure("sidecar_samples", error.to_string());
     let scope = harmos::Identifier::new(execution.test_execution_id.as_str())
@@ -1746,19 +1742,9 @@ async fn replay_stream(
                 stream: Some(contract.stream.clone()),
                 source_start: None,
                 source_end: None,
+                after: *replayed,
             }),
-            transforms: vec![Transform::Filter(Filter {
-                clauses: vec![Clause {
-                    terms: vec![Term {
-                        field: FieldPath::from("_storage.position"),
-                        condition: Condition::Compare {
-                            op: Compare::Gt,
-                            value: harmos::storage::query::scalar::ScalarValue::Unsigned(*replayed),
-                        },
-                        negate: false,
-                    }],
-                }],
-            })],
+            transforms: vec![],
             slice: RowSlice::default(),
         })
         .await

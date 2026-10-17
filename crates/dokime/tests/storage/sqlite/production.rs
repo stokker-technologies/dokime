@@ -320,6 +320,19 @@ pub(crate) async fn mutation_receipts_outcomes() {
     let mut changed = receipt.clone();
     changed.fingerprint[0] = 4;
     assert!(backend.save_mutations(&[changed]).await.is_err());
+    let newer = MutationReceipt {
+        mutation: MutationId {
+            window: id("window"),
+            key: id("later"),
+        },
+        expires_at: receipt.expires_at + Duration::from_secs(60),
+        ..receipt.clone()
+    };
+    backend
+        .save_mutations(std::slice::from_ref(&newer))
+        .await
+        .unwrap();
+    // Recovery Keeps The Newest Receipts That Fit Its Bounds, Omitting Older Ones.
     assert!(
         backend
             .recover_mutations(ReadLimits {
@@ -327,7 +340,18 @@ pub(crate) async fn mutation_receipts_outcomes() {
                 ..limits()
             })
             .await
-            .is_err()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        backend
+            .recover_mutations(ReadLimits {
+                rows: bound(1),
+                ..limits()
+            })
+            .await
+            .unwrap(),
+        [newer.clone()]
     );
     backend.close().await.unwrap();
     let backend = Backend::<()>::primary(root.path().to_path_buf())
@@ -335,7 +359,7 @@ pub(crate) async fn mutation_receipts_outcomes() {
         .unwrap();
     assert_eq!(
         backend.recover_mutations(limits()).await.unwrap(),
-        [receipt]
+        [newer, receipt]
     );
     backend.close().await.unwrap();
 }

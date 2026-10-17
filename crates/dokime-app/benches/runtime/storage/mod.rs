@@ -121,6 +121,7 @@ impl Fixture {
                 stream: Some(id("voltage")),
                 source_start: None,
                 source_end: None,
+                after: 0,
             }),
             transforms,
             slice,
