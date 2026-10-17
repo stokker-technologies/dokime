@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use crate::execution::TestCaseStatus as CaseStatus;
+pub use dokime_domain::model::execution::result::TestCaseStatus as CaseStatus;
 
 /* === Imports === */
 // Standard Library Imports
@@ -18,7 +18,10 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{CycleView, ExecutionStatus, TestCycle, TestExecution};
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::TestCycle;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::state::RuntimeState;
 use crate::transactions::cycle::{ensure_case_deletable, ensure_case_restartable};
 use crate::transactions::provider::{ensure_case_runnable, planned_attempt};

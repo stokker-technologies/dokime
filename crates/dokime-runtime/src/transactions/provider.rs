@@ -21,10 +21,16 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::{TestCase, TestCaseTemplate};
 use crate::document::DocumentDefinition;
-use crate::execution::{
-    CriterionResult, CriterionStatus, CycleStatus, CycleView, ExecutionStatus, ResultStatus,
-    ResultSummary, StepRecord, StepStatus, TestExecution,
-};
+use dokime_domain::model::execution::result::CriterionResult;
+use dokime_domain::model::execution::result::CriterionStatus;
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultStatus;
+use dokime_domain::model::execution::result::ResultSummary;
+use dokime_domain::model::execution::result::StepRecord;
+use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::state::records::set::TestRecordSet;
 use crate::{runtime::Error, state::RuntimeState};
 use dokime_domain::model::identity::CaseId;
@@ -55,14 +61,14 @@ pub(crate) const PROVIDER_UNAVAILABLE: &str =
 #[harmos::transaction(id = "dokime.execution.provider.run", version = 4, irreversible)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunProvider {
-    pub mode: crate::execution::ExecutionMode,
+    pub mode: dokime_domain::model::execution::ExecutionMode,
     pub test_cycle_id: TestCycleId,
     pub test_execution_id: Option<TestExecutionId>,
     pub context: CommandContext,
     pub command_id: CommandId,
     pub accepted_at: Timestamp,
     #[serde(default)]
-    pub plugin_identity: Option<crate::execution::ExecutionPluginIdentity>,
+    pub plugin_identity: Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity>,
 }
 
 pub(super) struct RunPlanGroup {
@@ -154,7 +160,7 @@ pub(super) fn materialize_execution(
     cycle: &CycleView,
     case: &TestCase,
     execution_id: TestExecutionId,
-    plugin_identity: Option<crate::execution::ExecutionPluginIdentity>,
+    plugin_identity: Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity>,
     settings: BTreeMap<String, Value>,
 ) -> Result<TestExecution, Error> {
     // The authored definition is the registry's suite at the case's revision.
@@ -179,7 +185,7 @@ pub(super) fn materialize_execution(
             vec![],
         ));
     }
-    let snapshot = crate::execution::ExecutionSnapshot::materialize(
+    let snapshot = dokime_domain::model::execution::snapshot::ExecutionSnapshot::materialize(
         case,
         suite,
         execution_documents(case, template),
@@ -212,7 +218,7 @@ pub(super) fn materialize_execution(
 pub(crate) fn scheduled_execution_record(
     cycle_id: &TestCycleId,
     execution_id: TestExecutionId,
-    snapshot: crate::execution::ExecutionSnapshot,
+    snapshot: dokime_domain::model::execution::snapshot::ExecutionSnapshot,
 ) -> TestExecution {
     let case = snapshot.case();
     let template = snapshot.template();
@@ -251,7 +257,7 @@ fn prepare_run_provider(
     state: &RuntimeState,
     run: &RunProvider,
 ) -> Result<Vec<RunPlanGroup>, Error> {
-    if run.mode == crate::execution::ExecutionMode::Interactive && run.test_execution_id.is_none() {
+    if run.mode == dokime_domain::model::execution::ExecutionMode::Interactive && run.test_execution_id.is_none() {
         return Err(Error::conflict(
             "interactive_selection_required",
             "interactive runs require one explicit execution",

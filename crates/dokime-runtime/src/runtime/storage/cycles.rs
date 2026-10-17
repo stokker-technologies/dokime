@@ -120,7 +120,7 @@ impl ExecutionStorage {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn native_cycle(header: &crate::execution::TestCycle) -> Result<Cycle> {
+fn native_cycle(header: &dokime_domain::model::execution::result::TestCycle) -> Result<Cycle> {
     Ok(Cycle::try_from(header)?)
 }
 

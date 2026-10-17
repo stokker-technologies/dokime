@@ -18,7 +18,7 @@
 
 // Local Imports
 use crate::RuntimeState;
-use crate::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 use crate::{
     RuntimeConfig,
     evidence_runtime::EvidenceCounts,

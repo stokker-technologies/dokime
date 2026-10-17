@@ -31,7 +31,7 @@ use dokime_domain::model::records::evidence::Record;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use crate::records::RecordSource;
 use crate::telemetry::{LeaseGap, LeaseRequest, SampleSink, TelemetrySample};
-use crate::traceability::TraceabilitySection;
+use dokime_domain::model::traceability::TraceabilitySection;
 
 /* === Constants === */
 
@@ -48,7 +48,7 @@ pub struct RecordingTransport {
     diagnostics: Arc<Mutex<Vec<(Level, String)>>>,
     progress: Arc<Mutex<Vec<ExecutionProgress>>>,
     steps: Vec<Identifier>,
-    step_attempts: Vec<crate::execution::TestStepAttempt>,
+    step_attempts: Vec<dokime_domain::model::execution::result::TestStepAttempt>,
     traceability: Vec<TraceabilitySection>,
     documents: Mutex<Vec<crate::document::DocumentAddition>>,
     leasable: Vec<Identifier>,
@@ -124,7 +124,7 @@ impl RecordingTransport {
             .clone()
     }
 
-    pub fn step_attempts(&self) -> &[crate::execution::TestStepAttempt] {
+    pub fn step_attempts(&self) -> &[dokime_domain::model::execution::result::TestStepAttempt] {
         &self.step_attempts
     }
 
@@ -254,7 +254,7 @@ impl ExecutionTransport for RecordingTransport {
             .push((level, message));
     }
 
-    fn finish_step(&mut self, attempt: crate::execution::TestStepAttempt) {
+    fn finish_step(&mut self, attempt: dokime_domain::model::execution::result::TestStepAttempt) {
         self.step_attempts.push(attempt);
     }
 
@@ -263,7 +263,7 @@ impl ExecutionTransport for RecordingTransport {
     fn begin_step<'a>(
         &'a mut self,
         step: Identifier,
-        _start: crate::execution::StepAttemptStart,
+        _start: dokime_domain::model::execution::result::StepAttemptStart,
     ) -> TransportFuture<'a, Result<(), crate::diagnostics::Diagnostic>> {
         self.steps.push(step);
         Box::pin(async { Ok(()) })

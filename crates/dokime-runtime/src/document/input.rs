@@ -26,7 +26,8 @@ use crate::document::definition::DocumentDefinition;
 use dokime_domain::model::records::evidence::RecordEntry;
 use crate::runtime::storage::record_capture::CapturedRecord;
 use crate::telemetry::TelemetrySample;
-use crate::execution::saved::{ExecutionOutput, ExecutionOutputContent};
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
 
 /* === Constants === */
 

@@ -19,8 +19,10 @@
 use super::{ExecutionFixtureContext, Target, TestExecution, failure};
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::StepAttemptId;
-use crate::execution::TerminationReason;
-use crate::execution::request::{StepCommand, StepCommandPhase, StepCommandReceipt};
+use dokime_domain::model::execution::termination::TerminationReason;
+use dokime_domain::model::execution::request::StepCommand;
+use dokime_domain::model::execution::request::StepCommandPhase;
+use dokime_domain::model::execution::request::StepCommandReceipt;
 use crate::transport::{CommandExecutionRequest, ProviderExecutionFailure};
 
 /* === Constants === */

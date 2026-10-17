@@ -13,16 +13,11 @@ mod callbacks;
 pub mod context;
 pub mod document;
 pub mod environment;
-pub mod error;
 pub mod evidence;
 pub mod lease;
 pub mod log;
 pub mod progress;
-pub mod request;
-pub mod result;
-pub mod saved;
 pub mod slot;
-pub mod snapshot;
 
 #[cfg(feature = "native")]
 pub mod listen;
@@ -76,17 +71,10 @@ pub use context::{
 pub use context::{ObserverContext, Observing};
 pub use document::DocumentHandle;
 pub use environment::Environment;
-pub use error::TerminationReason;
 pub use evidence::ExecutionEvidence;
 pub use lease::{Lease, LeaseHold, LeaseRelease};
 pub use progress::{ExecutionProgress, Progress, ProgressSink};
-pub use result::{
-    CriterionResult, CriterionStatus, CycleStatus, CycleView, ExecutionMode, ExecutionStatus,
-    MeasurementRecord, ResultStatus, ResultSummary, StepAttemptStart, StepRecord, StepStatus,
-    TestCaseStatus, TestCycle, TestExecution, TestStepAttempt,
-};
 pub use slot::Slot;
-pub use snapshot::{ExecutionImplementation, ExecutionPluginIdentity, ExecutionSnapshot};
 
 #[cfg(feature = "native")]
 pub use listen::{Deadlined, Listenable, ListeningRecords, ListeningRows};

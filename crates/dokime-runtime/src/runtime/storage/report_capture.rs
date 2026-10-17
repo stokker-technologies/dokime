@@ -23,10 +23,11 @@ use harmos::storage::ObjectVersion;
 
 // Local Imports
 use super::execution::ExecutionView;
-use crate::{
-    runtime::Error, runtime::Result, RuntimeHandle,
-    execution::{CycleView, TestExecution},
-};
+use crate::runtime::Error;
+use crate::runtime::Result;
+use crate::RuntimeHandle;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
@@ -215,7 +216,7 @@ impl ExecutionStorage {
             .map(|anchor| {
                 anchor
                     .revision()
-                    .map(|revision| crate::execution::saved::ExecutionRevision {
+                    .map(|revision| dokime_domain::model::execution::saved::ExecutionRevision {
                         execution_id: revision.value.test_execution_id.clone(),
                         version: revision.version.clone(),
                         position: revision.position.clone(),

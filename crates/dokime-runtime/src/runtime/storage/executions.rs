@@ -27,20 +27,22 @@ use harmos::{
 use tokio::sync::Mutex;
 
 // Local Imports
-use crate::{
-    runtime::Error, runtime::Result, app::StateManager, execution::CycleView,
-    installed_plugins::RuntimeAppearanceFrame, report::PreparedExecutionReport,
-};
+use crate::runtime::Error;
+use crate::runtime::Result;
+use crate::app::StateManager;
+use dokime_domain::model::execution::result::CycleView;
+use crate::installed_plugins::RuntimeAppearanceFrame;
+use crate::report::PreparedExecutionReport;
 use dokime_domain::model::identity::ArtifactId;
 use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::ExecutionStatus;
-use crate::execution::TestExecution;
-use crate::execution::saved::ExecutionOutput;
-use crate::execution::saved::ExecutionRevision;
-use crate::execution::saved::ExecutionSeal;
-use crate::execution::saved::validate_outputs;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::TestExecution;
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::saved::ExecutionSeal;
+use dokime_domain::model::execution::saved::validate_outputs;
 use crate::storage::Manager;
 use crate::storage::objects::execution::Execution;
 use crate::storage::reports;
@@ -252,7 +254,7 @@ impl ExecutionStorage {
     pub(crate) async fn durable_seal(
         &self,
         id: &TestExecutionId,
-    ) -> Result<Option<crate::execution::saved::ExecutionSeal>> {
+    ) -> Result<Option<dokime_domain::model::execution::saved::ExecutionSeal>> {
         let latest = super::execution::ExecutionView::open(
             &self.storage,
             id,

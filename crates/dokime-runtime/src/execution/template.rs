@@ -28,7 +28,7 @@ use crate::execution::{
 };
 use crate::parameters::FromParameters;
 use crate::plugin::Diagnostic;
-use crate::traceability::TraceabilitySection;
+use dokime_domain::model::traceability::TraceabilitySection;
 
 /* === Constants === */
 

@@ -18,7 +18,10 @@
 use harmos::MemorySize;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{CycleView, ExecutionStatus, ResultSummary, TestExecution};
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultSummary;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::TestCycleId;

@@ -18,7 +18,8 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use dokime_domain::model::identity::TestExecutionId;
-use crate::execution::{CycleView, TestExecutionInstance};
+use dokime_domain::model::execution::result::CycleView;
+use crate::execution::TestExecutionInstance;
 
 /* === Constants === */
 

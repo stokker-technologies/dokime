@@ -195,7 +195,7 @@ impl Adapter<'_> {
             if matches!(
                 lifecycle,
                 Some(
-                    crate::execution::CycleStatus::Running | crate::execution::CycleStatus::Paused
+                    dokime_domain::model::execution::result::CycleStatus::Running | dokime_domain::model::execution::result::CycleStatus::Paused
                 )
             ) && let Err(error) = self
                 .handle
@@ -206,8 +206,8 @@ impl Adapter<'_> {
                 if matches!(
                     self.handle.cycle_lifecycle(&cycle).await,
                     Some(
-                        crate::execution::CycleStatus::Running
-                            | crate::execution::CycleStatus::Paused
+                        dokime_domain::model::execution::result::CycleStatus::Running
+                            | dokime_domain::model::execution::result::CycleStatus::Paused
                     )
                 ) {
                     return Err(error);

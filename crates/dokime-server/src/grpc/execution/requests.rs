@@ -151,8 +151,8 @@ impl Operation for Execution {
         let id = dokime_domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())
             .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         let mode = match request.mode {
-            dokime_domain::model::execution::wire::ExecutionMode::Automatic => dokime_runtime::execution::ExecutionMode::Automatic,
-            dokime_domain::model::execution::wire::ExecutionMode::Interactive => dokime_runtime::execution::ExecutionMode::Interactive,
+            dokime_domain::model::execution::wire::ExecutionMode::Automatic => dokime_domain::model::execution::ExecutionMode::Automatic,
+            dokime_domain::model::execution::wire::ExecutionMode::Interactive => dokime_domain::model::execution::ExecutionMode::Interactive,
         };
         let result = self.runtime.run_execution(id, mode, context).await;
         receipt(result, self.runtime.process_epoch().to_string()).map(Into::into)
@@ -306,8 +306,8 @@ fn project(receipt: &RunReceipt) -> Result<dokime_domain::model::execution::wire
     Ok(dokime_domain::model::execution::wire::RunRequestReceipt {
         request_id: summary.request_id.as_str().to_owned(),
         mode: match summary.mode {
-            dokime_runtime::execution::ExecutionMode::Automatic => dokime_domain::model::execution::wire::ExecutionMode::Automatic,
-            dokime_runtime::execution::ExecutionMode::Interactive => dokime_domain::model::execution::wire::ExecutionMode::Interactive,
+            dokime_domain::model::execution::ExecutionMode::Automatic => dokime_domain::model::execution::wire::ExecutionMode::Automatic,
+            dokime_domain::model::execution::ExecutionMode::Interactive => dokime_domain::model::execution::wire::ExecutionMode::Interactive,
         },
         node_id: receipt.node_id.as_str().to_owned(),
         cycle_id: summary.cycle_id.as_str().to_owned(),

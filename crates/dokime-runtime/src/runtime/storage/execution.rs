@@ -26,12 +26,12 @@ use crate::{
 };
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::identity::TestExecutionId;
-use crate::execution::TestExecution;
-use crate::execution::saved::ExecutionCheckpoint;
-use crate::execution::saved::ExecutionOutput;
-use crate::execution::saved::ExecutionOutputContent;
-use crate::execution::saved::ExecutionSource;
-use crate::execution::saved::validate_outputs;
+use dokime_domain::model::execution::result::TestExecution;
+use dokime_domain::model::execution::saved::ExecutionCheckpoint;
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::execution::saved::ExecutionSource;
+use dokime_domain::model::execution::saved::validate_outputs;
 use crate::storage::Manager;
 
 /* === Constants === */

@@ -186,12 +186,12 @@ pub(crate) fn regex_matches(
 }
 
 pub(crate) fn validate_producer_path(relative_path: &str) -> Result<()> {
-    crate::execution::saved::validate_output_path(relative_path)
+    dokime_domain::model::execution::saved::validate_output_path(relative_path)
         .map_err(|error| Error::Operation(error.to_string()))
 }
 
 pub(crate) fn validate_relative_path(relative_path: &str) -> Result<()> {
-    crate::execution::saved::validate_relative_output_path(relative_path)
+    dokime_domain::model::execution::saved::validate_relative_output_path(relative_path)
         .map_err(|error| Error::Operation(error.to_string()))
 }
 

@@ -40,7 +40,9 @@ use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::saved::{ExecutionOutput, ExecutionOutputContent, SavedStreamState};
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::execution::saved::SavedStreamState;
 use crate::storage::Manager;
 
 /* === Constants === */

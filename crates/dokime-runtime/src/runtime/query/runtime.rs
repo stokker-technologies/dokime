@@ -18,13 +18,17 @@ use std::{collections::BTreeMap, sync::Arc};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::{MaterializedParameter, ParameterSource, TestCase};
-use crate::execution::{CycleStatus, ExecutionStatus, ResultSummary, StepRecord};
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultSummary;
+use dokime_domain::model::execution::result::StepRecord;
 use crate::installed_plugins::InstalledPluginErrorRecord;
 use crate::runtime::progress::{OperationSnapshot, OperationWatch};
-use crate::{
-    RuntimeHandle, evidence_runtime::EvidenceCounts, execution::CycleView, queries::RuntimeCursor,
-    state::RuntimeState,
-};
+use crate::RuntimeHandle;
+use crate::evidence_runtime::EvidenceCounts;
+use dokime_domain::model::execution::result::CycleView;
+use crate::queries::RuntimeCursor;
+use crate::state::RuntimeState;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::DokimeIdentity;
 use dokime_domain::model::identity::Metadata;
@@ -102,7 +106,7 @@ pub struct RuntimeExecutionSummary {
     pub test_execution_id: TestExecutionId,
     pub test_case_id: CaseId,
     pub status: ExecutionStatus,
-    pub invalidation: Option<crate::execution::result::ExecutionInvalidation>,
+    pub invalidation: Option<dokime_domain::model::execution::result::ExecutionInvalidation>,
     pub scope: RecordScope,
     pub parameters: BTreeMap<String, MaterializedParameter>,
     pub started_at: Option<Timestamp>,
@@ -200,7 +204,7 @@ impl RuntimeCycleSummary {
 }
 
 impl RuntimeExecutionSummary {
-    fn from_execution(execution: &crate::execution::TestExecution) -> Self {
+    fn from_execution(execution: &dokime_domain::model::execution::result::TestExecution) -> Self {
         Self {
             test_execution_id: execution.test_execution_id.clone(),
             test_case_id: execution.test_case_id.clone(),

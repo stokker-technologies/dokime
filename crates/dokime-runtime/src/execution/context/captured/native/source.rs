@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub(crate) use crate::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE as MEDIA_TYPE;
+pub(crate) use dokime_domain::model::execution::saved::EXECUTION_CONTEXT_MEDIA_TYPE as MEDIA_TYPE;
 
 /* === Imports === */
 
@@ -27,7 +27,7 @@ use crate::execution::context::captured::source::CapturedSource;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::saved::EXECUTION_CONTEXT_SCHEMA_VERSION;
+use dokime_domain::model::execution::saved::EXECUTION_CONTEXT_SCHEMA_VERSION;
 use crate::storage::objects::presentation as native;
 
 /* === Constants === */

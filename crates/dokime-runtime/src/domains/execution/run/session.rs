@@ -26,7 +26,7 @@ use super::{
     publish_traceability, report_dropped, validate_cursor, with_failed_stage,
 };
 use crate::definition::{CriterionDefinition, TestCase};
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::transport::{
     EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer,
     OperatorQuestion, ProviderExecutionFailure, SidecarExecutionOutcome, StepAdmission,
@@ -147,7 +147,7 @@ impl Session {
                     admitted: begins
                         .iter()
                         .filter_map(|encoded| {
-                            serde_json::from_str::<crate::execution::StepAttemptStart>(encoded).ok()
+                            serde_json::from_str::<dokime_domain::model::execution::result::StepAttemptStart>(encoded).ok()
                         })
                         .map(|start| StepAdmission {
                             attempt_id: start.attempt_id.to_string(),
@@ -491,7 +491,7 @@ impl Session {
         }
         let mut admitted = Vec::new();
         for encoded in &batch.step_begins {
-            let start: crate::execution::StepAttemptStart =
+            let start: dokime_domain::model::execution::result::StepAttemptStart =
                 serde_json::from_str(encoded).map_err(|error| {
                     failure(
                         "sidecar_step_admission",

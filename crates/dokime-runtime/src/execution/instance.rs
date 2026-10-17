@@ -18,7 +18,7 @@
 
 // Local Imports
 use crate::document::DocumentRegistry;
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 
 /* === Constants === */
 

@@ -23,7 +23,8 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use crate::execution::context::{ExecutionContext, ExecutionCycleContext};
-use crate::execution::{CycleView, TestExecution};
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::execution::RecordScope;

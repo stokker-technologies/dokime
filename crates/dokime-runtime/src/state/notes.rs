@@ -325,7 +325,7 @@ impl RuntimeState {
         if owner.is_none() || include_context {
             add(&mut sets, &mut remaining, self.session_records())?;
         }
-        let cycles: Box<dyn Iterator<Item = &crate::execution::TestCycle> + '_> = match owner {
+        let cycles: Box<dyn Iterator<Item = &dokime_domain::model::execution::result::TestCycle> + '_> = match owner {
             Some(owner) => Box::new(self.cycles.get(owner.cycle_id()).into_iter()),
             None => Box::new(self.cycles.values()),
         };

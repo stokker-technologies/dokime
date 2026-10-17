@@ -21,10 +21,10 @@ use dokime_domain::model::identity::TemplateId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::Value;
-use crate::execution::ExecutionStatus;
-use crate::execution::ResultSummary;
-use crate::execution::StepRecord;
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultSummary;
+use dokime_domain::model::execution::result::StepRecord;
+use dokime_domain::model::execution::result::TestExecution;
 use harmos::MemorySize;
 use std::collections::{BTreeMap, BTreeSet};
 

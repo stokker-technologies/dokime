@@ -18,13 +18,13 @@
 
 // Local Imports
 use super::request::request_needs_dimension_context;
-use crate::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 use crate::plot::{
     PlotPayloadRequest, enrich_plot_samples_with_cycle_context,
     enrich_plot_samples_with_traceability_context,
 };
 use crate::runtime::handle::RuntimeHandle;
-use crate::traceability::TraceabilitySnapshot;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::time::Timestamp;
 use dokime_domain::model::values::ValueFormat;

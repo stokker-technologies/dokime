@@ -10,10 +10,9 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-#[cfg(feature = "storage")]
-pub use dokime_domain::model::execution::PageCursor;
-pub use dokime_domain::model::execution::ExecutionCheckpoint;
-pub use dokime_domain::model::execution::SavedEvidenceError;
+pub use crate::model::execution::PageCursor;
+pub use crate::model::execution::ExecutionCheckpoint;
+pub use crate::model::execution::SavedEvidenceError;
 
 /* === Imports === */
 // Standard Library Imports
@@ -23,12 +22,12 @@ use harmos::storage::{FileReference, ObjectVersionToken, StorageCursor};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use super::result::{CycleStatus, CycleView, ExecutionStatus, TestCycle, TestExecution};
-use crate::artifacts::{ArtifactRecord, ArtifactStatus};
-use dokime_domain::model::identity::Metadata;
-use dokime_domain::model::identity::NodeId;
-use dokime_domain::model::identity::TestCycleId;
-use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::time::Timestamp;
+use crate::model::artifacts::{ArtifactRecord, ArtifactStatus};
+use crate::model::identity::Metadata;
+use crate::model::identity::NodeId;
+use crate::model::identity::TestCycleId;
+use crate::model::identity::TestExecutionId;
+use crate::model::time::Timestamp;
 
 /* === Constants === */
 pub const EXECUTION_CONTEXT_MEDIA_TYPE: &str = "application/vnd.dokime.execution-context+protobuf";
@@ -345,7 +344,7 @@ impl CycleSeal {
         )
     }
 
-    pub(crate) fn validate_membership<'a>(
+    pub fn validate_membership<'a>(
         &self,
         cycle_id: &TestCycleId,
         lifecycle: CycleStatus,
@@ -408,7 +407,7 @@ pub fn output_validation_memory(outputs: &[ExecutionOutput]) -> usize {
         .count();
     harmos::btree_map_memory::<&String, ()>(outputs.len())
         .saturating_add(harmos::btree_map_memory::<&str, ()>(outputs.len()))
-        .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::ArtifactId, ()>(
+        .saturating_add(harmos::btree_map_memory::<&crate::model::identity::ArtifactId, ()>(
             artifacts,
         ))
 }
@@ -481,7 +480,7 @@ pub fn validate_output_path(path: &str) -> Result<()> {
 }
 
 pub fn validate_relative_output_path(relative_path: &str) -> Result<()> {
-    if !crate::artifacts::name::is_relative_path(relative_path) {
+    if !crate::model::artifacts::name::is_relative_path(relative_path) {
         return Err(SavedEvidenceError::Invalid("invalid execution output path"));
     }
     Ok(())

@@ -480,7 +480,7 @@ impl ExecutionState {
     pub(crate) fn request_step(
         &mut self,
         step: &str,
-        start: &crate::execution::StepAttemptStart,
+        start: &dokime_domain::model::execution::result::StepAttemptStart,
         encoded: String,
     ) {
         self.local_scope.origin = dokime_domain::model::execution::EvidenceOrigin::Step {

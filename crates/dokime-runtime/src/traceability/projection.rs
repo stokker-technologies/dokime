@@ -19,12 +19,14 @@ use harmos::MemorySize;
 
 // Local Imports
 use crate::definition::{MaterializedParameter, ParameterSource};
-use crate::execution::{CycleView, TestExecution};
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::state::RuntimeState;
-use crate::traceability::{
-    LEASES_TRACEABILITY, TEST_DEFINITION_TRACEABILITY, TEST_EXECUTION_TRACEABILITY,
-    TraceabilityEntry, TraceabilitySnapshot,
-};
+use dokime_domain::model::traceability::LEASES_TRACEABILITY;
+use dokime_domain::model::traceability::TEST_DEFINITION_TRACEABILITY;
+use dokime_domain::model::traceability::TEST_EXECUTION_TRACEABILITY;
+use dokime_domain::model::traceability::TraceabilityEntry;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::execution::RecordScope;
@@ -33,7 +35,7 @@ use dokime_domain::model::identity::TraceabilityId;
 use dokime_domain::model::values::Value;
 use dokime_domain::model::execution::scope_visible_in;
 use crate::telemetry::TelemetrySample;
-use crate::traceability::TraceabilitySection;
+use dokime_domain::model::traceability::TraceabilitySection;
 
 /* === Constants === */
 const TEMPLATE_TRACEABILITY_SOURCE: &str = "traceability.template";
@@ -248,7 +250,7 @@ pub fn snapshots_from_state(
 
 pub fn snapshots_from_parameters<'a>(
     run_parameters: &'a BTreeMap<String, MaterializedParameter>,
-    executions: impl IntoIterator<Item = &'a crate::execution::TestExecution>,
+    executions: impl IntoIterator<Item = &'a dokime_domain::model::execution::result::TestExecution>,
     scope: Option<&RecordScope>,
     created_at: Timestamp,
 ) -> Vec<TraceabilitySnapshot> {
@@ -474,7 +476,7 @@ pub fn snapshots_from_parameter_scopes<'a>(
 
 pub(crate) fn snapshots_from_execution_parameters(
     run_parameters: &BTreeMap<String, MaterializedParameter>,
-    execution: &crate::execution::TestExecution,
+    execution: &dokime_domain::model::execution::result::TestExecution,
     scope: Option<&RecordScope>,
     created_at: Timestamp,
 ) -> Vec<TraceabilitySnapshot> {
@@ -1121,7 +1123,7 @@ fn traceability_group(
 }
 
 fn execution_parameter_values(
-    execution: &crate::execution::TestExecution,
+    execution: &dokime_domain::model::execution::result::TestExecution,
 ) -> impl Iterator<Item = &MaterializedParameter> {
     let mut snapshot = execution.snapshot.parameters().iter().peekable();
     let mut output = execution.output_parameters.iter().peekable();
@@ -1470,10 +1472,10 @@ fn case_execution_traceability_entries(
             );
         }
         let (key, label, value) = match &plugin.implementation {
-            crate::execution::ExecutionImplementation::Bundle { content_digest } => {
+            dokime_domain::model::execution::snapshot::ExecutionImplementation::Bundle { content_digest } => {
                 ("execution.plugin_digest", "Plugin Digest", content_digest)
             }
-            crate::execution::ExecutionImplementation::Embedded { generation } => (
+            dokime_domain::model::execution::snapshot::ExecutionImplementation::Embedded { generation } => (
                 "execution.provider_generation",
                 "Provider Generation",
                 generation,

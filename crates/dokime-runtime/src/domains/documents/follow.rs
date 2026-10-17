@@ -29,7 +29,7 @@ use crate::{
 };
 use dokime_domain::model::identity::Identifier;
 use dokime_domain::model::identity::TestExecutionId;
-use crate::execution::saved::SavedStreamState;
+use dokime_domain::model::execution::saved::SavedStreamState;
 use dokime_domain::model::execution::wire_checkpoint as checkpoint;
 use dokime_domain::operations::content as wire;
 
@@ -77,7 +77,7 @@ impl RuntimeHandle {
         expected: Option<&dokime_domain::model::content::wire::ExecutionFileIdentity>,
         offset: u64,
     ) -> Result<Option<ExecutionFileFollower>> {
-        crate::execution::saved::validate_relative_output_path(path)
+        dokime_domain::model::execution::saved::validate_relative_output_path(path)
             .map_err(crate::storage::Error::from)?;
         if offset != 0 && expected.is_none() {
             return Err(invalid("resume offset requires original identity"));

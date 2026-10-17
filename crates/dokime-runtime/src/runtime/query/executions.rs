@@ -17,7 +17,7 @@ use std::cmp::Ordering;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::ExecutionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::execution::storage::ExecutionMetadata;
 use crate::state::RuntimeState;
 use crate::transactions::{ControlExecution, CycleControlAction};
@@ -35,7 +35,7 @@ use dokime_domain::model::time::Timestamp;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExecutionControls {
     pub request_id: CommandId,
-    pub mode: crate::execution::ExecutionMode,
+    pub mode: dokime_domain::model::execution::ExecutionMode,
     pub paused: bool,
     pub stop_requested: bool,
     pub can_pause: bool,

@@ -17,8 +17,10 @@
 // Third Party Imports
 
 // Local Imports
-use crate::execution::{ExecutionStatus, StepStatus};
-use crate::{execution::CycleStatus, runtime::state::RuntimeState};
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::result::CycleStatus;
+use crate::runtime::state::RuntimeState;
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestCycleId;

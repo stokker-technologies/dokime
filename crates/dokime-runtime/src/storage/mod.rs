@@ -55,7 +55,7 @@ pub enum Error {
     #[error(transparent)]
     Runtime(#[from] harmos::Error),
     #[error(transparent)]
-    Saved(#[from] crate::execution::saved::SavedEvidenceError),
+    Saved(#[from] dokime_domain::model::execution::saved::SavedEvidenceError),
     #[error("invalid persisted evidence: {0}")]
     Invalid(&'static str),
     #[error(transparent)]

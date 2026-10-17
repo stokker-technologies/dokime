@@ -26,7 +26,7 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::values::Value;
 use crate::definition::MaterializedParameter;
-use crate::execution::TestExecution;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::expressions::DataSource;
 
 /* === Constants === */

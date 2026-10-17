@@ -29,7 +29,9 @@ use harmos::operations::OperationManager;
 // Local Imports
 use super::provider::{ExecutionFixture, ExecutionFixtureContext, ExecutionFixtureFuture};
 use crate::definition::{CriterionDefinition, TestCase};
-use crate::execution::{CycleView, ExecutionStatus, TestExecution};
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::records::publication::RecordPublishRequest;
 use artifacts::DiscardedArtifact;
 use dokime_domain::model::identity::Identifier;
@@ -1372,7 +1374,7 @@ async fn publish_traceability(
         .traceability
         .iter()
         .map(|encoded| {
-            serde_json::from_str::<crate::traceability::TraceabilitySection>(encoded).map_err(
+            serde_json::from_str::<dokime_domain::model::traceability::TraceabilitySection>(encoded).map_err(
                 |error| {
                     failure(
                         "sidecar_traceability",
@@ -1506,7 +1508,7 @@ async fn cancellation_requested(context: &ExecutionFixtureContext, cycle: &Cycle
     context.is_cancelled()
         || matches!(
             context.cycle_lifecycle(&cycle.test_cycle_id).await,
-            Some(crate::execution::CycleStatus::Stopping | crate::execution::CycleStatus::Stopped)
+            Some(dokime_domain::model::execution::result::CycleStatus::Stopping | dokime_domain::model::execution::result::CycleStatus::Stopped)
         )
 }
 
@@ -1675,12 +1677,12 @@ async fn close_stopped_attempt(
     let Some(start) = active else {
         return Ok(());
     };
-    let attempt = crate::execution::TestStepAttempt {
+    let attempt = dokime_domain::model::execution::result::TestStepAttempt {
         attempt_id: start.attempt_id,
         step_id: start.step_id,
         started_at: start.started_at,
         finished_at: Some(crate::model::time::now_utc()),
-        termination: crate::execution::TerminationReason::Cancelled,
+        termination: dokime_domain::model::execution::termination::TerminationReason::Cancelled,
         detail: None,
     };
     context

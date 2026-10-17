@@ -26,12 +26,12 @@ use crate::execution_runtime::outputs::{
 };
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::TestExecutionId;
-use crate::execution::TestExecution;
-use crate::execution::saved::ExecutionCheckpoint;
-use crate::execution::saved::ExecutionOutput;
-use crate::execution::saved::ExecutionOutputContent;
-use crate::execution::saved::SavedStreamState;
-use crate::execution::saved::validate_relative_output_path;
+use dokime_domain::model::execution::result::TestExecution;
+use dokime_domain::model::execution::saved::ExecutionCheckpoint;
+use dokime_domain::model::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionOutputContent;
+use dokime_domain::model::execution::saved::SavedStreamState;
+use dokime_domain::model::execution::saved::validate_relative_output_path;
 use crate::storage::Manager;
 
 /* === Constants === */

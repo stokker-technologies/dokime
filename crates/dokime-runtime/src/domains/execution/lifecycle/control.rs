@@ -63,7 +63,7 @@ impl RuntimeHandle {
     /// its durable revision, which the lifecycle intent references.
     pub(crate) async fn capture_report_lifecycle(
         &self,
-        execution: &crate::execution::TestExecution,
+        execution: &dokime_domain::model::execution::result::TestExecution,
     ) -> crate::runtime::Result<crate::transactions::ReportLifecycle> {
         let captured = |runtime: &Self| {
             runtime
@@ -187,7 +187,7 @@ impl RuntimeHandle {
             .ok_or_else(|| Error::not_found("not_found", "execution cycle not found"))?;
         if cycle.test_executions.iter().any(|execution| {
             execution.test_execution_id == id
-                && execution.status == crate::execution::ExecutionStatus::Running
+                && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Running
         }) {
             self.execution_storage
                 .checkpoint_targets(&cycle, &[id])
@@ -300,7 +300,7 @@ impl RuntimeHandle {
                 .executions
                 .values()
                 .filter(|execution| execution.test_cycle_id == test_cycle_id)
-                .filter(|execution| execution.status == crate::execution::ExecutionStatus::Running)
+                .filter(|execution| execution.status == dokime_domain::model::execution::result::ExecutionStatus::Running)
                 .map(|execution| execution.scope.clone())
                 .collect::<Vec<_>>();
             for scope in scopes {
@@ -358,7 +358,7 @@ impl RuntimeHandle {
                 .is_some_and(|cycle| {
                     cycle.test_executions.iter().any(|execution| {
                         execution.saved.is_none()
-                            && execution.status == crate::execution::ExecutionStatus::Skipped
+                            && execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped
                             && execution.finished_at.is_none()
                     })
                 });
@@ -387,7 +387,7 @@ impl RuntimeHandle {
                         .test_executions
                         .iter()
                         .filter(|execution| {
-                            execution.status == crate::execution::ExecutionStatus::Running
+                            execution.status == dokime_domain::model::execution::result::ExecutionStatus::Running
                         })
                         .map(|execution| execution.test_execution_id.clone())
                         .collect::<Vec<_>>();

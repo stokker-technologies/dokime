@@ -20,7 +20,7 @@ use std::sync::Arc;
 use serde::de::DeserializeOwned;
 // Local Imports
 use crate::execution::environment::Environment;
-use crate::execution::error::TerminationReason;
+use dokime_domain::model::execution::termination::TerminationReason;
 use crate::execution::evidence::{ExecutionEvidence, Samples};
 use crate::execution::log::Level;
 use crate::artifacts::Artifacts;

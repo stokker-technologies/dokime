@@ -33,15 +33,21 @@ use super::output;
 use crate::definition::TestCase;
 use crate::document::DocumentDefinition;
 use crate::document::capture::Capture;
-use crate::execution::{
-    CriterionResult, CriterionStatus, ExecutionStatus, ResultStatus, ResultSummary, StepRecord,
-    StepStatus, TestExecution,
-};
+use dokime_domain::model::execution::result::CriterionResult;
+use dokime_domain::model::execution::result::CriterionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultStatus;
+use dokime_domain::model::execution::result::ResultSummary;
+use dokime_domain::model::execution::result::StepRecord;
+use dokime_domain::model::execution::result::StepStatus;
+use dokime_domain::model::execution::result::TestExecution;
 use crate::report::{
     asset::REPORT_APP_TEMPLATE,
     input::{CycleReportInput, ReportArtifactLink, ReportCaseDocument},
 };
-use crate::traceability::{TraceabilityEntry, TraceabilitySnapshot, derived_traceability_group};
+use dokime_domain::model::traceability::TraceabilityEntry;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
+use dokime_domain::model::traceability::derived_traceability_group;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::DocumentId;
@@ -1030,12 +1036,12 @@ fn result_status(status: &ResultStatus) -> &'static str {
 
 fn cycle_status(input: Header<'_>) -> &'static str {
     match input.cycle.lifecycle {
-        crate::execution::CycleStatus::Running
-        | crate::execution::CycleStatus::Paused
-        | crate::execution::CycleStatus::Stopping => "running",
-        crate::execution::CycleStatus::Completed => "completed",
-        crate::execution::CycleStatus::Failed | crate::execution::CycleStatus::Blocked => "failed",
-        crate::execution::CycleStatus::Stopped => "stopped",
+        dokime_domain::model::execution::result::CycleStatus::Running
+        | dokime_domain::model::execution::result::CycleStatus::Paused
+        | dokime_domain::model::execution::result::CycleStatus::Stopping => "running",
+        dokime_domain::model::execution::result::CycleStatus::Completed => "completed",
+        dokime_domain::model::execution::result::CycleStatus::Failed | dokime_domain::model::execution::result::CycleStatus::Blocked => "failed",
+        dokime_domain::model::execution::result::CycleStatus::Stopped => "stopped",
         _ => "planned",
     }
 }

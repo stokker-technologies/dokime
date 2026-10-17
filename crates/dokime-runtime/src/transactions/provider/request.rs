@@ -12,7 +12,8 @@ mod completion;
 
 /* === Re-Exports === */
 pub use completion::{CompleteRun, SettleRun, Unsealed};
-pub use crate::execution::request::{RunPhase, RunSummary};
+pub use dokime_domain::model::execution::request::RunPhase;
+pub use dokime_domain::model::execution::request::RunSummary;
 
 /* === Imports === */
 // Standard Library Imports

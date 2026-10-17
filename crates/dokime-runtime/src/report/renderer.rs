@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 // Local Imports
 use super::{CapturedExecutionReportInput, PreparedExecutionReport, html::HtmlReport};
-use crate::execution::saved::ExecutionOutput;
+use dokime_domain::model::execution::saved::ExecutionOutput;
 
 /* === Constants === */
 

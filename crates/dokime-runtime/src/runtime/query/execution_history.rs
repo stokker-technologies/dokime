@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use crate::execution::saved::ExecutionCheckpoint;
+pub use dokime_domain::model::execution::saved::ExecutionCheckpoint;
 
 /* === Imports === */
 // Standard Library Imports
@@ -20,7 +20,8 @@ use harmos::storage::ObjectRevision;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::execution::storage::{ExecutionDocument, ExecutionMetadata};
-use crate::execution::{ExecutionStatus, ResultStatus};
+use dokime_domain::model::execution::result::ExecutionStatus;
+use dokime_domain::model::execution::result::ResultStatus;
 use crate::runtime::query::executions::{self, ExecutionFilter, ExecutionOrder};
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use dokime_domain::model::identity::CaseId;
@@ -150,7 +151,7 @@ pub struct ExecutionCheckpointContext {
     pub prompts: Vec<crate::prompts::PromptInstance>,
     pub health: Vec<dokime_domain::model::execution::health::HealthItem>,
     pub notes: Vec<dokime_domain::model::execution::notes::OperatorNote>,
-    pub traceability: Vec<crate::traceability::TraceabilitySnapshot>,
+    pub traceability: Vec<dokime_domain::model::traceability::TraceabilitySnapshot>,
     pub appearance: crate::installed_plugins::RuntimeAppearanceFrame,
 }
 
@@ -348,7 +349,7 @@ impl RuntimeHandle {
     pub async fn execution_checkpoint_outputs(
         &self,
         checkpoint: ExecutionCheckpoint,
-    ) -> Result<Vec<crate::execution::saved::ExecutionOutput>> {
+    ) -> Result<Vec<dokime_domain::model::execution::saved::ExecutionOutput>> {
         let view = self.checkpoint_execution(&checkpoint).await?;
         Ok(view.outputs()?.to_vec())
     }
@@ -374,7 +375,7 @@ impl RuntimeHandle {
             artifacts: outputs
                 .iter()
                 .filter_map(|output| match &output.content {
-                    crate::execution::saved::ExecutionOutputContent::Artifact {
+                    dokime_domain::model::execution::saved::ExecutionOutputContent::Artifact {
                         record, ..
                     } => Some(record.as_ref().clone()),
                     _ => None,
@@ -430,7 +431,7 @@ impl RuntimeHandle {
 
 /* === Private Functions === */
 fn stored_rows(
-    rows: Vec<ObjectRevision<crate::execution::TestExecution>>,
+    rows: Vec<ObjectRevision<dokime_domain::model::execution::result::TestExecution>>,
 ) -> Vec<ExecutionBrowseEntry> {
     rows.into_iter()
         .map(|row| {

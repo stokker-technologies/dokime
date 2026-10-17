@@ -128,7 +128,7 @@ impl Operation for Read {
             data.extend_from_slice(&batch.bytes);
         }
         let state = match output.stream_state {
-            Some(dokime_runtime::execution::saved::SavedStreamState::Interrupted) => {
+            Some(dokime_domain::model::execution::saved::SavedStreamState::Interrupted) => {
                 dokime_runtime::ExecutionFileStreamState::Interrupted
             }
             _ => dokime_runtime::ExecutionFileStreamState::Finalized,

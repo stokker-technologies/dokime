@@ -8,6 +8,7 @@
  */
 
 /* === Modules === */
+pub mod traceability;
 pub mod process;
 pub mod runtime;
 pub mod reports;

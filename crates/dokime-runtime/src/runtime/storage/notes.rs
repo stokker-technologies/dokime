@@ -21,7 +21,7 @@ use harmos::storage::ObjectVersion;
 use super::executions::{Acquisition, ExecutionStorage};
 use dokime_domain::model::execution::notes::NOTE_CHECKPOINT_LIMIT;
 use dokime_domain::model::execution::notes::NOTE_SCAN_LIMIT;
-use crate::execution::CycleView;
+use dokime_domain::model::execution::result::CycleView;
 use dokime_domain::model::execution::notes::OperatorNote;
 use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::execution::RecordScope;

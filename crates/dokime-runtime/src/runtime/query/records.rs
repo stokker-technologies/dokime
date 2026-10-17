@@ -94,7 +94,7 @@ pub(crate) fn record_frame<'a, 'b>(
 }
 
 pub(crate) fn execution_capture<'a>(
-    mut executions: impl Iterator<Item = &'a crate::execution::TestExecution>,
+    mut executions: impl Iterator<Item = &'a dokime_domain::model::execution::result::TestExecution>,
     execution_id: Option<&dokime_domain::model::identity::TestExecutionId>,
 ) -> Option<&'a dokime_domain::state::records::set::TestRecordSet> {
     let execution_id = execution_id?;

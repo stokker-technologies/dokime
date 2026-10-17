@@ -18,7 +18,8 @@
 use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::execution::{CycleStatus, ExecutionStatus};
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::state::RuntimeState;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;

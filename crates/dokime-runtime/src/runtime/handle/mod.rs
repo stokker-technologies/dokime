@@ -453,7 +453,7 @@ impl RuntimeHandle {
                     .map(|request| &request.summary)
                     .filter(|summary| {
                         summary.phase.terminal()
-                            && summary.phase != crate::execution::request::RunPhase::Interrupted
+                            && summary.phase != dokime_domain::model::execution::request::RunPhase::Interrupted
                     })
             })
             .await?;

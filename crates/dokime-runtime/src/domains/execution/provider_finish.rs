@@ -159,7 +159,7 @@ impl RuntimeHandle {
                     .is_none_or(|id| id == &execution.test_execution_id)
                     && (ids.contains(&execution.test_execution_id)
                         || settled.contains(&execution.test_execution_id)
-                        || execution.status == crate::execution::ExecutionStatus::Skipped)
+                        || execution.status == dokime_domain::model::execution::result::ExecutionStatus::Skipped)
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -217,10 +217,10 @@ impl RuntimeHandle {
         }
         let terminal = matches!(
             cycle.lifecycle,
-            crate::execution::CycleStatus::Completed
-                | crate::execution::CycleStatus::Failed
-                | crate::execution::CycleStatus::Blocked
-                | crate::execution::CycleStatus::Stopped
+            dokime_domain::model::execution::result::CycleStatus::Completed
+                | dokime_domain::model::execution::result::CycleStatus::Failed
+                | dokime_domain::model::execution::result::CycleStatus::Blocked
+                | dokime_domain::model::execution::result::CycleStatus::Stopped
         );
         // A cycle whose members are not all sealed can never be sealed itself.
         let sealed_cycle = if terminal && cause.is_none() {

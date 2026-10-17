@@ -142,7 +142,7 @@ pub struct EvidenceBatch {
     )]
     pub prompt_requests: Vec<String>,
     #[row(
-        description = "JSON-encoded [`TraceabilitySection`](crate::traceability::TraceabilitySection) values the template stated before its first step.\nOne item per section, encoded like the samples, records and prompts beside it. The host stamps the scope, the time and the provenance source it files them under, because a sidecar naming its own provenance is a sidecar that can lie about it."
+        description = "JSON-encoded [`TraceabilitySection`](dokime_domain::model::traceability::TraceabilitySection) values the template stated before its first step.\nOne item per section, encoded like the samples, records and prompts beside it. The host stamps the scope, the time and the provenance source it files them under, because a sidecar naming its own provenance is a sidecar that can lie about it."
     )]
     pub traceability: Vec<String>,
     #[row(

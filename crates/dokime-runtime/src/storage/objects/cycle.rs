@@ -30,8 +30,13 @@ use dokime_domain::model::identity::SessionId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::saved::{CycleSeal, ExecutionRevision};
-use crate::execution::{CycleStatus, CycleView, ResultStatus, ResultSummary, TestCycle};
+use dokime_domain::model::execution::saved::CycleSeal;
+use dokime_domain::model::execution::saved::ExecutionRevision;
+use dokime_domain::model::execution::result::CycleStatus;
+use dokime_domain::model::execution::result::CycleView;
+use dokime_domain::model::execution::result::ResultStatus;
+use dokime_domain::model::execution::result::ResultSummary;
+use dokime_domain::model::execution::result::TestCycle;
 use crate::storage::{Error, Manager, Result};
 
 /* === Constants === */

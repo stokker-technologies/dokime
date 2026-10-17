@@ -18,7 +18,7 @@
 
 // Local Imports
 use crate::runtime_state::RuntimeState;
-use crate::traceability::TraceabilitySnapshot;
+use dokime_domain::model::traceability::TraceabilitySnapshot;
 
 /* === Constants === */
 

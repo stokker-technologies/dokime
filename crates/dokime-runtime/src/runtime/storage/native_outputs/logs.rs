@@ -26,7 +26,7 @@ use super::{
 };
 use crate::{runtime::Result, runtime::storage::executions::ExecutionStorage};
 use dokime_domain::model::identity::TestExecutionId;
-use crate::execution::saved::SavedStreamState;
+use dokime_domain::model::execution::saved::SavedStreamState;
 
 /* === Constants === */
 const CHUNK_BYTES: usize = 64 * 1024;

@@ -11,7 +11,8 @@
 mod native;
 
 /* === Re-Exports === */
-pub use crate::execution::request::{AttemptClaim, RunReceipt};
+pub use dokime_domain::model::execution::request::AttemptClaim;
+pub use dokime_domain::model::execution::request::RunReceipt;
 
 /* === Imports === */
 // Standard Library Imports
@@ -24,8 +25,9 @@ use crate::{runtime::Error, runtime::Result};
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::NodeId;
 use dokime_domain::model::time::Timestamp;
-use crate::execution::request::RunSummary;
-use crate::execution::request::{RunPhase, StepCommandReceipt};
+use dokime_domain::model::execution::request::RunSummary;
+use dokime_domain::model::execution::request::RunPhase;
+use dokime_domain::model::execution::request::StepCommandReceipt;
 
 /* === Constants === */
 const RECOVERY_INTERRUPTION: &str = "Previous runtime ended before request completion. Device actions are not replayed; claimed acquisition may be interrupted.";

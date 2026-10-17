@@ -585,7 +585,7 @@ impl RuntimeHandle {
 
     pub(crate) async fn enrich_host_traceability(
         &self,
-        snapshots: &mut Vec<crate::traceability::TraceabilitySnapshot>,
+        snapshots: &mut Vec<dokime_domain::model::traceability::TraceabilitySnapshot>,
         scope: Option<&dokime_domain::model::execution::RecordScope>,
     ) {
         let mut host = self
@@ -610,7 +610,7 @@ impl RuntimeHandle {
 
     pub(crate) async fn enrich_lease_traceability(
         &self,
-        snapshots: &mut Vec<crate::traceability::TraceabilitySnapshot>,
+        snapshots: &mut Vec<dokime_domain::model::traceability::TraceabilitySnapshot>,
         scope: Option<&dokime_domain::model::execution::RecordScope>,
     ) {
         let selected = scope.cloned().unwrap_or_default();
@@ -622,7 +622,7 @@ impl RuntimeHandle {
         ) {
             crate::traceability::replace_snapshots_by_source(
                 snapshots,
-                crate::traceability::LEASES_TRACEABILITY.source,
+                dokime_domain::model::traceability::LEASES_TRACEABILITY.source,
                 snapshot,
             );
         }

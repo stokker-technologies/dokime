@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::definition::TestCycleInstance;
 use crate::document::{DocumentInstance, DocumentPayload, DocumentSelection};
-use crate::execution::ExecutionStatus;
+use dokime_domain::model::execution::result::ExecutionStatus;
 use crate::{documents::RuntimeDocumentData, execution_runtime::registry::SuiteRegistry};
 use dokime_domain::model::identity::DocumentId;
 use dokime_domain::model::identity::Metadata;

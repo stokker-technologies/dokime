@@ -72,8 +72,9 @@ impl RuntimeState {
     pub(crate) fn execution_identity(
         &self,
         source: &str,
-    ) -> Option<crate::execution::ExecutionPluginIdentity> {
-        use crate::execution::{ExecutionImplementation, ExecutionPluginIdentity};
+    ) -> Option<dokime_domain::model::execution::snapshot::ExecutionPluginIdentity> {
+        use dokime_domain::model::execution::snapshot::ExecutionImplementation;
+        use dokime_domain::model::execution::snapshot::ExecutionPluginIdentity;
 
         let implementation = match self.plugin_owners.get(source)? {
             PluginOwner::Host => return None,
