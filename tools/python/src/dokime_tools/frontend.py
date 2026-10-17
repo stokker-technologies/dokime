@@ -44,7 +44,7 @@ INPUT_ROOTS = [
     ROOT / "branding/brand.toml",
     ROOT / "branding/theme",
     ROOT / "branding/fonts",
-    ROOT / "pnpm-lock.yaml",
+    WEB_ROOT / "pnpm-lock.yaml",
 ]
 
 

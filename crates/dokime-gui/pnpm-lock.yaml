@@ -6,7 +6,7 @@ settings:
 
 importers:
 
-  crates/dokime-gui:
+  .:
     dependencies:
       '@bufbuild/protobuf':
         specifier: 2.16.0

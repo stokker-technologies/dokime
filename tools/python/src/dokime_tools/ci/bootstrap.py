@@ -174,14 +174,36 @@ def prepare_tools(role: str) -> None:
     else:
         _run(["mise", "run", "--skip-tools", "prepare:tools"])
         if role == "check":
-            _run(["mise", "exec", "--", "pnpm", "install", "--frozen-lockfile"])
+            _run(
+                [
+                    "mise",
+                    "exec",
+                    "--",
+                    "pnpm",
+                    "--dir",
+                    "crates/dokime-gui",
+                    "install",
+                    "--frozen-lockfile",
+                ]
+            )
         elif role in {"test", "coverage"}:
             # Generated-Plugin And Incremental Scenarios Retain Their Own Compilation.
             _run(["mise", "exec", "--", "cargo", "fetch", "--locked"])
     if role in {"build", "contracts"}:
         prepare_harmos(Path.cwd(), allow_install=role == "contracts")
     if role == "typescript":
-        _run(["mise", "exec", "--", "pnpm", "install", "--frozen-lockfile"])
+        _run(
+            [
+                "mise",
+                "exec",
+                "--",
+                "pnpm",
+                "--dir",
+                "crates/dokime-gui",
+                "install",
+                "--frozen-lockfile",
+            ]
+        )
     for tool in ("mise", "rustc", "cargo", "python", "uv", "node", "pnpm"):
         _run(["mise", "exec", "--", tool, "--version"])
 

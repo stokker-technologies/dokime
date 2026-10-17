@@ -103,11 +103,6 @@ def check(root: Path = ROOT) -> None:
         "uv.lock dokime source",
     )
     expect(sdk_lock.get("version"), python_version(version), "uv.lock dokime version")
-    pnpm = root / "pnpm-lock.yaml"
-    if not pnpm.exists() or not re.search(
-        r"(?m)^  crates/dokime-gui:\s*$", pnpm.read_text(encoding="utf-8")
-    ):
-        errors.append("pnpm-lock.yaml is missing the GUI importer")
     changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
     if not re.search(
         r"(?m)^## \[(?:Unreleased|" + re.escape(version) + r")\]", changelog

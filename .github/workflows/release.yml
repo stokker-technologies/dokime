@@ -57,9 +57,9 @@ jobs:
       - &sources_restore
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('Cargo.lock', 'uv.lock', 'pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('Cargo.lock', 'uv.lock', 'crates/dokime-gui/pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('Cargo.lock', 'uv.lock', 'pnpm-lock.yaml') }}-
+            sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('Cargo.lock', 'uv.lock', 'crates/dokime-gui/pnpm-lock.yaml') }}-
           path: |
             .cache/cargo/registry/cache/
             .cache/cargo/registry/index/

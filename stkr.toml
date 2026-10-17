@@ -26,11 +26,7 @@ step_timeout_seconds = 900
 
 [conventions.ci.multitask]
 check_fast = ["ci:route", "check:fast"]
-contracts_prepare_release = [
-  "contracts:prepare:release",
-  "ci:contracts:archive",
-  "ci:contracts:publish",
-]
+contracts_prepare_release = ["contracts:prepare:release", "ci:contracts:archive", "ci:contracts:publish"]
 build_release = ["ci:contracts:restore", "build:release"]
 test_integration_typescript = ["ci:contracts:restore", "test:integration:typescript"]
 test_integration_rust = ["ci:artifacts:restore", "test:integration:rust"]
@@ -49,10 +45,7 @@ dokime-starter-check = "crates/cargo-dokime/templates"
 # Audit native source and the dedicated project policy skeleton.
 include = ["**/*.rs", "**/*.py", "stkr.toml"]
 # Generated RPC output is owned and checked by the binding generators.
-exclude = [
-  "packages/dokime/src/dokime/client/_generated/**",
-  "crates/dokime-gui/src-tauri/src/rpc/generated.rs",
-]
+exclude = ["packages/dokime/src/dokime/client/_generated/**", "crates/dokime-gui/src-tauri/src/rpc/generated.rs"]
 
 [barrels]
 # Deliberate public façades, not accidental re-export files: the authoring
@@ -60,14 +53,7 @@ exclude = [
 exclude = ["crates/dokime/src/prelude.rs", "crates/dokime/src/plugin/sidecar.rs"]
 
 [markdown]
-include = [
-  "**/README.md",
-  "CHANGELOG.md",
-  "CONTRIBUTING.md",
-  "SECURITY.md",
-  "LICENSE.md",
-  ".github/**",
-]
+include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE.md", ".github/**"]
 
 # === Templates === #
 

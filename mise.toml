@@ -65,7 +65,7 @@ run = [
   "uv run --no-sync python -m dokime_tools.sync.rust",
   "cargo fetch --locked",
   "uv run --no-sync python -m dokime_tools.environment.uv sync --locked --no-install-project --no-install-package dokime",
-  "pnpm install --frozen-lockfile",
+  "pnpm --dir crates/dokime-gui install --frozen-lockfile",
 ]
 
 [tasks."sync:harmos"]
@@ -109,7 +109,8 @@ description = "Run Read-Only Repository Checks"
 run = [
   { task = "format:check" },
   { task = "lint" },
-  { task = "check:types" },
+  { task = "check:python" },
+  { task = "check:typescript" },
   # Clippy above also type-checks every default-feature workspace target.
   { task = "check:rust:plain" },
   { task = "check:wasm" },
@@ -125,7 +126,7 @@ description = "Check Maintained Sources Without Compiling Product Artifacts"
 run = [
   { task = "format:check" },
   { task = "lint:source" },
-  { task = "check:types:tools" },
+  { task = "check:python" },
   { task = "check:bundles" },
   { task = "version:check" },
   { task = "installer:check" },
@@ -136,19 +137,12 @@ run = [
 description = "Lint Rust, Python, And JavaScript Without Changes"
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 depends = ["prepare:tools", "prepare:report"]
-run = [
-  "cargo clippy --locked --workspace --all-targets -- -D warnings",
-  { task = "lint:source" },
-]
+run = ["cargo clippy --locked --workspace --all-targets -- -D warnings", { task = "lint:source" }]
 
 [tasks."lint:source"]
 description = "Lint Maintained Python And Web Sources"
 depends = ["prepare:tools"]
-run = [
-  "uv run --no-sync ruff check packages/dokime",
-  "uv run --no-sync ruff check tools/python",
-  { task = "lint:web" },
-]
+run = ["uv run --no-sync ruff check packages/dokime", "uv run --no-sync ruff check tools/python", { task = "lint:web" }]
 
 [tasks."lint:fix"]
 description = "Repair Rust, Python, And JavaScript Lint Issues"
@@ -158,22 +152,20 @@ run = [
   "cargo clippy --fix --workspace --all-targets --allow-dirty --allow-staged --allow-no-vcs -- -D warnings",
   "uv run --no-sync ruff check packages/dokime --fix",
   "uv run --no-sync ruff check tools/python --fix",
-  "pnpm --dir crates/dokime-gui exec biome lint --write ../../",
+  "pnpm --dir crates/dokime-gui exec biome lint --write .",
 ]
 
-[tasks."check:types"]
+[tasks."check:python"]
 depends = ["prepare:tools"]
-description = "Check Python And TypeScript Types"
+description = "Check Python Types Per Package"
 run = [
-  "uv run --no-sync pyright",
-  { task = "check:types:tools" },
-  "pnpm --dir crates/dokime-gui run typecheck",
+  "uv run --no-sync pyright --project packages/dokime/pyproject.toml",
+  "uv run --no-sync pyright --project tools/python/pyproject.toml",
 ]
 
-[tasks."check:types:tools"]
-depends = ["prepare:tools"]
-description = "Check Repository Python Tooling Types"
-run = "uv run --no-sync --group test pyright --project tools/python/pyproject.toml"
+[tasks."check:typescript"]
+description = "Check TypeScript Types"
+run = "pnpm --dir crates/dokime-gui run typecheck"
 
 [tasks."check:bundles"]
 depends = ["prepare:tools"]
@@ -184,11 +176,11 @@ run = "uv run --no-sync python -m dokime_tools.check.bundles"
 
 [tasks."format:toml"]
 description = "Format Maintained TOML"
-run = "taplo fmt"
+run = "git ls-files -z -- '*.toml' | xargs -0 taplo fmt --option column_width=140"
 
 [tasks."format:toml:check"]
 description = "Check Maintained TOML Formatting"
-run = "taplo fmt --check"
+run = "git ls-files -z -- '*.toml' | xargs -0 taplo fmt --check --option column_width=140"
 
 [tasks.format]
 depends = ["prepare:tools"]
@@ -198,7 +190,7 @@ run = [
   "cargo fmt --all",
   "uv run --no-sync ruff format packages/dokime",
   "uv run --no-sync ruff format tools/python",
-  "pnpm --dir crates/dokime-gui exec biome format --write ../../",
+  "pnpm --dir crates/dokime-gui exec biome format --write .",
 ]
 
 # === Tasks | Versioning === #
@@ -236,10 +228,7 @@ run = "uv build --package dokime --wheel --out-dir dist/python-dev"
 [tasks."build:python:release"]
 depends = ["prepare:tools"]
 description = "Build The Dokime Python Wheel And Source Archive"
-run = [
-  "uv build --clear --package dokime --out-dir dist/python",
-  "uv run --no-sync python -m dokime_tools.check.package",
-]
+run = ["uv build --clear --package dokime --out-dir dist/python", "uv run --no-sync python -m dokime_tools.check.package"]
 
 [tasks."bindings:check"]
 depends = ["prepare:tools"]
@@ -266,10 +255,7 @@ run = "uv run --no-sync python -m dokime_tools.frontend report"
 
 [tasks."build:cli:dev"]
 description = "Build The Connection CLI"
-run = [
-  "cargo build --timings --locked -p dokime-cli --bin dokime",
-  "cargo build --timings --locked -p cargo-dokime",
-]
+run = ["cargo build --timings --locked -p dokime-cli --bin dokime", "cargo build --timings --locked -p cargo-dokime"]
 
 [tasks."fixtures:prepare"]
 description = "Compile Complete Native Test Bundles With The Packaged Tool"
@@ -296,10 +282,7 @@ run = [
 env.TAURI_CONFIG = '{"bundle":{"externalBin":[],"resources":[]}}'
 description = "Build Desktop Development Assets And Binary"
 depends = ["prepare:report"]
-run = [
-  "pnpm --dir crates/dokime-gui run build",
-  "cargo build -p dokime-gui",
-]
+run = ["pnpm --dir crates/dokime-gui run build", "cargo build -p dokime-gui"]
 
 [tasks."build:dev"]
 description = "Build All Development Targets"
@@ -335,7 +318,7 @@ run = [
 
 [tasks."screenshots:capture"]
 description = "Capture the Published Product Screenshots from the Running Desktop Shell."
-run = "node tools/node/gui/capture-screenshots.mjs"
+run = "node crates/dokime-gui/tools/capture-screenshots.mjs"
 
 
 # === Tasks | Tests === #
@@ -343,20 +326,11 @@ run = "node tools/node/gui/capture-screenshots.mjs"
 [tasks.test]
 env.UV_NO_SYNC = "1"
 description = "Test Integration And Acceptance Contracts"
-run = [
-  { task = "ci:artifacts:verify" },
-  { task = "test:integration" },
-  { task = "test:acceptance" },
-  { task = "ci:artifacts:validate" },
-]
+run = [{ task = "ci:artifacts:verify" }, { task = "test:integration" }, { task = "test:acceptance" }, { task = "ci:artifacts:validate" }]
 
 [tasks."test:integration"]
 description = "Test Public Library And Tooling Workflows"
-run = [
-  { task = "test:integration:rust" },
-  { task = "test:integration:python" },
-  { task = "test:integration:typescript" },
-]
+run = [{ task = "test:integration:rust" }, { task = "test:integration:python" }, { task = "test:integration:typescript" }]
 
 [tasks."test:integration:rust"]
 env.STKR_TEST_ARCHIVES = "{{config_root}}/target/test-archives"
@@ -517,10 +491,7 @@ run = "uv run --no-sync python -m dokime_tools.package.artifacts collect-tests"
 
 [tasks."build:cli:release"]
 description = "Build Release CLI"
-run = [
-  "cargo build --timings --locked --release -p dokime-cli",
-  "cargo build --timings --locked --release -p cargo-dokime",
-]
+run = ["cargo build --timings --locked --release -p dokime-cli", "cargo build --timings --locked --release -p cargo-dokime"]
 
 [tasks."build:server:release"]
 description = "Build The Release Server"
@@ -603,16 +574,12 @@ run = [
   "cargo fmt --all --check",
   "uv run --no-sync ruff format --check packages/dokime",
   "uv run --no-sync ruff format --check tools/python",
-  "pnpm --dir crates/dokime-gui exec biome format ../../",
+  "pnpm --dir crates/dokime-gui exec biome format .",
 ]
 
 [tasks."lint:web"]
 description = "Lint Frontend And Node Tooling"
-run = "pnpm --dir crates/dokime-gui exec biome lint ../../"
-
-[tasks."lint:tools:web"]
-description = "Lint Node Repository Automation"
-run = "pnpm --dir crates/dokime-gui exec biome lint ../../tools/node --diagnostic-level=error"
+run = "pnpm --dir crates/dokime-gui exec biome lint ."
 
 [tasks."release:prepare"]
 depends = ["prepare:tools"]

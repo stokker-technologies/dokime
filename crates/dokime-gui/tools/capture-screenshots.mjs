@@ -65,7 +65,7 @@ const backendBinary = process.env.DOKIME_SHOTS_BACKEND ?? join(root, "target/deb
 const shellBinary = process.env.DOKIME_SHOTS_SHELL ?? join(root, "target/debug/dokime-gui");
 
 const pluginBundle =
-  process.env.DOKIME_SHOTS_PLUGIN ?? join(root, "target/debug/plugins/mini-sidecar.dokime");
+  process.env.DOKIME_SHOTS_PLUGIN ?? join(root, "target/debug/plugins/obc-plugin.dokime");
 
 const screenshots = join(root, "screenshots");
 

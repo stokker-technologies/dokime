@@ -58,9 +58,9 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: steps.pr.outputs.count == '0'
         with:
-          key: sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('uv.lock', 'pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}-feature
+          key: sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('uv.lock', 'crates/dokime-gui/pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}-feature
           restore-keys: |
-            sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('uv.lock', 'pnpm-lock.yaml') }}-
+            sources-${{ runner.os }}-${{ runner.arch }}-v2-${{ hashFiles('uv.lock', 'crates/dokime-gui/pnpm-lock.yaml') }}-
           path: .cache/uv/
       - name: Prepare Linux
         if: steps.pr.outputs.count == '0' && matrix.os == 'linux'

@@ -7,15 +7,14 @@
   },
   "files": {
     "includes": [
-      "tools/node/**/*.mjs",
-      "crates/dokime-gui/**/*.mjs",
-      "crates/dokime-gui/**/*.css",
-      "crates/dokime-gui/**/*.json",
-      "crates/dokime-gui/**/*.ts",
-      "crates/dokime-gui/**/*.tsx",
-      "!crates/dokime-gui/src/routeTree.gen.ts",
-      "!crates/dokime-gui/src/lib/rpc/generated",
-      "!crates/dokime-gui/src-tauri"
+      "**/*.mjs",
+      "**/*.css",
+      "**/*.json",
+      "**/*.ts",
+      "**/*.tsx",
+      "!src/routeTree.gen.ts",
+      "!src/lib/rpc/generated",
+      "!src-tauri"
     ]
   },
   "formatter": {
