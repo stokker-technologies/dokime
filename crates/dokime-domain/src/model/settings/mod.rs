@@ -8,13 +8,13 @@
  */
 
 /* === Modules === */
-pub mod wire;
 pub mod boolean;
 pub mod multiple_choice;
 pub mod number;
 pub mod path;
 pub mod secret;
 pub mod text_area;
+pub mod wire;
 
 /* === Re-Exports === */
 pub use boolean::Boolean;

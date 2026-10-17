@@ -28,13 +28,13 @@ use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::TemplateId;
 use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::operations::planning as wire;
 use dokime_runtime::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, SuiteRegistry, TestCase,
     materialize_template_cases,
 };
 use dokime_runtime::state::RuntimeState;
-use dokime_runtime::{runtime::Error, RuntimeHandle};
-use dokime_domain::operations::planning as wire;
+use dokime_runtime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -85,9 +85,14 @@ impl Operation for Register {
         _: Self::Context<'a>,
         request: &mut wire::RegisterSelection,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>, Status> {
-        dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
-            .map_err(|error| Status::invalid_argument(error.to_string()))?;
+    ) -> Result<
+        harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>,
+        Status,
+    > {
+        dokime_domain::model::execution::command::validate_idempotency_key(
+            &request.idempotency_key,
+        )
+        .map_err(|error| Status::invalid_argument(error.to_string()))?;
         if request
             .plan
             .as_ref()
@@ -108,11 +113,13 @@ impl Operation for Register {
             .register_cases(registration_id, resolved.cases)
             .await
             .map_err(execution::status)?;
-        Ok((dokime_domain::model::planning::wire::PreviewSelectionReply {
-            cases: resolved.preview,
-            observed_cursor: Some(canonical::cursor(&self.runtime.watch_state().latest())),
-        })
-        .into())
+        Ok(
+            (dokime_domain::model::planning::wire::PreviewSelectionReply {
+                cases: resolved.preview,
+                observed_cursor: Some(canonical::cursor(&self.runtime.watch_state().latest())),
+            })
+            .into(),
+        )
     }
 }
 
@@ -135,14 +142,23 @@ impl Operation for Preview {
         _: Self::Context<'a>,
         request: &mut wire::PreviewSelection,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>, Status> {
+    ) -> Result<
+        harmos::operations::Response<dokime_domain::model::planning::wire::PreviewSelectionReply>,
+        Status,
+    > {
         let snapshot = self.runtime.watch_state().latest();
-        let resolved = resolve(snapshot.state(), request.plan.take(), &dokime_runtime::model::identity::new_id::<CommandId>())?;
-        Ok((dokime_domain::model::planning::wire::PreviewSelectionReply {
-            cases: resolved.preview,
-            observed_cursor: Some(canonical::cursor(&snapshot)),
-        })
-        .into())
+        let resolved = resolve(
+            snapshot.state(),
+            request.plan.take(),
+            &dokime_runtime::model::identity::new_id::<CommandId>(),
+        )?;
+        Ok(
+            (dokime_domain::model::planning::wire::PreviewSelectionReply {
+                cases: resolved.preview,
+                observed_cursor: Some(canonical::cursor(&snapshot)),
+            })
+            .into(),
+        )
     }
 }
 

@@ -159,8 +159,9 @@ fn cache_key(source: &ArtifactSource) -> Result<String, String> {
             execution_id,
             relative_path,
         } => {
-            let id = dokime_domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
-                .map_err(|_| "invalid execution id".to_string())?;
+            let id =
+                dokime_domain::model::identity::TestExecutionId::from_uuid(execution_id.clone())
+                    .map_err(|_| "invalid execution id".to_string())?;
             let digest = Sha256::digest(relative_path.as_bytes())
                 .iter()
                 .map(|byte| format!("{byte:02x}"))

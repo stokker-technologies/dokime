@@ -17,14 +17,14 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::records::evidence::Record;
-use crate::model::records::resources::{ResourceRecord, ResourceLifecycle};
+use crate::model::execution::RecordScope;
+use crate::model::execution::scope_visible_in;
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
-use crate::model::execution::RecordScope;
+use crate::model::records::evidence::Record;
+use crate::model::records::resources::{ResourceLifecycle, ResourceRecord};
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
-use crate::model::execution::scope_visible_in;
 
 /* === Constants === */
 

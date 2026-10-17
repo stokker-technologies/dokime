@@ -21,14 +21,13 @@ use serde::Serialize;
 
 // Local Imports
 #[allow(unused_imports)]
-use crate::model::identity::wire::*;
+use crate::model::definition::wire::*;
 use crate::model::execution::wire_cursor::Cursor;
 #[allow(unused_imports)]
-use crate::model::definition::wire::*;
+use crate::model::identity::wire::*;
 use crate::model::values::wire::Value;
 
 /* === Types === */
-
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

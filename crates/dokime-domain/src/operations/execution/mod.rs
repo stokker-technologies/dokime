@@ -84,18 +84,18 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::identity::wire::Metadata;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::planning::wire::*;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
+use crate::model::identity::wire::Metadata;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+#[allow(unused_imports)]
+use crate::model::planning::wire::*;
+use crate::model::values::wire::Value;
 
 use crate::model::execution::wire::*;
 
@@ -112,59 +112,27 @@ use crate::model::execution::wire::*;
 // are copied. The source remains untouched, including if currently running.
 // Copy does not certify provider availability; Run validates that separately.
 
-
-
-
-
-
 // Append cases generated from the current registered catalog to an existing
 // mutable cycle. The plan is resolved and validated against one captured
 // registry snapshot before the existing append transaction is committed.
-
-
-
-
-
-
-
 
 // `filter` and `order` must be repeated unchanged on every continuation, and
 // `after_cycle_id` must still be a member of the filtered result. A changed
 // selection, a changed order, or a continuation ID the filter excludes is
 // rejected rather than silently restarted.
 
-
-
-
-
-
-
-
 // Archiving is orthogonal to the lifecycle and admitted only on a terminal
 // cycle or execution: it hides the row from lists that do not ask for archived
 // rows and changes nothing else.
-
-
-
-
-
 
 // A rename is admitted until the subject seals: a sealed, archived or History
 // cycle and an execution whose case has a sealed attempt refuse it with
 // FailedPrecondition, since the sealed report froze the label. An execution's
 // label is its case's label, so every attempt of that case is renamed together.
 
-
-
-
-
-
 // DeleteCase only removes an unexecuted case. ScheduleCaseRerun makes the
 // cycle ready without altering prior attempts or starting execution. A subsequent
 // RunCase dispatches the next attempt; prior attempts and evidence remain retained.
-
-
-
 
 // Optional keys are exact opaque values: 1–256 UTF-8 bytes, nonblank, no control
 // characters. Namespace: stable node + authenticated principal, shared across
@@ -173,142 +141,21 @@ use crate::model::execution::wire::*;
 // Repeating the original request resolves its durable receipt after restart;
 // it never resumes an interrupted acquisition. Omission provides no retry safety.
 
-
-
-
-
-
 // Lookup is independent of live cycles and epoch cursors. A Read principal may
 // inspect its own receipts; Admin may inspect any. Unknown and other-owner IDs
 // both return NotFound. A native receipt with no submitter is Admin-only.
 
-
 // Commands belong to an admitted interactive run. Reuse the same command UUID
 // and identical action to recover admission; a transport failure is uncertain.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // Detail pages preserve native planned-case / execution-attempt vector order.
 // Ordinals are zero-based positions at this cursor, not permanent identities.
 // Continuations require the same epoch/revision and an existing after-ID in the
 // requested cycle; changed revisions abort and unknown markers are invalid.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Current-runtime detail. Published historical checkpoints are a separate API.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

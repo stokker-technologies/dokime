@@ -65,9 +65,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let client = args.connection.connect().await?;
     let result = async {
         let plan = planned.resolve(&client).await?;
-        let reply = client
-            .preview_selection(PreviewSelection { plan })
-            .await?;
+        let reply = client.preview_selection(PreviewSelection { plan }).await?;
         super::input::print(&client, &reply, args.json).await
     }
     .await;

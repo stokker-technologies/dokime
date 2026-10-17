@@ -23,13 +23,13 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use super::value::{self, canonical};
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::time::Timestamp;
+use dokime_domain::operations::telemetry as wire;
+use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::evidence::ScopeSelection;
 use dokime_runtime::domains::evidence::TelemetrySelection;
-use dokime_domain::model::identity::wire as common;
-use dokime_domain::operations::telemetry as wire;
 
 /* === Constants === */
 const DEFAULT_LIMIT: usize = 500;
@@ -71,7 +71,8 @@ impl Operation for List {
         _: Self::Context<'a>,
         request: &mut wire::ListSamples,
         _: &mut (),
-    ) -> Result<Response<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::telemetry::wire::TelemetrySamplesReply>, Status>
+    {
         let limit = bounded_limit(request.limit)?;
         let after_stream_cursors =
             bounded_cursors(std::mem::take(&mut request.after_stream_cursors))?;
@@ -197,8 +198,9 @@ fn fit_page(
     let mut kept = 0;
     for index in order {
         let sample = &samples[index];
-        let mut bytes = projection::memory(sample)?
-            .saturating_add(3 * std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>());
+        let mut bytes = projection::memory(sample)?.saturating_add(
+            3 * std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>(),
+        );
         let stream = (!latest).then(|| {
             dokime_runtime::domains::telemetry::telemetry_stream_id(
                 sample.scope.as_ref(),
@@ -236,7 +238,9 @@ fn fit_page(
 }
 
 fn bounded_cursors(
-    values: Vec<dokime_domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry>,
+    values: Vec<
+        dokime_domain::model::telemetry::wire::ListTelemetrySamplesRequestAfterStreamCursorsEntry,
+    >,
 ) -> Result<std::collections::BTreeMap<String, u64>, Status> {
     value::collection(values.len())?;
     values

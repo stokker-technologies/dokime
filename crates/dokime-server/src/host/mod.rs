@@ -35,9 +35,9 @@ use std::{
 // Third Party Imports
 
 // Local Imports
-use dokime_runtime::config::ApplicationOptions;
 use dokime_domain::DEV_PROTOCOL;
 use dokime_domain::READINESS_PROTOCOL;
+use dokime_runtime::config::ApplicationOptions;
 
 /* === Constants === */
 

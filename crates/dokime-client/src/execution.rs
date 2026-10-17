@@ -23,13 +23,13 @@ use std::sync::{Arc, OnceLock};
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result, contracts, validate_observed_cursor};
+use dokime_domain::model::execution::ExecutionMode;
+use dokime_domain::model::execution::StepCommand;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::StepAttemptId;
 use dokime_domain::model::identity::StepId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::model::execution::ExecutionMode;
-use dokime_domain::model::execution::StepCommand;
 
 /* === Constants === */
 const REQUEST_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);

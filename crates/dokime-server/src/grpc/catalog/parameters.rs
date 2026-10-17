@@ -21,15 +21,15 @@ use tonic::Status;
 // Local Imports
 use super::super::value::canonical;
 use super::super::value::{self, Budget};
+use dokime_domain::model::definition::wire as schema;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::model::values::MeasurementUnit;
 use dokime_domain::model::values::UnitFamily;
+use dokime_domain::model::values::wire as wire_value;
+use dokime_domain::operations::catalog as wire;
 use dokime_runtime::definition::{
     DynamicDefaultKey, ParameterBinaryOp, ParameterDefinition, ParameterExpansion, ParameterExpr,
 };
-use dokime_domain::operations::catalog as wire;
-use dokime_domain::model::identity::wire as common;
-use dokime_domain::model::definition::wire as schema;
-use dokime_domain::model::values::wire as wire_value;
 
 /* === Constants === */
 
@@ -51,11 +51,11 @@ pub(in crate::grpc) fn memory(
     budget: &mut Budget,
 ) -> harmos::Result<usize> {
     value::collection(parameters.len()).map_err(|_| exhausted())?;
-    let mut bytes = std::mem::size_of::<Vec<dokime_domain::model::catalog::wire::ParameterSchema>>().saturating_add(
-        parameters
-            .len()
-            .saturating_mul(std::mem::size_of::<dokime_domain::model::catalog::wire::ParameterSchema>()),
-    );
+    let mut bytes =
+        std::mem::size_of::<Vec<dokime_domain::model::catalog::wire::ParameterSchema>>()
+            .saturating_add(parameters.len().saturating_mul(std::mem::size_of::<
+                dokime_domain::model::catalog::wire::ParameterSchema,
+            >()));
     for parameter in parameters {
         budget.node(0).map_err(|_| exhausted())?;
         bytes = bytes
@@ -84,7 +84,9 @@ pub(in crate::grpc) fn memory(
             parameter
                 .extensions
                 .len()
-                .saturating_mul(std::mem::size_of::<dokime_domain::model::catalog::wire::ParameterSchemaExtensionsEntry>()),
+                .saturating_mul(std::mem::size_of::<
+                    dokime_domain::model::catalog::wire::ParameterSchemaExtensionsEntry,
+                >()),
         );
         for (key, item) in &parameter.extensions {
             value::text(key).map_err(|_| exhausted())?;
@@ -128,10 +130,12 @@ pub(in crate::grpc) fn wire(
         let mut extensions = canonical::slots(parameter.extensions.len())?;
         for (key, item) in &parameter.extensions {
             value::text(key)?;
-            extensions.push(dokime_domain::model::catalog::wire::ParameterSchemaExtensionsEntry {
-                key: key.clone(),
-                value: Some(project_value(item, budget, 0)?),
-            });
+            extensions.push(
+                dokime_domain::model::catalog::wire::ParameterSchemaExtensionsEntry {
+                    key: key.clone(),
+                    value: Some(project_value(item, budget, 0)?),
+                },
+            );
         }
         let selection = parameter
             .selection
@@ -156,11 +160,15 @@ pub(in crate::grpc) fn wire(
                 dokime_domain::model::catalog::wire::ParameterExpansionKind::Cartesian(true)
             }
             dokime_runtime::definition::ParameterExpansion::Zip { group } => {
-                dokime_domain::model::catalog::wire::ParameterExpansionKind::Zip(group.as_str().to_owned())
+                dokime_domain::model::catalog::wire::ParameterExpansionKind::Zip(
+                    group.as_str().to_owned(),
+                )
             }
         };
         Ok(dokime_domain::model::catalog::wire::ParameterSchema {
-            expansion: Some(dokime_domain::model::catalog::wire::ParameterExpansion { kind: Some(kind) }),
+            expansion: Some(dokime_domain::model::catalog::wire::ParameterExpansion {
+                kind: Some(kind),
+            }),
             parameter_id: parameter.parameter_id.as_str().to_owned(),
             metadata: Some(metadata(&parameter.metadata, false)?),
             group_id: parameter.group_id.as_ref().map(|id| id.as_str().to_owned()),
@@ -172,10 +180,12 @@ pub(in crate::grpc) fn wire(
             max: parameter.max,
             expression: Some(expression(&parameter.expression, budget, 0)?),
             selection,
-            list: parameter.list.as_ref().map(|list| dokime_domain::model::catalog::wire::ParameterList {
-                element_type: canonical::value_type(&list.element_type),
-                min_items: list.min_items.map(|items| items as u32),
-                max_items: list.max_items.map(|items| items as u32),
+            list: parameter.list.as_ref().map(|list| {
+                dokime_domain::model::catalog::wire::ParameterList {
+                    element_type: canonical::value_type(&list.element_type),
+                    min_items: list.min_items.map(|items| items as u32),
+                    max_items: list.max_items.map(|items| items as u32),
+                }
             }),
             extensions,
         })
@@ -240,11 +250,13 @@ fn flatten(
             }
             Kind::Array(dokime_domain::model::catalog::wire::ParameterOperands { values: operands })
         }
-        ParameterExpr::Range { start, stop, step } => Kind::Range(dokime_domain::model::catalog::wire::IntegerRange {
-            start: *start,
-            stop: *stop,
-            step: *step,
-        }),
+        ParameterExpr::Range { start, stop, step } => {
+            Kind::Range(dokime_domain::model::catalog::wire::IntegerRange {
+                start: *start,
+                stop: *stop,
+                step: *step,
+            })
+        }
         ParameterExpr::Arange { start, stop, step } => {
             finite(&[*start, *stop, *step])?;
             Kind::Arange(dokime_domain::model::catalog::wire::NumberRange {
@@ -268,8 +280,12 @@ fn flatten(
         ParameterExpr::DynamicDefault { key, fallback } => {
             Kind::DynamicDefault(dokime_domain::model::catalog::wire::DynamicDefault {
                 key: match key {
-                    DynamicDefaultKey::OperatorName => dokime_domain::model::catalog::wire::DynamicDefaultKey::OperatorName,
-                    DynamicDefaultKey::OperatorEmail => dokime_domain::model::catalog::wire::DynamicDefaultKey::OperatorEmail,
+                    DynamicDefaultKey::OperatorName => {
+                        dokime_domain::model::catalog::wire::DynamicDefaultKey::OperatorName
+                    }
+                    DynamicDefaultKey::OperatorEmail => {
+                        dokime_domain::model::catalog::wire::DynamicDefaultKey::OperatorEmail
+                    }
                 },
                 fallback: fallback
                     .as_ref()
@@ -277,20 +293,32 @@ fn flatten(
                     .transpose()?,
             })
         }
-        ParameterExpr::Unary { value, .. } => Kind::Unary(dokime_domain::model::catalog::wire::UnaryExpression {
-            op: dokime_domain::model::catalog::wire::UnaryOperator::Negate,
-            value: flatten(value, budget, depth + 1, nodes)?,
-        }),
-        ParameterExpr::Binary { op, left, right } => Kind::Binary(dokime_domain::model::catalog::wire::BinaryExpression {
-            op: match op {
-                ParameterBinaryOp::Add => dokime_domain::model::catalog::wire::BinaryOperator::Add,
-                ParameterBinaryOp::Subtract => dokime_domain::model::catalog::wire::BinaryOperator::Subtract,
-                ParameterBinaryOp::Multiply => dokime_domain::model::catalog::wire::BinaryOperator::Multiply,
-                ParameterBinaryOp::Divide => dokime_domain::model::catalog::wire::BinaryOperator::Divide,
-            },
-            left: flatten(left, budget, depth + 1, nodes)?,
-            right: flatten(right, budget, depth + 1, nodes)?,
-        }),
+        ParameterExpr::Unary { value, .. } => {
+            Kind::Unary(dokime_domain::model::catalog::wire::UnaryExpression {
+                op: dokime_domain::model::catalog::wire::UnaryOperator::Negate,
+                value: flatten(value, budget, depth + 1, nodes)?,
+            })
+        }
+        ParameterExpr::Binary { op, left, right } => {
+            Kind::Binary(dokime_domain::model::catalog::wire::BinaryExpression {
+                op: match op {
+                    ParameterBinaryOp::Add => {
+                        dokime_domain::model::catalog::wire::BinaryOperator::Add
+                    }
+                    ParameterBinaryOp::Subtract => {
+                        dokime_domain::model::catalog::wire::BinaryOperator::Subtract
+                    }
+                    ParameterBinaryOp::Multiply => {
+                        dokime_domain::model::catalog::wire::BinaryOperator::Multiply
+                    }
+                    ParameterBinaryOp::Divide => {
+                        dokime_domain::model::catalog::wire::BinaryOperator::Divide
+                    }
+                },
+                left: flatten(left, budget, depth + 1, nodes)?,
+                right: flatten(right, budget, depth + 1, nodes)?,
+            })
+        }
     };
     nodes[index as usize].kind = Some(kind);
     Ok(index)
@@ -303,7 +331,9 @@ fn expression_memory(
 ) -> harmos::Result<usize> {
     budget.node(depth).map_err(|_| exhausted())?;
     // Includes Conservative Capacity For The Flat Node Vector, Not Nested Box Allocations.
-    let mut bytes = 4usize.saturating_mul(std::mem::size_of::<dokime_domain::model::catalog::wire::ParameterNode>());
+    let mut bytes = 4usize.saturating_mul(std::mem::size_of::<
+        dokime_domain::model::catalog::wire::ParameterNode,
+    >());
     bytes = bytes.saturating_add(match expr {
         ParameterExpr::Literal { value } => {
             canonical::memory(value, budget, depth + 1).map_err(|_| exhausted())?
@@ -354,7 +384,10 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     Ok(target)
 }
 
-fn metadata(source: &dokime_domain::model::identity::Metadata, _: bool) -> Result<common::Metadata, Status> {
+fn metadata(
+    source: &dokime_domain::model::identity::Metadata,
+    _: bool,
+) -> Result<common::Metadata, Status> {
     canonical::metadata(source)
 }
 

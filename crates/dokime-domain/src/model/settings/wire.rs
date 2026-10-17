@@ -314,7 +314,6 @@ pub struct RedactedCredentialBinding {
     pub configured: bool,
 }
 
-
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ThemeMode {

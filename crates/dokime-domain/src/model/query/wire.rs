@@ -71,7 +71,6 @@ pub struct QueryRow {
     pub values: Vec<Value>,
 }
 
-
 // Native saved sources a caller may aggregate. Telemetry samples retain their
 // declared-schema reader through Telemetry.ListSamples.
 #[harmos::message]

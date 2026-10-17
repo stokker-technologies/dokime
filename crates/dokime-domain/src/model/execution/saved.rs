@@ -10,8 +10,8 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use crate::model::execution::PageCursor;
 pub use crate::model::execution::ExecutionCheckpoint;
+pub use crate::model::execution::PageCursor;
 pub use crate::model::execution::SavedEvidenceError;
 
 /* === Imports === */
@@ -407,9 +407,10 @@ pub fn output_validation_memory(outputs: &[ExecutionOutput]) -> usize {
         .count();
     harmos::btree_map_memory::<&String, ()>(outputs.len())
         .saturating_add(harmos::btree_map_memory::<&str, ()>(outputs.len()))
-        .saturating_add(harmos::btree_map_memory::<&crate::model::identity::ArtifactId, ()>(
-            artifacts,
-        ))
+        .saturating_add(harmos::btree_map_memory::<
+            &crate::model::identity::ArtifactId,
+            (),
+        >(artifacts))
 }
 
 pub fn validate_outputs(

@@ -18,8 +18,8 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
-use crate::model::identity::Identifier;
 use crate::model::execution::RecordScope;
+use crate::model::identity::Identifier;
 use crate::model::identity::TelemetrySampleId;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;

@@ -28,6 +28,7 @@ use tokio::time::Instant;
 use tonic::Status;
 // Local Imports
 use cursor::{decode_plot_requests, selection_for_plot};
+use dokime_domain::operations::plots as contract;
 use dokime_runtime::{
     RuntimeHandle,
     runtime::query::{
@@ -35,7 +36,6 @@ use dokime_runtime::{
         plot_payload_stream_envelope_visible, plot_payload_stream_kind,
     },
 };
-use dokime_domain::operations::plots as contract;
 use wire::{ensure_message_budget, envelope, stream_frame};
 
 /* === Constants === */

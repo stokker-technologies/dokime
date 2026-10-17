@@ -23,10 +23,10 @@ use tonic::Status;
 // Local Imports
 use super::{inspection, wire};
 use crate::grpc::{content::window, value};
+use dokime_domain::operations::history;
 use dokime_runtime::{
     ExecutionFileContent, RuntimeHandle, runtime::query::execution_history::ExecutionCheckpoint,
 };
-use dokime_domain::operations::history;
 
 /* === Constants === */
 

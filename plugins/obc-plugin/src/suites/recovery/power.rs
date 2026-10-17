@@ -191,8 +191,10 @@ impl PowerLoss {
         })
     }
     fn document() -> Document {
-        let mut document =
-            measurement::document(<Samples as dokime_runtime::StreamSpec>::ID, "Power-Loss Recovery");
+        let mut document = measurement::document(
+            <Samples as dokime_runtime::StreamSpec>::ID,
+            "Power-Loss Recovery",
+        );
         document.section(system::section(TEMPLATE));
         document
     }

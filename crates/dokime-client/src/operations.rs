@@ -17,18 +17,16 @@
 use std::collections::BTreeSet;
 
 // Third Party Imports
-use harmos::operations::host::{
-    DiscoveredOperation, Operations as HostOperations,
-};
+use harmos::operations::host::{DiscoveredOperation, Operations as HostOperations};
 use harmos::operations::{OperationDeclaration, StreamItem};
 use harmos::{MemorySize, Protobuf};
 
 // Local Imports
 use super::{Client, Error as ClientError, Result as ClientResult};
-use dokime_domain::operations::runtime::GetHealth;
-use dokime_domain::operations::runtime::GetIdentity;
 use dokime_domain::model::runtime::wire::Health;
 use dokime_domain::model::runtime::wire::Identity;
+use dokime_domain::operations::runtime::GetHealth;
+use dokime_domain::operations::runtime::GetIdentity;
 
 /* === Constants === */
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
@@ -145,8 +143,7 @@ impl Client {
     }
 
     pub async fn health(&self) -> ClientResult<StreamItem<Health>> {
-        self.unary::<GetHealth>(GetHealth::PATH, GetHealth {})
-            .await
+        self.unary::<GetHealth>(GetHealth::PATH, GetHealth {}).await
     }
 
     pub async fn identity(&self) -> ClientResult<StreamItem<Identity>> {

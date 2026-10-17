@@ -29,8 +29,10 @@ use crate::model::runtime::wire::*;
 
 /* === Constants === */
 const POLICY: OperationPolicy = OperationPolicy {
-    timeout: Duration::from_secs(5), attempt_timeout: Duration::from_secs(5),
-    retries: RetryPolicy::Never, restart: RestartPolicy::Never,
+    timeout: Duration::from_secs(5),
+    attempt_timeout: Duration::from_secs(5),
+    retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
 };
 pub const PACKAGE: &str = "dokime.v1";
 pub const SERVICE: &str = "Runtime";
@@ -55,10 +57,6 @@ pub struct GetHealth {}
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GetIdentity {}
-
-
-
-
 
 /* === Enums === */
 

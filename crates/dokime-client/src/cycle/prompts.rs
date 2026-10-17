@@ -73,7 +73,8 @@ impl TestCycleHandle {
                     cursor: None,
                     execution_id: None,
                 };
-                let selection = dokime_domain::model::prompts::pending_stream(Some(&handle.id), None);
+                let selection =
+                    dokime_domain::model::prompts::pending_stream(Some(&handle.id), None);
                 loop {
                     handle.client.verify(true).await?;
                     let page = handle.client.prompts_list_pending(request.clone()).await?;

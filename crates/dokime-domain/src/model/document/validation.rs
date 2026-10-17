@@ -18,7 +18,6 @@ use std::fmt::Write;
 // Third Party Imports
 
 // Local Imports
-use crate::model::identity::Identifier;
 use crate::model::document::definition::DocumentCardBody;
 use crate::model::document::definition::DocumentCardDefinition;
 use crate::model::document::definition::DocumentCardLayout;
@@ -26,6 +25,7 @@ use crate::model::document::definition::DocumentDefinition;
 use crate::model::document::definition::DocumentLayout;
 use crate::model::document::definition::DocumentNode;
 use crate::model::document::definition::validate_plot_definition;
+use crate::model::identity::Identifier;
 
 /* === Constants === */
 const MAX_LAYOUT_DEPTH: usize = 12;

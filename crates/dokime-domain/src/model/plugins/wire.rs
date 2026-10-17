@@ -25,7 +25,6 @@ use crate::model::identity::wire::*;
 
 /* === Types === */
 
-
 #[harmos::message]
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstallationCursor {
@@ -173,7 +172,6 @@ pub struct AdmittedPlugin {
     pub enabled: bool,
     pub owner: Option<AdmittedPluginOwner>,
 }
-
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

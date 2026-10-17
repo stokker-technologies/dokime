@@ -18,6 +18,9 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
+use crate::model::definition::ParameterDefinition;
+use crate::model::definition::ParameterGroup;
+use crate::model::document::DocumentDefinition;
 use crate::model::identity::CaseId;
 use crate::model::identity::CriterionId;
 use crate::model::identity::Identifier;
@@ -25,9 +28,6 @@ use crate::model::identity::Metadata;
 use crate::model::identity::StepId;
 use crate::model::identity::TemplateId;
 use crate::model::values::Value;
-use crate::model::definition::ParameterDefinition;
-use crate::model::definition::ParameterGroup;
-use crate::model::document::DocumentDefinition;
 
 /* === Constants === */
 

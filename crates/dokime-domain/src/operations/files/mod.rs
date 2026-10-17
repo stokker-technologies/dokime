@@ -30,13 +30,13 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::content::wire::ArtifactMetadata;
 use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
-use crate::model::values::ValueType;
+use crate::model::content::wire::ArtifactMetadata;
 use crate::model::telemetry::TelemetryRow;
 use crate::model::telemetry::TelemetryStream;
+use crate::model::values::ValueType;
 
 use crate::model::files::wire::*;
 
@@ -48,55 +48,15 @@ use crate::model::files::wire::*;
 
 /* === Structs === */
 
-
-
-
-
-
-
 // Watches a source for the lifetime of the stream: until the caller cancels,
 // the bound elapses or the execution seals. Each matched file is captured into
 // `<output>/<path relative to the root>` and sealed with its length and digest.
-
-
-
-
-
-
-
 
 // Watches one file for the calling step's execution until the instance is
 // cancelled, the bound elapses or the execution seals. Its bytes become the
 // artifact `artifact`, or `<output>/<file name>` when absent.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {
@@ -112,10 +72,6 @@ impl Endpoint for FileWatch {
     // A local root reads the host's filesystem, which a remote listener never exposes.
     const LOCAL_ONLY: bool = true;
 }
-
-
-
-
 
 /* === Public Functions === */
 

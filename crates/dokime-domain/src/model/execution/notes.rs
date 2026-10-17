@@ -9,9 +9,7 @@
 
 /* === Modules === */
 
-
 /* === Re-Exports === */
-
 
 /* === Imports === */
 // Standard Library Imports
@@ -19,8 +17,8 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::identity::NoteId;
 use crate::model::execution::RecordScope;
+use crate::model::identity::NoteId;
 use crate::model::time::Timestamp;
 
 /* === Constants === */
@@ -36,9 +34,7 @@ pub const NOTE_OWNER_SEALED: &str = "note owner is sealed; its report keeps the 
 
 /* === Macros === */
 
-
 /* === Type Aliases === */
-
 
 /* === Structs === */
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -82,7 +78,6 @@ pub enum NoteOwner {
 }
 
 /* === Traits === */
-
 
 /* === Implementations === */
 impl harmos::MemorySize for OperatorNote {
@@ -147,7 +142,4 @@ pub fn note_identity(
 
 /* === Private Functions === */
 
-
 /* === Tests === */
-
-

@@ -23,10 +23,10 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::value::{self, projection};
-use dokime_runtime::ExecutionFileEntry;
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::content as wire;
+use dokime_runtime::ExecutionFileEntry;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 const INVENTORY_LIMIT: usize = 512;
@@ -71,7 +71,8 @@ impl Operation for List {
         _: Self::Context<'a>,
         request: &mut wire::ListExecutionFiles,
         _: &mut (),
-    ) -> Result<Response<dokime_domain::model::content::wire::ListExecutionFilesReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::content::wire::ListExecutionFilesReply>, Status>
+    {
         let (id, epoch) = super::files::execution(&self.resources.runtime, &request.execution_id)?;
         value::text(&request.after_path)?;
         if request.limit > 100 {
@@ -213,7 +214,9 @@ fn count(
         more,
     })
 }
-fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileMetadata> {
+fn metadata(
+    entry: &ExecutionFileEntry,
+) -> harmos::Result<dokime_domain::model::content::wire::ExecutionFileMetadata> {
     Ok(dokime_domain::model::content::wire::ExecutionFileMetadata {
         relative_path: projection::text(&entry.relative_path)?,
         content_type: entry

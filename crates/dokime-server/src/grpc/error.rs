@@ -19,9 +19,9 @@ pub use crate::Error;
 use prost::Message;
 use tonic::Status;
 // Local Imports
-use dokime_runtime::runtime::Error as HostError;
-use dokime_runtime::plugin::Diagnostic;
 use dokime_domain::operations::evidence as v1;
+use dokime_runtime::plugin::Diagnostic;
+use dokime_runtime::runtime::Error as HostError;
 
 /* === Constants === */
 const DETAIL_TYPE_URL: &str = "type.googleapis.com/dokime.v1.CapturedRecordError";
@@ -65,11 +65,13 @@ fn captured(diagnostic: &Diagnostic) -> dokime_domain::model::evidence::wire::Ca
         cause_chain: diagnostic
             .chain
             .iter()
-            .map(|cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
-                message: cause.clone(),
-                code: None,
-                source: None,
-            })
+            .map(
+                |cause| dokime_domain::model::evidence::wire::CapturedErrorCause {
+                    message: cause.clone(),
+                    code: None,
+                    source: None,
+                },
+            )
             .collect(),
         stacktrace_attachment: None,
         trace_id: None,

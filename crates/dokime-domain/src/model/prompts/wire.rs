@@ -20,14 +20,14 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
+#[allow(unused_imports)]
+use crate::model::execution::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
 use crate::model::identity::wire::Metadata;
 #[allow(unused_imports)]
 use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::execution::wire::*;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
 use crate::model::values::wire::Value;
 
 /* === Types === */
@@ -237,7 +237,6 @@ pub struct PromptResponse {
     pub values: Option<Value>,
     pub accepted: bool,
 }
-
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

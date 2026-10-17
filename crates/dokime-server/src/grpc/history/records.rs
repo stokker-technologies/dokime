@@ -29,9 +29,9 @@ use super::super::{
     value::{self, projection},
 };
 use super::wire;
+use dokime_domain::operations::history as contract;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::checkpoint_records::ExecutionRecordPage;
-use dokime_domain::operations::history as contract;
 
 /* === Constants === */
 

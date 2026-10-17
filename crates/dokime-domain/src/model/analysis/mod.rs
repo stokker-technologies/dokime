@@ -22,11 +22,11 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::values::Value;
 use crate::model::definition::ParameterDefinition;
 use crate::model::definition::ParameterExpr;
 use crate::model::definition::parameter_name;
 use crate::model::definition::resolve_parameter_spaces;
+use crate::model::values::Value;
 
 /* === Constants === */
 pub const MAX_SAMPLES: u32 = 262_144;

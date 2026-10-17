@@ -7,12 +7,10 @@
  * ***
  */
 
-
 // Closed Catalog Of Pure State Domains.
 
 /* === Modules === */
 pub mod records;
-
 
 /* === Re-Exports === */
 
@@ -23,7 +21,6 @@ pub mod records;
 // Third Party Imports
 
 // Local Imports
-
 
 /* === Constants === */
 

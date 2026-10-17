@@ -28,16 +28,16 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::identity::wire::Metadata;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::execution::wire::*;
 use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
+#[allow(unused_imports)]
+use crate::model::execution::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
+use crate::model::identity::wire::Metadata;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
 
 use crate::model::observation::wire::*;
 
@@ -53,27 +53,6 @@ use crate::model::observation::wire::*;
 // coalesce commits. Query cycle/catalog details after a frame as needed.
 // A different epoch or a future position is rejected; reconnect without a cursor
 // to explicitly resynchronize. Disconnect never cancels admitted execution.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* === Enums === */
 

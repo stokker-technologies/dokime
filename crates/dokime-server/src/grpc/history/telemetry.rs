@@ -29,9 +29,9 @@ use super::super::{
     value::{self, projection},
 };
 use super::wire;
+use dokime_domain::operations::history as contract;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::checkpoint_telemetry::ExecutionTelemetryPage;
-use dokime_domain::operations::history as contract;
 
 /* === Constants === */
 
@@ -71,13 +71,15 @@ impl Operation for List {
         _: Self::Context<'a>,
         request: &mut contract::ListCheckpointTelemetry,
         _: &mut (),
-    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointTelemetryPage>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointTelemetryPage>, Status>
+    {
         value::text(&request.table)?;
         value::text(&request.after)?;
-        let stream = dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.table))
-            .map_err(|_| {
-                Status::invalid_argument("native telemetry stream identifier is required")
-            })?;
+        let stream =
+            dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.table))
+                .map_err(|_| {
+                    Status::invalid_argument("native telemetry stream identifier is required")
+                })?;
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         let query = dokime_runtime::runtime::query::checkpoint_telemetry::ExecutionTelemetryQuery {
             after: (!request.after.is_empty()).then(|| std::mem::take(&mut request.after)),

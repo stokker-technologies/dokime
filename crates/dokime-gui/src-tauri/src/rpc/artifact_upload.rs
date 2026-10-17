@@ -116,7 +116,10 @@ pub(super) struct RecordingSinks(Arc<Mutex<HashMap<String, Arc<Recording>>>>);
 
 /* === Implementations === */
 impl Outcome {
-    fn complete(&self, result: Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError>) {
+    fn complete(
+        &self,
+        result: Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError>,
+    ) {
         let mut guard = self
             .result
             .lock()
@@ -129,7 +132,9 @@ impl Outcome {
         self.ready.notify_waiters();
     }
 
-    async fn wait(&self) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
+    async fn wait(
+        &self,
+    ) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
         loop {
             // Register the notification before inspecting the result. A
             // completion between those operations must wake this waiter.
@@ -179,7 +184,9 @@ impl ArtifactUploads {
         let (sender, receiver) = mpsc::channel(2);
         sender
             .try_send(dokime_domain::model::content::wire::UploadArtifactFrame {
-                payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)),
+                payload: Some(
+                    dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header),
+                ),
             })
             .map_err(|_| RpcError::Busy)?;
         let context = Arc::new(context);
@@ -295,10 +302,14 @@ impl ArtifactUploads {
         let length = bytes.len() as u64;
         writer.digest.update(&bytes);
         let frame = dokime_domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(dokime_domain::model::content::wire::ArtifactChunk {
-                offset,
-                data: bytes,
-            })),
+            payload: Some(
+                dokime_domain::model::content::wire::UploadArtifactFramePayload::Chunk(
+                    dokime_domain::model::content::wire::ArtifactChunk {
+                        offset,
+                        data: bytes,
+                    },
+                ),
+            ),
         };
         let sent = tokio::select! {
             biased;
@@ -360,16 +371,18 @@ impl ArtifactUploads {
         let digest = std::mem::replace(&mut writer.digest, Sha256::new());
         drop(writer);
         let completion = dokime_domain::model::content::wire::UploadArtifactFrame {
-            payload: Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(
-                dokime_domain::model::content::wire::ArtifactCompletion {
-                    size_bytes,
-                    sha256: digest
-                        .finalize()
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect::<String>(),
-                },
-            )),
+            payload: Some(
+                dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(
+                    dokime_domain::model::content::wire::ArtifactCompletion {
+                        size_bytes,
+                        sha256: digest
+                            .finalize()
+                            .iter()
+                            .map(|byte| format!("{byte:02x}"))
+                            .collect::<String>(),
+                    },
+                ),
+            ),
         };
         // A closed receiver here just means the remote call already ended;
         // the outcome wait below surfaces that failure.
@@ -583,8 +596,12 @@ pub async fn artifact_upload_open<R: tauri::Runtime>(
     webview: tauri::WebviewWindow<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<tauri::ipc::Response, RpcError> {
-    let (context, header) =
-        bridge.prepare::<dokime_domain::model::content::wire::UploadArtifactHeader>(&session, webview.label(), request.body())?;
+    let (context, header) = bridge
+        .prepare::<dokime_domain::model::content::wire::UploadArtifactHeader>(
+            &session,
+            webview.label(),
+            request.body(),
+        )?;
     bridge.uploads.open(context, header)
 }
 
@@ -656,8 +673,12 @@ pub async fn recording_open<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<tauri::ipc::Response, RpcError> {
-    let (context, header) =
-        bridge.prepare::<dokime_domain::model::content::wire::UploadArtifactHeader>(&session, webview.label(), request.body())?;
+    let (context, header) = bridge
+        .prepare::<dokime_domain::model::content::wire::UploadArtifactHeader>(
+            &session,
+            webview.label(),
+            request.body(),
+        )?;
     let directory = {
         use tauri::Manager;
         app.path()
@@ -696,7 +717,9 @@ pub async fn recording_cancel<R: tauri::Runtime>(
 }
 
 /* === Private Functions === */
-async fn wait_with_heartbeat(upload: &Upload) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
+async fn wait_with_heartbeat(
+    upload: &Upload,
+) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, RpcError> {
     let outcome = upload.outcome.wait();
     tokio::pin!(outcome);
     loop {

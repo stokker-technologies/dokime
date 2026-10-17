@@ -27,13 +27,13 @@ use crate::grpc::{
     appearance, execution, notes, prompts,
     value::{self, canonical},
 };
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::execution::result::CycleStatus;
 use dokime_domain::model::execution::result::CycleView;
-use dokime_runtime::runtime::query::execution_history::ExecutionCheckpointContext;
 use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::execution as execution_wire;
 use dokime_domain::operations::history;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::runtime::query::execution_history::ExecutionCheckpointContext;
 
 /* === Constants === */
 
@@ -146,15 +146,17 @@ fn cycle_context(
     maximum: usize,
 ) -> Result<dokime_domain::model::history::wire::HistoricalCycleContext, Status> {
     let cycle = cycle(value.cycle, &value.cases, maximum)?;
-    Ok(dokime_domain::model::history::wire::HistoricalCycleContext {
-        cycle: Some(cycle),
-        execution_order: collect(
-            value
-                .execution_order
-                .into_iter()
-                .map(|id| Ok(id.as_str().to_owned())),
-        )?,
-    })
+    Ok(
+        dokime_domain::model::history::wire::HistoricalCycleContext {
+            cycle: Some(cycle),
+            execution_order: collect(
+                value
+                    .execution_order
+                    .into_iter()
+                    .map(|id| Ok(id.as_str().to_owned())),
+            )?,
+        },
+    )
 }
 
 fn cycle(
@@ -195,7 +197,9 @@ fn cycle_status(value: CycleStatus) -> dokime_domain::model::execution::wire::Cy
     }
 }
 
-fn canonical_metadata(value: &dokime_domain::model::identity::Metadata) -> Result<common::Metadata, Status> {
+fn canonical_metadata(
+    value: &dokime_domain::model::identity::Metadata,
+) -> Result<common::Metadata, Status> {
     canonical::metadata(value)
 }
 fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Result<Vec<T>, Status> {

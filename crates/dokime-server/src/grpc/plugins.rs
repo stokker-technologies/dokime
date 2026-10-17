@@ -31,11 +31,11 @@ use uuid::Uuid;
 // Local Imports
 use super::value;
 use contract as v1;
+use dokime_domain::operations::plugins as contract;
 use dokime_runtime::{
     RuntimeHandle,
     plugins::{PluginError, PluginStore},
 };
-use dokime_domain::operations::plugins as contract;
 
 /* === Constants === */
 

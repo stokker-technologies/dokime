@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Typed Refusals At The Domain Admission Boundary.
 
 /* === Modules === */
@@ -56,7 +55,6 @@ pub enum AdmissionFailure {
     Cancelled { code: String, message: String },
     #[error("{message}")]
     Internal { code: String, message: String },
-
 }
 
 /* === Traits === */

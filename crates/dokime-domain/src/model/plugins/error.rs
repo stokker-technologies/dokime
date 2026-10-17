@@ -18,16 +18,16 @@
 use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
-use crate::model::identity::ArtifactId;
 use crate::model::diagnostics::DebugLevel;
 use crate::model::diagnostics::ErrorCause;
-use crate::model::identity::Identifier;
 use crate::model::execution::RecordScope;
+use crate::model::identity::ArtifactId;
+use crate::model::identity::Identifier;
 use crate::model::identity::SessionId;
 use crate::model::identity::TestCycleId;
 use crate::model::identity::TestExecutionId;
-use crate::model::time::Timestamp;
 use crate::model::identity::TraceId;
+use crate::model::time::Timestamp;
 
 /* === Constants === */
 

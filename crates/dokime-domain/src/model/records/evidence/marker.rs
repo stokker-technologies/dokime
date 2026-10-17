@@ -17,11 +17,11 @@
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::identity::Identifier;
 use crate::model::execution::RecordScope;
-use crate::model::time::Timestamp;
-use crate::model::records::evidence::RecordEntry;
+use crate::model::identity::Identifier;
 use crate::model::records::RecordSeverity;
+use crate::model::records::evidence::RecordEntry;
+use crate::model::time::Timestamp;
 
 /* === Constants === */
 

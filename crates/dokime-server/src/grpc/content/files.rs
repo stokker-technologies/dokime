@@ -23,9 +23,9 @@ use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::super::value;
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::content as wire;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 

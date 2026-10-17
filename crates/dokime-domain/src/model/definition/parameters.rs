@@ -22,9 +22,9 @@ use serde::Deserialize;
 use serde::Serialize;
 // Local Imports
 use crate::model::identity::Identifier;
-use crate::model::values::MeasurementUnit;
 use crate::model::identity::Metadata;
 use crate::model::identity::ParameterId;
+use crate::model::values::MeasurementUnit;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
 

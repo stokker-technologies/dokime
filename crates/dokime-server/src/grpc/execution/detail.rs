@@ -19,12 +19,12 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::*;
+use dokime_domain::model::execution::result::TestExecution;
 use dokime_domain::model::identity::Metadata;
 use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::identity::wire::Diagnostic;
 use dokime_domain::model::values::Value;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource};
-use dokime_domain::model::execution::result::TestExecution;
-use dokime_domain::model::identity::wire::Diagnostic;
 
 /* === Constants === */
 const MAX_DIAGNOSTIC_TEXT: usize = 4096;

@@ -23,11 +23,11 @@ use tonic::Status;
 // Local Imports
 use super::value::canonical;
 use super::{execution, value};
-use dokime_runtime::runtime::progress::{OperationOutcome, OperationSnapshot};
-use dokime_runtime::runtime::query::RuntimeChange;
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::operations::observation as wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_runtime::runtime::progress::{OperationOutcome, OperationSnapshot};
+use dokime_runtime::runtime::query::RuntimeChange;
 
 /* === Constants === */
 pub(super) const STREAM: &str = "runtime.state";
@@ -87,7 +87,10 @@ impl Operation for Shell {
         _: Self::Context<'a>,
         request: &mut wire::GetRuntimeShell,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::observation::wire::RuntimeShellSnapshot>, Status> {
+    ) -> Result<
+        harmos::operations::Response<dokime_domain::model::observation::wire::RuntimeShellSnapshot>,
+        Status,
+    > {
         let snapshot = self.resources.runtime.watch_state().latest();
         let state = snapshot.state();
         let observed = canonical::cursor(&snapshot);
@@ -104,7 +107,9 @@ impl Operation for Shell {
             .max_message_bytes
             .min(MAX_SHELL_RESPONSE_BYTES);
         let mut bounds = execution::Bounds::new(response_limit);
-        bounds.bytes(std::mem::size_of::<dokime_domain::model::observation::wire::RuntimeShellSnapshot>())?;
+        bounds.bytes(std::mem::size_of::<
+            dokime_domain::model::observation::wire::RuntimeShellSnapshot,
+        >())?;
         bounds.text(state.session_id.as_str())?;
         bounds.text(&observed.epoch)?;
         bounds.text(&observed.stream)?;
@@ -183,16 +188,16 @@ impl Operation for Runtime {
         let mut resynchronized = true;
         loop {
             let observed = canonical::cursor(&snapshot);
-            let bytes = std::mem::size_of::<dokime_domain::model::observation::wire::RuntimeStateFrame>()
-                .saturating_add(observed.epoch.len())
-                .saturating_add(observed.stream.len());
+            let bytes =
+                std::mem::size_of::<dokime_domain::model::observation::wire::RuntimeStateFrame>()
+                    .saturating_add(observed.epoch.len())
+                    .saturating_add(observed.stream.len());
             // The frames are built first: they are bounded, and measured exactly.
             let frames = operation_frames(&operations)?;
-            let bytes = bytes.saturating_add(
-                frames
-                    .memory_size()
-                    .saturating_sub(std::mem::size_of::<Vec<dokime_domain::model::observation::wire::OperationProgress>>()),
-            );
+            let bytes =
+                bytes.saturating_add(frames.memory_size().saturating_sub(std::mem::size_of::<
+                    Vec<dokime_domain::model::observation::wire::OperationProgress>,
+                >()));
             output
                 .send_with(bytes, || {
                     Ok(dokime_domain::model::observation::wire::RuntimeStateFrame {
@@ -280,7 +285,10 @@ impl Operation for Traceability {
         _: Self::Context<'a>,
         request: &mut wire::GetTraceability,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<dokime_domain::model::observation::wire::TraceabilityPage>, Status> {
+    ) -> Result<
+        harmos::operations::Response<dokime_domain::model::observation::wire::TraceabilityPage>,
+        Status,
+    > {
         let snapshot = self.resources.runtime.watch_state().latest();
         let observed = canonical::cursor(&snapshot);
         let limit = observed
@@ -331,7 +339,9 @@ impl Operation for Traceability {
             .max_message_bytes
             .min(MAX_TRACEABILITY_RESPONSE_BYTES);
         let mut bounds = execution::Bounds::new(response_limit);
-        bounds.bytes(std::mem::size_of::<dokime_domain::model::observation::wire::TraceabilityPage>())?;
+        bounds.bytes(std::mem::size_of::<
+            dokime_domain::model::observation::wire::TraceabilityPage,
+        >())?;
         bounds.text(&observed.epoch)?;
         bounds.text(&observed.stream)?;
         bounds.text(&host_traceability_fingerprint)?;
@@ -411,7 +421,11 @@ fn operation_frames(
                 value::text(phase)?;
             }
             let (status, finished_at, failure) = match &operation.outcome {
-                OperationOutcome::Running => (dokime_domain::model::observation::wire::OperationStatus::Running, None, None),
+                OperationOutcome::Running => (
+                    dokime_domain::model::observation::wire::OperationStatus::Running,
+                    None,
+                    None,
+                ),
                 OperationOutcome::Finished { at } => (
                     dokime_domain::model::observation::wire::OperationStatus::Finished,
                     Some(canonical::timestamp(at)?),
@@ -441,7 +455,8 @@ fn operation_frames(
 fn progress_memory(
     value: Option<&dokime_runtime::domains::execution::progress::LiveExecutionProgress>,
 ) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<dokime_domain::model::observation::wire::ExecutionProgressFrame>();
+    let mut bytes =
+        std::mem::size_of::<dokime_domain::model::observation::wire::ExecutionProgressFrame>();
     if let Some(value) = value {
         value::text(value.test_execution_id.as_str())?;
         value::text(value.step.as_str())?;
@@ -463,15 +478,17 @@ fn progress_frame(
         revision,
         resynchronized,
         // Exact Allocations: Display Formatting Overallocates Past The Reserved Bytes
-        progress: value.map(|value| dokime_domain::model::observation::wire::ExecutionProgress {
-            test_execution_id: value.test_execution_id.as_str().to_owned(),
-            step_id: value.step.as_str().to_owned(),
-            phase: value.progress.phase.clone(),
-            completed: value.progress.completed,
-            total: value.progress.total,
-            elapsed_ms: value.progress.elapsed_ms,
-            remaining_ms: value.progress.remaining_ms,
-        }),
+        progress: value.map(
+            |value| dokime_domain::model::observation::wire::ExecutionProgress {
+                test_execution_id: value.test_execution_id.as_str().to_owned(),
+                step_id: value.step.as_str().to_owned(),
+                phase: value.progress.phase.clone(),
+                completed: value.progress.completed,
+                total: value.progress.total,
+                elapsed_ms: value.progress.elapsed_ms,
+                remaining_ms: value.progress.remaining_ms,
+            },
+        ),
         cleared: value.is_none(),
     }
 }
@@ -491,7 +508,9 @@ fn after_cycle_position(
         .ok_or_else(|| Status::invalid_argument("after cycle ID not found"))
 }
 
-fn evidence_counts(counts: &dokime_runtime::domains::evidence::EvidenceCounts) -> dokime_domain::model::observation::wire::EvidenceCounts {
+fn evidence_counts(
+    counts: &dokime_runtime::domains::evidence::EvidenceCounts,
+) -> dokime_domain::model::observation::wire::EvidenceCounts {
     dokime_domain::model::observation::wire::EvidenceCounts {
         records: counts.records as u64,
         telemetry: counts.telemetry as u64,

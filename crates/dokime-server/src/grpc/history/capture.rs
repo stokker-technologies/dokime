@@ -22,8 +22,8 @@ use harmos::{
 };
 use tonic::Status;
 // Local Imports
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::operations::history;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 
@@ -70,21 +70,23 @@ impl Operation for Get {
             .execution_checkpoint_document(checkpoint)
             .await
             .map_err(super::wire::checkpoint_failure)?;
-        let project = || -> harmos::Result<dokime_domain::model::history::wire::CheckpointDocument> {
-            let response = dokime_domain::model::history::wire::CheckpointDocument {
-                checkpoint: Some(
-                    super::wire::checkpoint_wire(document.checkpoint).map_err(original_error)?,
-                ),
-                document: Some(
-                    wire::execution_document(document.document).map_err(original_error)?,
-                ),
-                acquisition_finished: document.acquisition_finished,
+        let project =
+            || -> harmos::Result<dokime_domain::model::history::wire::CheckpointDocument> {
+                let response = dokime_domain::model::history::wire::CheckpointDocument {
+                    checkpoint: Some(
+                        super::wire::checkpoint_wire(document.checkpoint)
+                            .map_err(original_error)?,
+                    ),
+                    document: Some(
+                        wire::execution_document(document.document).map_err(original_error)?,
+                    ),
+                    acquisition_finished: document.acquisition_finished,
+                };
+                if response.encoded_len() > self.resources.maximum {
+                    return Err(exhausted());
+                }
+                Ok(response)
             };
-            if response.encoded_len() > self.resources.maximum {
-                return Err(exhausted());
-            }
-            Ok(response)
-        };
         project()
             .map(Into::into)
             .map_err(|source| super::wire::checkpoint_failure(source.into()))

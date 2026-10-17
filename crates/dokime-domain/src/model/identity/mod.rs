@@ -8,11 +8,13 @@
  */
 
 /* === Modules === */
-pub mod wire;
 pub mod id;
 pub mod identity;
+pub mod wire;
 
 /* === Re-Exports === */
+pub use harmos::Identifier;
+pub use harmos::Metadata;
 pub use id::ActorId;
 pub use id::ArtifactId;
 pub use id::CaseId;
@@ -46,8 +48,6 @@ pub use identity::DokimeIdentity;
 pub use identity::DokimeNodeIdentity;
 pub use identity::ExternalIdentityMapping;
 pub use identity::ExternalIdentityProvider;
-pub use harmos::Identifier;
-pub use harmos::Metadata;
 
 /* === Public Functions === */
 

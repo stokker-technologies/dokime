@@ -17,9 +17,9 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::model::values::Value;
 use crate::model::definition::ParameterDefinition;
 use crate::model::definition::ParameterExpr;
+use crate::model::values::Value;
 
 /* === Constants === */
 pub const BUDGET: usize = 8 * 1024 * 1024;

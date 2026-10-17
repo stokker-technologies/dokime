@@ -31,11 +31,11 @@ use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::CommandId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::Endpoint;
 use dokime_domain::model::identity::wire::Metadata;
+use dokime_domain::model::values::wire::Value;
+use dokime_domain::operations::Endpoint;
 use dokime_domain::operations::execution as contract;
 use dokime_domain::operations::planning;
-use dokime_domain::model::values::wire::Value;
 
 /* === Constants === */
 
@@ -116,8 +116,10 @@ impl Client {
         &self,
         request: planning::RegisterSelection,
     ) -> Result<dokime_domain::model::planning::wire::PreviewSelectionReply> {
-        dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
-            .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
+        dokime_domain::model::execution::command::validate_idempotency_key(
+            &request.idempotency_key,
+        )
+        .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.verify(true).await?;
         let reply = self
             .unary::<planning::RegisterSelection>(planning::RegisterSelection::PATH, request)
@@ -136,10 +138,7 @@ impl Client {
         super::transport::value(reply)
     }
 
-    pub async fn create_cycle(
-        &self,
-        request: contract::CreateCycle,
-    ) -> Result<TestCycleHandle> {
+    pub async fn create_cycle(&self, request: contract::CreateCycle) -> Result<TestCycleHandle> {
         self.verify(true).await?;
         let reply = self
             .unary::<contract::CreateCycle>(contract::CreateCycle::PATH, request)
@@ -449,14 +448,14 @@ fn single_plan(
             template_id: selected.template_id.clone(),
             parameters: parameters
                 .into_iter()
-                .map(
-                    |(key, value)| dokime_domain::model::planning::wire::RegisteredSelectionParametersEntry {
+                .map(|(key, value)| {
+                    dokime_domain::model::planning::wire::RegisteredSelectionParametersEntry {
                         key,
                         value: Some(dokime_domain::model::planning::wire::SelectionValues {
                             values: vec![Value::from(value)],
                         }),
-                    },
-                )
+                    }
+                })
                 .collect(),
             files: Vec::new(),
         }],

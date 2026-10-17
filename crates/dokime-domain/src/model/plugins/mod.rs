@@ -8,7 +8,6 @@
  */
 
 /* === Modules === */
-pub mod wire;
 mod appearance;
 pub mod contribution;
 mod dispatch;
@@ -16,6 +15,7 @@ pub mod error;
 mod installed;
 mod permission;
 pub mod product;
+pub mod wire;
 
 /* === Re-Exports === */
 pub use appearance::RuntimeAppLogo;

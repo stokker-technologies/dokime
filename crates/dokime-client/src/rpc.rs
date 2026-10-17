@@ -1054,8 +1054,12 @@ impl Client {
         &self,
         message: impl tokio_stream::Stream<Item = contracts::plugins::StagePluginFrame> + Send + 'static,
     ) -> Result<contracts::plugins::PluginInstallation> {
-        self.upload::<contracts::plugins::Stage, _>(contracts::plugins::Stage::PATH, contracts::plugins::Stage {}, message)
-            .await
+        self.upload::<contracts::plugins::Stage, _>(
+            contracts::plugins::Stage::PATH,
+            contracts::plugins::Stage {},
+            message,
+        )
+        .await
     }
 
     pub fn plugins_stage_open(

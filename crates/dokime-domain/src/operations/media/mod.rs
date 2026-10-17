@@ -32,12 +32,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::content::wire::ArtifactMetadata;
-use crate::model::content::wire::ArtifactScope;
 use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::TRANSFER;
+use crate::model::content::wire::ArtifactMetadata;
+use crate::model::content::wire::ArtifactScope;
 
 use crate::model::media::wire::*;
 
@@ -49,21 +49,6 @@ use crate::model::media::wire::*;
 
 /* === Structs === */
 // Every capture needs a cycle and execution scope; storage keeps artifacts per execution.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* === Enums === */
 

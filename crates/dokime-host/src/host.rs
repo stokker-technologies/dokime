@@ -28,8 +28,8 @@ use crate::{
     },
     sample::default_source,
 };
-use dokime_domain::model::values::Value;
 use dokime_domain::model::telemetry::TelemetryBatch;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -151,7 +151,11 @@ impl Host {
             })
             .collect();
 
-        Ok(Some(TelemetryBatch::new(crate::new_id(), stream_id, telemetry_samples)))
+        Ok(Some(TelemetryBatch::new(
+            crate::new_id(),
+            stream_id,
+            telemetry_samples,
+        )))
     }
 
     fn collect_stream_samples(

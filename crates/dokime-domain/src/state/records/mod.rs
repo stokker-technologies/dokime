@@ -7,13 +7,11 @@
  * ***
  */
 
-
 // Pure Record Collections And Their State Transitions.
 
 /* === Modules === */
 pub mod resources;
 pub mod set;
-
 
 /* === Re-Exports === */
 pub use resources::ResourceRegistry;
@@ -26,11 +24,9 @@ pub use resources::ResourceRegistry;
 
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::identity::RecordId;
 use crate::model::execution::RecordScope;
+use crate::model::identity::RecordId;
 use crate::model::records::Record;
-
-
 
 /* === Constants === */
 

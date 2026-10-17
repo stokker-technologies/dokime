@@ -22,8 +22,8 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use crate::grpc::{error::detailed, value};
-use dokime_runtime::{runtime::Error, RuntimeHandle};
 use dokime_domain::operations::content as wire;
+use dokime_runtime::{RuntimeHandle, runtime::Error};
 
 /* === Constants === */
 
@@ -114,7 +114,11 @@ impl Operation for Follow {
         while let Some(frame) = follower.next_frame(maximum).await.map_err(failure)? {
             let terminal = matches!(
                 &frame.payload,
-                Some(dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(_))
+                Some(
+                    dokime_domain::model::content::wire::ExecutionFileFollowFramePayload::Terminal(
+                        _
+                    )
+                )
             );
             send(output, frame, self.resources.maximum).await?;
             if terminal {

@@ -24,14 +24,14 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-use crate::model::identity::wire::Metadata;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+use crate::model::execution::wire_cursor::Cursor;
+use crate::model::identity::wire::Metadata;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+use crate::model::values::wire::Value;
 
 use crate::model::planning::wire::*;
 
@@ -43,25 +43,8 @@ use crate::model::planning::wire::*;
 
 /* === Structs === */
 
-
-
-
-
-
-
-
-
-
-
 // Registration owns case identity independently of cycles. A nonempty key makes
 // retries reproduce the same case IDs; conflicting content is rejected.
-
-
-
-
-
-
-
 
 /* === Enums === */
 

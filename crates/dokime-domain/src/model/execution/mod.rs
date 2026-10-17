@@ -8,38 +8,52 @@
  */
 
 /* === Modules === */
-pub mod termination;
-pub mod mode;
 pub mod checkpoint;
-pub mod cursor;
-pub mod saved;
-pub mod snapshot;
-pub mod result;
-pub mod request;
-pub mod health;
-pub mod notes;
-pub mod wire_cursor;
-pub mod wire_checkpoint;
-pub mod wire;
 pub mod command;
+pub mod cursor;
+pub mod health;
+pub mod mode;
+pub mod notes;
+pub mod request;
+pub mod result;
+pub mod saved;
 pub mod scope;
+pub mod snapshot;
+pub mod termination;
+pub mod wire;
+pub mod wire_checkpoint;
+pub mod wire_cursor;
 
 /* === Re-Exports === */
-pub use termination::{TerminationReason};
-pub use mode::{ExecutionMode, StepCommand};
 pub use checkpoint::{ExecutionCheckpoint, SavedEvidenceError};
-pub use cursor::PageCursor;
-pub use saved::{EXECUTION_CONTEXT_MEDIA_TYPE, EXECUTION_CONTEXT_SCHEMA_VERSION, ExecutionRevision, ExecutionSource, ExecutionOutput, ExecutionSeal, VerifiedReplicaFile, CycleSeal, ExecutionOutputContent, SavedStreamState, validate_cycle_revisions, output_validation_memory, validate_outputs, validate_output_path, validate_relative_output_path};
-pub use snapshot::{ExecutionPluginIdentity, ExecutionSnapshot, ExecutionImplementation};
-pub use result::{TestCycle, CycleView, TestExecution, StepAttemptStart, TestStepAttempt, StepRecord, MeasurementRecord, CriterionResult, ResultSummary, IllegalCycleTransition, ExecutionInvalidation, CycleStatus, TestCaseStatus, ExecutionStatus, StepStatus, CriterionStatus, ResultStatus, validate_invocation, effective_attempts};
-pub use request::{RunSummary, RunReceipt, AttemptClaim, StepCommandReceipt, RunPhase, StepCommandPhase};
-pub use health::{HealthItem, HealthSeverity};
-pub use notes::{OperatorNote, OperatorNoteRequest, NoteAdmission, NoteOwner, note_identity, NOTE_SCAN_LIMIT};
 pub use command::CommandContext;
+pub use cursor::PageCursor;
+pub use health::{HealthItem, HealthSeverity};
+pub use mode::{ExecutionMode, StepCommand};
+pub use notes::{
+    NOTE_SCAN_LIMIT, NoteAdmission, NoteOwner, OperatorNote, OperatorNoteRequest, note_identity,
+};
+pub use request::{
+    AttemptClaim, RunPhase, RunReceipt, RunSummary, StepCommandPhase, StepCommandReceipt,
+};
+pub use result::{
+    CriterionResult, CriterionStatus, CycleStatus, CycleView, ExecutionInvalidation,
+    ExecutionStatus, IllegalCycleTransition, MeasurementRecord, ResultStatus, ResultSummary,
+    StepAttemptStart, StepRecord, StepStatus, TestCaseStatus, TestCycle, TestExecution,
+    TestStepAttempt, effective_attempts, validate_invocation,
+};
+pub use saved::{
+    CycleSeal, EXECUTION_CONTEXT_MEDIA_TYPE, EXECUTION_CONTEXT_SCHEMA_VERSION, ExecutionOutput,
+    ExecutionOutputContent, ExecutionRevision, ExecutionSeal, ExecutionSource, SavedStreamState,
+    VerifiedReplicaFile, output_validation_memory, validate_cycle_revisions, validate_output_path,
+    validate_outputs, validate_relative_output_path,
+};
 pub use scope::CapturePhase;
 pub use scope::EvidenceOrigin;
 pub use scope::RecordScope;
 pub use scope::scope_visible_in;
+pub use snapshot::{ExecutionImplementation, ExecutionPluginIdentity, ExecutionSnapshot};
+pub use termination::TerminationReason;
 
 /* === Public Functions === */
 

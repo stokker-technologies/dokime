@@ -23,11 +23,11 @@ use serde::Serialize;
 #[allow(unused_imports)]
 use crate::model::catalog::wire::*;
 #[allow(unused_imports)]
-use crate::model::identity::wire::*;
-#[allow(unused_imports)]
 use crate::model::definition::wire::*;
-use crate::model::values::wire::Value;
 use crate::model::document::DownsampleTechnique;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+use crate::model::values::wire::Value;
 
 /* === Types === */
 
@@ -608,7 +608,6 @@ pub struct AnalysisValues {
     #[row(description = "Optional display selection into the complete scientific arrays.")]
     pub display_indices: Vec<u32>,
 }
-
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

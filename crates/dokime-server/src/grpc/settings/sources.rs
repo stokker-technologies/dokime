@@ -17,8 +17,8 @@ use harmos::operations::{Context, Operation, Response};
 use tonic::Status;
 // Local Imports
 use super::preferences::Resources;
-use dokime_runtime::RuntimeHandle;
 use dokime_domain::operations::settings as wire;
+use dokime_runtime::RuntimeHandle;
 
 /* === Constants === */
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
@@ -140,7 +140,9 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     Ok(())
 }
 /* === Private Functions === */
-async fn sources(resources: &Resources) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
+async fn sources(
+    resources: &Resources,
+) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
     let sources = resources
         .runtime
         .storage_sources()

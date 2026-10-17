@@ -27,17 +27,17 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
-use crate::model::catalog::wire::*;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
+#[allow(unused_imports)]
+use crate::model::catalog::wire::*;
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+use crate::model::values::wire::Value;
 
 use crate::model::plots::wire::*;
 
@@ -52,155 +52,14 @@ use crate::model::plots::wire::*;
 // reply contains repeated envelopes in one bounded message; callers must
 // lower max_points or split a batch on exhaustion.
 
-
-
-
 // Watch is server-streaming. To change the request set, cancel this stream and
 // open another one. Requests without a cursor receive an initial Snapshot
 // before the watch begins; later frames are coalesced by the server at 100 ms
 // only after a runtime state or telemetry watch advances.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Analysis IDs Are Open; Each Contribution Declares Its Parameters And Outputs.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

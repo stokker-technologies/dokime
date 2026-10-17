@@ -19,8 +19,8 @@ use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
-use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::model::identity::wire as common;
+use dokime_domain::model::records::evidence::RecordEntry;
 use dokime_domain::operations::evidence as v1;
 
 /* === Constants === */
@@ -43,7 +43,9 @@ pub(super) struct Selection {
 
 /* === Implementations === */
 impl Selection {
-    pub(super) fn new(value: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>) -> Result<Self, Status> {
+    pub(super) fn new(
+        value: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>,
+    ) -> Result<Self, Status> {
         let mut value = value.unwrap_or_default();
         for items in [&mut value.record_types, &mut value.sources] {
             if items.len() > MAX_ALTERNATIVES {

@@ -7,7 +7,6 @@
  * ***
  */
 
-
 // Embed The Plugin Scaffold Assets
 
 /* === Modules === */
@@ -27,7 +26,6 @@ use std::{
 
 // Local Imports
 
-
 /* === Constants === */
 
 /* === Macros === */
@@ -40,7 +38,6 @@ struct Asset {
     text: bool,
 }
 
-
 /* === Enums === */
 
 /* === Traits === */
@@ -51,13 +48,18 @@ struct Asset {
 
 /* === Private Functions === */
 fn main() -> io::Result<()> {
-    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest directory"));
+    let manifest = PathBuf::from(
+        env::var_os("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest directory"),
+    );
     // Only This Directory Ships. Product Task Overrides And Export Registration Live Outside It.
     let templates = manifest.join("templates");
     let assets = inventory(&templates)?;
     let mut generated = String::from("const FILES: &[(&str, Template)] = &[\n");
     for (destination, asset) in assets {
-        let source = asset.source.to_str().ok_or_else(|| invalid("template source path is not UTF-8"))?;
+        let source = asset
+            .source
+            .to_str()
+            .ok_or_else(|| invalid("template source path is not UTF-8"))?;
         let text = asset.text;
         generated.push_str(&format!(
             "    ({destination:?}, Template {{ bytes: include_bytes!({source:?}), text: {text} }}),\n"
@@ -88,14 +90,21 @@ fn inventory(root: &Path) -> io::Result<BTreeMap<String, Asset>> {
                 continue;
             }
             if !kind.is_file() {
-                return Err(invalid("template entries must be regular files or directories"));
+                return Err(invalid(
+                    "template entries must be regular files or directories",
+                ));
             }
             let path = entry.path();
-            let relative = path.strip_prefix(root).expect("the entry belongs to the template tree");
+            let relative = path
+                .strip_prefix(root)
+                .expect("the entry belongs to the template tree");
             let parts = relative
                 .components()
                 .map(|component| {
-                    let part = component.as_os_str().to_str().ok_or_else(|| invalid("template names must be UTF-8"))?;
+                    let part = component
+                        .as_os_str()
+                        .to_str()
+                        .ok_or_else(|| invalid("template names must be UTF-8"))?;
                     if part.contains('\\') {
                         return Err(invalid("template names must not contain backslashes"));
                     }
@@ -103,13 +112,18 @@ fn inventory(root: &Path) -> io::Result<BTreeMap<String, Asset>> {
                 })
                 .collect::<io::Result<Vec<_>>>()?;
             let relative = parts.join("/");
-            let destination = relative.strip_suffix(".tmpl").unwrap_or(&relative).to_owned();
+            let destination = relative
+                .strip_suffix(".tmpl")
+                .unwrap_or(&relative)
+                .to_owned();
             if destination.is_empty() || destination.ends_with('/') {
                 return Err(invalid("template destination must name a file"));
             }
             let key = destination.to_lowercase();
             if destinations.insert(key, destination.clone()).is_some() {
-                return Err(invalid("template destinations collide after substitution suffix removal"));
+                return Err(invalid(
+                    "template destinations collide after substitution suffix removal",
+                ));
             }
             let bytes = fs::read(&path)?;
             let text = std::str::from_utf8(&bytes).is_ok() && !bytes.contains(&0);
@@ -131,6 +145,5 @@ fn inventory(root: &Path) -> io::Result<BTreeMap<String, Asset>> {
 fn invalid(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }
-
 
 /* === Tests === */

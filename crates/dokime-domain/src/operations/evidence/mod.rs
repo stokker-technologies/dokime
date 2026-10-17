@@ -26,16 +26,16 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-use crate::model::execution::wire_cursor::Cursor;
-#[allow(unused_imports)]
-use crate::model::definition::wire::*;
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::FOLLOW;
 use super::ORDINARY;
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
+use crate::model::execution::wire_cursor::Cursor;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+use crate::model::values::wire::Value;
 
 use crate::model::evidence::wire::*;
 
@@ -46,20 +46,6 @@ use crate::model::evidence::wire::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* === Enums === */
 

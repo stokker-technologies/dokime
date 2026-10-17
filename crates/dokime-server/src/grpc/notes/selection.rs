@@ -21,9 +21,9 @@ use tonic::Status;
 // Local Imports
 use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::execution::notes::NoteOwner;
-use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::notes as contract;
+use dokime_runtime::runtime::query::RuntimeStateSnapshot;
 
 /* === Constants === */
 
@@ -56,8 +56,8 @@ impl Page {
         snapshot: &RuntimeStateSnapshot,
         kind: &str,
     ) -> Result<Self, Status> {
-        let mut selection = selection
-            .unwrap_or(dokime_domain::model::notes::wire::AnnotationSelection {
+        let mut selection =
+            selection.unwrap_or(dokime_domain::model::notes::wire::AnnotationSelection {
                 owner: None,
                 include_context: false,
             });
@@ -141,11 +141,7 @@ impl Page {
         Ok(Self {
             owner,
             context: selection.include_context,
-            limit: if limit == 0 {
-                50
-            } else {
-                limit as usize
-            },
+            limit: if limit == 0 { 50 } else { limit as usize },
             after,
             cursor,
             scope,

@@ -22,17 +22,17 @@ use harmos::operations::{Context, Operation, Response, StreamInput, StreamItem};
 use tonic::Status;
 
 // Local Imports
-use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use super::{MAX_CONTENT_BYTES, metadata, transfer_chunk_bytes};
 use crate::grpc::{error::detailed, value};
-use dokime_runtime::RuntimeHandle;
-use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::diagnostics::admission::AdmissionFailure;
 use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::CaseId;
 use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::operations::content as wire;
+use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::evidence::ArtifactUploadInput;
 use dokime_runtime::runtime::ArtifactUpload;
-use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 const IDLE_TRANSFER_TIMEOUT: Duration = Duration::from_secs(30);
@@ -80,7 +80,9 @@ impl Operation for Upload {
         let first = receive_upload_frame(input)
             .await?
             .ok_or_else(|| Status::invalid_argument("artifact upload header is required"))?;
-        let Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)) = &first.payload else {
+        let Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Header(header)) =
+            &first.payload
+        else {
             return Err(Status::invalid_argument(
                 "first artifact upload frame must be a header",
             ));
@@ -299,7 +301,9 @@ async fn receive_artifact(
                 }
                 upload.send(&chunk.data).await.map_err(content_failure)?;
             }
-            Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(completion)) => {
+            Some(dokime_domain::model::content::wire::UploadArtifactFramePayload::Complete(
+                completion,
+            )) => {
                 if completion.size_bytes != offset {
                     return Err(Status::invalid_argument(
                         "artifact completion size does not match the received bytes",
@@ -335,16 +339,25 @@ pub(in crate::grpc) fn content_failure(error: dokime_runtime::runtime::Error) ->
         Error::ExportStorage {
             source: dokime_runtime::domains::exports::storage::StorageError::ArchiveTooLarge { .. },
         } => Status::resource_exhausted("cycle bundle exceeds native content limit"),
-        Error::Admission(AdmissionFailure::NotFound { .. }) => Status::not_found("artifact upload owner not found"),
-        Error::Admission(AdmissionFailure::Validation { message, .. }) => Status::invalid_argument(message.clone()),
-        Error::Admission(AdmissionFailure::Forbidden { .. }) => Status::permission_denied("artifact upload failed"),
-        Error::Harmos(harmos::Error::ResourceExhausted { .. }) | Error::Admission(AdmissionFailure::Overload { .. }) => {
+        Error::Admission(AdmissionFailure::NotFound { .. }) => {
+            Status::not_found("artifact upload owner not found")
+        }
+        Error::Admission(AdmissionFailure::Validation { message, .. }) => {
+            Status::invalid_argument(message.clone())
+        }
+        Error::Admission(AdmissionFailure::Forbidden { .. }) => {
+            Status::permission_denied("artifact upload failed")
+        }
+        Error::Harmos(harmos::Error::ResourceExhausted { .. })
+        | Error::Admission(AdmissionFailure::Overload { .. }) => {
             Status::resource_exhausted("artifact upload failed")
         }
-        Error::Admission(AdmissionFailure::Timeout { .. }) => Status::deadline_exceeded("artifact upload interrupted"),
-        Error::Admission(AdmissionFailure::Unavailable { .. }) | Error::ShuttingDown | Error::Interrupted => {
-            Status::unavailable("artifact upload interrupted")
+        Error::Admission(AdmissionFailure::Timeout { .. }) => {
+            Status::deadline_exceeded("artifact upload interrupted")
         }
+        Error::Admission(AdmissionFailure::Unavailable { .. })
+        | Error::ShuttingDown
+        | Error::Interrupted => Status::unavailable("artifact upload interrupted"),
         Error::Operation(message) => operation_status(message),
         _ => Status::internal("artifact upload failed"),
     };

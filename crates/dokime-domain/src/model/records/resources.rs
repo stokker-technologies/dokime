@@ -17,8 +17,8 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::model::identity::Metadata;
 use crate::model::execution::RecordScope;
+use crate::model::identity::Metadata;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
 
@@ -35,7 +35,6 @@ pub struct ResourceRecord {
     pub updated_at: Timestamp,
 }
 
-
 /* === Enums === */
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -47,7 +46,6 @@ pub enum ResourceLifecycle {
     Failed,
     Removed,
 }
-
 
 /* === Public Functions === */
 

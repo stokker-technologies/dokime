@@ -36,32 +36,7 @@ use crate::model::appearance::wire::*;
 
 /* === Structs === */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
 
 #[harmos::catalog]
 pub enum Operations {

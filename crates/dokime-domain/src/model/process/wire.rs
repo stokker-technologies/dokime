@@ -27,10 +27,8 @@ use serde::Serialize;
 
 /* === Types === */
 
-
 // The grace a cancelled process gets between SIGTERM and the kill.
 pub const DEFAULT_GRACE_MS: u32 = 2_000;
-
 
 #[harmos::message]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,7 +48,6 @@ pub struct ProcessExit {
     #[row(description = "The instance was cancelled before the process exited by itself.")]
     pub cancelled: bool,
 }
-
 
 // Where one output of the process goes.
 #[derive(Clone, Debug, PartialEq, Eq)]

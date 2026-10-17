@@ -9,12 +9,12 @@
 
 /* === Modules === */
 pub mod checks;
-pub mod wire;
 mod rules;
 mod validation;
+pub mod wire;
 
 /* === Re-Exports === */
-pub use checks::{validate_fields, validate_definition, validate_answers, validate_answer_rules};
+pub use checks::{validate_answer_rules, validate_answers, validate_definition, validate_fields};
 pub use rules::Rule;
 pub use rules::validate_rules;
 pub use validation::FieldValidation;
@@ -28,19 +28,19 @@ use serde::Serialize;
 use sha2::Digest;
 use sha2::Sha256;
 // Local Imports
+use crate::model::definition::RuntimeCondition;
+use crate::model::execution::RecordScope;
 use crate::model::identity::ContractId;
 use crate::model::identity::Identifier;
 use crate::model::identity::Metadata;
 use crate::model::identity::PromptId;
-use crate::model::execution::RecordScope;
 use crate::model::identity::SuiteId;
 use crate::model::identity::TestCycleId;
 use crate::model::identity::TestExecutionId;
+use crate::model::records::RecordSeverity;
 use crate::model::time::Timestamp;
 use crate::model::values::Value;
 use crate::model::values::ValueType;
-use crate::model::definition::RuntimeCondition;
-use crate::model::records::RecordSeverity;
 
 /* === Constants === */
 

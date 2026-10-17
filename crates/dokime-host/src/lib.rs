@@ -76,5 +76,4 @@ where
         .expect("a freshly generated UUID is a valid Dokime identity")
 }
 
-
 /* === Tests === */

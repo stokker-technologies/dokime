@@ -40,17 +40,18 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
+use super::Access;
+use super::Endpoint;
+use super::ORDINARY;
+use super::TRANSFER;
 #[allow(unused_imports)]
 use crate::model::appearance::wire::*;
 #[allow(unused_imports)]
 use crate::model::catalog::wire::*;
 #[allow(unused_imports)]
-use crate::model::execution::wire_checkpoint::*;
-use crate::model::identity::wire::Metadata;
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-#[allow(unused_imports)]
 use crate::model::content::wire::*;
+#[allow(unused_imports)]
+use crate::model::definition::wire::*;
 #[allow(unused_imports)]
 use crate::model::documents::wire::*;
 #[allow(unused_imports)]
@@ -58,20 +59,19 @@ use crate::model::evidence::wire::*;
 #[allow(unused_imports)]
 use crate::model::execution::wire::*;
 #[allow(unused_imports)]
+use crate::model::execution::wire_checkpoint::*;
+use crate::model::identity::wire::Metadata;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+#[allow(unused_imports)]
 use crate::model::notes::wire::*;
 #[allow(unused_imports)]
 use crate::model::plots::wire::*;
 #[allow(unused_imports)]
 use crate::model::prompts::wire::*;
 #[allow(unused_imports)]
-use crate::model::definition::wire::*;
-#[allow(unused_imports)]
 use crate::model::telemetry::wire::*;
 use crate::model::values::wire::Value;
-use super::Access;
-use super::Endpoint;
-use super::ORDINARY;
-use super::TRANSFER;
 
 use crate::model::history::wire::*;
 
@@ -83,110 +83,15 @@ use crate::model::history::wire::*;
 
 /* === Structs === */
 
-
 // Permanently delete one sealed historical execution. The caller supplies a
 // stable request identifier so a retry can identify the accepted deletion.
-
-
-
-
-
-
-
 
 // `filter` and `order` must be repeated unchanged on every continuation, and
 // `after_execution_id` must still be a member of the filtered result. A
 // changed selection, a changed order, or a continuation ID the filter excludes
 // is rejected rather than silently restarted.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* === Enums === */
-
-
-
-
-
-
-
-
-
-
 
 #[harmos::catalog]
 pub enum Operations {

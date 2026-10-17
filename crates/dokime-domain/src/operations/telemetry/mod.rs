@@ -22,12 +22,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Local Imports
-#[allow(unused_imports)]
-use crate::model::identity::wire::*;
-use crate::model::values::wire::Value;
 use super::Access;
 use super::Endpoint;
 use super::ORDINARY;
+#[allow(unused_imports)]
+use crate::model::identity::wire::*;
+use crate::model::values::wire::Value;
 
 use crate::model::telemetry::wire::*;
 
@@ -38,14 +38,6 @@ use crate::model::telemetry::wire::*;
 /* === Type Aliases === */
 
 /* === Structs === */
-
-
-
-
-
-
-
-
 
 /* === Enums === */
 

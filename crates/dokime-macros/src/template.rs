@@ -243,7 +243,9 @@ pub(crate) fn marks(path: &Path, name: &str) -> bool {
         .as_slice()
     {
         [marker] => *marker == name,
-        [root, marker] => (*root == "dokime_runtime" || *root == crate::facade::name()) && *marker == name,
+        [root, marker] => {
+            (*root == "dokime_runtime" || *root == crate::facade::name()) && *marker == name
+        }
         _ => false,
     }
 }

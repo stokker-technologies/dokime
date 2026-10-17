@@ -27,12 +27,11 @@ use serde::Serialize;
 
 // Local Imports
 use crate::model::content::wire::ArtifactMetadata;
-use crate::model::values::ValueType;
 use crate::model::telemetry::TelemetryRow;
 use crate::model::telemetry::TelemetryStream;
+use crate::model::values::ValueType;
 
 /* === Types === */
-
 
 // One ordered include or exclude rule over paths relative to the source root.
 #[harmos::message]
@@ -166,7 +165,6 @@ pub struct FileWatchCompleted {
 pub struct FileWatchFrame {
     pub payload: Option<FileWatchFramePayload>,
 }
-
 
 #[harmos::message]
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

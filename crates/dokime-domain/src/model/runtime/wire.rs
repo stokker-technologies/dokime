@@ -43,7 +43,6 @@ pub struct Health {
     pub message: String,
 }
 
-
 #[harmos::message]
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Readiness {
