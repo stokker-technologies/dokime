@@ -63,6 +63,7 @@ pub(super) fn plan(
             stream: None,
             source_start: None,
             source_end: None,
+            after: 0,
         }),
         transforms,
         slice: RowSlice {

@@ -41,7 +41,8 @@ use harmos::storage::{
 
 /* === Public Functions === */
 /// Dokime's storage policy: a quarter of memory for reads, a twentieth for
-/// pending writes, active queries by core count, and bounded response batches.
+/// pending writes, active queries by core count, and response batches of at
+/// most an eighth of the read budget.
 pub fn storage_defaults() -> StorageSettings {
     let memory = effective_memory();
     let read = nonzero(memory / 4);
@@ -60,8 +61,9 @@ pub fn storage_defaults() -> StorageSettings {
         },
         response: StorageResponseSettings {
             batch_rows: nonzero(65_536),
-            // A response batch always fits the shared read budget.
-            batch_bytes: nonzero(8 * 1024 * 1024).min(read),
+            // One response batch takes at most an eighth of the shared read
+            // budget, so a single page never credits the whole pool.
+            batch_bytes: nonzero(8 * 1024 * 1024).min(nonzero(read.get() / 8)),
         },
     }
 }

@@ -394,6 +394,7 @@ async fn nominal() {
         stream: Some(id("voltage")),
         source_start: None,
         source_end: None,
+        after: 0,
     };
     let mut after = 0;
     let mut actual = Vec::new();
@@ -430,6 +431,7 @@ async fn nominal() {
         stream: None,
         source_start: None,
         source_end: None,
+        after: 0,
     };
     let typed_rows = backend
         .read_stream(&view, &typed_selection, page(0, rows(8)))
@@ -469,6 +471,7 @@ async fn nominal() {
                 stream: Some(typed_stream.clone()),
                 source_start: None,
                 source_end: None,
+                after: 0,
             }),
             transforms: vec![],
             slice: RowSlice::default(),
@@ -501,6 +504,7 @@ async fn nominal() {
                 stream: Some(id("voltage")),
                 source_start: Some(UNIX_EPOCH + Duration::from_millis(64)),
                 source_end: Some(UNIX_EPOCH + Duration::from_millis(128)),
+                after: 0,
             }),
             transforms: vec![Transform::Aggregate(Aggregate {
                 groups: vec![],
@@ -564,6 +568,7 @@ async fn nominal() {
                 stream: Some(id("voltage")),
                 source_start: None,
                 source_end: None,
+                after: 0,
             }),
             transforms: vec![Transform::Sort(Sort {
                 keys: vec![SortKey {

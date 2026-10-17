@@ -263,13 +263,10 @@ impl Transaction<RuntimeState> for CaptureReportLifecycle {
             .executions
             .get(id)
             .ok_or("report execution owner is missing")?;
-        if matches!(
-            owner.status,
-            ExecutionStatus::Pending | ExecutionStatus::Running
-        ) || owner.finished_at.is_none()
-            || owner.saved.is_some()
-        {
-            return Err("report lifecycle must be terminal and unsealed".into());
+        // The Frozen Revision May Precede The Terminal Commit It Seals; Its
+        // Owner Saved It Only After Checking It Terminal.
+        if owner.saved.is_some() {
+            return Err("report lifecycle must be unsealed".into());
         }
         if intent
             .lifecycle
