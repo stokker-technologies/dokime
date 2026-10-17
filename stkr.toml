@@ -63,6 +63,19 @@ include = ["**/README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LI
 
 # === Templates === #
 
+[[templates.scaffolds]]
+path = "crates/cargo-dokime/templates"
+profile = "plugin"
+suffix = ".tmpl"
+tasks = "crates/cargo-dokime/scaffold.tasks.toml"
+
+[templates.scaffolds.placeholders]
+package = "{{package}}"
+module = "{{crate}}"
+owner = "{{owner}}"
+repository = "{{repository}}"
+selection = "{{selection}}"
+
 # === Release === #
 
 # === Documentation === #

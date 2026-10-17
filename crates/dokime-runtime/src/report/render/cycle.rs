@@ -88,7 +88,7 @@ impl Serialize for Report<'_> {
         fields.serialize_entry(
             "hub",
             &Hub {
-                generator: "dokime-app",
+                generator: "dokime-runtime",
                 name: "Dokime",
                 version: env!("CARGO_PKG_VERSION"),
             },

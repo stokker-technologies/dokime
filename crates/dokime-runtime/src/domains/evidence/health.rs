@@ -19,7 +19,7 @@ pub(crate) use crate::transactions::RecordHealth;
 
 // Local Imports
 use crate::execution::HealthItem;
-use crate::{runtime::Error, Result as RuntimeResult, RuntimeHandle};
+use crate::{runtime::Error, runtime::Result as RuntimeResult, RuntimeHandle};
 
 /* === Constants === */
 
