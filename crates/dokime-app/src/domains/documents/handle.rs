@@ -94,7 +94,7 @@ impl RuntimeHandle {
             .await;
         let snapshot = self.capture_state().await?;
         let records = self.records_at(&snapshot).await?;
-        let artifacts = self.artifact_records_now().await?;
+        let artifacts = self.artifacts().await?;
         let state = snapshot.state();
         let data = crate::documents::RuntimeDocumentData {
             records,

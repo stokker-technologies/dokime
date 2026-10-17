@@ -28,7 +28,6 @@ use dokime_app::{RuntimeHandle, artifacts::ArtifactRecord};
 use dokime_contract::operations::content as wire;
 
 /* === Constants === */
-const SCAN_LIMIT: usize = 4096;
 
 /* === Macros === */
 
@@ -74,7 +73,7 @@ impl Operation for List {
         let records = self
             .resources
             .runtime
-            .artifacts_limited(SCAN_LIMIT)
+            .artifacts()
             .await
             .map_err(inventory_failure)?;
         let start = if request.after_artifact_id.is_empty() {

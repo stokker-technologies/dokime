@@ -66,7 +66,7 @@ impl RuntimeHandle {
             state.health_items(),
             crate::evidence::state::traceability_snapshots(state),
             state.notes(),
-            self.artifact_records_now().await?,
+            self.artifacts().await?,
             state.record_contracts(),
             state.telemetry_contracts(),
         );
@@ -319,16 +319,9 @@ impl RuntimeHandle {
         crate::queries::plots::query_plot_stream_batches(self, requests).await
     }
 
+    /// Every artifact of sealed and live executions, ordered by identity.
     pub async fn artifacts(&self) -> crate::Result<Vec<ArtifactRecord>> {
-        self.artifact_records_now().await
-    }
-
-    pub async fn artifacts_limited(&self, scan_limit: usize) -> crate::Result<Vec<ArtifactRecord>> {
-        self.execution_storage.artifact_records(scan_limit).await
-    }
-
-    pub(crate) async fn artifact_records_now(&self) -> crate::Result<Vec<ArtifactRecord>> {
-        self.execution_storage.artifact_records(usize::MAX).await
+        self.execution_storage.artifact_records().await
     }
 
     pub async fn health_items(&self) -> Vec<HealthItem> {

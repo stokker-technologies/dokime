@@ -233,7 +233,7 @@ pub(super) async fn acquire(
         let mut digest = Hasher(Sha256::new());
         let records = runtime
             .execution_storage
-            .artifact_records(SOURCE_ROWS)
+            .artifact_records()
             .await
             .map_err(native_error)?;
         captured.artifacts = Some(

@@ -412,8 +412,8 @@ impl ExecutionStorage {
         })
     }
 
-    pub(crate) async fn artifact_records(&self, scan_limit: usize) -> Result<Vec<ArtifactRecord>> {
-        super::artifact_inventory::records(self, scan_limit).await
+    pub(crate) async fn artifact_records(&self) -> Result<Vec<ArtifactRecord>> {
+        super::artifact_inventory::records(self).await
     }
 
     /// Counts every artifact of sealed and live executions.

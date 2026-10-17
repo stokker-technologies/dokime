@@ -89,11 +89,9 @@ pub(super) async fn inspect(
     Ok(seen.len())
 }
 
-/// Up to `limit` artifact records, ordered by identity.
-pub(super) async fn records(
-    storage: &ExecutionStorage,
-    limit: usize,
-) -> Result<Vec<ArtifactRecord>> {
+/// Every artifact record, ordered by identity. Ordering needs the whole
+/// inventory, so no bound applies before it is read.
+pub(super) async fn records(storage: &ExecutionStorage) -> Result<Vec<ArtifactRecord>> {
     let mut records = Vec::new();
     inspect(storage, |_, output| {
         if let ExecutionOutputContent::Artifact { record, .. } = &output.content {
@@ -104,7 +102,6 @@ pub(super) async fn records(
     .await?;
     records
         .sort_unstable_by(|left, right| left.artifact_id.as_str().cmp(right.artifact_id.as_str()));
-    records.truncate(limit);
     Ok(records)
 }
 

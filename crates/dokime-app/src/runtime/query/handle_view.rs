@@ -148,7 +148,7 @@ impl RuntimeHandle {
                         })
                         .await;
                     let records = self.records_at(snapshot).await?;
-                    let artifacts = self.artifact_records_now().await?.to_vec();
+                    let artifacts = self.artifacts().await?.to_vec();
                     let state = snapshot.state();
                     let cycles = state
                         .cycle_views()
@@ -174,7 +174,7 @@ impl RuntimeHandle {
                     }
                 }
                 RuntimeViewTopic::Artifacts => {
-                    let artifacts = self.artifact_records_now().await?.to_vec();
+                    let artifacts = self.artifacts().await?.to_vec();
 
                     RuntimeViewPayload::Artifacts {
                         frame: Box::new(crate::queries::artifacts::artifact_frame(
