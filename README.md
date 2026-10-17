@@ -130,15 +130,15 @@ git clone https://github.com/stokker-technologies/dokime.git
 cd dokime
 mise trust
 mise install --locked
-mise run sync
-mise run dev:desktop:dev
+mise run prepare
+mise run dev
 ```
 
 This starts the desktop application with its local backend. The
 [OBC plugin](plugins/obc-plugin/) supplies a simulated charger; no physical charger
-is required. The task builds OBC and a suite fixture into
-`target/debug/plugins/` and points `DOKIME_PLUGINS_DIR` at that directory, so
-the backend loads both for the session without installing them. Create a cycle
+is required. The task builds the OBC bundle into `target/debug/plugins/` and
+points `DOKIME_PLUGINS_DIR` at that directory, so the backend loads it for the
+session without installing it. Create a cycle
 with **New Cycle** (its title defaults to the current date and time), then add
 OBC's charging templates to it from the library, choose operating points, and
 inspect live measurements and results.
@@ -588,15 +588,20 @@ run will finish, even an empty one, seals it with its report.
 
 ## Cargo Features
 
-These flags configure the `dokime` Rust SDK dependency. Desktop application
-users do not need to select them. The default SDK includes native plugin support
-and authoring macros.
+These flags configure the `dokime-runtime` plugin SDK dependency. Desktop
+application users do not need to select them. The default SDK includes native
+plugin support and authoring macros; operation, model and record definitions
+live in `dokime-domain`, which every feature set shares.
 
 | Feature | Default | Enables |
 | --- | --- | --- |
 | `native` | Yes | Native plugin SDK, sidecar support, and plugin prelude. |
 | `derive` | Yes | Suite, template, step, observer, and other authoring macros. |
 | `storage` | No | Storage APIs and the SQLite backend. |
+| `host` | No | The application host the server embeds: storage, gRPC and host collectors. |
+| `fft` | No | Spectrum analyses on top of `host`. |
+| `simulation` | No | Simulated time and devices on top of `host`. |
+| `media-native` | No | Native camera, microphone and screen capture on top of `host`. |
 
 The application stores state checkpoints and their journal through Harmos's file
 state backend; SQLite holds the data catalog and evidence. A root written by an
@@ -615,7 +620,7 @@ Replace `<tested-commit>` with the revision used by your integration.
 recovery and profile access. The `dokime` crate owns plugin authoring; its
 `storage` feature does not enable `native` or `derive` when defaults are disabled.
 Disabling defaults retains the SDK's underlying Harmos dependency. See the
-[SDK manifest](crates/dokime/Cargo.toml) and
+[SDK manifest](crates/dokime-runtime/Cargo.toml) and
 [client manifest](crates/dokime-client/Cargo.toml) for details.
 
 ## Documentation
@@ -648,59 +653,48 @@ for development discussions and [the changelog](CHANGELOG.md) for recorded chang
 Use the source setup in [Quick Start](#quick-start). For a headless server:
 
 ```sh
-mise run build:server:dev
+mise run build
 cargo run -p dokime-server --
 ```
 
-The main repository checks are:
+The repository flows are mise tasks:
 
 ```sh
+mise run format --check
+mise run lint
 mise run check
+mise run build
 mise run test
+mise run ci
 ```
 
-Dev integration requires Linux checks, release builds, ordinary correctness
-scenarios and the exact-revision artifact catalog. Each native platform prepares
-its compatible release applications, installers, test executables, fixtures and
-Python packages once; downstream ordinary correctness consumes those exact bytes.
-JavaScript generation scenarios can start from the verified portable contract
-export while application packaging continues. Full premerge and protected Dev/Main
-updates also retain a separate coverage lane; ordinary correctness stays
-uninstrumented. Windows validation runs independently as advisory for ordinary
-Dev updates, with its results and artifacts retained. Main and releases require
-both native platforms. Windows validation also installs that candidate's NSIS
-package and requires native launch, control, live listening and restart evidence.
-Run `mise run test:system:typescript` on a disposable interactive Windows account
-with `DOKIME_E2E_DISPOSABLE_WINDOWS=1`, WebView2 and a matching `msedgedriver.exe`
-(`DOKIME_E2E_DRIVER` can select it). Restore the exact build package first with
-`mise run ci:artifacts:restore`; the runner verifies its manifest and supplies the
-installer, executable and fixture hashes. Linux desktop system scenarios require
-a display and WebKitWebDriver.
+`check` covers every Rust feature combination and the WebAssembly domain build,
+then the Python and TypeScript clients against the bindings the Rust build
+generates. `build` compiles once into binaries, the OBC bundle, the frontend,
+the Python wheel and the test archive; every test layer runs from that archive.
+`test` runs the layers in order, each with its own task:
+
+| Task | Layer |
+| --- | --- |
+| `mise run test:unit` | Curated invariants inside the crates. |
+| `mise run test:integration` | In-process stories per crate, plus Python and TypeScript client stories. |
+| `mise run test:acceptance` | Whole stories over one process and a client: the server, the CLI, the Python client. |
+| `mise run test:system` | Two walkthroughs: the server with the built OBC plugin, and the desktop shell over its backend. |
+
+The desktop walkthrough drives the built shell through WebKitWebDriver on Linux
+and needs a display. `mise run ci` runs the same flow as the provider pipeline;
+`mise run ci:nightly` adds coverage and benches.
 
 See [Contributing](CONTRIBUTING.md) for prerequisites and the full workflow.
 
-### Python Contract Preparation
+### Client Bindings
 
-Maintainers prepare Python contracts from a selected successful portable Rust contract build:
-
-```sh
-mise run prepare:harmos
-mise run contracts:prepare:dev
-mise exec -- uv run --no-sync python -m dokime_tools.bindings --build-json target/contracts/build.jsonl
-mise exec -- uv run --no-sync python -m dokime_tools.bindings --build-json target/contracts/build.jsonl --check
-```
-
-The selected `dokime-domain-export` build exports the `operations` catalog under Cargo's output
-directory. Preparation invokes Harmos's shared `cargo harmos bindings python`
-exporter and copies its exact generated `dokime` package assets alongside the
-maintained client subpackage. The exporter must match the Harmos revision this
-checkout depends on: a pinned `rev`, or the revision `Cargo.lock` locks a
-`branch` source to. Ordinary wheel and source-package installation
-uses prepared files and requires no Rust compiler or contract generation.
-
-`prepare:harmos` installs that exact CLI in this checkout's cache and verifies its
-revision, compiler inputs and binary hash. Binding generation refuses a missing
-or mismatched receipt. CI consumers use the prepared tool artifact and never rebuild it.
+The Rust build generates the protobuf descriptors of every public operation;
+`mise run check` regenerates the Python package's contract files from them with
+Harmos's `cargo harmos bindings python` exporter and refuses a stale tracked
+copy. The desktop's TypeScript client is generated from the same descriptors
+by the Buf generator after the Cargo build. Ordinary wheel and source-package
+installation uses the tracked files and needs no Rust compiler.
 
 The desktop WebView never talks to the network. Every call from the generated
 client crosses one opaque IPC bridge into the shell, which forwards the

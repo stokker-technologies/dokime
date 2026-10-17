@@ -2,13 +2,13 @@
 
 Use the actual native WebView for desktop IPC and process ownership. Browser mocks and component tests do not prove native transport. Report precisely which mounted workflows and platforms were exercised; an unavailable platform remains unverified.
 
-Global guidance owns cadence. Run narrow scenarios only for concrete blockers during editing; run required checks, the full test aggregate and explicitly required native system tasks after cohesive implementation. Discover tasks in `mise.toml`; `mise run test:system:typescript` exercises the native desktop when its prerequisites are available. Preserve repository environment and preparation for filtered diagnosis.
+Global guidance owns cadence. Run narrow scenarios only for concrete blockers during editing; run required checks, the full test aggregate and explicitly required native system tasks after cohesive implementation. Discover tasks in `mise.toml`; `mise run test:system` runs the desktop walkthrough (`test:system:typescript`) after the server walkthrough when its prerequisites are available. Preserve repository environment and preparation for filtered diagnosis.
 
 ## Live Native Desktop
 
-Run `mise run dev:desktop:dev`. The frontend dev server defaults to `http://127.0.0.1:5173`; set `DOKIME_DEV_PORT` for an isolated frontend. The owned gRPC listener binds a dynamic loopback port. There is no embedded desktop HTTP/WS server or `DOKIME_API_PORT` pair. The task builds the OBC and suite fixture bundles into `target/debug/plugins/` and sets `DOKIME_PLUGINS_DIR` there, so the owned backend loads them for that process without installing them.
+Run `mise run dev`. The frontend dev server defaults to `http://127.0.0.1:5173`; set `DOKIME_DEV_PORT` for an isolated frontend. The owned gRPC listener binds a dynamic loopback port. There is no embedded desktop HTTP/WS server or `DOKIME_API_PORT` pair. The task builds the OBC bundle into `target/debug/plugins/` and sets `DOKIME_PLUGINS_DIR` there, so the owned backend loads it for that process without installing it.
 
-Use a separate `DOKIME_APPLICATION_ROOT` for validation settings, plugins and data. For explicit attachment, forward native arguments: `mise run dev:desktop:dev -- -- --endpoint http://127.0.0.1:50051`. Remote endpoints require HTTPS and verified certificates; credentials belong in the native keyring, not URLs, arguments, logs, or browser storage.
+Use a separate `DOKIME_APPLICATION_ROOT` for validation settings, plugins and data. For explicit attachment, start the shell with its `--endpoint http://127.0.0.1:50051` argument. Remote endpoints require HTTPS and verified certificates; credentials belong in the native keyring, not URLs, arguments, logs, or browser storage.
 
 Inspect the real workspace: suite and template selection, typed parameters, plan/create/run, pending prompts, lifecycle completion, and visible history/evidence supported by mounted views. Test failed endpoint/authentication, cancel, disconnect, reconnect, and backend switching. Old generations must not update the new cache, streams or appearance.
 
