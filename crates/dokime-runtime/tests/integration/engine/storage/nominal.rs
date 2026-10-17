@@ -46,7 +46,7 @@ use {
     dokime_runtime::Value,
     dokime_runtime::storage::telemetry::TelemetryEntry,
     dokime_runtime::storage::telemetry::TypedCodec,
-    dokime_runtime::model::telemetry::wire::TelemetrySample,
+    dokime_domain::model::telemetry::wire::TelemetrySample,
 };
 
 /* === Constants === */

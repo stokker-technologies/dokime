@@ -18,7 +18,10 @@ use std::sync::Arc;
 // Local Imports
 use dokime_domain::model;
 use super::*;
-use dokime_runtime::{model::execution::wire::CycleStatus, runtime::command::CommandContext};
+use {
+    dokime_domain::model::execution::wire::CycleStatus,
+    dokime_runtime::runtime::command::CommandContext,
+};
 use dokime_client::contracts::history::BrowseExecutions;
 use dokime_client::contracts::history::DeleteExecution;
 

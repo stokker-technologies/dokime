@@ -51,7 +51,10 @@ pub mod prelude {
         TelemetrySelection,
     };
     pub use dokime_runtime::domains::execution::provider::ExecutionFixture;
-    pub use dokime_runtime::{model::execution::wire::CycleStatus, transactions::CycleDefinition};
+    pub use {
+        dokime_domain::model::execution::wire::CycleStatus,
+        dokime_runtime::transactions::CycleDefinition,
+    };
 
     pub use dokime_runtime::runtime::command::{CommandContext, CommandStatus};
     pub use dokime_runtime::runtime::query::{
