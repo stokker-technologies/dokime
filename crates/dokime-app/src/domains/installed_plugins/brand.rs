@@ -24,7 +24,7 @@ use dokime::domains::{
     AppCustomizationContribution, AppLogoAsset, AppThemeContribution, OrganizationIdentity,
     ThemeActivationPolicy, ThemeCornerRadii, ThemeModePolicy,
 };
-use theme::css::{
+use theme::{
     Bundled, Directory, Error as ThemeCssError, Source, load_from as load_authored_theme_css,
 };
 

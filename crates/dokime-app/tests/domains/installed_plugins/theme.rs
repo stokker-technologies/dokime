@@ -17,7 +17,7 @@
 use std::fs;
 
 // Third Party Imports
-use dokime_theme::Error;
+use dokime_app::brand::theme::{self, Error};
 use tempfile::tempdir;
 
 // Local Imports
@@ -56,7 +56,7 @@ fn load_typography(dir: &std::path::Path, css: &str) -> Result<String, Error> {
     .unwrap();
     fs::write(dir.join("theme/dark.css"), format!(".dark {{ {PALETTE} }}")).unwrap();
 
-    dokime_theme::load(dir).map(|theme| theme.typography_css)
+    theme::load(dir).map(|theme| theme.typography_css)
 }
 
 /* === Tests === */
@@ -122,42 +122,9 @@ pub(crate) fn symlink_font_refused() {
 }
 
 pub(crate) fn compiled_bundle_filesystem() {
-    let authored = dokime_theme::load_from(&dokime_theme::Bundled).unwrap();
+    let authored = theme::load_from(&theme::Bundled).unwrap();
 
     assert!(authored.typography_css.contains("data:font/woff2;base64,"));
-    assert!(dokime_theme::Bundled::manifest().contains("[app]"));
-    assert!(dokime_theme::Bundled::file("logos/contained-dark.svg").is_some());
-}
-
-#[test]
-fn domain_contract() {
-    {
-        eprintln!("Scenario: local_woff2_uris");
-        local_woff2_uris();
-    }
-    {
-        eprintln!("Scenario: missing_local_refused");
-        missing_local_refused();
-    }
-    {
-        eprintln!("Scenario: parent_directory_refused");
-        parent_directory_refused();
-    }
-    {
-        eprintln!("Scenario: remote_absolute_refused");
-        remote_absolute_refused();
-    }
-    {
-        eprintln!("Scenario: unsupported_font_refused");
-        unsupported_font_refused();
-    }
-    #[cfg(unix)]
-    {
-        eprintln!("Scenario: symlink_font_refused");
-        symlink_font_refused();
-    }
-    {
-        eprintln!("Scenario: compiled_bundle_filesystem");
-        compiled_bundle_filesystem();
-    }
+    assert!(theme::Bundled::manifest().contains("[app]"));
+    assert!(theme::Bundled::file("logos/contained-dark.svg").is_some());
 }

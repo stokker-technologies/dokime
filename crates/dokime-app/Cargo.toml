@@ -49,7 +49,6 @@ dokime = { path = "../dokime", features = ["storage"] }
 dokime-contract = { path = "../dokime-contract" }
 dokime-filesystem = { path = "../dokime-filesystem" }
 dokime-host = { path = "../dokime-host" }
-dokime-theme = { path = "../dokime-theme" }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc", "signal"] }

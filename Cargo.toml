@@ -16,7 +16,6 @@ members = [
   "crates/dokime-packaging",
   "crates/dokime-cli",
   "crates/dokime-terminal",
-  "crates/dokime-theme",
   "crates/dokime-gui/src-tauri",
   "crates/dokime-host",
   "crates/dokime-macros",

@@ -10,6 +10,7 @@
 /* === Modules === */
 pub(crate) mod brand;
 pub(crate) mod settings;
+pub(crate) mod theme;
 
 /* === Re-Exports === */
 pub(crate) use crate::support::prelude::*;
