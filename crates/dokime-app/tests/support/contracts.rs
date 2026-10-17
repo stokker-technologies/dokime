@@ -71,11 +71,19 @@ pub struct TrackingRow {
     pub connection_acquired_distance_m: Option<f64>,
 }
 
+/// The host wire shape of a timestamp: a message wrapping its RFC 3339 text.
+#[harmos::message]
+#[derive(Clone, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HostTimestampRow {
+    pub value: String,
+}
+
 #[harmos::message]
 #[derive(Clone, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SystemRow {
-    pub timestamp: String,
+    pub timestamp: Option<HostTimestampRow>,
     pub cpu_load_percent: Option<f64>,
     pub memory_pressure_percent: Option<f64>,
     pub battery_percent: Option<f64>,
@@ -85,7 +93,7 @@ pub struct SystemRow {
 #[derive(Clone, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WifiRow {
-    pub timestamp: String,
+    pub timestamp: Option<HostTimestampRow>,
     pub wifi_signal_percent: Option<f64>,
     pub wifi_rx_phy_mbps: Option<f64>,
     pub wifi_tx_phy_mbps: Option<f64>,
@@ -98,7 +106,7 @@ pub struct WifiRow {
 #[derive(Clone, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LatencyRow {
-    pub timestamp: String,
+    pub timestamp: Option<HostTimestampRow>,
     pub wifi_latency_ms: Option<f64>,
 }
 
@@ -106,7 +114,7 @@ pub struct LatencyRow {
 #[derive(Clone, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OccupancyRow {
-    pub timestamp: String,
+    pub timestamp: Option<HostTimestampRow>,
     pub sample_index: Option<i64>,
     pub active_wifi_channel: Option<i64>,
     pub wifi_channel: Option<i64>,
@@ -119,7 +127,7 @@ pub struct OccupancyRow {
 #[derive(Clone, PartialEq, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BluetoothRow {
-    pub timestamp: String,
+    pub timestamp: Option<HostTimestampRow>,
     pub bluetooth_adapter_count: Option<f64>,
     pub bluetooth_connected_device_count: Option<f64>,
     pub bluetooth_present_device_count: Option<f64>,
@@ -177,14 +185,19 @@ pub fn provider_tracking_row(
 pub fn typed_fixture_sample(
     mut sample: dokime::telemetry::TelemetrySample,
 ) -> dokime::telemetry::TelemetrySample {
+    if sample.stream.as_str().starts_with("host.") {
+        // The host projects its wire timestamp into the row's values.
+        let timestamp = Value::from(sample.timestamp.clone());
+        sample.values.insert("timestamp".to_owned(), timestamp);
+    }
     let bytes = match sample.stream.as_str() {
         "fixture.telemetry" | "synthetic.samples" => fixture_payload::<FixtureValueRow>(&sample),
         "tracking" | "plt400.ract.tracking.tracking" => fixture_payload::<TrackingRow>(&sample),
-        "host.system" => fixture_payload::<SystemRow>(&sample),
-        "host.wifi" => fixture_payload::<WifiRow>(&sample),
-        "host.wifi.latency" => fixture_payload::<LatencyRow>(&sample),
-        "host.wifi.channel_occupancy" => fixture_payload::<OccupancyRow>(&sample),
-        "host.bluetooth" => fixture_payload::<BluetoothRow>(&sample),
+        "host.system" => host_fixture_payload::<SystemRow>(&sample),
+        "host.wifi" => host_fixture_payload::<WifiRow>(&sample),
+        "host.wifi.latency" => host_fixture_payload::<LatencyRow>(&sample),
+        "host.wifi.channel_occupancy" => host_fixture_payload::<OccupancyRow>(&sample),
+        "host.bluetooth" => host_fixture_payload::<BluetoothRow>(&sample),
         stream => panic!("fixture stream has no explicit typed row: {stream}"),
     };
     sample.storage_payload = Some(bytes);
@@ -555,6 +568,20 @@ pub fn wifi_occupancy_contract() -> TelemetryContract {
 }
 
 /* === Private Functions === */
+// Host streams carry their timestamp in the host wire shape the runtime projects.
+fn host_fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(
+    sample: &dokime::telemetry::TelemetrySample,
+) -> Vec<u8> {
+    let mut values = Value::Object(sample.values.clone())
+        .to_plain_json()
+        .unwrap();
+    values.as_object_mut().unwrap().insert(
+        "timestamp".into(),
+        serde_json::json!({ "value": sample.timestamp.as_str() }),
+    );
+    serde_json::from_value::<T>(values).unwrap().encode_to_vec()
+}
+
 fn fixture_payload<T: serde::de::DeserializeOwned + Message + Described>(
     sample: &dokime::telemetry::TelemetrySample,
 ) -> Vec<u8> {

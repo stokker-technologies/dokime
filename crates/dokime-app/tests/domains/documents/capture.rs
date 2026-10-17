@@ -333,11 +333,16 @@ pub(crate) async fn undeclared_record_types_settle_finalization() {
     // One that reaches finalization anyway settles the run, naming the type,
     // instead of retrying a report that can never be sealed.
     handle.publish_undeclared_record(request).await.unwrap();
+    // Stop freezes the already-persisted boundary, so the record must be saved first.
+    crate::support::waits::wait_for_record_type(&handle, UNDECLARED).await;
+    handle.storage().flush().await.unwrap();
     handle
         .stop_cycle(id.clone(), CommandContext::default())
         .await
         .unwrap();
-    let settled = cycle(&handle, &id, CycleStatus::Failed).await;
+    // The run fails its publication; the cycle keeps its stopped outcome.
+    crate::support::waits::wait_for_record_type(&handle, "test.cycle.finalization.failed").await;
+    let settled = cycle(&handle, &id, CycleStatus::Stopped).await;
     assert!(
         settled.saved.is_none(),
         "an unsealable cycle claims no report"

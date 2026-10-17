@@ -262,7 +262,7 @@ impl TypedCodec {
         if let Some(timestamp) = timestamp.remove("timestamp") {
             if decoded
                 .get("timestamp")
-                .is_some_and(|value| value != &timestamp)
+                .is_some_and(|value| !same_timestamp(value, &timestamp))
             {
                 return Err(Error::Invalid(
                     "stored telemetry timestamp differs from its payload",
@@ -372,6 +372,19 @@ pub fn decode_values(validator: &Validator, bytes: &[u8]) -> Result<BTreeMap<Str
 }
 
 /* === Private Functions === */
+// A row may carry its timestamp as RFC 3339 text that values hold as a datetime.
+fn same_timestamp(payload: &Value, stored: &Value) -> bool {
+    match (payload, stored) {
+        (Value::Text(text), Value::Datetime(instant))
+        | (Value::Datetime(instant), Value::Text(text)) => {
+            crate::core::Timestamp::new(text.as_str())
+                .to_datetime()
+                .is_ok_and(|parsed| parsed == *instant)
+        }
+        _ => payload == stored,
+    }
+}
+
 fn envelope_text<'a>(storage: &'a StructArray, field: &str, row: usize) -> Result<Option<&'a str>> {
     let array = storage
         .column_by_name(field)
