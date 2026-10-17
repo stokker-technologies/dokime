@@ -24,8 +24,10 @@ use std::collections::BTreeMap;
 use regex::{Regex, RegexBuilder};
 
 // Local Imports
-use dokime_contract::core::Value;
-use dokime_contract::operations::files::{LineFieldKind, LineMarker, LineMatcher};
+use dokime_domain::model::values::Value;
+use dokime_domain::operations::files::LineFieldKind;
+use dokime_domain::operations::files::LineMarker;
+use dokime_domain::operations::files::LineMatcher;
 
 /* === Constants === */
 // The most matchers and markers one watch may carry together.
@@ -314,7 +316,7 @@ fn read(text: &str, kind: LineFieldKind) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dokime_contract::operations::files::LineField;
+    use dokime_domain::operations::files::LineField;
 
     fn row_schema() -> harmos::schema::graph::Schema {
         #[harmos::message]

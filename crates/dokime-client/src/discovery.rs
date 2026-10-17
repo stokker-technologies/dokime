@@ -22,7 +22,9 @@ use tonic::{
 
 // Local Imports
 use super::{Backend, Error, Limits, Result, transport};
-use dokime_contract::operations::{Endpoint, backend, runtime};
+use dokime_domain::operations::Endpoint;
+use dokime_domain::operations::backend;
+use dokime_domain::operations::runtime;
 
 /* === Constants === */
 const DISCOVERY_BYTES: usize = 1024 * 1024;

@@ -35,7 +35,7 @@ use dokime_runtime::{
         plot_payload_stream_envelope_visible, plot_payload_stream_kind,
     },
 };
-use dokime_contract::operations::plots as contract;
+use dokime_domain::operations::plots as contract;
 use wire::{ensure_message_budget, envelope, stream_frame};
 
 /* === Constants === */

@@ -29,7 +29,9 @@ use crate::runtime::handle::RuntimeHandle;
 use crate::telemetry_runtime::sampling::{
     SamplingPhaseState, record_scope_from_sampling_scope, sampling_phase_state,
 };
-use crate::core::{RecordScope, TestExecutionId, Timestamp};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 use crate::telemetry::{
     SamplingScope, TelemetryBatch, TelemetryCaptureLease, TelemetrySampleKey,
     TelemetrySamplingRequest,

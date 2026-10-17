@@ -25,7 +25,8 @@ use crate::{
     runtime::Result,
     runtime::{progress::Operation, storage::cycle::CycleSnapshot},
 };
-use crate::{core::Identifier, storage::Manager};
+use dokime_domain::model::identity::Identifier;
+use crate::storage::Manager;
 
 /* === Constants === */
 

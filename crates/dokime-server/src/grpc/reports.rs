@@ -22,11 +22,13 @@ use tonic::Status;
 use super::chunked;
 use super::value::canonical;
 use super::{error::detailed, value};
-use dokime_runtime::{
-    OpenedReport, ReportOrigin, RuntimeHandle,
-    core::{Identifier, TestCycleId, TestExecutionId},
-};
-use dokime_contract::operations::reports as wire;
+use dokime_runtime::OpenedReport;
+use dokime_runtime::ReportOrigin;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::operations::reports as wire;
 
 /* === Constants === */
 const HTML_CHUNK_BYTES: usize = 64 * 1024;

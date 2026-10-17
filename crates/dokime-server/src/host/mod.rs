@@ -36,7 +36,8 @@ use std::{
 
 // Local Imports
 use dokime_runtime::config::ApplicationOptions;
-use dokime_contract::{DEV_PROTOCOL, READINESS_PROTOCOL};
+use dokime_domain::DEV_PROTOCOL;
+use dokime_domain::READINESS_PROTOCOL;
 
 /* === Constants === */
 

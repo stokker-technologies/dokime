@@ -26,7 +26,8 @@ use uuid::Uuid;
 // Local Imports
 use super::{ApplicationPaths, StoragePolicy};
 use crate::plugins::PluginSettings;
-use crate::core::{DokimeNodeIdentity, NodeId};
+use dokime_domain::model::identity::DokimeNodeIdentity;
+use dokime_domain::model::identity::NodeId;
 
 /* === Constants === */
 const MAX_BYTES: u64 = 16 * 1024 * 1024;

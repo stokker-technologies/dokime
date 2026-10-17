@@ -34,7 +34,10 @@ pub use crate::storage::telemetry::Sample as TelemetrySample;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 // Local Imports
-use crate::core::{ContractId, PromptId, RecordScope, Timestamp};
+use dokime_domain::model::identity::ContractId;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
 use crate::prompts::{PromptInstance as DomainPrompt, PromptKind};
 use crate::storage::{Error, Result};
 
@@ -127,7 +130,7 @@ impl PromptInstance {
             definition_bytes
                 .saturating_sub(std::mem::size_of::<crate::prompts::PromptDefinition>()),
             values_bytes.saturating_sub(std::mem::size_of::<
-                std::collections::BTreeMap<String, crate::core::Value>,
+                std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
             >()),
             scope_bytes.saturating_sub(std::mem::size_of::<RecordScope>()),
         ];

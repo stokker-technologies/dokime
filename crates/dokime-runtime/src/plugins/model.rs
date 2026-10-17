@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 // Local Imports
 use super::PluginMetadata;
-use crate::core::Timestamp;
+use dokime_domain::model::time::Timestamp;
 use crate::settings::SettingValues;
 
 /* === Constants === */

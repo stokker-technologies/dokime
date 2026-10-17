@@ -307,7 +307,7 @@ impl TryFrom<Prompt> for PromptDefinition {
             examples.push(example.try_into()?);
         }
         Ok(Self {
-            prompt_type: crate::core::Identifier::new(row.prompt_type)?,
+            prompt_type: dokime_domain::model::identity::Identifier::new(row.prompt_type)?,
             schema_version: row.schema_version,
             archetype: archetype(&row.archetype)?,
             title: row.title,
@@ -316,10 +316,10 @@ impl TryFrom<Prompt> for PromptDefinition {
             actions,
             rules,
             condition: row.condition.map(TryInto::try_into).transpose()?,
-            owner: row.owner.map(crate::core::SuiteId::from_uuid).transpose()?,
+            owner: row.owner.map(dokime_domain::model::identity::SuiteId::from_uuid).transpose()?,
             template_identifier: row
                 .template_identifier
-                .map(crate::core::Identifier::new)
+                .map(dokime_domain::model::identity::Identifier::new)
                 .transpose()?,
             examples,
             level: level(&row.level)?,

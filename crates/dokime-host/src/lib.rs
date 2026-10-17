@@ -26,10 +26,11 @@ pub use config::{
     DEFAULT_NETWORK_LINK_INTERVAL, DEFAULT_WIFI_LATENCY_INTERVAL, DEFAULT_WIFI_SCAN_INTERVAL,
     HostOptions, HostTelemetryConfig, HostTelemetrySourceKind,
 };
-pub use dokime_contract::telemetry::{
-    HOST_STREAMS, HostTelemetryStream, host_stream_identifiers, host_telemetry_contract,
-    host_telemetry_contracts,
-};
+pub use dokime_domain::model::telemetry::HOST_STREAMS;
+pub use dokime_domain::model::telemetry::HostTelemetryStream;
+pub use dokime_domain::model::telemetry::host_stream_identifiers;
+pub use dokime_domain::model::telemetry::host_telemetry_contract;
+pub use dokime_domain::model::telemetry::host_telemetry_contracts;
 pub use error::{Error, Result};
 pub use fixture::{FixtureHostTelemetrySource, HOST_FIXTURE_SOURCE};
 pub use host::{Host, HostSnapshot};

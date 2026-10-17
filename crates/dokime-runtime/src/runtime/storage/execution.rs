@@ -24,17 +24,15 @@ use crate::{
     runtime::Error, runtime::Result,
     execution::context::{ExecutionContext, source::CapturedSource},
 };
-use crate::{
-    core::{NodeId, TestExecutionId},
-    execution::{
-        TestExecution,
-        saved::{
-            ExecutionCheckpoint, ExecutionOutput, ExecutionOutputContent, ExecutionSource,
-            validate_outputs,
-        },
-    },
-    storage::Manager,
-};
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::identity::TestExecutionId;
+use crate::execution::TestExecution;
+use crate::execution::saved::ExecutionCheckpoint;
+use crate::execution::saved::ExecutionOutput;
+use crate::execution::saved::ExecutionOutputContent;
+use crate::execution::saved::ExecutionSource;
+use crate::execution::saved::validate_outputs;
+use crate::storage::Manager;
 
 /* === Constants === */
 
@@ -229,7 +227,7 @@ impl ExecutionView {
             })
     }
 
-    pub fn captured_at(&self) -> Result<&crate::core::Timestamp> {
+    pub fn captured_at(&self) -> Result<&dokime_domain::model::time::Timestamp> {
         self.captured_source()
             .map(|source| &source.captured_at)
             .ok_or_else(|| {

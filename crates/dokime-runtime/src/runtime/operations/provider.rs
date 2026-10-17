@@ -29,7 +29,8 @@ use crate::{
     },
     handle::RuntimeHandle,
 };
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::domains::ExecutionProviderTarget;
 use crate::transport::{ProviderCycleOutcome, ProviderExecutionFailure};
 
@@ -56,7 +57,7 @@ pub(crate) struct ProviderTask {
 }
 
 pub(crate) struct PublicationFailure {
-    request_id: crate::core::CommandId,
+    request_id: dokime_domain::model::identity::CommandId,
     source: Arc<crate::runtime::Error>,
 }
 
@@ -340,7 +341,7 @@ impl ProviderCycleRequest {
                         .lock()
                         .expect("provider completion failure lock poisoned")
                         .get_or_insert_with(|| PublicationFailure {
-                            request_id: crate::core::CommandId::from_uuid(&self.request_id)
+                            request_id: dokime_domain::model::identity::CommandId::from_uuid(&self.request_id)
                                 .expect("journaled request ID is valid"),
                             source: Arc::new(crate::runtime::Error::Operation(format!(
                                 "provider cleanup remains unresolved: {error}"
@@ -420,7 +421,7 @@ async fn run_provider_cycle(
     let target: ExecutionProviderTarget = serde_json::from_value(job.target.clone())
         .expect("journaled provider-cycle target deserializes");
     let request_id =
-        crate::core::CommandId::from_uuid(job.request_id.clone()).expect("journaled request ID");
+        dokime_domain::model::identity::CommandId::from_uuid(job.request_id.clone()).expect("journaled request ID");
     let context = ExecutionFixtureContext::new(runtime.clone())
         .with_request(request_id.clone())
         .with_cancellation(cancelled)
@@ -491,7 +492,7 @@ async fn run_provider_cycle(
 
 async fn prepare_attempts(
     context: &ExecutionFixtureContext,
-    request_id: &crate::core::CommandId,
+    request_id: &dokime_domain::model::identity::CommandId,
     _after: harmos::state::Position,
 ) -> Result<(), ProviderExecutionFailure> {
     let runtime = &context.runtime;
@@ -692,7 +693,7 @@ async fn submit_finish_provider_cycle(
             .lock()
             .expect("provider completion failure lock poisoned")
             .get_or_insert_with(|| PublicationFailure {
-                request_id: crate::core::CommandId::from_uuid(&job.request_id)
+                request_id: dokime_domain::model::identity::CommandId::from_uuid(&job.request_id)
                     .expect("journaled request ID is valid"),
                 source: Arc::new(error),
             });

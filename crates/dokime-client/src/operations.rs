@@ -25,9 +25,11 @@ use harmos::{MemorySize, Protobuf};
 
 // Local Imports
 use super::{Client, Error as ClientError, Result as ClientResult};
-use dokime_contract::operations::runtime::{
-    GetHealth, GetIdentity, Health, Identity, Request as RuntimeRequest,
-};
+use dokime_domain::operations::runtime::GetHealth;
+use dokime_domain::operations::runtime::GetIdentity;
+use dokime_domain::operations::runtime::Health;
+use dokime_domain::operations::runtime::Identity;
+use dokime_domain::operations::runtime::Request as RuntimeRequest;
 
 /* === Constants === */
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;

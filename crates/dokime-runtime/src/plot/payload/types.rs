@@ -22,7 +22,9 @@ use serde_json::Value as JsonValue;
 use crate::document::{
     AxisScale, DocumentFilter, FftOptions, HistogramOptions, PlotType, SigmaIntervalOptions,
 };
-use crate::core::{RecordScope, Value, ValueFormat};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueFormat;
 use crate::expressions::DataExpression;
 
 /* === Constants === */

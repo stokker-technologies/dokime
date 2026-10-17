@@ -18,11 +18,14 @@
 use tonic::Status;
 // Local Imports
 use super::super::value::{self, canonical};
-use dokime_runtime::core::{CaseId, TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::domains::evidence::notes::{NoteCreation, NotePublication};
 use dokime_runtime::execution::notes::NoteOwner;
 use dokime_runtime::execution::{HealthItem, HealthSeverity, OperatorNote};
-use dokime_contract::operations::{common, notes as contract};
+use dokime_domain::operations::common;
+use dokime_domain::operations::notes as contract;
 
 /* === Constants === */
 
@@ -186,7 +189,7 @@ fn bounded_text(value: &str, limit: usize) -> Result<(), Status> {
     }
 }
 
-fn scope_bytes(scope: &dokime_runtime::core::RecordScope) -> Result<usize, Status> {
+fn scope_bytes(scope: &dokime_domain::model::execution::RecordScope) -> Result<usize, Status> {
     if let Some(case) = &scope.test_case_id {
         value::text(case.as_str())?;
         Ok(case.as_str().len())

@@ -40,7 +40,7 @@ use crate::{
     runtime::Error, runtime::Result, installed_plugins::RuntimeAppearanceFrame, runtime::progress::Operation,
     runtime::storage::cycle::CycleSnapshot,
 };
-use crate::core::DocumentId;
+use dokime_domain::model::identity::DocumentId;
 
 /* === Constants === */
 
@@ -247,7 +247,7 @@ impl HtmlReport {
 /* === Private Functions === */
 fn cycle_document(snapshot: &CycleSnapshot) -> Result<BTreeMap<DocumentId, Capture>> {
     let source = snapshot.source();
-    let mut scope = crate::core::RecordScope::default().with_cycle(source.test_cycle_id.clone());
+    let mut scope = dokime_domain::model::execution::RecordScope::default().with_cycle(source.test_cycle_id.clone());
     scope.session_id = Some(snapshot.session_id().clone());
     let declaration = crate::document::DocumentResolveInput {
         definition: crate::domains::documents::cycle_document(source.metadata.label.clone()),

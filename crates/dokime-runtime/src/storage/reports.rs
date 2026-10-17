@@ -30,10 +30,10 @@ use super::{
         execution::{Revision, Seal},
     },
 };
-use crate::{
-    core::{TestCycleId, TestExecutionId, Timestamp},
-    execution::saved::ExecutionRevision,
-};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use crate::execution::saved::ExecutionRevision;
 
 /* === Constants === */
 

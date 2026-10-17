@@ -26,10 +26,13 @@ use crate::grpc::{
     planning,
     value::{self, canonical},
 };
-use dokime_runtime::core::{CaseId, CommandId, CorrelationId, TestExecutionId};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::CorrelationId;
+use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::runtime::command::CommandContext;
 use dokime_runtime::{RuntimeHandle, transactions::CycleDefinition};
-use dokime_contract::operations::execution as wire;
+use dokime_domain::operations::execution as wire;
 
 /* === Constants === */
 

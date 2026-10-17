@@ -19,7 +19,12 @@ use harmos::state::Transaction;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{runtime::Error, state::RuntimeState};
-use crate::core::{DocumentId, Identifier, RecordScope, TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 use crate::document::{DocumentAddition, DocumentCardBody, DownsampleTechnique};
 
 /* === Constants === */

@@ -49,7 +49,7 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let id = dokime_contract::core::TestCycleId::from_uuid(&args.cycle_id)
+    let id = dokime_domain::model::identity::TestCycleId::from_uuid(&args.cycle_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
     let result = client.cycle(id).stop().await;

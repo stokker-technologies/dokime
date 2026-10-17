@@ -14,7 +14,7 @@ use crate::{
     runtime::Error, runtime::Result, RuntimeHandle,
     execution::{CycleView, TestExecution},
 };
-use crate::core::{TestExecutionId};
+use dokime_domain::model::identity::TestExecutionId;
 use crate::execution::ExecutionStatus;
 use crate::runtime::operations::reports::{MaterializeReport, MaterializeReportRequest, ReportSubject};
 use futures_util::{StreamExt, stream::FuturesUnordered};
@@ -28,7 +28,7 @@ use futures_util::{StreamExt, stream::FuturesUnordered};
 impl RuntimeHandle {
     /// Seal a terminal cycle no running request will finish: from its durable
     /// report intent when one exists, otherwise from its persisted members now.
-    pub(crate) async fn seal_settled_cycle(&self, id: &crate::core::TestCycleId) -> Result<()> {
+    pub(crate) async fn seal_settled_cycle(&self, id: &dokime_domain::model::identity::TestCycleId) -> Result<()> {
         let (cycle, completion) = {
             let state = self.state_read();
             let cycle = state

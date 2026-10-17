@@ -23,11 +23,13 @@ use super::loan;
 use super::*;
 use crate::grpc::access::{Principal, Role};
 use dokime_runtime::runtime::command::{CommandContext, CommandReceipt, CommandStatus};
-use dokime_runtime::{
-    core::{CaseId, CommandId},
-    domains::execution::requests::{RunPhase, RunReceipt},
-};
-use dokime_contract::operations::{common, cursor::Cursor, execution as wire};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::CommandId;
+use dokime_runtime::domains::execution::requests::RunPhase;
+use dokime_runtime::domains::execution::requests::RunReceipt;
+use dokime_domain::operations::common;
+use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::operations::execution as wire;
 
 /* === Constants === */
 
@@ -146,7 +148,7 @@ impl Operation for Execution {
             request.idempotency_key.as_deref(),
         )?;
         value::text(&request.execution_id)?;
-        let id = dokime_runtime::core::TestExecutionId::from_uuid(request.execution_id.clone())
+        let id = dokime_domain::model::identity::TestExecutionId::from_uuid(request.execution_id.clone())
             .map_err(|_| Status::invalid_argument("invalid execution ID"))?;
         let mode = match request.mode {
             wire::ExecutionMode::Automatic => dokime_runtime::execution::ExecutionMode::Automatic,
@@ -251,7 +253,7 @@ fn context_for_run(
 ) -> Result<CommandContext, Status> {
     let mut context = super::control::command_context(context, labels)?;
     if let Some(key) = key {
-        dokime_contract::core::command::validate_idempotency_key(key)
+        dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Status::invalid_argument(error.to_string()))?;
         context.idempotency_key = Some(key.to_owned());
     }

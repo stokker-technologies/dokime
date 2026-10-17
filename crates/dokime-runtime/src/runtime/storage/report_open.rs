@@ -27,7 +27,10 @@ use harmos::storage::ObjectVersion;
 // Local Imports
 use super::execution::ExecutionView;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
-use crate::core::{Metadata, TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 /* === Macros === */

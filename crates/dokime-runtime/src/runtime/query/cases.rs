@@ -22,7 +22,8 @@ use crate::execution::{CycleView, ExecutionStatus, TestCycle, TestExecution};
 use crate::state::RuntimeState;
 use crate::transactions::cycle::{ensure_case_deletable, ensure_case_restartable};
 use crate::transactions::provider::{ensure_case_runnable, planned_attempt};
-use crate::core::{CaseId, TestExecutionId};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 const HISTORICAL: &str = "historical checkpoints cannot be modified";

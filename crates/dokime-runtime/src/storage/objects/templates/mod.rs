@@ -461,7 +461,7 @@ impl TryFrom<Template> for crate::definition::TestCaseTemplate {
             subscriptions.push(value.try_into()?);
         }
         Ok(Self {
-            test_case_template_id: crate::core::TemplateId::from_uuid(row.test_case_template_id)?,
+            test_case_template_id: dokime_domain::model::identity::TemplateId::from_uuid(row.test_case_template_id)?,
             metadata: row
                 .metadata
                 .ok_or(Error::Invalid("template metadata is missing"))?
@@ -610,7 +610,7 @@ impl TryFrom<Phase> for crate::definition::ExecutionPhaseDefinition {
             return Err(Error::Invalid("phase projection memory overflows"));
         }
         Ok(Self {
-            step_id: crate::core::StepId::from_uuid(row.step_id)?,
+            step_id: dokime_domain::model::identity::StepId::from_uuid(row.step_id)?,
             repeatable: row.repeatable,
             metadata: row
                 .metadata
@@ -686,7 +686,7 @@ impl TryFrom<Criterion> for crate::definition::CriterionDefinition {
             ));
         }
         Ok(Self {
-            criterion_id: crate::core::CriterionId::from_uuid(row.criterion_id)?,
+            criterion_id: dokime_domain::model::identity::CriterionId::from_uuid(row.criterion_id)?,
             metadata: row
                 .metadata
                 .ok_or(Error::Invalid("criterion metadata is missing"))?
@@ -741,7 +741,7 @@ impl TryFrom<Subscription> for crate::definition::Subscription {
 
     fn try_from(row: Subscription) -> Result<Self> {
         row.projection_memory()?;
-        let identifier = crate::core::Identifier::new(row.identifier)?;
+        let identifier = dokime_domain::model::identity::Identifier::new(row.identifier)?;
         match row.kind.as_str() {
             "stream" => Ok(Self::Stream(identifier)),
             "record" => Ok(Self::Record(identifier)),
@@ -890,12 +890,12 @@ impl TryFrom<Parameter> for crate::definition::ParameterDefinition {
         }
         Ok(Self {
             expansion: row.expansion.try_into()?,
-            parameter_id: crate::core::ParameterId::from_uuid(row.parameter_id)?,
+            parameter_id: dokime_domain::model::identity::ParameterId::from_uuid(row.parameter_id)?,
             metadata: row
                 .metadata
                 .ok_or(Error::Invalid("parameter definition metadata is missing"))?
                 .try_into()?,
-            group_id: row.group_id.map(crate::core::Identifier::new).transpose()?,
+            group_id: row.group_id.map(dokime_domain::model::identity::Identifier::new).transpose()?,
             value_type: value_type(&row.value_type)?,
             unit: row.unit.map(TryInto::try_into).transpose()?,
             min: row.min,
@@ -963,7 +963,7 @@ impl TryFrom<Expansion> for crate::definition::ParameterExpansion {
             "single" => Ok(Self::Single),
             "cartesian" => Ok(Self::Cartesian),
             "zip" => Ok(Self::Zip {
-                group: crate::core::Identifier::new(row.group.unwrap())?,
+                group: dokime_domain::model::identity::Identifier::new(row.group.unwrap())?,
             }),
             _ => Err(Error::Invalid("invalid parameter expansion")),
         }
@@ -1145,7 +1145,7 @@ impl TryFrom<Group> for crate::definition::ParameterGroup {
             ));
         }
         Ok(Self {
-            group_id: crate::core::Identifier::new(row.group_id)?,
+            group_id: dokime_domain::model::identity::Identifier::new(row.group_id)?,
             metadata: row
                 .metadata
                 .ok_or(Error::Invalid("parameter group metadata is missing"))?
@@ -1154,10 +1154,10 @@ impl TryFrom<Group> for crate::definition::ParameterGroup {
     }
 }
 
-impl TryFrom<&crate::core::MeasurementUnit> for Unit {
+impl TryFrom<&dokime_domain::model::values::MeasurementUnit> for Unit {
     type Error = Error;
 
-    fn try_from(value: &crate::core::MeasurementUnit) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::values::MeasurementUnit) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("unit encoding memory overflow"));
         }
@@ -1170,7 +1170,7 @@ impl TryFrom<&crate::core::MeasurementUnit> for Unit {
 }
 
 impl Unit {
-    pub fn encoding_memory(value: &crate::core::MeasurementUnit) -> Result<usize> {
+    pub fn encoding_memory(value: &dokime_domain::model::values::MeasurementUnit) -> Result<usize> {
         let metadata = metadata::Row::encoding_memory(&value.metadata)?;
         if metadata == usize::MAX {
             return Ok(usize::MAX);
@@ -1190,17 +1190,17 @@ impl Unit {
         if metadata == usize::MAX {
             return Ok(usize::MAX);
         }
-        Ok(std::mem::size_of::<crate::core::MeasurementUnit>()
-            .saturating_add(metadata.saturating_sub(std::mem::size_of::<crate::core::Metadata>()))
+        Ok(std::mem::size_of::<dokime_domain::model::values::MeasurementUnit>()
+            .saturating_add(metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()))
             .saturating_add(self.symbol.capacity()))
     }
 }
 
-impl TryFrom<Unit> for crate::core::MeasurementUnit {
+impl TryFrom<Unit> for dokime_domain::model::values::MeasurementUnit {
     type Error = Error;
 
     fn try_from(row: Unit) -> Result<Self> {
-        use crate::core::UnitFamily;
+        use dokime_domain::model::values::UnitFamily;
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("unit projection memory overflows"));
         }
@@ -1227,16 +1227,16 @@ impl TryFrom<Unit> for crate::core::MeasurementUnit {
     }
 }
 
-impl TryFrom<&crate::core::Value> for Value {
+impl TryFrom<&dokime_domain::model::values::Value> for Value {
     type Error = Error;
 
-    fn try_from(value: &crate::core::Value) -> Result<Self> {
+    fn try_from(value: &dokime_domain::model::values::Value) -> Result<Self> {
         let cells = values::encode_value(value)?;
         Ok(Self { cells })
     }
 }
 
-impl TryFrom<Value> for crate::core::Value {
+impl TryFrom<Value> for dokime_domain::model::values::Value {
     type Error = Error;
     fn try_from(value: Value) -> Result<Self> {
         let bound = value.projection_memory()?;
@@ -1252,7 +1252,7 @@ impl TryFrom<Value> for crate::core::Value {
     }
 }
 impl Value {
-    pub fn encoding_memory(value: &crate::core::Value) -> Result<usize> {
+    pub fn encoding_memory(value: &dokime_domain::model::values::Value) -> Result<usize> {
         values::value_encoding_memory(value)
     }
 
@@ -1269,7 +1269,7 @@ impl Value {
 
 impl Map {
     pub fn encoding_memory(
-        value: &std::collections::BTreeMap<String, crate::core::Value>,
+        value: &std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
     ) -> Result<usize> {
         values::encoding_memory(value)
     }
@@ -1279,17 +1279,17 @@ impl Map {
     }
 }
 
-impl TryFrom<&std::collections::BTreeMap<String, crate::core::Value>> for Map {
+impl TryFrom<&std::collections::BTreeMap<String, dokime_domain::model::values::Value>> for Map {
     type Error = Error;
 
-    fn try_from(value: &std::collections::BTreeMap<String, crate::core::Value>) -> Result<Self> {
+    fn try_from(value: &std::collections::BTreeMap<String, dokime_domain::model::values::Value>) -> Result<Self> {
         Ok(Self {
             cells: values::encode(value)?,
         })
     }
 }
 
-impl TryFrom<Map> for std::collections::BTreeMap<String, crate::core::Value> {
+impl TryFrom<Map> for std::collections::BTreeMap<String, dokime_domain::model::values::Value> {
     type Error = Error;
 
     fn try_from(map: Map) -> Result<Self> {
@@ -1305,7 +1305,7 @@ impl serde::Serialize for Value {
         &self,
         serializer: S,
     ) -> std::result::Result<S::Ok, S::Error> {
-        let value: crate::core::Value =
+        let value: dokime_domain::model::values::Value =
             self.clone().try_into().map_err(serde::ser::Error::custom)?;
         value.serialize(serializer)
     }
@@ -1314,7 +1314,7 @@ impl<'de> serde::Deserialize<'de> for Value {
     fn deserialize<D: serde::Deserializer<'de>>(
         deserializer: D,
     ) -> std::result::Result<Self, D::Error> {
-        let value = <crate::core::Value as serde::Deserialize>::deserialize(deserializer)?;
+        let value = <dokime_domain::model::values::Value as serde::Deserialize>::deserialize(deserializer)?;
         Self::try_from(&value).map_err(serde::de::Error::custom)
     }
 }
@@ -1323,7 +1323,7 @@ impl serde::Serialize for Map {
         &self,
         serializer: S,
     ) -> std::result::Result<S::Ok, S::Error> {
-        let values: std::collections::BTreeMap<String, crate::core::Value> =
+        let values: std::collections::BTreeMap<String, dokime_domain::model::values::Value> =
             self.clone().try_into().map_err(serde::ser::Error::custom)?;
         values.serialize(serializer)
     }
@@ -1332,7 +1332,7 @@ impl<'de> serde::Deserialize<'de> for Map {
     fn deserialize<D: serde::Deserializer<'de>>(
         deserializer: D,
     ) -> std::result::Result<Self, D::Error> {
-        let value = <std::collections::BTreeMap<String, crate::core::Value> as serde::Deserialize>::deserialize(deserializer)?;
+        let value = <std::collections::BTreeMap<String, dokime_domain::model::values::Value> as serde::Deserialize>::deserialize(deserializer)?;
         let cells = values::encode(&value).map_err(serde::de::Error::custom)?;
         Ok(Self { cells })
     }
@@ -1362,8 +1362,8 @@ pub(super) fn convert<T: serde::Serialize, U: serde::de::DeserializeOwned>(
 }
 
 /* === Private Functions === */
-fn value_type_name(value: &crate::core::ValueType) -> &'static str {
-    use crate::core::ValueType;
+fn value_type_name(value: &dokime_domain::model::values::ValueType) -> &'static str {
+    use dokime_domain::model::values::ValueType;
     match value {
         ValueType::Boolean => "boolean",
         ValueType::Integer => "integer",
@@ -1387,8 +1387,8 @@ fn copied_strings(values: &[String]) -> Result<Vec<String>> {
     Ok(copied)
 }
 
-fn unit_family(family: &crate::core::UnitFamily) -> &'static str {
-    use crate::core::UnitFamily;
+fn unit_family(family: &dokime_domain::model::values::UnitFamily) -> &'static str {
+    use dokime_domain::model::values::UnitFamily;
     match family {
         UnitFamily::Count => "count",
         UnitFamily::Distance => "distance",
@@ -1402,8 +1402,8 @@ fn unit_family(family: &crate::core::UnitFamily) -> &'static str {
     }
 }
 
-fn value_type(value: &str) -> Result<crate::core::ValueType> {
-    use crate::core::ValueType;
+fn value_type(value: &str) -> Result<dokime_domain::model::values::ValueType> {
+    use dokime_domain::model::values::ValueType;
     match value {
         "boolean" => Ok(ValueType::Boolean),
         "integer" => Ok(ValueType::Integer),

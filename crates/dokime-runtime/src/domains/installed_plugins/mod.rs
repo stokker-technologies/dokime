@@ -23,7 +23,8 @@ pub use appearance::{
 };
 pub use brand::{EmbeddedLogo, ResolvedBrand, compiled_brand, load_brand};
 pub(crate) use bundled::builtin_plugins;
-pub use dokime_contract::domains::{InstalledPluginErrorRecord, InstalledPluginPhase};
+pub use dokime_domain::model::plugins::InstalledPluginErrorRecord;
+pub use dokime_domain::model::plugins::InstalledPluginPhase;
 pub use management::{
     PluginCredentialSecretUpdate, PluginRuntimeCredentialBindings, PluginSettingsUpdate,
     RuntimePluginManagementError, RuntimePluginSettings,

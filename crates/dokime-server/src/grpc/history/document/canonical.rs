@@ -20,7 +20,11 @@ use tonic::Status;
 use crate::grpc::enums::canonical as enums;
 use crate::grpc::value::projection;
 use crate::grpc::value::{self, canonical};
-use dokime_contract::operations::{common, documents, history, plots, value as value_wire};
+use dokime_domain::operations::common;
+use dokime_domain::operations::documents;
+use dokime_domain::operations::history;
+use dokime_domain::operations::plots;
+use dokime_domain::operations::value as value_wire;
 
 /* === Constants === */
 
@@ -39,7 +43,7 @@ use dokime_contract::operations::{common, documents, history, plots, value as va
 /* === Public Functions === */
 pub(in crate::grpc) fn wire(
     value: &dokime_runtime::document::DocumentDefinition,
-    scope: &dokime_runtime::core::RecordScope,
+    scope: &dokime_domain::model::execution::RecordScope,
 ) -> Result<history::HistoricalDocument, Status> {
     use dokime_runtime::document::DocumentCardBody;
     let presentation = documents::DocumentHeader {
@@ -114,7 +118,7 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
 }
 
 fn value_object(
-    source: &std::collections::BTreeMap<String, dokime_runtime::core::Value>,
+    source: &std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
     budget: &mut value::Budget,
     depth: usize,
 ) -> Result<value_wire::Value, Status> {
@@ -122,12 +126,12 @@ fn value_object(
     canonical::object(source, budget)
 }
 
-fn metadata(source: &dokime_runtime::core::Metadata) -> Result<common::Metadata, Status> {
+fn metadata(source: &dokime_domain::model::identity::Metadata) -> Result<common::Metadata, Status> {
     canonical::metadata(source)
 }
 
 fn project_value(
-    source: &dokime_runtime::core::Value,
+    source: &dokime_domain::model::values::Value,
     budget: &mut value::Budget,
     depth: usize,
 ) -> Result<value_wire::Value, Status> {
@@ -136,7 +140,7 @@ fn project_value(
 
 fn historical_card(
     value: &dokime_runtime::document::DocumentCardDefinition,
-    scope: &dokime_runtime::core::RecordScope,
+    scope: &dokime_domain::model::execution::RecordScope,
 ) -> Result<history::HistoricalDocumentCard, Status> {
     use dokime_runtime::document::DocumentCardBody;
     let body = match &value.body {
@@ -359,7 +363,7 @@ fn data_transform(
 
 pub(in crate::grpc) fn historical_plot(
     value: &dokime_runtime::document::PlotDefinition,
-    scope: &dokime_runtime::core::RecordScope,
+    scope: &dokime_domain::model::execution::RecordScope,
 ) -> Result<documents::DocumentPlotDefinition, Status> {
     value::collection(value.y.len())?;
     value::collection(value.y_expressions.len())?;
@@ -650,7 +654,7 @@ fn summary_state(
 fn owner_body(
     kind: documents::DocumentCardKind,
     plot_id: Option<String>,
-    _scope: &dokime_runtime::core::RecordScope,
+    _scope: &dokime_domain::model::execution::RecordScope,
 ) -> Result<history::HistoricalDocumentCardBody, Status> {
     Ok(history::HistoricalDocumentCardBody::Owner(
         documents::DocumentOwnerReference {

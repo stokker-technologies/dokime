@@ -30,7 +30,8 @@ use dokime_runtime::{
     RuntimeHandle,
     runtime::query::execution_history::{ExecutionCheckpoint, ExecutionCheckpointEvidence},
 };
-use dokime_contract::operations::{content as content_wire, history as contract};
+use dokime_domain::operations::content as content_wire;
+use dokime_domain::operations::history as contract;
 
 /* === Constants === */
 

@@ -25,7 +25,8 @@ use std::collections::BTreeMap;
 use crate::execution::context::{ExecutionContext, ExecutionCycleContext};
 use crate::execution::{CycleView, TestExecution};
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{DocumentId, RecordScope};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 const MAX_BYTES: usize = 4 * 1024 * 1024;

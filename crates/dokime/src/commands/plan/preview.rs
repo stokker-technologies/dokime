@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::operations::planning::PreviewSelectionRequest;
+use dokime_domain::operations::planning::PreviewSelectionRequest;
 
 /* === Constants === */
 

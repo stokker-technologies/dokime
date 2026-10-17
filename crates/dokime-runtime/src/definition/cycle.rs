@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::execution::{CycleView, TestExecutionInstance};
 
 /* === Constants === */
@@ -63,7 +63,7 @@ impl TestCycleInstance {
         self.executions.get(execution_id)
     }
 
-    pub fn cycle_id(&self) -> &crate::core::TestCycleId {
+    pub fn cycle_id(&self) -> &dokime_domain::model::identity::TestCycleId {
         &self.cycle.test_cycle_id
     }
 }

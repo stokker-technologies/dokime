@@ -24,9 +24,10 @@ use tonic::Status;
 use super::wire;
 use crate::grpc::{error::detailed, value};
 use dokime_runtime::RuntimeHandle;
-use dokime_runtime::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::runtime::query::execution_history::ExecutionCheckpoint;
-use dokime_contract::operations::{checkpoint, history};
+use dokime_domain::operations::checkpoint;
+use dokime_domain::operations::history;
 
 /* === Constants === */
 

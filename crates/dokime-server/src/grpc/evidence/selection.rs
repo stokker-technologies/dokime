@@ -20,7 +20,8 @@ use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
 use dokime_runtime::records::RecordEntry;
-use dokime_contract::operations::{common, evidence as v1};
+use dokime_domain::operations::common;
+use dokime_domain::operations::evidence as v1;
 
 /* === Constants === */
 pub(super) const MAX_ALTERNATIVES: usize = 64;
@@ -57,7 +58,7 @@ impl Selection {
             items.dedup();
         }
         for kind in &value.record_types {
-            dokime_runtime::core::Identifier::new(kind)
+            dokime_domain::model::identity::Identifier::new(kind)
                 .map_err(|_| Status::invalid_argument("invalid record type"))?;
         }
         if value.severities.len() > MAX_SEVERITIES

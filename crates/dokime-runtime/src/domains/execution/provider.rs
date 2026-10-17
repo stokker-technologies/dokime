@@ -26,7 +26,11 @@ use crate::{
     handle::RuntimeHandle,
     state::RuntimeState,
 };
-use crate::core::{Identifier, PromptId, RecordScope, TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding};
 use crate::prompts::{PromptRequest, PromptResponse};
 use crate::telemetry::TelemetryBatch;
@@ -50,7 +54,7 @@ pub type ExecutionFixtureFuture<'a> = Pin<
 #[derive(Clone)]
 pub struct ExecutionFixtureContext {
     pub(crate) runtime: RuntimeHandle,
-    pub(crate) request_id: Option<crate::core::CommandId>,
+    pub(crate) request_id: Option<dokime_domain::model::identity::CommandId>,
     cancellation: Option<tokio::sync::watch::Receiver<bool>>,
     pub(crate) finalization: super::run::Finalization,
 }
@@ -97,7 +101,7 @@ impl ExecutionFixtureContext {
         }
     }
 
-    pub(crate) fn with_request(mut self, request_id: crate::core::CommandId) -> Self {
+    pub(crate) fn with_request(mut self, request_id: dokime_domain::model::identity::CommandId) -> Self {
         self.request_id = Some(request_id);
         self
     }
@@ -213,7 +217,7 @@ impl ExecutionFixtureContext {
     pub(crate) async fn begin_captured_artifact_upload(
         &self,
         input: crate::artifacts::ArtifactUploadInput,
-        created_at: crate::core::Timestamp,
+        created_at: dokime_domain::model::time::Timestamp,
     ) -> crate::runtime::Result<crate::runtime::storage::artifacts::ArtifactUpload> {
         self.runtime
             .begin_captured_artifact_upload(input, created_at)
@@ -223,7 +227,7 @@ impl ExecutionFixtureContext {
     pub(crate) async fn capture_phase(
         &self,
         scope: RecordScope,
-        phase: crate::core::CapturePhase,
+        phase: dokime_domain::model::execution::CapturePhase,
     ) -> crate::runtime::Result<()> {
         let _order = self.runtime.telemetry_admission.lock().await;
         self.runtime

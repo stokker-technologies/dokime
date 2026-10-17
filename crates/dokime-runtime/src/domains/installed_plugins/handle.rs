@@ -25,7 +25,8 @@ use crate::{
         RuntimePluginSettings,
     },
 };
-use crate::{core::Identifier, domains::DispatchContext};
+use dokime_domain::model::identity::Identifier;
+use crate::domains::DispatchContext;
 
 /* === Constants === */
 

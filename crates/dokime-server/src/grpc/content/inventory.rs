@@ -23,8 +23,10 @@ use tonic::Status;
 
 // Local Imports
 use crate::grpc::value::{self, projection};
-use dokime_runtime::{ExecutionFileEntry, RuntimeHandle, core::TestExecutionId};
-use dokime_contract::operations::content as wire;
+use dokime_runtime::ExecutionFileEntry;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 const INVENTORY_LIMIT: usize = 512;
@@ -227,7 +229,7 @@ fn metadata(entry: &ExecutionFileEntry) -> harmos::Result<wire::ExecutionFileMet
 }
 fn timestamp(
     entry: &ExecutionFileEntry,
-) -> harmos::Result<dokime_contract::operations::common::Timestamp> {
+) -> harmos::Result<dokime_domain::operations::common::Timestamp> {
     let at = time::OffsetDateTime::parse(
         entry.updated_at.as_str(),
         &time::format_description::well_known::Rfc3339,
@@ -239,7 +241,7 @@ fn timestamp(
             source,
         )
     })?;
-    Ok(dokime_contract::operations::common::Timestamp {
+    Ok(dokime_domain::operations::common::Timestamp {
         seconds: at.unix_timestamp(),
         nanos: at.nanosecond() as i32,
     })

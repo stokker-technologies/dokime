@@ -26,7 +26,8 @@ use tokio::sync::Mutex;
 use super::{ExecutionFixtureContext, failure};
 use crate::records::{RecordPublishRequest, RecordSeverity};
 use crate::artifacts::ArtifactUploadInput;
-use crate::core::{RecordScope, Value};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
 use crate::transport::{
     ArtifactChunk, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES, ProviderExecutionFailure,
 };
@@ -82,7 +83,7 @@ struct TransferBody<S: SpillStorage> {
 
 struct Transfer<S: SpillStorage> {
     capture_scope: Option<RecordScope>,
-    created_at: Option<crate::core::Timestamp>,
+    created_at: Option<dokime_domain::model::time::Timestamp>,
     name: String,
     mime: String,
     next_sequence: u64,

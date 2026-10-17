@@ -22,7 +22,10 @@ use super::{
     PromptActionEmphasis, PromptArchetype, PromptDefinition, PromptField, PromptFieldKind,
     PromptResponse,
 };
-use crate::core::{Identifier, Metadata, Value, ValueType};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueType;
 use crate::values::FieldValue;
 
 /* === Constants === */

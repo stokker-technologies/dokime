@@ -20,7 +20,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeSeq};
 // Local Imports
 use crate::artifacts::ArtifactRecord;
-use crate::core::{RecordId, RecordScope};
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::execution::RecordScope;
 use crate::document::definition::DocumentDefinition;
 use crate::records::RecordEntry;
 use crate::runtime::storage::record_capture::CapturedRecord;

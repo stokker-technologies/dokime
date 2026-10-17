@@ -25,7 +25,10 @@ use crate::records::ProductRecordDraft;
 use crate::telemetry_runtime::sampling::{SamplingPhaseState, sampling_phase_state};
 use crate::transactions::RecordHealth;
 use crate::{runtime::Error, RuntimeHandle, state::RuntimeState, unavailable_rejection};
-use crate::core::{HealthItemId, TestCycleId, Timestamp, ValidationIssue};
+use dokime_domain::model::identity::HealthItemId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::diagnostics::ValidationIssue;
 use crate::telemetry::TelemetryBatch;
 
 /* === Constants === */

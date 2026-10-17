@@ -20,7 +20,7 @@
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::operations::execution::AppendPlannedCasesRequest;
+use dokime_domain::operations::execution::AppendPlannedCasesRequest;
 
 /* === Constants === */
 
@@ -66,7 +66,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
         }
         None => (args.cycle_id.unwrap_or_default(), input.plan()?),
     };
-    let id = dokime_contract::core::TestCycleId::from_uuid(&cycle_id)
+    let id = dokime_domain::model::identity::TestCycleId::from_uuid(&cycle_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
     let result = async {

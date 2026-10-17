@@ -25,7 +25,7 @@ use crate::plot::{
 };
 use crate::runtime::handle::RuntimeHandle;
 use crate::analysis::{Definition, MAX_SAMPLES, Request, Samples, Selection};
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::domains::ActionDispatcher;
 use crate::telemetry::{TelemetryContract, TelemetrySample};
 use harmos::Message;
@@ -450,10 +450,10 @@ pub(crate) fn definitions(
 /* === Private Functions === */
 // Step And Criterion Attribution Do Not Start A New Telemetry Sequence.
 fn evidence_owner(
-    scope: Option<&crate::core::RecordScope>,
+    scope: Option<&dokime_domain::model::execution::RecordScope>,
 ) -> (
-    Option<&crate::core::TestCycleId>,
-    Option<&crate::core::TestExecutionId>,
+    Option<&dokime_domain::model::identity::TestCycleId>,
+    Option<&dokime_domain::model::identity::TestExecutionId>,
 ) {
     (
         scope.and_then(|scope| scope.test_cycle_id.as_ref()),

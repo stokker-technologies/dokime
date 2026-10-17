@@ -17,12 +17,13 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::telemetry::{
     FieldError, FieldValue, TelemetryColumn, TelemetryContract, TelemetryRole, TelemetryRow,
     TelemetryStream, field,
 };
-use dokime_contract::telemetry::{HostTelemetryStream, host_telemetry_contract};
+use dokime_domain::model::telemetry::HostTelemetryStream;
+use dokime_domain::model::telemetry::host_telemetry_contract;
 
 /* === Constants === */
 
@@ -130,7 +131,7 @@ macro_rules! host_rows {
 
 /* === Expansions === */
 
-dokime_contract::host_streams!(host_rows);
+dokime_domain::host_streams!(host_rows);
 
 /* === Type Aliases === */
 
@@ -150,7 +151,7 @@ dokime_contract::host_streams!(host_rows);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::Timestamp;
+    use dokime_domain::model::time::Timestamp;
     use harmos::Message;
 
     #[test]
@@ -178,7 +179,7 @@ mod tests {
                 if let Some(list) = &list {
                     values.insert(field.to_owned(), list.clone());
                 }
-                let bytes = dokime_contract::telemetry::host_telemetry_payload(stream, &values)
+                let bytes = dokime_domain::model::telemetry::host_telemetry_payload(stream, &values)
                     .expect("encode host row");
                 validator
                     .validate(&bytes)
@@ -192,7 +193,7 @@ mod tests {
                 {
                     let mut stored = crate::storage::telemetry::decode_values(&validator, &bytes)
                         .expect("project stored host payload");
-                    dokime_contract::telemetry::host::contracts::project_host_values(
+                    dokime_domain::model::telemetry::host::contracts::project_host_values(
                         stream,
                         &mut stored,
                     )

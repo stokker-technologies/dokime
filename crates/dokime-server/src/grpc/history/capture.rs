@@ -23,7 +23,7 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use dokime_runtime::RuntimeHandle;
-use dokime_contract::operations::history;
+use dokime_domain::operations::history;
 
 /* === Constants === */
 

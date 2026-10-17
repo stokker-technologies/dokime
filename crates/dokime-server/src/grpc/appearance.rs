@@ -23,7 +23,8 @@ use prost::Message;
 use tonic::Status;
 // Local Imports
 use dokime_runtime::RuntimeHandle;
-use dokime_contract::operations::{appearance as wire, content};
+use dokime_domain::operations::appearance as wire;
+use dokime_domain::operations::content;
 
 /* === Constants === */
 

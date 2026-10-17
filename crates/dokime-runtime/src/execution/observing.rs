@@ -24,7 +24,7 @@ use super::tick::Cadence;
 use super::unwind::caught;
 use super::{DeclaredObserver, Environment, SidecarTemplate};
 use crate::artifacts::Artifacts;
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::error::PublishFailure;
 use crate::plugin::Diagnostic;
 use crate::records::{Deliveries, RecordPublishRequest};

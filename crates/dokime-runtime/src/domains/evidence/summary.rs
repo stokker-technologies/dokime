@@ -18,7 +18,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::records::RecordEntry;
-use crate::core::{Identifier, Timestamp};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::time::Timestamp;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */

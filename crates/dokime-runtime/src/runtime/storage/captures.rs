@@ -32,7 +32,7 @@ use std::{
 use tokio::sync::oneshot;
 
 // Local Imports
-use crate::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 // Bounds sealing one capture: stopping the device and storing its file.

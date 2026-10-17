@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 // Local Imports
 use super::desktop::ArtifactSource;
 use crate::connection::SessionLease;
-use dokime_contract::operations::content as v1;
+use dokime_domain::operations::content as v1;
 
 /* === Constants === */
 

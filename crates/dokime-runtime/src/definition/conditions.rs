@@ -10,7 +10,8 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime_contract::definition::conditions::{RuntimeCondition, RuntimeConditionEvaluation};
+pub use dokime_domain::model::definition::conditions::RuntimeCondition;
+pub use dokime_domain::model::definition::conditions::RuntimeConditionEvaluation;
 
 /* === Imports === */
 // Standard Library Imports

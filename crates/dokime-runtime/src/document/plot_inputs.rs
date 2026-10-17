@@ -17,7 +17,8 @@ use std::collections::BTreeSet;
 // Third Party Imports
 
 // Local Imports
-use crate::core::{Identifier, Metadata};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
 use crate::document::{DocumentSelection, PlotDefinition, PlotDescriptor, PlotInput, PlotType};
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;

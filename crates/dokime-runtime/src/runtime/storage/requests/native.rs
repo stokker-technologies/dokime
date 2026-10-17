@@ -32,7 +32,8 @@ use harmos::storage::{
 // Local Imports
 use super::{Pending, RunReceipt, error, receipt_error};
 use crate::runtime::Result;
-use crate::core::{CommandId, NodeId};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::NodeId;
 use crate::storage::{
     Manager,
     requests::{Command, Request},

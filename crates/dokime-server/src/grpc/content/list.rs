@@ -25,7 +25,7 @@ use tonic::Status;
 use super::metadata;
 use crate::grpc::{error::detailed, value};
 use dokime_runtime::{RuntimeHandle, artifacts::ArtifactRecord};
-use dokime_contract::operations::content as wire;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 

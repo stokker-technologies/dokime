@@ -38,7 +38,7 @@ pub(crate) mod policy;
 impl crate::RuntimeHandle {
     pub async fn register_cases(
         &self,
-        registration_id: crate::core::CommandId,
+        registration_id: dokime_domain::model::identity::CommandId,
         cases: Vec<crate::definition::TestCase>,
     ) -> crate::runtime::Result<()> {
         if cases.is_empty() || cases.len() > 1000 {

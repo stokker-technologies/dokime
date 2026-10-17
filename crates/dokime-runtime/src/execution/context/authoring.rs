@@ -24,7 +24,12 @@ use crate::execution::error::TerminationReason;
 use crate::execution::evidence::{ExecutionEvidence, Samples};
 use crate::execution::log::Level;
 use crate::artifacts::Artifacts;
-use crate::core::{CapturePhase, EvidenceOrigin, Identifier, RecordScope, StepAttemptId, Value};
+use dokime_domain::model::execution::CapturePhase;
+use dokime_domain::model::execution::EvidenceOrigin;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::StepAttemptId;
+use dokime_domain::model::values::Value;
 use crate::prompts::Prompt;
 use crate::publication::{Publication, Publishable};
 use crate::records::DeclaredRecord;
@@ -264,7 +269,7 @@ impl<'a, C, O, I> Context<'a, C, O, I, Step> {
     #[cfg(feature = "native")]
     pub async fn lease_stream<R>(
         &mut self,
-        stream: crate::core::Identifier,
+        stream: dokime_domain::model::identity::Identifier,
     ) -> crate::Result<crate::execution::lease::Lease<'a, R>> {
         let request = crate::telemetry::LeaseRequest::new(stream.clone());
         let hold = self.transport.lease(request).await?;

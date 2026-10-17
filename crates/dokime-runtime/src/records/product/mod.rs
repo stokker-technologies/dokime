@@ -17,7 +17,10 @@ use std::{collections::BTreeMap, str::FromStr};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{Identifier, RecordScope, Timestamp, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 use crate::records::{BuiltinRecordType, Record, RecordSeverity, error::RecordFailure};
 
 /* === Constants === */

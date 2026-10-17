@@ -17,7 +17,8 @@ use std::collections::BTreeMap;
 // Third Party Imports
 
 // Local Imports
-use crate::core::{Identifier, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
 use crate::records::{Record, RecordContract, RecordPublishRequest, RecordSeverity};
 use crate::values::FieldError;
 

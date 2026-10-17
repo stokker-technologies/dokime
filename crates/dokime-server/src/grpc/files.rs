@@ -34,7 +34,7 @@ use dokime_runtime::{
         CAPPED, FileWatch as Watch, INVALID, UNREACHABLE, UNSUPPORTED, UNTRUSTED, WatchEvent,
     },
 };
-use dokime_contract::operations::files as contract;
+use dokime_domain::operations::files as contract;
 
 /* === Constants === */
 

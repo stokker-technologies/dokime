@@ -17,7 +17,7 @@
 // Third Party Imports
 
 // Local Imports
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::telemetry::{
     TelemetryCondition, TelemetryConditionEvaluation, TelemetryConditionOperator, TelemetrySample,
 };

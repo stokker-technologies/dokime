@@ -40,7 +40,11 @@ use crate::plot::record_timing::{RECORD_CONTEXT_STREAM, record_timing_series};
 use crate::records::RecordEntry;
 use crate::traceability::TraceabilitySnapshot;
 use cartesian::cartesian_frame;
-use crate::core::{RecordScope, Value, ValueFormat, datetime_seconds, scope_visible_in};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueFormat;
+use dokime_domain::model::values::datetime_seconds;
+use dokime_domain::model::execution::scope_visible_in;
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::{TelemetryColumn, TelemetrySample};
 use harmos::Aggregate;
@@ -1226,7 +1230,7 @@ fn value_to_json(value: Option<&Value>) -> JsonValue {
 
 fn plot_json_value(value: &Value) -> JsonValue {
     match value {
-        Value::Datetime(timestamp) => JsonValue::String(crate::core::datetime_text(*timestamp)),
+        Value::Datetime(timestamp) => JsonValue::String(dokime_domain::model::time::datetime_text(*timestamp)),
         value => value.to_plain_json().unwrap_or(JsonValue::Null),
     }
 }

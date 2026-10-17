@@ -17,7 +17,11 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{DocumentId, Identifier, Metadata, TemplateId, Value};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::values::Value;
 use crate::definition::{
     MaterializedParameter, ParameterDefinition, ParameterSource, TestCase, TestCaseTemplate,
     TestSuite,

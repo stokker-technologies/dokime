@@ -35,8 +35,11 @@ use tokio::task::JoinHandle;
 
 // Local Imports
 use crate::host::StepHandleCancelled;
-use dokime_contract::operations::files::{FileWatchSourcePayload, WatchFile, WatchFileRequest};
-use dokime_contract::operations::process::{RunProcess, RunProcessRequest};
+use dokime_domain::operations::files::FileWatchSourcePayload;
+use dokime_domain::operations::files::WatchFile;
+use dokime_domain::operations::files::WatchFileRequest;
+use dokime_domain::operations::process::RunProcess;
+use dokime_domain::operations::process::RunProcessRequest;
 
 /* === Constants === */
 // The JSON-RPC server error code of a refusal raised on the step side.

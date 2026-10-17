@@ -24,7 +24,7 @@ use dokime_runtime::{
         PluginCredentialSecretUpdate, PluginSettingsUpdate, RuntimePluginSettings,
     },
 };
-use dokime_contract::operations::settings as wire;
+use dokime_domain::operations::settings as wire;
 /* === Constants === */
 /* === Macros === */
 /* === Type Aliases === */
@@ -117,7 +117,7 @@ impl Operation for UpdatePluginSettings {
         let values = match request.values.take() {
             None => Default::default(),
             Some(value) => match canonical::decode(value, &mut Budget::new(), 0)? {
-                dokime_runtime::core::Value::Object(values) => values,
+                dokime_domain::model::values::Value::Object(values) => values,
                 _ => {
                     return Err(Status::invalid_argument(
                         "plugin settings values must be an object",
@@ -206,7 +206,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     Ok(())
 }
 /* === Private Functions === */
-fn plugin_id(id: &str) -> Result<dokime_runtime::core::Identifier, Status> {
+fn plugin_id(id: &str) -> Result<dokime_domain::model::identity::Identifier, Status> {
     value::text(id)?;
     projection::identifier(id.to_owned(), "plugin_id")
 }

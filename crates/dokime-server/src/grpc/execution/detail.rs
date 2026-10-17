@@ -19,10 +19,12 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use super::*;
-use dokime_runtime::core::{Metadata, TestExecutionId, Value};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::values::Value;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource};
 use dokime_runtime::execution::TestExecution;
-use dokime_contract::operations::common::Diagnostic;
+use dokime_domain::operations::common::Diagnostic;
 
 /* === Constants === */
 const MAX_DIAGNOSTIC_TEXT: usize = 4096;
@@ -99,16 +101,16 @@ pub(super) fn execution<'a>(
 
 pub(crate) fn result(
     value: &dokime_runtime::execution::ResultSummary,
-) -> dokime_contract::operations::execution::ResultSummary {
+) -> dokime_domain::operations::execution::ResultSummary {
     use dokime_runtime::execution::ResultStatus;
-    dokime_contract::operations::execution::ResultSummary {
+    dokime_domain::operations::execution::ResultSummary {
         status: match value.status {
-            ResultStatus::Pending => dokime_contract::operations::execution::ResultStatus::Pending,
-            ResultStatus::Passed => dokime_contract::operations::execution::ResultStatus::Passed,
-            ResultStatus::Failed => dokime_contract::operations::execution::ResultStatus::Failed,
-            ResultStatus::Blocked => dokime_contract::operations::execution::ResultStatus::Blocked,
+            ResultStatus::Pending => dokime_domain::operations::execution::ResultStatus::Pending,
+            ResultStatus::Passed => dokime_domain::operations::execution::ResultStatus::Passed,
+            ResultStatus::Failed => dokime_domain::operations::execution::ResultStatus::Failed,
+            ResultStatus::Blocked => dokime_domain::operations::execution::ResultStatus::Blocked,
             ResultStatus::Cancelled => {
-                dokime_contract::operations::execution::ResultStatus::Cancelled
+                dokime_domain::operations::execution::ResultStatus::Cancelled
             }
         },
         passed: value.passed,

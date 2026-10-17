@@ -17,7 +17,7 @@ pub use crate::storage::telemetry::TelemetryEntry as ExecutionTelemetryRow;
 
 // Third Party Imports
 use crate::{runtime::Result, RuntimeHandle};
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use super::execution_history::{ExecutionBrowseIssue, ExecutionCheckpoint};

@@ -26,13 +26,15 @@ use super::{
     execution,
     value::{self, canonical as values},
 };
-use dokime_contract::operations::cursor::{Cursor as NativeCursor, Error as CursorError};
-use dokime_runtime::{
-    RuntimeHandle,
-    core::{PromptId, TestCycleId, TestExecutionId},
-    runtime::query::RuntimeStateSnapshot,
-};
-use dokime_contract::operations::{cursor::Cursor, prompts as wire};
+use dokime_domain::operations::cursor::Cursor as NativeCursor;
+use dokime_domain::operations::cursor::Error as CursorError;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_runtime::runtime::query::RuntimeStateSnapshot;
+use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::operations::prompts as wire;
 
 /* === Constants === */
 const STREAM: &str = "runtime.state";
@@ -321,7 +323,7 @@ impl Operation for Respond {
             .transpose()?;
         let values = match decoded {
             None => Default::default(),
-            Some(dokime_runtime::core::Value::Object(fields)) => fields,
+            Some(dokime_domain::model::values::Value::Object(fields)) => fields,
             Some(_) => return Err(Status::invalid_argument("prompt values must be an object")),
         };
         let receipt = self

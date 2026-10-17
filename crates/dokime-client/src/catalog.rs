@@ -19,7 +19,8 @@
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result};
-use dokime_contract::operations::{Endpoint, catalog};
+use dokime_domain::operations::Endpoint;
+use dokime_domain::operations::catalog;
 
 /* === Constants === */
 
@@ -180,7 +181,7 @@ impl Client {
 // The suite a readable template id names, when the id is well formed.
 pub fn template_suite(identifier: &str) -> Option<&str> {
     let (suite, _) = identifier.rsplit_once('.')?;
-    dokime_contract::definition::template_identifier(suite, identifier)
+    dokime_domain::model::definition::template_identifier(suite, identifier)
         .ok()
         .map(|()| suite)
 }
@@ -206,7 +207,7 @@ pub(crate) fn registered_template<'a>(
             "template `{identifier}` is declared more than once in its suite"
         ))));
     }
-    dokime_contract::core::TemplateId::from_uuid(&selected.template_id)
+    dokime_domain::model::identity::TemplateId::from_uuid(&selected.template_id)
         .map_err(|_| invalid("template has an invalid identity"))?;
     Ok(selected)
 }

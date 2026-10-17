@@ -1,0 +1,49 @@
+# ***
+#
+# Dokime
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ***
+
+[package]
+name = "dokime-domain"
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+license.workspace = true
+repository.workspace = true
+version = { workspace = true }
+
+[features]
+# Captures error chains, span traces and backtraces into a `Diagnostic`.
+diagnostics = ["dep:tracing-error"]
+# Projects the public operations into protobuf descriptors and readable sources.
+descriptors = ["harmos/grpc"]
+
+[dependencies]
+# Git
+harmos = { workspace = true }
+
+# Error Handling
+thiserror = { workspace = true }
+
+# Logging
+tracing-error = { workspace = true, optional = true }
+
+# Utilities
+sha2 = { workspace = true }
+time = { workspace = true }
+
+# Serialization
+base64 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[[bin]]
+name = "dokime-domain-export"
+path = "src/bin/export.rs"
+required-features = ["descriptors"]
+test = false
+bench = false
+doc = false

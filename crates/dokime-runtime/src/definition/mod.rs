@@ -23,19 +23,46 @@ pub use authoring::{
     unit as authored_unit,
 };
 pub use conditions::{RuntimeCondition, RuntimeConditionEvaluation, evaluate_runtime_condition};
-pub use dokime_contract::definition::registry::{SuiteSet, SuiteSnapshot};
-pub use dokime_contract::definition::{
-    CaseMaterializationError, CaseMaterializationOptions, CaseMaterializationOutput,
-    CaseMaterializationSelection, CriterionDefinition, DEFAULT_MATERIALIZED_CASE_CAP,
-    DynamicDefaultKey, ExecutionPhaseDefinition, FileDefinition, MaterializedParameter,
-    ParameterBinaryOp, ParameterDefinition, ParameterExpansion, ParameterExpr, ParameterGroup,
-    ParameterGroupId, ParameterList, ParameterResolverError, ParameterSelection, ParameterSource,
-    ParameterUnaryOp, ResolvedParameterSpace, Subscription, TemplateIdentifierRefusal, TestCase,
-    TestCaseTemplate, TestSuite, coerce_definition_value, coerce_list_value,
-    coerce_parameter_value, materialize_template_cases, materialized_parameter, parameter_name,
-    resolve_parameter_spaces, template_identifier,
-};
-pub use dokime_contract::definition::{case_materialization, parameters, suite};
+pub use dokime_domain::model::definition::registry::SuiteSet;
+pub use dokime_domain::model::definition::registry::SuiteSnapshot;
+pub use dokime_domain::model::definition::CaseMaterializationError;
+pub use dokime_domain::model::definition::CaseMaterializationOptions;
+pub use dokime_domain::model::definition::CaseMaterializationOutput;
+pub use dokime_domain::model::definition::CaseMaterializationSelection;
+pub use dokime_domain::model::definition::CriterionDefinition;
+pub use dokime_domain::model::definition::DEFAULT_MATERIALIZED_CASE_CAP;
+pub use dokime_domain::model::definition::DynamicDefaultKey;
+pub use dokime_domain::model::definition::ExecutionPhaseDefinition;
+pub use dokime_domain::model::definition::FileDefinition;
+pub use dokime_domain::model::definition::MaterializedParameter;
+pub use dokime_domain::model::definition::ParameterBinaryOp;
+pub use dokime_domain::model::definition::ParameterDefinition;
+pub use dokime_domain::model::definition::ParameterExpansion;
+pub use dokime_domain::model::definition::ParameterExpr;
+pub use dokime_domain::model::definition::ParameterGroup;
+pub use dokime_domain::model::definition::ParameterGroupId;
+pub use dokime_domain::model::definition::ParameterList;
+pub use dokime_domain::model::definition::ParameterResolverError;
+pub use dokime_domain::model::definition::ParameterSelection;
+pub use dokime_domain::model::definition::ParameterSource;
+pub use dokime_domain::model::definition::ParameterUnaryOp;
+pub use dokime_domain::model::definition::ResolvedParameterSpace;
+pub use dokime_domain::model::definition::Subscription;
+pub use dokime_domain::model::definition::TemplateIdentifierRefusal;
+pub use dokime_domain::model::definition::TestCase;
+pub use dokime_domain::model::definition::TestCaseTemplate;
+pub use dokime_domain::model::definition::TestSuite;
+pub use dokime_domain::model::definition::coerce_definition_value;
+pub use dokime_domain::model::definition::coerce_list_value;
+pub use dokime_domain::model::definition::coerce_parameter_value;
+pub use dokime_domain::model::definition::materialize_template_cases;
+pub use dokime_domain::model::definition::materialized_parameter;
+pub use dokime_domain::model::definition::parameter_name;
+pub use dokime_domain::model::definition::resolve_parameter_spaces;
+pub use dokime_domain::model::definition::template_identifier;
+pub use dokime_domain::model::definition::case_materialization;
+pub use dokime_domain::model::definition::parameters;
+pub use dokime_domain::model::definition::suite;
 #[cfg(feature = "host")]
 pub use cycle::TestCycleInstance;
 #[cfg(feature = "host")]

@@ -25,7 +25,8 @@ use crate::{
     execution_runtime::outputs::ExecutionFileEntry,
     queries::{RuntimeResolution, RuntimeWindow},
 };
-use crate::core::{RecordScope, TestExecutionId};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 static EMPTY: RuntimeExecutionFileFrame = RuntimeExecutionFileFrame {

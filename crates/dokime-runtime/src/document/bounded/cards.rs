@@ -20,7 +20,9 @@ use std::mem::{size_of, size_of_val};
 use harmos::MemorySize;
 
 // Local Imports
-use crate::core::{Metadata, RecordScope, Value};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
 use crate::document::{
     ArtifactListDescriptor, DocumentCardBody, DocumentCardDefinition, DocumentCardPayload,
     DocumentFilter, PlotDescriptor, PlotInput, TelemetrySummaryGroupPayload,

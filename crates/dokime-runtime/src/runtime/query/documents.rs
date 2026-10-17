@@ -21,7 +21,10 @@ use crate::definition::TestCycleInstance;
 use crate::document::{DocumentInstance, DocumentPayload, DocumentSelection};
 use crate::execution::ExecutionStatus;
 use crate::{documents::RuntimeDocumentData, execution_runtime::registry::SuiteRegistry};
-use crate::core::{DocumentId, Metadata, RecordScope, Timestamp};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

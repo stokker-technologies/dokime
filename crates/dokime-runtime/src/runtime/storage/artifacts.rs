@@ -29,14 +29,19 @@ use super::{
     native_outputs::FrozenFile,
 };
 use crate::{runtime::Error, runtime::Result, RuntimeHandle, runtime::progress::Operation};
-use crate::{
-    artifacts::{ArtifactRecord, ArtifactStatus, ArtifactUploadInput},
-    core::{ArtifactId, Identifier, Metadata, TestExecutionId, Timestamp, UploadId},
-    execution::saved::{
-        ExecutionCheckpoint as Checkpoint, ExecutionOutput, ExecutionOutputContent,
-        SavedStreamState,
-    },
-};
+use crate::artifacts::ArtifactRecord;
+use crate::artifacts::ArtifactStatus;
+use crate::artifacts::ArtifactUploadInput;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::identity::UploadId;
+use crate::execution::saved::ExecutionCheckpoint as Checkpoint;
+use crate::execution::saved::ExecutionOutput;
+use crate::execution::saved::ExecutionOutputContent;
+use crate::execution::saved::SavedStreamState;
 
 /* === Constants === */
 const CHUNK_BYTES: usize = 1024 * 1024;
@@ -201,7 +206,7 @@ impl RuntimeHandle {
     // Stores a finished local file as the artifact `name`, a relative path.
     pub async fn upload_artifact_file(
         &self,
-        scope: crate::core::RecordScope,
+        scope: dokime_domain::model::execution::RecordScope,
         path: impl AsRef<std::path::Path>,
         filename: String,
         content_type: Option<String>,
@@ -235,8 +240,8 @@ impl RuntimeHandle {
     }
     pub(crate) async fn capture_publication_scope(
         &self,
-        scope: crate::core::RecordScope,
-    ) -> Result<crate::core::RecordScope> {
+        scope: dokime_domain::model::execution::RecordScope,
+    ) -> Result<dokime_domain::model::execution::RecordScope> {
         let _order = self.telemetry_admission.lock().await;
         self.state_manager
             .state()

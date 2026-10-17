@@ -25,7 +25,10 @@ use crate::execution::notes::{
     NoteOwner, note_identity,
 };
 use crate::transactions::notes::{CreateOperatorNote, EditOperatorNote, admission_fits};
-use crate::core::{CommandId, NoteId, SessionId, TestExecutionId};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

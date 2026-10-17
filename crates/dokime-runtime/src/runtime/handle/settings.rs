@@ -19,11 +19,12 @@ use std::{collections::BTreeMap, time::Duration};
 // Local Imports
 use crate::InstalledPlugin;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle, credentials::CredentialStore};
-use crate::{
-    core::{Identifier, Value},
-    plugin::Configuration,
-    settings::{SecretReference, SettingValues, Settings},
-};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
+use crate::plugin::Configuration;
+use crate::settings::SecretReference;
+use crate::settings::SettingValues;
+use crate::settings::Settings;
 
 /* === Constants === */
 const CREDENTIAL_READ_TIMEOUT: Duration = Duration::from_secs(5);

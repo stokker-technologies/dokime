@@ -27,7 +27,10 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::queries::{RuntimeResolution, RuntimeWindow, reduction::reduce_timestamped_items};
 use crate::records::RecordEntry;
-use crate::core::{EvidenceOrigin, RecordId, RecordScope, scope_visible_in};
+use dokime_domain::model::execution::EvidenceOrigin;
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::scope_visible_in;
 
 /* === Constants === */
 
@@ -92,7 +95,7 @@ pub(crate) fn record_frame<'a, 'b>(
 
 pub(crate) fn execution_capture<'a>(
     mut executions: impl Iterator<Item = &'a crate::execution::TestExecution>,
-    execution_id: Option<&crate::core::TestExecutionId>,
+    execution_id: Option<&dokime_domain::model::identity::TestExecutionId>,
 ) -> Option<&'a crate::records::TestRecordSet> {
     let execution_id = execution_id?;
     executions

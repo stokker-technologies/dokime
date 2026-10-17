@@ -25,17 +25,14 @@ use crate::execution_runtime::outputs::{
     MAX_ARTIFACT_READ_BYTES,
 };
 use crate::{runtime::Error, runtime::Result};
-use crate::{
-    core::TestExecutionId,
-    execution::{
-        TestExecution,
-        saved::{
-            ExecutionCheckpoint, ExecutionOutput, ExecutionOutputContent, SavedStreamState,
-            validate_relative_output_path,
-        },
-    },
-    storage::Manager,
-};
+use dokime_domain::model::identity::TestExecutionId;
+use crate::execution::TestExecution;
+use crate::execution::saved::ExecutionCheckpoint;
+use crate::execution::saved::ExecutionOutput;
+use crate::execution::saved::ExecutionOutputContent;
+use crate::execution::saved::SavedStreamState;
+use crate::execution::saved::validate_relative_output_path;
+use crate::storage::Manager;
 
 /* === Constants === */
 

@@ -19,7 +19,7 @@ use std::ops::Deref;
 use harmos::signal::Series;
 
 // Local Imports
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */

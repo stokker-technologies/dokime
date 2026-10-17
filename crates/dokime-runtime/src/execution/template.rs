@@ -20,7 +20,7 @@ use std::time::Duration;
 // Third Party Imports
 
 // Local Imports
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::definition::TestCaseTemplate;
 use crate::execution::{
     CleanupContext, CriterionContext, InitializationContext, ObserverContext, StepContext,
@@ -41,7 +41,7 @@ use crate::traceability::TraceabilitySection;
 pub type SamplePublisher = for<'a> fn(
     &'a harmos::sidecar::Supervisor,
     &'a str,
-    &'a crate::core::Identifier,
+    &'a dokime_domain::model::identity::Identifier,
     &'a [StampedRow],
 ) -> crate::transport::TransportFuture<'a, Result<(), String>>;
 
@@ -134,7 +134,7 @@ pub trait SidecarTemplate: Send + Sized + 'static {
     fn publish_sample<'a, P: harmos::plugin::Declared>(
         _host: &'a harmos::sidecar::Supervisor,
         _token: &'a str,
-        stream: &'a crate::core::Identifier,
+        stream: &'a dokime_domain::model::identity::Identifier,
         _rows: &'a [StampedRow],
     ) -> crate::transport::TransportFuture<'a, Result<(), String>> {
         Box::pin(async move {

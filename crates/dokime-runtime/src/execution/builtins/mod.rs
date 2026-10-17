@@ -32,8 +32,8 @@ use tokio::sync::watch as signal;
 // Local Imports
 use super::instances::{ExecutionIdentity, Handles};
 use crate::artifacts::Artifacts;
-use dokime_contract::operations::files::WatchFile;
-use dokime_contract::operations::process::RunProcess;
+use dokime_domain::operations::files::WatchFile;
+use dokime_domain::operations::process::RunProcess;
 use crate::telemetry::Streams;
 use crate::transport::Journal;
 

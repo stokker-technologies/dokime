@@ -21,7 +21,7 @@ use harmos::Protobuf;
 // Local Imports
 use super::super::value::{Budget, canonical};
 use dokime_runtime::runtime::query::aggregate::AggregateOutcome;
-use dokime_contract::operations::query as wire;
+use dokime_domain::operations::query as wire;
 
 /* === Constants === */
 

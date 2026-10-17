@@ -32,7 +32,10 @@ use crate::definition::{CriterionDefinition, TestCase};
 use crate::execution::{CycleView, ExecutionStatus, TestExecution};
 use crate::records::RecordPublishRequest;
 use artifacts::DiscardedArtifact;
-use crate::core::{Identifier, PromptId, RecordScope, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
 use crate::domains::{ExecutionProviderTarget, SidecarExecutionBinding};
 use crate::execution::ExecutionScope;
 use crate::plugin::Diagnostic;
@@ -128,7 +131,7 @@ struct StreamLog {
 
 struct ProgressCleanup {
     registry: Arc<crate::domains::execution::progress::ProgressRegistry>,
-    execution: crate::core::TestExecutionId,
+    execution: dokime_domain::model::identity::TestExecutionId,
 }
 
 /* === Enums === */
@@ -825,7 +828,7 @@ async fn execute_case(
     context
         .capture_phase(
             execution.scope.clone(),
-            crate::core::CapturePhase::Initialization,
+            dokime_domain::model::execution::CapturePhase::Initialization,
         )
         .await
         .map_err(|error| failure("sidecar_capture_phase", error.to_string()))?;

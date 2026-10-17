@@ -29,9 +29,9 @@ use crate::{
     runtime::progress::Operation,
     runtime::storage::{cycle::CycleSnapshot, cycle_finalization},
 };
-use crate::{
-    core::TestCycleId, execution::ExecutionStatus, operations::reports::MaterializedReport,
-};
+use dokime_domain::model::identity::TestCycleId;
+use crate::execution::ExecutionStatus;
+use crate::operations::reports::MaterializedReport;
 
 /* === Constants === */
 

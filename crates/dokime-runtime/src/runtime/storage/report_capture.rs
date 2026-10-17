@@ -27,7 +27,7 @@ use crate::{
     runtime::Error, runtime::Result, RuntimeHandle,
     execution::{CycleView, TestExecution},
 };
-use crate::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -44,7 +44,7 @@ use crate::core::TestExecutionId;
 impl RuntimeHandle {
     pub async fn execution_snapshot(
         &self,
-        execution: &crate::core::TestExecutionId,
+        execution: &dokime_domain::model::identity::TestExecutionId,
     ) -> Result<ExecutionView> {
         let identity = execution.clone();
         let runtime = self.clone();
@@ -257,7 +257,7 @@ impl ExecutionStorage {
             .await?
             .value?;
         context.health.push(crate::execution::HealthItem {
-            health_item_id: crate::model::identity::new_id::<crate::core::HealthItemId>(),
+            health_item_id: crate::model::identity::new_id::<dokime_domain::model::identity::HealthItemId>(),
             scope: inputs.execution.scope.clone(),
             severity: crate::execution::HealthSeverity::Info,
             message: "Report Evidence Provenance".into(),
@@ -269,7 +269,7 @@ impl ExecutionStorage {
         });
         for path in inputs.unavailable_outputs.iter() {
             context.health.push(crate::execution::HealthItem {
-                health_item_id: crate::model::identity::new_id::<crate::core::HealthItemId>(),
+                health_item_id: crate::model::identity::new_id::<dokime_domain::model::identity::HealthItemId>(),
                 scope: inputs.execution.scope.clone(),
                 severity: crate::execution::HealthSeverity::Warning,
                 message: format!("{path}: Unfinished At Stop — Not Included"),

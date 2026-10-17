@@ -13,12 +13,18 @@
 
 /* === Imports === */
 use crate::{runtime::Error, runtime::Result, report::saved::CapturedExecutionReportInput};
-use crate::{
-    core::{
-        CaseId, Identifier, Metadata, RecordScope, TemplateId, TestExecutionId, Timestamp, Value,
-    },
-    execution::{ExecutionStatus, ResultSummary, StepRecord, TestExecution},
-};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TemplateId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
+use crate::execution::ExecutionStatus;
+use crate::execution::ResultSummary;
+use crate::execution::StepRecord;
+use crate::execution::TestExecution;
 use harmos::MemorySize;
 use std::collections::{BTreeMap, BTreeSet};
 

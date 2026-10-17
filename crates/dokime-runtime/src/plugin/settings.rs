@@ -18,7 +18,7 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::domains::{OptionProviderContribution, OptionProviderSource, PluginEntrypoint};
 use crate::parameters::{Bounds, ParameterValue};
 use crate::plugin::{Configuration, Secret};
@@ -36,7 +36,7 @@ pub struct NoSettings;
 #[harmos::message]
 #[derive(Clone, PartialEq)]
 pub struct Discovered {
-    #[row(description = "The value, JSON-encoded as one [`Value`](crate::core::Value).")]
+    #[row(description = "The value, JSON-encoded as one [`Value`](dokime_domain::model::values::Value).")]
     value_json: String,
 }
 
@@ -186,7 +186,7 @@ pub fn written_path(default: impl AsRef<std::path::Path>) -> String {
 }
 
 pub fn numbers<T: ParameterValue>(values: &SettingValues, id: &str) -> SettingValues {
-    if <<T as ParameterValue>::Base as FieldValue>::VALUE_TYPE != crate::core::ValueType::Integer {
+    if <<T as ParameterValue>::Base as FieldValue>::VALUE_TYPE != dokime_domain::model::values::ValueType::Integer {
         return values.clone();
     }
 

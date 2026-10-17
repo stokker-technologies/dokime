@@ -18,7 +18,12 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::records::Record;
-use crate::core::{Identifier, Metadata, RecordScope, Timestamp, Value, scope_visible_in};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::execution::scope_visible_in;
 
 /* === Constants === */
 

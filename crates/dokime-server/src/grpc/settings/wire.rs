@@ -22,23 +22,31 @@ use super::super::{
     value::{self, Budget, canonical},
 };
 use dokime_runtime::runtime::Error;
-use dokime_runtime::{
-    core::{
-        HostCardBlock, HostCardBody, HostCardKeyValue, HostCardMetric, HostCardTone, Identifier,
-    },
-    domains::{
-        installed_plugins::{RuntimePluginManagementError, RuntimePluginSettings},
-        settings::{
-            RuntimeSettingsCard, RuntimeSettingsCardState, RuntimeSettingsFrame,
-            RuntimeSettingsSection, RuntimeSettingsSectionOwner, SettingsCardRefreshPolicy,
-        },
-    },
-    settings::{
-        Boolean, Choice, MultipleChoice, Number, Path, SecretReference, SecretSetting, Settings,
-        SettingsEntry, TextArea,
-    },
-};
-use dokime_contract::operations::settings as wire;
+use dokime_domain::model::appearance::HostCardBlock;
+use dokime_domain::model::appearance::HostCardBody;
+use dokime_domain::model::appearance::HostCardKeyValue;
+use dokime_domain::model::appearance::HostCardMetric;
+use dokime_domain::model::appearance::HostCardTone;
+use dokime_domain::model::identity::Identifier;
+use dokime_runtime::domains::installed_plugins::RuntimePluginManagementError;
+use dokime_runtime::domains::installed_plugins::RuntimePluginSettings;
+use dokime_runtime::domains::settings::RuntimeSettingsCard;
+use dokime_runtime::domains::settings::RuntimeSettingsCardState;
+use dokime_runtime::domains::settings::RuntimeSettingsFrame;
+use dokime_runtime::domains::settings::RuntimeSettingsSection;
+use dokime_runtime::domains::settings::RuntimeSettingsSectionOwner;
+use dokime_runtime::domains::settings::SettingsCardRefreshPolicy;
+use dokime_runtime::settings::Boolean;
+use dokime_runtime::settings::Choice;
+use dokime_runtime::settings::MultipleChoice;
+use dokime_runtime::settings::Number;
+use dokime_runtime::settings::Path;
+use dokime_runtime::settings::SecretReference;
+use dokime_runtime::settings::SecretSetting;
+use dokime_runtime::settings::Settings;
+use dokime_runtime::settings::SettingsEntry;
+use dokime_runtime::settings::TextArea;
+use dokime_domain::operations::settings as wire;
 
 /* === Constants === */
 pub(super) const MAX_TEXT_BYTES: usize = 4096;
@@ -107,12 +115,12 @@ pub(super) fn encode_plugin_settings(
     value::collection(settings.credential_bindings.bindings.len())?;
     value::collection(settings.credential_bindings.missing_required.len())?;
     let values = canonical::encode(
-        &dokime_runtime::core::Value::Object(settings.values),
+        &dokime_domain::model::values::Value::Object(settings.values),
         &mut budget,
         0,
     )?;
     let discovered = canonical::encode(
-        &dokime_runtime::core::Value::Object(settings.discovered),
+        &dokime_domain::model::values::Value::Object(settings.discovered),
         &mut budget,
         0,
     )?;
@@ -492,14 +500,14 @@ fn encode_credentials(
 }
 
 fn encode_credential_backend(
-    backend: dokime_runtime::core::CredentialBackendKind,
+    backend: dokime_domain::model::credentials::CredentialBackendKind,
 ) -> wire::CredentialBackendKind {
     match backend {
-        dokime_runtime::core::CredentialBackendKind::OsKeyring => {
+        dokime_domain::model::credentials::CredentialBackendKind::OsKeyring => {
             wire::CredentialBackendKind::OsKeyring
         }
-        dokime_runtime::core::CredentialBackendKind::Memory => wire::CredentialBackendKind::Memory,
-        dokime_runtime::core::CredentialBackendKind::LocalFile => {
+        dokime_domain::model::credentials::CredentialBackendKind::Memory => wire::CredentialBackendKind::Memory,
+        dokime_domain::model::credentials::CredentialBackendKind::LocalFile => {
             wire::CredentialBackendKind::LocalFile
         }
     }

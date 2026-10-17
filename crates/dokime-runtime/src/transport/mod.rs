@@ -42,7 +42,7 @@ use std::pin::Pin;
 // Third Party Imports
 
 // Local Imports
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::execution::lease::LeaseHold;
 use crate::prompts::{PromptRequest, PromptResponse};
 use crate::records::RecordPublishRequest;
@@ -93,7 +93,7 @@ pub trait ExecutionTransport: Send + Sync {
 
     fn traceability(&mut self, sections: Vec<crate::traceability::TraceabilitySection>);
 
-    fn capture_phase(&mut self, phase: crate::core::CapturePhase);
+    fn capture_phase(&mut self, phase: dokime_domain::model::execution::CapturePhase);
 
     fn begin_step<'a>(
         &'a mut self,

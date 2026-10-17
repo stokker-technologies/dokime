@@ -23,7 +23,10 @@ use crate::execution::storage::{ExecutionDocument, ExecutionMetadata};
 use crate::execution::{ExecutionStatus, ResultStatus};
 use crate::runtime::query::executions::{self, ExecutionFilter, ExecutionOrder};
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
-use crate::core::{CaseId, TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -139,11 +142,11 @@ pub struct ExecutionCheckpointEvidence {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionCheckpointContext {
     pub checkpoint: ExecutionCheckpoint,
-    pub scope: crate::core::RecordScope,
-    pub session_id: crate::core::SessionId,
+    pub scope: dokime_domain::model::execution::RecordScope,
+    pub session_id: dokime_domain::model::identity::SessionId,
     pub cycle: crate::runtime::ExecutionCycleContext,
     pub execution_documents:
-        BTreeMap<crate::core::DocumentId, crate::document::DocumentDefinition>,
+        BTreeMap<dokime_domain::model::identity::DocumentId, crate::document::DocumentDefinition>,
     pub prompts: Vec<crate::prompts::PromptInstance>,
     pub health: Vec<crate::execution::HealthItem>,
     pub notes: Vec<crate::execution::OperatorNote>,

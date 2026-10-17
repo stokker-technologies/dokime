@@ -18,7 +18,9 @@ use std::collections::BTreeMap;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{NoteId, RecordId, RecordScope};
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::execution::RecordScope;
 use crate::execution::{HealthItem, OperatorNote};
 
 /* === Constants === */

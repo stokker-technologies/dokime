@@ -24,12 +24,14 @@ use super::loan;
 use super::{requests, value};
 use crate::grpc::access::{Principal, Role};
 use crate::grpc::value::canonical;
-use dokime_runtime::core::{CommandId, StepId, TestExecutionId};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::domains::execution::requests::{
     RunReceipt, StepCommand, StepCommandPhase, StepCommandReceipt,
 };
 use dokime_runtime::{runtime::Error, RuntimeHandle};
-use dokime_contract::operations::execution as wire;
+use dokime_domain::operations::execution as wire;
 
 /* === Constants === */
 

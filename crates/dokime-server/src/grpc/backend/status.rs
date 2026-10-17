@@ -21,7 +21,9 @@ use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
 use dokime_runtime::RuntimeHandle;
-use dokime_contract::operations::{backend as wire, common::Timestamp, runtime as native};
+use dokime_domain::operations::backend as wire;
+use dokime_domain::operations::common::Timestamp;
+use dokime_domain::operations::runtime as native;
 /* === Constants === */
 const DISCOVERY_PAGE_BYTES: u32 = 4 * 1024 * 1024;
 const DISCOVERY_WORK_BYTES: usize = 16 * 1024 * 1024;
@@ -202,7 +204,7 @@ impl Operation for Availability {
                 max_request_bytes: maximum as u64,
                 max_response_bytes: maximum as u64,
                 max_content_bytes: Some(super::super::content::MAX_CONTENT_BYTES),
-                max_page_items: Some(dokime_contract::operations::cursor::MAX_PAGE_ITEMS),
+                max_page_items: Some(dokime_domain::operations::cursor::MAX_PAGE_ITEMS),
                 max_stream_buffer_items: Some(1),
                 max_chunk_bytes: Some(super::super::content::transfer_chunk_bytes(maximum) as u32),
             }),

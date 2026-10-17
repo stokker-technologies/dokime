@@ -22,7 +22,8 @@ pub mod set;
 pub mod resources;
 
 /* === Re-Exports === */
-pub use crate::core::{CompatibilityStatus, ValidationMode};
+pub use dokime_domain::model::validation::CompatibilityStatus;
+pub use dokime_domain::model::validation::ValidationMode;
 pub use crate::values::{FieldError, FieldValue, field};
 pub use contract::{
     BuiltinRecordType, PRODUCT_CALIBRATION_KINDS, PRODUCT_CALIBRATION_PHASES,
@@ -54,7 +55,9 @@ pub use resources::{ResourceLifecycle, ResourceRecord, ResourceRegistry};
 use serde::{Deserialize, Serialize};
 // Local Imports
 
-use crate::core::{RecordId, RecordScope};
+use dokime_domain::model::identity::RecordId;
+
+use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 

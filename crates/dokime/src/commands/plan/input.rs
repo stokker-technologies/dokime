@@ -22,9 +22,9 @@ use std::path::PathBuf;
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::operations::planning::{
-    PreviewSelectionReply, RegisteredSelection, SelectionPlan,
-};
+use dokime_domain::operations::planning::PreviewSelectionReply;
+use dokime_domain::operations::planning::RegisteredSelection;
+use dokime_domain::operations::planning::SelectionPlan;
 
 /* === Constants === */
 
@@ -114,7 +114,7 @@ impl Planned {
     pub(crate) fn canonical(plan: Option<SelectionPlan>) -> crate::Result<Self> {
         if let Some(plan) = &plan {
             for id in &plan.case_ids {
-                dokime_contract::core::CaseId::from_wire(id)
+                dokime_domain::model::identity::CaseId::from_wire(id)
                     .map_err(|error| crate::Error::Input(error.to_string()))?;
             }
             for selection in &plan.selections {

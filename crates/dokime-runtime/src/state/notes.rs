@@ -23,7 +23,8 @@ use crate::execution::notes::{
     NoteOwner,
 };
 use crate::execution::{HealthItem, OperatorNote};
-use crate::core::{NoteId, RecordScope};
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 

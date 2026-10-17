@@ -31,12 +31,15 @@ use tokio::time::Instant;
 // Local Imports
 use super::Binding;
 use crate::artifacts::ArtifactWriter;
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::files::{LineBuffer, LineMatch, LineMatchers};
-use dokime_contract::operations::files::{
-    FileWatchGap, FileWatchGapReason, FileWatchPolicy, FileWatchSourcePayload, WatchFileOutcome,
-    WatchFileRequest, WatchedArtifact,
-};
+use dokime_domain::operations::files::FileWatchGap;
+use dokime_domain::operations::files::FileWatchGapReason;
+use dokime_domain::operations::files::FileWatchPolicy;
+use dokime_domain::operations::files::FileWatchSourcePayload;
+use dokime_domain::operations::files::WatchFileOutcome;
+use dokime_domain::operations::files::WatchFileRequest;
+use dokime_domain::operations::files::WatchedArtifact;
 use crate::records::{RecordPublishRequest, RecordSeverity};
 
 /* === Constants === */

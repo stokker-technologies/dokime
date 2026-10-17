@@ -26,7 +26,7 @@ use harmos::{
 
 // Local Imports
 use super::{annotations, artifacts, case, cycle, metadata, templates};
-use crate::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::execution::TestExecution;
 use crate::storage::{Error, Manager, Result, records::ScopeRow};
 
@@ -367,7 +367,7 @@ impl Execution {
                 .finished_at
                 .as_ref()
                 .map_or(0, |time| time.as_str().len()),
-            harmos::btree_map_memory::<&crate::core::StepAttemptId, ()>(value.step_attempts.len()),
+            harmos::btree_map_memory::<&dokime_domain::model::identity::StepAttemptId, ()>(value.step_attempts.len()),
         ];
         if fields.contains(&usize::MAX) {
             return Ok(usize::MAX);
@@ -516,7 +516,7 @@ impl Execution {
         let mut bytes = fields
             .into_iter()
             .fold(std::mem::size_of::<TestExecution>(), usize::saturating_add)
-            .saturating_add(harmos::btree_map_memory::<&crate::core::StepAttemptId, ()>(
+            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::StepAttemptId, ()>(
                 self.step_attempts.len(),
             ));
         for step in &self.steps {
@@ -566,17 +566,17 @@ impl TryFrom<Execution> for TestExecution {
         for section in row.traceability {
             traceability.push(section.try_into()?);
         }
-        let started_at = row.started_at.map(crate::core::Timestamp::new);
-        let finished_at = row.finished_at.map(crate::core::Timestamp::new);
+        let started_at = row.started_at.map(dokime_domain::model::time::Timestamp::new);
+        let finished_at = row.finished_at.map(dokime_domain::model::time::Timestamp::new);
         for at in [&started_at, &finished_at].into_iter().flatten() {
             at.to_datetime()?;
         }
         let execution = Self {
             saved: row.saved.map(TryInto::try_into).transpose()?,
             mode: execution_mode(&row.mode)?,
-            test_cycle_id: crate::core::TestCycleId::from_uuid(row.test_cycle_id)?,
+            test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(row.test_cycle_id)?,
             test_execution_id: TestExecutionId::from_uuid(row.test_execution_id)?,
-            test_case_id: crate::core::CaseId::from_wire(row.test_case_id)?,
+            test_case_id: dokime_domain::model::identity::CaseId::from_wire(row.test_case_id)?,
             suite: row.suite.map(TryInto::try_into).transpose()?,
             status: execution_status(&row.status)?,
             snapshot: row
@@ -612,7 +612,7 @@ impl TryFrom<Execution> for TestExecution {
 
 impl Documents {
     fn encoding_memory(
-        value: &BTreeMap<crate::core::DocumentId, crate::document::DocumentDefinition>,
+        value: &BTreeMap<dokime_domain::model::identity::DocumentId, crate::document::DocumentDefinition>,
     ) -> Result<usize> {
         let mut bytes = std::mem::size_of::<Self>().saturating_add(
             value
@@ -632,12 +632,12 @@ impl Documents {
     }
 }
 
-impl TryFrom<&BTreeMap<crate::core::DocumentId, crate::document::DocumentDefinition>>
+impl TryFrom<&BTreeMap<dokime_domain::model::identity::DocumentId, crate::document::DocumentDefinition>>
     for Documents
 {
     type Error = Error;
     fn try_from(
-        value: &BTreeMap<crate::core::DocumentId, crate::document::DocumentDefinition>,
+        value: &BTreeMap<dokime_domain::model::identity::DocumentId, crate::document::DocumentDefinition>,
     ) -> Result<Self> {
         if Self::encoding_memory(value)? == usize::MAX {
             return Err(Error::Invalid("document map encoding memory overflows"));
@@ -666,7 +666,7 @@ impl Documents {
             return Err(Error::Invalid("noncanonical document map order"));
         }
         let mut bytes = harmos::btree_map_memory::<
-            crate::core::DocumentId,
+            dokime_domain::model::identity::DocumentId,
             crate::document::DocumentDefinition,
         >(self.entries.len());
         for entry in &self.entries {
@@ -686,7 +686,7 @@ impl Documents {
     }
 }
 
-impl TryFrom<Documents> for BTreeMap<crate::core::DocumentId, crate::document::DocumentDefinition> {
+impl TryFrom<Documents> for BTreeMap<dokime_domain::model::identity::DocumentId, crate::document::DocumentDefinition> {
     type Error = Error;
 
     fn try_from(row: Documents) -> Result<Self> {
@@ -695,7 +695,7 @@ impl TryFrom<Documents> for BTreeMap<crate::core::DocumentId, crate::document::D
         }
         let mut documents = BTreeMap::new();
         for entry in row.entries {
-            let key = crate::core::DocumentId::from_wire(entry.key)?;
+            let key = dokime_domain::model::identity::DocumentId::from_wire(entry.key)?;
             let value = entry
                 .value
                 .ok_or(Error::Invalid("document map member is missing"))?
@@ -868,11 +868,11 @@ impl TryFrom<AttemptStart> for crate::execution::StepAttemptStart {
         if row.projection_memory() == usize::MAX {
             return Err(Error::Invalid("step admission projection memory overflows"));
         }
-        let started_at = crate::core::Timestamp::new(row.started_at);
+        let started_at = dokime_domain::model::time::Timestamp::new(row.started_at);
         started_at.to_datetime()?;
         Ok(Self {
-            attempt_id: crate::core::StepAttemptId::from_uuid(row.attempt_id)?,
-            step_id: crate::core::StepId::from_uuid(row.step_id)?,
+            attempt_id: dokime_domain::model::identity::StepAttemptId::from_uuid(row.attempt_id)?,
+            step_id: dokime_domain::model::identity::StepId::from_uuid(row.step_id)?,
             started_at,
         })
     }
@@ -957,15 +957,15 @@ impl TryFrom<Attempt> for crate::execution::TestStepAttempt {
             "interrupted" => TerminationReason::Interrupted,
             _ => return Err(Error::Invalid("invalid step termination")),
         };
-        let started_at = crate::core::Timestamp::new(row.started_at);
-        let finished_at = row.finished_at.map(crate::core::Timestamp::new);
+        let started_at = dokime_domain::model::time::Timestamp::new(row.started_at);
+        let finished_at = row.finished_at.map(dokime_domain::model::time::Timestamp::new);
         started_at.to_datetime()?;
         if let Some(finished) = &finished_at {
             finished.to_datetime()?;
         }
         Ok(Self {
-            attempt_id: crate::core::StepAttemptId::from_uuid(row.attempt_id)?,
-            step_id: crate::core::StepId::from_uuid(row.step_id)?,
+            attempt_id: dokime_domain::model::identity::StepAttemptId::from_uuid(row.attempt_id)?,
+            step_id: dokime_domain::model::identity::StepId::from_uuid(row.step_id)?,
             started_at,
             finished_at,
             termination,
@@ -1006,7 +1006,7 @@ impl TraceabilityRow {
             self.label.capacity(),
             self.unit.as_ref().map_or(0, String::capacity),
             self.source.as_ref().map_or(0, String::capacity),
-            value.saturating_sub(std::mem::size_of::<crate::core::Value>()),
+            value.saturating_sub(std::mem::size_of::<dokime_domain::model::values::Value>()),
         ];
         Ok(fields.into_iter().fold(
             std::mem::size_of::<crate::traceability::TraceabilityRow>(),
@@ -1041,7 +1041,7 @@ impl TryFrom<TraceabilityRow> for crate::traceability::TraceabilityRow {
             ));
         }
         Ok(Self {
-            identifier: crate::core::Identifier::new(row.identifier)?,
+            identifier: dokime_domain::model::identity::Identifier::new(row.identifier)?,
             label: row.label,
             value: row
                 .value
@@ -1133,7 +1133,7 @@ impl TryFrom<Traceability> for crate::traceability::TraceabilitySection {
             rows.push(row.try_into()?);
         }
         Ok(Self {
-            identifier: crate::core::Identifier::new(row.identifier)?,
+            identifier: dokime_domain::model::identity::Identifier::new(row.identifier)?,
             label: row.label,
             rows,
         })
@@ -1538,9 +1538,9 @@ impl Measurement {
             return Ok(usize::MAX);
         }
         let fields = [
-            metadata.saturating_sub(std::mem::size_of::<crate::core::Metadata>()),
-            value.saturating_sub(std::mem::size_of::<crate::core::Value>()),
-            unit.saturating_sub(std::mem::size_of::<crate::core::MeasurementUnit>()),
+            metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
+            value.saturating_sub(std::mem::size_of::<dokime_domain::model::values::Value>()),
+            unit.saturating_sub(std::mem::size_of::<dokime_domain::model::values::MeasurementUnit>()),
         ];
         Ok(fields.into_iter().fold(
             std::mem::size_of::<crate::execution::MeasurementRecord>(),
@@ -1634,8 +1634,8 @@ impl Criterion {
         let fields = [
             self.criterion_id.capacity(),
             self.message.as_ref().map_or(0, String::capacity),
-            metadata.saturating_sub(std::mem::size_of::<crate::core::Metadata>()),
-            observed.saturating_sub(std::mem::size_of::<crate::core::Value>()),
+            metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
+            observed.saturating_sub(std::mem::size_of::<dokime_domain::model::values::Value>()),
         ];
         Ok(fields.into_iter().fold(
             std::mem::size_of::<crate::execution::CriterionResult>(),
@@ -1660,7 +1660,7 @@ impl TryFrom<Criterion> for crate::execution::CriterionResult {
             _ => return Err(Error::Invalid("invalid criterion status")),
         };
         Ok(Self {
-            criterion_id: crate::core::CriterionId::from_uuid(row.criterion_id)?,
+            criterion_id: dokime_domain::model::identity::CriterionId::from_uuid(row.criterion_id)?,
             metadata: row
                 .metadata
                 .ok_or(Error::Invalid("criterion metadata is missing"))?
@@ -1777,7 +1777,7 @@ impl Step {
             self.step_id.capacity(),
             self.started_at.as_ref().map_or(0, String::capacity),
             self.finished_at.as_ref().map_or(0, String::capacity),
-            metadata.saturating_sub(std::mem::size_of::<crate::core::Metadata>()),
+            metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
             detail.saturating_sub(std::mem::size_of::<crate::diagnostics::Diagnostic>()),
             self.measurements
                 .len()
@@ -1815,7 +1815,8 @@ impl Step {
 impl TryFrom<Step> for crate::execution::StepRecord {
     type Error = Error;
     fn try_from(row: Step) -> Result<Self> {
-        use crate::core::{StepId, Timestamp};
+        use dokime_domain::model::identity::StepId;
+        use dokime_domain::model::time::Timestamp;
         use crate::execution::StepStatus;
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("step projection memory overflows"));
@@ -1904,10 +1905,10 @@ impl Parameter {
             return Ok(usize::MAX);
         }
         let fields = [
-            metadata.saturating_sub(std::mem::size_of::<crate::core::Metadata>()),
+            metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
             self.group_id.as_ref().map_or(0, String::capacity),
-            value.saturating_sub(std::mem::size_of::<crate::core::Value>()),
-            unit.saturating_sub(std::mem::size_of::<crate::core::MeasurementUnit>()),
+            value.saturating_sub(std::mem::size_of::<dokime_domain::model::values::Value>()),
+            unit.saturating_sub(std::mem::size_of::<dokime_domain::model::values::MeasurementUnit>()),
         ];
         Ok(fields.into_iter().fold(
             std::mem::size_of::<crate::definition::MaterializedParameter>(),
@@ -1962,7 +1963,7 @@ impl TryFrom<Parameter> for crate::definition::MaterializedParameter {
                 .metadata
                 .ok_or(Error::Invalid("parameter metadata is missing"))?
                 .try_into()?,
-            group_id: row.group_id.map(crate::core::Identifier::new).transpose()?,
+            group_id: row.group_id.map(dokime_domain::model::identity::Identifier::new).transpose()?,
             source,
             value: row
                 .value
@@ -2058,7 +2059,7 @@ impl TryFrom<Output> for crate::execution::saved::ExecutionOutput {
         };
         Ok(Self {
             relative_path: row.relative_path,
-            created_at: crate::core::Timestamp::new(row.created_at),
+            created_at: dokime_domain::model::time::Timestamp::new(row.created_at),
             file: row
                 .file
                 .ok_or(Error::Invalid("execution output file is missing"))?,
@@ -2158,7 +2159,7 @@ impl Source {
                 .saturating_mul(std::mem::size_of::<ExecutionOutput>()),
             harmos::btree_map_memory::<&String, ()>(self.outputs.len()),
             harmos::btree_map_memory::<&str, ()>(self.outputs.len()),
-            harmos::btree_map_memory::<&crate::core::ArtifactId, ()>(
+            harmos::btree_map_memory::<&dokime_domain::model::identity::ArtifactId, ()>(
                 self.outputs
                     .iter()
                     .filter(|output| {
@@ -2206,7 +2207,7 @@ impl TryFrom<Source> for crate::execution::saved::ExecutionSource {
             outputs.push(output.try_into()?);
         }
         let source = Self {
-            owner_node_id: crate::core::NodeId::from_uuid(row.owner_node_id)?,
+            owner_node_id: dokime_domain::model::identity::NodeId::from_uuid(row.owner_node_id)?,
             evidence_through: row.evidence_through.ok_or(Error::Invalid(
                 "execution source evidence frontier is missing",
             ))?,
@@ -2318,7 +2319,7 @@ impl TryFrom<Seal> for crate::execution::saved::ExecutionSeal {
         if row.projection_memory()? == usize::MAX {
             return Err(Error::Invalid("execution seal projection memory overflows"));
         }
-        let sealed_at = crate::core::Timestamp::new(row.sealed_at);
+        let sealed_at = dokime_domain::model::time::Timestamp::new(row.sealed_at);
         sealed_at.to_datetime()?;
         Ok(Self {
             source: row
@@ -2590,16 +2591,16 @@ fn execution_mode(value: &str) -> Result<crate::execution::ExecutionMode> {
     }
 }
 
-fn capture_phase_text(value: &crate::core::CapturePhase) -> &'static str {
+fn capture_phase_text(value: &dokime_domain::model::execution::CapturePhase) -> &'static str {
     match value {
-        crate::core::CapturePhase::Default => "default",
-        crate::core::CapturePhase::Initialization => "initialization",
-        crate::core::CapturePhase::Cleanup => "cleanup",
+        dokime_domain::model::execution::CapturePhase::Default => "default",
+        dokime_domain::model::execution::CapturePhase::Initialization => "initialization",
+        dokime_domain::model::execution::CapturePhase::Cleanup => "cleanup",
     }
 }
 
-fn capture_phase(value: &str) -> Result<crate::core::CapturePhase> {
-    use crate::core::CapturePhase;
+fn capture_phase(value: &str) -> Result<dokime_domain::model::execution::CapturePhase> {
+    use dokime_domain::model::execution::CapturePhase;
     match value {
         "default" => Ok(CapturePhase::Default),
         "initialization" => Ok(CapturePhase::Initialization),
@@ -2724,7 +2725,7 @@ fn validate_attempts(source: &TestExecution) -> Result<()> {
                 "active attempt belongs to a finished execution",
             ));
         }
-        if source.capture_phase != crate::core::CapturePhase::Default {
+        if source.capture_phase != dokime_domain::model::execution::CapturePhase::Default {
             return Err(Error::Invalid(
                 "active attempt has a non-step capture phase",
             ));
@@ -2743,7 +2744,7 @@ fn validate_attempts(source: &TestExecution) -> Result<()> {
                 "captured record scope differs from its execution",
             ));
         }
-        if let crate::core::EvidenceOrigin::Step { attempt_id } = &scope.origin {
+        if let dokime_domain::model::execution::EvidenceOrigin::Step { attempt_id } = &scope.origin {
             let step = source
                 .active_step_attempt
                 .as_ref()

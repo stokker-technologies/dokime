@@ -109,10 +109,10 @@ pub struct Parameters {
         min = 0.0,
         min_items = 1,
         max_items = 16,
-        default = ParameterDefault::literal(dokime_runtime::core::Value::Array(::std::vec![
-            dokime_runtime::core::Value::Number(0.05),
-            dokime_runtime::core::Value::Number(0.1),
-            dokime_runtime::core::Value::Number(0.2),
+        default = ParameterDefault::literal(dokime_domain::model::values::Value::Array(::std::vec![
+            dokime_domain::model::values::Value::Number(0.05),
+            dokime_domain::model::values::Value::Number(0.1),
+            dokime_domain::model::values::Value::Number(0.2),
         ])), description = "How long the Charger stays without power on each cycle, in model seconds.")]
     pub outage_durations_s: Vec<f64>,
     #[parameter(
@@ -122,10 +122,10 @@ pub struct Parameters {
         min = SHORTEST_S,
         min_items = 1,
         max_items = 16,
-        default = ParameterDefault::literal(dokime_runtime::core::Value::Array(::std::vec![
-            dokime_runtime::core::Value::Number(0.02),
-            dokime_runtime::core::Value::Number(0.05),
-            dokime_runtime::core::Value::Number(0.1),
+        default = ParameterDefault::literal(dokime_domain::model::values::Value::Array(::std::vec![
+            dokime_domain::model::values::Value::Number(0.02),
+            dokime_domain::model::values::Value::Number(0.05),
+            dokime_domain::model::values::Value::Number(0.1),
         ])), description = "How long the restart after each outage is allowed to take, in model seconds, read in step with [`Parameters::outage_durations_s`].")]
     pub recovery_limits_s: Vec<f64>,
     #[parameter(label = "Supply Frequency", unit = "Hz", default = 50.0)]

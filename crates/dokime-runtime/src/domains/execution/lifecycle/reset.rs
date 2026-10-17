@@ -20,7 +20,9 @@ pub(crate) use crate::transactions::{CycleResetAction as Action, ResetCycle as R
 // Local Imports
 use crate::transactions::cycle::apply_cycle_reset;
 use crate::{CommandContext, runtime::Error, RuntimeHandle};
-use crate::core::{CaseId, TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

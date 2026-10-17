@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 // Local Imports
 use crate::installed_plugins::{RuntimeAppLogo, RuntimeAppearanceFrame, RuntimeThemeFamily};
 use crate::{runtime::Error, runtime::Result};
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::domains::{OrganizationIdentity, ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
 
 /* === Constants === */

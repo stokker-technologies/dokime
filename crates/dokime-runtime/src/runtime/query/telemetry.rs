@@ -21,7 +21,9 @@ use crate::queries::{
     RuntimeCursor, RuntimeResolution, RuntimeViewFrame, RuntimeViewPayload, RuntimeWindow,
     reduction::reduce_timestamped_items,
 };
-use crate::core::{Identifier, RecordScope, scope_visible_in};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::execution::scope_visible_in;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */

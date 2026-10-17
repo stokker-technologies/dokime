@@ -31,7 +31,10 @@ use crate::execution::{CycleView, HealthItem, OperatorNote, TestExecution};
 use crate::installed_plugins::RuntimeAppearanceFrame;
 use crate::traceability::TraceabilitySnapshot;
 use crate::{runtime::Error, runtime::Result};
-use crate::core::{DocumentId, RecordScope, SessionId, TestExecutionId};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::definition::TestCase;
 use crate::prompts::PromptInstance;
 
@@ -154,17 +157,17 @@ impl harmos::MemorySize for ExecutionCycleContext {
 
 impl ExecutionContext {
     pub fn validation_memory(&self) -> usize {
-        harmos::btree_map_memory::<&crate::core::NoteId, ()>(self.notes.len())
-            .saturating_add(harmos::btree_map_memory::<&crate::core::PromptId, ()>(
+        harmos::btree_map_memory::<&dokime_domain::model::identity::NoteId, ()>(self.notes.len())
+            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::PromptId, ()>(
                 self.prompts.len(),
             ))
-            .saturating_add(harmos::btree_map_memory::<&crate::core::HealthItemId, ()>(
+            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::HealthItemId, ()>(
                 self.health.len(),
             ))
             .saturating_add(harmos::btree_map_memory::<&TestExecutionId, ()>(
                 self.cycle.execution_order.len(),
             ))
-            .saturating_add(harmos::btree_map_memory::<&crate::core::CaseId, ()>(
+            .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::CaseId, ()>(
                 self.cycle.cases.len(),
             ))
             .saturating_add(appearance_validation_memory(

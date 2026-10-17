@@ -19,7 +19,7 @@ use std::{future::Future, pin::Pin};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use super::{ActionDispatcherError, OptionProviderOption};
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

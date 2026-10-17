@@ -25,8 +25,9 @@ use super::value::canonical;
 use super::{execution, value};
 use dokime_runtime::runtime::progress::{OperationOutcome, OperationSnapshot};
 use dokime_runtime::runtime::query::RuntimeChange;
-use dokime_runtime::{RuntimeHandle, core::TestExecutionId};
-use dokime_contract::operations::observation as wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::operations::observation as wire;
 
 /* === Constants === */
 pub(super) const STREAM: &str = "runtime.state";

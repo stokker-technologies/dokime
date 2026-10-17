@@ -22,7 +22,8 @@ use super::{intern, position, resolve};
 use crate::definition::{ParameterDefinition, TestCaseTemplate};
 use crate::document::DocumentDefinition;
 use crate::execution::{ExecutionSnapshot, TestExecution};
-use crate::core::{DocumentId, TestExecutionId};
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

@@ -31,7 +31,8 @@ use tonic::{Code, Status};
 // Local Imports
 use super::value;
 use super::value::canonical;
-use dokime_runtime::core::{TestCycleId, ValidationIssue};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::diagnostics::ValidationIssue;
 use dokime_runtime::definition::TestCase;
 use dokime_runtime::execution::{CycleStatus, CycleView, ExecutionStatus};
 use dokime_runtime::runtime::RuntimeState;
@@ -40,7 +41,8 @@ use dokime_runtime::runtime::query::{
     case_projection, case_tally, cycle_page, historical_case_projection, select_cycles,
 };
 use dokime_runtime::{runtime::Error, RuntimeHandle};
-use dokime_contract::operations::{cursor::Cursor, execution as wire};
+use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::operations::execution as wire;
 
 /* === Constants === */
 
@@ -748,14 +750,14 @@ fn rejection(
     code: String,
     message: String,
     validation_issues: Vec<ValidationIssue>,
-) -> dokime_contract::operations::execution::Rejection {
-    dokime_contract::operations::execution::Rejection {
+) -> dokime_domain::operations::execution::Rejection {
+    dokime_domain::operations::execution::Rejection {
         code,
         message,
         issues: validation_issues
             .into_iter()
             .map(
-                |issue| dokime_contract::operations::execution::ValidationIssue {
+                |issue| dokime_domain::operations::execution::ValidationIssue {
                     path: issue.path,
                     message: issue.message,
                     expected: issue.expected,

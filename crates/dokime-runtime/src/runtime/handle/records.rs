@@ -117,7 +117,7 @@ impl CapturedRecords {
 }
 
 impl super::RuntimeHandle {
-    pub fn process_epoch(&self) -> crate::core::SessionId {
+    pub fn process_epoch(&self) -> dokime_domain::model::identity::SessionId {
         self.state_read().process_epoch().clone()
     }
 

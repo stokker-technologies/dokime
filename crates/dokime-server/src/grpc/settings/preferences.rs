@@ -23,7 +23,7 @@ use dokime_runtime::{
     RuntimeHandle,
     config::{Density, ThemeMode},
 };
-use dokime_contract::operations::settings as wire;
+use dokime_domain::operations::settings as wire;
 
 /* === Constants === */
 /* === Macros === */

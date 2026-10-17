@@ -11,8 +11,9 @@
 
 /* === Re-Exports === */
 #[cfg(feature = "storage")]
-pub use dokime_contract::execution::PageCursor;
-pub use dokime_contract::execution::{ExecutionCheckpoint, SavedEvidenceError};
+pub use dokime_domain::model::execution::PageCursor;
+pub use dokime_domain::model::execution::ExecutionCheckpoint;
+pub use dokime_domain::model::execution::SavedEvidenceError;
 
 /* === Imports === */
 // Standard Library Imports
@@ -23,7 +24,11 @@ use serde::{Deserialize, Serialize};
 // Local Imports
 use super::result::{CycleStatus, CycleView, ExecutionStatus, TestCycle, TestExecution};
 use crate::artifacts::{ArtifactRecord, ArtifactStatus};
-use crate::core::{Metadata, NodeId, TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 pub const EXECUTION_CONTEXT_MEDIA_TYPE: &str = "application/vnd.dokime.execution-context+protobuf";
@@ -403,7 +408,7 @@ pub fn output_validation_memory(outputs: &[ExecutionOutput]) -> usize {
         .count();
     harmos::btree_map_memory::<&String, ()>(outputs.len())
         .saturating_add(harmos::btree_map_memory::<&str, ()>(outputs.len()))
-        .saturating_add(harmos::btree_map_memory::<&crate::core::ArtifactId, ()>(
+        .saturating_add(harmos::btree_map_memory::<&dokime_domain::model::identity::ArtifactId, ()>(
             artifacts,
         ))
 }

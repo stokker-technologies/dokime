@@ -26,8 +26,10 @@ use crate::grpc::{
     error::detailed,
     value,
 };
-use dokime_runtime::{RuntimeHandle, core::ArtifactId, runtime::ArtifactReader};
-use dokime_contract::operations::content as content_wire;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_runtime::runtime::ArtifactReader;
+use dokime_domain::operations::content as content_wire;
 
 /* === Constants === */
 

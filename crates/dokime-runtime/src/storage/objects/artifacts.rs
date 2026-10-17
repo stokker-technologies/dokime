@@ -20,7 +20,10 @@
 // Local Imports
 use super::metadata;
 use crate::artifacts::{ArtifactRecord, ArtifactStatus};
-use crate::core::{ArtifactId, RecordScope, Timestamp, UploadId};
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::identity::UploadId;
 use crate::execution::saved::ExecutionOutputContent;
 use crate::storage::{Error, Result, records::ScopeRow};
 
@@ -96,7 +99,7 @@ impl Content {
                         record.saturating_sub(std::mem::size_of::<Box<ArtifactRecord>>()),
                     )
                     .saturating_add(
-                        metadata.saturating_sub(std::mem::size_of::<crate::core::Metadata>()),
+                        metadata.saturating_sub(std::mem::size_of::<dokime_domain::model::identity::Metadata>()),
                     ))
             }
             _ => Err(Error::Invalid("invalid saved output content descriptor")),

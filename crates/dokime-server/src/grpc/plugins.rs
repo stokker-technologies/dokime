@@ -35,7 +35,7 @@ use dokime_runtime::{
     RuntimeHandle,
     plugins::{PluginError, PluginStore},
 };
-use dokime_contract::operations::plugins as contract;
+use dokime_domain::operations::plugins as contract;
 
 /* === Constants === */
 

@@ -32,7 +32,8 @@ use crate::{
         },
     },
 };
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 
@@ -51,8 +52,8 @@ impl RuntimeHandle {
         &self,
         cycle_id: &TestCycleId,
         execution_id: &TestExecutionId,
-        document_id: &crate::core::DocumentId,
-        plot_id: &crate::core::Identifier,
+        document_id: &dokime_domain::model::identity::DocumentId,
+        plot_id: &dokime_domain::model::identity::Identifier,
         display_points: Option<u32>,
         downsample: crate::document::DownsampleTechnique,
     ) -> Result<()> {
@@ -75,7 +76,7 @@ impl RuntimeHandle {
     pub async fn resolve_cycle_document(
         &self,
         test_cycle_id: &TestCycleId,
-        document_id: &crate::core::DocumentId,
+        document_id: &dokime_domain::model::identity::DocumentId,
         mut selection: DocumentSelection,
     ) -> Result<Option<DocumentPayload>> {
         if selection.scope.test_execution_id.is_none() {

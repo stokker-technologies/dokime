@@ -18,7 +18,7 @@ use std::fmt;
 #[cfg(feature = "native")]
 use tokio_stream::Elapsed;
 // Local Imports
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::document::DocumentFailure;
 use crate::records::RecordFailure;
 use crate::values::FieldError;
@@ -37,7 +37,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
-    Api(#[source] dokime_contract::Error),
+    Api(#[source] dokime_domain::Error),
 
     #[error("setting {0:?} is not available in this context")]
     UnknownSetting(String),
@@ -234,8 +234,8 @@ impl From<harmos::IdentifierError> for Error {
     }
 }
 
-impl From<dokime_contract::Error> for Error {
-    fn from(source: dokime_contract::Error) -> Self {
+impl From<dokime_domain::Error> for Error {
+    fn from(source: dokime_domain::Error) -> Self {
         Self::Api(source)
     }
 }

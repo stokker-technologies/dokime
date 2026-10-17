@@ -19,7 +19,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 // Local Imports
 use crate::RuntimeHandle;
 use crate::installed_plugins::brand::{BRAND_ARTIFACT_ID, ResolvedBrand};
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::domains::{
     AppCustomizationContribution, AppLogoAsset, AppThemeContribution, ThemeActivationPolicy,
     ThemeModePolicy,

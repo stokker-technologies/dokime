@@ -20,11 +20,13 @@ use serde::{Deserialize, Serialize};
 use super::{intern, resolve};
 use crate::definition::{SuiteRegistry, SuiteSet, SuiteSnapshot, TestCase};
 use crate::records::RecordContract;
-use crate::core::{CaseId, CommandId, Identifier};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::Identifier;
 use crate::definition::TestSuite;
 use crate::domains::TestSuiteDefinition;
 use crate::telemetry::TelemetryContract;
-use dokime_contract::domains::InstalledPlugin;
+use dokime_domain::model::plugins::InstalledPlugin;
 
 /* === Constants === */
 

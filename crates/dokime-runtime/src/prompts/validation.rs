@@ -21,11 +21,17 @@ use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 
 // Local Imports
-use dokime_contract::core::{ValidationIssue, Value, ValueType, numeric_cmp, value_matches_type};
-use dokime_contract::expressions::ExpressionContext;
-use dokime_contract::prompts::{
-    PromptArchetype, PromptDefinition, PromptField, PromptFieldKind, validate_rules,
-};
+use dokime_domain::model::diagnostics::ValidationIssue;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::ValueType;
+use dokime_domain::model::values::numeric_cmp;
+use dokime_domain::model::values::value_matches_type;
+use dokime_domain::model::expressions::ExpressionContext;
+use dokime_domain::model::prompts::PromptArchetype;
+use dokime_domain::model::prompts::PromptDefinition;
+use dokime_domain::model::prompts::PromptField;
+use dokime_domain::model::prompts::PromptFieldKind;
+use dokime_domain::model::prompts::validate_rules;
 
 /* === Constants === */
 

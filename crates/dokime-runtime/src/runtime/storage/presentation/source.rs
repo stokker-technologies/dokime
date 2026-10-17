@@ -26,7 +26,9 @@ use super::{MAX_BYTES, error, owns_annotation, owns_projection};
 use crate::runtime::Result;
 use crate::RuntimeState;
 use crate::execution::{CycleView, TestExecution};
-use crate::core::{CaseId, DocumentId, RecordScope};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::execution::RecordScope;
 use crate::definition::TestCase;
 
 /* === Constants === */
@@ -358,7 +360,7 @@ pub(super) fn select_cases<'a>(
 pub(super) fn execution_rows<'a>(
     cycle: &'a CycleView,
     execution: &'a TestExecution,
-) -> impl Iterator<Item = &'a crate::core::TestExecutionId> {
+) -> impl Iterator<Item = &'a dokime_domain::model::identity::TestExecutionId> {
     let present = cycle
         .test_executions
         .iter()

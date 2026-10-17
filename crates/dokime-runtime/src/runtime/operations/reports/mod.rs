@@ -15,7 +15,8 @@ use crate::{
     app::{Dokime, Lanes},
     runtime::storage::executions::ExecutionStorage,
 };
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::operations::reports::{
     MaterializeReport, MaterializeReportRequest, MaterializedReport, ReportSubject,
 };

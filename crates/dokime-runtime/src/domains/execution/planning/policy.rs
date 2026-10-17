@@ -19,7 +19,7 @@ pub(crate) use crate::transactions::UpdateCyclePolicy as UpdatePolicy;
 use harmos::state::Transaction;
 // Local Imports
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId};
+use dokime_domain::model::identity::TestCycleId;
 
 /* === Constants === */
 

@@ -19,10 +19,11 @@ use harmos::Protobuf;
 use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
-use dokime_runtime::core::RecordScope;
+use dokime_domain::model::execution::RecordScope;
 use dokime_runtime::execution::notes::NoteOwner;
 use dokime_runtime::runtime::query::RuntimeStateSnapshot;
-use dokime_contract::operations::{cursor::Cursor, notes as contract};
+use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::operations::notes as contract;
 
 /* === Constants === */
 
@@ -38,7 +39,7 @@ pub(super) struct Page {
     pub after: String,
     pub cursor: Cursor,
     scope: Option<RecordScope>,
-    case_executions: std::collections::BTreeSet<dokime_runtime::core::TestExecutionId>,
+    case_executions: std::collections::BTreeSet<dokime_domain::model::identity::TestExecutionId>,
 }
 
 /* === Enums === */

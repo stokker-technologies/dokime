@@ -22,12 +22,12 @@ use harmos::{MemorySize, storage::StorageCursor};
 // Local Imports
 use super::ExecutionContext;
 use crate::{runtime::Error, runtime::Result};
-use crate::{
-    core::{Identifier, NodeId},
-    execution::saved::{ExecutionOutput, ExecutionRevision},
-    records::RecordContract,
-    telemetry::contract::TelemetryContract,
-};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::NodeId;
+use crate::execution::saved::ExecutionOutput;
+use crate::execution::saved::ExecutionRevision;
+use crate::records::RecordContract;
+use crate::telemetry::contract::TelemetryContract;
 
 /* === Constants === */
 
@@ -39,9 +39,9 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CapturedSource {
-    pub captured_at: crate::core::Timestamp,
+    pub captured_at: dokime_domain::model::time::Timestamp,
     pub owner_node_id: NodeId,
-    pub execution_id: crate::core::TestExecutionId,
+    pub execution_id: dokime_domain::model::identity::TestExecutionId,
     pub execution: Option<ExecutionRevision>,
     pub lifecycle_id: String,
     pub lifecycle: crate::execution::TestExecution,

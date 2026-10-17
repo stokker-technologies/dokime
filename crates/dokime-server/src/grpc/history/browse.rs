@@ -23,11 +23,12 @@ use tonic::Status;
 // Local Imports
 use crate::grpc::value::{self, canonical};
 use dokime_runtime::RuntimeHandle;
-use dokime_runtime::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 use dokime_runtime::execution::ExecutionStatus;
 use dokime_runtime::runtime::query::execution_history::{ExecutionBrowsePage, ExecutionBrowseQuery};
 use dokime_runtime::runtime::query::{ExecutionFilter, ExecutionOrder, ExecutionOrderKey};
-use dokime_contract::operations::{execution as execution_wire, history as wire};
+use dokime_domain::operations::execution as execution_wire;
+use dokime_domain::operations::history as wire;
 
 /* === Constants === */
 

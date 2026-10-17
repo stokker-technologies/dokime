@@ -27,11 +27,11 @@ use crate::{
     runtime::Error, runtime::Result, RuntimeHandle,
     runtime::storage::native_outputs::follow::{LiveOutput, NativeAdmission, Settlement},
 };
-use crate::{
-    core::{Identifier, TestExecutionId},
-    execution::saved::SavedStreamState,
-};
-use dokime_contract::operations::{checkpoint, content as wire};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestExecutionId;
+use crate::execution::saved::SavedStreamState;
+use dokime_domain::operations::checkpoint;
+use dokime_domain::operations::content as wire;
 
 /* === Constants === */
 const SOURCE_POLL: Duration = Duration::from_millis(250);

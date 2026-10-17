@@ -37,11 +37,13 @@ use crate::execution_runtime::outputs::media_type_for_path;
 use crate::runtime::storage::captures::SealRequest;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::ArtifactRecord;
-use crate::core::{Identifier, RecordScope, TestExecutionId};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::files::{FileMatcher, LineBuffer, LineMatch, LineMatchers};
 use crate::records::{RecordPublishRequest, RecordSeverity};
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
-use dokime_contract::artifacts::name;
+use dokime_domain::model::artifacts::name;
 
 /* === Constants === */
 // Consecutive failed passes after which an unreachable source ends the watch.

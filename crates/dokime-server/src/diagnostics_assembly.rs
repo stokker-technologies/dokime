@@ -17,7 +17,10 @@ use std::path::Path;
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use dokime_runtime::core::{DokimeIdentity, Metadata, SessionId, Timestamp};
+use dokime_domain::model::identity::DokimeIdentity;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::time::Timestamp;
 use dokime_runtime::domains::exports::storage::{DiagnosticPathConvention, path_conventions};
 use dokime_runtime::domains::installed_plugins::InstalledPluginErrorRecord;
 use dokime_runtime::runtime::query::RuntimeOverviewSnapshot;

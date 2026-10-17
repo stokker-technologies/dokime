@@ -35,8 +35,12 @@ pub mod registry;
 pub mod resolve;
 
 /* === Re-Exports === */
-pub use dokime_contract::document::*;
-pub use dokime_contract::expressions::{RecordField, RecordMarker, detail, marker, per_case};
+pub use dokime_domain::model::document::*;
+pub use dokime_domain::model::expressions::RecordField;
+pub use dokime_domain::model::expressions::RecordMarker;
+pub use dokime_domain::model::expressions::detail;
+pub use dokime_domain::model::expressions::marker;
+pub use dokime_domain::model::expressions::per_case;
 pub use error::{DocumentFailure, Result};
 #[cfg(feature = "host")]
 pub use input::{DocumentDataInput, DocumentResolveInput, DocumentSelection};

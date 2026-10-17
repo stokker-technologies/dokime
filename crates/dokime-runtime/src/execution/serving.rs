@@ -337,14 +337,14 @@ impl<T: SidecarTemplate> Workflow<T> {
             let mut scopes = Vec::with_capacity(delivery.captured_scopes.len());
             for encoded in &delivery.captured_scopes {
                 scopes.push(
-                    serde_json::from_str::<crate::core::RecordScope>(encoded)
+                    serde_json::from_str::<dokime_domain::model::execution::RecordScope>(encoded)
                         .map_err(|error| Refusal::of(error.to_string()))?,
                 );
             }
             self.deliver_captured(&record, &self.source, &scopes);
         }
         if let Some(samples) = &signal.samples {
-            let scope: crate::core::RecordScope = serde_json::from_str(&samples.scope_json)
+            let scope: dokime_domain::model::execution::RecordScope = serde_json::from_str(&samples.scope_json)
                 .map_err(|error| Refusal::of(format!("invalid sample scope JSON: {error}")))?;
             let rows = samples
                 .samples

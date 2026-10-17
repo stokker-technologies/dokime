@@ -34,9 +34,16 @@ pub(crate) use projection::{
 // Third-Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{Identifier, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::values::Value;
 
-use crate::core::{Metadata, RecordScope, Timestamp, TraceabilityId};
+use dokime_domain::model::identity::Metadata;
+
+use dokime_domain::model::execution::RecordScope;
+
+use dokime_domain::model::time::Timestamp;
+
+use dokime_domain::model::identity::TraceabilityId;
 
 /* === Constants === */
 const TRACEABILITY_SOURCE_PREFIX: &str = "traceability.";

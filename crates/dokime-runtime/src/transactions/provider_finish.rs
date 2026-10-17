@@ -33,10 +33,19 @@ use crate::transactions::prompts::{
 };
 use crate::transactions::records::draft::BuiltinDraft;
 use crate::transactions::records::draft::Drafts;
-use crate::core::{
-    CriterionId, DebugLevel, ErrorCause, Identifier, Metadata, RecordScope, SessionId, StepId,
-    TestCycleId, TestExecutionId, Timestamp, TraceId, Value,
-};
+use dokime_domain::model::identity::CriterionId;
+use dokime_domain::model::diagnostics::DebugLevel;
+use dokime_domain::model::diagnostics::ErrorCause;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::identity::TraceId;
+use dokime_domain::model::values::Value;
 use crate::domains::{ExecutionProviderTarget, InstalledPluginErrorRecord, InstalledPluginPhase};
 use crate::telemetry::{
     TelemetrySample, ValidationMode as TelemetryValidationMode, validate_telemetry_sample,
@@ -943,7 +952,7 @@ fn append_provider_evidence(
             "provider",
             draft.severity,
         );
-        record.record_id = crate::core::RecordId::from_seed(format!(
+        record.record_id = dokime_domain::model::identity::RecordId::from_seed(format!(
             "provider-event:{}:{index}:{}:{}",
             execution.test_execution_id, draft.record_type, draft.timestamp
         ));

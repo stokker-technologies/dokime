@@ -26,7 +26,7 @@ use crate::grpc::{content::window, value};
 use dokime_runtime::{
     ExecutionFileContent, RuntimeHandle, runtime::query::execution_history::ExecutionCheckpoint,
 };
-use dokime_contract::operations::history;
+use dokime_domain::operations::history;
 
 /* === Constants === */
 

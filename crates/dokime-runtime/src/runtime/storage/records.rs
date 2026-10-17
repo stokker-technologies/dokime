@@ -31,11 +31,14 @@ use harmos::storage::{
 // Local Imports
 use super::{context_records::ContextRecord, execution::ExecutionView};
 use crate::{runtime::Error, runtime::Result};
-use crate::{
-    core::{CaseId, SessionId, TestCycleId, TestExecutionId},
-    records::{RecordEntry, TestRecordSet},
-    storage::records::{self, RecordRow},
-};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use crate::records::RecordEntry;
+use crate::records::TestRecordSet;
+use crate::storage::records::self;
+use crate::storage::records::RecordRow;
 
 /* === Constants === */
 // The Transform Catalog Accepts At Most This Many Terms In One `In` Condition.

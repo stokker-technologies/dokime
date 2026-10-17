@@ -53,7 +53,8 @@ pub use server::{Server, Service};
 use harmos::catalog::{Catalog, Projection};
 
 // Local Imports
-use dokime_contract::operations::{Endpoints, Operations};
+use dokime_domain::operations::Endpoints;
+use dokime_domain::operations::Operations;
 
 /* === Constants === */
 pub const FILE_DESCRIPTOR_SET: &[u8] =

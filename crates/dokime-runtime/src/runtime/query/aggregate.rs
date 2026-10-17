@@ -19,7 +19,7 @@ use harmos::Aggregate;
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::{runtime::Result, RuntimeHandle};
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

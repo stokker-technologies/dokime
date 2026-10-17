@@ -11,8 +11,9 @@
 mod handle;
 
 /* === Re-Exports === */
-pub use crate::core::CommandContext;
-pub use crate::core::{CommandId, JobRunId};
+pub use dokime_domain::model::execution::CommandContext;
+pub use dokime_domain::model::identity::CommandId;
+pub use dokime_domain::model::identity::JobRunId;
 
 /* === Imports === */
 // Standard Library Imports
@@ -21,7 +22,10 @@ pub use crate::core::{CommandId, JobRunId};
 use serde::{Deserialize, Serialize};
 // Local Imports
 use crate::runtime::Error;
-use crate::core::{CorrelationId, PromptId, Timestamp, ValidationIssue};
+use dokime_domain::model::identity::CorrelationId;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::diagnostics::ValidationIssue;
 
 /* === Constants === */
 

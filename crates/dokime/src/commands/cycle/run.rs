@@ -80,9 +80,9 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
                 .ok_or_else(|| crate::Error::Input("request key is required".into()))?,
         },
     };
-    let id = dokime_contract::core::TestCycleId::from_uuid(&input.cycle_id)
+    let id = dokime_domain::model::identity::TestCycleId::from_uuid(&input.cycle_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
-    dokime_contract::core::command::validate_idempotency_key(&input.request_key)
+    dokime_domain::model::execution::command::validate_idempotency_key(&input.request_key)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
     let result = client.cycle(id).run(&input.request_key).await;

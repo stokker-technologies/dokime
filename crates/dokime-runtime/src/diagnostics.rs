@@ -12,7 +12,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime_contract::diagnostics::*;
+pub use dokime_domain::model::diagnostics::*;
 
 /* === Imports === */
 

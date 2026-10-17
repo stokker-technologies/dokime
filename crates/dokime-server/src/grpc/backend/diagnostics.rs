@@ -27,7 +27,7 @@ use dokime_runtime::{
         DiagnosticFileFormat, DiagnosticPathConvention, DiagnosticPathKey,
     },
 };
-use dokime_contract::operations::backend as wire;
+use dokime_domain::operations::backend as wire;
 /* === Constants === */
 const MAX_RESPONSE_BYTES: usize = 512 * 1024;
 /* === Macros === */
@@ -138,7 +138,7 @@ fn runtime_diagnostics(
 }
 
 fn runtime_identity(
-    identity: &dokime_runtime::core::DokimeIdentity,
+    identity: &dokime_domain::model::identity::DokimeIdentity,
 ) -> Result<wire::RuntimeIdentity, Status> {
     Ok(wire::RuntimeIdentity {
         node: Some(wire::RuntimeNodeIdentity {
@@ -318,15 +318,15 @@ fn installed_plugin_phase(
 }
 
 fn diagnostic_level(
-    level: dokime_runtime::core::DebugLevel,
-) -> dokime_contract::operations::common::Severity {
+    level: dokime_domain::model::diagnostics::DebugLevel,
+) -> dokime_domain::operations::common::Severity {
     match level {
-        dokime_runtime::core::DebugLevel::Debug => dokime_contract::operations::common::Severity::Debug,
-        dokime_runtime::core::DebugLevel::Info => dokime_contract::operations::common::Severity::Info,
-        dokime_runtime::core::DebugLevel::Warning => {
-            dokime_contract::operations::common::Severity::Warn
+        dokime_domain::model::diagnostics::DebugLevel::Debug => dokime_domain::operations::common::Severity::Debug,
+        dokime_domain::model::diagnostics::DebugLevel::Info => dokime_domain::operations::common::Severity::Info,
+        dokime_domain::model::diagnostics::DebugLevel::Warning => {
+            dokime_domain::operations::common::Severity::Warn
         }
-        dokime_runtime::core::DebugLevel::Error => dokime_contract::operations::common::Severity::Error,
+        dokime_domain::model::diagnostics::DebugLevel::Error => dokime_domain::operations::common::Severity::Error,
     }
 }
 

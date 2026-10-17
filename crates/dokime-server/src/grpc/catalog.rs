@@ -24,7 +24,10 @@ use tonic::Status;
 // Local Imports
 use super::value::{self, Budget, canonical};
 use dokime_runtime::RuntimeHandle;
-use dokime_contract::operations::{catalog as wire, common, schema, value as wire_value};
+use dokime_domain::operations::catalog as wire;
+use dokime_domain::operations::common;
+use dokime_domain::operations::schema;
+use dokime_domain::operations::value as wire_value;
 
 /* === Constants === */
 
@@ -249,7 +252,7 @@ fn check(resources: &Resources, bytes: usize) -> Result<(), Status> {
 fn page(
     limit: u32,
     after: &str,
-    given: Option<&dokime_contract::operations::cursor::Cursor>,
+    given: Option<&dokime_domain::operations::cursor::Cursor>,
     snapshot: &dokime_runtime::runtime::query::RuntimeStateSnapshot,
 ) -> Result<usize, Status> {
     canonical::cursor(snapshot)
@@ -257,7 +260,7 @@ fn page(
         .map_err(canonical::cursor_failure)
 }
 
-fn metadata_heap(metadata: &dokime_runtime::core::Metadata) -> Result<usize, Status> {
+fn metadata_heap(metadata: &dokime_domain::model::identity::Metadata) -> Result<usize, Status> {
     Ok(canonical::metadata_memory(metadata)? - std::mem::size_of::<common::Metadata>())
 }
 

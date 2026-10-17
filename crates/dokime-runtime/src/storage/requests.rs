@@ -24,9 +24,14 @@ use harmos::{
 
 // Local Imports
 use super::{Error, Result};
-use crate::core::{
-    CaseId, CommandId, NodeId, StepAttemptId, StepId, TestCycleId, TestExecutionId, Timestamp,
-};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::NodeId;
+use dokime_domain::model::identity::StepAttemptId;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 use crate::execution::request::{
     AttemptClaim, RunPhase, RunReceipt, RunSummary, StepCommand, StepCommandPhase,
     StepCommandReceipt,
@@ -503,7 +508,7 @@ impl TryFrom<Request> for RunReceipt {
 pub fn schema() -> SchemaKey {
     SchemaKey {
         payload_encoding: harmos::storage::PayloadEncoding::PostcardV1,
-        id: crate::core::Identifier::new("dokime.execution.request").unwrap(),
+        id: dokime_domain::model::identity::Identifier::new("dokime.execution.request").unwrap(),
         version: 1.try_into().unwrap(),
     }
 }

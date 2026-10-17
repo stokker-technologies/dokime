@@ -19,7 +19,7 @@ use std::{collections::BTreeMap, process::Command, time::Duration};
 // Local Imports
 use crate::HostOptions;
 use crate::collectors::maybe_insert;
-use dokime_contract::core::Value;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

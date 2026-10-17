@@ -28,7 +28,7 @@ use super::{
     Result,
 };
 use crate::artifacts::{ArtifactRecord, ArtifactStatus};
-use crate::core::Value;
+use dokime_domain::model::values::Value;
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
 

@@ -21,9 +21,9 @@ mod source;
 mod watch;
 
 /* === Re-Exports === */
-pub use dokime_contract::operations::files::{
-    FileWatchGapReason as GapReason, FileWatchPhase as Phase, FileWatchPolicy as Policy,
-};
+pub use dokime_domain::operations::files::FileWatchGapReason as GapReason;
+pub use dokime_domain::operations::files::FileWatchPhase as Phase;
+pub use dokime_domain::operations::files::FileWatchPolicy as Policy;
 pub use operation::{Resources as StepBuiltins, register};
 pub use watch::{FileWatch, WatchEvent};
 
@@ -36,13 +36,16 @@ use std::time::Duration;
 
 // Local Imports
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
-use crate::core::{RecordScope, TestExecutionId};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestExecutionId;
 use crate::files::{FileMatcher, LineMatchers};
-use dokime_contract::artifacts::name;
-use dokime_contract::operations::files::{
-    FileRule, FileRuleAction, FileWatchRequest, FileWatchSource, FileWatchSourcePayload,
-    WatchFileRequest,
-};
+use dokime_domain::model::artifacts::name;
+use dokime_domain::operations::files::FileRule;
+use dokime_domain::operations::files::FileRuleAction;
+use dokime_domain::operations::files::FileWatchRequest;
+use dokime_domain::operations::files::FileWatchSource;
+use dokime_domain::operations::files::FileWatchSourcePayload;
+use dokime_domain::operations::files::WatchFileRequest;
 use source::Source;
 
 /* === Constants === */
@@ -149,7 +152,7 @@ impl RuntimeHandle {
             context_execution,
         )?;
         for matcher in &request.matchers {
-            let stream = crate::core::Identifier::new(&matcher.stream)
+            let stream = dokime_domain::model::identity::Identifier::new(&matcher.stream)
                 .map_err(|error| invalid(error.to_string()))?;
             let state = self.state_read();
             let contract = state
@@ -330,7 +333,7 @@ fn single_file(source: Option<&FileWatchSource>) -> Result<(FileWatchSource, Str
             Ok((
                 FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Local(
-                        dokime_contract::operations::files::LocalWatchSource {
+                        dokime_domain::operations::files::LocalWatchSource {
                             root: parent.to_owned(),
                         },
                     )),
@@ -344,7 +347,7 @@ fn single_file(source: Option<&FileWatchSource>) -> Result<(FileWatchSource, Str
             Ok((
                 FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Ftp(
-                        dokime_contract::operations::files::FtpWatchSource {
+                        dokime_domain::operations::files::FtpWatchSource {
                             url: parent,
                             credential_id: ftp.credential_id.clone(),
                         },

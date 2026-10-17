@@ -68,7 +68,7 @@ pub mod transport;
 
 pub mod analysis;
 
-pub use dokime_contract::values;
+pub use dokime_domain::model::values;
 
 pub mod __answer {
     pub trait Answer {
@@ -106,7 +106,7 @@ pub mod __answer {
 pub mod app;
 #[cfg(feature = "host")]
 pub mod config;
-pub use dokime_contract::operations;
+pub use dokime_domain::operations;
 #[cfg(feature = "host")]
 mod persistence;
 #[cfg(feature = "host")]
@@ -132,16 +132,24 @@ pub mod brand {
 }
 
 /* === Re-Exports === */
-pub use dokime_contract::core;
 
-pub use dokime_contract::expressions;
+
+pub use dokime_domain::model::expressions;
 
 
 pub use definition::{Parameter, ParameterDefault, ParameterExpansion};
-pub use dokime_contract::Error as ApiError;
-pub use dokime_contract::core::*;
-pub use dokime_contract::settings;
-pub use dokime_contract::{DEV_PROTOCOL, READINESS_PROTOCOL};
+pub use dokime_domain::Error as ApiError;
+pub use dokime_domain::model::appearance::*;
+pub use dokime_domain::model::execution::*;
+pub use dokime_domain::model::credentials::*;
+pub use dokime_domain::model::diagnostics::*;
+pub use dokime_domain::model::identity::*;
+pub use dokime_domain::model::time::*;
+pub use dokime_domain::model::validation::*;
+pub use dokime_domain::model::values::*;
+pub use dokime_domain::model::settings;
+pub use dokime_domain::DEV_PROTOCOL;
+pub use dokime_domain::READINESS_PROTOCOL;
 pub use error::{Error, Result};
 pub use execution::Slot;
 pub use parameters::{FromParameters, ParameterChoice, ParameterHandle, ParameterValue};
@@ -203,7 +211,7 @@ pub use app::Dokime;
 pub use config::{InstalledSidecar, RuntimeConfig, RuntimeCredentialConfig, SidecarNoticeHandler};
 
 #[cfg(feature = "host")]
-pub use dokime_contract::domains::InstalledPlugin;
+pub use dokime_domain::model::plugins::InstalledPlugin;
 #[cfg(feature = "host")]
 pub use domains::documents::{
     CurrentDocumentCapture, CurrentDocumentTelemetryCut, ExecutionFileFollower,

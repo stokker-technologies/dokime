@@ -20,12 +20,18 @@ use std::collections::BTreeMap;
 
 // Local Imports
 use crate::{runtime::Error, runtime::Result, runtime::query::aggregate::AggregateSource};
-use crate::{
-    core::{Metadata, Timestamp, Value},
-    definition::TestCase,
-    execution::{CycleStatus, ExecutionStatus, StepRecord, StepStatus, TestCycle, TestExecution},
-    records::{RecordEntry, RecordSeverity},
-};
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
+use crate::definition::TestCase;
+use crate::execution::CycleStatus;
+use crate::execution::ExecutionStatus;
+use crate::execution::StepRecord;
+use crate::execution::StepStatus;
+use crate::execution::TestCycle;
+use crate::execution::TestExecution;
+use crate::records::RecordEntry;
+use crate::records::RecordSeverity;
 
 /* === Constants === */
 const COMMON: &[&str] = &[

@@ -31,14 +31,19 @@ use crate::{
     runtime::Error, runtime::Result, app::StateManager, execution::CycleView,
     installed_plugins::RuntimeAppearanceFrame, report::PreparedExecutionReport,
 };
-use crate::{
-    core::{ArtifactId, SessionId, TestExecutionId, Timestamp},
-    execution::{
-        ExecutionStatus, TestExecution,
-        saved::{ExecutionOutput, ExecutionRevision, ExecutionSeal, validate_outputs},
-    },
-    storage::{Manager, objects::execution::Execution, reports},
-};
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use crate::execution::ExecutionStatus;
+use crate::execution::TestExecution;
+use crate::execution::saved::ExecutionOutput;
+use crate::execution::saved::ExecutionRevision;
+use crate::execution::saved::ExecutionSeal;
+use crate::execution::saved::validate_outputs;
+use crate::storage::Manager;
+use crate::storage::objects::execution::Execution;
+use crate::storage::reports;
 
 /* === Constants === */
 const MAX_ACTIVE_OWNERS: usize = 10_000;
@@ -62,7 +67,7 @@ pub(crate) struct ExecutionStorage {
     pub(super) brand: Arc<RwLock<Option<crate::installed_plugins::ResolvedBrand>>>,
     pub(crate) cycle_save: Arc<Mutex<()>>,
     pub(super) cycle_reports: Mutex<
-        BTreeMap<crate::core::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>,
+        BTreeMap<dokime_domain::model::identity::TestCycleId, Arc<Mutex<super::cycle_finalization::PendingCycle>>>,
     >,
     pub(super) active: Mutex<BTreeMap<TestExecutionId, Arc<Mutex<Acquisition>>>>,
     pub(crate) tail_stops: Mutex<BTreeMap<String, Arc<TailStop>>>,

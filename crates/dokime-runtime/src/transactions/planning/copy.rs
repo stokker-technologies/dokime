@@ -23,7 +23,9 @@ use crate::records::BuiltinRecordType;
 use crate::records::TestRecordSet;
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::BuiltinDraft;
-use crate::core::{TestCycleId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 
@@ -176,7 +178,8 @@ impl Write for Budget {
 impl CopyCycle {
     fn drafts(&self, state: &RuntimeState) -> crate::transactions::records::draft::Drafts {
         use crate::records::RecordSeverity;
-        use crate::core::{RecordScope, Value};
+        use dokime_domain::model::execution::RecordScope;
+        use dokime_domain::model::values::Value;
         let mut records = crate::transactions::records::draft::Drafts::new(state);
         records.draft(
             BuiltinDraft {

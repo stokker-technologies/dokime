@@ -30,7 +30,8 @@ use crate::PRODUCT;
 // The development-stream contracts a backend must report to be trusted. The
 // desktop and its backend ship from one installer, so this is the same gate
 // cargo-dokime applies to a separately installed host.
-use dokime_contract::{DEV_PROTOCOL, READINESS_PROTOCOL};
+use dokime_domain::DEV_PROTOCOL;
+use dokime_domain::READINESS_PROTOCOL;
 
 /* === Constants === */
 const READINESS_LIMIT: u64 = 16 * 1024;

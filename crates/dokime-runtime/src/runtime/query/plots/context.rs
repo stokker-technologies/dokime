@@ -25,7 +25,9 @@ use crate::plot::{
 };
 use crate::runtime::handle::RuntimeHandle;
 use crate::traceability::TraceabilitySnapshot;
-use crate::core::{RecordScope, Timestamp, ValueFormat};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::ValueFormat;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */

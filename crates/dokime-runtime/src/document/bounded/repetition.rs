@@ -20,7 +20,7 @@ use std::mem::{size_of, size_of_val};
 use harmos::MemorySize;
 
 // Local Imports
-use crate::core::Metadata;
+use dokime_domain::model::identity::Metadata;
 use crate::document::binding::Evidence;
 use crate::document::resolve::{
     repeat_filter_memory, repeat_label_bound, repeat_selection_memory, repeat_template_memory,

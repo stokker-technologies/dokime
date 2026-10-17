@@ -36,7 +36,7 @@ use tokio::sync::oneshot;
 use crate::runtime::storage::captures::SealRequest;
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::ArtifactRecord;
-use crate::core::RecordScope;
+use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 const WAV_HEADER_BYTES: u64 = 44;

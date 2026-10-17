@@ -20,7 +20,10 @@ use std::collections::BTreeMap;
 // Local Imports
 use crate::records::{BuiltinRecordType, Record, RecordSeverity};
 use crate::state::RuntimeState;
-use crate::core::{RecordId, RecordScope, Timestamp, Value};
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 
@@ -41,7 +44,7 @@ pub(crate) struct BuiltinDraft {
 }
 
 pub(crate) struct Drafts {
-    session: crate::core::SessionId,
+    session: dokime_domain::model::identity::SessionId,
     first: u64,
     records: Vec<(Record, Option<String>)>,
 }

@@ -690,7 +690,7 @@ mise exec -- uv run --no-sync python -m dokime_tools.bindings --build-json targe
 mise exec -- uv run --no-sync python -m dokime_tools.bindings --build-json target/contracts/build.jsonl --check
 ```
 
-The selected `dokime-contract-export` build exports the `operations` catalog under Cargo's output
+The selected `dokime-domain-export` build exports the `operations` catalog under Cargo's output
 directory. Preparation invokes Harmos's shared `cargo harmos bindings python`
 exporter and copies its exact generated `dokime` package assets alongside the
 maintained client subpackage. The exporter must match the Harmos revision this

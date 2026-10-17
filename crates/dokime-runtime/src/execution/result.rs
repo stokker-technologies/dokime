@@ -10,7 +10,7 @@
 /* === Modules === */
 
 /* === Re-Exports === */
-pub use dokime_contract::execution::ExecutionMode;
+pub use dokime_domain::model::execution::ExecutionMode;
 
 /* === Imports === */
 // Standard Library Imports
@@ -18,10 +18,18 @@ use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 use serde::{Deserialize, Serialize};
 // Local Imports
-use crate::core::{
-    CaseId, CriterionId, DocumentId, MeasurementUnit, Metadata, RecordScope, SessionId, StepId,
-    TestCycleId, TestExecutionId, Timestamp, Value,
-};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::CriterionId;
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::values::MeasurementUnit;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::SessionId;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 use crate::definition::{MaterializedParameter, TestCase};
 use crate::diagnostics::Diagnostic;
 use crate::document::DocumentDefinition;
@@ -109,7 +117,7 @@ pub struct TestExecution {
     #[serde(default)]
     pub active_step_attempt: Option<StepAttemptStart>,
     #[serde(default)]
-    pub capture_phase: crate::core::CapturePhase,
+    pub capture_phase: dokime_domain::model::execution::CapturePhase,
     #[serde(default)]
     pub traceability: Vec<crate::traceability::TraceabilitySection>,
     pub result: Option<ResultSummary>,
@@ -118,7 +126,7 @@ pub struct TestExecution {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StepAttemptStart {
-    pub attempt_id: crate::core::StepAttemptId,
+    pub attempt_id: dokime_domain::model::identity::StepAttemptId,
     pub step_id: StepId,
     pub started_at: Timestamp,
 }
@@ -126,7 +134,7 @@ pub struct StepAttemptStart {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TestStepAttempt {
-    pub attempt_id: crate::core::StepAttemptId,
+    pub attempt_id: dokime_domain::model::identity::StepAttemptId,
     pub step_id: StepId,
     pub started_at: Timestamp,
     pub finished_at: Option<Timestamp>,
@@ -723,7 +731,7 @@ impl TestExecution {
             .map(|start| start.step_id.clone());
         scope.origin = self.active_step_attempt.as_ref().map_or_else(
             || self.capture_phase.into(),
-            |start| crate::core::EvidenceOrigin::Step {
+            |start| dokime_domain::model::execution::EvidenceOrigin::Step {
                 attempt_id: start.attempt_id.clone(),
             },
         );

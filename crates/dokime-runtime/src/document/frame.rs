@@ -30,7 +30,9 @@ use super::DocumentFailure;
 use super::binding::{Evidence, Row};
 use super::context::Entry;
 use super::input::RecordView;
-use crate::core::{EvidenceOrigin, RecordScope, Value};
+use dokime_domain::model::execution::EvidenceOrigin;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::values::Value;
 use crate::expressions::{DataExpression, DataSource, DataTransform};
 use crate::telemetry::TelemetrySample;
 
@@ -919,7 +921,7 @@ fn detail<'a>(mut value: Cow<'a, Value>, transforms: &[DataTransform]) -> Option
     Some(value)
 }
 
-pub(crate) fn nanos(timestamp: &crate::core::Timestamp) -> Option<i128> {
+pub(crate) fn nanos(timestamp: &dokime_domain::model::time::Timestamp) -> Option<i128> {
     timestamp
         .to_datetime()
         .ok()

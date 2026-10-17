@@ -545,7 +545,7 @@ impl TryFrom<Document> for crate::document::DocumentDefinition {
             sections.push(section.try_into()?);
         }
         Ok(Self {
-            document_id: crate::core::DocumentId::from_wire(row.document_id)?,
+            document_id: dokime_domain::model::identity::DocumentId::from_wire(row.document_id)?,
             metadata: row
                 .metadata
                 .ok_or(Error::Invalid("document metadata is missing"))?
@@ -1465,8 +1465,8 @@ impl TryFrom<Band> for crate::document::ReferenceBand {
 }
 
 impl Format {
-    pub fn encoding_memory(value: &crate::core::ValueFormat) -> usize {
-        use crate::core::ValueFormat;
+    pub fn encoding_memory(value: &dokime_domain::model::values::ValueFormat) -> usize {
+        use dokime_domain::model::values::ValueFormat;
         let fields = match value {
             ValueFormat::AbsoluteTime { pattern } => pattern.len(),
             ValueFormat::ElapsedSinceRun { unit } | ValueFormat::ElapsedSinceCycle { unit } => {
@@ -1523,16 +1523,16 @@ impl Format {
         if let Some(unit) = &self.unit {
             elapsed_unit(unit)?;
         }
-        Ok(std::mem::size_of::<crate::core::ValueFormat>()
+        Ok(std::mem::size_of::<dokime_domain::model::values::ValueFormat>()
             .saturating_add(self.pattern.as_ref().map_or(0, String::capacity)))
     }
 }
 
-impl TryFrom<&crate::core::ValueFormat> for Format {
+impl TryFrom<&dokime_domain::model::values::ValueFormat> for Format {
     type Error = Error;
 
-    fn try_from(value: &crate::core::ValueFormat) -> Result<Self> {
-        use crate::core::ValueFormat;
+    fn try_from(value: &dokime_domain::model::values::ValueFormat) -> Result<Self> {
+        use dokime_domain::model::values::ValueFormat;
         if Self::encoding_memory(value) == usize::MAX {
             return Err(Error::Invalid("value format encoding memory overflows"));
         }
@@ -1561,7 +1561,7 @@ impl TryFrom<&crate::core::ValueFormat> for Format {
     }
 }
 
-impl TryFrom<Format> for crate::core::ValueFormat {
+impl TryFrom<Format> for dokime_domain::model::values::ValueFormat {
     type Error = Error;
 
     fn try_from(row: Format) -> Result<Self> {
@@ -2521,7 +2521,7 @@ impl TryFrom<Placement> for crate::document::DocumentCardPlacement {
             ));
         }
         Ok(Self {
-            card_id: crate::core::Identifier::new(row.card_id)?,
+            card_id: dokime_domain::model::identity::Identifier::new(row.card_id)?,
             layout: row.layout.try_into()?,
         })
     }
@@ -2766,8 +2766,8 @@ fn reference_axis_name(value: &crate::document::ReferenceAxis) -> &'static str {
     }
 }
 
-fn elapsed_unit_name(value: &crate::core::ElapsedUnit) -> &'static str {
-    use crate::core::ElapsedUnit;
+fn elapsed_unit_name(value: &dokime_domain::model::values::ElapsedUnit) -> &'static str {
+    use dokime_domain::model::values::ElapsedUnit;
     match value {
         ElapsedUnit::Seconds => "seconds",
         ElapsedUnit::Milliseconds => "milliseconds",
@@ -2775,8 +2775,8 @@ fn elapsed_unit_name(value: &crate::core::ElapsedUnit) -> &'static str {
     }
 }
 
-fn format_name(value: &crate::core::ValueFormat) -> &'static str {
-    use crate::core::ValueFormat;
+fn format_name(value: &dokime_domain::model::values::ValueFormat) -> &'static str {
+    use dokime_domain::model::values::ValueFormat;
     match value {
         ValueFormat::Normal { .. } => "normal",
         ValueFormat::Fixed { .. } => "fixed",
@@ -3003,8 +3003,8 @@ fn reference_axis(value: &str) -> Result<crate::document::ReferenceAxis> {
     }
 }
 
-fn elapsed_unit(value: &str) -> Result<crate::core::ElapsedUnit> {
-    use crate::core::ElapsedUnit;
+fn elapsed_unit(value: &str) -> Result<dokime_domain::model::values::ElapsedUnit> {
+    use dokime_domain::model::values::ElapsedUnit;
     match value {
         "seconds" => Ok(ElapsedUnit::Seconds),
         "milliseconds" => Ok(ElapsedUnit::Milliseconds),

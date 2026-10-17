@@ -20,7 +20,9 @@
 // Local Imports
 use super::{TestCycleHandle, invalid};
 use crate::{Error, ResponseStream, Result, contracts, validate_observed_cursor};
-use dokime_contract::core::{CommandId, PromptId, TestCycleId};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::identity::TestCycleId;
 
 /* === Constants === */
 const PAGE_SIZE: u32 = 100;
@@ -71,7 +73,7 @@ impl TestCycleHandle {
                     cursor: None,
                     execution_id: None,
                 };
-                let selection = dokime_contract::prompts::pending_stream(Some(&handle.id), None);
+                let selection = dokime_domain::model::prompts::pending_stream(Some(&handle.id), None);
                 loop {
                     handle.client.verify(true).await?;
                     let page = handle.client.prompts_list_pending(request.clone()).await?;

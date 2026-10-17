@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 // Local Imports
 use super::{Map, Value};
-use crate::core::Identifier;
+use dokime_domain::model::identity::Identifier;
 use crate::definition::RuntimeCondition;
 use crate::records::RecordCondition;
 use crate::storage::{Error, Result};

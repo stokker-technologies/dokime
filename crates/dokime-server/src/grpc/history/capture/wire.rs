@@ -25,10 +25,10 @@ use crate::grpc::{
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource, TestCase};
 use dokime_runtime::execution::result::ExecutionInvalidation;
 use dokime_runtime::execution::{ExecutionSnapshot, ExecutionStatus, StepStatus, TestExecution};
-use dokime_contract::operations::{
-    common as common_wire, execution as execution_wire, history as history_wire,
-    value as value_wire,
-};
+use dokime_domain::operations::common as common_wire;
+use dokime_domain::operations::execution as execution_wire;
+use dokime_domain::operations::history as history_wire;
+use dokime_domain::operations::value as value_wire;
 /* === Constants === */
 
 /* === Macros === */
@@ -169,7 +169,7 @@ fn step_attempt(
 
 fn execution_snapshot(
     value: ExecutionSnapshot,
-    scope: &dokime_runtime::core::RecordScope,
+    scope: &dokime_domain::model::execution::RecordScope,
 ) -> Result<history_wire::HistoricalExecutionSnapshot, Status> {
     let mut budget = value::Budget::new();
     let parameter_definitions = catalog::parameters(value.parameter_definitions(), &mut budget)?;
@@ -369,12 +369,12 @@ fn collect<T>(source: impl ExactSizeIterator<Item = Result<T, Status>>) -> Resul
     Ok(target)
 }
 fn canonical_metadata(
-    source: &dokime_runtime::core::Metadata,
+    source: &dokime_domain::model::identity::Metadata,
 ) -> Result<common_wire::Metadata, Status> {
     canonical::metadata(source)
 }
 fn projected_value(
-    source: &dokime_runtime::core::Value,
+    source: &dokime_domain::model::values::Value,
     budget: &mut value::Budget,
     depth: usize,
 ) -> Result<value_wire::Value, Status> {

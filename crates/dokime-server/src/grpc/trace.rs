@@ -22,7 +22,8 @@ use tracing::Instrument;
 // Local Imports
 use crate::trace::{Event, Journal, Scope, WATCH_SPAN};
 use dokime_runtime::RuntimeHandle;
-use dokime_contract::operations::{backend as wire, common::Timestamp};
+use dokime_domain::operations::backend as wire;
+use dokime_domain::operations::common::Timestamp;
 
 /* === Constants === */
 const DEFAULT_EVENTS: usize = 256;

@@ -24,7 +24,7 @@ use super::{
     Client, Error, ResponseStream, Result, TestExecutionHandle, contracts, invalid, poll_interval,
     validate_observed_cursor,
 };
-use dokime_contract::core::TestExecutionId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

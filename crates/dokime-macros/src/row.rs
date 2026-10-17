@@ -80,7 +80,7 @@ pub(crate) fn implementation(input: &DeriveInput) -> Result<TokenStream, Error> 
 
             fn into_row(self) -> ::std::collections::BTreeMap<
                 ::std::string::String,
-                #sdk::core::Value,
+                #sdk::Value,
             > {
                 let mut row = ::std::collections::BTreeMap::new();
                 #(#values)*
@@ -88,7 +88,7 @@ pub(crate) fn implementation(input: &DeriveInput) -> Result<TokenStream, Error> 
             }
 
             fn from_row(
-                values: &::std::collections::BTreeMap<::std::string::String, #sdk::core::Value>,
+                values: &::std::collections::BTreeMap<::std::string::String, #sdk::Value>,
             ) -> ::std::result::Result<Self, #sdk::FieldError> {
                 ::std::result::Result::Ok(Self { #(#reads),* })
             }

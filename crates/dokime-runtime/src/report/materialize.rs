@@ -31,7 +31,9 @@ use crate::{
     execution::context::captured::source::CapturedSource,
     runtime::{progress::Operation, storage::execution::ExecutionView},
 };
-use crate::{core::DocumentId, execution::saved::ExecutionOutputContent, storage::Manager};
+use dokime_domain::model::identity::DocumentId;
+use crate::execution::saved::ExecutionOutputContent;
+use crate::storage::Manager;
 
 /* === Constants === */
 const ACTIVE_PLOT_PLANS: usize = 4;

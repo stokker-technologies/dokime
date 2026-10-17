@@ -25,12 +25,14 @@ use harmos::{
 use tonic::Status;
 // Local Imports
 use super::access::Principal;
-use dokime_runtime::{
-    RuntimeHandle,
-    core::{CommandId, NoteId, SessionId},
-    domains::evidence::notes::{CreateNoteRequest, EditNoteRequest, NoteError},
-};
-use dokime_contract::operations::notes as contract;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::identity::SessionId;
+use dokime_runtime::domains::evidence::notes::CreateNoteRequest;
+use dokime_runtime::domains::evidence::notes::EditNoteRequest;
+use dokime_runtime::domains::evidence::notes::NoteError;
+use dokime_domain::operations::notes as contract;
 
 /* === Constants === */
 

@@ -35,7 +35,8 @@ use crate::{
     installed_plugins::module_preferences::PluginPreferences,
     telemetry_runtime::Sampling,
 };
-use crate::core::{Identifier, SessionId};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::SessionId;
 use crate::domains::ActionDispatcher;
 
 /* === Constants === */
@@ -59,7 +60,7 @@ struct BootParts {
     storage_policy: Arc<crate::config::policy::PolicyStore>,
     record_source: Arc<crate::runtime::storage::record_capture::Source>,
     resources: crate::app::Resources,
-    node_identity: crate::core::DokimeNodeIdentity,
+    node_identity: dokime_domain::model::identity::DokimeNodeIdentity,
     application_settings: crate::config::Settings,
     plugin_preferences: PluginPreferences,
     credentials: CredentialStore,
@@ -258,7 +259,7 @@ impl RuntimeHandle {
         let credentials = CredentialStore::from_config(&config.credential_backend)
             .map_err(|error| Error::Operation(error.to_string()))?;
         let mut state = RuntimeState::new(config.session_id.clone());
-        state.record_namespace = crate::model::identity::new_id::<crate::core::SessionId>();
+        state.record_namespace = crate::model::identity::new_id::<dokime_domain::model::identity::SessionId>();
         if install_builtins {
             state.install_builtin_domains().map_err(|error| {
                 Error::Operation(format!("failed to install built-in domains: {error}"))
@@ -528,7 +529,7 @@ impl RuntimeHandle {
     // Establish Identity, Install Host Plugins And Register Late Operations.
     async fn settle_boot(
         &self,
-        node_identity: crate::core::DokimeNodeIdentity,
+        node_identity: dokime_domain::model::identity::DokimeNodeIdentity,
         installed_plugins: InstalledPlugins,
         step_builtins: &crate::domains::files::StepBuiltins,
     ) -> Result<()> {

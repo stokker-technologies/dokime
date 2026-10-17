@@ -23,8 +23,13 @@ use std::sync::{Arc, OnceLock};
 
 // Local Imports
 use super::{Client, Error, ResponseStream, Result, contracts, validate_observed_cursor};
-use dokime_contract::core::{CommandId, StepAttemptId, StepId, TestCycleId, TestExecutionId};
-use dokime_contract::execution::{ExecutionMode, StepCommand};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::StepAttemptId;
+use dokime_domain::model::identity::StepId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::execution::ExecutionMode;
+use dokime_domain::model::execution::StepCommand;
 
 /* === Constants === */
 const REQUEST_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
@@ -250,7 +255,7 @@ impl TestExecutionHandle {
         key: &str,
         mode: ExecutionMode,
     ) -> Result<contracts::execution::Admission> {
-        dokime_contract::core::command::validate_idempotency_key(key)
+        dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
         let mode = match mode {
@@ -416,7 +421,7 @@ fn poll_interval(interval: Option<std::time::Duration>) -> Result<std::time::Dur
 fn validate_checkpoint(
     id: &TestExecutionId,
     checkpoint: &contracts::checkpoint::ExecutionCheckpoint,
-) -> Result<dokime_contract::execution::ExecutionCheckpoint> {
+) -> Result<dokime_domain::model::execution::ExecutionCheckpoint> {
     use harmos::storage::ObjectVersionToken;
     use std::num::NonZeroUsize;
 
@@ -434,7 +439,7 @@ fn validate_checkpoint(
     if canonical != checkpoint.version {
         return Err(invalid("saved checkpoint version is noncanonical"));
     }
-    let original = dokime_contract::execution::ExecutionCheckpoint {
+    let original = dokime_domain::model::execution::ExecutionCheckpoint {
         execution_id: id.clone(),
         position: checkpoint_cursor(checkpoint.position.as_ref())?,
         version,
@@ -459,9 +464,9 @@ fn checkpoint_cursor(
     }
     Ok(harmos::storage::StorageCursor {
         history: harmos::storage::StoreHistory {
-            store: dokime_contract::core::Identifier::new(&history.store)
+            store: dokime_domain::model::identity::Identifier::new(&history.store)
                 .map_err(|_| invalid("saved checkpoint store is invalid"))?,
-            epoch: dokime_contract::core::Identifier::new(&history.epoch)
+            epoch: dokime_domain::model::identity::Identifier::new(&history.epoch)
                 .map_err(|_| invalid("saved checkpoint epoch is invalid"))?,
         },
         sequence: cursor.sequence,

@@ -23,8 +23,9 @@ use tonic::Status;
 use super::super::{content, value};
 use super::wire;
 use dokime_runtime::RuntimeHandle;
-use dokime_runtime::core::ArtifactId;
-use dokime_contract::operations::{content as content_wire, history};
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::operations::content as content_wire;
+use dokime_domain::operations::history;
 
 /* === Constants === */
 

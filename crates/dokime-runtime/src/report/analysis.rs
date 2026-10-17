@@ -24,11 +24,10 @@ use crate::{
     runtime::Error, runtime::Result, RuntimeHandle,
     plot::{PlotPayload, PlotPayloadCursor, PlotPayloadRequest},
 };
-use crate::{
-    core::Identifier,
-    domains::ActionDispatcher,
-    telemetry::{TelemetryContract, TelemetrySample},
-};
+use dokime_domain::model::identity::Identifier;
+use crate::domains::ActionDispatcher;
+use crate::telemetry::TelemetryContract;
+use crate::telemetry::TelemetrySample;
 
 /* === Constants === */
 

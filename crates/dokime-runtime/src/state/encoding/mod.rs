@@ -24,7 +24,11 @@ use super::{
     PluginOwner, PromptDefinition, PromptId, PromptInstance, PromptResponse, ResourceRegistry,
     RuntimeState, SessionId, TestCycleId, record_history,
 };
-use crate::core::{CommandId, Identifier, NoteId, TestExecutionId, Timestamp};
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

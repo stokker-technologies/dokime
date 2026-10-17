@@ -18,7 +18,7 @@ use tonic::Status;
 // Local Imports
 use super::preferences::Resources;
 use dokime_runtime::RuntimeHandle;
-use dokime_contract::operations::settings as wire;
+use dokime_domain::operations::settings as wire;
 
 /* === Constants === */
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;

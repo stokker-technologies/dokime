@@ -24,7 +24,9 @@ use tonic::Status;
 // Local Imports
 use super::error::detailed;
 use dokime_runtime::{RuntimeHandle, runtime::CapturedRecords};
-use dokime_contract::operations::{cursor::Cursor, evidence as v1, schema::RecordSchema};
+use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::operations::evidence as v1;
+use dokime_domain::operations::schema::RecordSchema;
 
 use selection::Selection;
 
@@ -271,7 +273,7 @@ impl Operation for Schema {
             ));
         }
         super::value::text(&request.record_type)?;
-        let kind = dokime_runtime::core::Identifier::new(std::mem::take(&mut request.record_type))
+        let kind = dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.record_type))
             .map_err(|_| Status::invalid_argument("invalid record type"))?;
         let contract = snapshot
             .state()

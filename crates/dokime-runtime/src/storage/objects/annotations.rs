@@ -20,7 +20,11 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 // Local Imports
 use super::templates;
-use crate::core::{HealthItemId, NoteId, RecordId, RecordScope, Timestamp};
+use dokime_domain::model::identity::HealthItemId;
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::identity::RecordId;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
 use crate::execution::{HealthItem, HealthSeverity, OperatorNote};
 use crate::records::TestRecordSet;
 use crate::storage::{Error, Result, records::ScopeRow};

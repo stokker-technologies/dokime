@@ -49,11 +49,11 @@ pub(crate) struct Args {
 
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
-    let id = dokime_contract::core::CommandId::from_uuid(&args.request_id)
+    let id = dokime_domain::model::identity::CommandId::from_uuid(&args.request_id)
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let cycle = args
         .cycle_id
-        .map(dokime_contract::core::TestCycleId::from_uuid)
+        .map(dokime_domain::model::identity::TestCycleId::from_uuid)
         .transpose()
         .map_err(|error| crate::Error::Input(error.to_string()))?;
     let client = args.connection.connect().await?;
@@ -71,11 +71,11 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 pub(super) fn print(
-    receipt: &dokime_contract::operations::execution::RunRequestReceipt,
+    receipt: &dokime_domain::operations::execution::RunRequestReceipt,
     json: bool,
 ) -> crate::Result<()> {
     let phase = receipt.phase;
-    if phase == dokime_contract::operations::execution::RunRequestPhase::Unspecified {
+    if phase == dokime_domain::operations::execution::RunRequestPhase::Unspecified {
         return Err(crate::Error::Setup("invalid native request phase".into()));
     }
     if json {

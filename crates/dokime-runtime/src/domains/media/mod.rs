@@ -27,7 +27,7 @@ pub use audio::AudioRecording;
 // Local Imports
 use crate::{runtime::Error, runtime::Result, RuntimeHandle};
 use crate::artifacts::{ArtifactRecord, ArtifactUploadInput};
-use crate::core::RecordScope;
+use dokime_domain::model::execution::RecordScope;
 
 /* === Constants === */
 // Error code of a capture refused because the host has no usable device.

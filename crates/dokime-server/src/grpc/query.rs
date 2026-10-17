@@ -26,7 +26,7 @@ use dokime_runtime::RuntimeHandle;
 use dokime_runtime::runtime::query::aggregate::{
     AggregateColumn, AggregateFilter, AggregateOperator, AggregateQuery, AggregateSource,
 };
-use dokime_contract::operations::query as wire;
+use dokime_domain::operations::query as wire;
 
 /* === Constants === */
 

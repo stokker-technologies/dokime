@@ -19,7 +19,10 @@ use std::time::Duration;
 // Third-Party Imports
 use harmos::sidecar::Refusal;
 // Local Imports
-use crate::core::{RecordScope, TestCycleId, TestExecutionId, Value};
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::values::Value;
 use crate::definition::{
     CaseMaterializationOptions, CaseMaterializationSelection, TestCaseTemplate,
     materialize_template_cases, parameter_name,
@@ -321,13 +324,13 @@ impl Harness {
                 .expect("resolved parameter values serialize"),
             secrets_json: serde_json::to_string(&self.secrets).expect("secret bindings serialize"),
         };
-        let capture = crate::core::RecordScope {
-            test_cycle_id: crate::core::TestCycleId::from_uuid(start.test_cycle_id.clone()).ok(),
-            test_execution_id: crate::core::TestExecutionId::from_uuid(
+        let capture = dokime_domain::model::execution::RecordScope {
+            test_cycle_id: dokime_domain::model::identity::TestCycleId::from_uuid(start.test_cycle_id.clone()).ok(),
+            test_execution_id: dokime_domain::model::identity::TestExecutionId::from_uuid(
                 start.test_execution_id.clone(),
             )
             .ok(),
-            origin: crate::core::EvidenceOrigin::Initialization,
+            origin: dokime_domain::model::execution::EvidenceOrigin::Initialization,
             ..Default::default()
         };
         let host = std::sync::Arc::new(Host {
@@ -946,11 +949,11 @@ fn deliveries(
     measured: &BTreeMap<String, Vec<BTreeMap<String, Value>>>,
     published: &[Record],
     execution_id: &str,
-    scope: &crate::core::RecordScope,
+    scope: &dokime_domain::model::execution::RecordScope,
 ) -> Vec<ExecutionSignal> {
     let mut signals = Vec::new();
     for (stream, rows) in measured {
-        let Ok(identifier) = crate::core::Identifier::new(stream) else {
+        let Ok(identifier) = dokime_domain::model::identity::Identifier::new(stream) else {
             continue;
         };
         let samples = rows

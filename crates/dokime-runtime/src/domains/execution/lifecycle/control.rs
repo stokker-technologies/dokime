@@ -19,7 +19,8 @@ pub(crate) use crate::transactions::{ControlCycle as Control, CycleControlAction
 use harmos::state::RequestKey;
 // Local Imports
 use crate::{CommandContext, runtime::Error, RuntimeHandle, unavailable_rejection};
-use crate::core::{TestCycleId, TestExecutionId};
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

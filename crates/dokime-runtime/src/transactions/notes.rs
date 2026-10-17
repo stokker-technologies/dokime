@@ -27,7 +27,9 @@ use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::state::RuntimeState;
 use crate::transactions::records::draft::BuiltinDraft;
-use crate::core::{NoteId, Timestamp, Value};
+use dokime_domain::model::identity::NoteId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 
 /* === Constants === */
 

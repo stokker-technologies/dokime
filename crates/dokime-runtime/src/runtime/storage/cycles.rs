@@ -18,7 +18,8 @@ use std::sync::Arc;
 // Local Imports
 use super::executions::ExecutionStorage;
 use crate::{runtime::Error, runtime::Result};
-use crate::{core::TestCycleId, storage::objects::cycle::Cycle};
+use dokime_domain::model::identity::TestCycleId;
+use crate::storage::objects::cycle::Cycle;
 
 /* === Constants === */
 

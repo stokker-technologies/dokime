@@ -11,7 +11,7 @@ members = [
   "crates/dokime",
   "crates/dokime-runtime",
   "crates/dokime-client",
-  "crates/dokime-contract",
+  "crates/dokime-domain",
   "crates/cargo-dokime",
   "crates/dokime-packaging",
   "crates/dokime-gui/src-tauri",

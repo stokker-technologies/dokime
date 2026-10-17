@@ -21,7 +21,7 @@ use super::*;
 use crate::suites::common::bench::{COARSEST_STEP_S, FINEST_STEP_S, SHORTEST_S, bench};
 use crate::suites::common::{measurement, system, verdicts};
 use crate::{error::Error, prompts::checkpoint};
-use dokime_runtime::core::TemplateId;
+use dokime_domain::model::identity::TemplateId;
 use dokime_runtime::document::{self, PlotDefinition, PlotStyle};
 use dokime_runtime::expressions::telemetry;
 use dokime_runtime::harmos::operations::Host;

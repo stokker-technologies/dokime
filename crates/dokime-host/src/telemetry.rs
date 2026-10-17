@@ -20,7 +20,8 @@ use std::sync::Arc;
 use crate::{
     Host, HostOptions, HostTelemetryConfig, HostTelemetryStream, host_telemetry_contracts,
 };
-use dokime_contract::telemetry::{TelemetryBatch, TelemetryContract};
+use dokime_domain::model::telemetry::TelemetryBatch;
+use dokime_domain::model::telemetry::TelemetryContract;
 
 /* === Constants === */
 

@@ -30,7 +30,9 @@ use tokio::sync::watch;
 use super::Binding;
 use crate::execution::log::Level;
 use crate::host::ProcessExited;
-use dokime_contract::operations::process::{DEFAULT_GRACE_MS, ProcessExit, RunProcessRequest};
+use dokime_domain::operations::process::DEFAULT_GRACE_MS;
+use dokime_domain::operations::process::ProcessExit;
+use dokime_domain::operations::process::RunProcessRequest;
 use crate::records::DeclaredRecord;
 
 /* === Constants === */

@@ -19,7 +19,7 @@ pub(crate) use crate::transactions::CreateCycle as Create;
 
 // Local Imports
 use crate::{CommandContext, runtime::Error, RuntimeHandle, transactions::CycleDefinition};
-use crate::core::{TestCycleId};
+use dokime_domain::model::identity::TestCycleId;
 
 /* === Constants === */
 

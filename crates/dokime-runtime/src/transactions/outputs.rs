@@ -21,7 +21,8 @@ use serde::{Deserialize, Serialize};
 use crate::definition::{MaterializedParameter, ParameterSource};
 use crate::state::RuntimeState;
 use crate::streams::AggregateOutput;
-use crate::core::{Identifier, TestExecutionId};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
 

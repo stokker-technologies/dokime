@@ -19,7 +19,10 @@ use std::{collections::BTreeMap, num::NonZeroUsize};
 // Third Party Imports
 
 // Local Imports
-use crate::core::{Identifier, TelemetrySampleId, Timestamp, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TelemetrySampleId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 use crate::storage::{Error, Result, records::ScopeRow, values};
 use crate::telemetry::TelemetrySample;
 
@@ -184,7 +187,7 @@ pub(super) fn projection_memory(fields: Fields<'_>) -> Result<usize> {
         bytes = bytes.saturating_add(
             scope
                 .projection_memory()
-                .saturating_sub(std::mem::size_of::<crate::core::RecordScope>()),
+                .saturating_sub(std::mem::size_of::<dokime_domain::model::execution::RecordScope>()),
         );
     }
     Ok(bytes)

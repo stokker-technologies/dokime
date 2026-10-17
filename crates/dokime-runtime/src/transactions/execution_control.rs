@@ -33,7 +33,8 @@ use crate::transactions::{
     CycleControlAction,
     provider::request::{RunPhase, RunRequest},
 };
-use crate::core::{TestExecutionId, Timestamp};
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::model::time::Timestamp;
 
 /* === Constants === */
 

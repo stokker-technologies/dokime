@@ -23,7 +23,7 @@ pub use typed::{
 use harmos::MemorySize;
 // Local Imports
 
-use crate::core::SessionId;
+use dokime_domain::model::identity::SessionId;
 use crate::telemetry::TelemetrySample;
 
 /* === Constants === */

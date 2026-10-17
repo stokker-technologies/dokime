@@ -20,7 +20,8 @@
 // Local Imports
 use super::{TestExecutionHandle, invalid, validate_checkpoint};
 use crate::{ResponseStream, Result, contracts};
-use dokime_contract::execution::{ExecutionCheckpoint, PageCursor};
+use dokime_domain::model::execution::ExecutionCheckpoint;
+use dokime_domain::model::execution::PageCursor;
 
 /* === Constants === */
 const PAGE_SIZE: u32 = 100;

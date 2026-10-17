@@ -27,7 +27,7 @@ use crate::document::{
 };
 use crate::execution::TestExecution;
 use crate::execution_runtime::registry::SuiteRegistry;
-use crate::core::DocumentId;
+use dokime_domain::model::identity::DocumentId;
 use crate::telemetry::{TelemetryColumn, TelemetryContract};
 
 /* === Constants === */

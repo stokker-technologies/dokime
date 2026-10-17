@@ -20,7 +20,10 @@ use std::sync::{Arc, Mutex};
 
 // Local Imports
 use super::RuntimeHandle;
-use crate::core::{Identifier, RecordScope, Timestamp, Value};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 use crate::telemetry::{TelemetryBatch, TelemetrySample};
 use harmos::schema::Validator;
 
@@ -389,7 +392,7 @@ pub(super) fn validate(
                         contract.stream
                     )
                 })?;
-            use crate::core::ValueType;
+            use dokime_domain::model::values::ValueType;
             use crate::schema::{Cardinality, graph::Kind};
             let expected = if field.cardinality == Cardinality::Repeated {
                 ValueType::Array

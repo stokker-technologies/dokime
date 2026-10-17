@@ -27,7 +27,10 @@ use crate::{
     CommandContext, CommandId, CommandReceipt, runtime::Error, RuntimeHandle, commands::accepted_receipt,
     prompt_runtime::PromptDefinition, unavailable_rejection,
 };
-use crate::core::{PromptId, TestCycleId, Timestamp, Value};
+use dokime_domain::model::identity::PromptId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::values::Value;
 use crate::prompts::{PromptInstance, PromptRequest, PromptResponse};
 
 /* === Constants === */

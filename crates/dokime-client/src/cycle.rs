@@ -27,10 +27,15 @@ use super::{
     Client, Error, ExecutionRequestHandle, ResponseStream, Result, TestExecutionHandle, contracts,
     validate_observed_cursor, validate_observed_epoch,
 };
-use dokime_contract::core::{CaseId, CommandId, TestCycleId, TestExecutionId};
-use dokime_contract::operations::{
-    Endpoint, common::Metadata, execution as contract, planning, value::Value,
-};
+use dokime_domain::model::identity::CaseId;
+use dokime_domain::model::identity::CommandId;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::operations::Endpoint;
+use dokime_domain::operations::common::Metadata;
+use dokime_domain::operations::execution as contract;
+use dokime_domain::operations::planning;
+use dokime_domain::operations::value::Value;
 
 /* === Constants === */
 
@@ -58,7 +63,7 @@ impl Client {
         &self,
         suite: &str,
         template: &str,
-        parameters: BTreeMap<String, dokime_contract::core::Value>,
+        parameters: BTreeMap<String, dokime_domain::model::values::Value>,
         label: Option<String>,
     ) -> Result<TestCycleHandle> {
         let definition = self.suite(suite).await?;
@@ -111,7 +116,7 @@ impl Client {
         &self,
         request: planning::RegisterSelectionRequest,
     ) -> Result<planning::PreviewSelectionReply> {
-        dokime_contract::core::command::validate_idempotency_key(&request.idempotency_key)
+        dokime_domain::model::execution::command::validate_idempotency_key(&request.idempotency_key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.verify(true).await?;
         let reply = self
@@ -253,11 +258,10 @@ impl TestCycleHandle {
         &self.id
     }
 
-    pub async fn stop(&self) -> Result<dokime_contract::operations::execution::ControlReply> {
-        use dokime_contract::operations::{
-            Endpoint,
-            execution::{CycleControlRequest, StopCycle},
-        };
+    pub async fn stop(&self) -> Result<dokime_domain::operations::execution::ControlReply> {
+        use dokime_domain::operations::Endpoint;
+        use dokime_domain::operations::execution::CycleControlRequest;
+        use dokime_domain::operations::execution::StopCycle;
         self.client.verify(true).await?;
         let reply = self
             .client
@@ -280,7 +284,7 @@ impl TestCycleHandle {
     }
 
     pub async fn run(&self, key: &str) -> Result<contracts::execution::Admission> {
-        dokime_contract::core::command::validate_idempotency_key(key)
+        dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
         let reply = self
@@ -328,7 +332,7 @@ impl TestCycleHandle {
         case_id: &str,
         key: &str,
     ) -> Result<contracts::execution::Admission> {
-        dokime_contract::core::command::validate_idempotency_key(key)
+        dokime_domain::model::execution::command::validate_idempotency_key(key)
             .map_err(|error| Error::Rpc(tonic::Status::invalid_argument(error.to_string())))?;
         self.client.verify(true).await?;
         let reply = self
@@ -429,9 +433,9 @@ impl TestCycleHandle {
 
 /* === Private Functions === */
 fn single_plan(
-    definition: &dokime_contract::operations::catalog::SuiteDefinition,
+    definition: &dokime_domain::operations::catalog::SuiteDefinition,
     template: &str,
-    parameters: BTreeMap<String, dokime_contract::core::Value>,
+    parameters: BTreeMap<String, dokime_domain::model::values::Value>,
 ) -> Result<(planning::SelectionPlan, String)> {
     let identity = definition
         .identity

@@ -25,7 +25,9 @@ use dokime_runtime::{
     },
     runtime::query::DownsampleTechnique,
 };
-use dokime_contract::operations::{content, documents, plots};
+use dokime_domain::operations::content;
+use dokime_domain::operations::documents;
+use dokime_domain::operations::plots;
 
 /* === Constants === */
 

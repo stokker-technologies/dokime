@@ -25,9 +25,13 @@ use crate::traceability::{
     LEASES_TRACEABILITY, TEST_DEFINITION_TRACEABILITY, TEST_EXECUTION_TRACEABILITY,
     TraceabilityEntry, TraceabilitySnapshot,
 };
-use crate::core::{
-    Identifier, Metadata, RecordScope, Timestamp, TraceabilityId, Value, scope_visible_in,
-};
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::Metadata;
+use dokime_domain::model::execution::RecordScope;
+use dokime_domain::model::time::Timestamp;
+use dokime_domain::model::identity::TraceabilityId;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::execution::scope_visible_in;
 use crate::telemetry::TelemetrySample;
 use crate::traceability::TraceabilitySection;
 
@@ -1076,7 +1080,7 @@ fn traceability_value_bytes(value: &Value) -> usize {
         Value::Null => 1,
         Value::Bool(_) | Value::Integer(_) | Value::Unsigned(_) | Value::Number(_) => 16,
         Value::Text(value) => value.len().saturating_add(16),
-        Value::Datetime(timestamp) => crate::core::datetime_text(*timestamp)
+        Value::Datetime(timestamp) => dokime_domain::model::time::datetime_text(*timestamp)
             .len()
             .saturating_add(16),
         Value::Array(values) => values.iter().fold(16, |bytes, value| {

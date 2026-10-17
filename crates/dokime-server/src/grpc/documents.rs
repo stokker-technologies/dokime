@@ -21,11 +21,12 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 // Local Imports
 use super::value;
-use dokime_runtime::{
-    RuntimeHandle,
-    core::{DocumentId, Identifier, TestCycleId, TestExecutionId},
-};
-use dokime_contract::operations::documents as contract;
+use dokime_runtime::RuntimeHandle;
+use dokime_domain::model::identity::DocumentId;
+use dokime_domain::model::identity::Identifier;
+use dokime_domain::model::identity::TestCycleId;
+use dokime_domain::model::identity::TestExecutionId;
+use dokime_domain::operations::documents as contract;
 
 /* === Constants === */
 

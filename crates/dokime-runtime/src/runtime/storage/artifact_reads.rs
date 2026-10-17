@@ -22,11 +22,11 @@ use harmos::storage::{ByteRange, FileReader, ReadFile};
 // Local Imports
 use super::execution::ExecutionView;
 use crate::{runtime::Error, runtime::Result};
-use crate::{
-    artifacts::ArtifactRecord,
-    core::{ArtifactId, Metadata},
-    execution::saved::{ExecutionOutput, ExecutionOutputContent},
-};
+use crate::artifacts::ArtifactRecord;
+use dokime_domain::model::identity::ArtifactId;
+use dokime_domain::model::identity::Metadata;
+use crate::execution::saved::ExecutionOutput;
+use crate::execution::saved::ExecutionOutputContent;
 
 /* === Constants === */
 

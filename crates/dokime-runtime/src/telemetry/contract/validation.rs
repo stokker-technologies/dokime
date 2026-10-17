@@ -17,7 +17,9 @@ use std::collections::{BTreeMap, BTreeSet};
 // Third Party Imports
 
 // Local Imports
-use crate::core::{ValidationMode, Value, value_matches_type};
+use dokime_domain::model::validation::ValidationMode;
+use dokime_domain::model::values::Value;
+use dokime_domain::model::values::value_matches_type;
 use crate::error::TelemetryFailure;
 use crate::telemetry::{
     TelemetrySample,
