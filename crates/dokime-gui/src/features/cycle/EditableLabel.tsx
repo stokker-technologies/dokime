@@ -39,6 +39,9 @@ export type EditableLabelProps = {
   subject: string;
   /** Saves the label; `null` leaves the title read-only. */
   onRename: ((label: string) => Promise<unknown>) | null;
+  /** `columns` puts the pencil in a trailing icon column of the bar grid, so it
+   *  lines up under the page bar's buttons; `inline` keeps it beside the title. */
+  layout?: "inline" | "columns";
 };
 
 /* === Constants === */
@@ -47,7 +50,7 @@ const TITLE_CLASS = "font-heading text-lg leading-7 font-semibold";
 
 /* === Components === */
 
-export function EditableLabel({ label, prefix = "", subject, onRename }: EditableLabelProps) {
+export function EditableLabel({ label, prefix = "", subject, onRename, layout = "inline" }: EditableLabelProps) {
   const [draft, setDraft] = useState<LabelDraft>(CLOSED_LABEL_DRAFT);
   const [saving, setSaving] = useState(false);
   const title = `${prefix}${label}`;
@@ -117,7 +120,13 @@ export function EditableLabel({ label, prefix = "", subject, onRename }: Editabl
   }
 
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,auto)_auto] items-center gap-x-2">
+    <div
+      className={
+        layout === "columns"
+          ? "grid min-w-0 grid-cols-[minmax(0,1fr)_var(--bar-control-height)] items-center gap-x-[var(--bar-gap)]"
+          : "grid min-w-0 grid-cols-[minmax(0,auto)_auto] items-center gap-x-2"
+      }
+    >
       <h1 className={`min-w-0 truncate ${TITLE_CLASS}`} title={title}>
         {title}
       </h1>

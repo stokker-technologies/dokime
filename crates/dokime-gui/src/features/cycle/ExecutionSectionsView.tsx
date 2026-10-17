@@ -32,6 +32,7 @@
 
 /* === Local Imports === */
 
+import type { ComponentType, ReactNode } from "react";
 import { ArtifactTreeView } from "@/components/ArtifactTreeView";
 import { RecordListContent, TraceabilityDocumentContent } from "@/components/document/DocumentSurfaceView";
 import type { DocumentBlockChrome } from "@/components/document/DocumentViewRenderer";
@@ -44,17 +45,21 @@ import { Button } from "@/components/ui/button";
 import type { DocumentViewCard, TestCyclePlan, TestExecution } from "@/lib/types";
 import { type ExecutionMenu, NodeMenu } from "./CycleWorkspaceHeader";
 import type { CycleExecutionRow } from "./cycle-workspace-model";
-import type { ComponentType, ReactNode } from "react";
+import {
+  DocumentViewPresentation,
+  type DocumentViewProps,
+  documentHasWindowedCards,
+  documentWindowElapsedUnit,
+  FrozenDocumentConsole,
+} from "./DocumentViewPresentation";
+import { BUSY_NOTICE, type evidencePaneState } from "./document-query-model";
 import type { DocumentSurface } from "./document-view-model";
-import { DocumentViewPresentation, type DocumentViewProps } from "./DocumentViewPresentation";
-import { documentHasWindowedCards, documentWindowElapsedUnit, FrozenDocumentConsole } from "./DocumentViewPresentation";
-import { BUSY_NOTICE, evidencePaneState } from "./document-query-model";
 import { EditableLabel } from "./EditableLabel";
 import { ExecutionParameters } from "./ExecutionParameters";
 import { ExecutionSectionCard } from "./ExecutionSectionCard";
 import { ExecutionStepsCriteria } from "./ExecutionStepsCriteria";
 import { executionDocumentSections, executionParameterRows, executionSectionOf } from "./execution-sections-model";
-import { PlotWindowControl, usePlotWindow } from "./PlotWindowSlider";
+import { PlotWindowControl, type usePlotWindow } from "./PlotWindowSlider";
 
 /* === Types === */
 
@@ -115,10 +120,12 @@ export function ExecutionSectionsView({
   const parameterRows = executionParameterRows(row.case.testCase?.parameters, template?.parameters ?? []);
   return (
     <div className="grid min-h-0">
-      <div className="min-h-0 overflow-y-auto px-4 py-4">
+      <div className="min-h-0 overflow-y-auto px-[var(--shell-inset)] py-4">
         <div className="grid min-w-0 gap-4">
-          <header className="grid min-h-[var(--bar-control-height)] min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
-            <EditableLabel label={label} onRename={live ? onRename : null} prefix={titlePrefix} subject="Execution" />
+          {/* One grid with the page bar's actions: icon columns of the bar control
+              size, the bar gap between them and the shell inset at the right edge. */}
+          <header className="grid min-h-[var(--bar-control-height)] min-w-0 grid-cols-[minmax(0,1fr)_var(--bar-control-height)] items-center gap-x-[var(--bar-gap)] gap-y-1">
+            <EditableLabel label={label} layout="columns" onRename={live ? onRename : null} prefix={titlePrefix} subject="Execution" />
             {live && menu ? <NodeMenu menu={menu} /> : <span />}
             {template?.description ? (
               <div className="col-span-2 text-sm text-muted-foreground">
