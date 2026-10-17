@@ -20,7 +20,7 @@ use std::{future::Future, net::Ipv4Addr, sync::Arc};
 use tokio::sync::Notify;
 // Local Imports
 use super::fixture::{Gate, Listener, Service, UploadInput, server_health};
-use dokime_client::contracts::{backend, catalog, plugins};
+use dokime_client::contracts::{backend, catalog};
 use dokime_client::{Client, Error, Target};
 use dokime_domain::model;
 

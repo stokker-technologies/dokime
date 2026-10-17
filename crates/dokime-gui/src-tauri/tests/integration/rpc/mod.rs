@@ -25,7 +25,7 @@ use sha2::Digest;
 use crate::support::bridge::{self, Harness, fenced};
 use crate::support::server::{Fixture, TOKEN};
 use dokime_domain::model;
-use dokime_domain::operations::{backend, plugins};
+use dokime_domain::operations::backend;
 use dokime_gui::rpc::{Bridge, FRAME_END, FRAME_ERROR, FRAME_MESSAGE, MAX_FRAME_BYTES};
 use dokime_server::grpc::access::Role;
 
@@ -104,26 +104,26 @@ fn bundle_for_target(resource_bytes: usize, target: &str) -> Vec<u8> {
         prefix = std::str::from_utf8(harmos::artifacts::PREFIX).unwrap()
     );
     let resource = vec![0xCDu8; resource_bytes];
-    harmos::bundle::Bundle::build(
-        harmos::bundle::Identity {
+    harmos_packaging::bundle::Bundle::build(
+        harmos_packaging::bundle::Identity {
             name: "fixture".into(),
             version: "1.0.0".parse().unwrap(),
             description: "A fixture.".into(),
             package: Default::default(),
         },
         &[
-            harmos::bundle::Source {
+            harmos_packaging::bundle::Source {
                 path: "bin/fixture",
                 bytes: executable.as_bytes(),
-                executable: Some(harmos::bundle::Executable {
-                    facility: harmos::bundle::Facility::Sidecar,
+                executable: Some(harmos_packaging::bundle::Executable {
+                    facility: harmos_packaging::bundle::Facility::Sidecar,
                     target: target.into(),
                     registrations: vec![],
                 }),
             },
-            harmos::bundle::Source { path: "resources/payload.bin", bytes: &resource, executable: None },
+            harmos_packaging::bundle::Source { path: "resources/payload.bin", bytes: &resource, executable: None },
         ],
-        harmos::bundle::Limits::default(),
+        harmos_packaging::bundle::Limits::default(),
     )
     .unwrap()
     .bytes()

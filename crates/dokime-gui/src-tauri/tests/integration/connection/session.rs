@@ -20,7 +20,7 @@ use std::{net::Ipv4Addr, sync::Arc};
 use tonic::Status;
 // Local Imports
 use super::fixture::{Gate, Listener, MemorySecrets, Service, server_health};
-use dokime_client::contracts::{backend, runtime};
+use dokime_client::contracts::runtime;
 use dokime_domain::model;
 use dokime_gui::connection::{ConnectionCredentials, ConnectionError, ConnectionPhase, ConnectionSession, ConnectionTarget};
 

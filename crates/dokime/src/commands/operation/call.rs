@@ -52,7 +52,7 @@ pub(crate) struct Args {
 /* === Public Functions === */
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let input = match args.input_file {
-        Some(path) => dokime_filesystem::input::read(&path, MAX_INPUT_BYTES)?,
+        Some(path) => harmos::filesystem::input::read(&path, MAX_INPUT_BYTES)?,
         None => b"{}".to_vec(),
     };
     // Reject Malformed JSON Before Selecting Or Opening A Connection.
@@ -60,7 +60,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let items = match args.input_stream_file {
         None => Vec::new(),
         Some(path) => {
-            let bytes = dokime_filesystem::input::read(&path, MAX_INPUT_BYTES.saturating_sub(input.len()))?;
+            let bytes = harmos::filesystem::input::read(&path, MAX_INPUT_BYTES.saturating_sub(input.len()))?;
             let text = std::str::from_utf8(&bytes).map_err(|_| crate::Error::Input("Input stream must be UTF-8 JSON lines".into()))?;
             let mut items = Vec::new();
             for line in text.lines().filter(|line| !line.trim().is_empty()) {

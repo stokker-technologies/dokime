@@ -29,6 +29,10 @@ console = []
 # Local
 dokime-domain = { path = "../../dokime-domain", features = ["descriptors"] }
 
+# Git
+harmos = { workspace = true }
+harmos-packaging = { workspace = true, features = ["bindings-proto"] }
+
 # Serialization
 serde_json = { workspace = true }
 
@@ -40,7 +44,6 @@ tauri-build = { workspace = true, features = [] }
 dokime-client = { path = "../../dokime-client" }
 # Excludes the SDK default `derive`; the shell authors no plugins and needs no attribute macros.
 dokime-runtime = { path = "../../dokime-runtime", default-features = false, features = ["native"] }
-dokime-filesystem = { path = "../../dokime-filesystem" }
 dokime-domain = { path = "../../dokime-domain", features = ["diagnostics"] }
 
 # Git
@@ -100,6 +103,7 @@ dokime-server = { path = "../../dokime-server" }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar"] }
+harmos-packaging = { workspace = true, features = ["bindings-proto"] }
 
 # Filesystem
 tempfile = { workspace = true }

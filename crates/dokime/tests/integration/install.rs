@@ -19,8 +19,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 // Third Party Imports
-use harmos::bundle::Bundle;
 use harmos::operations::{Context, Operation, OperationDeclaration, Response, StreamInput};
+use harmos_packaging::bundle::Bundle;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use sha2::{Digest, Sha256};
 // Local Imports
@@ -33,7 +33,7 @@ const SECRET_VALUE: &str = "fixture-secret-must-not-be-disclosed";
 
 /* === Macros === */
 macro_rules! operation {
-    ($name:ident, $declaration:ty, $request:ty, $endpoints:ty, $host:ident, $message:ident, $input:ident, $body:block) => {
+    ($name:ident, $declaration:ty, $endpoints:ty, $host:ident, $message:ident, $input:ident, $body:block) => {
         struct $name {
             host: Arc<Host>,
         }
@@ -47,7 +47,7 @@ macro_rules! operation {
                 Ok(Self { host })
             }
             async fn run<'ctx>(
-                &mut self, _: Self::Context<'ctx>, $message: &mut $request, $input: &mut Self::Endpoints,
+                &mut self, _: Self::Context<'ctx>, $message: &mut $declaration, $input: &mut Self::Endpoints,
             ) -> Result<Response<<$declaration as OperationDeclaration>::Response>, Self::Error> {
                 let $host = &self.host;
                 $body
@@ -61,7 +61,7 @@ macro_rules! operation {
 /* === Structs === */
 #[derive(Clone)]
 struct Host {
-    entry: v1::PluginInstallation,
+    entry: model::plugins::wire::PluginInstallation,
     bytes: Vec<u8>,
     calls: Arc<Mutex<Vec<&'static str>>>,
     consent_code: tonic::Code,
@@ -107,15 +107,15 @@ impl harmos::Application for Fixture {
     type Resources = ();
 }
 
-operation!(Stage, v1::Stage, (), StreamInput<v1::StagePluginFrame>, host, _request, input, {
+operation!(Stage, v1::Stage, StreamInput<model::plugins::wire::StagePluginFrame>, host, _request, input, {
     host.calls.lock().unwrap().push("stage");
     let header = input.recv().await.unwrap();
-    let Some(v1::StagePluginFrameFrame::Header(header)) = &header.frame else { panic!("header first") };
+    let Some(model::plugins::wire::StagePluginFrameFrame::Header(header)) = &header.frame else { panic!("header first") };
     assert_eq!(header.size_bytes, host.bytes.len() as u64);
     assert_eq!(header.sha256, Sha256::digest(&host.bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
     let mut bytes = Vec::new();
     while let Some(frame) = input.recv().await {
-        let Some(v1::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else { panic!("chunk required") };
+        let Some(model::plugins::wire::StagePluginFrameFrame::Chunk(chunk)) = &frame.frame else { panic!("chunk required") };
         assert_eq!(chunk.offset, bytes.len() as u64);
         assert!(chunk.data.len() <= 256 * 1024);
         bytes.extend_from_slice(&chunk.data);
@@ -124,20 +124,20 @@ operation!(Stage, v1::Stage, (), StreamInput<v1::StagePluginFrame>, host, _reque
     Ok(host.entry.clone().into())
 });
 
-operation!(Consent, v1::Consent, v1::Consent, (), host, request, _input, {
+operation!(Consent, v1::Consent, (), host, request, _input, {
     host.calls.lock().unwrap().push("consent");
     assert_eq!(request.install_id, ID);
     assert_eq!(request.expected_sha256, Sha256::digest(&host.bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>());
     Err(tonic::Status::new(host.consent_code, "fixture refusal or lost acknowledgement"))
 });
 
-operation!(Remove, v1::Remove, v1::Remove, (), host, request, _input, {
+operation!(Remove, v1::Remove, (), host, request, _input, {
     host.calls.lock().unwrap().push("remove");
     assert_eq!(request.install_id, ID);
-    Ok(v1::RemovePluginReply { installation: None }.into())
+    Ok(model::plugins::wire::RemovePluginReply { installation: None }.into())
 });
 
-operation!(Identity, backend::GetIdentity, backend::GetIdentity, (), host, _request, _input, {
+operation!(Identity, backend::GetIdentity, (), host, _request, _input, {
     Ok(model::backend::wire::BackendIdentity {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -153,7 +153,7 @@ operation!(Identity, backend::GetIdentity, backend::GetIdentity, (), host, _requ
     .into())
 });
 
-operation!(Health, backend::GetHealth, backend::GetHealth, (), _host, _request, _input, {
+operation!(Health, backend::GetHealth, (), _host, _request, _input, {
     Ok(model::backend::wire::BackendHealth {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -164,7 +164,7 @@ operation!(Health, backend::GetHealth, backend::GetHealth, (), _host, _request, 
     .into())
 });
 
-operation!(Availability, backend::GetAvailability, backend::GetAvailability, (), _host, _request, _input, {
+operation!(Availability, backend::GetAvailability, (), _host, _request, _input, {
     Ok(model::backend::wire::BackendAvailability {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -192,7 +192,7 @@ operation!(Availability, backend::GetAvailability, backend::GetAvailability, (),
     .into())
 });
 
-operation!(RuntimeIdentity, runtime::GetIdentity, runtime::Request, (), _host, _request, _input, {
+operation!(RuntimeIdentity, runtime::GetIdentity, (), _host, _request, _input, {
     Ok(model::runtime::wire::Identity {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -202,7 +202,7 @@ operation!(RuntimeIdentity, runtime::GetIdentity, runtime::Request, (), _host, _
     .into())
 });
 
-operation!(RuntimeHealth, runtime::GetHealth, runtime::Request, (), _host, _request, _input, {
+operation!(RuntimeHealth, runtime::GetHealth, (), _host, _request, _input, {
     Ok(model::runtime::wire::Health {
         backend_id: ID.into(),
         epoch: ID.into(),
@@ -218,7 +218,7 @@ operation!(RuntimeHealth, runtime::GetHealth, runtime::Request, (), _host, _requ
 
 /* === Private Functions === */
 fn review_bundle(schema: u32) -> Bundle {
-    use harmos::bundle::{Executable, Facility, Identity, Limits, Source};
+    use harmos_packaging::bundle::{Executable, Facility, Identity, Limits, Source};
     let owner = "fixture.worker";
     let declaration =
         serde_json::json!({"kind":"plugin","facility":"sidecar","id":owner,"version":"1.0.0","description":"Review fixture","config":"()"});
@@ -333,15 +333,15 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
     std::fs::write(file.path(), bundle.bytes()).unwrap();
     let calls = Arc::new(Mutex::new(Vec::new()));
     let host = Host {
-        entry: v1::PluginInstallation {
+        entry: model::plugins::wire::PluginInstallation {
             install_id: ID.into(),
             sha256: digest,
             staged_at: None,
             consented_at: None,
-            state: v1::PluginInstallationState::Staged,
+            state: model::plugins::wire::PluginInstallationState::Staged,
             last_boot: None,
-            metadata: Some(v1::PluginMetadata {
-                identity: Some(v1::PluginIdentity {
+            metadata: Some(model::plugins::wire::PluginMetadata {
+                identity: Some(model::plugins::wire::PluginIdentity {
                     name: bundle.manifest().identity.name.clone(),
                     version: bundle.manifest().identity.version.to_string(),
                     description: bundle.manifest().identity.description.clone(),
@@ -350,7 +350,7 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
                 environment_references: if hide_environment {
                     vec![]
                 } else {
-                    vec![v1::PluginEnvironmentReference {
+                    vec![model::plugins::wire::PluginEnvironmentReference {
                         owner: "fixture.worker".into(),
                         setting: "token".into(),
                         variable: "PLUGIN_API_TOKEN".into(),
@@ -368,7 +368,7 @@ async fn scenario(hide_environment: bool, consent: bool, consent_code: tonic::Co
         consent_code,
         descriptor_sha256: {
             let catalog = harmos::operations::Contracts::of::<contracts::Operations>().unwrap();
-            let artifacts = harmos::grpc::Artifacts::new(&catalog).unwrap();
+            let artifacts = harmos_packaging::proto::Artifacts::new(&catalog).unwrap();
             Sha256::digest(artifacts.descriptors()).to_vec()
         },
     };

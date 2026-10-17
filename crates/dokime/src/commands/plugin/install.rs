@@ -19,8 +19,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::bundle::{Bundle, Limits};
 use harmos::plugin::inventory::CarrierSection;
+use harmos_packaging::bundle::{Bundle, Limits};
 use sha2::{Digest, Sha256};
 
 // Local Imports
@@ -29,6 +29,7 @@ use crate::terminal::Terminal;
 use crate::{Error, Result};
 use dokime_client::Client;
 use dokime_client::contracts::plugins;
+use dokime_domain::model::plugins::wire;
 
 /* === Constants === */
 // Staging streams the bundle in frames of this size.
@@ -73,7 +74,7 @@ pub(crate) async fn run(args: Args) -> Result<()> {
 
     // Verify The Bundle Locally
     let limits = Limits::default();
-    let bytes = dokime_filesystem::input::read(&args.bundle, limits.archive_bytes)?;
+    let bytes = harmos::filesystem::input::read(&args.bundle, limits.archive_bytes)?;
     let review = review(&bytes, limits)?;
 
     // Stage It On The Backend
@@ -125,20 +126,20 @@ fn review(bytes: &[u8], limits: Limits) -> Result<Review> {
     Ok(Review { bundle, digest, owners, references })
 }
 
-fn frames(bytes: Vec<u8>, sha256: String) -> impl tokio_stream::Stream<Item = plugins::StagePluginFrame> + Send + 'static {
-    let header = plugins::StagePluginFrameFrame::Header(plugins::StagePluginHeader { size_bytes: bytes.len() as u64, sha256 });
+fn frames(bytes: Vec<u8>, sha256: String) -> impl tokio_stream::Stream<Item = wire::StagePluginFrame> + Send + 'static {
+    let header = wire::StagePluginFrameFrame::Header(wire::StagePluginHeader { size_bytes: bytes.len() as u64, sha256 });
     let chunks = bytes
         .chunks(CHUNK_BYTES)
         .enumerate()
         .map(|(index, data)| {
-            plugins::StagePluginFrameFrame::Chunk(plugins::StagePluginChunk { offset: (index * CHUNK_BYTES) as u64, data: data.to_vec() })
+            wire::StagePluginFrameFrame::Chunk(wire::StagePluginChunk { offset: (index * CHUNK_BYTES) as u64, data: data.to_vec() })
         })
         .collect::<Vec<_>>();
-    let frames = std::iter::once(header).chain(chunks).map(|frame| plugins::StagePluginFrame { frame: Some(frame) });
+    let frames = std::iter::once(header).chain(chunks).map(|frame| wire::StagePluginFrame { frame: Some(frame) });
     tokio_stream::iter(frames)
 }
 
-fn verify(staged: &plugins::PluginInstallation, review: &Review, endpoint: &str) -> Result<()> {
+fn verify(staged: &wire::PluginInstallation, review: &Review, endpoint: &str) -> Result<()> {
     let identity = &review.bundle.manifest().identity;
     let verified = staged.metadata.as_ref().is_some_and(|metadata| {
         metadata.identity.as_ref().is_some_and(|staged| {
@@ -162,7 +163,7 @@ fn verify(staged: &plugins::PluginInstallation, review: &Review, endpoint: &str)
             .enumerate()
             .all(|(index, byte)| if [8, 13, 18, 23].contains(&index) { byte == b'-' } else { byte.is_ascii_hexdigit() });
     if !uuid
-        || staged.state != plugins::PluginInstallationState::Staged
+        || staged.state != wire::PluginInstallationState::Staged
         || staged.sha256 != review.digest
         || staged.error.is_some()
         || !verified
@@ -213,7 +214,7 @@ async fn complete(client: &Client, endpoint: &str, id: &str, digest: &str, conse
     let request = plugins::Consent { install_id: id.into(), expected_sha256: digest.into() };
     match client.plugins_consent(request).await {
         Ok(accepted)
-            if accepted.install_id == id && accepted.sha256 == digest && accepted.state == plugins::PluginInstallationState::Installed =>
+            if accepted.install_id == id && accepted.sha256 == digest && accepted.state == wire::PluginInstallationState::Installed =>
         {
             Terminal::default().success(format!("Authorized installation {id}; restart the host to activate it."));
             Ok(())

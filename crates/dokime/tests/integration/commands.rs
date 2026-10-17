@@ -20,7 +20,7 @@ use std::io::Write;
 use clap::Parser;
 
 // Local Imports
-use dokime_cli::{Cli, Error};
+use dokime::{Cli, Error};
 use dokime_client::profiles::Store;
 
 /* === Constants === */

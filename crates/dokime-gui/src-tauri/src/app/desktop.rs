@@ -178,7 +178,7 @@ pub async fn desktop_save_diagnostics_bundle(
     ensure_document_session(&session, &generation)?;
     let downloads = app.path().download_dir().map_err(|error| format!("The Downloads folder could not be resolved: {error}"))?;
     let path = downloads.join(filename);
-    // `dokime_filesystem::publication::write` stages beside the destination and
+    // `harmos::filesystem::publication::write` stages beside the destination and
     // renames into place, so a partially written archive is never visible under
     // the final name and a missing Downloads folder is created first.
     write_document(&session, &generation, path.clone(), bytes, false).await?;
@@ -271,7 +271,7 @@ pub(super) fn ensure_generation_token(generation: &str) -> Result<(), String> {
 }
 
 pub(super) fn ensure_private_directory(path: &Path) -> Result<(), String> {
-    protect(path, true, |path| dokime_filesystem::publication::create_dir_all(path).map_err(|error| error.to_string()), restrict_to_owner)
+    protect(path, true, |path| harmos::filesystem::publication::create_dir_all(path).map_err(|error| error.to_string()), restrict_to_owner)
 }
 
 pub(super) fn set_private_file(path: &Path) -> Result<(), String> {
@@ -438,7 +438,7 @@ async fn write_document(session: &ConnectionSession, generation: &str, path: Pat
         if private && let Some(parent) = path.parent() {
             ensure_private_directory(parent)?;
         }
-        dokime_filesystem::publication::write(&path, &bytes).map_err(|error| error.to_string())?;
+        harmos::filesystem::publication::write(&path, &bytes).map_err(|error| error.to_string())?;
         if private {
             set_private_file(&path)?;
         }

@@ -23,7 +23,6 @@ use serde_json::json;
 use crate::support::bridge::{Harness, Local};
 use crate::support::{artifact, server::Fixture};
 use dokime_domain::model;
-use dokime_domain::operations::{execution, value};
 use dokime_gui::rpc::Bridge;
 
 /* === Constants === */

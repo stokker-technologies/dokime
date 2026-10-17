@@ -70,7 +70,7 @@ impl Args {
                 .ca
                 .as_deref()
                 .map(|path| {
-                    let bytes = dokime_filesystem::input::read(path, 1024 * 1024)?;
+                    let bytes = harmos::filesystem::input::read(path, 1024 * 1024)?;
                     String::from_utf8(bytes).map_err(|_| crate::Error::Input("CA certificate must be UTF-8 PEM".into()))
                 })
                 .transpose()?;
@@ -102,7 +102,7 @@ impl Args {
         self.token_file
             .as_deref()
             .map(|path| {
-                let bytes = Zeroizing::new(dokime_filesystem::input::read(path, 4098)?);
+                let bytes = Zeroizing::new(harmos::filesystem::input::read(path, 4098)?);
                 let text = std::str::from_utf8(&bytes).map_err(|_| crate::Error::Input("bearer token must be UTF-8 text".into()))?;
                 Ok(Zeroizing::new(text.trim().to_owned()))
             })

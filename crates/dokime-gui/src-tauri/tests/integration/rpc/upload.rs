@@ -24,7 +24,6 @@ use sha2::{Digest, Sha256};
 use super::invoke;
 use crate::support::{artifact, server::Fixture};
 use dokime_domain::model;
-use dokime_domain::operations::content;
 use dokime_gui::rpc::{Bridge, FILE_DESCRIPTOR_SET, MAX_FRAME_BYTES, handler};
 
 /* === Constants === */
@@ -80,7 +79,7 @@ struct ActiveFixture {
 }
 impl dokime_runtime::ExecutionFixture for ActiveFixture {
     fn run_cycle<'a>(
-        &'a self, _context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_runtime::execution::CycleView,
+        &'a self, _context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a dokime_runtime::domains::ExecutionProviderTarget,
     ) -> dokime_runtime::ExecutionFixtureFuture<'a> {
         Box::pin(async move {

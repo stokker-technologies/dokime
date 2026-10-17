@@ -47,7 +47,7 @@ static IDENTITY: std::sync::LazyLock<(String, String)> = std::sync::LazyLock::ne
 
 static DESCRIPTOR: std::sync::LazyLock<Vec<u8>> = std::sync::LazyLock::new(|| {
     let contracts = harmos::operations::Contracts::of::<dokime_client::contracts::Operations>().unwrap();
-    let artifacts = harmos::grpc::Artifacts::new(&contracts).unwrap();
+    let artifacts = harmos_packaging::proto::Artifacts::new(&contracts).unwrap();
     Sha256::digest(artifacts.descriptors()).to_vec()
 });
 
@@ -289,16 +289,16 @@ impl FixtureUnary for runtime::GetHealth {
     }
 }
 
-impl<O> tonic::server::UnaryService<harmos::operations::StreamItem<O::Request>> for Unary<O>
+impl<O> tonic::server::UnaryService<harmos::operations::StreamItem<O>> for Unary<O>
 where
     O: FixtureUnary,
-    O::Request: harmos::Protobuf + harmos::MemorySize,
+    O: harmos::Protobuf + harmos::MemorySize,
     O::Response: harmos::Protobuf,
 {
     type Response = harmos::operations::Response<O::Response>;
     type Future = FixtureFuture<Response<Self::Response>>;
 
-    fn call(&mut self, request: Request<harmos::operations::StreamItem<O::Request>>) -> Self::Future {
+    fn call(&mut self, request: Request<harmos::operations::StreamItem<O>>) -> Self::Future {
         let service = self.service.clone();
         Box::pin(async move {
             service.authorize(&request)?;
@@ -492,10 +492,10 @@ where
 async fn serve_unary<O>(service: Service, request: HttpRequest) -> HttpResponse
 where
     O: FixtureUnary,
-    O::Request: harmos::Protobuf + harmos::MemorySize,
+    O: harmos::Protobuf + harmos::MemorySize,
     O::Response: harmos::Protobuf,
 {
-    wire_codec::<O::Request, harmos::operations::Response<O::Response>>()
+    wire_codec::<O, harmos::operations::Response<O::Response>>()
         .server()
         .unary(Unary::<O> { service, operation: std::marker::PhantomData }, request)
         .await

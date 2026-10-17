@@ -59,7 +59,7 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let mut input = args.input;
     let (planned, idempotency_key) = match input.input_file.take() {
         Some(path) => {
-            let bytes = dokime_filesystem::input::read(&path, 16 * 1024 * 1024)?;
+            let bytes = harmos::filesystem::input::read(&path, 16 * 1024 * 1024)?;
             let request = serde_json::from_slice::<RegisterSelection>(&bytes)
                 .map_err(|error| crate::Error::Input(format!("invalid plan input: {error}")))?;
             (super::input::Planned::canonical(request.plan)?, request.idempotency_key)

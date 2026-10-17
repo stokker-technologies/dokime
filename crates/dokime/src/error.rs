@@ -58,7 +58,7 @@ impl From<dokime_client::profiles::Error> for Error {
         match error {
             dokime_client::profiles::Error::Invalid(message) => Self::Input(message),
             dokime_client::profiles::Error::Io(error) => error.into(),
-            dokime_client::profiles::Error::Filesystem(error) => error.into(),
+            dokime_client::profiles::Error::Filesystem(error) => std::io::Error::from(error).into(),
             dokime_client::profiles::Error::Credentials(error) => error.into(),
             dokime_client::profiles::Error::Busy => Self::Setup(error.to_string()),
         }
@@ -68,12 +68,6 @@ impl From<dokime_client::profiles::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         if error.kind() == std::io::ErrorKind::InvalidInput { Self::Input(error.to_string()) } else { Self::Io(error) }
-    }
-}
-
-impl From<dokime_filesystem::Error> for Error {
-    fn from(error: dokime_filesystem::Error) -> Self {
-        std::io::Error::from(error).into()
     }
 }
 

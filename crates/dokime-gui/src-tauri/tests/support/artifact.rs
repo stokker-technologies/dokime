@@ -45,7 +45,7 @@ impl Default for Provider {
 
 impl dokime_runtime::ExecutionFixture for Provider {
     fn run_cycle<'a>(
-        &'a self, context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_runtime::execution::CycleView,
+        &'a self, context: dokime_runtime::ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
         _target: &'a dokime_runtime::domains::ExecutionProviderTarget,
     ) -> dokime_runtime::ExecutionFixtureFuture<'a> {
         Box::pin(async move {

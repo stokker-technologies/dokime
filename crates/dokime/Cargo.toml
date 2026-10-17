@@ -19,10 +19,10 @@ version = { workspace = true }
 # Local
 dokime-domain = { path = "../dokime-domain", features = ["diagnostics"] }
 dokime-client = { path = "../dokime-client" }
-dokime-filesystem = { path = "../dokime-filesystem" }
 
 # Git
 harmos = { workspace = true, features = ["plugin"] }
+harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }
@@ -61,6 +61,7 @@ doc = false
 [dev-dependencies]
 # Git
 harmos = { workspace = true, features = ["plugin", "plugin-sidecar", "grpc"] }
+harmos-packaging = { workspace = true, features = ["bindings-proto"] }
 
 # Networking
 tonic = { workspace = true }

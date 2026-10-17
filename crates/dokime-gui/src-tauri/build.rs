@@ -42,8 +42,10 @@ fn main() {
     let bundle = brand_text("tauri.brand.json", "productName");
     println!("cargo:rustc-env=DOKIME_BUNDLE_NAME={bundle}");
 
-    let artifacts = dokime_domain::operations::artifacts().expect("canonical desktop transfer contracts");
-    artifacts.export_build("operations").expect("desktop transfer descriptors");
+    let output = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR for build scripts"));
+    let contracts =
+        harmos::operations::Contracts::of::<dokime_domain::operations::Operations>().expect("canonical desktop transfer contracts");
+    harmos_packaging::proto::generate(&contracts, &output.join("grpc").join("operations")).expect("desktop transfer descriptors");
     tauri_build::build();
 
     // Tauri embeds its manifest in binaries only. Library test executables also

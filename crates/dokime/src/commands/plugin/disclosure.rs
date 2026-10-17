@@ -15,8 +15,8 @@
 // Standard Library Imports
 use std::collections::BTreeSet;
 // Third Party Imports
-use harmos::bundle::Bundle;
 use harmos::plugin::inventory::CarrierSection;
+use harmos_packaging::bundle::Bundle;
 use serde::Deserialize;
 // Local Imports
 use crate::{Error, Result};

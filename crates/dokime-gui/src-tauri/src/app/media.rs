@@ -103,7 +103,7 @@ fn media_root(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 async fn release_generation(media_root: &Path, generation: &str) -> Result<(), String> {
-    release_with(media_root, generation, |path| tokio::fs::remove_dir_all(path)).await
+    release_with(media_root, generation, tokio::fs::remove_dir_all).await
 }
 
 async fn release_with<F>(media_root: &Path, generation: &str, remove: impl FnOnce(PathBuf) -> F) -> Result<(), String>

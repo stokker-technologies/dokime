@@ -67,7 +67,7 @@ struct Input {
 pub(crate) async fn run(args: Args) -> crate::Result<()> {
     let input = match args.input_file {
         Some(path) => {
-            let bytes = dokime_filesystem::input::read(&path, 16 * 1024)?;
+            let bytes = harmos::filesystem::input::read(&path, 16 * 1024)?;
             serde_json::from_slice::<Input>(&bytes).map_err(|error| crate::Error::Input(format!("invalid cycle input: {error}")))?
         }
         None => Input {

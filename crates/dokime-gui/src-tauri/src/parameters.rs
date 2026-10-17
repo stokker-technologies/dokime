@@ -70,7 +70,7 @@ pub fn save(path: &Path, values: &Values) -> std::io::Result<()> {
     if bytes.len() > MAX_BYTES {
         return Err(invalid("remembered parameters exceed 1 MiB"));
     }
-    dokime_filesystem::publication::write(path, &bytes).map_err(Into::into)
+    harmos::filesystem::publication::write(path, &bytes).map_err(Into::into)
 }
 
 /* === Private Functions === */
