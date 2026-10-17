@@ -89,7 +89,7 @@ impl Operation for ListNotes {
         _: Self::Context<'a>,
         request: &mut contract::ListNotes,
         _: &mut (),
-    ) -> Result<Response<contract::ListNotesResponse>, Status> {
+    ) -> Result<Response<dokime_domain::model::notes::wire::ListNotesResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let page = selection::Page::new(request.selection.take(), request.limit, std::mem::take(&mut request.after_id), request.cursor.take(), &snapshot, "notes")?;
         let sets = snapshot
@@ -110,7 +110,7 @@ impl Operation for ListNotes {
             } else {
                 String::new()
             };
-            Ok(contract::ListNotesResponse {
+            Ok(dokime_domain::model::notes::wire::ListNotesResponse {
                 notes: items
                     .into_iter()
                     .map(wire::note)
@@ -141,7 +141,7 @@ impl Operation for ListHealth {
         _: Self::Context<'a>,
         request: &mut contract::ListHealth,
         _: &mut (),
-    ) -> Result<Response<contract::ListHealthResponse>, Status> {
+    ) -> Result<Response<dokime_domain::model::notes::wire::ListHealthResponse>, Status> {
         let snapshot = self.resources.runtime.watch_state().latest();
         let page = selection::Page::new(request.selection.take(), request.limit, std::mem::take(&mut request.after_id), request.cursor.take(), &snapshot, "health")?;
         let sets = snapshot
@@ -164,7 +164,7 @@ impl Operation for ListHealth {
             } else {
                 String::new()
             };
-            Ok(contract::ListHealthResponse {
+            Ok(dokime_domain::model::notes::wire::ListHealthResponse {
                 items: items
                     .into_iter()
                     .map(wire::health)
@@ -195,7 +195,7 @@ impl Operation for CreateNote {
         context: Self::Context<'a>,
         request: &mut contract::CreateNote,
         _: &mut (),
-    ) -> Result<Response<contract::NoteReceipt>, Status> {
+    ) -> Result<Response<dokime_domain::model::notes::wire::NoteReceipt>, Status> {
         let actor = context
             .context()
             .get::<Principal>()
@@ -239,7 +239,7 @@ impl Operation for EditNote {
         context: Self::Context<'a>,
         request: &mut contract::EditNote,
         _: &mut (),
-    ) -> Result<Response<contract::EditNoteResponse>, Status> {
+    ) -> Result<Response<dokime_domain::model::notes::wire::EditNoteResponse>, Status> {
         let actor = context
             .context()
             .get::<Principal>()
@@ -260,7 +260,7 @@ impl Operation for EditNote {
             .await
             .map_err(status)?;
         self.resources.produce(|| {
-            Ok(contract::EditNoteResponse {
+            Ok(dokime_domain::model::notes::wire::EditNoteResponse {
                 note: Some(wire::note(&note)?),
             })
         })

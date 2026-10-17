@@ -17,11 +17,12 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use time::OffsetDateTime;
 
 // Local Imports
-use super::common::Timestamp;
+use crate::model::identity::wire::Timestamp;
 
 /* === Constants === */
 // Nesting deeper than this is refused when a wire value is rebuilt.

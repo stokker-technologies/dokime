@@ -24,7 +24,7 @@ use dokime_domain::model::identity::TestExecutionId;
 use dokime_domain::model::values::Value;
 use dokime_runtime::definition::{MaterializedParameter, ParameterSource};
 use dokime_runtime::execution::TestExecution;
-use dokime_domain::operations::common::Diagnostic;
+use dokime_domain::model::identity::wire::Diagnostic;
 
 /* === Constants === */
 const MAX_DIAGNOSTIC_TEXT: usize = 4096;
@@ -101,16 +101,16 @@ pub(super) fn execution<'a>(
 
 pub(crate) fn result(
     value: &dokime_runtime::execution::ResultSummary,
-) -> dokime_domain::operations::execution::ResultSummary {
+) -> dokime_domain::model::execution::wire::ResultSummary {
     use dokime_runtime::execution::ResultStatus;
-    dokime_domain::operations::execution::ResultSummary {
+    dokime_domain::model::execution::wire::ResultSummary {
         status: match value.status {
-            ResultStatus::Pending => dokime_domain::operations::execution::ResultStatus::Pending,
-            ResultStatus::Passed => dokime_domain::operations::execution::ResultStatus::Passed,
-            ResultStatus::Failed => dokime_domain::operations::execution::ResultStatus::Failed,
-            ResultStatus::Blocked => dokime_domain::operations::execution::ResultStatus::Blocked,
+            ResultStatus::Pending => dokime_domain::model::execution::wire::ResultStatus::Pending,
+            ResultStatus::Passed => dokime_domain::model::execution::wire::ResultStatus::Passed,
+            ResultStatus::Failed => dokime_domain::model::execution::wire::ResultStatus::Failed,
+            ResultStatus::Blocked => dokime_domain::model::execution::wire::ResultStatus::Blocked,
             ResultStatus::Cancelled => {
-                dokime_domain::operations::execution::ResultStatus::Cancelled
+                dokime_domain::model::execution::wire::ResultStatus::Cancelled
             }
         },
         passed: value.passed,

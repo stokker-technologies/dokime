@@ -8,19 +8,23 @@
  */
 
 /* === Modules === */
+pub mod wire;
 mod rules;
 mod validation;
 
 /* === Re-Exports === */
-pub use rules::{Rule, validate_rules};
+pub use rules::Rule;
+pub use rules::validate_rules;
 pub use validation::FieldValidation;
 
 /* === Imports === */
 // Standard Library Imports
 use std::collections::BTreeMap;
 // Third Party Imports
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use serde::Deserialize;
+use serde::Serialize;
+use sha2::Digest;
+use sha2::Sha256;
 // Local Imports
 use crate::model::identity::ContractId;
 use crate::model::identity::Identifier;

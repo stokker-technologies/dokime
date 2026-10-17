@@ -126,7 +126,7 @@ pub enum Error {
     Task(#[source] tokio::task::JoinError),
     #[error("execution admission was rejected: {rejection:?}")]
     ExecutionRejected {
-        rejection: contracts::execution::Rejection,
+        rejection: dokime_domain::model::execution::wire::Rejection,
     },
     #[error("request wait deadline elapsed")]
     WaitTimedOut {
@@ -341,7 +341,7 @@ impl Drop for Inner {
 /* === Public Functions === */
 
 /* === Private Functions === */
-fn validate_observed_cursor(epoch: &str, cursor: Option<&contracts::cursor::Cursor>) -> Result<()> {
+fn validate_observed_cursor(epoch: &str, cursor: Option<&dokime_domain::model::execution::wire_cursor::Cursor>) -> Result<()> {
     validate_observed_epoch(epoch, cursor.map(|cursor| cursor.epoch.as_str()))
 }
 

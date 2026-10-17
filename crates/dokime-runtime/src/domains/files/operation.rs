@@ -28,11 +28,11 @@ use harmos::operations::{Context, Operation, OperationManager, Response};
 // Local Imports
 use super::{FileWatch, WatchEvent};
 use crate::{runtime::Error, RuntimeHandle};
-use dokime_domain::operations::files::FileWatchGap;
+use dokime_domain::model::files::wire::FileWatchGap;
 use dokime_domain::operations::files::WatchFile as Declaration;
-use dokime_domain::operations::files::WatchFileOutcome;
+use dokime_domain::model::files::wire::WatchFileOutcome;
 use dokime_domain::operations::files::WatchFile;
-use dokime_domain::operations::files::WatchedArtifact;
+use dokime_domain::model::files::wire::WatchedArtifact;
 
 /* === Constants === */
 // The owner the step built-ins are registered under.

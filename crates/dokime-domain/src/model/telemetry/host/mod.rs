@@ -12,13 +12,16 @@ pub mod contracts;
 pub mod table;
 
 /* === Re-Exports === */
-pub use contracts::{host_telemetry_contract, host_telemetry_contracts, host_telemetry_payload};
+pub use contracts::host_telemetry_contract;
+pub use contracts::host_telemetry_contracts;
+pub use contracts::host_telemetry_payload;
 
 /* === Imports === */
 // Standard Library Imports
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use crate::model::identity::Identifier;
 

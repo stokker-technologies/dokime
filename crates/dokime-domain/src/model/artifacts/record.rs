@@ -15,7 +15,8 @@
 // Standard Library Imports
 use std::path::Path;
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use crate::model::identity::ArtifactId;
 use crate::model::execution::RecordScope;

@@ -35,7 +35,7 @@ use tokio::task::JoinHandle;
 
 // Local Imports
 use crate::host::StepHandleCancelled;
-use dokime_domain::operations::files::FileWatchSourcePayload;
+use dokime_domain::model::files::wire::FileWatchSourcePayload;
 use dokime_domain::operations::files::WatchFile;
 use dokime_domain::operations::process::RunProcess;
 

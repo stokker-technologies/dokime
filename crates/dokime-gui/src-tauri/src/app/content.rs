@@ -170,8 +170,8 @@ pub(crate) async fn fetch_verified(
 pub(crate) async fn push_verified(
     lease: &SessionLease,
     source: &Path,
-    header: v1::UploadArtifactHeader,
-) -> Result<v1::ArtifactMetadata, String> {
+    header: dokime_domain::model::content::wire::UploadArtifactHeader,
+) -> Result<dokime_domain::model::content::wire::ArtifactMetadata, String> {
     lease
         .client()
         .with_frame_limit(

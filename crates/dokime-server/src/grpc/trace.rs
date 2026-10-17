@@ -23,7 +23,7 @@ use tracing::Instrument;
 use crate::trace::{Event, Journal, Scope, WATCH_SPAN};
 use dokime_runtime::RuntimeHandle;
 use dokime_domain::operations::backend as wire;
-use dokime_domain::operations::common::Timestamp;
+use dokime_domain::model::identity::wire::Timestamp;
 
 /* === Constants === */
 const DEFAULT_EVENTS: usize = 256;
@@ -52,7 +52,7 @@ impl Operation for Watch {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<wire::TraceBatch>;
+    type Endpoints = StreamOutput<dokime_domain::model::backend::wire::TraceBatch>;
 
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
@@ -78,7 +78,7 @@ impl Watch {
     async fn follow(
         &self,
         request: &wire::WatchTrace,
-        output: &mut StreamOutput<wire::TraceBatch>,
+        output: &mut StreamOutput<dokime_domain::model::backend::wire::TraceBatch>,
     ) -> Result<(), Status> {
         let epoch = self.resources.runtime.process_epoch().to_string();
         if request
@@ -149,7 +149,7 @@ impl Watch {
             let advanced = page.next > after;
             after = page.next;
             if initial || advanced || page.missed > 0 {
-                let batch = wire::TraceBatch {
+                let batch = dokime_domain::model::backend::wire::TraceBatch {
                     epoch: epoch.clone(),
                     events: page
                         .events
@@ -198,11 +198,11 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), su
 }
 
 /* === Private Functions === */
-fn scope(scope: Option<&wire::TraceScope>) -> Result<Scope, Status> {
+fn scope(scope: Option<&dokime_domain::model::backend::wire::TraceScope>) -> Result<Scope, Status> {
     match scope {
-        None | Some(wire::TraceScope::Instance) => Ok(Scope::Instance),
-        Some(wire::TraceScope::Cycle(id)) => Ok(Scope::Cycle(scope_id(id)?)),
-        Some(wire::TraceScope::Execution(id)) => Ok(Scope::Execution(scope_id(id)?)),
+        None | Some(dokime_domain::model::backend::wire::TraceScope::Instance) => Ok(Scope::Instance),
+        Some(dokime_domain::model::backend::wire::TraceScope::Cycle(id)) => Ok(Scope::Cycle(scope_id(id)?)),
+        Some(dokime_domain::model::backend::wire::TraceScope::Execution(id)) => Ok(Scope::Execution(scope_id(id)?)),
     }
 }
 
@@ -218,18 +218,18 @@ fn scope_id(id: &str) -> Result<String, Status> {
     Ok(canonical)
 }
 
-fn level(level: tracing::Level) -> wire::LogLevel {
+fn level(level: tracing::Level) -> dokime_domain::model::backend::wire::LogLevel {
     match level {
-        tracing::Level::TRACE => wire::LogLevel::Trace,
-        tracing::Level::DEBUG => wire::LogLevel::Debug,
-        tracing::Level::INFO => wire::LogLevel::Info,
-        tracing::Level::WARN => wire::LogLevel::Warn,
-        tracing::Level::ERROR => wire::LogLevel::Error,
+        tracing::Level::TRACE => dokime_domain::model::backend::wire::LogLevel::Trace,
+        tracing::Level::DEBUG => dokime_domain::model::backend::wire::LogLevel::Debug,
+        tracing::Level::INFO => dokime_domain::model::backend::wire::LogLevel::Info,
+        tracing::Level::WARN => dokime_domain::model::backend::wire::LogLevel::Warn,
+        tracing::Level::ERROR => dokime_domain::model::backend::wire::LogLevel::Error,
     }
 }
 
-fn event_wire(sequence: u64, event: &Event) -> wire::TraceEvent {
-    wire::TraceEvent {
+fn event_wire(sequence: u64, event: &Event) -> dokime_domain::model::backend::wire::TraceEvent {
+    dokime_domain::model::backend::wire::TraceEvent {
         sequence,
         time: Some(Timestamp {
             seconds: event.time.unix_timestamp(),
@@ -244,7 +244,7 @@ fn event_wire(sequence: u64, event: &Event) -> wire::TraceEvent {
         fields: event
             .fields
             .iter()
-            .map(|(key, value)| wire::LogFrameFieldsEntry {
+            .map(|(key, value)| dokime_domain::model::backend::wire::LogFrameFieldsEntry {
                 key: key.clone(),
                 value: value.clone(),
             })

@@ -20,9 +20,9 @@ use std::{io::Write, path::PathBuf, time::Duration};
 
 // Local Imports
 use dokime_domain::model::identity::Identifier;
-use dokime_domain::operations::common::Metadata;
+use dokime_domain::model::identity::wire::Metadata;
 use dokime_domain::operations::execution::CreateCycle;
-use dokime_domain::operations::planning::SelectionPlan;
+use dokime_domain::model::planning::wire::SelectionPlan;
 
 /* === Constants === */
 

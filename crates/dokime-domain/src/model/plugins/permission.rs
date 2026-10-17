@@ -13,9 +13,11 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{fmt, str::FromStr};
+use std::fmt;
+use std::str::FromStr;
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 
 /* === Constants === */

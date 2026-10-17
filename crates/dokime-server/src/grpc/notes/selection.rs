@@ -22,7 +22,7 @@ use tonic::Status;
 use dokime_domain::model::execution::RecordScope;
 use dokime_runtime::execution::notes::NoteOwner;
 use dokime_runtime::runtime::query::RuntimeStateSnapshot;
-use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::notes as contract;
 
 /* === Constants === */
@@ -49,7 +49,7 @@ pub(super) struct Page {
 /* === Implementations === */
 impl Page {
     pub fn new(
-        selection: Option<contract::AnnotationSelection>,
+        selection: Option<dokime_domain::model::notes::wire::AnnotationSelection>,
         limit: u32,
         after_id: String,
         given_cursor: Option<Cursor>,
@@ -57,7 +57,7 @@ impl Page {
         kind: &str,
     ) -> Result<Self, Status> {
         let mut selection = selection
-            .unwrap_or(contract::AnnotationSelection {
+            .unwrap_or(dokime_domain::model::notes::wire::AnnotationSelection {
                 owner: None,
                 include_context: false,
             });

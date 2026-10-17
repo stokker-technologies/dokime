@@ -148,7 +148,7 @@ impl Operation for Create {
         context: Self::Context<'a>,
         request: &mut wire::CreateCycle,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::CreateCycleReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let mut metadata = request
             .metadata
@@ -173,7 +173,7 @@ impl Operation for Create {
             )
             .await
             .map_err(status)?;
-        Ok((wire::CreateCycleReply {
+        Ok((dokime_domain::model::execution::wire::CreateCycleReply {
             cycle_id: id.to_string(),
             observed_cursor: Some(canonical::cursor(&self.runtime.watch_state().latest())),
         })
@@ -200,14 +200,14 @@ impl Operation for Copy {
         context: Self::Context<'a>,
         request: &mut wire::CopyCycle,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::CreateCycleReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::CreateCycleReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let id = self
             .runtime
             .copy_cycle(cycle_id(&request.source_cycle_id)?, context)
             .await
             .map_err(status)?;
-        Ok((wire::CreateCycleReply {
+        Ok((dokime_domain::model::execution::wire::CreateCycleReply {
             cycle_id: id.to_string(),
             observed_cursor: Some(canonical::cursor(&self.runtime.watch_state().latest())),
         })
@@ -234,7 +234,7 @@ impl Operation for Append {
         context: Self::Context<'a>,
         request: &mut wire::AppendPlannedCases,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let id = cycle_id(&request.cycle_id)?;
         let mut plan = request.plan.take();
@@ -276,7 +276,7 @@ impl Operation for Delete {
         context: Self::Context<'a>,
         request: &mut wire::DeleteCase,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let cycle = cycle_id(&request.cycle_id)?;
         value::text(&request.case_id)?;
@@ -309,7 +309,7 @@ impl Operation for Rerun {
         context: Self::Context<'a>,
         request: &mut wire::ScheduleCaseRerun,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         let cycle = cycle_id(&request.cycle_id)?;
         value::text(&request.case_id)?;
@@ -342,13 +342,13 @@ impl Operation for ArchiveCycle {
         context: Self::Context<'a>,
         request: &mut wire::SetCycleArchived,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ArchiveReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ArchiveReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime
             .set_cycle_archived(cycle_id(&request.cycle_id)?, request.archived, context)
             .await
             .map_err(status)?;
-        Ok(wire::ArchiveReply {
+        Ok(dokime_domain::model::execution::wire::ArchiveReply {
             archived: request.archived,
         }
         .into())
@@ -374,7 +374,7 @@ impl Operation for ArchiveExecution {
         context: Self::Context<'a>,
         request: &mut wire::SetExecutionArchived,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ArchiveReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ArchiveReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let execution = TestExecutionId::from_uuid(request.execution_id.clone())
@@ -383,7 +383,7 @@ impl Operation for ArchiveExecution {
             .set_execution_archived(execution, request.archived, context)
             .await
             .map_err(status)?;
-        Ok(wire::ArchiveReply {
+        Ok(dokime_domain::model::execution::wire::ArchiveReply {
             archived: request.archived,
         }
         .into())
@@ -409,7 +409,7 @@ impl Operation for RenameCycle {
         context: Self::Context<'a>,
         request: &mut wire::RenameCycle,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::RenameReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RenameReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         label_bound(&request.label)?;
         let label = self
@@ -421,7 +421,7 @@ impl Operation for RenameCycle {
             )
             .await
             .map_err(status)?;
-        Ok(wire::RenameReply { label }.into())
+        Ok(dokime_domain::model::execution::wire::RenameReply { label }.into())
     }
 }
 
@@ -444,7 +444,7 @@ impl Operation for RenameExecution {
         context: Self::Context<'a>,
         request: &mut wire::RenameExecution,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::RenameReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::RenameReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         label_bound(&request.label)?;
         value::text(&request.execution_id)?;
@@ -455,7 +455,7 @@ impl Operation for RenameExecution {
             .rename_execution(execution, std::mem::take(&mut request.label), context)
             .await
             .map_err(status)?;
-        Ok(wire::RenameReply { label }.into())
+        Ok(dokime_domain::model::execution::wire::RenameReply { label }.into())
     }
 }
 
@@ -478,7 +478,7 @@ impl Operation for Policy {
         context: Self::Context<'a>,
         request: &mut wire::UpdateCyclePolicy,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime
             .update_cycle_policy(
@@ -511,7 +511,7 @@ impl Operation for PauseCycle {
         context: Self::Context<'a>,
         request: &mut wire::PauseCycle,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime
             .pause_cycle(cycle_id(&request.cycle_id)?, context)
@@ -540,7 +540,7 @@ impl Operation for ResumeCycle {
         context: Self::Context<'a>,
         request: &mut wire::ResumeCycle,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime
             .resume_cycle(cycle_id(&request.cycle_id)?, context)
@@ -569,7 +569,7 @@ impl Operation for StopCycle {
         context: Self::Context<'a>,
         request: &mut wire::StopCycle,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         self.runtime
             .stop_cycle(cycle_id(&request.cycle_id)?, context)
@@ -598,7 +598,7 @@ impl Operation for PauseExecution {
         context: Self::Context<'a>,
         request: &mut wire::PauseExecution,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone())
@@ -630,7 +630,7 @@ impl Operation for ResumeExecution {
         context: Self::Context<'a>,
         request: &mut wire::ResumeExecution,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone())
@@ -662,7 +662,7 @@ impl Operation for StopExecution {
         context: Self::Context<'a>,
         request: &mut wire::StopExecution,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ControlReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ControlReply>, Status> {
         let context = command_context(&context, request.context.as_ref())?;
         value::text(&request.execution_id)?;
         let id = TestExecutionId::from_uuid(request.execution_id.clone())
@@ -689,7 +689,7 @@ pub(super) fn register(runtime: &RuntimeHandle) -> Result<(), crate::grpc::Error
 
 pub(in crate::grpc) fn command_context(
     context: &Context<'_>,
-    mutation: Option<&wire::MutationContext>,
+    mutation: Option<&dokime_domain::model::execution::wire::MutationContext>,
 ) -> Result<CommandContext, Status> {
     let correlation_id = mutation
         .and_then(|mutation| mutation.correlation_id.as_ref())
@@ -723,8 +723,8 @@ fn label_bound(label: &str) -> Result<(), Status> {
     Ok(())
 }
 
-fn observed(runtime: &RuntimeHandle) -> wire::ControlReply {
-    wire::ControlReply {
+fn observed(runtime: &RuntimeHandle) -> dokime_domain::model::execution::wire::ControlReply {
+    dokime_domain::model::execution::wire::ControlReply {
         observed_cursor: Some(canonical::cursor(&runtime.watch_state().latest())),
     }
 }

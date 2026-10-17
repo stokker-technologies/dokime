@@ -32,7 +32,7 @@ use dokime_runtime::{
     execution::{CycleStatus, CycleView},
     runtime::query::execution_history::ExecutionCheckpointContext,
 };
-use dokime_domain::operations::common;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::execution as execution_wire;
 use dokime_domain::operations::history;
 
@@ -73,7 +73,7 @@ impl Operation for Get {
         _: Self::Context<'a>,
         request: &mut history::GetCheckpointContext,
         _: &mut (),
-    ) -> Result<Response<history::CheckpointContext>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointContext>, Status> {
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         self.resources
             .runtime
@@ -109,7 +109,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 pub(super) fn checkpoint_context(
     value: ExecutionCheckpointContext,
     maximum: usize,
-) -> Result<history::CheckpointContext, Status> {
+) -> Result<dokime_domain::model::history::wire::CheckpointContext, Status> {
     let cycle = Some(cycle_context(value.cycle, maximum)?);
     let execution_documents = collect(
         value
@@ -121,7 +121,7 @@ pub(super) fn checkpoint_context(
     let health = collect(value.health.iter().map(notes::health))?;
     let notes = collect(value.notes.iter().map(notes::note))?;
     let traceability = collect(value.traceability.iter().map(wire::traceability))?;
-    Ok(history::CheckpointContext {
+    Ok(dokime_domain::model::history::wire::CheckpointContext {
         checkpoint: Some(wire::checkpoint_wire(value.checkpoint)?),
         session_id: value.session_id.as_str().to_owned(),
         execution_id: value
@@ -145,9 +145,9 @@ pub(super) fn checkpoint_context(
 fn cycle_context(
     value: dokime_runtime::runtime::ExecutionCycleContext,
     maximum: usize,
-) -> Result<history::HistoricalCycleContext, Status> {
+) -> Result<dokime_domain::model::history::wire::HistoricalCycleContext, Status> {
     let cycle = cycle(value.cycle, &value.cases, maximum)?;
-    Ok(history::HistoricalCycleContext {
+    Ok(dokime_domain::model::history::wire::HistoricalCycleContext {
         cycle: Some(cycle),
         execution_order: collect(
             value
@@ -162,12 +162,12 @@ fn cycle(
     value: CycleView,
     cases: &[dokime_runtime::definition::TestCase],
     maximum: usize,
-) -> Result<history::HistoricalCycle, Status> {
+) -> Result<dokime_domain::model::history::wire::HistoricalCycle, Status> {
     let mut bounds = execution::Bounds::new(maximum);
     let cases = collect(cases.iter().enumerate().map(|(ordinal, case)| {
         execution::historical_case_summary(&value, case, ordinal, &mut bounds)
     }))?;
-    Ok(history::HistoricalCycle {
+    Ok(dokime_domain::model::history::wire::HistoricalCycle {
         cycle_id: value.test_cycle_id.as_str().to_owned(),
         metadata: Some(canonical_metadata(&value.metadata)?),
         lifecycle: cycle_status(value.lifecycle),
@@ -183,16 +183,16 @@ fn cycle(
     })
 }
 
-fn cycle_status(value: CycleStatus) -> execution_wire::CycleStatus {
+fn cycle_status(value: CycleStatus) -> dokime_domain::model::execution::wire::CycleStatus {
     match value {
-        CycleStatus::Ready => execution_wire::CycleStatus::Ready,
-        CycleStatus::Running => execution_wire::CycleStatus::Running,
-        CycleStatus::Paused => execution_wire::CycleStatus::Paused,
-        CycleStatus::Stopping => execution_wire::CycleStatus::Stopping,
-        CycleStatus::Completed => execution_wire::CycleStatus::Completed,
-        CycleStatus::Failed => execution_wire::CycleStatus::Failed,
-        CycleStatus::Blocked => execution_wire::CycleStatus::Blocked,
-        CycleStatus::Stopped => execution_wire::CycleStatus::Stopped,
+        CycleStatus::Ready => dokime_domain::model::execution::wire::CycleStatus::Ready,
+        CycleStatus::Running => dokime_domain::model::execution::wire::CycleStatus::Running,
+        CycleStatus::Paused => dokime_domain::model::execution::wire::CycleStatus::Paused,
+        CycleStatus::Stopping => dokime_domain::model::execution::wire::CycleStatus::Stopping,
+        CycleStatus::Completed => dokime_domain::model::execution::wire::CycleStatus::Completed,
+        CycleStatus::Failed => dokime_domain::model::execution::wire::CycleStatus::Failed,
+        CycleStatus::Blocked => dokime_domain::model::execution::wire::CycleStatus::Blocked,
+        CycleStatus::Stopped => dokime_domain::model::execution::wire::CycleStatus::Stopped,
     }
 }
 

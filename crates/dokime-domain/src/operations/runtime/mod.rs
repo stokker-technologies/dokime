@@ -17,10 +17,15 @@
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy};
-use serde::{Deserialize, Serialize};
+use harmos::operations::OperationPolicy;
+use harmos::operations::RestartPolicy;
+use harmos::operations::RetryPolicy;
+use serde::Deserialize;
+use serde::Serialize;
 
 // Local Imports
+
+use crate::model::runtime::wire::*;
 
 /* === Constants === */
 const POLICY: OperationPolicy = OperationPolicy {
@@ -51,35 +56,11 @@ pub struct GetHealth {}
 #[serde(deny_unknown_fields)]
 pub struct GetIdentity {}
 
-#[harmos::message]
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Identity {
-    pub backend_id: String,
-    pub epoch: String,
-    pub display_name: String,
-    pub product_version: String,
-}
 
-#[harmos::message]
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Health {
-    pub backend_id: String,
-    pub epoch: String,
-    pub readiness: Readiness,
-    pub observed_at_seconds: i64,
-    pub observed_at_nanoseconds: u32,
-    pub message: String,
-}
+
+
 
 /* === Enums === */
-#[harmos::message]
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Readiness {
-    Starting,
-    Ready,
-    Degraded,
-    Stopping,
-}
 
 /* === Traits === */
 

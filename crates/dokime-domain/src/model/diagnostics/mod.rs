@@ -14,7 +14,9 @@ pub mod error;
 
 /* === Re-Exports === */
 pub use capture::*;
-pub use debug::{DebugLevel, ErrorCause, StructuredErrorDetail};
+pub use debug::DebugLevel;
+pub use debug::ErrorCause;
+pub use debug::StructuredErrorDetail;
 pub use error::ValidationIssue;
 
 /* === Public Functions === */

@@ -20,11 +20,11 @@ use tonic::Status;
 use crate::grpc::enums::canonical as enums;
 use crate::grpc::value::projection;
 use crate::grpc::value::{self, canonical};
-use dokime_domain::operations::common;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::documents;
 use dokime_domain::operations::history;
 use dokime_domain::operations::plots;
-use dokime_domain::operations::value as value_wire;
+use dokime_domain::model::values::wire as value_wire;
 
 /* === Constants === */
 
@@ -44,9 +44,9 @@ use dokime_domain::operations::value as value_wire;
 pub(in crate::grpc) fn wire(
     value: &dokime_runtime::document::DocumentDefinition,
     scope: &dokime_domain::model::execution::RecordScope,
-) -> Result<history::HistoricalDocument, Status> {
+) -> Result<dokime_domain::model::history::wire::HistoricalDocument, Status> {
     use dokime_runtime::document::DocumentCardBody;
-    let presentation = documents::DocumentHeader {
+    let presentation = dokime_domain::model::documents::wire::DocumentHeader {
         document_id: value.document_id.as_str().to_owned(),
         metadata: Some(metadata(&value.metadata)?),
         scope: Some(canonical::scope(scope)?),
@@ -72,7 +72,7 @@ pub(in crate::grpc) fn wire(
             let mut budget = value::Budget::new();
             for (row, fields) in rows.iter().enumerate() {
                 value::collection(fields.len())?;
-                table_rows.push(documents::DocumentTableRow {
+                table_rows.push(dokime_domain::model::documents::wire::DocumentTableRow {
                     card_id: projection::text(card.metadata.identifier.as_str())
                         .map_err(projection_failure)?,
                     ordinal: row as u64,
@@ -82,7 +82,7 @@ pub(in crate::grpc) fn wire(
         }
         cards.push(historical_card(card, scope)?);
     }
-    Ok(history::HistoricalDocument {
+    Ok(dokime_domain::model::history::wire::HistoricalDocument {
         presentation: Some(presentation),
         layout_nodes,
         cards,
@@ -121,7 +121,7 @@ fn value_object(
     source: &std::collections::BTreeMap<String, dokime_domain::model::values::Value>,
     budget: &mut value::Budget,
     depth: usize,
-) -> Result<value_wire::Value, Status> {
+) -> Result<dokime_domain::model::values::wire::Value, Status> {
     let _ = depth;
     canonical::object(source, budget)
 }
@@ -134,74 +134,74 @@ fn project_value(
     source: &dokime_domain::model::values::Value,
     budget: &mut value::Budget,
     depth: usize,
-) -> Result<value_wire::Value, Status> {
+) -> Result<dokime_domain::model::values::wire::Value, Status> {
     canonical::encode(source, budget, depth)
 }
 
 fn historical_card(
     value: &dokime_runtime::document::DocumentCardDefinition,
     scope: &dokime_domain::model::execution::RecordScope,
-) -> Result<history::HistoricalDocumentCard, Status> {
+) -> Result<dokime_domain::model::history::wire::HistoricalDocumentCard, Status> {
     use dokime_runtime::document::DocumentCardBody;
     let body = match &value.body {
         DocumentCardBody::Text { markdown } => {
             value::text(markdown)?;
-            Some(history::HistoricalDocumentCardBody::Markdown(
+            Some(dokime_domain::model::history::wire::HistoricalDocumentCardBody::Markdown(
                 markdown.clone(),
             ))
         }
-        DocumentCardBody::Table { rows } => Some(history::HistoricalDocumentCardBody::Table(
-            documents::DocumentTable {
+        DocumentCardBody::Table { rows } => Some(dokime_domain::model::history::wire::HistoricalDocumentCardBody::Table(
+            dokime_domain::model::documents::wire::DocumentTable {
                 row_count: rows.len() as u64,
             },
         )),
         DocumentCardBody::TelemetrySummary { summary } => Some(
-            history::HistoricalDocumentCardBody::Summary(historical_summary(summary)?),
+            dokime_domain::model::history::wire::HistoricalDocumentCardBody::Summary(historical_summary(summary)?),
         ),
-        DocumentCardBody::Plot { plot } => Some(history::HistoricalDocumentCardBody::Plot(
+        DocumentCardBody::Plot { plot } => Some(dokime_domain::model::history::wire::HistoricalDocumentCardBody::Plot(
             historical_plot(plot, scope)?,
         )),
         DocumentCardBody::Steps => {
-            Some(owner_body(documents::DocumentCardKind::Steps, None, scope)?)
+            Some(owner_body(dokime_domain::model::documents::wire::DocumentCardKind::Steps, None, scope)?)
         }
         DocumentCardBody::Criteria => Some(owner_body(
-            documents::DocumentCardKind::Criteria,
+            dokime_domain::model::documents::wire::DocumentCardKind::Criteria,
             None,
             scope,
         )?),
         DocumentCardBody::Traceability => Some(owner_body(
-            documents::DocumentCardKind::Traceability,
+            dokime_domain::model::documents::wire::DocumentCardKind::Traceability,
             None,
             scope,
         )?),
         DocumentCardBody::Notes => {
-            Some(owner_body(documents::DocumentCardKind::Notes, None, scope)?)
+            Some(owner_body(dokime_domain::model::documents::wire::DocumentCardKind::Notes, None, scope)?)
         }
         DocumentCardBody::Records => Some(owner_body(
-            documents::DocumentCardKind::Records,
+            dokime_domain::model::documents::wire::DocumentCardKind::Records,
             None,
             scope,
         )?),
         DocumentCardBody::Artifacts => Some(owner_body(
-            documents::DocumentCardKind::Artifacts,
+            dokime_domain::model::documents::wire::DocumentCardKind::Artifacts,
             None,
             scope,
         )?),
         DocumentCardBody::Media => {
-            Some(owner_body(documents::DocumentCardKind::Media, None, scope)?)
+            Some(owner_body(dokime_domain::model::documents::wire::DocumentCardKind::Media, None, scope)?)
         }
         DocumentCardBody::Health => Some(owner_body(
-            documents::DocumentCardKind::Health,
+            dokime_domain::model::documents::wire::DocumentCardKind::Health,
             None,
             scope,
         )?),
         DocumentCardBody::TelemetryContext => Some(owner_body(
-            documents::DocumentCardKind::TelemetryContext,
+            dokime_domain::model::documents::wire::DocumentCardKind::TelemetryContext,
             None,
             scope,
         )?),
     };
-    Ok(history::HistoricalDocumentCard {
+    Ok(dokime_domain::model::history::wire::HistoricalDocumentCard {
         metadata: Some(metadata(&value.metadata)?),
         filters: collect(value.filters.iter().map(historical_filter))?,
         body,
@@ -210,12 +210,12 @@ fn historical_card(
 
 fn historical_summary(
     value: &dokime_runtime::document::TelemetrySummaryDefinition,
-) -> Result<history::HistoricalTelemetrySummary, Status> {
+) -> Result<dokime_domain::model::history::wire::HistoricalTelemetrySummary, Status> {
     value::collection(value.groups.len())?;
-    Ok(history::HistoricalTelemetrySummary {
+    Ok(dokime_domain::model::history::wire::HistoricalTelemetrySummary {
         groups: collect(value.groups.iter().map(|group| {
             value::collection(group.tiles.len())?;
-            Ok(history::HistoricalSummaryGroup {
+            Ok(dokime_domain::model::history::wire::HistoricalSummaryGroup {
                 metadata: Some(metadata(&group.metadata)?),
                 tiles: collect(group.tiles.iter().map(historical_summary_tile))?,
             })
@@ -225,10 +225,10 @@ fn historical_summary(
 
 fn historical_summary_tile(
     value: &dokime_runtime::document::TelemetrySummaryTileDefinition,
-) -> Result<history::HistoricalSummaryTile, Status> {
+) -> Result<dokime_domain::model::history::wire::HistoricalSummaryTile, Status> {
     value::collection(value.filters.len())?;
     value::collection(value.conditions.len())?;
-    Ok(history::HistoricalSummaryTile {
+    Ok(dokime_domain::model::history::wire::HistoricalSummaryTile {
         metadata: Some(metadata(&value.metadata)?),
         value: Some(data_expression(&value.value)?),
         filters: collect(value.filters.iter().map(historical_filter))?,
@@ -244,7 +244,7 @@ fn historical_summary_tile(
             })
             .transpose()?,
         conditions: collect(value.conditions.iter().map(|condition| {
-            Ok(history::HistoricalSummaryCondition {
+            Ok(dokime_domain::model::history::wire::HistoricalSummaryCondition {
                 operator: enums::filter_operator(&condition.operator),
                 value: Some(project_value(
                     &condition.value,
@@ -259,8 +259,8 @@ fn historical_summary_tile(
 
 fn historical_filter(
     value: &dokime_runtime::document::DocumentFilter,
-) -> Result<history::HistoricalDocumentFilter, Status> {
-    Ok(history::HistoricalDocumentFilter {
+) -> Result<dokime_domain::model::history::wire::HistoricalDocumentFilter, Status> {
+    Ok(dokime_domain::model::history::wire::HistoricalDocumentFilter {
         expression: Some(data_expression(&value.expression)?),
         operator: enums::filter_operator(&value.operator),
         value: value
@@ -273,9 +273,9 @@ fn historical_filter(
 
 fn data_expression(
     value: &dokime_runtime::expressions::DataExpression,
-) -> Result<plots::DataExpression, Status> {
+) -> Result<dokime_domain::model::plots::wire::DataExpression, Status> {
     value::collection(value.transforms.len())?;
-    Ok(plots::DataExpression {
+    Ok(dokime_domain::model::plots::wire::DataExpression {
         label: value
             .label
             .as_deref()
@@ -289,38 +289,38 @@ fn data_expression(
 
 fn data_source(
     value: &dokime_runtime::expressions::DataSource,
-) -> Result<plots::DataExpressionSource, Status> {
+) -> Result<dokime_domain::model::plots::wire::DataExpressionSource, Status> {
     use dokime_runtime::expressions::DataSource;
     Ok(match value {
         DataSource::Telemetry { stream, field } => {
             value::text(stream)?;
             value::text(field)?;
-            plots::DataExpressionSource::Telemetry(plots::TelemetryDataSource {
+            dokime_domain::model::plots::wire::DataExpressionSource::Telemetry(dokime_domain::model::plots::wire::TelemetryDataSource {
                 stream: stream.clone(),
                 field: field.clone(),
             })
         }
         DataSource::Parameter { name } => {
             value::text(name)?;
-            plots::DataExpressionSource::Parameter(plots::ParameterDataSource {
+            dokime_domain::model::plots::wire::DataExpressionSource::Parameter(dokime_domain::model::plots::wire::ParameterDataSource {
                 name: name.clone(),
             })
         }
         DataSource::Dimension { name } => {
             value::text(name)?;
-            plots::DataExpressionSource::Dimension(plots::DimensionDataSource {
+            dokime_domain::model::plots::wire::DataExpressionSource::Dimension(dokime_domain::model::plots::wire::DimensionDataSource {
                 name: name.clone(),
             })
         }
         DataSource::Record { record_type } => {
             value::text(record_type)?;
-            plots::DataExpressionSource::Record(plots::RecordDataSource {
+            dokime_domain::model::plots::wire::DataExpressionSource::Record(dokime_domain::model::plots::wire::RecordDataSource {
                 record_type: record_type.clone(),
             })
         }
         DataSource::Artifact { artifact } => {
             value::text(artifact)?;
-            plots::DataExpressionSource::Artifact(plots::ArtifactDataSource {
+            dokime_domain::model::plots::wire::DataExpressionSource::Artifact(dokime_domain::model::plots::wire::ArtifactDataSource {
                 artifact: artifact.clone(),
             })
         }
@@ -329,42 +329,42 @@ fn data_source(
 
 fn data_transform(
     value: &dokime_runtime::expressions::DataTransform,
-) -> Result<plots::DataTransform, Status> {
+) -> Result<dokime_domain::model::plots::wire::DataTransform, Status> {
     use dokime_runtime::expressions::DataTransform;
-    use plots::DataTransformKind as Kind;
+    use dokime_domain::model::plots::wire::DataTransformKind as Kind;
     let kind = match value {
-        DataTransform::Aggregate(aggregate) => Kind::Aggregate(plots::AggregateTransform {
+        DataTransform::Aggregate(aggregate) => Kind::Aggregate(dokime_domain::model::plots::wire::AggregateTransform {
             aggregate: *aggregate,
         }),
         DataTransform::TimeBetween {
             previous_record_type,
         } => {
             value::text(previous_record_type)?;
-            Kind::TimeBetween(plots::TimeBetweenTransform {
+            Kind::TimeBetween(dokime_domain::model::plots::wire::TimeBetweenTransform {
                 previous_record_type: previous_record_type.clone(),
             })
         }
         DataTransform::TelemetryAtOrBefore { stream, field } => {
             value::text(stream)?;
             value::text(field)?;
-            Kind::TelemetryAtOrBefore(plots::TelemetryAtOrBeforeTransform {
+            Kind::TelemetryAtOrBefore(dokime_domain::model::plots::wire::TelemetryAtOrBeforeTransform {
                 stream: stream.clone(),
                 field: field.clone(),
             })
         }
         DataTransform::Detail { name } => {
             value::text(name)?;
-            Kind::Detail(plots::DetailTransform { name: name.clone() })
+            Kind::Detail(dokime_domain::model::plots::wire::DetailTransform { name: name.clone() })
         }
-        DataTransform::PerCase => Kind::PerCase(plots::EmptyTransform {}),
+        DataTransform::PerCase => Kind::PerCase(dokime_domain::model::plots::wire::EmptyTransform {}),
     };
-    Ok(plots::DataTransform { kind: Some(kind) })
+    Ok(dokime_domain::model::plots::wire::DataTransform { kind: Some(kind) })
 }
 
 pub(in crate::grpc) fn historical_plot(
     value: &dokime_runtime::document::PlotDefinition,
     scope: &dokime_domain::model::execution::RecordScope,
-) -> Result<documents::DocumentPlotDefinition, Status> {
+) -> Result<dokime_domain::model::documents::wire::DocumentPlotDefinition, Status> {
     value::collection(value.y.len())?;
     value::collection(value.y_expressions.len())?;
     value::collection(value.filters.len())?;
@@ -391,7 +391,7 @@ pub(in crate::grpc) fn historical_plot(
     if let Some(window) = value.live_window_s {
         finite(window, "live_window_s")?;
     }
-    let request = plots::PlotRequest {
+    let request = dokime_domain::model::plots::wire::PlotRequest {
         analysis: value
             .analysis
             .as_ref()
@@ -437,7 +437,7 @@ pub(in crate::grpc) fn historical_plot(
         summary_window: None,
     };
     let (x_axis, x_axis_unit) = enums::plot_axis(value.x_axis.as_ref());
-    let presentation = documents::PlotPresentation {
+    let presentation = dokime_domain::model::documents::wire::PlotPresentation {
         style: enums::plot_style(&value.style),
         fft: Some(fft_options(&value.fft)?),
         interval: Some(interval_options(&value.interval)?),
@@ -450,7 +450,7 @@ pub(in crate::grpc) fn historical_plot(
         x_axis,
         x_axis_unit,
     };
-    Ok(documents::DocumentPlotDefinition {
+    Ok(dokime_domain::model::documents::wire::DocumentPlotDefinition {
         metadata: Some(metadata(&value.metadata)?),
         request: Some(request),
         presentation: Some(presentation),
@@ -462,8 +462,8 @@ pub(in crate::grpc) fn historical_plot(
     })
 }
 
-fn plot_filter(value: &dokime_runtime::document::DocumentFilter) -> Result<plots::PlotFilter, Status> {
-    Ok(plots::PlotFilter {
+fn plot_filter(value: &dokime_runtime::document::DocumentFilter) -> Result<dokime_domain::model::plots::wire::PlotFilter, Status> {
+    Ok(dokime_domain::model::plots::wire::PlotFilter {
         expression: Some(data_expression(&value.expression)?),
         operator: enums::filter_operator(&value.operator),
         value: value
@@ -484,7 +484,7 @@ fn finite(value: f64, field: &str) -> Result<(), Status> {
     }
 }
 
-fn fft_options(value: &dokime_runtime::document::FftOptions) -> Result<plots::PlotFftOptions, Status> {
+fn fft_options(value: &dokime_runtime::document::FftOptions) -> Result<dokime_domain::model::plots::wire::PlotFftOptions, Status> {
     for item in [
         value.sample_rate_hz,
         value.min_frequency_hz,
@@ -495,7 +495,7 @@ fn fft_options(value: &dokime_runtime::document::FftOptions) -> Result<plots::Pl
     {
         finite(item, "fft option")?;
     }
-    Ok(plots::PlotFftOptions {
+    Ok(dokime_domain::model::plots::wire::PlotFftOptions {
         sample_rate_hz: value.sample_rate_hz,
         window: enums::fft_window(&value.window),
         detrend: enums::fft_detrend(&value.detrend),
@@ -508,10 +508,10 @@ fn fft_options(value: &dokime_runtime::document::FftOptions) -> Result<plots::Pl
 
 fn interval_options(
     value: &dokime_runtime::document::SigmaIntervalOptions,
-) -> Result<plots::PlotIntervalOptions, Status> {
+) -> Result<dokime_domain::model::plots::wire::PlotIntervalOptions, Status> {
     finite(value.bin_width, "interval bin_width")?;
     finite(value.sigma, "interval sigma")?;
-    Ok(plots::PlotIntervalOptions {
+    Ok(dokime_domain::model::plots::wire::PlotIntervalOptions {
         bin_width: value.bin_width,
         sigma: value.sigma,
         clip_to_observed: value.clip_to_observed,
@@ -520,7 +520,7 @@ fn interval_options(
 
 fn histogram_options(
     value: &dokime_runtime::document::HistogramOptions,
-) -> Result<plots::PlotHistogramOptions, Status> {
+) -> Result<dokime_domain::model::plots::wire::PlotHistogramOptions, Status> {
     if value.bins > u64::MAX as usize {
         return Err(Status::data_loss(
             "stored histogram bin count overflows wire",
@@ -529,7 +529,7 @@ fn histogram_options(
     if let Some(unit) = &value.unit {
         value::text(unit)?;
     }
-    Ok(plots::PlotHistogramOptions {
+    Ok(dokime_domain::model::plots::wire::PlotHistogramOptions {
         bins: value.bins as u64,
         unit: value.unit.clone(),
     })
@@ -537,7 +537,7 @@ fn histogram_options(
 
 fn reference_line(
     value: &dokime_runtime::document::ReferenceLine,
-) -> Result<documents::PlotReferenceLine, Status> {
+) -> Result<dokime_domain::model::documents::wire::PlotReferenceLine, Status> {
     finite(value.source_scale, "reference line source_scale")?;
     if let Some(item) = value.value {
         finite(item, "reference line value")?;
@@ -546,7 +546,7 @@ fn reference_line(
         value::text(label)?;
     }
     value::text(&value.color)?;
-    Ok(documents::PlotReferenceLine {
+    Ok(dokime_domain::model::documents::wire::PlotReferenceLine {
         axis: enums::reference_axis(&value.axis),
         value: value.value,
         source: value.source.as_ref().map(data_expression).transpose()?,
@@ -558,7 +558,7 @@ fn reference_line(
 
 fn reference_band(
     value: &dokime_runtime::document::ReferenceBand,
-) -> Result<documents::PlotReferenceBand, Status> {
+) -> Result<dokime_domain::model::documents::wire::PlotReferenceBand, Status> {
     if let Some(item) = value.min {
         finite(item, "reference band min")?;
     }
@@ -569,7 +569,7 @@ fn reference_band(
         value::text(label)?;
     }
     value::text(&value.color)?;
-    Ok(documents::PlotReferenceBand {
+    Ok(dokime_domain::model::documents::wire::PlotReferenceBand {
         axis: enums::reference_axis(&value.axis),
         min: value.min,
         max: value.max,
@@ -582,82 +582,82 @@ fn reference_band(
 
 fn summary_stat(
     value: dokime_runtime::document::TelemetrySummaryStat,
-) -> documents::DocumentSummaryStat {
+) -> dokime_domain::model::documents::wire::DocumentSummaryStat {
     match value {
         dokime_runtime::document::TelemetrySummaryStat::Latest => {
-            documents::DocumentSummaryStat::Latest
+            dokime_domain::model::documents::wire::DocumentSummaryStat::Latest
         }
     }
 }
 
 fn summary_format(
     value: dokime_runtime::document::TelemetrySummaryFormat,
-) -> documents::DocumentSummaryFormat {
+) -> dokime_domain::model::documents::wire::DocumentSummaryFormat {
     match value {
         dokime_runtime::document::TelemetrySummaryFormat::Auto => {
-            documents::DocumentSummaryFormat::Auto
+            dokime_domain::model::documents::wire::DocumentSummaryFormat::Auto
         }
         dokime_runtime::document::TelemetrySummaryFormat::Number => {
-            documents::DocumentSummaryFormat::Number
+            dokime_domain::model::documents::wire::DocumentSummaryFormat::Number
         }
         dokime_runtime::document::TelemetrySummaryFormat::Percent => {
-            documents::DocumentSummaryFormat::Percent
+            dokime_domain::model::documents::wire::DocumentSummaryFormat::Percent
         }
         dokime_runtime::document::TelemetrySummaryFormat::Duration => {
-            documents::DocumentSummaryFormat::Duration
+            dokime_domain::model::documents::wire::DocumentSummaryFormat::Duration
         }
         dokime_runtime::document::TelemetrySummaryFormat::Distance => {
-            documents::DocumentSummaryFormat::Distance
+            dokime_domain::model::documents::wire::DocumentSummaryFormat::Distance
         }
         dokime_runtime::document::TelemetrySummaryFormat::Status => {
-            documents::DocumentSummaryFormat::Status
+            dokime_domain::model::documents::wire::DocumentSummaryFormat::Status
         }
         dokime_runtime::document::TelemetrySummaryFormat::Text => {
-            documents::DocumentSummaryFormat::Text
+            dokime_domain::model::documents::wire::DocumentSummaryFormat::Text
         }
     }
 }
 
 fn summary_presentation(
     value: dokime_runtime::document::TelemetrySummaryPresentation,
-) -> documents::DocumentSummaryPresentation {
+) -> dokime_domain::model::documents::wire::DocumentSummaryPresentation {
     match value {
         dokime_runtime::document::TelemetrySummaryPresentation::Value => {
-            documents::DocumentSummaryPresentation::Value
+            dokime_domain::model::documents::wire::DocumentSummaryPresentation::Value
         }
         dokime_runtime::document::TelemetrySummaryPresentation::Progress => {
-            documents::DocumentSummaryPresentation::Progress
+            dokime_domain::model::documents::wire::DocumentSummaryPresentation::Progress
         }
         dokime_runtime::document::TelemetrySummaryPresentation::Badge => {
-            documents::DocumentSummaryPresentation::Badge
+            dokime_domain::model::documents::wire::DocumentSummaryPresentation::Badge
         }
     }
 }
 
 fn summary_state(
     value: dokime_runtime::document::TelemetrySummaryState,
-) -> documents::DocumentSummaryState {
+) -> dokime_domain::model::documents::wire::DocumentSummaryState {
     match value {
-        dokime_runtime::document::TelemetrySummaryState::Ok => documents::DocumentSummaryState::Ok,
+        dokime_runtime::document::TelemetrySummaryState::Ok => dokime_domain::model::documents::wire::DocumentSummaryState::Ok,
         dokime_runtime::document::TelemetrySummaryState::Warning => {
-            documents::DocumentSummaryState::Warning
+            dokime_domain::model::documents::wire::DocumentSummaryState::Warning
         }
         dokime_runtime::document::TelemetrySummaryState::Critical => {
-            documents::DocumentSummaryState::Critical
+            dokime_domain::model::documents::wire::DocumentSummaryState::Critical
         }
         dokime_runtime::document::TelemetrySummaryState::Muted => {
-            documents::DocumentSummaryState::Muted
+            dokime_domain::model::documents::wire::DocumentSummaryState::Muted
         }
     }
 }
 
 fn owner_body(
-    kind: documents::DocumentCardKind,
+    kind: dokime_domain::model::documents::wire::DocumentCardKind,
     plot_id: Option<String>,
     _scope: &dokime_domain::model::execution::RecordScope,
-) -> Result<history::HistoricalDocumentCardBody, Status> {
-    Ok(history::HistoricalDocumentCardBody::Owner(
-        documents::DocumentOwnerReference {
+) -> Result<dokime_domain::model::history::wire::HistoricalDocumentCardBody, Status> {
+    Ok(dokime_domain::model::history::wire::HistoricalDocumentCardBody::Owner(
+        dokime_domain::model::documents::wire::DocumentOwnerReference {
             kind,
             plot_id,
             plot: None,
@@ -669,17 +669,17 @@ fn layout_nodes_for_node(
     node: &dokime_runtime::document::DocumentNode,
     parent: Option<u64>,
     ordinal: &mut u64,
-    output: &mut Vec<documents::DocumentLayoutNode>,
+    output: &mut Vec<dokime_domain::model::documents::wire::DocumentLayoutNode>,
 ) -> Result<(), Status> {
     use dokime_runtime::document::DocumentNode;
     match node {
         DocumentNode::Section(section) => {
             let current = *ordinal;
-            output.push(documents::DocumentLayoutNode {
+            output.push(dokime_domain::model::documents::wire::DocumentLayoutNode {
                 ordinal: current,
                 parent_ordinal: parent,
-                node: Some(documents::DocumentLayoutNodeNode::Section(Box::new(
-                    documents::DocumentSection {
+                node: Some(dokime_domain::model::documents::wire::DocumentLayoutNodeNode::Section(Box::new(
+                    dokime_domain::model::documents::wire::DocumentSection {
                         node_id: section.node_id.as_str().to_owned(),
                         metadata: Some(metadata(&section.metadata)?),
                         repeat: section.repeat.as_ref().map(repeat).transpose()?,
@@ -692,11 +692,11 @@ fn layout_nodes_for_node(
             }
         }
         DocumentNode::Card(card) => {
-            output.push(documents::DocumentLayoutNode {
+            output.push(dokime_domain::model::documents::wire::DocumentLayoutNode {
                 ordinal: *ordinal,
                 parent_ordinal: parent,
-                node: Some(documents::DocumentLayoutNodeNode::Placement(
-                    documents::DocumentPlacement {
+                node: Some(dokime_domain::model::documents::wire::DocumentLayoutNodeNode::Placement(
+                    dokime_domain::model::documents::wire::DocumentPlacement {
                         card_id: card.card_id.as_str().to_owned(),
                         column_span: Some(span(&card.layout.col_span)),
                         row_span: u32::from(card.layout.row_span),
@@ -714,12 +714,12 @@ fn layout_nodes_for_node(
 
 pub(in crate::grpc) fn repeat(
     source: &dokime_runtime::document::DocumentSectionRepeat,
-) -> Result<documents::DocumentRepeat, Status> {
+) -> Result<dokime_domain::model::documents::wire::DocumentRepeat, Status> {
     value::text(&source.label_template)?;
     if let Some(id) = &source.id_template {
         value::text(id)?;
     }
-    Ok(documents::DocumentRepeat {
+    Ok(dokime_domain::model::documents::wire::DocumentRepeat {
         value: Some(data_expression(&source.value)?),
         label_template: source.label_template.clone(),
         id_template: source.id_template.clone(),
@@ -728,8 +728,8 @@ pub(in crate::grpc) fn repeat(
     })
 }
 
-fn span(value: &dokime_runtime::document::ResponsiveSpan) -> documents::DocumentSpan {
-    documents::DocumentSpan {
+fn span(value: &dokime_runtime::document::ResponsiveSpan) -> dokime_domain::model::documents::wire::DocumentSpan {
+    dokime_domain::model::documents::wire::DocumentSpan {
         base: u32::from(value.base),
         sm: value.sm.map(u32::from),
         md: value.md.map(u32::from),
@@ -738,27 +738,27 @@ fn span(value: &dokime_runtime::document::ResponsiveSpan) -> documents::Document
     }
 }
 
-fn density(value: &dokime_runtime::document::DocumentCardDensity) -> documents::DocumentDensity {
+fn density(value: &dokime_runtime::document::DocumentCardDensity) -> dokime_domain::model::documents::wire::DocumentDensity {
     match value {
-        dokime_runtime::document::DocumentCardDensity::Compact => documents::DocumentDensity::Compact,
-        dokime_runtime::document::DocumentCardDensity::Normal => documents::DocumentDensity::Normal,
-        dokime_runtime::document::DocumentCardDensity::Spacious => documents::DocumentDensity::Spacious,
+        dokime_runtime::document::DocumentCardDensity::Compact => dokime_domain::model::documents::wire::DocumentDensity::Compact,
+        dokime_runtime::document::DocumentCardDensity::Normal => dokime_domain::model::documents::wire::DocumentDensity::Normal,
+        dokime_runtime::document::DocumentCardDensity::Spacious => dokime_domain::model::documents::wire::DocumentDensity::Spacious,
     }
 }
 
-fn rail(value: &dokime_runtime::document::DocumentCardRail) -> documents::DocumentRail {
+fn rail(value: &dokime_runtime::document::DocumentCardRail) -> dokime_domain::model::documents::wire::DocumentRail {
     match value {
-        dokime_runtime::document::DocumentCardRail::Main => documents::DocumentRail::Main,
-        dokime_runtime::document::DocumentCardRail::Right => documents::DocumentRail::Right,
-        dokime_runtime::document::DocumentCardRail::Left => documents::DocumentRail::Left,
+        dokime_runtime::document::DocumentCardRail::Main => dokime_domain::model::documents::wire::DocumentRail::Main,
+        dokime_runtime::document::DocumentCardRail::Right => dokime_domain::model::documents::wire::DocumentRail::Right,
+        dokime_runtime::document::DocumentCardRail::Left => dokime_domain::model::documents::wire::DocumentRail::Left,
     }
 }
 
 fn analysis_selection(
     selection: &dokime_runtime::analysis::Selection,
-) -> Result<plots::AnalysisSelection, Status> {
+) -> Result<dokime_domain::model::plots::wire::AnalysisSelection, Status> {
     value::text(&selection.id)?;
-    Ok(plots::AnalysisSelection {
+    Ok(dokime_domain::model::plots::wire::AnalysisSelection {
         id: selection.id.clone(),
         version: selection.version,
         parameters: Some(canonical::object(

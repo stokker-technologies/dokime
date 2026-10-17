@@ -17,10 +17,14 @@
 use std::collections::BTreeMap;
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 // Local Imports
-use super::{OrganizationIdentity, ThemeCornerRadii, ThemeModePolicy, ThemeVariant};
+use super::OrganizationIdentity;
+use super::ThemeCornerRadii;
+use super::ThemeModePolicy;
+use super::ThemeVariant;
 use crate::model::identity::Identifier;
 
 /* === Constants === */

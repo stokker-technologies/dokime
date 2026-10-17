@@ -56,7 +56,7 @@ impl Operation for Download {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<content_wire::ArtifactFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,
@@ -123,10 +123,10 @@ pub(in crate::grpc) async fn deliver(
     reader: ArtifactReader,
     maximum: usize,
     chunk_bytes: usize,
-    output: &mut StreamOutput<content_wire::ArtifactFrame>,
+    output: &mut StreamOutput<dokime_domain::model::content::wire::ArtifactFrame>,
 ) -> Result<(), Status> {
-    let frame = content_wire::ArtifactFrame {
-        payload: Some(content_wire::ArtifactFramePayload::Metadata(
+    let frame = dokime_domain::model::content::wire::ArtifactFrame {
+        payload: Some(dokime_domain::model::content::wire::ArtifactFramePayload::Metadata(
             super::metadata(reader.record())?,
         )),
     };

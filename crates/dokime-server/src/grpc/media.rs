@@ -36,7 +36,7 @@ use dokime_runtime::domains::media::DEFAULT_RECORDING_SECONDS;
 use dokime_runtime::domains::media::MAXIMUM_RECORDING_SECONDS;
 use dokime_runtime::domains::media::NOT_COMPILED;
 use dokime_runtime::domains::media::UNAVAILABLE;
-use dokime_domain::operations::content::ArtifactMetadata;
+use dokime_domain::model::content::wire::ArtifactMetadata;
 use dokime_domain::operations::media as contract;
 
 /* === Constants === */
@@ -154,7 +154,7 @@ impl Operation for AudioRecording {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<contract::RecordingFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::media::wire::RecordingFrame>;
 
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
@@ -189,14 +189,14 @@ impl Operation for AudioRecording {
             if elapsed >= limit {
                 break recording.finish().await;
             }
-            let progress = contract::RecordingProgress {
+            let progress = dokime_domain::model::media::wire::RecordingProgress {
                 elapsed_ms: elapsed.as_millis().try_into().unwrap_or(u64::MAX),
                 size_bytes: recording.size_bytes(),
             };
             output
-                .send_with(std::mem::size_of::<contract::RecordingFrame>(), || {
-                    Ok(contract::RecordingFrame {
-                        payload: Some(contract::RecordingFramePayload::Progress(progress)),
+                .send_with(std::mem::size_of::<dokime_domain::model::media::wire::RecordingFrame>(), || {
+                    Ok(dokime_domain::model::media::wire::RecordingFrame {
+                        payload: Some(dokime_domain::model::media::wire::RecordingFramePayload::Progress(progress)),
                     })
                 })
                 .await
@@ -211,12 +211,12 @@ impl Operation for AudioRecording {
         self.recording = None;
         let record = sealed.map_err(failure)?;
         let completed = metadata(&record)?;
-        let bytes = std::mem::size_of::<contract::RecordingFrame>()
+        let bytes = std::mem::size_of::<dokime_domain::model::media::wire::RecordingFrame>()
             .saturating_add(metadata_memory(&record)?);
         output
             .send_with(bytes, || {
-                Ok(contract::RecordingFrame {
-                    payload: Some(contract::RecordingFramePayload::Completed(Box::new(
+                Ok(dokime_domain::model::media::wire::RecordingFrame {
+                    payload: Some(dokime_domain::model::media::wire::RecordingFramePayload::Completed(Box::new(
                         completed,
                     ))),
                 })
@@ -243,7 +243,7 @@ impl Operation for ScreenRecording {
     type Resources = ();
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<contract::RecordingFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::media::wire::RecordingFrame>;
 
     async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self)
@@ -264,7 +264,7 @@ impl Operation for CameraRecording {
     type Resources = ();
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<contract::RecordingFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::media::wire::RecordingFrame>;
 
     async fn initialize<'ctx>(_: Arc<()>, _: Self::Context<'ctx>) -> Result<Self, Status> {
         Ok(Self)
@@ -310,7 +310,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 fn capture_scope(
-    scope: Option<&dokime_domain::operations::content::ArtifactScope>,
+    scope: Option<&dokime_domain::model::content::wire::ArtifactScope>,
 ) -> Result<RecordScope, Status> {
     let scope = artifact_scope(scope)?;
     if scope.test_cycle_id.is_none() || scope.test_execution_id.is_none() {

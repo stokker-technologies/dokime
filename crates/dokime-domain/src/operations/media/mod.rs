@@ -28,11 +28,18 @@ pub use screenshot::Screenshot;
 // Standard Library Imports
 
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 // Local Imports
-use super::content::{ArtifactMetadata, ArtifactScope};
-use super::{Access, Endpoint, FOLLOW, TRANSFER};
+use crate::model::content::wire::ArtifactMetadata;
+use crate::model::content::wire::ArtifactScope;
+use super::Access;
+use super::Endpoint;
+use super::FOLLOW;
+use super::TRANSFER;
+
+use crate::model::media::wire::*;
 
 /* === Constants === */
 
@@ -48,40 +55,17 @@ use super::{Access, Endpoint, FOLLOW, TRANSFER};
 
 
 
-// Which audio sources a video recording mixes into its soundtrack.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RecordingAudio {
-    pub microphone: bool,
-    pub system: bool,
-}
 
 
 
 
 
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RecordingProgress {
-    pub elapsed_ms: u64,
-    pub size_bytes: u64,
-}
 
-// Progress frames while recording, then one Completed frame carrying the sealed
-// artifact. A cancelled recording is still sealed, without a final frame.
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct RecordingFrame {
-    pub payload: Option<RecordingFramePayload>,
-}
+
+
+
 
 /* === Enums === */
-#[harmos::message]
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub enum RecordingFramePayload {
-    Progress(RecordingProgress),
-    Completed(Box<ArtifactMetadata>),
-}
 
 #[harmos::catalog]
 pub enum Operations {

@@ -44,7 +44,8 @@ pub mod operations;
 
 
 /* === Re-Exports === */
-pub use error::{Error, Result};
+pub use error::Error;
+pub use error::Result;
 
 /* === Imports === */
 // Standard Library Imports

@@ -61,7 +61,7 @@ impl Operation for GetSettings {
         _: Self::Context<'a>,
         _: &mut wire::GetSettings,
         _: &mut (),
-    ) -> Result<Response<wire::SettingsFrame>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::SettingsFrame>, Status> {
         let frame = self.resources.runtime.settings_frame().await;
         self.resources
             .produce_result(|| projection::encode_frame(frame, self.resources.maximum))
@@ -84,7 +84,7 @@ impl Operation for GetPluginSettings {
         _: Self::Context<'a>,
         request: &mut wire::GetPluginSettings,
         _: &mut (),
-    ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
         let settings = self
             .resources
@@ -112,7 +112,7 @@ impl Operation for UpdatePluginSettings {
         _: Self::Context<'a>,
         request: &mut wire::UpdatePluginSettings,
         _: &mut (),
-    ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
         let values = match request.values.take() {
             None => Default::default(),
@@ -151,7 +151,7 @@ impl Operation for UpdatePluginCredential {
         _: Self::Context<'a>,
         request: &mut wire::UpdatePluginCredential,
         _: &mut (),
-    ) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
         let id = plugin_id(&request.plugin_id)?;
         let credential =
             projection::bounded_text(std::mem::take(&mut request.credential_id), "credential_id")?;
@@ -213,7 +213,7 @@ fn plugin_id(id: &str) -> Result<dokime_domain::model::identity::Identifier, Sta
 fn plugin_response(
     resources: &Resources,
     settings: RuntimePluginSettings,
-) -> Result<Response<wire::PluginRuntimeSettings>, Status> {
+) -> Result<Response<dokime_domain::model::settings::wire::PluginRuntimeSettings>, Status> {
     resources.produce_result(|| projection::encode_plugin_settings(settings, resources.maximum))
 }
 /* === Tests === */

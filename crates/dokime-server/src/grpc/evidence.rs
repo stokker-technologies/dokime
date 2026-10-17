@@ -24,9 +24,9 @@ use tonic::Status;
 // Local Imports
 use super::error::detailed;
 use dokime_runtime::{RuntimeHandle, runtime::CapturedRecords};
-use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::evidence as v1;
-use dokime_domain::operations::schema::RecordSchema;
+use dokime_domain::model::definition::wire::RecordSchema;
 
 use selection::Selection;
 
@@ -38,7 +38,7 @@ const PAGE_BYTES: usize = 512 * 1024;
 /* === Macros === */
 
 /* === Type Aliases === */
-type Page = v1::RecordPage;
+type Page = dokime_domain::model::evidence::wire::RecordPage;
 
 /* === Structs === */
 struct Resources {
@@ -62,7 +62,7 @@ struct Reader {
 impl Reader {
     fn new(
         runtime: &RuntimeHandle,
-        selection: Option<v1::CapturedRecordSelection>,
+        selection: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>,
         after: Option<Cursor>,
         through: Option<Cursor>,
         bytes: usize,
@@ -108,7 +108,7 @@ impl Reader {
     }
     async fn page(&mut self) -> Result<Page, Status> {
         let mut scanned = self.scanned;
-        let mut page = v1::RecordPage {
+        let mut page = dokime_domain::model::evidence::wire::RecordPage {
             records: Vec::with_capacity(RECORD_LIMIT),
             scanned: Some(self.cursor(scanned)),
             through: Some(self.cursor(self.through)),
@@ -186,7 +186,7 @@ impl Operation for List {
         _: Self::Context<'a>,
         request: &mut v1::ListRecords,
         _: &mut (),
-    ) -> Result<Response<v1::RecordPage>, Status> {
+    ) -> Result<Response<dokime_domain::model::evidence::wire::RecordPage>, Status> {
         if request.after.is_some() != request.through.is_some() {
             return Err(Status::invalid_argument(
                 "pagination requires both after and through cursors",
@@ -207,7 +207,7 @@ impl Operation for Watch {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<v1::RecordPage>;
+    type Endpoints = StreamOutput<dokime_domain::model::evidence::wire::RecordPage>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,

@@ -64,7 +64,7 @@ impl Operation for Read {
         _: Self::Context<'a>,
         request: &mut wire::ReadExecutionFile,
         _: &mut (),
-    ) -> Result<Response<wire::ExecutionFileWindow>, Status> {
+    ) -> Result<Response<dokime_domain::model::content::wire::ExecutionFileWindow>, Status> {
         let runtime = &self.resources.runtime;
         let message_limit = self.resources.maximum;
         let (id, _) = execution(runtime, &request.execution_id)?;

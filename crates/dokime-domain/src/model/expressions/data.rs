@@ -16,7 +16,8 @@
 
 // Third Party Imports
 use harmos::Aggregate;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use crate::model::values::Value;
 use crate::model::expressions::Expression;

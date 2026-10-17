@@ -71,11 +71,11 @@ pub(crate) async fn run(args: Args) -> crate::Result<()> {
 }
 
 pub(super) fn print(
-    receipt: &dokime_domain::operations::execution::RunRequestReceipt,
+    receipt: &dokime_domain::model::execution::wire::RunRequestReceipt,
     json: bool,
 ) -> crate::Result<()> {
     let phase = receipt.phase;
-    if phase == dokime_domain::operations::execution::RunRequestPhase::Unspecified {
+    if phase == dokime_domain::model::execution::wire::RunRequestPhase::Unspecified {
         return Err(crate::Error::Setup("invalid native request phase".into()));
     }
     if json {

@@ -28,7 +28,7 @@ use crate::diagnostics_assembly::DiagnosticsSnapshot;
 use dokime_runtime::RuntimeHandle;
 use dokime_runtime::domains::exports::storage::DiagnosticPathKey;
 use dokime_domain::operations::backend as wire;
-use dokime_domain::operations::common::Timestamp;
+use dokime_domain::model::identity::wire::Timestamp;
 
 /* === Constants === */
 
@@ -39,7 +39,7 @@ use dokime_domain::operations::common::Timestamp;
 /* === Structs === */
 struct Collector<'a> {
     runtime: &'a RuntimeHandle,
-    identity: &'a wire::BackendIdentity,
+    identity: &'a dokime_domain::model::backend::wire::BackendIdentity,
 }
 /* === Enums === */
 
@@ -47,9 +47,9 @@ struct Collector<'a> {
 
 /* === Implementations === */
 impl Collector<'_> {
-    async fn health(&self) -> Result<wire::BackendHealth, Status> {
+    async fn health(&self) -> Result<dokime_domain::model::backend::wire::BackendHealth, Status> {
         use dokime_domain::operations::runtime::GetHealth;
-        use dokime_domain::operations::runtime::Readiness;
+        use dokime_domain::model::runtime::wire::Readiness;
         let instance = self
             .runtime
             .operations()
@@ -58,14 +58,14 @@ impl Collector<'_> {
         let health = harmos::grpc::response(instance)
             .await
             .map_err(|_| Status::unavailable("runtime health is unavailable"))?;
-        Ok(wire::BackendHealth {
+        Ok(dokime_domain::model::backend::wire::BackendHealth {
             backend_id: health.backend_id.clone(),
             epoch: health.epoch.clone(),
             readiness: match health.readiness {
-                Readiness::Starting => wire::Readiness::Starting,
-                Readiness::Ready => wire::Readiness::Ready,
-                Readiness::Degraded => wire::Readiness::Degraded,
-                Readiness::Stopping => wire::Readiness::Stopping,
+                Readiness::Starting => dokime_domain::model::backend::wire::Readiness::Starting,
+                Readiness::Ready => dokime_domain::model::backend::wire::Readiness::Ready,
+                Readiness::Degraded => dokime_domain::model::backend::wire::Readiness::Degraded,
+                Readiness::Stopping => dokime_domain::model::backend::wire::Readiness::Stopping,
             },
             observed_at: Some(Timestamp {
                 seconds: health.observed_at_seconds,
@@ -147,7 +147,7 @@ impl Collector<'_> {
                 "backend_id": self.identity.backend_id,
                 "epoch": self.identity.epoch,
                 "product_version": self.identity.product_version,
-                "api_version": wire::API_VERSION,
+                "api_version": dokime_domain::model::backend::wire::API_VERSION,
                 "log_tail_ceiling_bytes": log_tail_bytes,
             }),
             generated_at,
@@ -169,7 +169,7 @@ impl Collector<'_> {
 /* === Public Functions === */
 pub(super) async fn collect(
     runtime: &RuntimeHandle,
-    identity: &wire::BackendIdentity,
+    identity: &dokime_domain::model::backend::wire::BackendIdentity,
     log_tail_bytes: u64,
 ) -> Result<bundle::Bundle, Status> {
     Collector { runtime, identity }
@@ -194,7 +194,7 @@ fn encoded<T: serde::Serialize>(value: &T) -> Result<Json, Status> {
         .map_err(|_| Status::internal("diagnostics document could not be encoded"))
 }
 
-fn identity_json(identity: &wire::BackendIdentity) -> Json {
+fn identity_json(identity: &dokime_domain::model::backend::wire::BackendIdentity) -> Json {
     json!({
         "backend_id": identity.backend_id,
         "epoch": identity.epoch,
@@ -210,17 +210,17 @@ fn identity_json(identity: &wire::BackendIdentity) -> Json {
     })
 }
 
-fn health_json(health: &wire::BackendHealth) -> Json {
+fn health_json(health: &dokime_domain::model::backend::wire::BackendHealth) -> Json {
     json!({
         "backend_id": health.backend_id,
         "epoch": health.epoch,
-        "readiness": match health.readiness { wire::Readiness::Unspecified => "READINESS_UNSPECIFIED", wire::Readiness::Starting => "READINESS_STARTING", wire::Readiness::Ready => "READINESS_READY", wire::Readiness::Degraded => "READINESS_DEGRADED", wire::Readiness::Stopping => "READINESS_STOPPING" },
+        "readiness": match health.readiness { dokime_domain::model::backend::wire::Readiness::Unspecified => "READINESS_UNSPECIFIED", dokime_domain::model::backend::wire::Readiness::Starting => "READINESS_STARTING", dokime_domain::model::backend::wire::Readiness::Ready => "READINESS_READY", dokime_domain::model::backend::wire::Readiness::Degraded => "READINESS_DEGRADED", dokime_domain::model::backend::wire::Readiness::Stopping => "READINESS_STOPPING" },
         "observed_at": health.observed_at.as_ref().and_then(|time| time.to_datetime().ok()).and_then(|time| time.format(&time::format_description::well_known::Rfc3339).ok()),
         "message": health.message,
     })
 }
 
-fn process_json(process: &dokime_domain::operations::backend::ProcessDiagnostics) -> Json {
+fn process_json(process: &dokime_domain::model::backend::wire::ProcessDiagnostics) -> Json {
     json!({
         "pid": process.pid,
         "cpu_percent": process.cpu_percent,

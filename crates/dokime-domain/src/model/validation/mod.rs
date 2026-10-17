@@ -11,7 +11,9 @@
 pub mod validation;
 
 /* === Re-Exports === */
-pub use validation::{CompatibilityStatus, ConditionEvaluation, ValidationMode};
+pub use validation::CompatibilityStatus;
+pub use validation::ConditionEvaluation;
+pub use validation::ValidationMode;
 
 /* === Public Functions === */
 

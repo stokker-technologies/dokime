@@ -13,13 +13,13 @@
 
 /* === Imports === */
 // Standard Library Imports
-use std::{
-    cmp::Ordering,
-    fmt,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::cmp::Ordering;
+use std::fmt;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 
 /* === Constants === */

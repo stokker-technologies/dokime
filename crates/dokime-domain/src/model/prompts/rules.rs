@@ -14,7 +14,8 @@
 /* === Imports === */
 // Standard Library Imports
 // Third Party Imports
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 // Local Imports
 use super::PromptDefinition;
 use crate::model::diagnostics::ValidationIssue;

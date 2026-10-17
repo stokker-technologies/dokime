@@ -37,7 +37,7 @@ use dokime_domain::operations::telemetry as wire;
 
 /* === Public Functions === */
 pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status> {
-    let mut bytes = std::mem::size_of::<wire::TelemetrySample>();
+    let mut bytes = std::mem::size_of::<dokime_domain::model::telemetry::wire::TelemetrySample>();
     for text in [
         sample.sample_id.as_str(),
         sample.stream.as_str(),
@@ -60,9 +60,9 @@ pub(in crate::grpc) fn memory(sample: &TelemetrySample) -> Result<usize, Status>
     Ok(bytes)
 }
 
-pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<wire::TelemetrySample, Status> {
+pub(in crate::grpc) fn sample(sample: &TelemetrySample) -> Result<dokime_domain::model::telemetry::wire::TelemetrySample, Status> {
     memory(sample)?;
-    Ok(wire::TelemetrySample {
+    Ok(dokime_domain::model::telemetry::wire::TelemetrySample {
         sample_id: sample.sample_id.to_string(),
         stream: sample.stream.to_string(),
         schema_version: sample.schema_version,

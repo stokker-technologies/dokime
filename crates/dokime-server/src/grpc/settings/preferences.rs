@@ -72,7 +72,7 @@ impl Operation for ReadStoragePolicy {
         _: Self::Context<'a>,
         _: &mut wire::ReadStoragePolicy,
         _: &mut (),
-    ) -> Result<Response<wire::StoragePolicyView>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::StoragePolicyView>, Status> {
         let view = self
             .resources
             .runtime
@@ -99,7 +99,7 @@ impl Operation for UpdateStoragePolicy {
         _: Self::Context<'a>,
         request: &mut wire::UpdateStoragePolicy,
         _: &mut (),
-    ) -> Result<Response<wire::StoragePolicyView>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::StoragePolicyView>, Status> {
         let policy = request
             .policy
             .as_ref()
@@ -136,7 +136,7 @@ impl Operation for ReadApplicationSettings {
         _: Self::Context<'a>,
         _: &mut wire::ReadApplicationSettings,
         _: &mut (),
-    ) -> Result<Response<wire::ApplicationSettings>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
         self.resources
             .application(self.resources.runtime.application_settings())
     }
@@ -158,7 +158,7 @@ impl Operation for UpdateAppearance {
         _: Self::Context<'a>,
         request: &mut wire::UpdateAppearance,
         _: &mut (),
-    ) -> Result<Response<wire::ApplicationSettings>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
         let appearance = request
             .appearance
             .as_ref()
@@ -168,14 +168,14 @@ impl Operation for UpdateAppearance {
         }
         let appearance = dokime_runtime::config::Appearance {
             theme_mode: match appearance.theme_mode {
-                wire::ThemeMode::Unspecified | wire::ThemeMode::System => ThemeMode::System,
-                wire::ThemeMode::Light => ThemeMode::Light,
-                wire::ThemeMode::Dark => ThemeMode::Dark,
+                dokime_domain::model::settings::wire::ThemeMode::Unspecified | dokime_domain::model::settings::wire::ThemeMode::System => ThemeMode::System,
+                dokime_domain::model::settings::wire::ThemeMode::Light => ThemeMode::Light,
+                dokime_domain::model::settings::wire::ThemeMode::Dark => ThemeMode::Dark,
             },
             density: match appearance.density {
-                wire::Density::Unspecified | wire::Density::Comfortable => Density::Comfortable,
-                wire::Density::Compact => Density::Compact,
-                wire::Density::Touch => Density::Touch,
+                dokime_domain::model::settings::wire::Density::Unspecified | dokime_domain::model::settings::wire::Density::Comfortable => Density::Comfortable,
+                dokime_domain::model::settings::wire::Density::Compact => Density::Compact,
+                dokime_domain::model::settings::wire::Density::Touch => Density::Touch,
             },
             theme_family: appearance.theme_family.clone(),
         };
@@ -205,7 +205,7 @@ impl Operation for UpdateDataRoot {
         _: Self::Context<'a>,
         request: &mut wire::UpdateDataRoot,
         _: &mut (),
-    ) -> Result<Response<wire::ApplicationSettings>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
         if let Some(path) = &request.data_root {
             super::super::value::text(path)?;
         }
@@ -236,7 +236,7 @@ impl Operation for UpdateReportDefaults {
         _: Self::Context<'a>,
         request: &mut wire::UpdateReportDefaults,
         _: &mut (),
-    ) -> Result<Response<wire::ApplicationSettings>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
         let report = request
             .report
             .as_ref()
@@ -275,13 +275,13 @@ impl Resources {
     fn policy(
         &self,
         view: dokime_runtime::config::StoragePolicyView,
-    ) -> Result<Response<wire::StoragePolicyView>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::StoragePolicyView>, Status> {
         self.produce(|| {
-            let encode = |p: dokime_runtime::config::StoragePolicy| wire::StoragePolicy {
+            let encode = |p: dokime_runtime::config::StoragePolicy| dokime_domain::model::settings::wire::StoragePolicy {
                 compaction_interval_ms: p.compaction_interval_ms,
                 local_retention_ms: p.local_retention_ms,
             };
-            wire::StoragePolicyView {
+            dokime_domain::model::settings::wire::StoragePolicyView {
                 revision: view.revision,
                 configured: Some(encode(view.configured)),
                 effective: Some(encode(view.effective)),
@@ -292,8 +292,8 @@ impl Resources {
     fn application(
         &self,
         view: dokime_runtime::config::ApplicationSettingsView,
-    ) -> Result<Response<wire::ApplicationSettings>, Status> {
-        let mut required = std::mem::size_of::<wire::ApplicationSettings>().saturating_add(
+    ) -> Result<Response<dokime_domain::model::settings::wire::ApplicationSettings>, Status> {
+        let mut required = std::mem::size_of::<dokime_domain::model::settings::wire::ApplicationSettings>().saturating_add(
             view.appearance
                 .theme_family
                 .as_ref()
@@ -316,21 +316,21 @@ impl Resources {
                 let _ = write!(&mut output, "{}", p.display());
                 output
             };
-            wire::ApplicationSettings {
-                appearance: Some(wire::AppearancePreference {
+            dokime_domain::model::settings::wire::ApplicationSettings {
+                appearance: Some(dokime_domain::model::settings::wire::AppearancePreference {
                     theme_mode: match view.appearance.theme_mode {
-                        ThemeMode::System => wire::ThemeMode::System,
-                        ThemeMode::Light => wire::ThemeMode::Light,
-                        ThemeMode::Dark => wire::ThemeMode::Dark,
+                        ThemeMode::System => dokime_domain::model::settings::wire::ThemeMode::System,
+                        ThemeMode::Light => dokime_domain::model::settings::wire::ThemeMode::Light,
+                        ThemeMode::Dark => dokime_domain::model::settings::wire::ThemeMode::Dark,
                     },
                     density: match view.appearance.density {
-                        Density::Comfortable => wire::Density::Comfortable,
-                        Density::Compact => wire::Density::Compact,
-                        Density::Touch => wire::Density::Touch,
+                        Density::Comfortable => dokime_domain::model::settings::wire::Density::Comfortable,
+                        Density::Compact => dokime_domain::model::settings::wire::Density::Compact,
+                        Density::Touch => dokime_domain::model::settings::wire::Density::Touch,
                     },
                     theme_family: view.appearance.theme_family,
                 }),
-                report: Some(wire::ReportPreference {
+                report: Some(dokime_domain::model::settings::wire::ReportPreference {
                     plot_points: view.report.plot_points,
                     plot_downsample: view.report.plot_downsample,
                 }),

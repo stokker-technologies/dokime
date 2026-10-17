@@ -70,14 +70,14 @@ impl Operation for Get {
         _: Self::Context<'a>,
         request: &mut contract::GetCheckpointEvidence,
         _: &mut (),
-    ) -> Result<Response<contract::CheckpointEvidence>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointEvidence>, Status> {
         let checkpoint = wire::checkpoint(request.checkpoint.take())?;
         let sections = sections(std::mem::take(&mut request.sections))?;
         let maximum = self.resources.maximum;
         let only_outputs = sections.iter().all(|section| {
             matches!(
                 section,
-                contract::EvidenceSection::Outputs | contract::EvidenceSection::Artifacts
+                dokime_domain::model::history::wire::EvidenceSection::Outputs | dokime_domain::model::history::wire::EvidenceSection::Artifacts
             )
         });
         let runtime = &self.resources.runtime;
@@ -116,21 +116,21 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
 
 /* === Private Functions === */
 fn sections(
-    values: Vec<contract::EvidenceSection>,
-) -> Result<Vec<contract::EvidenceSection>, Status> {
+    values: Vec<dokime_domain::model::history::wire::EvidenceSection>,
+) -> Result<Vec<dokime_domain::model::history::wire::EvidenceSection>, Status> {
     if values.is_empty() {
         return Ok(vec![
-            contract::EvidenceSection::Outputs,
-            contract::EvidenceSection::Artifacts,
-            contract::EvidenceSection::RecordSchemas,
-            contract::EvidenceSection::TelemetryTables,
+            dokime_domain::model::history::wire::EvidenceSection::Outputs,
+            dokime_domain::model::history::wire::EvidenceSection::Artifacts,
+            dokime_domain::model::history::wire::EvidenceSection::RecordSchemas,
+            dokime_domain::model::history::wire::EvidenceSection::TelemetryTables,
         ]);
     }
     value::collection(values.len())?;
     let mut selected = Vec::new();
     for raw in values {
         let section = raw;
-        if section == contract::EvidenceSection::Unspecified {
+        if section == dokime_domain::model::history::wire::EvidenceSection::Unspecified {
             return Err(Status::invalid_argument(
                 "evidence section must be explicitly selected",
             ));
@@ -145,15 +145,15 @@ fn sections(
 fn checkpoint_outputs(
     checkpoint: &ExecutionCheckpoint,
     outputs: &[dokime_runtime::execution::saved::ExecutionOutput],
-    sections: &[contract::EvidenceSection],
-) -> Result<contract::CheckpointEvidence, Status> {
-    let files = if sections.contains(&contract::EvidenceSection::Outputs) {
+    sections: &[dokime_domain::model::history::wire::EvidenceSection],
+) -> Result<dokime_domain::model::history::wire::CheckpointEvidence, Status> {
+    let files = if sections.contains(&dokime_domain::model::history::wire::EvidenceSection::Outputs) {
         collect(outputs.iter().map(|output| {
             let kind = dokime_runtime::ExecutionFileContentKind::from_metadata(
                 &output.relative_path,
                 Some(&output.file.metadata.media_type),
             );
-            Ok(content_wire::ExecutionFileMetadata {
+            Ok(dokime_domain::model::content::wire::ExecutionFileMetadata {
                 relative_path: value::projection::text(&output.relative_path)
                     .map_err(status_failure)?,
                 content_type: Some(
@@ -163,12 +163,12 @@ fn checkpoint_outputs(
                 kind: content::files::kind(&kind),
                 state: match output.stream_state {
                     Some(dokime_runtime::execution::saved::SavedStreamState::Finalized) => {
-                        content_wire::ExecutionFileState::Finalized
+                        dokime_domain::model::content::wire::ExecutionFileState::Finalized
                     }
                     Some(dokime_runtime::execution::saved::SavedStreamState::Interrupted) => {
-                        content_wire::ExecutionFileState::Interrupted
+                        dokime_domain::model::content::wire::ExecutionFileState::Interrupted
                     }
-                    None => content_wire::ExecutionFileState::Streaming,
+                    None => dokime_domain::model::content::wire::ExecutionFileState::Streaming,
                 },
                 size_bytes: output.file.length,
                 created_at: Some(canonical::timestamp(&output.created_at)?),
@@ -177,7 +177,7 @@ fn checkpoint_outputs(
     } else {
         Vec::new()
     };
-    let count = if sections.contains(&contract::EvidenceSection::Artifacts) {
+    let count = if sections.contains(&dokime_domain::model::history::wire::EvidenceSection::Artifacts) {
         outputs
             .iter()
             .filter(|output| {
@@ -201,7 +201,7 @@ fn checkpoint_outputs(
             artifacts.push(super::super::content::metadata(record)?);
         }
     }
-    Ok(contract::CheckpointEvidence {
+    Ok(dokime_domain::model::history::wire::CheckpointEvidence {
         checkpoint: Some(wire::checkpoint_wire_ref(checkpoint)?),
         outputs: files,
         artifacts,
@@ -212,10 +212,10 @@ fn checkpoint_outputs(
 
 fn checkpoint_evidence(
     value: ExecutionCheckpointEvidence,
-    sections: &[contract::EvidenceSection],
-) -> Result<contract::CheckpointEvidence, Status> {
+    sections: &[dokime_domain::model::history::wire::EvidenceSection],
+) -> Result<dokime_domain::model::history::wire::CheckpointEvidence, Status> {
     let selected = |section| sections.contains(&section);
-    let outputs = if selected(contract::EvidenceSection::Outputs) {
+    let outputs = if selected(dokime_domain::model::history::wire::EvidenceSection::Outputs) {
         value
             .outputs
             .into_iter()
@@ -224,7 +224,7 @@ fn checkpoint_evidence(
     } else {
         Vec::new()
     };
-    let artifacts = if selected(contract::EvidenceSection::Artifacts) {
+    let artifacts = if selected(dokime_domain::model::history::wire::EvidenceSection::Artifacts) {
         value
             .artifacts
             .iter()
@@ -233,7 +233,7 @@ fn checkpoint_evidence(
     } else {
         Vec::new()
     };
-    let record_schemas = if selected(contract::EvidenceSection::RecordSchemas) {
+    let record_schemas = if selected(dokime_domain::model::history::wire::EvidenceSection::RecordSchemas) {
         value
             .record_contracts
             .iter()
@@ -242,12 +242,12 @@ fn checkpoint_evidence(
     } else {
         Vec::new()
     };
-    let telemetry_tables = if selected(contract::EvidenceSection::TelemetryTables) {
+    let telemetry_tables = if selected(dokime_domain::model::history::wire::EvidenceSection::TelemetryTables) {
         value
             .telemetry
             .iter()
             .map(|item| {
-                Ok(contract::CheckpointTelemetryTable {
+                Ok(dokime_domain::model::history::wire::CheckpointTelemetryTable {
                     table: item.table.clone(),
                     schema: Some(catalog::schemas::telemetry(&item.contract)?),
                 })
@@ -256,7 +256,7 @@ fn checkpoint_evidence(
     } else {
         Vec::new()
     };
-    Ok(contract::CheckpointEvidence {
+    Ok(dokime_domain::model::history::wire::CheckpointEvidence {
         checkpoint: Some(wire::checkpoint_wire(value.checkpoint)?),
         outputs,
         artifacts,
@@ -267,31 +267,31 @@ fn checkpoint_evidence(
 
 fn file(
     value: dokime_runtime::ExecutionFileEntry,
-) -> Result<content_wire::ExecutionFileMetadata, Status> {
+) -> Result<dokime_domain::model::content::wire::ExecutionFileMetadata, Status> {
     value::text(&value.relative_path)?;
     if let Some(content_type) = &value.content_type {
         value::text(content_type)?;
     }
-    Ok(content_wire::ExecutionFileMetadata {
+    Ok(dokime_domain::model::content::wire::ExecutionFileMetadata {
         relative_path: value.relative_path,
         content_type: value.content_type,
         kind: match value.content_kind {
-            dokime_runtime::ExecutionFileContentKind::Text => content_wire::ExecutionFileKind::Text,
-            dokime_runtime::ExecutionFileContentKind::Binary => content_wire::ExecutionFileKind::Binary,
-            dokime_runtime::ExecutionFileContentKind::Media => content_wire::ExecutionFileKind::Media,
+            dokime_runtime::ExecutionFileContentKind::Text => dokime_domain::model::content::wire::ExecutionFileKind::Text,
+            dokime_runtime::ExecutionFileContentKind::Binary => dokime_domain::model::content::wire::ExecutionFileKind::Binary,
+            dokime_runtime::ExecutionFileContentKind::Media => dokime_domain::model::content::wire::ExecutionFileKind::Media,
             dokime_runtime::ExecutionFileContentKind::Unknown => {
-                content_wire::ExecutionFileKind::Unknown
+                dokime_domain::model::content::wire::ExecutionFileKind::Unknown
             }
         },
         state: match value.stream_state {
             dokime_runtime::ExecutionFileStreamState::Streaming => {
-                content_wire::ExecutionFileState::Streaming
+                dokime_domain::model::content::wire::ExecutionFileState::Streaming
             }
             dokime_runtime::ExecutionFileStreamState::Finalized => {
-                content_wire::ExecutionFileState::Finalized
+                dokime_domain::model::content::wire::ExecutionFileState::Finalized
             }
             dokime_runtime::ExecutionFileStreamState::Interrupted => {
-                content_wire::ExecutionFileState::Interrupted
+                dokime_domain::model::content::wire::ExecutionFileState::Interrupted
             }
         },
         size_bytes: value.size_bytes,

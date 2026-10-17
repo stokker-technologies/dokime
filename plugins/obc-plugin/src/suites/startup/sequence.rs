@@ -26,10 +26,12 @@ use dokime_runtime::document::{self, PlotDefinition, PlotStyle};
 use dokime_runtime::expressions::telemetry;
 use dokime_runtime::harmos::operations::Host;
 use dokime_runtime::host::ToolConnectionAcquired;
-use dokime_runtime::operations::files::{
-    FileWatchPolicy, FileWatchSource, FileWatchSourcePayload, LineMatcher, LocalWatchSource,
-    WatchFile, WatchFile,
-};
+use dokime_domain::model::files::wire::FileWatchPolicy;
+use dokime_domain::model::files::wire::FileWatchSource;
+use dokime_domain::model::files::wire::FileWatchSourcePayload;
+use dokime_domain::model::files::wire::LineMatcher;
+use dokime_domain::model::files::wire::LocalWatchSource;
+use dokime_runtime::operations::files::WatchFile;
 use dokime_runtime::prelude::*;
 use obc_runtime::device::{Device, Power};
 

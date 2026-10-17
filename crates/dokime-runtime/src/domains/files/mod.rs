@@ -21,9 +21,9 @@ mod source;
 mod watch;
 
 /* === Re-Exports === */
-pub use dokime_domain::operations::files::FileWatchGapReason as GapReason;
-pub use dokime_domain::operations::files::FileWatchPhase as Phase;
-pub use dokime_domain::operations::files::FileWatchPolicy as Policy;
+pub use dokime_domain::model::files::wire::FileWatchGapReason as GapReason;
+pub use dokime_domain::model::files::wire::FileWatchPhase as Phase;
+pub use dokime_domain::model::files::wire::FileWatchPolicy as Policy;
 pub use operation::{Resources as StepBuiltins, register};
 pub use watch::{FileWatch, WatchEvent};
 
@@ -40,11 +40,11 @@ use dokime_domain::model::execution::RecordScope;
 use dokime_domain::model::identity::TestExecutionId;
 use crate::files::{FileMatcher, LineMatchers};
 use dokime_domain::model::artifacts::name;
-use dokime_domain::operations::files::FileRule;
-use dokime_domain::operations::files::FileRuleAction;
+use dokime_domain::model::files::wire::FileRule;
+use dokime_domain::model::files::wire::FileRuleAction;
 use dokime_domain::operations::files::FileWatch;
-use dokime_domain::operations::files::FileWatchSource;
-use dokime_domain::operations::files::FileWatchSourcePayload;
+use dokime_domain::model::files::wire::FileWatchSource;
+use dokime_domain::model::files::wire::FileWatchSourcePayload;
 use dokime_domain::operations::files::WatchFile;
 use source::Source;
 
@@ -333,7 +333,7 @@ fn single_file(source: Option<&FileWatchSource>) -> Result<(FileWatchSource, Str
             Ok((
                 FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Local(
-                        dokime_domain::operations::files::LocalWatchSource {
+                        dokime_domain::model::files::wire::LocalWatchSource {
                             root: parent.to_owned(),
                         },
                     )),
@@ -347,7 +347,7 @@ fn single_file(source: Option<&FileWatchSource>) -> Result<(FileWatchSource, Str
             Ok((
                 FileWatchSource {
                     payload: Some(FileWatchSourcePayload::Ftp(
-                        dokime_domain::operations::files::FtpWatchSource {
+                        dokime_domain::model::files::wire::FtpWatchSource {
                             url: parent,
                             credential_id: ftp.credential_id.clone(),
                         },

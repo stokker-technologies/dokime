@@ -41,7 +41,7 @@ use dokime_runtime::runtime::query::{
     case_projection, case_tally, cycle_page, historical_case_projection, select_cycles,
 };
 use dokime_runtime::{runtime::Error, RuntimeHandle};
-use dokime_domain::operations::cursor::Cursor;
+use dokime_domain::model::execution::wire_cursor::Cursor;
 use dokime_domain::operations::execution as wire;
 
 /* === Constants === */
@@ -124,7 +124,7 @@ impl Operation for GetCase {
         _: Self::Context<'a>,
         request: &mut wire::GetCase,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::CaseDetail>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::CaseDetail>, Status> {
         detail::get_case(&self.resources, request).map(Into::into)
     }
 }
@@ -146,7 +146,7 @@ impl Operation for GetExecution {
         _: Self::Context<'a>,
         request: &mut wire::GetExecution,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ExecutionDetail>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ExecutionDetail>, Status> {
         detail::get_execution(&self.resources, request).map(Into::into)
     }
 }
@@ -168,7 +168,7 @@ impl Operation for ListCaseParameters {
         _: Self::Context<'a>,
         request: &mut wire::ListCaseParameters,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ListCaseParametersReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListCaseParametersReply>, Status> {
         detail::list_case_parameters(&self.resources, request).map(Into::into)
     }
 }
@@ -190,7 +190,7 @@ impl Operation for ListExecutionParameters {
         _: Self::Context<'a>,
         request: &mut wire::ListExecutionParameters,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ListMaterializedParametersReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListMaterializedParametersReply>, Status> {
         detail::list_execution_parameters(&self.resources, request).map(Into::into)
     }
 }
@@ -212,7 +212,7 @@ impl Operation for ListExecutionSteps {
         _: Self::Context<'a>,
         request: &mut wire::ListExecutionSteps,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ListExecutionStepsReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListExecutionStepsReply>, Status> {
         steps::list(&self.resources, request).map(Into::into)
     }
 }
@@ -234,7 +234,7 @@ impl Operation for ListStepCriteria {
         _: Self::Context<'a>,
         request: &mut wire::ListStepCriteria,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ListStepCriteriaReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListStepCriteriaReply>, Status> {
         steps::criteria(&self.resources, request).map(Into::into)
     }
 }
@@ -256,7 +256,7 @@ impl Operation for GetCycle {
         _: Self::Context<'a>,
         request: &mut wire::GetCycle,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::CycleSummary>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::CycleSummary>, Status> {
         self.resources.get_cycle(request).map(Into::into)
     }
 }
@@ -278,7 +278,7 @@ impl Operation for ListCycles {
         _: Self::Context<'a>,
         request: &mut wire::ListCycles,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ListCyclesReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListCyclesReply>, Status> {
         self.resources.list_cycles(request).map(Into::into)
     }
 }
@@ -300,7 +300,7 @@ impl Operation for ListCases {
         _: Self::Context<'a>,
         request: &mut wire::ListCases,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ListCasesReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListCasesReply>, Status> {
         self.resources.list_cases(request).map(Into::into)
     }
 }
@@ -322,13 +322,13 @@ impl Operation for ListExecutions {
         _: Self::Context<'a>,
         request: &mut wire::ListExecutions,
         _: &mut (),
-    ) -> Result<harmos::operations::Response<wire::ListExecutionsReply>, Status> {
+    ) -> Result<harmos::operations::Response<dokime_domain::model::execution::wire::ListExecutionsReply>, Status> {
         self.resources.list_executions(request).map(Into::into)
     }
 }
 
 impl Resources {
-    fn get_cycle(&self, request: &wire::GetCycle) -> Result<wire::CycleSummary, Status> {
+    fn get_cycle(&self, request: &wire::GetCycle) -> Result<dokime_domain::model::execution::wire::CycleSummary, Status> {
         let id = cycle_id(&request.cycle_id)?;
         let snapshot = self.runtime.watch_state().latest();
         let cycle = snapshot
@@ -349,7 +349,7 @@ impl Resources {
     fn list_cycles(
         &self,
         request: &wire::ListCycles,
-    ) -> Result<wire::ListCyclesReply, Status> {
+    ) -> Result<dokime_domain::model::execution::wire::ListCyclesReply, Status> {
         let snapshot = self.runtime.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
         let limit = cursor
@@ -373,7 +373,7 @@ impl Resources {
                 CyclePageError::UnknownContinuation => Status::invalid_argument(error.to_string()),
             })?;
         let mut bounds = detail::Bounds::new(self.max_message_bytes);
-        bounds.bytes(std::mem::size_of::<wire::ListCyclesReply>())?;
+        bounds.bytes(std::mem::size_of::<dokime_domain::model::execution::wire::ListCyclesReply>())?;
         if let Some(after) = &next_after_cycle_id {
             bounds.text(after)?;
         }
@@ -388,7 +388,7 @@ impl Resources {
         }
         inspection_reply(
             self,
-            wire::ListCyclesReply {
+            dokime_domain::model::execution::wire::ListCyclesReply {
                 cycles,
                 next_after_cycle_id,
                 cursor: Some(cursor),
@@ -396,7 +396,7 @@ impl Resources {
         )
     }
 
-    fn list_cases(&self, request: &wire::ListCases) -> Result<wire::ListCasesReply, Status> {
+    fn list_cases(&self, request: &wire::ListCases) -> Result<dokime_domain::model::execution::wire::ListCasesReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
         let snapshot = self.runtime.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
@@ -426,7 +426,7 @@ impl Resources {
     fn list_executions(
         &self,
         request: &wire::ListExecutions,
-    ) -> Result<wire::ListExecutionsReply, Status> {
+    ) -> Result<dokime_domain::model::execution::wire::ListExecutionsReply, Status> {
         let id = cycle_id(&request.cycle_id)?;
         let snapshot = self.runtime.watch_state().latest();
         let cursor = canonical::cursor(&snapshot);
@@ -515,25 +515,25 @@ pub(super) fn summary(
     cycle: &dokime_runtime::execution::TestCycle,
     cursor: Cursor,
     bounds: &mut detail::Bounds,
-) -> Result<wire::CycleSummary, Status> {
-    bounds.bytes(std::mem::size_of::<wire::CycleSummary>())?;
+) -> Result<dokime_domain::model::execution::wire::CycleSummary, Status> {
+    bounds.bytes(std::mem::size_of::<dokime_domain::model::execution::wire::CycleSummary>())?;
     bounds.text(cycle.test_cycle_id.as_str())?;
     bounds.text(&cursor.epoch)?;
     bounds.text(&cursor.stream)?;
     bounds.bytes(canonical::metadata_memory(&cycle.metadata)?)?;
     let tally = case_tally(state, cycle);
-    Ok(wire::CycleSummary {
+    Ok(dokime_domain::model::execution::wire::CycleSummary {
         cycle_id: cycle.test_cycle_id.to_string(),
         metadata: Some(canonical::metadata(&cycle.metadata)?),
         status: match cycle.lifecycle {
-            CycleStatus::Ready => wire::CycleStatus::Ready,
-            CycleStatus::Running => wire::CycleStatus::Running,
-            CycleStatus::Paused => wire::CycleStatus::Paused,
-            CycleStatus::Stopping => wire::CycleStatus::Stopping,
-            CycleStatus::Completed => wire::CycleStatus::Completed,
-            CycleStatus::Failed => wire::CycleStatus::Failed,
-            CycleStatus::Blocked => wire::CycleStatus::Blocked,
-            CycleStatus::Stopped => wire::CycleStatus::Stopped,
+            CycleStatus::Ready => dokime_domain::model::execution::wire::CycleStatus::Ready,
+            CycleStatus::Running => dokime_domain::model::execution::wire::CycleStatus::Running,
+            CycleStatus::Paused => dokime_domain::model::execution::wire::CycleStatus::Paused,
+            CycleStatus::Stopping => dokime_domain::model::execution::wire::CycleStatus::Stopping,
+            CycleStatus::Completed => dokime_domain::model::execution::wire::CycleStatus::Completed,
+            CycleStatus::Failed => dokime_domain::model::execution::wire::CycleStatus::Failed,
+            CycleStatus::Blocked => dokime_domain::model::execution::wire::CycleStatus::Blocked,
+            CycleStatus::Stopped => dokime_domain::model::execution::wire::CycleStatus::Stopped,
         },
         archived: state.archived_cycles.contains(&cycle.test_cycle_id),
         sealed: cycle.saved.is_some(),
@@ -559,8 +559,8 @@ pub(super) fn case_summary(
     ordinal: usize,
     projection: CaseProjection,
     bounds: &mut detail::Bounds,
-) -> Result<wire::CaseSummary, Status> {
-    bounds.bytes(std::mem::size_of::<wire::CaseSummary>())?;
+) -> Result<dokime_domain::model::execution::wire::CaseSummary, Status> {
+    bounds.bytes(std::mem::size_of::<dokime_domain::model::execution::wire::CaseSummary>())?;
     bounds.text(&case.suite_id)?;
     bounds.text(case.test_case_id.as_str())?;
     bounds.text(case.test_case_template_id.as_str())?;
@@ -579,7 +579,7 @@ pub(super) fn case_summary(
     for reason in &projection.actions.unavailable_reasons {
         bounds.text(reason)?;
     }
-    Ok(wire::CaseSummary {
+    Ok(dokime_domain::model::execution::wire::CaseSummary {
         suite_id: case.suite_id.clone(),
         case_id: case.test_case_id.as_str().to_owned(),
         template_id: case.test_case_template_id.as_str().to_owned(),
@@ -587,7 +587,7 @@ pub(super) fn case_summary(
         ordinal: ordinal as u64,
         status: projection
             .status
-            .map_or(wire::CaseStatus::Unspecified, case_status),
+            .map_or(dokime_domain::model::execution::wire::CaseStatus::Unspecified, case_status),
         latest_execution_id: projection
             .latest_execution_id
             .as_ref()
@@ -598,7 +598,7 @@ pub(super) fn case_summary(
             .map(execution_status),
         attempt_count: projection.attempt_count,
         rerun_scheduled: projection.rerun_scheduled,
-        actions: Some(wire::CaseActions {
+        actions: Some(dokime_domain::model::execution::wire::CaseActions {
             run: projection.actions.run,
             schedule_rerun: projection.actions.schedule_rerun,
             delete: projection.actions.delete,
@@ -612,7 +612,7 @@ pub(super) fn historical_case_summary(
     case: &TestCase,
     ordinal: usize,
     bounds: &mut detail::Bounds,
-) -> Result<wire::CaseSummary, Status> {
+) -> Result<dokime_domain::model::execution::wire::CaseSummary, Status> {
     case_summary(
         case,
         ordinal,
@@ -631,36 +631,36 @@ fn inspection_reply<T: harmos::Protobuf>(service: &Resources, value: T) -> Resul
     Ok(value)
 }
 
-fn case_status(status: CaseStatus) -> wire::CaseStatus {
+fn case_status(status: CaseStatus) -> dokime_domain::model::execution::wire::CaseStatus {
     match status {
-        CaseStatus::Skipped => wire::CaseStatus::Skipped,
-        CaseStatus::Invalidated => wire::CaseStatus::Invalidated,
-        CaseStatus::Planned => wire::CaseStatus::Planned,
-        CaseStatus::Queued => wire::CaseStatus::Queued,
-        CaseStatus::Running => wire::CaseStatus::Running,
-        CaseStatus::Passed => wire::CaseStatus::Passed,
-        CaseStatus::Failed => wire::CaseStatus::Failed,
-        CaseStatus::Blocked => wire::CaseStatus::Blocked,
-        CaseStatus::Cancelled => wire::CaseStatus::Cancelled,
-        CaseStatus::Interrupted => wire::CaseStatus::Interrupted,
+        CaseStatus::Skipped => dokime_domain::model::execution::wire::CaseStatus::Skipped,
+        CaseStatus::Invalidated => dokime_domain::model::execution::wire::CaseStatus::Invalidated,
+        CaseStatus::Planned => dokime_domain::model::execution::wire::CaseStatus::Planned,
+        CaseStatus::Queued => dokime_domain::model::execution::wire::CaseStatus::Queued,
+        CaseStatus::Running => dokime_domain::model::execution::wire::CaseStatus::Running,
+        CaseStatus::Passed => dokime_domain::model::execution::wire::CaseStatus::Passed,
+        CaseStatus::Failed => dokime_domain::model::execution::wire::CaseStatus::Failed,
+        CaseStatus::Blocked => dokime_domain::model::execution::wire::CaseStatus::Blocked,
+        CaseStatus::Cancelled => dokime_domain::model::execution::wire::CaseStatus::Cancelled,
+        CaseStatus::Interrupted => dokime_domain::model::execution::wire::CaseStatus::Interrupted,
     }
 }
 
-pub(super) fn execution_status(status: &ExecutionStatus) -> wire::ExecutionStatus {
+pub(super) fn execution_status(status: &ExecutionStatus) -> dokime_domain::model::execution::wire::ExecutionStatus {
     match status {
-        ExecutionStatus::Invalidated => wire::ExecutionStatus::Invalidated,
-        ExecutionStatus::Skipped => wire::ExecutionStatus::Skipped,
-        ExecutionStatus::Pending => wire::ExecutionStatus::Pending,
-        ExecutionStatus::Running => wire::ExecutionStatus::Running,
-        ExecutionStatus::Passed => wire::ExecutionStatus::Passed,
-        ExecutionStatus::Failed => wire::ExecutionStatus::Failed,
-        ExecutionStatus::Blocked => wire::ExecutionStatus::Blocked,
-        ExecutionStatus::Cancelled => wire::ExecutionStatus::Cancelled,
-        ExecutionStatus::Interrupted => wire::ExecutionStatus::Interrupted,
+        ExecutionStatus::Invalidated => dokime_domain::model::execution::wire::ExecutionStatus::Invalidated,
+        ExecutionStatus::Skipped => dokime_domain::model::execution::wire::ExecutionStatus::Skipped,
+        ExecutionStatus::Pending => dokime_domain::model::execution::wire::ExecutionStatus::Pending,
+        ExecutionStatus::Running => dokime_domain::model::execution::wire::ExecutionStatus::Running,
+        ExecutionStatus::Passed => dokime_domain::model::execution::wire::ExecutionStatus::Passed,
+        ExecutionStatus::Failed => dokime_domain::model::execution::wire::ExecutionStatus::Failed,
+        ExecutionStatus::Blocked => dokime_domain::model::execution::wire::ExecutionStatus::Blocked,
+        ExecutionStatus::Cancelled => dokime_domain::model::execution::wire::ExecutionStatus::Cancelled,
+        ExecutionStatus::Interrupted => dokime_domain::model::execution::wire::ExecutionStatus::Interrupted,
     }
 }
 
-fn cycle_filter(filter: Option<&wire::CycleFilter>) -> Result<CycleFilter, Status> {
+fn cycle_filter(filter: Option<&dokime_domain::model::execution::wire::CycleFilter>) -> Result<CycleFilter, Status> {
     let Some(filter) = filter else {
         return Ok(CycleFilter::default());
     };
@@ -686,16 +686,16 @@ fn cycle_filter(filter: Option<&wire::CycleFilter>) -> Result<CycleFilter, Statu
     })
 }
 
-fn cycle_order(order: Option<&wire::CycleOrder>) -> CycleOrder {
+fn cycle_order(order: Option<&dokime_domain::model::execution::wire::CycleOrder>) -> CycleOrder {
     let Some(order) = order else {
         return CycleOrder::default();
     };
     let key = match order.key {
-        wire::CycleOrderKey::Unspecified | wire::CycleOrderKey::UpdatedAt => {
+        dokime_domain::model::execution::wire::CycleOrderKey::Unspecified | dokime_domain::model::execution::wire::CycleOrderKey::UpdatedAt => {
             CycleOrderKey::UpdatedAt
         }
-        wire::CycleOrderKey::CreatedAt => CycleOrderKey::CreatedAt,
-        wire::CycleOrderKey::Label => CycleOrderKey::Label,
+        dokime_domain::model::execution::wire::CycleOrderKey::CreatedAt => CycleOrderKey::CreatedAt,
+        dokime_domain::model::execution::wire::CycleOrderKey::Label => CycleOrderKey::Label,
     };
     CycleOrder {
         key,
@@ -705,27 +705,27 @@ fn cycle_order(order: Option<&wire::CycleOrder>) -> CycleOrder {
 
 /// The archive selection a list request asks for; absent lists unarchived rows.
 pub(super) fn archive_scope(
-    scope: Option<wire::ArchiveScope>,
+    scope: Option<dokime_domain::model::execution::wire::ArchiveScope>,
 ) -> dokime_runtime::runtime::query::executions::ArchiveScope {
     use dokime_runtime::runtime::query::executions::ArchiveScope;
     match scope {
-        None | Some(wire::ArchiveScope::Unarchived) => ArchiveScope::Unarchived,
-        Some(wire::ArchiveScope::Archived) => ArchiveScope::Archived,
-        Some(wire::ArchiveScope::All) => ArchiveScope::All,
+        None | Some(dokime_domain::model::execution::wire::ArchiveScope::Unarchived) => ArchiveScope::Unarchived,
+        Some(dokime_domain::model::execution::wire::ArchiveScope::Archived) => ArchiveScope::Archived,
+        Some(dokime_domain::model::execution::wire::ArchiveScope::All) => ArchiveScope::All,
     }
 }
 
-fn cycle_status(status: wire::CycleStatus) -> Result<CycleStatus, Status> {
+fn cycle_status(status: dokime_domain::model::execution::wire::CycleStatus) -> Result<CycleStatus, Status> {
     match status {
-        wire::CycleStatus::Unspecified => Err(Status::invalid_argument("unspecified cycle status")),
-        wire::CycleStatus::Ready => Ok(CycleStatus::Ready),
-        wire::CycleStatus::Running => Ok(CycleStatus::Running),
-        wire::CycleStatus::Paused => Ok(CycleStatus::Paused),
-        wire::CycleStatus::Stopping => Ok(CycleStatus::Stopping),
-        wire::CycleStatus::Completed => Ok(CycleStatus::Completed),
-        wire::CycleStatus::Failed => Ok(CycleStatus::Failed),
-        wire::CycleStatus::Blocked => Ok(CycleStatus::Blocked),
-        wire::CycleStatus::Stopped => Ok(CycleStatus::Stopped),
+        dokime_domain::model::execution::wire::CycleStatus::Unspecified => Err(Status::invalid_argument("unspecified cycle status")),
+        dokime_domain::model::execution::wire::CycleStatus::Ready => Ok(CycleStatus::Ready),
+        dokime_domain::model::execution::wire::CycleStatus::Running => Ok(CycleStatus::Running),
+        dokime_domain::model::execution::wire::CycleStatus::Paused => Ok(CycleStatus::Paused),
+        dokime_domain::model::execution::wire::CycleStatus::Stopping => Ok(CycleStatus::Stopping),
+        dokime_domain::model::execution::wire::CycleStatus::Completed => Ok(CycleStatus::Completed),
+        dokime_domain::model::execution::wire::CycleStatus::Failed => Ok(CycleStatus::Failed),
+        dokime_domain::model::execution::wire::CycleStatus::Blocked => Ok(CycleStatus::Blocked),
+        dokime_domain::model::execution::wire::CycleStatus::Stopped => Ok(CycleStatus::Stopped),
     }
 }
 
@@ -750,14 +750,14 @@ fn rejection(
     code: String,
     message: String,
     validation_issues: Vec<ValidationIssue>,
-) -> dokime_domain::operations::execution::Rejection {
-    dokime_domain::operations::execution::Rejection {
+) -> dokime_domain::model::execution::wire::Rejection {
+    dokime_domain::model::execution::wire::Rejection {
         code,
         message,
         issues: validation_issues
             .into_iter()
             .map(
-                |issue| dokime_domain::operations::execution::ValidationIssue {
+                |issue| dokime_domain::model::execution::wire::ValidationIssue {
                     path: issue.path,
                     message: issue.message,
                     expected: issue.expected,
@@ -774,10 +774,10 @@ fn case_page(
     limit: usize,
     cursor: Cursor,
     bounds: &mut detail::Bounds,
-) -> Result<wire::ListCasesReply, Status> {
+) -> Result<dokime_domain::model::execution::wire::ListCasesReply, Status> {
     let start = after_position(after, cycle.cases().map(|case| case.test_case_id.as_str()))?;
     let count = cycle.cases().count();
-    bounds.bytes(std::mem::size_of::<wire::ListCasesReply>())?;
+    bounds.bytes(std::mem::size_of::<dokime_domain::model::execution::wire::ListCasesReply>())?;
     bounds.text(&cursor.epoch)?;
     bounds.text(&cursor.stream)?;
     let mut cases = canonical::slots(count.saturating_sub(start).min(limit))?;
@@ -798,7 +798,7 @@ fn case_page(
     } else {
         None
     };
-    Ok(wire::ListCasesReply {
+    Ok(dokime_domain::model::execution::wire::ListCasesReply {
         cases,
         next_after_case_id,
         cursor: Some(cursor),
@@ -812,7 +812,7 @@ fn execution_page<'a>(
     limit: usize,
     cursor: Cursor,
     bounds: &mut detail::Bounds,
-) -> Result<wire::ListExecutionsReply, Status> {
+) -> Result<dokime_domain::model::execution::wire::ListExecutionsReply, Status> {
     let start = after_position(
         after,
         members
@@ -820,12 +820,12 @@ fn execution_page<'a>(
             .map(|execution| execution.test_execution_id.as_str()),
     )?;
     let count = members.len();
-    bounds.bytes(std::mem::size_of::<wire::ListExecutionsReply>())?;
+    bounds.bytes(std::mem::size_of::<dokime_domain::model::execution::wire::ListExecutionsReply>())?;
     bounds.text(&cursor.epoch)?;
     bounds.text(&cursor.stream)?;
     let mut executions = canonical::slots(count.saturating_sub(start).min(limit))?;
     for (ordinal, execution) in members.enumerate().skip(start).take(limit) {
-        bounds.bytes(std::mem::size_of::<wire::ExecutionSummary>())?;
+        bounds.bytes(std::mem::size_of::<dokime_domain::model::execution::wire::ExecutionSummary>())?;
         bounds.text(execution.test_execution_id.as_str())?;
         bounds.text(execution.test_case_id.as_str())?;
         executions.push(execution_summary(state, execution, ordinal));
@@ -839,7 +839,7 @@ fn execution_page<'a>(
     } else {
         None
     };
-    Ok(wire::ListExecutionsReply {
+    Ok(dokime_domain::model::execution::wire::ListExecutionsReply {
         executions,
         next_after_execution_id,
         cursor: Some(cursor),
@@ -850,8 +850,8 @@ pub(super) fn execution_summary(
     state: &RuntimeState,
     execution: &dokime_runtime::execution::TestExecution,
     ordinal: usize,
-) -> wire::ExecutionSummary {
-    wire::ExecutionSummary {
+) -> dokime_domain::model::execution::wire::ExecutionSummary {
+    dokime_domain::model::execution::wire::ExecutionSummary {
         archived: state
             .archived_executions
             .contains(&execution.test_execution_id),

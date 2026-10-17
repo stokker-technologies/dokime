@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 use tonic::Status;
 // Local Imports
 use dokime_runtime::records::RecordEntry;
-use dokime_domain::operations::common;
+use dokime_domain::model::identity::wire as common;
 use dokime_domain::operations::evidence as v1;
 
 /* === Constants === */
@@ -33,7 +33,7 @@ pub(super) const MAX_SEVERITIES: usize = 4;
 
 /* === Structs === */
 pub(super) struct Selection {
-    value: v1::CapturedRecordSelection,
+    value: dokime_domain::model::evidence::wire::CapturedRecordSelection,
     pub(super) stream: String,
 }
 
@@ -43,7 +43,7 @@ pub(super) struct Selection {
 
 /* === Implementations === */
 impl Selection {
-    pub(super) fn new(value: Option<v1::CapturedRecordSelection>) -> Result<Self, Status> {
+    pub(super) fn new(value: Option<dokime_domain::model::evidence::wire::CapturedRecordSelection>) -> Result<Self, Status> {
         let mut value = value.unwrap_or_default();
         for items in [&mut value.record_types, &mut value.sources] {
             if items.len() > MAX_ALTERNATIVES {

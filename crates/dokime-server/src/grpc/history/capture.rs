@@ -62,7 +62,7 @@ impl Operation for Get {
         _: Self::Context<'a>,
         request: &mut history::GetCheckpointDocument,
         _: &mut (),
-    ) -> Result<Response<history::CheckpointDocument>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointDocument>, Status> {
         let checkpoint = super::wire::checkpoint(request.checkpoint.take())?;
         let document = self
             .resources
@@ -70,8 +70,8 @@ impl Operation for Get {
             .execution_checkpoint_document(checkpoint)
             .await
             .map_err(super::wire::checkpoint_failure)?;
-        let project = || -> harmos::Result<history::CheckpointDocument> {
-            let response = history::CheckpointDocument {
+        let project = || -> harmos::Result<dokime_domain::model::history::wire::CheckpointDocument> {
+            let response = dokime_domain::model::history::wire::CheckpointDocument {
                 checkpoint: Some(
                     super::wire::checkpoint_wire(document.checkpoint).map_err(original_error)?,
                 ),

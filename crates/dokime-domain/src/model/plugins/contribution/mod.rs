@@ -14,11 +14,17 @@ pub mod options;
 
 /* === Re-Exports === */
 pub use binding::PluginEntrypoint;
-pub use customization::{
-    AppCustomizationContribution, AppLogoAsset, AppThemeContribution, OrganizationIdentity,
-    ThemeActivationPolicy, ThemeCornerRadii, ThemeModePolicy, ThemeVariant,
-};
-pub use options::{OptionProviderContribution, OptionProviderOption, OptionProviderSource};
+pub use customization::AppCustomizationContribution;
+pub use customization::AppLogoAsset;
+pub use customization::AppThemeContribution;
+pub use customization::OrganizationIdentity;
+pub use customization::ThemeActivationPolicy;
+pub use customization::ThemeCornerRadii;
+pub use customization::ThemeModePolicy;
+pub use customization::ThemeVariant;
+pub use options::OptionProviderContribution;
+pub use options::OptionProviderOption;
+pub use options::OptionProviderSource;
 
 /* === Imports === */
 // Standard Library Imports

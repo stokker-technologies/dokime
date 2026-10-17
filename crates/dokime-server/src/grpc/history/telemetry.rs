@@ -71,7 +71,7 @@ impl Operation for List {
         _: Self::Context<'a>,
         request: &mut contract::ListCheckpointTelemetry,
         _: &mut (),
-    ) -> Result<Response<contract::CheckpointTelemetryPage>, Status> {
+    ) -> Result<Response<dokime_domain::model::history::wire::CheckpointTelemetryPage>, Status> {
         value::text(&request.table)?;
         value::text(&request.after)?;
         let stream = dokime_domain::model::identity::Identifier::new(std::mem::take(&mut request.table))
@@ -100,10 +100,10 @@ impl Operation for List {
 fn project(
     page: &ExecutionTelemetryPage,
     maximum: usize,
-) -> harmos::Result<contract::CheckpointTelemetryPage> {
+) -> harmos::Result<dokime_domain::model::history::wire::CheckpointTelemetryPage> {
     let mut records = projection::slots(page.rows.len())?;
     for row in &page.rows {
-        records.push(contract::SavedTelemetrySample {
+        records.push(dokime_domain::model::history::wire::SavedTelemetrySample {
             epoch: projection::text(row.epoch.as_str())?,
             ordinal: row.ordinal,
             sample: Some(samples::sample(&row.sample).map_err(original_error)?),
@@ -111,13 +111,13 @@ fn project(
     }
     let mut issues = projection::slots(page.issues.len())?;
     for issue in &page.issues {
-        issues.push(contract::HistoryIssue {
+        issues.push(dokime_domain::model::history::wire::HistoryIssue {
             source: issue.source.as_deref().map(projection::text).transpose()?,
             dataset: issue.dataset.as_deref().map(projection::text).transpose()?,
             message: projection::text(&issue.message)?,
         });
     }
-    let wire = contract::CheckpointTelemetryPage {
+    let wire = dokime_domain::model::history::wire::CheckpointTelemetryPage {
         checkpoint: Some(
             super::wire::checkpoint_wire_ref(&page.checkpoint).map_err(original_error)?,
         ),

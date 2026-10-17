@@ -64,7 +64,7 @@ impl Operation for List {
         _: Self::Context<'a>,
         request: &mut wire::ListArtifacts,
         _: &mut (),
-    ) -> Result<Response<wire::ListArtifactsReply>, Status> {
+    ) -> Result<Response<dokime_domain::model::content::wire::ListArtifactsReply>, Status> {
         if request.limit > 100 {
             return Err(Status::invalid_argument("page limit exceeds 100"));
         }
@@ -145,7 +145,7 @@ fn project(
     count: usize,
     more: bool,
     maximum: usize,
-) -> Result<wire::ListArtifactsReply, Status> {
+) -> Result<dokime_domain::model::content::wire::ListArtifactsReply, Status> {
     let mut selected = value::canonical::slots(count)?;
     let mut digest = Sha256::new();
     for (index, record) in records.iter().enumerate() {
@@ -198,10 +198,10 @@ fn project(
     } else {
         None
     };
-    let reply = wire::ListArtifactsReply {
+    let reply = dokime_domain::model::content::wire::ListArtifactsReply {
         artifacts: selected,
         next_after_artifact_id,
-        cursor: Some(wire::ArtifactCursor {
+        cursor: Some(dokime_domain::model::content::wire::ArtifactCursor {
             epoch: epoch.to_owned(),
             metadata_sha256: fingerprint,
         }),

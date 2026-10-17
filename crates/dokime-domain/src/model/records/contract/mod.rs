@@ -15,14 +15,22 @@ mod schema;
 mod severity;
 
 /* === Re-Exports === */
-pub use builtins::{
-    BuiltinRecordType, PRODUCT_CALIBRATION_KINDS, PRODUCT_CALIBRATION_PHASES,
-    PRODUCT_CONNECTION_STATES, PRODUCT_READINESS_STATES, PRODUCT_TARGET_LOCK_STATES,
-    builtin_record_contracts, builtin_record_types,
-};
-pub use conditions::{RecordCondition, RecordConditionEvaluation};
+pub use builtins::BuiltinRecordType;
+pub use builtins::PRODUCT_CALIBRATION_KINDS;
+pub use builtins::PRODUCT_CALIBRATION_PHASES;
+pub use builtins::PRODUCT_CONNECTION_STATES;
+pub use builtins::PRODUCT_READINESS_STATES;
+pub use builtins::PRODUCT_TARGET_LOCK_STATES;
+pub use builtins::builtin_record_contracts;
+pub use builtins::builtin_record_types;
+pub use conditions::RecordCondition;
+pub use conditions::RecordConditionEvaluation;
 pub use pattern::RecordPattern;
-pub use schema::{RecordContract, RecordDisplay, RecordField, RecordIconKey, RecordTone};
+pub use schema::RecordContract;
+pub use schema::RecordDisplay;
+pub use schema::RecordField;
+pub use schema::RecordIconKey;
+pub use schema::RecordTone;
 pub use severity::RecordSeverity;
 
 /* === Imports === */

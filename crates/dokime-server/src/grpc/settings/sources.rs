@@ -54,7 +54,7 @@ impl Operation for ListStorageSources {
         _: Self::Context<'a>,
         _: &mut wire::ListStorageSources,
         _: &mut (),
-    ) -> Result<Response<wire::StorageSources>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
         sources(&self.resources).await
     }
 }
@@ -75,7 +75,7 @@ impl Operation for ReorderStorageSources {
         _: Self::Context<'a>,
         request: &mut wire::ReorderStorageSources,
         _: &mut (),
-    ) -> Result<Response<wire::StorageSources>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
         self.resources
             .runtime
             .reorder_storage_sources(std::mem::take(&mut request.identifiers))
@@ -101,7 +101,7 @@ impl Operation for SetStorageSourceEnabled {
         _: Self::Context<'a>,
         request: &mut wire::SetStorageSourceEnabled,
         _: &mut (),
-    ) -> Result<Response<wire::StorageSources>, Status> {
+    ) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
         self.resources
             .runtime
             .set_storage_source_enabled(&request.identifier, request.enabled)
@@ -140,7 +140,7 @@ pub(super) fn register(runtime: &RuntimeHandle, maximum: usize) -> Result<(), cr
     Ok(())
 }
 /* === Private Functions === */
-async fn sources(resources: &Resources) -> Result<Response<wire::StorageSources>, Status> {
+async fn sources(resources: &Resources) -> Result<Response<dokime_domain::model::settings::wire::StorageSources>, Status> {
     let sources = resources
         .runtime
         .storage_sources()
@@ -149,14 +149,14 @@ async fn sources(resources: &Resources) -> Result<Response<wire::StorageSources>
     resources.produce(|| {
         let mut output = Vec::with_capacity(sources.len());
         for source in sources {
-            output.push(wire::StorageSource {
+            output.push(dokime_domain::model::settings::wire::StorageSource {
                 identifier: source.identifier,
                 adapter: source.adapter,
                 priority: source.priority,
                 enabled: source.enabled,
             });
         }
-        wire::StorageSources { sources: output }
+        dokime_domain::model::settings::wire::StorageSources { sources: output }
     })
 }
 /* === Tests === */

@@ -44,7 +44,7 @@ struct Resources {
     pub(super) max_message_bytes: usize,
 }
 
-struct HtmlFrames(Response<wire::ReportHtmlFrame>);
+struct HtmlFrames(Response<dokime_domain::model::reports::wire::ReportHtmlFrame>);
 struct Download {
     resources: Arc<Resources>,
 }
@@ -67,7 +67,7 @@ impl Operation for Download {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<wire::ReportHtmlFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,
@@ -99,7 +99,7 @@ impl Operation for Execution {
     type Resources = Resources;
     type Error = Status;
     type Context<'a> = Context<'a>;
-    type Endpoints = StreamOutput<wire::ReportHtmlFrame>;
+    type Endpoints = StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>;
     async fn initialize<'ctx>(
         resources: Arc<Resources>,
         _: Self::Context<'ctx>,
@@ -128,10 +128,10 @@ impl Operation for Execution {
 }
 
 impl chunked::Frames for HtmlFrames {
-    type Frame = wire::ReportHtmlFrame;
+    type Frame = dokime_domain::model::reports::wire::ReportHtmlFrame;
 
     fn metadata(&self) -> Self::Frame {
-        wire::ReportHtmlFrame {
+        dokime_domain::model::reports::wire::ReportHtmlFrame {
             payload: self.0.payload.clone(),
         }
     }
@@ -141,8 +141,8 @@ impl chunked::Frames for HtmlFrames {
     }
 
     fn chunk(&self, offset: u64, data: Vec<u8>) -> Self::Frame {
-        wire::ReportHtmlFrame {
-            payload: Some(wire::ReportHtmlFramePayload::Chunk(wire::ReportHtmlChunk {
+        dokime_domain::model::reports::wire::ReportHtmlFrame {
+            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Chunk(dokime_domain::model::reports::wire::ReportHtmlChunk {
                 offset,
                 data,
             })),
@@ -150,9 +150,9 @@ impl chunked::Frames for HtmlFrames {
     }
 
     fn complete(&self, size_bytes: u64, sha256: String) -> Self::Frame {
-        wire::ReportHtmlFrame {
-            payload: Some(wire::ReportHtmlFramePayload::Complete(
-                wire::ReportHtmlCompletion { size_bytes, sha256 },
+        dokime_domain::model::reports::wire::ReportHtmlFrame {
+            payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Complete(
+                dokime_domain::model::reports::wire::ReportHtmlCompletion { size_bytes, sha256 },
             )),
         }
     }
@@ -182,7 +182,7 @@ async fn deliver(
     resources: &Resources,
     report: OpenedReport,
     identifier: &Identifier,
-    output: &mut StreamOutput<wire::ReportHtmlFrame>,
+    output: &mut StreamOutput<dokime_domain::model::reports::wire::ReportHtmlFrame>,
 ) -> Result<Response<()>, Status> {
     let OpenedReport {
         test_cycle_id,
@@ -192,17 +192,17 @@ async fn deliver(
         origin,
         html,
     } = report;
-    let frame = wire::ReportHtmlFrame {
-        payload: Some(wire::ReportHtmlFramePayload::Report(Box::new(
-            wire::ReportMetadata {
+    let frame = dokime_domain::model::reports::wire::ReportHtmlFrame {
+        payload: Some(dokime_domain::model::reports::wire::ReportHtmlFramePayload::Report(Box::new(
+            dokime_domain::model::reports::wire::ReportMetadata {
                 test_cycle_id: test_cycle_id.to_string(),
                 test_execution_id: test_execution_id.map(|id| id.to_string()),
                 identifier: identifier.to_string(),
                 metadata: metadata.as_ref().map(canonical::metadata).transpose()?,
                 generated_at: Some(canonical::timestamp(&generated_at)?),
                 origin: match origin {
-                    ReportOrigin::Sealed => wire::ReportOrigin::Sealed,
-                    ReportOrigin::Current => wire::ReportOrigin::Current,
+                    ReportOrigin::Sealed => dokime_domain::model::reports::wire::ReportOrigin::Sealed,
+                    ReportOrigin::Current => dokime_domain::model::reports::wire::ReportOrigin::Current,
                 },
                 warnings: Vec::new(),
             },

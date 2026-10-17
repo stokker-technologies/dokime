@@ -8,6 +8,22 @@
  */
 
 /* === Modules === */
+pub mod process;
+pub mod runtime;
+pub mod reports;
+pub mod query;
+pub mod plots;
+pub mod planning;
+pub mod observation;
+pub mod notes;
+pub mod media;
+pub mod history;
+pub mod files;
+pub mod evidence;
+pub mod documents;
+pub mod content;
+pub mod catalog;
+pub mod backend;
 pub mod analysis;
 pub mod appearance;
 pub mod artifacts;
