@@ -347,6 +347,69 @@ async fn report_opens_anytime() {
     owner.shutdown().await.unwrap();
 }
 
+// A download always serves the report: a member whose final report is sealed
+// while its cycle still runs serves those bytes, the running cycle materializes
+// its current state, and after finalization both serve the sealed artifacts.
+#[tokio::test]
+async fn report_download_serves() {
+    let root = tempdir().unwrap();
+    let executor = Arc::new(SecondGroupHoldExecutor::default());
+    let (mut owner, runtime) = booted_with_fixture(root.path(), executor.clone()).await;
+    let first = plt400_suite();
+    let second = plt400_diagnostics_suite();
+    register_python_suite_pair(&runtime, first.clone(), second.clone()).await;
+    let id = start_cycle(&runtime, first, false).await;
+    runtime
+        .append_cycle_cases(id.clone(), materialize_cases("provider:testdb:plt400.diagnostics", &second), CommandContext::default())
+        .await
+        .unwrap();
+    let receipt = runtime.run_cycle_cases(id.clone(), CommandContext::default()).await;
+    assert_eq!(receipt.status, CommandStatus::Accepted, "{:?}", receipt.rejection);
+    executor.wait_until_entered().await;
+    let settled = cycle_snapshot(&runtime, &id)
+        .await
+        .test_executions
+        .into_iter()
+        .find(|execution| execution.status == ExecutionStatus::Passed)
+        .expect("the first group settled before the second runs")
+        .test_execution_id;
+
+    // Running: The Settled Member Seals Its Final Report While The Cycle Runs On
+    runtime.finish_execution_for_test(&settled).await.unwrap();
+    let durable = dokime_runtime::storage::objects::execution::read(runtime.storage(), &settled, harmos::storage::ObjectVersion::Latest)
+        .await
+        .unwrap()
+        .unwrap();
+    let seal = durable.value.saved.clone().expect("the settled member is sealed durably");
+    drop(durable);
+    let published = crate::service_support::reports::bytes(runtime.storage(), &seal.report).await;
+    assert!(cycle_snapshot(&runtime, &id).await.saved.is_none());
+    for attempt in 1..=2 {
+        let opened = runtime
+            .open_execution_report(&settled)
+            .await
+            .unwrap_or_else(|error| panic!("download {attempt} of the sealed member: {error}"));
+        assert_eq!(opened.origin, dokime_runtime::ReportOrigin::Sealed);
+        assert_eq!(opened.html, published, "download {attempt} serves the final report bytes");
+    }
+    let running = runtime.open_cycle_report(&id).await.unwrap();
+    assert_eq!(running.origin, dokime_runtime::ReportOrigin::Current);
+    let payload = crate::service_support::reports::parse(std::str::from_utf8(&running.html).unwrap());
+    assert_eq!(payload["test_executions"].as_array().unwrap().len(), 2);
+
+    // Finalized: Both Downloads Serve The Sealed Artifacts
+    executor.release();
+    let cycle = wait_for_cycle_lifecycle(&runtime, &id, CycleStatus::Completed).await;
+    let cycle_seal = cycle.saved.clone().expect("the completed cycle is sealed");
+    let sealed = runtime.open_cycle_report(&id).await.unwrap();
+    assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
+    assert_eq!(sealed.html, crate::service_support::reports::bytes(runtime.storage(), &cycle_seal.report).await);
+    let sealed = runtime.open_execution_report(&settled).await.unwrap();
+    assert_eq!(sealed.origin, dokime_runtime::ReportOrigin::Sealed);
+    assert_eq!(sealed.html, published, "finalization keeps the member's final report");
+    owner.shutdown().await.unwrap();
+}
+
 // The same running execution's report renders three times in a row: the first
 // render releases everything it held, and each carries the same evidence.
 #[tokio::test]
@@ -517,7 +580,6 @@ async fn cycle_report_reboot() {
                 source_end: None,
             },
             after: 0,
-            filters: Vec::new(),
         })
         .await
         .unwrap();

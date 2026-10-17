@@ -95,12 +95,13 @@ async fn current(
     let storage = &resources.execution_storage.storage;
     let settings = &ctx.scope().resources::<Dokime>().storage_settings;
     let state = ctx.scope().state::<Dokime>();
-    let (source, owner, session, intents) = state
+    let current = state
         .state()
         .read(|state| {
             let cycle = state.cycles.get(id).ok_or_else(|| invalid("cycle is not active"))?;
-            if cycle.saved.is_some() {
-                return Err(invalid("sealed cycle must read its published report"));
+            // A Sealed Cycle Is Served As Published.
+            if let Some(seal) = &cycle.saved {
+                return Ok(Err(MaterializedReport { report: seal.report.clone() }));
             }
             let source = state.cycle_view(id).ok_or_else(|| invalid("cycle member is missing"))?;
             let boundaries = cycle
@@ -108,10 +109,14 @@ async fn current(
                 .iter()
                 .filter_map(|id| state.report_finalizations.get(id).map(|intent| (id.clone(), intent.evidence_at.clone())))
                 .collect::<std::collections::BTreeMap<_, _>>();
-            Ok::<_, Error>((source, state.identity.node.node_id.clone(), state.session_id.clone(), boundaries))
+            Ok::<_, Error>(Ok((source, state.identity.node.node_id.clone(), state.session_id.clone(), boundaries)))
         })
         .await?
         .value?;
+    let (source, owner, session, intents) = match current {
+        Ok(current) => current,
+        Err(published) => return Ok(published),
+    };
     let mut header = cycle_finalization::header(&source, None);
     if header.session_id.is_none() {
         header.session_id = Some(session);
@@ -120,7 +125,10 @@ async fn current(
     for execution in source.test_executions.iter().filter(|execution| execution.status != ExecutionStatus::Pending) {
         let seal = match &execution.saved {
             Some(seal) => Some(seal.clone()),
-            None => resources.execution_storage.durable_seal(&execution.test_execution_id).await?,
+            None => match resources.execution_storage.final_seal(&execution.test_execution_id).await {
+                Some(seal) => Some(seal),
+                None => resources.execution_storage.durable_seal(&execution.test_execution_id).await?,
+            },
         };
         let member = if let Some(seal) = &seal {
             if !at.covers(&seal.source.evidence_through)? {

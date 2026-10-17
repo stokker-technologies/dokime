@@ -225,6 +225,13 @@ impl ExecutionStorage {
         Ok(latest.and_then(|latest| latest.execution().saved.clone()))
     }
 
+    /// The final seal this process saved for `id`, which its cycle's state holds only once the cycle seals.
+    pub(crate) async fn final_seal(&self, id: &TestExecutionId) -> Option<dokime_domain::model::execution::saved::ExecutionSeal> {
+        let owner = self.acquisition(id).await?;
+        let acquisition = owner.lock().await;
+        acquisition.execution.saved.clone()
+    }
+
     pub(crate) async fn acquisition(&self, id: &TestExecutionId) -> Option<Arc<Mutex<Acquisition>>> {
         self.active.lock().await.get(id).cloned()
     }

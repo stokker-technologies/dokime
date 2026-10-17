@@ -57,6 +57,15 @@ pub struct MemberStopExecutor {
     entered: Entered,
 }
 
+/// Runs the first provider group to completion and holds the next one open
+/// until the story releases it, so earlier members settle inside a running cycle.
+#[derive(Default)]
+pub struct SecondGroupHoldExecutor {
+    groups: std::sync::atomic::AtomicUsize,
+    entered: Entered,
+    released: tokio::sync::watch::Sender<bool>,
+}
+
 /// Signals Once A Fixture Executor Holds Its Execution Open.
 #[derive(Default)]
 struct Entered(tokio::sync::watch::Sender<bool>);
@@ -123,6 +132,16 @@ impl BlockingErrorExecutor {
     }
 }
 
+impl SecondGroupHoldExecutor {
+    pub async fn wait_until_entered(&self) {
+        self.entered.wait().await;
+    }
+
+    pub fn release(&self) {
+        self.released.send_replace(true);
+    }
+}
+
 impl MemberStopExecutor {
     pub async fn wait_until_entered(&self) {
         self.entered.wait().await;
@@ -165,6 +184,33 @@ impl ExecutionFixture for BlockingPublishingExecutor {
             }
 
             Ok(python_outcome(cycle, "passed", false))
+        })
+    }
+}
+
+impl ExecutionFixture for SecondGroupHoldExecutor {
+    fn run_cycle<'a>(
+        &'a self, context: ExecutionFixtureContext, cycle: &'a dokime_domain::model::execution::result::CycleView,
+        _target: &'a ExecutionProviderTarget,
+    ) -> ExecutionFixtureFuture<'a> {
+        Box::pin(async move {
+            let group = self.groups.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            for execution in runnable_executions(cycle) {
+                activate_fixture_execution(&context, execution).await;
+            }
+            if group > 0 {
+                let mut released = self.released.subscribe();
+                self.entered.signal();
+                tokio::select! {
+                    released = released.wait_for(|released| *released) => {
+                        released.expect("the executor owns its release signal");
+                    },
+                    () = context.cancelled() => {
+                        return Err(ProviderExecutionFailure::new("cancel", "fixture cancelled"));
+                    }
+                }
+            }
+            Ok(python_outcome(cycle, "passed", true))
         })
     }
 }

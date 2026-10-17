@@ -136,8 +136,12 @@ async fn execution(
         .iter()
         .find(|member| member.test_execution_id == *id)
         .ok_or_else(|| invalid("execution disappeared during report admission"))?;
-    if member.saved.is_some() {
-        return Err(invalid("sealed execution must read its published report"));
+    // A Final Report Is Served As Published, Whether Or Not The Cycle State Holds Its Seal Yet.
+    if let Some(seal) = &member.saved {
+        return Ok(MaterializedReport { report: seal.report.clone() });
+    }
+    if let Some(seal) = resources.execution_storage.final_seal(id).await {
+        return Ok(MaterializedReport { report: seal.report });
     }
     if let Some(report) = resources.execution_storage.published_final_report(id, at).await? {
         return Ok(report);

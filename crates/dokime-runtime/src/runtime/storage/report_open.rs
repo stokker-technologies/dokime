@@ -9,10 +9,12 @@
 
 // Open Report: the one report a cycle or an execution has right now.
 //
-// A sealed subject answers with the bytes its finalization published. A
+// A sealed subject answers with the bytes its finalization published, also
+// when it is an execution sealed inside a cycle that is still running. A
 // subject still in live state, running or left unsealed by a runtime that
 // stopped before finalization, materializes at its pending frozen boundary,
-// or the current persisted cursor when no finalization is pending.
+// or the current persisted cursor when no finalization is pending. A download
+// never refuses because the final report already exists.
 // An unreadable sealed report returns an error: finalized
 // evidence may already have been pruned, and its published bytes are authoritative.
 
@@ -86,6 +88,18 @@ impl RuntimeHandle {
             .get(id)
             .map(|execution| (execution.saved.is_none(), execution.test_cycle_id.clone()));
         if let Some((true, cycle)) = live {
+            // An Execution Sealed Inside A Running Cycle Serves Its Final Report Directly.
+            if let Some(seal) = self.execution_storage.durable_seal(id).await? {
+                let html = crate::storage::read_file_bytes(self.storage(), &seal.report).await?;
+                return Ok(OpenedReport {
+                    test_cycle_id: cycle,
+                    test_execution_id: Some(id.clone()),
+                    metadata: None,
+                    generated_at: seal.sealed_at,
+                    origin: ReportOrigin::Sealed,
+                    html,
+                });
+            }
             let at = self
                 .state_read()
                 .report_finalizations
