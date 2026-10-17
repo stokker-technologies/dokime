@@ -213,7 +213,7 @@ pub(crate) async fn stop_archive_state() {
     let stop = runtime
         .stop_cycle(test_cycle_id.clone(), CommandContext::default())
         .await;
-    assert!(stop.is_ok());
+    assert!(stop.is_ok(), "{stop:?}");
     let run_stopped = runtime
         .run_cycle_cases(test_cycle_id.clone(), CommandContext::default())
         .await;

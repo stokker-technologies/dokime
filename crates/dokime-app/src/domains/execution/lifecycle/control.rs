@@ -345,13 +345,27 @@ impl RuntimeHandle {
                 .await
                 .map_err(|error| unavailable_rejection(error.to_string()))?;
         }
-        // A Stop No Run Will Finish Seals The Cycle From Its Persisted Members.
+        // A Stop No Run Will Finish Seals The Cycle From Its Persisted Members,
+        // Unless A Never-Started Draft Remains: Drafts Stay Unsealed.
         if matches!(action, Action::Stop) && !bounded {
             self.reconcile_sampling().await;
             self.execution_storage
                 .save_cycle(test_cycle_id.clone())
                 .await?;
-            return self.seal_settled_cycle(&test_cycle_id).await;
+            let drafted = self
+                .state_read()
+                .cycle_view(&test_cycle_id)
+                .is_some_and(|cycle| {
+                    cycle.test_executions.iter().any(|execution| {
+                        execution.saved.is_none()
+                            && execution.status == crate::execution::ExecutionStatus::Skipped
+                            && execution.finished_at.is_none()
+                    })
+                });
+            if !drafted {
+                return self.seal_settled_cycle(&test_cycle_id).await;
+            }
+            return Ok(());
         }
         // Persist cycle state separately from execution evidence. During an
         // active request only running captures need a control-boundary flush;
