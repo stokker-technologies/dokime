@@ -814,7 +814,18 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
         let configured = input.programs.get(id).cloned().unwrap_or_else(crate::plugins::config::empty_object);
         let initialization = handle.plugin_initialization(&plugin, &configured).await?;
         let declaration = executable.declaration();
-        let operations = declaration.operations.clone();
+        let mut operations = declaration.operations.clone();
+        let mut wire_contracts = declaration.contracts.provides.clone();
+        // A sidecar that declares observers serves the built-in observe
+        // control; the host captures it from the plugin's own contracts.
+        if let Some(control) = declaration.observe_contract()
+            && !wire_contracts.contains(&control)
+        {
+            if !operations.iter().any(|operation| operation.id == control.operation().id) {
+                operations.push(control.operation().clone());
+            }
+            wire_contracts.push(control);
+        }
         let definition = harmos::plugin::PluginDefinition {
             id: id.clone(),
             version: version.clone(),
@@ -829,7 +840,7 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
             configuration: serde_json::to_vec(&initialization).map_err(operation)?,
             contributions: harmos::plugin::PluginContributions {
                 operations,
-                wire_contracts: declaration.contracts.provides.clone(),
+                wire_contracts,
                 required_contracts: Some(declaration.contracts.requires.clone()),
                 observers: declaration.observers.clone(),
                 lifecycle: Some(declaration.contracts.lifecycle.clone()),
