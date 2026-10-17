@@ -1261,12 +1261,6 @@ fn execution_contended_reads_contract() {
 }
 
 #[test]
-fn execution_slow_output_contract() {}
-
-#[test]
-fn execution_replay_deadline_contract() {}
-
-#[test]
 fn files_contract() {
     {
         eprintln!("Scenario: files::watch::stream_local_tree");

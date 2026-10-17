@@ -7,14 +7,6 @@ system_timeout_seconds = 600
 categories = ["integration", "acceptance", "system"]
 
 [testing.python]
-project = "tools/python"
-sources = ["src/dokime_tools"]
-categories = ["integration"]
-
-# The client suites run against the wheel `prepare:python` installs; uv must never
-# rebuild or re-sync it between that step and the tests.
-[[testing.python.configurations]]
-name = "client"
 project = "packages/dokime"
 install = "preinstalled"
 sources = ["src/dokime"]
