@@ -19,6 +19,7 @@ use std::{
     path::{Path, PathBuf},
 };
 // Third Party Imports
+use sha2::{Digest, Sha256};
 
 // Local Imports
 use crate::error::Error;
@@ -205,7 +206,7 @@ pub fn run(args: Args) -> Result<(), Error> {
                     "\n# This package is excluded from the enclosing workspace.\n[workspace]\n",
                 );
             }
-            fs::write(path, contents)?;
+            fs::write(path, finalize_managed(contents))?;
         }
         if let Some(workspace) = workspace
             && workspace.original != workspace.updated
@@ -246,6 +247,40 @@ pub fn run(args: Args) -> Result<(), Error> {
 }
 
 /* === Private Functions === */
+
+fn finalize_managed(contents: String) -> String {
+    let normalized = contents.replace("\r\n", "\n");
+    let at = if normalized.starts_with("#!") {
+        normalized.find('\n').map_or(normalized.len(), |index| index + 1)
+    } else if let Some(rest) = normalized.strip_prefix("---\n")
+        && let Some(index) = rest.find("\n---\n")
+    {
+        4 + index + 5
+    } else {
+        0
+    };
+    let end = normalized[at..]
+        .find('\n')
+        .map_or(normalized.len(), |index| at + index + 1);
+    let line = normalized[at..end].trim_end();
+    if !line.contains("Rendered by stkr project update from ") {
+        return contents;
+    }
+    let Some((prefix, _)) = line.rsplit_once("; sha256:") else {
+        return contents;
+    };
+    let close = if line.ends_with(" -->") {
+        " -->"
+    } else if line.ends_with(" */") {
+        " */"
+    } else {
+        ""
+    };
+    let body = format!("{}{}", &normalized[..at], &normalized[end..]);
+    let digest = Sha256::digest(body.as_bytes());
+    format!("{}{prefix}; sha256:{digest:x}{close}\n{}", &normalized[..at], &normalized[end..])
+}
+
 fn validate_name(name: &str) -> Result<(), Error> {
     const RESERVED: &[&str] = &[
         "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
