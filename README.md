@@ -229,8 +229,19 @@ dokime operation call OPERATION_ID --owner OWNER --backend lab --input-file requ
 
 Inputs use the discovered contract's protobuf JSON shape. Streaming input is one
 item per line; output emits item and completion events. Ctrl+C closes the local
-call. The [Remote Operations Example](crates/dokime-client/examples/remote_operations/main.rs)
-uses the same live contract discovery and shared Harmos codec from Rust.
+call. From Rust, `dokime_client::Client::call_operation` uses the same live
+contract discovery and shared Harmos codec:
+
+```rust
+let client = Client::connect(Target::new(endpoint, None)?, Some(token), None).await?;
+let stream = client
+    .call_operation("obc-plugin.get_status", Some("obc-plugin"), b"{}", Vec::new())
+    .await?;
+while let Some(event) = stream.message().await? {
+    println!("{event:?}");
+}
+stream.close().await;
+```
 
 Browse the registered suite catalog, stop work explicitly and re-run a case:
 

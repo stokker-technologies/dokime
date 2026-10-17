@@ -39,13 +39,36 @@ const MAX_INPUT_FRAMES: usize = 4096;
 
 /* === Implementations === */
 impl Client {
-    // Calls A Provider Discovered From The Connected Backend's Live Catalog.
-    //
-    // `request` and each input frame use protobuf JSON for the discovered schema.
-    // The owner selects a provider when an identifier is shared. Inputs are bounded
-    // to 4096 frames and 16 MiB including the request; use typed file uploads for
-    // large content. Items preserve order, and completion is emitted only after
-    // a successful final gRPC status. Closing the result cancels transport work.
+    /// Calls a provider discovered from the connected backend's live catalog.
+    ///
+    /// `request` and each input frame use protobuf JSON for the discovered schema.
+    /// The owner selects a provider when an identifier is shared. Inputs are bounded
+    /// to 4096 frames and 16 MiB including the request; use typed file uploads for
+    /// large content. Items preserve order, and completion is emitted only after
+    /// a successful final gRPC status. Closing the result cancels transport work.
+    ///
+    /// ```no_run
+    /// use dokime_client::{Client, Target, dynamic::Event};
+    ///
+    /// # async fn call() -> Result<(), Box<dyn std::error::Error>> {
+    /// let target = Target::new("https://lab.example:50051", None)?;
+    /// let client = Client::connect(target, Some("token"), None).await?;
+    ///
+    /// let stream = client
+    ///     .call_operation("obc-plugin.get_status", Some("obc-plugin"), b"{}", Vec::new())
+    ///     .await?;
+    /// while let Some(event) = stream.message().await? {
+    ///     match event {
+    ///         Event::Item(value) => println!("item {value}"),
+    ///         Event::Completion(value) => println!("completion {value}"),
+    ///     }
+    /// }
+    /// stream.close().await;
+    ///
+    /// client.close_and_wait().await;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn call_operation(
         &self,
         identifier: &str,

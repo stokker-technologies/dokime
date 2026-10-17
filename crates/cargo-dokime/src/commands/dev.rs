@@ -31,8 +31,8 @@ use super::{
     installation::gui_override,
 };
 use crate::error::Error;
-use dokime_packaging::process;
 use dokime_cli::terminal::{ColorMode, Terminal};
+use dokime_packaging::process;
 
 /* === Constants === */
 

@@ -130,12 +130,9 @@ pub fn simulate(
     origin: impl Into<Origin>,
     seed: u64,
 ) -> Result<Simulated, harmos::runtime::Incompatible> {
-    builder(
-        origin,
-        Resources::new(crate::config::storage_defaults()),
-    )
-    .entropy_seed(seed)
-    .simulate()
+    builder(origin, Resources::new(crate::config::storage_defaults()))
+        .entropy_seed(seed)
+        .simulate()
 }
 
 /* === Private Functions === */
