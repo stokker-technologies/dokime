@@ -21,12 +21,21 @@
 /* === Constants === */
 pub const RECORD_PUBLICATION_VERSION: u32 = 1;
 
+const RECORD_POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
+    timeout: std::time::Duration::from_secs(30),
+    attempt_timeout: std::time::Duration::from_secs(30),
+    retries: harmos::operations::RetryPolicy::Never,
+    restart: harmos::operations::RestartPolicy::Never,
+};
+
 /* === Macros === */
 
 /* === Type Aliases === */
 
 /* === Structs === */
+// Files one process-scoped record against the calling plugin.
 #[harmos::message]
+#[harmos::operation(response = (), id = "dokime.records.publish", version = 1, policy = RECORD_POLICY, visibility = harmos::operations::Visibility::Shared)]
 #[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct RecordPublication {
     #[row(
@@ -39,31 +48,12 @@ pub struct RecordPublication {
     pub produced_at: String,
 }
 
-pub struct PublishRecord;
 
 /* === Enums === */
 
 /* === Traits === */
 
 /* === Implementations === */
-impl harmos::operations::OperationDeclaration for PublishRecord {
-    type Request = RecordPublication;
-    type Response = ();
-    const ID: &'static str = "dokime.records.publish";
-    const DESCRIPTION: &'static str = "Files one process-scoped record against the calling plugin.";
-    const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
-        timeout: std::time::Duration::from_secs(30),
-        attempt_timeout: std::time::Duration::from_secs(30),
-        retries: harmos::operations::RetryPolicy::Never,
-        restart: harmos::operations::RestartPolicy::Never,
-    };
-    const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Shared;
-}
-
-impl harmos::operations::WireOperation for PublishRecord {
-    const VERSION: u32 = 1;
-}
-
 /* === Public Functions === */
 
 /* === Private Functions === */

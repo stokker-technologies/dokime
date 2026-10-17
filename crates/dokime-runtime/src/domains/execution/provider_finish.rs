@@ -21,7 +21,7 @@ pub(crate) use crate::transactions::FinishProvider as Finish;
 use crate::transactions::provider_finish::prepare_finish_effects;
 use crate::{
     RuntimeHandle,
-    error::{Error, Result},
+    runtime::error::{Error, Result},
 };
 
 /* === Constants === */

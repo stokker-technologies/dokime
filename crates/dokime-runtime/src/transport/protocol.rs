@@ -15,8 +15,7 @@
 // Standard Library Imports
 use std::time::Duration;
 // Third Party Imports
-// Third-Party Imports
-use harmos::operations::{OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility, WireOperation};
+use harmos::operations::{OperationPolicy, RestartPolicy, RetryPolicy, Visibility};
 // Local Imports
 
 /* === Constants === */
@@ -36,36 +35,74 @@ pub const MAX_EVIDENCE_PAGE_BYTES: usize = 2 * MAX_ARTIFACT_CHUNK_BYTES + 256 * 
 
 pub const MAX_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
-/* === Macros === */
-macro_rules! host_operation {
-    ($(#[$meta:meta])* $name:ident, $request:ty, $response:ty, $id:literal, $timeout:expr) => {
-        $(#[$meta])*
-        pub struct $name;
+const EVIDENCE_POLICY: OperationPolicy = bounded(EVIDENCE_BOUND);
 
-        impl OperationDeclaration for $name {
-            type Request = $request;
-            type Response = $response;
-            const ID: &'static str = $id;
-            const POLICY: OperationPolicy = OperationPolicy {
-                timeout: $timeout,
-                attempt_timeout: $timeout,
-                retries: RetryPolicy::Never,
-                restart: RestartPolicy::Never,
-            };
-            const VISIBILITY: Visibility = Visibility::Shared;
+const OPERATOR_POLICY: OperationPolicy = bounded(OPERATOR_BOUND);
+
+const LEASE_POLICY: OperationPolicy = bounded(LEASE_BOUND);
+
+/* === Macros === */
+// A template-selected declaration delegates its portable encoding to the inner
+// request, so every template shares one wire shape under its own identity.
+macro_rules! templated {
+    ($name:ident, $inner:ty) => {
+        impl<T> $name<T> {
+            pub fn new(request: $inner) -> Self {
+                Self(request, std::marker::PhantomData)
+            }
         }
 
-        impl WireOperation for $name {
-            const VERSION: u32 = 1;
+        impl<T> harmos::Message for $name<T> {
+            fn encode_to_vec(&self) -> Vec<u8> {
+                harmos::Message::encode_to_vec(&self.0)
+            }
+
+            fn encoded_len(&self) -> usize {
+                harmos::Message::encoded_len(&self.0)
+            }
+
+            fn decode(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
+                <$inner as harmos::Message>::decode(bytes).map(Self::new)
+            }
+
+            fn decoding_memory(bytes: &[u8]) -> Result<usize, harmos::MessageError> {
+                <$inner as harmos::Message>::decoding_memory(bytes)
+            }
+        }
+
+        harmos::__private::with_protobuf! {
+            impl<T> harmos::domain::Protobuf for $name<T> {
+                fn encode_to_vec(&self) -> Vec<u8> {
+                    harmos::domain::Protobuf::encode_to_vec(&self.0)
+                }
+
+                fn encoded_len(&self) -> usize {
+                    harmos::domain::Protobuf::encoded_len(&self.0)
+                }
+
+                fn decode(bytes: &[u8]) -> Result<Self, harmos::MessageError> {
+                    <$inner as harmos::domain::Protobuf>::decode(bytes).map(Self::new)
+                }
+            }
+        }
+
+        impl<T> harmos::MemorySize for $name<T> {
+            fn memory_size(&self) -> usize {
+                harmos::MemorySize::memory_size(&self.0)
+            }
+        }
+
+        impl<T: 'static> harmos::schema::Described for $name<T> {
+            const NAME: &'static str = <$inner as harmos::schema::Described>::NAME;
+            const FIELDS: &'static [harmos::schema::graph::Field<harmos::schema::declaration::Definition>] =
+                <$inner as harmos::schema::Described>::FIELDS;
+            const MARKER: &'static [u8] = <$inner as harmos::schema::Described>::MARKER;
         }
     };
 }
 
-host_operation!(PushEvidence, EvidenceBatch, EvidenceReceipt, "dokime.execution.evidence", EVIDENCE_BOUND);
+pub(crate) use templated;
 
-host_operation!(AskOperator, OperatorQuestion, OperatorAnswer, "dokime.execution.prompt", OPERATOR_BOUND);
-
-host_operation!(LeaseStream, LeaseAsk, LeaseResolution, "dokime.execution.lease", LEASE_BOUND);
 
 /* === Type Aliases === */
 
@@ -85,7 +122,9 @@ pub struct RunExecution {
     pub mode: String,
 }
 
+// The host's evidence admission: a sidecar pushes each drained page.
 #[harmos::message]
+#[harmos::operation(response = EvidenceReceipt, id = "dokime.execution.evidence", version = 1, policy = EVIDENCE_POLICY, visibility = Visibility::Shared)]
 #[derive(Clone, PartialEq)]
 pub struct EvidenceBatch {
     #[row(description = "True only after observers, callbacks, cleanup and evaluation have settled.")]
@@ -193,7 +232,9 @@ pub struct ArtifactChunk {
     pub replace: bool,
 }
 
+// Asks the operator through the host and waits for the answer.
 #[harmos::message]
+#[harmos::operation(response = OperatorAnswer, id = "dokime.execution.prompt", version = 1, policy = OPERATOR_POLICY, visibility = Visibility::Shared)]
 #[derive(Clone, PartialEq)]
 pub struct OperatorQuestion {
     pub prompt_json: String,
@@ -222,7 +263,9 @@ pub struct StepAdmission {
     pub message: String,
 }
 
+// Asks the host to grant a telemetry lease.
 #[harmos::message]
+#[harmos::operation(response = LeaseResolution, id = "dokime.execution.lease", version = 1, policy = LEASE_POLICY, visibility = Visibility::Shared)]
 #[derive(Clone, PartialEq)]
 pub struct LeaseAsk {
     pub lease_json: String,
@@ -353,5 +396,9 @@ impl ArtifactChunk {
 
 /* === Public Functions === */
 /* === Private Functions === */
+const fn bounded(timeout: Duration) -> OperationPolicy {
+    OperationPolicy { timeout, attempt_timeout: timeout, retries: RetryPolicy::Never, restart: RestartPolicy::Never }
+}
+
 
 /* === Tests === */

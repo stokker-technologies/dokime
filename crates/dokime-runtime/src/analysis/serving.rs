@@ -57,9 +57,9 @@ impl<A: Analysis> harmos::operations::Operation for Handler<A> {
         Ok(Self::fresh())
     }
     async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, request: &mut Request, _: &mut (),
+        &mut self, _: Self::Context<'ctx>, request: &mut Operation<A>, _: &mut (),
     ) -> Result<harmos::operations::Response<Response>, Refusal> {
-        self.state.evaluate::<A>(request).await.map(Into::into)
+        self.state.evaluate::<A>(&mut request.0).await.map(Into::into)
     }
     async fn stop(&mut self) -> Result<(), Refusal> {
         self.state.settle().await
@@ -81,9 +81,9 @@ impl<A: Analysis, R: Send + Sync + 'static> harmos::operations::Operation for Se
         Ok(Self(Handler::fresh(), std::marker::PhantomData))
     }
     async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, request: &mut Request, _: &mut (),
+        &mut self, _: Self::Context<'ctx>, request: &mut Operation<A>, _: &mut (),
     ) -> Result<harmos::operations::Response<Response>, Refusal> {
-        self.0.state.evaluate::<A>(request).await.map(Into::into)
+        self.0.state.evaluate::<A>(&mut request.0).await.map(Into::into)
     }
     async fn stop(&mut self) -> Result<(), Refusal> {
         self.0.state.settle().await

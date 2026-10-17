@@ -75,7 +75,8 @@ pub struct Response {
     pub outputs: Vec<Values>,
 }
 
-pub struct Operation<A>(PhantomData<fn() -> A>);
+// One analysis operation: the portable `Request` under the analysis identity.
+pub struct Operation<A>(pub Request, PhantomData<fn() -> A>);
 
 pub struct Definitions;
 
@@ -230,10 +231,14 @@ impl<A: Analysis> crate::catalog::Member<Operation<A>> for Definitions {
     const ENTRY: Self::Entry = Operation::<A>::definition;
 }
 
+crate::transport::templated!(Operation, Request);
+
 impl<A: Analysis> harmos::operations::OperationDeclaration for Operation<A> {
-    type Request = Request;
     type Response = Response;
+    type Input = harmos::operations::NoStream;
+    type Output = harmos::operations::NoStream;
     const ID: &'static str = A::ID;
+    const VERSION: u32 = A::VERSION;
     const DESCRIPTION: &'static str = A::DESCRIPTION;
     const POLICY: harmos::operations::OperationPolicy = harmos::operations::OperationPolicy {
         timeout: A::TIMEOUT,
@@ -242,10 +247,6 @@ impl<A: Analysis> harmos::operations::OperationDeclaration for Operation<A> {
         restart: harmos::operations::RestartPolicy::Never,
     };
     const VISIBILITY: harmos::operations::Visibility = harmos::operations::Visibility::Shared;
-}
-
-impl<A: Analysis> harmos::operations::WireOperation for Operation<A> {
-    const VERSION: u32 = A::VERSION;
 }
 
 /* === Public Functions === */

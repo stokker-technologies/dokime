@@ -29,7 +29,7 @@ use crate::storage::Manager;
 use crate::telemetry::contract::TelemetryContract;
 use crate::{
     RuntimeHandle,
-    execution::context::{
+    execution::context::captured::{
         native::source::{MEDIA_TYPE, Source as NativeSource},
         source::CapturedSource,
     },
@@ -231,7 +231,7 @@ impl PreparedExecutionReport {
 
     pub(crate) async fn publish_current(
         &mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>, revision: &ExecutionRevision,
-    ) -> Result<crate::runtime::operations::reports::MaterializedReport> {
+    ) -> Result<dokime_domain::model::reports::wire::MaterializedReport> {
         self.captured.validate()?;
         tokio::try_join!(self.context.write(manager, operations), self.report.write(manager, operations))?;
         let context = self.context.finish(manager, operations).await?;
@@ -254,7 +254,7 @@ impl PreparedExecutionReport {
             },
         )?;
         publication.finish().await?;
-        Ok(crate::runtime::operations::reports::MaterializedReport { report })
+        Ok(dokime_domain::model::reports::wire::MaterializedReport { report })
     }
 
     pub async fn save_dependencies(
@@ -342,7 +342,7 @@ impl ReportFile {
         }
         self.write(manager, operations).await?;
         let reference = operations
-            .call_as::<harmos::storage::operations::FinishFile>(harmos::storage::operations::FileMutation {
+            .call(harmos::storage::operations::FinishFile {
                 mutation: self.mutation("finish")?,
                 session: self.producer.as_ref().expect("created report file").session.clone(),
             })
@@ -361,7 +361,7 @@ impl ReportFile {
     }
 
     async fn write(&mut self, manager: &Manager, operations: &impl Host<Error = harmos::Error>) -> Result<()> {
-        use harmos::storage::operations::{AppendFile, AppendFileRequest, CreateFile, CreateFileRequest};
+        use harmos::storage::operations::{AppendFile, CreateFile};
 
         if self.finished.is_some() {
             return Ok(());
@@ -374,7 +374,7 @@ impl ReportFile {
         if self.producer.is_none() {
             self.producer = Some(
                 operations
-                    .call_as::<CreateFile>(CreateFileRequest { mutation: self.mutation("create")?, metadata: self.data.metadata.clone() })
+                    .call(CreateFile { mutation: self.mutation("create")?, metadata: self.data.metadata.clone() })
                     .await?
                     .into_owned(),
             );
@@ -382,7 +382,7 @@ impl ReportFile {
         while self.written < self.data.bytes.len() {
             let end = self.written.saturating_add(batch_bytes).min(self.data.bytes.len());
             let producer = operations
-                .call_as::<AppendFile>(AppendFileRequest {
+                .call(AppendFile {
                     mutation: self.mutation(&format!("append.{}", self.written))?,
                     session: self.producer.as_ref().expect("created report file").session.clone(),
                     offset: self.written as u64,

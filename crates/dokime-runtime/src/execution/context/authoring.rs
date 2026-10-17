@@ -196,20 +196,16 @@ impl<'a, C, O, I, S> Context<'a, C, O, I, S> {
 
 #[cfg(feature = "native")]
 impl<C, O, I, S> Context<'_, C, O, I, S> {
-    pub async fn call<Op>(
-        &self, request: <Op::Declaration as harmos::operations::OperationDeclaration>::Request,
-    ) -> crate::Result<<Op::Declaration as harmos::operations::OperationDeclaration>::Response>
+    pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
-        Op: harmos::operations::Declares,
-        <Op::Declaration as harmos::operations::OperationDeclaration>::Request: harmos::Message,
-        <Op::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
+        Op: harmos::operations::OperationDeclaration,
         C: Calls<Op>,
     {
-        self.environment.caller().call_at::<Op>(&self.call_stage, request).await
+        self.environment.caller().call_at(&self.call_stage, request).await
     }
 
-    // The host surface for this stage: `call` and `submit` take the
-    // declaration as the request, `call_as` and `submit_as` name it.
+    // The host surface for this stage: `call` and `submit` take the request,
+    // which is the operation declaration.
     pub fn host(&self) -> crate::execution::StepHost {
         let binding = crate::execution::builtins::Binding {
             artifacts: self.environment.artifacts().clone(),
@@ -358,17 +354,13 @@ impl<'a, C, I> CriterionContext<'a, C, I> {
     }
 
     #[cfg(feature = "native")]
-    pub async fn call<Op>(
-        &self, request: <Op::Declaration as harmos::operations::OperationDeclaration>::Request,
-    ) -> crate::Result<<Op::Declaration as harmos::operations::OperationDeclaration>::Response>
+    pub async fn call<Op>(&self, request: Op) -> crate::Result<Op::Response>
     where
-        Op: harmos::operations::Declares,
-        <Op::Declaration as harmos::operations::OperationDeclaration>::Request: harmos::Message,
-        <Op::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
+        Op: harmos::operations::OperationDeclaration,
         C: Calls<Op>,
     {
         let stage = self.log.map_or_else(String::new, |(_, criterion)| format!("criterion/{criterion}"));
-        self.caller.call_at::<Op>(&stage, request).await
+        self.caller.call_at(&stage, request).await
     }
 
     #[cfg(feature = "native")]

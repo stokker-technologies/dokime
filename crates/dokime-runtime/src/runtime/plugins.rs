@@ -743,7 +743,7 @@ fn lookup_bundles(directory: &std::path::Path) -> Result<Vec<PluginBundle>> {
 }
 
 fn read_bundle(input: PluginBundle, cached_digest: Option<&str>) -> Result<ReadBundle> {
-    let bytes = read_bounded(&input.path, harmos::bundle::Limits::default().archive_bytes).map_err(operation)?;
+    let bytes = read_bounded(&input.path, harmos_packaging::bundle::Limits::default().archive_bytes).map_err(operation)?;
     let content_digest = match cached_digest {
         Some(digest) => digest.to_owned(),
         None => digest(&bytes),
@@ -804,7 +804,7 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
             executable = executable.variable("RUST_LOG", plugin_log_filter(filter));
         }
 
-        let bytes = read_bounded(executable.path(), harmos::bundle::Limits::default().file_bytes).map_err(operation)?;
+        let bytes = read_bounded(executable.path(), harmos_packaging::bundle::Limits::default().file_bytes).map_err(operation)?;
         let hash = Sha256::digest(&bytes);
         if hash.iter().map(|byte| format!("{byte:02x}")).collect::<String>() != file.sha256 {
             return Err(operation(format!("extracted executable `{id}` differs from its verified bundle")));
@@ -832,10 +832,6 @@ async fn prepare(read: ReadBundle, extraction: &std::path::Path, reuse: Option<P
                 wire_contracts: declaration.contracts.provides.clone(),
                 required_contracts: Some(declaration.contracts.requires.clone()),
                 observers: declaration.observers.clone(),
-                observer_control: match &declaration.carrier {
-                    harmos::plugin::inventory::CarrierSection::Sidecar { observer_control, .. } => observer_control.as_deref().cloned(),
-                    harmos::plugin::inventory::CarrierSection::Guest => None,
-                },
                 lifecycle: Some(declaration.contracts.lifecycle.clone()),
                 listeners: declaration.listeners.clone(),
                 streams: executable.declaration().streams.clone(),

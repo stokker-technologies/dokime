@@ -262,16 +262,16 @@ fn hosted(contributed: &Contributed) -> Vec<Path> {
     let sdk = crate::facade::root();
     let mut hosted: Vec<Path> = Vec::new();
     if contributed.suites.is_some() {
-        hosted.push(syn::parse_quote!(#sdk::transport::PushEvidence));
-        hosted.push(syn::parse_quote!(#sdk::transport::AskOperator));
-        hosted.push(syn::parse_quote!(#sdk::transport::LeaseStream));
+        hosted.push(syn::parse_quote!(#sdk::transport::EvidenceBatch));
+        hosted.push(syn::parse_quote!(#sdk::transport::OperatorQuestion));
+        hosted.push(syn::parse_quote!(#sdk::transport::LeaseAsk));
         hosted.push(syn::parse_quote!(#sdk::__harmos::operations::host::Publish));
         // The host's step built-in every template reaches through
         // `ctx.host()` without listing it.
         hosted.push(syn::parse_quote!(#sdk::operations::files::WatchFile));
     }
     if contributed.records {
-        hosted.push(syn::parse_quote!(#sdk::records::PublishRecord));
+        hosted.push(syn::parse_quote!(#sdk::records::RecordPublication));
     }
     hosted
 }

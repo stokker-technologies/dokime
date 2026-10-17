@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 // Third Party Imports
 use harmos::Message;
-use harmos::operations::{CallContext, Callable, ContextError, ContextValue, Declares, Host, OperationDeclaration, Response};
+use harmos::operations::{CallContext, ContextError, ContextValue, Host, OperationDeclaration, Response};
 use harmos::sidecar::{CallError, Supervisor};
 
 // Local Imports
@@ -74,15 +74,8 @@ impl Caller {
         Self(Road::Local(Arc::new(operations)))
     }
 
-    pub async fn call<O>(
-        &self, request: <O::Declaration as OperationDeclaration>::Request,
-    ) -> crate::Result<<O::Declaration as OperationDeclaration>::Response>
-    where
-        O: Declares,
-        <O::Declaration as OperationDeclaration>::Request: Message,
-        <O::Declaration as OperationDeclaration>::Response: Message,
-    {
-        self.call_at::<O>("", request).await
+    pub async fn call<O: OperationDeclaration>(&self, request: O) -> crate::Result<O::Response> {
+        self.call_at("", request).await
     }
 
     pub(super) fn step_host(&self, stage: &str, binding: Binding) -> StepHost {
@@ -93,21 +86,14 @@ impl Caller {
         matches!(self.0, Road::Host(_))
     }
 
-    pub(super) async fn call_at<O>(
-        &self, stage: &str, request: <O::Declaration as OperationDeclaration>::Request,
-    ) -> crate::Result<<O::Declaration as OperationDeclaration>::Response>
-    where
-        O: Declares,
-        <O::Declaration as OperationDeclaration>::Request: Message,
-        <O::Declaration as OperationDeclaration>::Response: Message,
-    {
-        let operation = <O::Declaration as OperationDeclaration>::ID;
+    pub(super) async fn call_at<O: OperationDeclaration>(&self, stage: &str, request: O) -> crate::Result<O::Response> {
+        let operation = O::ID;
         let refused = |reason: String| crate::Error::Call { operation, reason };
         match &self.0 {
             Road::Unmounted => Err(refused("this template is running without a host to route through".into())),
             Road::Host(host) => routed(host, stage, operation)
                 .map_err(|error| refused(error.to_string()))?
-                .call_as::<O::Declaration>(request)
+                .call(request)
                 .await
                 .map_err(|error| refused(error.to_string()))?
                 .try_unwrap()
@@ -115,8 +101,8 @@ impl Caller {
             Road::Local(operations) => {
                 let answer =
                     operations.get(operation).ok_or_else(|| refused("the harness registered no answer for this operation".into()))?;
-                let bytes = answer(request.encode_to_vec()).await.map_err(refused)?;
-                <<O::Declaration as OperationDeclaration>::Response as Message>::decode(bytes.as_slice())
+                let bytes = answer(Message::encode_to_vec(&request)).await.map_err(refused)?;
+                <O::Response as Message>::decode(bytes.as_slice())
                     .map_err(|error| refused(error.to_string()))
             }
         }
@@ -125,7 +111,7 @@ impl Caller {
 
 impl Host for StepHost {
     type Error = CallError;
-    type Instance<O: Callable> = StepInstance<O>;
+    type Instance<O: OperationDeclaration> = StepInstance<O>;
 
     fn context(&self) -> &CallContext {
         match &self.caller.0 {
@@ -144,8 +130,8 @@ impl Host for StepHost {
         Ok(child)
     }
 
-    async fn submit_as<O: Callable>(&self, request: O::Request) -> Result<Self::Instance<O>, CallError> {
-        let encoded = request.encode_to_vec();
+    async fn submit<O: OperationDeclaration>(&self, request: O) -> Result<Self::Instance<O>, CallError> {
+        let encoded = Message::encode_to_vec(&request);
         let handles = &self.binding.handles;
         if let Some(serve) = served(O::ID, self.caller.hosted()) {
             let binding = self.binding.clone();
@@ -156,7 +142,7 @@ impl Host for StepHost {
         match &self.caller.0 {
             Road::Unmounted => Err(CallError::Unavailable),
             Road::Host(host) => {
-                let instance = routed(host, &self.stage, O::ID).map_err(refusal)?.submit_as::<O>(request).await?;
+                let instance = routed(host, &self.stage, O::ID).map_err(refusal)?.submit(request).await?;
                 Ok(StepInstance::host(handles, instance, &encoded))
             }
             Road::Local(operations) => {
@@ -169,19 +155,19 @@ impl Host for StepHost {
         }
     }
 
-    async fn call_as<O: Callable>(&self, request: O::Request) -> Result<Response<O::Response>, CallError> {
+    async fn call<O: OperationDeclaration>(&self, request: O) -> Result<Response<O::Response>, CallError> {
         if served(O::ID, self.caller.hosted()).is_some() {
-            return self.submit_as::<O>(request).await?.join().await;
+            return self.submit(request).await?.join().await;
         }
         match &self.caller.0 {
             Road::Unmounted => Err(CallError::Unavailable),
-            Road::Host(host) => routed(host, &self.stage, O::ID).map_err(refusal)?.call_as::<O>(request).await,
+            Road::Host(host) => routed(host, &self.stage, O::ID).map_err(refusal)?.call(request).await,
             Road::Local(operations) => {
                 let answer = operations.get(O::ID).ok_or_else(|| CallError::Refused {
                     code: STEP_REFUSAL,
                     failure: refusal_failure("the harness registered no answer for this operation"),
                 })?;
-                let bytes = answer(request.encode_to_vec())
+                let bytes = answer(Message::encode_to_vec(&request))
                     .await
                     .map_err(|message| CallError::Refused { code: STEP_REFUSAL, failure: refusal_failure(message) })?;
                 let response = O::Response::decode(bytes.as_slice())
@@ -193,8 +179,8 @@ impl Host for StepHost {
     }
 
     // A step lends no process-local resources to the host.
-    async fn submit_with_resources<O: Callable<Response = ()>, R: Send + Sync + 'static>(
-        &self, _: O::Request, _: Arc<R>,
+    async fn submit_with_resources<O: OperationDeclaration<Response = ()>, R: Send + Sync + 'static>(
+        &self, _: O, _: Arc<R>,
     ) -> Result<StepInstance<O>, CallError> {
         Err(CallError::LocalResources { method: O::ID })
     }

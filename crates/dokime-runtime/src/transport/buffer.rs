@@ -678,7 +678,7 @@ impl ExecutionState {
             // A lone item may use the whole frame; pages of several stay
             // inside the admission budget.
             let alone = previous_cursor == cursor;
-            if page_fits(&reply) || (alone && Frame::request_fits::<crate::transport::PushEvidence>(&reply)) {
+            if page_fits(&reply) || (alone && Frame::request_fits::<crate::transport::EvidenceBatch>(&reply)) {
                 if frame.step_attempt.is_some() || frame.step_begin.is_some() || frame.capture_phase.is_some() {
                     break;
                 }
@@ -856,7 +856,7 @@ fn value_equivalent(left: Option<&dokime_domain::model::values::Value>, right: O
 
 fn page_fits(page: &crate::transport::EvidenceBatch) -> bool {
     use harmos::Message;
-    page.encoded_len() <= crate::transport::protocol::MAX_EVIDENCE_PAGE_BYTES && Frame::request_fits::<crate::transport::PushEvidence>(page)
+    page.encoded_len() <= crate::transport::protocol::MAX_EVIDENCE_PAGE_BYTES && Frame::request_fits::<crate::transport::EvidenceBatch>(page)
 }
 
 /* === Tests === */

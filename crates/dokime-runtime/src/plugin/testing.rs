@@ -163,23 +163,16 @@ impl Harness {
     #[must_use]
     pub fn answering<O, F>(mut self, answer: F) -> Self
     where
-        O: harmos::operations::Declares,
-        <O::Declaration as harmos::operations::OperationDeclaration>::Request: harmos::Message,
-        <O::Declaration as harmos::operations::OperationDeclaration>::Response: harmos::Message,
-        F: Fn(
-                <O::Declaration as harmos::operations::OperationDeclaration>::Request,
-            ) -> <O::Declaration as harmos::operations::OperationDeclaration>::Response
-            + Send
-            + Sync
-            + 'static,
+        O: harmos::operations::OperationDeclaration,
+        F: Fn(O) -> O::Response + Send + Sync + 'static,
     {
         let answer = std::sync::Arc::new(answer);
         self.operations.insert(
-            <O::Declaration as harmos::operations::OperationDeclaration>::ID.to_owned(),
+            O::ID.to_owned(),
             std::sync::Arc::new(move |payload: Vec<u8>| {
                 let answer = std::sync::Arc::clone(&answer);
                 Box::pin(async move {
-                    let request = <<O::Declaration as harmos::operations::OperationDeclaration>::Request as harmos::Message>::decode(
+                    let request = <O as harmos::Message>::decode(
                         payload.as_slice(),
                     )
                     .map_err(|error| error.to_string())?;

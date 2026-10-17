@@ -18,7 +18,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 // Third Party Imports
-use harmos::operations::{Context, Operation, OperationManager, host};
+use harmos::operations::{Context, Operation, OperationManager, streams};
 // Local Imports
 use crate::{InstalledSidecar, RuntimeHandle};
 
@@ -76,11 +76,11 @@ impl Publications {
 }
 
 impl harmos::operations::Declares for Invocation {
-    type Declaration = host::Publish;
+    type Declaration = streams::Publish;
 }
 
 impl Operation for Invocation {
-    type Declaration = host::Publish;
+    type Declaration = streams::Publish;
     type Resources = Publications;
     type Endpoints = ();
     type Error = harmos::Error;
@@ -91,7 +91,7 @@ impl Operation for Invocation {
     }
 
     async fn run<'ctx>(
-        &mut self, context: Self::Context<'ctx>, request: &mut host::Publication, _: &mut (),
+        &mut self, context: Self::Context<'ctx>, request: &mut streams::Publish, _: &mut (),
     ) -> harmos::Result<harmos::operations::Response<()>> {
         let scope = context
             .caller_scope()
@@ -147,11 +147,11 @@ impl RecordIngress {
 }
 
 impl harmos::operations::Declares for Filing {
-    type Declaration = crate::records::PublishRecord;
+    type Declaration = crate::records::RecordPublication;
 }
 
 impl Operation for Filing {
-    type Declaration = crate::records::PublishRecord;
+    type Declaration = crate::records::RecordPublication;
     type Resources = RecordIngress;
     type Endpoints = ();
     type Error = harmos::Error;

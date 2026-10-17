@@ -19,7 +19,7 @@ use harmos::operations::Host;
 
 // Local Imports
 use crate::publication::{Publication, Publishable};
-use crate::records::{PublishRecord, RecordPublication};
+use crate::records::RecordPublication;
 
 /* === Constants === */
 
@@ -54,13 +54,13 @@ impl Publisher {
         };
         let publication = RecordPublication {
             request_json: serde_json::to_string(&request).map_err(|error| crate::Error::Call {
-                operation: <PublishRecord as harmos::operations::OperationDeclaration>::ID,
+                operation: <RecordPublication as harmos::operations::OperationDeclaration>::ID,
                 reason: error.to_string(),
             })?,
             produced_at: crate::model::time::now_utc().as_str().to_owned(),
         };
-        self.host.call_as::<PublishRecord>(publication).await.map(|response| response.into_owned()).map_err(|error| crate::Error::Call {
-            operation: <PublishRecord as harmos::operations::OperationDeclaration>::ID,
+        self.host.call(publication).await.map(|response| response.into_owned()).map_err(|error| crate::Error::Call {
+            operation: <RecordPublication as harmos::operations::OperationDeclaration>::ID,
             reason: error.to_string(),
         })
     }

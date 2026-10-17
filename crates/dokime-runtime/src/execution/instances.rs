@@ -28,7 +28,7 @@ use std::time::Duration;
 // Third Party Imports
 use harmos::Message;
 use harmos::operations::instance::{Id, Outcome, Phase, Status};
-use harmos::operations::{Callable, Host, Instance, Response};
+use harmos::operations::{Host, Instance, OperationDeclaration, Response};
 use harmos::sidecar::{CallError, Supervisor};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -85,13 +85,13 @@ struct Ledger {
 }
 
 #[must_use = "dropping an unsettled operation instance requests its cancellation"]
-pub struct StepInstance<O: Callable> {
+pub struct StepInstance<O: OperationDeclaration> {
     id: Id,
     slot: Arc<Slot<O>>,
     released: bool,
 }
 
-struct Slot<O: Callable> {
+struct Slot<O: OperationDeclaration> {
     running: tokio::sync::Mutex<Option<Running<O>>>,
     kind: &'static str,
     name: String,
@@ -107,7 +107,7 @@ pub(crate) struct LocalRun {
 }
 
 /* === Enums === */
-enum Running<O: Callable> {
+enum Running<O: OperationDeclaration> {
     Host(HostInstance<O>),
     Local(LocalRun),
 }
@@ -189,7 +189,7 @@ impl LocalRun {
     }
 }
 
-impl<O: Callable> StepInstance<O> {
+impl<O: OperationDeclaration> StepInstance<O> {
     pub(crate) fn host(handles: &Handles, instance: HostInstance<O>, request: &[u8]) -> Self {
         let id = instance.id();
         Self::tracked(handles, id, Running::Host(instance), request)
@@ -259,7 +259,7 @@ impl<O: Callable> StepInstance<O> {
     }
 }
 
-impl<O: Callable> Drop for StepInstance<O> {
+impl<O: OperationDeclaration> Drop for StepInstance<O> {
     fn drop(&mut self) {
         if self.released {
             return;
@@ -277,7 +277,7 @@ impl<O: Callable> Drop for StepInstance<O> {
     }
 }
 
-impl<O: Callable> Instance<O> for StepInstance<O> {
+impl<O: OperationDeclaration> Instance<O> for StepInstance<O> {
     type Error = CallError;
 
     fn id(&self) -> Id {
@@ -301,7 +301,7 @@ impl<O: Callable> Instance<O> for StepInstance<O> {
     }
 }
 
-impl<O: Callable> Sweep for Slot<O> {
+impl<O: OperationDeclaration> Sweep for Slot<O> {
     fn sweep(&self, step: String) -> Sweeping<'_> {
         Box::pin(async move {
             let running = self.running.lock().await.take()?;
@@ -349,7 +349,7 @@ fn swept() -> Status {
 
 // What a warning calls the instance: the program a process runs, the
 // artifact a watch fills, or the operation itself.
-fn label<O: Callable>(request: &[u8]) -> (&'static str, String) {
+fn label<O: OperationDeclaration>(request: &[u8]) -> (&'static str, String) {
     if O::ID == <RunProcess as harmos::operations::OperationDeclaration>::ID
         && let Ok(process) = RunProcess::decode(request)
     {

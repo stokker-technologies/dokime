@@ -31,7 +31,6 @@ use crate::{RuntimeHandle, runtime::Error};
 use dokime_domain::model::files::wire::FileWatchGap;
 use dokime_domain::model::files::wire::WatchFileOutcome;
 use dokime_domain::model::files::wire::WatchedArtifact;
-use dokime_domain::operations::files::WatchFile as Declaration;
 use dokime_domain::operations::files::WatchFile;
 
 /* === Constants === */
@@ -48,7 +47,7 @@ pub struct Resources {
     runtime: OnceLock<RuntimeHandle>,
 }
 
-struct WatchFile {
+struct Watching {
     resources: Arc<Resources>,
     watch: Option<FileWatch>,
 }
@@ -58,8 +57,8 @@ struct WatchFile {
 /* === Traits === */
 
 /* === Implementations === */
-impl Operation for WatchFile {
-    type Declaration = Declaration;
+impl Operation for Watching {
+    type Declaration = WatchFile;
     type Resources = Resources;
     type Error = Error;
     type Context<'a> = Context<'a>;
@@ -76,7 +75,7 @@ impl Operation for WatchFile {
         let scoped = context.context().value::<crate::execution::ExecutionScope>().ok().flatten().map(|scope| scope.execution);
         let runtime =
             self.resources.runtime.get().ok_or_else(|| Error::unavailable(super::UNREACHABLE, "the runtime is still starting"))?;
-        let watch = runtime.open_watch_file(request, scoped.as_deref()).await?;
+        let watch = runtime.open_watch_file(&*request, scoped.as_deref()).await?;
         let watch = self.watch.insert(watch);
         let started = Instant::now();
 
@@ -142,7 +141,7 @@ impl Resources {
 pub fn register(operations: &OperationManager) -> harmos::Result<Arc<Resources>> {
     harmos::builtin::Catalog::register(operations, OWNER, crate::app::Lanes::Open)?;
     let resources = Arc::new(Resources { runtime: OnceLock::new() });
-    operations.register_wire_operation::<WatchFile>(OWNER, crate::app::Lanes::Open, Arc::clone(&resources))?;
+    operations.register_wire_operation::<Watching>(OWNER, crate::app::Lanes::Open, Arc::clone(&resources))?;
     Ok(resources)
 }
 

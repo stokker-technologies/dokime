@@ -27,7 +27,6 @@ use crate::records::BuiltinRecordType;
 use crate::records::RecordSeverity;
 use crate::telemetry::{SamplingScope, TelemetryCaptureLease, TelemetrySamplingRequest};
 use crate::{
-    error::Error,
     evidence_runtime::{PublishReceipt, RecordPublishRequest},
     handle::RuntimeHandle,
     parameter_runtime::ScopedParameterUpdate,
@@ -452,8 +451,8 @@ impl StepContextError {
     }
 }
 
-impl From<Error> for StepContextError {
-    fn from(error: Error) -> Self {
+impl From<crate::runtime::Error> for StepContextError {
+    fn from(error: crate::runtime::Error) -> Self {
         Self::Runtime(error.to_string())
     }
 }

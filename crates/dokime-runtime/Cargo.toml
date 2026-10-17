@@ -72,6 +72,7 @@ dokime-macros = { path = "../dokime-macros", optional = true }
 
 # Git
 harmos = { workspace = true, features = ["plugin", "signal"] }
+harmos-packaging = { workspace = true }
 
 # Error Handling
 thiserror = { workspace = true }

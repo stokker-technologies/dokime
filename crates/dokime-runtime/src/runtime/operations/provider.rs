@@ -31,10 +31,17 @@ use dokime_domain::model::identity::TestCycleId;
 use dokime_domain::model::identity::TestExecutionId;
 
 /* === Constants === */
+const PROVIDER_POLICY: OperationPolicy = OperationPolicy {
+    timeout: std::time::Duration::from_secs(86_400),
+    attempt_timeout: std::time::Duration::from_secs(86_400),
+    retries: RetryPolicy::Never,
+    restart: RestartPolicy::Never,
+};
 
 /* === Macros === */
 
 /* === Type Aliases === */
+type ProviderOutcome = std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure>;
 
 /* === Structs === */
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -57,7 +64,14 @@ pub(crate) struct PublicationFailure {
     source: Arc<crate::runtime::Error>,
 }
 
-struct RunProviderCycle;
+// The portable identity of one provider cycle run; the process-local
+// invocation travels as the operation's endpoints and carries its outcome.
+#[harmos::message]
+#[harmos::operation(response = (), id = "dokime.execution.provider.run", version = 1, policy = PROVIDER_POLICY)]
+#[derive(Clone, PartialEq)]
+struct RunProviderCycle {
+    request_id: String,
+}
 
 #[derive(Clone)]
 struct ProviderInvocation {
@@ -66,6 +80,7 @@ struct ProviderInvocation {
     after: harmos::state::Position,
     started: Arc<std::sync::atomic::AtomicU8>,
     finalization: crate::execution_runtime::run::Finalization,
+    outcome: Arc<std::sync::Mutex<Option<ProviderOutcome>>>,
 }
 
 struct ProviderState {
@@ -126,24 +141,18 @@ impl RuntimeHandle {
     }
 }
 
-impl OperationDeclaration for RunProviderCycle {
-    type Request = ProviderInvocation;
-    type Response = std::result::Result<ProviderCycleOutcome, ProviderExecutionFailure>;
-
-    const ID: &'static str = "dokime.execution.provider.run";
-    const POLICY: OperationPolicy = OperationPolicy {
-        timeout: std::time::Duration::from_secs(86_400),
-        attempt_timeout: std::time::Duration::from_secs(86_400),
-        retries: RetryPolicy::Never,
-        restart: RestartPolicy::Never,
-    };
+// The invocation is process-local state, never a streamed endpoint.
+impl harmos::operations::EndpointSet for ProviderInvocation {
+    fn item_types() -> (Option<std::any::TypeId>, Option<std::any::TypeId>) {
+        (None, None)
+    }
 }
 
 impl Operation for ProviderState {
     type Context<'a> = Context<'a>;
     type Declaration = RunProviderCycle;
     type Resources = ();
-    type Endpoints = ();
+    type Endpoints = ProviderInvocation;
     type Error = crate::runtime::Error;
 
     async fn initialize<'ctx>(_: Arc<Self::Resources>, _: Self::Context<'ctx>) -> Result<Self, Self::Error> {
@@ -151,11 +160,14 @@ impl Operation for ProviderState {
     }
 
     async fn run<'ctx>(
-        &mut self, _context: Self::Context<'ctx>, request: &mut ProviderInvocation, _: &mut Self::Endpoints,
-    ) -> Result<harmos::operations::Response<<RunProviderCycle as OperationDeclaration>::Response>, Self::Error> {
-        let invocation = self.invocation.get_or_insert_with(|| request.clone());
+        &mut self, _context: Self::Context<'ctx>, _: &mut RunProviderCycle, endpoints: &mut ProviderInvocation,
+    ) -> Result<harmos::operations::Response<()>, Self::Error> {
+        let invocation = self.invocation.get_or_insert_with(|| endpoints.clone());
+        let slot = Arc::clone(&invocation.outcome);
         if invocation.started.compare_exchange(0, 1, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire).is_err() {
-            return Ok((Err(ProviderExecutionFailure::new("cancel", "plugin shutdown before execution started"))).into());
+            *slot.lock().expect("provider outcome lock poisoned") =
+                Some(Err(ProviderExecutionFailure::new("cancel", "plugin shutdown before execution started")));
+            return Ok(().into());
         }
 
         let runtime = invocation.runtime.clone();
@@ -164,11 +176,10 @@ impl Operation for ProviderState {
         let after = invocation.after;
         let cancelled = self.work.cancelled.clone();
         let finalization = invocation.finalization.clone();
-        Ok((self
-            .work
-            .run(Box::pin(async move { run_provider_cycle(runtime, &providers, job, after, cancelled, finalization).await }))
-            .await)
-            .into())
+        let outcome =
+            self.work.run(Box::pin(async move { run_provider_cycle(runtime, &providers, job, after, cancelled, finalization).await })).await;
+        *slot.lock().expect("provider outcome lock poisoned") = Some(outcome);
+        Ok(().into())
     }
 
     async fn cleanup(&mut self) -> Result<(), Self::Error> {
@@ -217,13 +228,18 @@ impl ProviderCycleRequest {
         let started = Arc::new(std::sync::atomic::AtomicU8::new(0));
         let (cancel, mut cancelled) = tokio::sync::watch::channel(false);
         let finalization = crate::execution_runtime::run::Finalization::default();
-        let invocation = runtime.operations.submit_as::<RunProviderCycle>(ProviderInvocation {
-            job: self.clone(),
-            runtime: runtime.clone(),
-            after,
-            started: Arc::clone(&started),
-            finalization: finalization.clone(),
-        });
+        let settlement = Arc::new(std::sync::Mutex::new(None));
+        let invocation = runtime.operations.submit_endpoints(
+            RunProviderCycle { request_id: self.request_id.clone() },
+            ProviderInvocation {
+                job: self.clone(),
+                runtime: runtime.clone(),
+                after,
+                started: Arc::clone(&started),
+                finalization: finalization.clone(),
+                outcome: Arc::clone(&settlement),
+            },
+        );
         let task = tokio::spawn(async move {
             let mut handle = match invocation {
                 Ok(handle) => handle,
@@ -258,13 +274,16 @@ impl ProviderCycleRequest {
             };
             tracing::debug!(request_id = %self.request_id, cycle_id = %self.test_cycle_id, phase = "provider_monitor", elapsed_ms = %monitoring.elapsed().as_millis(), transport_ok = outcome.is_ok(), "provider monitor observed settled invocation");
             match outcome {
-                Ok(outcome) => {
+                Ok(_) => {
+                    let settled = settlement.lock().expect("provider outcome lock poisoned").take().unwrap_or_else(|| {
+                        Err(ProviderExecutionFailure::new("cancel", "provider run settled without an outcome"))
+                    });
                     let cycle = TestCycleId::from_uuid(&self.test_cycle_id).expect("journaled cycle id is valid");
                     let started = started_execution_ids_for(&runtime, &cycle);
                     submit_finish_provider_cycle(
                         &runtime,
                         &self,
-                        outcome.try_unwrap().unwrap_or_else(|outcome| (*outcome).clone()),
+                        settled,
                         started,
                     )
                     .await;

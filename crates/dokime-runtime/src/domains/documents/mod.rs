@@ -36,8 +36,8 @@ use crate::document::{
     DocumentCard, DocumentCardBody, DocumentCardLayout, DocumentCardRail, DocumentDataInput, DocumentDefinition, DocumentPayload,
     DocumentResolveInput, DocumentSection, DocumentSelection, resolve_document_plot_axes,
 };
-use crate::error::Error;
-use crate::error::Result;
+use crate::runtime::error::Error;
+use crate::runtime::error::Result;
 use crate::execution_runtime::registry::SuiteRegistry;
 use crate::telemetry::{TelemetryContract, TelemetrySample};
 use dokime_domain::model::execution::RecordScope;

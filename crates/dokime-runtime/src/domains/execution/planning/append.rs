@@ -43,7 +43,7 @@ impl RuntimeHandle {
             cases.iter().filter_map(|case| state.suites.suite_for_case(case)).map(|entry| entry.source.clone()).collect::<Vec<_>>()
         };
         let admission_identifier = context.idempotency_key.as_deref().filter(|key| !key.is_empty()).map_or_else(
-            dokime_domain::model::identity::CommandId::new,
+            crate::model::identity::new_id::<dokime_domain::model::identity::CommandId>,
             |key| {
                 dokime_domain::model::identity::CommandId::from_seed(format!(
                     "cycle-append:{}:{test_cycle_id}:{key}",

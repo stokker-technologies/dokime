@@ -21,8 +21,7 @@ use harmos::operations::{Context, Operation, OperationManager};
 use super::session::Session;
 use crate::execution::ExecutionScope;
 use crate::transport::{
-    AskOperator, EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, LeaseStream, OperatorAnswer, OperatorQuestion, PushEvidence,
-    TransportFuture,
+    EvidenceBatch, EvidenceReceipt, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, TransportFuture,
 };
 
 /* === Constants === */
@@ -115,11 +114,11 @@ impl crate::execution::ExecutionHost for Embedded {
 }
 
 impl harmos::operations::Declares for Evidence {
-    type Declaration = PushEvidence;
+    type Declaration = EvidenceBatch;
 }
 
 impl Operation for Evidence {
-    type Declaration = PushEvidence;
+    type Declaration = EvidenceBatch;
     type Resources = Sessions;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -138,11 +137,11 @@ impl Operation for Evidence {
 }
 
 impl harmos::operations::Declares for Question {
-    type Declaration = AskOperator;
+    type Declaration = OperatorQuestion;
 }
 
 impl Operation for Question {
-    type Declaration = AskOperator;
+    type Declaration = OperatorQuestion;
     type Resources = Sessions;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;
@@ -164,11 +163,11 @@ impl Operation for Question {
 }
 
 impl harmos::operations::Declares for Lease {
-    type Declaration = LeaseStream;
+    type Declaration = LeaseAsk;
 }
 
 impl Operation for Lease {
-    type Declaration = LeaseStream;
+    type Declaration = LeaseAsk;
     type Resources = Sessions;
     type Error = harmos::Error;
     type Context<'a> = Context<'a>;

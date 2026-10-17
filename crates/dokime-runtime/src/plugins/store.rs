@@ -262,8 +262,8 @@ impl PluginStore {
         })
     }
 
-    pub(crate) fn verified(&self, id: Uuid, plugin: &PluginSettings) -> Result<(harmos::bundle::Bundle, PluginMetadata), PluginError> {
-        let bytes = read_bounded(&self.path(id), harmos::bundle::Limits::default().archive_bytes)?;
+    pub(crate) fn verified(&self, id: Uuid, plugin: &PluginSettings) -> Result<(harmos_packaging::bundle::Bundle, PluginMetadata), PluginError> {
+        let bytes = read_bounded(&self.path(id), harmos_packaging::bundle::Limits::default().archive_bytes)?;
         if digest(&bytes) != plugin.digest {
             return Err(PluginError::Changed(id));
         }
@@ -275,7 +275,7 @@ impl PluginStore {
     }
 
     fn entry_from_verification(
-        id: Uuid, plugin: &PluginSettings, verified: Result<(harmos::bundle::Bundle, PluginMetadata), PluginError>,
+        id: Uuid, plugin: &PluginSettings, verified: Result<(harmos_packaging::bundle::Bundle, PluginMetadata), PluginError>,
     ) -> PluginEntry {
         match verified {
             Ok((_, metadata)) => entry(plugin.installation(id), Some(metadata), None),

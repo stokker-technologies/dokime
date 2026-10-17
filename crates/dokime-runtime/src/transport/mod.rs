@@ -20,10 +20,11 @@ pub mod provider;
 pub mod recording;
 
 /* === Re-Exports === */
+pub(crate) use protocol::templated;
 pub use protocol::{
-    ArtifactChunk, AskOperator, CommandExecutionReply, CommandExecutionRequest, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch,
-    EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, LeaseStream, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES, OperatorAnswer,
-    OperatorQuestion, PushEvidence, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarCriterionOutcome, SidecarCriterionStatus,
+    ArtifactChunk, CommandExecutionReply, CommandExecutionRequest, DeliverRecordRequest, DeliverSamplesRequest, EvidenceBatch,
+    EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, MAX_ARTIFACT_BYTES, MAX_ARTIFACT_CHUNK_BYTES, OperatorAnswer,
+    OperatorQuestion, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarCriterionOutcome, SidecarCriterionStatus,
     SidecarExecutionOutcome, SignalReply, StepAdmission,
 };
 pub use provider::{

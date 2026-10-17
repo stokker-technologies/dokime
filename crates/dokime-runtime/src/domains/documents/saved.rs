@@ -17,7 +17,8 @@
 use std::num::NonZeroUsize;
 
 // Third Party Imports
-use harmos::storage::{ByteRange, ObjectRevision, ObjectVersion, ReadFile};
+use harmos::storage::operations::ReadFile;
+use harmos::storage::{ByteRange, ObjectRevision, ObjectVersion};
 
 // Local Imports
 use crate::execution_runtime::outputs::{

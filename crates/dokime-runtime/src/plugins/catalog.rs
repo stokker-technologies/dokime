@@ -15,7 +15,7 @@
 // Standard Library Imports
 use std::collections::BTreeSet;
 // Third Party Imports
-use harmos::bundle::{Bundle, Identity, Limits};
+use harmos_packaging::bundle::{Bundle, Identity, Limits};
 use harmos::plugin::inventory::{CarrierSection, Declaration};
 use serde::{Deserialize, Serialize};
 // Local Imports
@@ -112,8 +112,8 @@ pub fn inspect(bytes: &[u8]) -> Result<(Bundle, PluginMetadata), PluginError> {
     Ok((bundle, metadata))
 }
 
-pub(crate) fn selected_files(bundle: &Bundle) -> Result<Vec<&harmos::bundle::File>, PluginError> {
-    let mut owners = std::collections::BTreeMap::<&str, Vec<&harmos::bundle::File>>::new();
+pub(crate) fn selected_files(bundle: &Bundle) -> Result<Vec<&harmos_packaging::bundle::File>, PluginError> {
+    let mut owners = std::collections::BTreeMap::<&str, Vec<&harmos_packaging::bundle::File>>::new();
     for file in &bundle.manifest().files {
         let Some(executable) = &file.executable else {
             continue;
@@ -126,7 +126,7 @@ pub(crate) fn selected_files(bundle: &Bundle) -> Result<Vec<&harmos::bundle::Fil
             }
         };
         let native = owners.entry(owner).or_default();
-        if executable.facility == harmos::bundle::Facility::Sidecar && executable.target == env!("DOKIME_NATIVE_TARGET") {
+        if executable.facility == harmos_packaging::bundle::Facility::Sidecar && executable.target == env!("DOKIME_NATIVE_TARGET") {
             native.push(file);
         }
     }

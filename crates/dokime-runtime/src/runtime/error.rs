@@ -41,6 +41,12 @@ pub enum Error {
     #[error("{}", harmos_message(.0))]
     Harmos(#[from] harmos::Error),
 
+    #[error(transparent)]
+    HarmosStorage(#[from] harmos::storage::Error),
+
+    #[error(transparent)]
+    HarmosDomain(#[from] harmos::domain::Error),
+
     #[error("sampling capture could not settle: {0}")]
     SamplingSettlement(#[source] Box<dyn std::error::Error + Send + Sync>),
 
@@ -181,6 +187,8 @@ impl From<std::io::Error> for Error {
 
 /* === Private Functions === */
 fn harmos_message(error: &harmos::Error) -> String {
+    use std::fmt::Write as _;
+
     let mut message = error.to_string();
     // Harmos prints an operation failure on its own line; Dokime messages carry the cause.
     if let harmos::Error::OperationFailed { source, .. } = error {

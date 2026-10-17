@@ -19,16 +19,16 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 // Third Party Imports
-use harmos::operations::{Host, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility};
+use harmos::operations::{Host, NoStream, OperationDeclaration, OperationPolicy, RestartPolicy, RetryPolicy, Visibility};
 use harmos::sidecar::operations::{ServingError, WireTable};
 use harmos::sidecar::{Refusal, Supervisor};
 
 // Local Imports
 use super::{Caller, SampleOutput, SidecarTemplate, Workflow};
+use crate::transport::templated;
 use crate::transport::buffer::lock;
 use crate::transport::{
-    AskOperator, EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, LeaseStream, OperatorAnswer, OperatorQuestion,
-    PushEvidence, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarExecutionOutcome, SignalReply, TransportFuture,
+    EvidenceBatch, EvidenceReceipt, ExecutionSignal, LeaseAsk, LeaseResolution, OperatorAnswer, OperatorQuestion, RUN_BOUND, RunExecution, SIGNAL_BOUND, SidecarExecutionOutcome, SignalReply, TransportFuture,
 };
 
 /* === Constants === */
@@ -39,17 +39,19 @@ const PUSH_RETRIES: usize = 5;
 const RUN_POLICY: OperationPolicy =
     OperationPolicy { timeout: RUN_BOUND, attempt_timeout: RUN_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
 
-const SIGNAL_POLICY: OperationPolicy =
+pub const SIGNAL_POLICY: OperationPolicy =
     OperationPolicy { timeout: SIGNAL_BOUND, attempt_timeout: SIGNAL_BOUND, retries: RetryPolicy::Never, restart: RestartPolicy::Never };
 
 /* === Macros === */
-
 /* === Type Aliases === */
 
 /* === Structs === */
-pub struct Run<T>(PhantomData<fn() -> T>);
+// One template's run operation: the request is the portable `RunExecution`;
+// the type parameter only selects the template's operation identity.
+pub struct Run<T>(pub RunExecution, PhantomData<fn() -> T>);
 
-pub struct Signal<T>(PhantomData<fn() -> T>);
+// One template's signal operation over the portable `ExecutionSignal`.
+pub struct Signal<T>(pub ExecutionSignal, PhantomData<fn() -> T>);
 
 pub struct Running<T: SidecarTemplate>(Arc<Workflow<T>>);
 
@@ -68,6 +70,14 @@ pub trait ExecutionHost: Send + Sync + 'static {
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>>;
 
     fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>>;
+}
+
+// The operation identities one served runner answers under: every
+// `SidecarTemplate` is served, and hand-written runners declare their own.
+pub trait Served: 'static {
+    const RUN: &'static str;
+    const SIGNAL: &'static str;
+    const SIGNAL_POLICY: OperationPolicy = SIGNAL_POLICY;
 }
 
 pub trait Runnable: Send + Sync + 'static {
@@ -89,54 +99,41 @@ pub trait Runnable: Send + Sync + 'static {
 }
 
 /* === Implementations === */
-impl OperationDeclaration for Run<()> {
-    type Request = RunExecution;
+templated!(Run, RunExecution);
+
+templated!(Signal, ExecutionSignal);
+
+// The host's embedded runner serves the generic template identities.
+impl Served for () {
+    const RUN: &'static str = "dokime.template.run";
+    const SIGNAL: &'static str = "dokime.template.signal";
+}
+
+impl<T: SidecarTemplate> Served for T {
+    const RUN: &'static str = T::RUN;
+    const SIGNAL: &'static str = T::SIGNAL;
+}
+
+impl<T: Served> OperationDeclaration for Run<T> {
     type Response = SidecarExecutionOutcome;
-    const ID: &'static str = "dokime.template.run";
-    const POLICY: OperationPolicy = RUN_POLICY;
-    const VISIBILITY: Visibility = Visibility::Host;
-}
-
-impl harmos::operations::WireOperation for Run<()> {
-    const VERSION: u32 = 1;
-}
-
-impl OperationDeclaration for Signal<()> {
-    type Request = ExecutionSignal;
-    type Response = SignalReply;
-    const ID: &'static str = "dokime.template.signal";
-    const POLICY: OperationPolicy = SIGNAL_POLICY;
-    const VISIBILITY: Visibility = Visibility::Host;
-}
-
-impl harmos::operations::WireOperation for Signal<()> {
-    const VERSION: u32 = 1;
-}
-
-impl<T: SidecarTemplate> OperationDeclaration for Run<T> {
-    type Request = RunExecution;
-    type Response = SidecarExecutionOutcome;
+    type Input = NoStream;
+    type Output = NoStream;
     const ID: &'static str = T::RUN;
+    const VERSION: u32 = 1;
     const DESCRIPTION: &'static str = "Runs one case of this template to its outcome.";
     const POLICY: OperationPolicy = RUN_POLICY;
     const VISIBILITY: Visibility = Visibility::Host;
 }
 
-impl<T: SidecarTemplate> harmos::operations::WireOperation for Run<T> {
-    const VERSION: u32 = 1;
-}
-
-impl<T: SidecarTemplate> OperationDeclaration for Signal<T> {
-    type Request = ExecutionSignal;
+impl<T: Served> OperationDeclaration for Signal<T> {
     type Response = SignalReply;
+    type Input = NoStream;
+    type Output = NoStream;
     const ID: &'static str = T::SIGNAL;
-    const DESCRIPTION: &'static str = "Reaches one running case of this template.";
-    const POLICY: OperationPolicy = SIGNAL_POLICY;
-    const VISIBILITY: Visibility = Visibility::Host;
-}
-
-impl<T: SidecarTemplate> harmos::operations::WireOperation for Signal<T> {
     const VERSION: u32 = 1;
+    const DESCRIPTION: &'static str = "Reaches one running case of this template.";
+    const POLICY: OperationPolicy = T::SIGNAL_POLICY;
+    const VISIBILITY: Visibility = Visibility::Host;
 }
 
 impl<T: SidecarTemplate> harmos::operations::Operation for Running<T> {
@@ -151,9 +148,9 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Running<T> {
     }
 
     async fn run<'ctx>(
-        &mut self, host: Self::Context<'ctx>, request: &mut RunExecution, _: &mut (),
+        &mut self, host: Self::Context<'ctx>, request: &mut Run<T>, _: &mut (),
     ) -> Result<harmos::operations::Response<SidecarExecutionOutcome>, Refusal> {
-        let request = std::mem::take(request);
+        let request = std::mem::take(&mut request.0);
         let outcome =
             self.0.execute(request, Arc::new(host.clone()), Some(SampleOutput::Host(host.clone())), Caller::host(host.clone())).await?;
         Ok(outcome.into())
@@ -172,28 +169,28 @@ impl<T: SidecarTemplate> harmos::operations::Operation for Signalling<T> {
     }
 
     async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, signal: &mut ExecutionSignal, _: &mut (),
+        &mut self, _: Self::Context<'ctx>, signal: &mut Signal<T>, _: &mut (),
     ) -> Result<harmos::operations::Response<SignalReply>, Refusal> {
-        self.0.signal(std::mem::take(signal)).map(Into::into)
+        self.0.signal(std::mem::take(&mut signal.0)).map(Into::into)
     }
 }
 
 impl ExecutionHost for Supervisor {
     fn push(&self, batch: EvidenceBatch) -> TransportFuture<'_, Result<EvidenceReceipt, String>> {
         Box::pin(async move {
-            self.call_as::<PushEvidence>(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
+            self.call(batch).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
         })
     }
 
     fn ask(&self, question: OperatorQuestion) -> TransportFuture<'_, Result<OperatorAnswer, String>> {
         Box::pin(async move {
-            self.call_as::<AskOperator>(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
+            self.call(question).await.map(|response| response.into_owned()).map_err(|error| error.to_string())
         })
     }
 
     fn lease(&self, ask: LeaseAsk) -> TransportFuture<'_, Result<LeaseResolution, String>> {
         Box::pin(
-            async move { self.call_as::<LeaseStream>(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) },
+            async move { self.call(ask).await.map(|response| response.into_owned()).map_err(|error| error.to_string()) },
         )
     }
 }

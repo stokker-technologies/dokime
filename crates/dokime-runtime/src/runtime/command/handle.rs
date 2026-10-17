@@ -210,7 +210,7 @@ impl RuntimeHandle {
         }
         let started = Instant::now();
         let node = self.state_read().identity.node.node_id.clone();
-        let command_id = self.provider_request_id(&context).unwrap_or_default();
+        let command_id = self.provider_request_id(&context).unwrap_or_else(crate::model::identity::new_id::<CommandId>);
         use sha2::Digest;
         let encoded = serde_json::to_vec(&(&test_cycle_id, &test_execution_id, mode)).expect("request identity encodes");
         let fingerprint: String = sha2::Sha256::digest(encoded).iter().map(|byte| format!("{byte:02x}")).collect();

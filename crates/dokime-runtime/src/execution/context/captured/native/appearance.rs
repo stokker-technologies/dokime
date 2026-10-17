@@ -178,7 +178,7 @@ impl TryFrom<Appearance> for RuntimeAppearanceFrame {
                 .transpose()
                 .map_err(|_| invalid("appearance source identifier is invalid"))?,
         };
-        crate::execution::context::validate_appearance(&result)?;
+        crate::execution::context::captured::validate_appearance(&result)?;
         Ok(result)
     }
 }

@@ -111,7 +111,6 @@ impl Active {
                 wire_contracts,
                 required_contracts: None,
                 observers: Vec::new(),
-                observer_control: None,
                 listeners: Vec::new(),
                 streams: streams.clone(),
                 registrations: registrations(&catalog)?,
@@ -250,9 +249,9 @@ impl harmos::operations::Operation for EmbeddedRun {
     }
 
     async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, request: &mut crate::transport::RunExecution, _: &mut (),
+        &mut self, _: Self::Context<'ctx>, request: &mut crate::execution::Run<()>, _: &mut (),
     ) -> std::result::Result<harmos::operations::Response<crate::transport::SidecarExecutionOutcome>, Self::Error> {
-        let request = std::mem::take(request);
+        let request = std::mem::take(&mut request.0);
         let host =
             Arc::new(crate::domains::execution::run::host::Embedded::new(Arc::clone(&self.0.sessions), request.execution_token.clone()));
         self.0
@@ -275,9 +274,9 @@ impl harmos::operations::Operation for EmbeddedSignal {
     }
 
     async fn run<'ctx>(
-        &mut self, _: Self::Context<'ctx>, signal: &mut crate::transport::ExecutionSignal, _: &mut (),
+        &mut self, _: Self::Context<'ctx>, signal: &mut crate::execution::Signal<()>, _: &mut (),
     ) -> std::result::Result<harmos::operations::Response<crate::transport::SignalReply>, Self::Error> {
-        self.0.template.signal(std::mem::take(signal)).await.map(Into::into)
+        self.0.template.signal(std::mem::take(&mut signal.0)).await.map(Into::into)
     }
 }
 

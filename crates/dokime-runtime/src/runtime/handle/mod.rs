@@ -31,7 +31,7 @@ use crate::transactions::Transactions;
 use crate::{
     config::RuntimeConfig,
     credentials::CredentialStore,
-    error::{Error, Result},
+    runtime::error::{Error, Result},
     execution_runtime::provider::{ExecutionFixture, ProviderExecutorRegistry},
     installed_plugins::module_preferences::PluginPreferences,
     telemetry_runtime::Sampling,
@@ -340,7 +340,7 @@ impl RuntimeHandle {
             providers,
             boot_started,
         } = parts;
-        harmos::storage::operations::Operations::register(
+        harmos::storage::operations::register(
             &harmos_runtime.operations,
             "dokime.storage",
             crate::app::Lanes::Open,

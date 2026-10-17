@@ -44,7 +44,7 @@ use dokime_domain::model::files::wire::FileRuleAction;
 use dokime_domain::model::files::wire::FileWatchSource;
 use dokime_domain::model::files::wire::FileWatchSourcePayload;
 use dokime_domain::model::identity::TestExecutionId;
-use dokime_domain::operations::files::FileWatch;
+use dokime_domain::operations::files::FileWatch as FileWatchRequest;
 use dokime_domain::operations::files::WatchFile;
 use source::Source;
 
@@ -109,7 +109,7 @@ struct Settings {
 impl RuntimeHandle {
     // Opens a watch over the request's source, scoped to its explicit execution
     // or to the calling step's execution; the two must agree when both exist.
-    pub async fn open_file_watch(&self, request: &FileWatch, context_execution: Option<&str>) -> Result<FileWatch> {
+    pub async fn open_file_watch(&self, request: &FileWatchRequest, context_execution: Option<&str>) -> Result<FileWatch> {
         let settings = self.watch_settings(request, context_execution)?;
         let source = self.watch_source(request.source.as_ref()).await?;
         FileWatch::open(self.clone(), settings, source).await
@@ -125,7 +125,7 @@ impl RuntimeHandle {
             return Err(invalid("the artifact must be a relative path with forward slashes"));
         }
         let mut settings = self.watch_settings(
-            &FileWatch {
+            &FileWatchRequest {
                 execution_id: request.execution_id.clone(),
                 source: None,
                 rules: vec![FileRule { glob: literal(&file), action: FileRuleAction::Include }],
@@ -171,7 +171,7 @@ impl RuntimeHandle {
         })
     }
 
-    fn watch_settings(&self, request: &FileWatch, context_execution: Option<&str>) -> Result<Settings> {
+    fn watch_settings(&self, request: &FileWatchRequest, context_execution: Option<&str>) -> Result<Settings> {
         // Resolve The Execution And Its Cycle
         let execution = match (request.execution_id.as_deref(), context_execution) {
             (Some(explicit), Some(context)) if explicit != context => {

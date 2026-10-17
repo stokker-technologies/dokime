@@ -60,7 +60,7 @@ impl RuntimeHandle {
                 .iter()
                 .filter(|bundle| matches!(bundle.provenance, PluginProvenance::Configured))
                 .map(|bundle| {
-                    let bytes = read_bounded(&bundle.path, harmos::bundle::Limits::default().archive_bytes)?;
+                    let bytes = read_bounded(&bundle.path, harmos_packaging::bundle::Limits::default().archive_bytes)?;
                     inspect(&bytes).map(|(_, metadata)| metadata)
                 })
                 .collect::<Result<Vec<_>, PluginError>>()?;

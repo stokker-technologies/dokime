@@ -108,7 +108,7 @@ impl PluginSettings for NoSettings {
 impl<R, Answered> Answers<Answered> for R
 where
     R: harmos::operations::Declares,
-    R::Declaration: harmos::operations::OperationDeclaration<Request = (), Response = Answered>,
+    R::Declaration: harmos::operations::OperationDeclaration<Response = Answered>,
 {
 }
 
